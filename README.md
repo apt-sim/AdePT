@@ -4,7 +4,7 @@ Accelerated demonstrator of electromagnetic Particle Transport
 ## Build Requirements
 The following packages are a required to build and run:
 
-- CMake >= 3.17
+- CMake >= 3.18
 - C/C++ Compiler with C++14 support
 - CUDA Toolkit (tested 10.1, min version TBD)
 
