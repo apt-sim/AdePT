@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
 
 # - Project wide CMake settings
 # - Though we check for some absolute paths, ensure there are no others
