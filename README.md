@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2020 CERN
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # AdePT
 
 Accelerated demonstrator of electromagnetic Particle Transport
@@ -25,8 +30,3 @@ Any other code in the project has (C) and license terms clearly indicated.
 
 Contributions of all authors to AdePT and their institutes are acknowledged in
 the `AUTHORS.md` file.
-
-```console
-SPDX-FileCopyrightText: 2020 CERN
-SPDX-License-Identifier: Apache-2.0
-```
