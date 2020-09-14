@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 // Very simple CUDA program to exercise build system
 // Taken from: https://devblogs.nvidia.com/even-easier-introduction-cuda/
 

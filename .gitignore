@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
+
 # Prerequisites
 *.d
 
@@ -30,3 +33,7 @@
 *.exe
 *.out
 *.app
+
+# Editor files and temporaries
+.vscode
+build
