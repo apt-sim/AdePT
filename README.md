@@ -15,11 +15,21 @@ The following packages are a required to build and run:
 - C/C++ Compiler with C++14 support
 - CUDA Toolkit (tested 10.1, min version TBD)
 
-To build, simply run:
+To configure, simply run:
 
 ```console
 $ cmake -S. -B./adept-build <otherargs>
-...
+```
+As <otherargs> one needs to provide the paths to the dependence librarties VecCore and VecGeom:
+```console
+   -DVecCore_DIR=<path_to_veccore_installation>/share/VecCore/cmake \
+   -DVecGeom_DIR=<path_to_vecgeom_installation>/lib/cmake/VecGeom \
+   [-DVc_DIR=<path_to_vc_installation/lib/cmake/Vc] #only in case VecGeom was compiled using Vc backend
+```
+
+To build, run:
+
+```console
 $ cmake --build ./adept-build
 ```
 
