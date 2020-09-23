@@ -42,6 +42,7 @@ set(VecCore_VERSION 0.5.2)
 set(VecCore_BACKEND CUDA)
 find_package(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 message(STATUS "Using VecCore version ${VecCore_VERSION}")
+add_definitions(${VecCore_CUDA_DEFINITIONS})
 set(ADEPT_LIBRARIES_EXTERNAL ${ADEPT_LIBRARIES_EXTERNAL} VecCore::VecCore)
 
 # Find VecGeom geometry headers library
