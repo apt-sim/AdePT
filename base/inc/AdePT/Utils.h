@@ -10,10 +10,6 @@
 #ifndef ADEPT_UTILS_H_
 #define ADEPT_UTILS_H_
 
-#ifndef VECCORE_CUDA_DEVICE_COMPILATION
-#include <atomic>
-#endif
-
 namespace adept {
 namespace utils {
 /**
@@ -21,7 +17,7 @@ namespace utils {
  * @param value Value to round-up
  */
 template <typename Type>
-VECCORE_ATT_HOST_DEVICE static Type round_up_align(Type value, size_t padding = 32)
+VECCORE_ATT_HOST_DEVICE static Type round_up_align(Type value, size_t padding)
 {
   size_t remainder = ((size_t)value) % padding;
   if (remainder == 0) return value;

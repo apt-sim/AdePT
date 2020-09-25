@@ -42,16 +42,13 @@ set(VecCore_VERSION 0.5.2)
 set(VecCore_BACKEND CUDA)
 find_package(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 message(STATUS "Using VecCore version ${VecCore_VERSION}")
-add_definitions(${VecCore_CUDA_DEFINITIONS})
-set(ADEPT_LIBRARIES_EXTERNAL ${ADEPT_LIBRARIES_EXTERNAL} VecCore::VecCore)
 
 # Find VecGeom geometry headers library
 set(VecGeom_VERSION 1.1.7)
 find_package(VecGeom ${VecGeom_VERSION} REQUIRED)
 message(STATUS "Using VecGeom version ${VecGeom_VERSION}")
-# make sure we import VecGeom architecture flags
+# make sure we import VecGeom architecture flags - is this needed?
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VECGEOM_CXX_FLAGS}")
-set(ADEPT_LIBRARIES_EXTERNAL ${ADEPT_LIBRARIES_EXTERNAL} ${VECGEOM_LIBRARIES})
 
 # Builds...
 add_subdirectory(test)

@@ -13,8 +13,16 @@ target_link_libraries(cufisher_price PRIVATE CUDA::curand)
 # Unit test for atomic ops
 add_executable(test_atomic test_atomic.cu)
 target_include_directories(test_atomic PUBLIC
-  ${VecCore_INCLUDE_DIRS}
-  ${VECGEOM_INCLUDE_DIR}
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base/inc>
+  $<INSTALL_INTERFACE:base>
 )
+
+target_link_libraries(test_atomic VecCore::VecCore VecGeom::vecgeom)
+
+# Unit test for BlockData
+add_executable(test_track_block test_track_block.cu)
+target_include_directories(test_track_block PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+  $<INSTALL_INTERFACE:base>
+)
+target_link_libraries(test_track_block VecCore::VecCore VecGeom::vecgeom)
