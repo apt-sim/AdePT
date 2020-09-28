@@ -48,7 +48,7 @@ struct Atomic_t {
   void store(Type desired) { fData.store(desired); }
 
   /** @brief Atomically loads and returns the current value of the atomic variable. */
-  Type load() { return fData.load(); }
+  Type load() const { return fData.load(); }
 
   /** @brief Atomically replaces the underlying value with desired. */
   Type exchange(Type desired) { return fData.exchange(desired); }
@@ -105,7 +105,7 @@ struct Atomic_t {
 
   /** @brief Atomically loads and returns the current value of the atomic variable. */
   VECCORE_ATT_DEVICE
-  Type load() { return fData; }
+  Type load() const { return fData; }
 
   /** @brief Atomically replaces the underlying value with desired. */
   VECCORE_ATT_DEVICE

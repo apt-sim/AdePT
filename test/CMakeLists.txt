@@ -16,7 +16,6 @@ target_include_directories(test_atomic PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-
 target_link_libraries(test_atomic VecCore::VecCore VecGeom::vecgeom)
 
 # Unit test for BlockData
@@ -26,3 +25,11 @@ target_include_directories(test_track_block PUBLIC
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(test_track_block VecCore::VecCore VecGeom::vecgeom)
+
+# Unit test for mpmc_bounded_queue
+add_executable(test_queue test_queue.cu)
+target_include_directories(test_queue PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+  $<INSTALL_INTERFACE:base>
+)
+target_link_libraries(test_queue VecCore::VecCore VecGeom::vecgeom)
