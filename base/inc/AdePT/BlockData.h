@@ -11,6 +11,7 @@
 #define ADEPT_BLOCKDATA_H_
 
 #include <AdePT/Atomic.h>
+#include <AdePT/mpmc_bounded_queue.h>
 #include <VecGeom/base/VariableSizeObj.h>
 
 namespace adept {
@@ -24,15 +25,17 @@ class BlockData : protected vecgeom::VariableSizeObjectInterface<BlockData<Type>
 
 public:
   using AtomicInt_t = adept::Atomic_t<int>;
+  using Queue_t     = adept::mpmc_bounded_queue<int>;
   using Value_t     = Type;
   using Base_t      = vecgeom::VariableSizeObjectInterface<BlockData<Value_t>, Value_t>;
   using ArrayData_t = vecgeom::VariableSizeObj<Value_t>;
 
 private:
-  int fCapacity{0};     ///< Maximum number of elements
-  AtomicInt_t fNbooked; ///< Number of booked elements
-  AtomicInt_t fNused; ///< Number of used elements
-  ArrayData_t fData;    ///< Data follows, has to be last
+  int fCapacity{0};         ///< Maximum number of elements
+  AtomicInt_t fNbooked;     ///< Number of booked elements
+  AtomicInt_t fNused;       ///< Number of used elements
+  Queue_t *fHoles{nullptr}; ///< Queue of holes
+  ArrayData_t fData;        ///< Data follows, has to be last
 
 private:
   friend Base_t;
@@ -50,7 +53,12 @@ private:
   // states have to be constructed using MakeInstance() function
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
-  BlockData(size_t nvalues) : fCapacity(nvalues), fData(nvalues) {}
+  BlockData(size_t nvalues) : fCapacity(nvalues), fData(nvalues)
+  {
+    char *address = (char *)this + Base_t::SizeOfAlignAware(nvalues);
+    fHoles        = (Queue_t *)address;
+    Queue_t::MakeInstanceAt(nvalues, address);
+  }
 
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
@@ -69,7 +77,10 @@ public:
   /** @brief Returns the size in bytes of a BlockData object with given capacity */
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
-  static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
+  static size_t SizeOfInstance(int capacity)
+  {
+    return Base_t::SizeOfAlignAware(capacity) + Queue_t::SizeOfAlignAware(capacity);
+  }
 
   /** @brief Size of container in bytes */
   VECCORE_ATT_HOST_DEVICE
@@ -105,16 +116,35 @@ public:
   VECCORE_FORCE_INLINE
   Type *NextElement()
   {
-    int index = fNbooked.fetch_add(1);
+    // Try to get a hole index if any
+    int index = -1;
+    if (fHoles->dequeue(index)) return &fData[index];
+    index = fNbooked.fetch_add(1);
     if (index >= fCapacity) return nullptr;
     fNused++;
     return &fData[index];
+  }
+
+  /** @brief Release an element */
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  void ReleaseElement(int index)
+  {
+    // No checks currently done that the index was given via NextElement
+    // or that it wasn't already released. Either case will produce errors.
+    fNused--;
+    fHoles->enqueue(index);
   }
 
   /** @brief Number of elements currently distributed */
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
   int GetNused() { return fNused.load(); }
+
+  /** @brief Number of holes in the block */
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  int GetNholes() { return fHoles->size(); }
 
   /** @brief Check if container is fully distributed */
   VECCORE_ATT_HOST_DEVICE

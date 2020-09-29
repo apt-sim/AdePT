@@ -28,13 +28,20 @@ __global__ void testTrackBlock(adept::BlockData<MyTrack> *block)
   track->index = id;
 }
 
+// Kernel function to process the next free track in a block
+__global__ void releaseTrack(adept::BlockData<MyTrack> *block)
+{
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  block->ReleaseElement(id);
+}
+
 ///______________________________________________________________________________________
 int main(void)
 {
   using Block_t         = adept::BlockData<MyTrack>;
   const char *result[2] = {"FAILED", "OK"};
   // Track capacity of the block
-  constexpr int capacity = 1000000;
+  constexpr int capacity = 1 << 20;
 
   // Define the kernels granularity: 10K blocks of 32 treads each
   constexpr dim3 nblocks(10000), nthreads(32);
@@ -42,7 +49,7 @@ int main(void)
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   // Note that if we want to allocate several consecutive block in a buffer, we have to use
   // Block_t::SizeOfAlignAware rather than SizeOfInstance to get the space needed per block
-  size_t blocksize = Block_t::SizeOfAlignAware(capacity);
+  size_t blocksize = Block_t::SizeOfInstance(capacity);
   char *buffer     = nullptr;
   cudaMallocManaged(&buffer, blocksize);
   auto block = adept::BlockData<MyTrack>::MakeInstanceAt(capacity, buffer);
@@ -68,8 +75,17 @@ int main(void)
   }
 
   testOK &= counter1 == counter2;
-  std::cout << result[testOK] << "\n";
 
+  // Now release 32K tracks
+  releaseTrack<<<1000, 32>>>(block);
+  cudaDeviceSynchronize();
+  testOK &= block->GetNused() == nblocks.x * nthreads.x - 32000;
+  testOK &= block->GetNholes() == 32000;
+  // Now allocate in the holes
+  testTrackBlock<<<10, 32>>>(block);
+  cudaDeviceSynchronize();
+  testOK &= block->GetNholes() == (32000 - 320);
+  std::cout << result[testOK] << "\n";
   cudaFree(buffer);
   if (!testOK) return 1;
   return 0;

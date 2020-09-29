@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @file test_atomic.cu
- * @brief Unit test for atomic operations.
+ * @file test_queue.cu
+ * @brief Unit test for queue operations.
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */
 
