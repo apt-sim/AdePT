@@ -43,13 +43,13 @@ class particleProcessor {
      */
     template<typename Acc>  ALPAKA_FN_ACC unsigned int processParticle(Acc const& acc,part* partList, const int& iTh, alpaka::rand::generator::uniform_cuda_hip::Xor& generator, sensitive& SD);
 
-  /**
-   * @brief throws a random number to determine whether to generate secondary particles. An electron will always generate a photon and a photon will always generate
-   * an electron-positron pair. Momentum is conserved such that the initial particle reduces in momentum by the momentum of the additional particles.
-   * Acc is the Alpaka acceleraror type (e.g. CPU or GPU), mypart is the particle to consider and generator is a random number generator provided by alpaka.
-   * Returns a new particle representing either the photon (in e -> gamma brehmstrahhlung case) or positron (in the photon -> e+e- case). If we don't produce
-   * any additional particles 0 is returned.
-   */
+    /**
+    * @brief throws a random number to determine whether to generate secondary particles. An electron will always generate a photon and a photon will always generate
+    * an electron-positron pair. Momentum is conserved such that the initial particle reduces in momentum by the momentum of the additional particles.
+    * Acc is the Alpaka acceleraror type (e.g. CPU or GPU), mypart is the particle to consider and generator is a random number generator provided by alpaka.
+    * Returns a new particle representing either the photon (in e -> gamma brehmstrahhlung case) or positron (in the photon -> e+e- case). If we don't produce
+    * any additional particles 0 is returned.
+    */
     template<typename Acc> ALPAKA_FN_ACC part* splitParticle(Acc const& acc, part& mypart, alpaka::rand::generator::uniform_cuda_hip::Xor& generator);
 
     /**
