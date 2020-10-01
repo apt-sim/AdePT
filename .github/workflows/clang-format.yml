@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
+name: Clang-Format
+
+on: [push, pull_request]
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Apply clang-format
+      id: formatting
+      uses: HSF/clang-format-action@v0.2
+      with:
+        style: 'file'
+    - name: Get the output message
+      run: echo "${{ steps.formatting.outputs.message }}"
