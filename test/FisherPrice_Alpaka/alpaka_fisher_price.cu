@@ -3,6 +3,7 @@
 
 //This is the main include file to give us all of the alpaka classes, functions etc.
 #include <alpaka/alpaka.hpp>
+#include "particleProcessor.h"
 
 int main()
 {
