@@ -53,3 +53,4 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VECGEOM_CXX_FLAGS}")
 
 # Builds...
 add_subdirectory(test)
+add_subdirectory(test/FisherPrice_Alpaka)
