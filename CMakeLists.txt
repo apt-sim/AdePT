@@ -54,3 +54,4 @@ set(ADEPT_LIBRARIES_EXTERNAL ${ADEPT_LIBRARIES_EXTERNAL} ${VECGEOM_LIBRARIES})
 
 # Builds...
 add_subdirectory(test)
+add_subdirectory(test/FisherPrice_Alpaka)
