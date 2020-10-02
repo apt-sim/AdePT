@@ -17,6 +17,7 @@ target_include_directories(test_atomic PUBLIC
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(test_atomic VecCore::VecCore VecGeom::vecgeom)
+add_test(NAME test_atomic COMMAND test_atomic)
 
 # Unit test for BlockData
 add_executable(test_track_block test_track_block.cu)
@@ -25,6 +26,7 @@ target_include_directories(test_track_block PUBLIC
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(test_track_block VecCore::VecCore VecGeom::vecgeom)
+add_test(NAME test_track_block COMMAND test_track_block)
 
 # Unit test for mpmc_bounded_queue
 add_executable(test_queue test_queue.cu)
@@ -33,3 +35,4 @@ target_include_directories(test_queue PUBLIC
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(test_queue VecCore::VecCore VecGeom::vecgeom)
+add_test(NAME test_queue COMMAND test_queue)
