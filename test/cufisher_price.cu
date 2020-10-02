@@ -105,7 +105,7 @@ int main()
   size_t blocksize = Block_t::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
   cudaMallocManaged(&buffer2, blocksize);
-  auto block = adept::BlockData<MyTrack>::MakeInstanceAt(capacity, buffer2);
+  auto block = Block_t::MakeInstanceAt(capacity, buffer2);
 
   // initializing one track in the block
   auto track    = block->NextElement();
