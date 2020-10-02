@@ -22,10 +22,8 @@ class sensitive{
       * */
      sensitive(float zmin, float zmax) {m_zmin = zmin; m_zmax = zmax; m_totalE=0.0; }
 
-     /** variables to represent extent of detector in z direction */ 
-     float m_zmin, m_zmax;
-     /** total energy depoisted in this detector */
-     float m_totalE;
+     float m_zmin, m_zmax; ///< variables to represent extent of detector in z direction
+     float m_totalE; ///< total energy depoisted in this detector 
 
      /** @brief add energy to the sensitive detector from a particle.
       * mypart is the particle being considered and E is its energy loss.
