@@ -62,7 +62,7 @@ __global__ void process(adept::BlockData<MyTrack> *block, Scoring *scor, curandS
 
     // here I need to create a new particle
     auto secondary_track = block->NextElement();
-    assert (secondary_track != nullptr && "No slot available for secondary track" );
+    assert(secondary_track != nullptr && "No slot available for secondary track");
     secondary_track->energy = eloss;
 
     // increase the counter of secondaries
