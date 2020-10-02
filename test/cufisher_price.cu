@@ -54,7 +54,7 @@ __global__ void process(adept::BlockData<MyTrack> *block, Scoring *scor, curandS
     (*block)[particle_index].energy = (eloss < 0.001f ? 0.0f : ((*block)[particle_index].energy - eloss));
 
     // if particle dies (E=0) release the slot
-    if ((*block)[particle_index].energy == 0) block->ReleaseElement(particle_index);
+    if ((*block)[particle_index].energy < 0.001f) block->ReleaseElement(particle_index);
   } else {
     // pair production
     float eloss = 0.5f * (*block)[particle_index].energy;
