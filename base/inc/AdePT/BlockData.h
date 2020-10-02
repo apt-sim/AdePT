@@ -118,7 +118,10 @@ public:
   {
     // Try to get a hole index if any
     int index = -1;
-    if (fHoles->dequeue(index)) return &fData[index];
+    if (fHoles->dequeue(index)) {
+      fNused--;
+      return &fData[index];
+    }
     index = fNbooked.fetch_add(1);
     if (index >= fCapacity) return nullptr;
     fNused++;
