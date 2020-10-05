@@ -5,7 +5,9 @@
 #include <iostream>
 #include <random>
 
-struct particle {
+struct particle
+
+{
   float energy;
 };
 
@@ -15,7 +17,7 @@ int main()
   std::mt19937 gen(rd());
   std::uniform_real_distribution<float> rng;
 
-  std::deque<particle> particleStack;
+       std::deque<particle> particleStack;
 
   // Just one particle
   particleStack.emplace_back(particle{100.0f});
