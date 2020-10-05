@@ -9,8 +9,9 @@ struct particle {
   float energy;
 };
 
-int main() {
-               std::random_device rd;
+int main()
+{
+  std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<float> rng;
 
