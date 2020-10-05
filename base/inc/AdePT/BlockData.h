@@ -55,14 +55,32 @@ private:
   VECCORE_FORCE_INLINE
   BlockData(size_t nvalues) : fCapacity(nvalues), fData(nvalues)
   {
-    char *address = (char *)this + Base_t::SizeOfAlignAware(nvalues);
+    char *address = (char *)this + Base_t::SizeOfAlignAware(nvalues) - BlockData<Type>::SizeOfExtra(nvalues);
     fHoles        = (Queue_t *)address;
     Queue_t::MakeInstanceAt(nvalues, address);
   }
 
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
-  BlockData(size_t /*new_size*/, BlockData & /*other*/) {}
+  BlockData(BlockData const &other) : BlockData(other.fCapacity, other) {}
+
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  BlockData(size_t new_size, BlockData const &other) : Base_t(other), fCapacity(new_size), fData(new_size, other.fData)
+  {
+    char *address = (char *)this + Base_t::SizeOfAlignAware(new_size) - BlockData<Type>::SizeOfExtra(new_size);
+    fHoles        = (Queue_t *)address;
+    Queue_t::MakeCopyAt(new_size, *other.fHoles, address);
+  }
+
+  VECGEOM_FORCE_INLINE
+  VECCORE_ATT_HOST_DEVICE
+  ~BlockData() {}
+
+  /** @brief Returns the size in bytes of extra queue data needed by BlockData object with given capacity */
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  static size_t SizeOfExtra(int capacity) { return Queue_t::SizeOfAlignAware(capacity); }
 
 public:
   ///< Enumerate the part of the private interface, we want to expose.
@@ -77,15 +95,7 @@ public:
   /** @brief Returns the size in bytes of a BlockData object with given capacity */
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
-  static size_t SizeOfInstance(int capacity)
-  {
-    return Base_t::SizeOfAlignAware(capacity) + Queue_t::SizeOfAlignAware(capacity);
-  }
-
-  /** @brief Size of container in bytes */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
-  int SizeOf() const { return BlockData<Value_t>::SizeOfInstance(fCapacity); }
+  static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
 
   /** @brief Maximum number of elements */
   VECCORE_ATT_HOST_DEVICE
