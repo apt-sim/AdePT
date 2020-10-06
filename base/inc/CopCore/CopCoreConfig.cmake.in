@@ -1,0 +1,7 @@
+set(CopCore_VERSION @CopCore_VERSION@)
+
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/CopCoreTargets.cmake")
+
+check_required_components(CopCore)
