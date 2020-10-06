@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-# Record the command line invoking the cmake command. Replay with recmake_initial.sh. 
+# Record the command line invoking the cmake command. Replay with recmake_initial.sh.
 include(cmake/RecordCmdLine.cmake)
 
 project(Adept
@@ -34,6 +34,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
 set(CMAKE_CUDA_STANDARD_REQUIRED ${CMAKE_CXX_STANDARD_REQUIRED})
 set(CMAKE_CUDA_EXTENSIONS OFF)
+
+# (for now internal) CopCore dependency
+add_subdirectory(base/inc/CopCore)
 
 # With CUDA language enabled above, this should find the toolkit alongside the compiler
 find_package(CUDAToolkit REQUIRED)

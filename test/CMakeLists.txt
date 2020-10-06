@@ -1,6 +1,10 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
+# - Test that linkage to CopCore target works
+add_executable(test_copcore_link test_copcore_link.cpp)
+target_link_libraries(test_copcore_link PRIVATE CopCore::CopCore)
+
 
 # - Minimal test of cuda compilation
 add_executable(example_add example_add.cu)
