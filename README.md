@@ -25,6 +25,7 @@ As <otherargs> one needs to provide the paths to the dependence librarties VecCo
    -DVecCore_DIR=<path_to_veccore_installation>/share/VecCore/cmake \
    -DVecGeom_DIR=<path_to_vecgeom_installation>/lib/cmake/VecGeom \
    [-DVc_DIR=<path_to_vc_installation/lib/cmake/Vc] #only in case VecGeom was compiled using Vc backend
+   [-DCMAKE_PREFIX_PATH=<alpakaInstallDir>] #only in case you want to build FisherPrice_Alpaka. <alpakaInstallDir> should point at the folder in which "include/alpaka/" is found.
 ```
 
 To build, run:
