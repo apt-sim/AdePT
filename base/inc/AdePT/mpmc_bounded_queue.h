@@ -114,11 +114,6 @@ public:
   VECCORE_FORCE_INLINE
   static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
 
-  /** @brief Size of container in bytes */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
-  int SizeOf() const { return mpmc_bounded_queue<Type>::SizeOfInstance(fCapacity); }
-
   /** @brief Maximum number of elements */
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
