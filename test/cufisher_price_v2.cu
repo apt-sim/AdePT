@@ -7,7 +7,7 @@
 
 #include <AdePT/BlockData.h>
 
-using Queue_t      = adept::mpmc_bounded_queue<int>;
+using Queue_t = adept::mpmc_bounded_queue<int>;
 
 struct MyTrack {
   int index{0};
@@ -34,10 +34,8 @@ struct Scoring {
   }
 };
 
-
 // kernel function that assigns next process to the particle
-__global__ void select_process(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states,
-			       Queue_t** queues)
+__global__ void select_process(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states, Queue_t **queues)
 {
   int particle_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -52,20 +50,17 @@ __global__ void select_process(adept::BlockData<MyTrack> *block, Scoring *scor, 
 
   if (r > 0.5f) {
     queues[0]->enqueue(particle_index);
-  }
-  else { 
-  queues[1]->enqueue(particle_index);
-
+  } else {
+    queues[1]->enqueue(particle_index);
   }
 }
 
-
 // kernel function that does energy loss
-__global__ void process_eloss(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states, Queue_t** queues)
+__global__ void process_eloss(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states, Queue_t **queues)
 {
   int particle_index;
   if (!queues[0]->dequeue(particle_index)) return;
- 
+
   // check if the particle is still alive (E>0)
   if ((*block)[particle_index].energy == 0) return;
 
@@ -74,33 +69,33 @@ __global__ void process_eloss(adept::BlockData<MyTrack> *block, Scoring *scor, c
   float eloss = 0.2f * (*block)[particle_index].energy;
   scor->totalEnergyLoss.fetch_add(eloss < 0.001f ? (*block)[particle_index].energy : eloss);
   (*block)[particle_index].energy = (eloss < 0.001f ? 0.0f : ((*block)[particle_index].energy - eloss));
-  
+
   // if particle dies (E=0) release the slot
   if ((*block)[particle_index].energy < 0.001f) block->ReleaseElement(particle_index);
 }
 
 // kernel function that does pair production
-__global__ void process_pairprod(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states, Queue_t** queues)
+__global__ void process_pairprod(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states,
+                                 Queue_t **queues)
 {
   int particle_index;
   if (!queues[1]->dequeue(particle_index)) return;
 
   // check if the particle is still alive (E>0)
   if ((*block)[particle_index].energy == 0) return;
-  
+
   // pair production
   float eloss = 0.5f * (*block)[particle_index].energy;
   (*block)[particle_index].energy -= eloss;
-  
+
   // here I need to create a new particle
   auto secondary_track = block->NextElement();
   assert(secondary_track != nullptr && "No slot available for secondary track");
   secondary_track->energy = eloss;
-  
+
   // increase the counter of secondaries
   scor->secondaries.fetch_add(1);
 }
-
 
 /* this GPU kernel function is used to initialize the random states */
 __global__ void init(curandState_t *states)
@@ -121,23 +116,22 @@ int main()
 
   // Capacity of the different containers
   constexpr int capacity = 1 << 20;
-  
-  using Queue_t      = adept::mpmc_bounded_queue<int>;
+
+  using Queue_t = adept::mpmc_bounded_queue<int>;
 
   constexpr int numberOfProcesses = 3;
   char *buffer[numberOfProcesses];
-  Queue_t* queue[numberOfProcesses];
-  
+  Queue_t *queue[numberOfProcesses];
+
   size_t buffersize = Queue_t::SizeOfInstance(capacity);
 
-  for(int i=0; i<numberOfProcesses; i++)
-    {
-      buffer[i]      = nullptr;
-      cudaMallocManaged(&buffer[i], buffersize);
+  for (int i = 0; i < numberOfProcesses; i++) {
+    buffer[i] = nullptr;
+    cudaMallocManaged(&buffer[i], buffersize);
 
-      queue[i] = Queue_t::MakeInstanceAt(capacity, buffer[i]);
-    }
-  
+    queue[i] = Queue_t::MakeInstanceAt(capacity, buffer[i]);
+  }
+
   // Allocate the content of Scoring in a buffer
   char *buffer1 = nullptr;
   cudaMallocManaged(&buffer1, sizeof(Scoring));
@@ -149,7 +143,7 @@ int main()
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   // Note that if we want to allocate several consecutive block in a buffer, we have to use
   // Block_t::SizeOfAlignAware rather than SizeOfInstance to get the space needed per block
-  
+
   using Block_t    = adept::BlockData<MyTrack>;
   size_t blocksize = Block_t::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
@@ -175,10 +169,10 @@ int main()
     select_process<<<numBlocks, nthreads>>>(block, scor, state, queue);
 
     cudaDeviceSynchronize();
-    // call the process kernels 
-    numBlocks_eloss.x = (queue[0]->size()+ nthreads.x - 1) / nthreads.x;
+    // call the process kernels
+    numBlocks_eloss.x    = (queue[0]->size() + nthreads.x - 1) / nthreads.x;
     numBlocks_pairprod.x = (queue[1]->size() + nthreads.x - 1) / nthreads.x;
-    
+
     process_eloss<<<numBlocks_eloss, nthreads>>>(block, scor, state, queue);
 
     process_pairprod<<<numBlocks_pairprod, nthreads>>>(block, scor, state, queue);
