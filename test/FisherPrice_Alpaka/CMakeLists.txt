@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: 2020 CERN
-// SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
 
 #We must specify that we want to use alpaka
 find_package(alpaka)
