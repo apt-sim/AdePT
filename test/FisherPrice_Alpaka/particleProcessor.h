@@ -84,7 +84,11 @@ ALPAKA_FN_ACC float particleProcessor::energyLoss(Acc const &acc, part &mypart,
   // take off a random 0 to 0.2 MeV in the direction of momentum
   auto func(alpaka::rand::distribution::createUniformReal<float>(acc));
   float enLoss = 0.02 * func(generator);
+<<<<<<< HEAD
   mypart.getMom().energyLoss(enLoss);
+=======
+  mypart.m_mom.energyLoss(enLoss);
+>>>>>>> 85af853c5698e95e5887a6b150d57ace733d7e25
   return enLoss;
 }
 

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-//This is the main include file to give us all of the alpaka classes, functions etc.
+// This is the main include file to give us all of the alpaka classes, functions etc.
 #include <alpaka/alpaka.hpp>
 
 #include <iostream>
