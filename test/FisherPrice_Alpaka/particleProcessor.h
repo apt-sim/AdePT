@@ -84,7 +84,9 @@ ALPAKA_FN_ACC float particleProcessor::energyLoss(Acc const &acc, part &mypart,
   // take off a random 0 to 0.2 MeV in the direction of momentum
   auto func(alpaka::rand::distribution::createUniformReal<float>(acc));
   float enLoss = 0.02 * func(generator);
-  mypart.getMom().energyLoss(enLoss);
+  vec3 theMom  = mypart.getMom();
+  theMom.energyLoss(enLoss);
+  mypart.setMom(theMom);
   return enLoss;
 }
 
@@ -138,7 +140,9 @@ ALPAKA_FN_ACC part *particleProcessor::splitParticle(Acc const &acc, part &mypar
     // Create a new particle in this position with the scaled down momentum
     part *newpart = new part(mypart.getPos(), mom, 22);
     // scale the momentum of the original particle
-    mypart.getMom().scaleLength(fracb);
+    vec3 origMom = mypart.getMom();
+    origMom.scaleLength(fracb);
+    mypart.setMom(origMom);
     // To make it look like an EM shower, if the particle is a photon we split into e+ e-
     if (mypart.getPType() == 22) {
       mypart.setPType(13);
