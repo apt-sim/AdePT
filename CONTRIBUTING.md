@@ -89,7 +89,17 @@ Make sure that the documentation is still valid after your changes. Perform upda
 
 #### C++
 
-The AdePT project uses [clang-format](http://clang.llvm.org/docs/ClangFormat.html) for formatting its C++ source code. A `.clang-format` configuration file comes with the project **FIXME** and should be used to automatically format the code. Developers can use the provided Docker image to format their project or install clang-format locally. Developers should be aware that clang-format will behave differently for different versions, so installing the same clang version as used in the CI **FIXME** is recommended. There are several instructions available on how to integrate clang-format with your favourite IDE (e.g. [eclipse](https://marketplace.eclipse.org/content/cppstyle), [Xcode](https://github.com/travisjeffery/ClangFormat-Xcode), [emacs](http://clang.llvm.org/docs/ClangFormat.html#emacs-integration)). The AdePT CI system will automatically apply code reformatting using the provided clang-format configuration once pull requests are opened. However, developers are encouraged to use this code formatter also locally to reduce conflicts due to formatting issues.
+The AdePT project uses [clang-format](http://clang.llvm.org/docs/ClangFormat.html) for formatting its C++ source code. A `.clang-format` configuration file comes with the project and should be used to automatically format the code. Developers can use the **FIXME** provided Docker image to format their project or install `clang-format` locally.
+Developers should be aware that clang-format will behave differently for different versions, so should prefer the same version as recommended for
+AdePT, which is 9. There are several instructions available on how to integrate clang-format with your favourite IDE (e.g. [eclipse](https://marketplace.eclipse.org/content/cppstyle), [Xcode](https://github.com/travisjeffery/ClangFormat-Xcode), [emacs](http://clang.llvm.org/docs/ClangFormat.html#emacs-integration)). It can also be integrated with git
+via the [`git-clang-format`](https://github.com/llvm-mirror/clang/blob/master/tools/clang-format/git-clang-format) Python 2/3 script supplied by installs of `clang-format` (or simply copy it to your `PATH` and make it executable). It may be used to check and apply formatting to files changed
+in 1-N commits, e.g. to apply formatting to files changed in the last commit:
+
+```console
+$ git clang-format HEAD~1
+```
+
+Run `git clang-format -h` for further options. The AdePT CI system will **FIXME** automatically check code reformatting using the provided clang-format configuration on pull requests. However, developers are encouraged to use code formating locally to reduce conflicts due to formatting issues.
 
 In addition, some conventions are used in AdePT code, details can be found [here](https://AdePT.readthedocs.io/en/latest/codeguide.html). For Doxygen documentation, please follow these recommendations:
 
