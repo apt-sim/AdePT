@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <cassert>
 #include <AdePT/Atomic.h>
-#include <VecGeom/base/VariableSizeObj.h>
+#include <CopCore/CopCore.h>
 
 namespace adept {
 namespace internal {
@@ -32,12 +32,12 @@ struct Cell_t {
 /** @brief Class MPMC bounded queue */
 template <typename Type>
 class mpmc_bounded_queue
-    : protected vecgeom::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, internal::Cell_t<Type>> {
+    : protected copcore::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, internal::Cell_t<Type>> {
 public:
   using AtomicInt_t = adept::Atomic_t<int>;
   using Value_t     = internal::Cell_t<Type>;
-  using Base_t      = vecgeom::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, Value_t>;
-  using ArrayData_t = vecgeom::VariableSizeObj<Value_t>;
+  using Base_t      = copcore::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, Value_t>;
+  using ArrayData_t = copcore::VariableSizeObj<Value_t>;
 
 private:
   int const fCapacity;  ///< Capacity of the queue

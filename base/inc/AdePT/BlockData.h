@@ -10,9 +10,9 @@
 #ifndef ADEPT_BLOCKDATA_H_
 #define ADEPT_BLOCKDATA_H_
 
+#include <CopCore/CopCore.h>
 #include <AdePT/Atomic.h>
 #include <AdePT/mpmc_bounded_queue.h>
-#include <VecGeom/base/VariableSizeObj.h>
 
 namespace adept {
 
@@ -21,14 +21,14 @@ namespace adept {
   Write access to data elements in the block is given atomically, up to the capacity.
  */
 template <typename Type>
-class BlockData : protected vecgeom::VariableSizeObjectInterface<BlockData<Type>, Type> {
+class BlockData : protected copcore::VariableSizeObjectInterface<BlockData<Type>, Type> {
 
 public:
   using AtomicInt_t = adept::Atomic_t<int>;
   using Queue_t     = adept::mpmc_bounded_queue<int>;
   using Value_t     = Type;
-  using Base_t      = vecgeom::VariableSizeObjectInterface<BlockData<Value_t>, Value_t>;
-  using ArrayData_t = vecgeom::VariableSizeObj<Value_t>;
+  using Base_t      = copcore::VariableSizeObjectInterface<BlockData<Value_t>, Value_t>;
+  using ArrayData_t = copcore::VariableSizeObj<Value_t>;
 
 private:
   int fCapacity{0};         ///< Maximum number of elements
@@ -73,7 +73,7 @@ private:
     Queue_t::MakeCopyAt(new_size, *other.fHoles, address);
   }
 
-  VECGEOM_FORCE_INLINE
+  VECCORE_FORCE_INLINE
   VECCORE_ATT_HOST_DEVICE
   ~BlockData() {}
 
