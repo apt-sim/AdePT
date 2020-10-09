@@ -10,5 +10,8 @@ if(NOT alpaka_FOUND)
 else()  
   alpaka_add_executable(FisherPriceAlpaka alpaka_fisher_price.cu)
   target_link_libraries(FisherPriceAlpaka PUBLIC alpaka::alpaka)
+
+  alpaka_add_executable(unitTests_FisherPriceAlpaka unitTests_alpaka_fisher_price.cu)
+  target_link_libraries(unitTests_FisherPriceAlpaka PUBLIC alpaka::alpaka)
 endif()
 
