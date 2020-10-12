@@ -9,11 +9,12 @@
 
 #include <iostream>
 
+using namespace alpaka;
+
 struct testEnergyLoss{
 template <typename Acc>
   ALPAKA_FN_ACC void operator()(Acc const &acc,part *partList, float* eLoss) const {
 
-    using namespace alpaka;
     // iTh is the thread number we use this throughout
     uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
 
@@ -28,9 +29,26 @@ template <typename Acc>
   }
 };
 
+struct testSplitParticle{
+  template <typename Acc>
+  ALPAKA_FN_ACC void operator()(Acc const &acc,part *partList, part* newPart) const {
+
+    // iTh is the thread number we use this throughout
+    uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
+
+    // Create an alpaka random generator using a seed of 1984
+    auto generator = rand::generator::createDefault(acc, 1984, iTh);
+
+    //Create a particleProcessor class, from which we can test its member functions.
+    particleProcessor particleProcessor;
+
+    part* partAfterSplit = (particleProcessor.splitParticle(acc,partList[iTh], generator));
+    if (partAfterSplit) newPart[iTh] = *partAfterSplit;
+  }
+};
+
 int main()
 {
-  using namespace alpaka;
   using Dim = dim::DimInt<1>;
   using Idx = uint32_t;
 
@@ -49,7 +67,8 @@ int main()
   auto h_event = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
 
   // All photons have momentum 20 GeV along z
-  vec3 mom = vec3(0., 0., 20000.);
+  float initialMomentum = 20000.;
+  vec3 mom = vec3(0., 0., initialMomentum);
 
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
@@ -89,6 +108,25 @@ int main()
   }
 
   std::cout << "Status of testEnergyLoss is " << testOK << std::endl;
+
+  //Create data for testing particleProcessor.splitParticle
+  auto d_newPart = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto h_newPart = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
+
+  testSplitParticle testSplitParticle;
+  auto taskRunTestSplitParticle = kernel::createTaskKernel<Acc>(workDiv, testSplitParticle, mem::view::getPtrNative(d_event), mem::view::getPtrNative(d_newPart));
+
+  queue::enqueue(queue, taskRunTestSplitParticle);
+
+  mem::view::copy(queue, h_newPart, d_newPart, bufferExtent);
+
+  testOK = true;
+  for (unsigned int counter = 0; counter < NPART; counter++){
+    part newPart = mem::view::getPtrNative(h_newPart)[counter];
+    if ( (newPart.getMom().length()) > 20000.) testOK = false;
+  }
+
+  std::cout << "Status of testSplitParticle is " << testOK << std::endl; 
 
   return 0;
 }
