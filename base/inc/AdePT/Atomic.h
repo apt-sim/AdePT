@@ -27,6 +27,14 @@ struct Atomic_t {
   VECCORE_ATT_HOST_DEVICE
   Atomic_t() : fData{0} {}
 
+  /** @brief Copy constructor */
+  VECCORE_ATT_HOST_DEVICE
+  Atomic_t(Atomic_t const &other) { store(other.load()); }
+
+  /** @brief Assignment */
+  VECCORE_ATT_HOST_DEVICE
+  Atomic_t &operator=(Atomic_t const &other) { store(other.load()); }
+
   /** @brief Emplace the data at a given address */
   VECCORE_ATT_HOST_DEVICE
   static Atomic_t *MakeInstanceAt(void *addr)
