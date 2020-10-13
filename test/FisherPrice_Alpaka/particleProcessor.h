@@ -21,7 +21,7 @@ class particleProcessor {
 
 public:
   /** @brief A minimal constructor */
-  ALPAKA_FN_ACC particleProcessor() {}
+  ALPAKA_FN_ACC particleProcessor() { m_encourageSplit = false;}
 
   /** @brief A minimal destructor */
   ALPAKA_FN_ACC ~particleProcessor() {}
@@ -73,6 +73,20 @@ public:
   template <typename Acc>
   ALPAKA_FN_ACC part *step(Acc const &acc, part &processPart, alpaka::rand::generator::uniform_cuda_hip::Xor &generator,
                            sensitive &SD);
+
+  /**
+   * @brief If called this lowers the threshold used in @sa splitParticle from 0.99 to 0.5.
+   * This is only to be done in unit tests in order to ensure all code paths are executed.
+   */
+  ALPAKA_FN_ACC void lowerThreshold() { m_encourageSplit = true;}
+
+  private:
+    /** Toggle to increase probablity of splitting when running unit tests, such that we ensure
+     * all code execution paths are covered.
+     */
+    bool m_encourageSplit;
+
+
 };
 
 #endif
@@ -126,7 +140,10 @@ ALPAKA_FN_ACC part *particleProcessor::splitParticle(Acc const &acc, part &mypar
   // throw a random number if >0.99 do a splitting (e.g. a Brem or pair production)
   auto func(alpaka::rand::distribution::createUniformReal<float>(acc));
 
-  if (func(generator) > 0.99) {
+  float threshold = 0.99;
+  if (m_encourageSplit) threshold = 0.5;
+
+  if (func(generator) > threshold) {
     // This is a dummy splitter. We do a process a->b+c
     // b will take fracb of momentum with fracb betweek 0.5 and 0.9
     // c will take fracc of the momentum with fracc between 0. and 1-fracb

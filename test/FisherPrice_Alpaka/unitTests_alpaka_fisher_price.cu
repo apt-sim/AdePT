@@ -42,9 +42,37 @@ struct testSplitParticle {
 
     // Create a particleProcessor class, from which we can test its member functions.
     particleProcessor particleProcessor;
+    particleProcessor.lowerThreshold();
 
+    //Now we call splitParticle. This could return either a valid pointer, if we
+    //split the particle or a null pointer if we don't. 
     part *partAfterSplit = (particleProcessor.splitParticle(acc, partList[iTh], generator));
     if (partAfterSplit) newPart[iTh] = *partAfterSplit;
+  }
+};
+
+struct testStep {
+  template <typename Acc>
+  ALPAKA_FN_ACC void operator()(Acc const &acc, part *partList, part *newPart) const
+  {
+
+    // iTh is the thread number we use this throughout
+    uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
+
+    // Create an alpaka random generator using a seed of 1984
+    auto generator = rand::generator::createDefault(acc, 1984, iTh);
+
+    // Create a particleProcessor class, from which we can test its member functions.
+    particleProcessor particleProcessor;
+    particleProcessor.lowerThreshold();
+
+    // dummy sensitive, not used yet
+    sensitive SD(400., 500.);
+
+    //Now we call step. This could return either a valid pointer, if we
+    //split the particle via the call internally to splitParticle or a null pointer if we don't. 
+    part *partAfterStep = (particleProcessor.step(acc, partList[iTh], generator,SD));
+    if (partAfterStep) newPart[iTh] = *partAfterStep;
   }
 };
 
@@ -114,27 +142,62 @@ int main()
   std::cout << "Status of testEnergyLoss is " << testOK << std::endl;
 
   // Create data for testing particleProcessor.splitParticle
-  auto d_newPart = mem::buf::alloc<part, Idx>(device, bufferExtent);
-  auto h_newPart = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
+  auto d_newPartSplit = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto h_newPartSplit = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
 
   //Create a task for testSplitParticle, that we can run and then run it via a queue
   testSplitParticle testSplitParticle;
   auto taskRunTestSplitParticle = kernel::createTaskKernel<Acc>(
-      workDiv, testSplitParticle, mem::view::getPtrNative(d_event), mem::view::getPtrNative(d_newPart));
+      workDiv, testSplitParticle, mem::view::getPtrNative(d_event), mem::view::getPtrNative(d_newPartSplit));
 
   queue::enqueue(queue, taskRunTestSplitParticle);
   //copy the part objects back to the host
-  mem::view::copy(queue, h_newPart, d_newPart, bufferExtent);
+  mem::view::copy(queue, h_newPartSplit, d_newPartSplit, bufferExtent);
 
   //Then we test the output part for each thread.
   //By construction the particle momentum should not be more than the initial momentum.
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
-    part newPart = mem::view::getPtrNative(h_newPart)[counter];
+    part newPart = mem::view::getPtrNative(h_newPartSplit)[counter];
     if ( (newPart.getMom().length()) > initialMomentum) testOK = false;
   }
 
   std::cout << "Status of testSplitParticle is " << testOK << std::endl;
+
+  // Create data for testing particleProcessor.step
+  auto d_newPartStep = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto h_newPartStep = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
+
+  //Create a task for testStep, that we can run and then run it via a queue
+  testStep testStep;
+  auto taskRunTestStep = kernel::createTaskKernel<Acc>(
+      workDiv, testStep, mem::view::getPtrNative(d_event), mem::view::getPtrNative(d_newPartStep));
+
+  queue::enqueue(queue, taskRunTestStep);
+  //copy the new part objects back to the host
+  mem::view::copy(queue, h_newPartStep, d_newPartStep, bufferExtent);
+
+  //Then we test the output part for each thread.
+  //By construction the z-position should be the thread number + 0.1
+  //As is the case in the test for SplitParticle by construction the particle momentum 
+  //should not be more than the initial momentum (because step calls splitParticle internally)
+  testOK = true;
+  for (unsigned int counter = 0; counter < NPART; counter++) {
+    part newPart = mem::view::getPtrNative(h_newPartStep)[counter];
+    //skip cases where no splitting occurred, because then there is no particle to check.
+    if (!newPart.getMom().length() > 0) continue;
+    if ( (newPart.getMom().length()) > initialMomentum) {
+      std::cout << " Error in testStep: New momentum and initial momentum are " << newPart.getMom().length() << " and " << initialMomentum << std::endl;
+      testOK = false;
+    }
+    float expectedZPosition = counter + 0.1;
+    if ( fabs(newPart.getPos().z() - expectedZPosition) > 0.0001) {
+      std::cout << " Error in testStep: New position and expected Z position are " << newPart.getPos().z() << " and " << expectedZPosition << std::endl;
+      testOK = false;      
+    }
+  }
+
+  std::cout << "Status of testStep is " << testOK << std::endl;
 
   return 0;
 }
