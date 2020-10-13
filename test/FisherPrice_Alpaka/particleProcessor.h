@@ -21,7 +21,7 @@ class particleProcessor {
 
 public:
   /** @brief A minimal constructor */
-  ALPAKA_FN_ACC particleProcessor() { m_encourageSplit = false;}
+  ALPAKA_FN_ACC particleProcessor() { m_encourageSplit = false; }
 
   /** @brief A minimal destructor */
   ALPAKA_FN_ACC ~particleProcessor() {}
@@ -78,15 +78,13 @@ public:
    * @brief If called this lowers the threshold used in @sa splitParticle from 0.99 to 0.5.
    * This is only to be done in unit tests in order to ensure all code paths are executed.
    */
-  ALPAKA_FN_ACC void lowerThreshold() { m_encourageSplit = true;}
+  ALPAKA_FN_ACC void lowerThreshold() { m_encourageSplit = true; }
 
-  private:
-    /** Toggle to increase probablity of splitting when running unit tests, such that we ensure
-     * all code execution paths are covered.
-     */
-    bool m_encourageSplit;
-
-
+private:
+  /** Toggle to increase probablity of splitting when running unit tests, such that we ensure
+   * all code execution paths are covered.
+   */
+  bool m_encourageSplit;
 };
 
 #endif

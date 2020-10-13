@@ -44,8 +44,8 @@ struct testSplitParticle {
     particleProcessor particleProcessor;
     particleProcessor.lowerThreshold();
 
-    //Now we call splitParticle. This could return either a valid pointer, if we
-    //split the particle or a null pointer if we don't. 
+    // Now we call splitParticle. This could return either a valid pointer, if we
+    // split the particle or a null pointer if we don't.
     part *partAfterSplit = (particleProcessor.splitParticle(acc, partList[iTh], generator));
     if (partAfterSplit) newPart[iTh] = *partAfterSplit;
   }
@@ -69,9 +69,9 @@ struct testStep {
     // dummy sensitive, not used yet
     sensitive SD(400., 500.);
 
-    //Now we call step. This could return either a valid pointer, if we
-    //split the particle via the call internally to splitParticle or a null pointer if we don't. 
-    part *partAfterStep = (particleProcessor.step(acc, partList[iTh], generator,SD));
+    // Now we call step. This could return either a valid pointer, if we
+    // split the particle via the call internally to splitParticle or a null pointer if we don't.
+    part *partAfterStep = (particleProcessor.step(acc, partList[iTh], generator, SD));
     if (partAfterStep) newPart[iTh] = *partAfterStep;
   }
 };
@@ -151,7 +151,7 @@ int main()
       workDiv, testSplitParticle, mem::view::getPtrNative(d_event), mem::view::getPtrNative(d_newPartSplit));
 
   queue::enqueue(queue, taskRunTestSplitParticle);
-  //copy the part objects back to the host
+  // copy the part objects back to the host
   mem::view::copy(queue, h_newPartSplit, d_newPartSplit, bufferExtent);
 
   // Then we test the output part for each thread.
@@ -159,7 +159,7 @@ int main()
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
     part newPart = mem::view::getPtrNative(h_newPartSplit)[counter];
-    if ( (newPart.getMom().length()) > initialMomentum) testOK = false;
+    if ((newPart.getMom().length()) > initialMomentum) testOK = false;
   }
 
   std::cout << "Status of testSplitParticle is " << testOK << std::endl;
@@ -168,32 +168,34 @@ int main()
   auto d_newPartStep = mem::buf::alloc<part, Idx>(device, bufferExtent);
   auto h_newPartStep = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
 
-  //Create a task for testStep, that we can run and then run it via a queue
+  // Create a task for testStep, that we can run and then run it via a queue
   testStep testStep;
-  auto taskRunTestStep = kernel::createTaskKernel<Acc>(
-      workDiv, testStep, mem::view::getPtrNative(d_event), mem::view::getPtrNative(d_newPartStep));
+  auto taskRunTestStep = kernel::createTaskKernel<Acc>(workDiv, testStep, mem::view::getPtrNative(d_event),
+                                                       mem::view::getPtrNative(d_newPartStep));
 
   queue::enqueue(queue, taskRunTestStep);
-  //copy the new part objects back to the host
+  // copy the new part objects back to the host
   mem::view::copy(queue, h_newPartStep, d_newPartStep, bufferExtent);
 
-  //Then we test the output part for each thread.
-  //By construction the z-position should be the thread number + 0.1
-  //As is the case in the test for SplitParticle by construction the particle momentum 
-  //should not be more than the initial momentum (because step calls splitParticle internally)
+  // Then we test the output part for each thread.
+  // By construction the z-position should be the thread number + 0.1
+  // As is the case in the test for SplitParticle by construction the particle momentum
+  // should not be more than the initial momentum (because step calls splitParticle internally)
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
     part newPart = mem::view::getPtrNative(h_newPartStep)[counter];
-    //skip cases where no splitting occurred, because then there is no particle to check.
+    // skip cases where no splitting occurred, because then there is no particle to check.
     if (!newPart.getMom().length() > 0) continue;
-    if ( (newPart.getMom().length()) > initialMomentum) {
-      std::cout << " Error in testStep: New momentum and initial momentum are " << newPart.getMom().length() << " and " << initialMomentum << std::endl;
+    if ((newPart.getMom().length()) > initialMomentum) {
+      std::cout << " Error in testStep: New momentum and initial momentum are " << newPart.getMom().length() << " and "
+                << initialMomentum << std::endl;
       testOK = false;
     }
     float expectedZPosition = counter + 0.1;
-    if ( fabs(newPart.getPos().z() - expectedZPosition) > 0.0001) {
-      std::cout << " Error in testStep: New position and expected Z position are " << newPart.getPos().z() << " and " << expectedZPosition << std::endl;
-      testOK = false;      
+    if (fabs(newPart.getPos().z() - expectedZPosition) > 0.0001) {
+      std::cout << " Error in testStep: New position and expected Z position are " << newPart.getPos().z() << " and "
+                << expectedZPosition << std::endl;
+      testOK = false;
     }
   }
 
