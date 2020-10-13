@@ -98,11 +98,11 @@ int main()
                                                              mem::view::getPtrNative(d_ELoss));
 
   queue::enqueue(queue, taskRunTestEnergyLoss);
-  //copy the calculated energy losses back to the host.
+  // copy the calculated energy losses back to the host.
   mem::view::copy(queue, h_ELoss, d_ELoss, bufferExtent);
 
-  //Then we test the output of energyLoss for each thread.
-  //By construction the energy loss should not be more than 0.2 MeV.
+  // Then we test the output of energyLoss for each thread.
+  // By construction the energy loss should not be more than 0.2 MeV.
   bool testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
 
@@ -110,28 +110,28 @@ int main()
     if (ELoss > 0.2) testOK = false;
   }
 
-  //Print the test result.
+  // Print the test result.
   std::cout << "Status of testEnergyLoss is " << testOK << std::endl;
 
   // Create data for testing particleProcessor.splitParticle
   auto d_newPart = mem::buf::alloc<part, Idx>(device, bufferExtent);
   auto h_newPart = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
 
-  //Create a task for testSplitParticle, that we can run and then run it via a queue
+  // Create a task for testSplitParticle, that we can run and then run it via a queue
   testSplitParticle testSplitParticle;
   auto taskRunTestSplitParticle = kernel::createTaskKernel<Acc>(
       workDiv, testSplitParticle, mem::view::getPtrNative(d_event), mem::view::getPtrNative(d_newPart));
 
   queue::enqueue(queue, taskRunTestSplitParticle);
-  //copy the part objects back to the host
+  // copy the part objects back to the host
   mem::view::copy(queue, h_newPart, d_newPart, bufferExtent);
 
-  //Then we test the output part for each thread.
-  //By construction the particle momentum should not be more than the initial momentum.
+  // Then we test the output part for each thread.
+  // By construction the particle momentum should not be more than the initial momentum.
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
     part newPart = mem::view::getPtrNative(h_newPart)[counter];
-    if ( (newPart.getMom().length()) > initialMomentum) testOK = false;
+    if ((newPart.getMom().length()) > initialMomentum) testOK = false;
   }
 
   std::cout << "Status of testSplitParticle is " << testOK << std::endl;
