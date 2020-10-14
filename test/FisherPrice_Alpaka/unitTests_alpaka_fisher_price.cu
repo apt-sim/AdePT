@@ -122,7 +122,7 @@ int main()
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
     vec3 pos                             = vec3(0., 0., (float)ii);
-    mem::view::getPtrNative(h_event)[ii] = part(pos, mom, 22);   
+    mem::view::getPtrNative(h_event)[ii] = part(pos, mom, 22);
   }
 
   // Copy particles to the GPU
@@ -136,16 +136,16 @@ int main()
   auto workDiv = workdiv::WorkDivMembers<Dim, Idx>{blocksPerGrid, threadsPerBlock, elementsPerThread};
 
   // Create data for testing particleProcessor.energyLoss
-  auto d_ELoss = mem::buf::alloc<float, Idx>(device, bufferExtent);
-  auto h_ELoss = mem::buf::alloc<float, Idx>(devHost, bufferExtent);
+  auto d_ELoss      = mem::buf::alloc<float, Idx>(device, bufferExtent);
+  auto h_ELoss      = mem::buf::alloc<float, Idx>(devHost, bufferExtent);
   auto d_eventELoss = mem::buf::alloc<part, Idx>(device, bufferExtent);
   mem::view::copy(queue, d_eventELoss, h_event, bufferExtent);
 
   // Create a task for testEnergyLoss, that we can run and then run it via a queue
 
   testEnergyLoss testEnergyLoss;
-  auto taskRunTestEnergyLoss = kernel::createTaskKernel<Acc>(workDiv, testEnergyLoss, mem::view::getPtrNative(d_eventELoss),
-                                                             mem::view::getPtrNative(d_ELoss));
+  auto taskRunTestEnergyLoss = kernel::createTaskKernel<Acc>(
+      workDiv, testEnergyLoss, mem::view::getPtrNative(d_eventELoss), mem::view::getPtrNative(d_ELoss));
 
   queue::enqueue(queue, taskRunTestEnergyLoss);
   // copy the calculated energy losses back to the host.
@@ -166,7 +166,7 @@ int main()
   // Create data for testing particleProcessor.splitParticle
   auto d_newPartSplit = mem::buf::alloc<part, Idx>(device, bufferExtent);
   auto h_newPartSplit = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
-  auto d_eventSplit = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto d_eventSplit   = mem::buf::alloc<part, Idx>(device, bufferExtent);
   mem::view::copy(queue, d_eventSplit, h_event, bufferExtent);
 
   // Create a task for testSplitParticle, that we can run and then run it via a queue
@@ -191,13 +191,13 @@ int main()
   // Create data for testing particleProcessor.step
   auto d_newPartStep = mem::buf::alloc<part, Idx>(device, bufferExtent);
   auto h_newPartStep = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
-  auto d_eventStep = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto d_eventStep   = mem::buf::alloc<part, Idx>(device, bufferExtent);
   mem::view::copy(queue, d_eventStep, h_event, bufferExtent);
 
   // Create a task for testStep, that we can run and then run it via a queue
   testStep testStep;
-  auto taskRunTestStep = kernel::createTaskKernel<Acc>(
-      workDiv, testStep, mem::view::getPtrNative(d_eventStep), mem::view::getPtrNative(d_newPartStep));
+  auto taskRunTestStep = kernel::createTaskKernel<Acc>(workDiv, testStep, mem::view::getPtrNative(d_eventStep),
+                                                       mem::view::getPtrNative(d_newPartStep));
 
   queue::enqueue(queue, taskRunTestStep);
   // copy the new part objects back to the host
@@ -231,22 +231,22 @@ int main()
   auto d_stepsProcess = mem::buf::alloc<int, Idx>(device, bufferExtent);
   auto h_stepsProcess = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
   auto d_eventProcess = mem::buf::alloc<part, Idx>(device, bufferExtent);
-  mem::view::copy(queue, d_eventProcess, h_event, bufferExtent);  
+  mem::view::copy(queue, d_eventProcess, h_event, bufferExtent);
 
-  //Create a task for testProcessParticle, that we can run and then run it via a queue
+  // Create a task for testProcessParticle, that we can run and then run it via a queue
   testProcessParticle testProcessParticle;
   auto taskRunTestProcessParticle = kernel::createTaskKernel<Acc>(
-    workDiv, testProcessParticle, mem::view::getPtrNative(d_eventProcess), mem::view::getPtrNative(d_stepsProcess));
+      workDiv, testProcessParticle, mem::view::getPtrNative(d_eventProcess), mem::view::getPtrNative(d_stepsProcess));
 
   queue::enqueue(queue, taskRunTestProcessParticle);
-  //Copy steps back to the host
+  // Copy steps back to the host
   mem::view::copy(queue, h_stepsProcess, d_stepsProcess, bufferExtent);
 
-  //Then we test the output - the number of steps should be at least 1, but there is no maximum value.
-  //Thus we simply test that the nSteps incremented beyond the initial zero value.
+  // Then we test the output - the number of steps should be at least 1, but there is no maximum value.
+  // Thus we simply test that the nSteps incremented beyond the initial zero value.
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
-    if ( !(mem::view::getPtrNative(h_stepsProcess)[counter] > 0) ) testOK = false;
+    if (!(mem::view::getPtrNative(h_stepsProcess)[counter] > 0)) testOK = false;
   }
 
   std::cout << "Status of testProcessParticle is " << testOK << std::endl;
