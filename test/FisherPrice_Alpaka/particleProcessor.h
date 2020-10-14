@@ -115,9 +115,9 @@ ALPAKA_FN_ACC unsigned int particleProcessor::processParticle(Acc const &acc, pa
   PS.push(&partList[iTh]);
 
   part *mypart = PS.top();
-
   unsigned int nsteps = 0;
   int maxsize         = 0;
+  bool firstParticle = true;
   while (!PS.empty()) {
     part *processPart = PS.top();
     PS.pop();
@@ -127,9 +127,11 @@ ALPAKA_FN_ACC unsigned int particleProcessor::processParticle(Acc const &acc, pa
       if (newPart) PS.push(newPart); // if a new particle is generated we add it to the stack
       if (PS.size() > maxsize) maxsize = PS.size();
     } while (processPart->momentum() > 1.);
-    delete processPart;
+    //We only want to delete the particles created with "new" inside the call to the step function above.
+    //The first particle in partList[iTh] is memory allocated outside this function, and deleting it is a "double free".
+    if (firstParticle) firstParticle = false;
+    else delete processPart;
   }
-
   return nsteps;
 }
 
