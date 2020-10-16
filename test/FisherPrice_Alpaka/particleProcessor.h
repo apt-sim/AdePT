@@ -28,10 +28,10 @@ public:
 
   /**
    * @brief calculates the energy loss of a particle, mypart, in the range 0 to 0.2 MeV in the direction of the
-   * momentum. Acc is the Alpaka acceleraror type (e.g. CPU or GPU), mypart is the particle to calculate the energy loss for
-   * and generator is a random number generator provided by alpaka. Assumes the generator has already been initialised
-   * with a seed by the client. Returns a float value representing the energy lost, which is calculated as a randum
-   * number (between zero and one) multiplied by 0.2 MeV.
+   * momentum. Acc is the Alpaka acceleraror type (e.g. CPU or GPU), mypart is the particle to calculate the energy loss
+   * for and generator is a random number generator provided by alpaka. Assumes the generator has already been
+   * initialised with a seed by the client. Returns a float value representing the energy lost, which is calculated as a
+   * randum number (between zero and one) multiplied by 0.2 MeV.
    * */
   template <typename Acc>
   ALPAKA_FN_ACC float energyLoss(Acc const &acc, particle &mypart,
@@ -42,8 +42,8 @@ public:
    * along the x-direction in finite steps. In each step a new particle(s) may or may not be generated - if so it is
    * added to an internal. to this function, array of particles on the stack. The function continues to step until the
    * initial particles momentum drops below 1 MeV. Acc is the Alpaka acceleraror type (e.g. CPU or GPU), partList is a
-   * list of particle, iTh is the thread being used, generator is a random number generator provided by alpaka and SD is an
-   * instance of a c++ class, of type sensitive, representing a sensitive detector. Returns an unsigned integer
+   * list of particle, iTh is the thread being used, generator is a random number generator provided by alpaka and SD is
+   * an instance of a c++ class, of type sensitive, representing a sensitive detector. Returns an unsigned integer
    * representing the number of steps undertaken.
    */
   template <typename Acc>
@@ -60,7 +60,7 @@ public:
    */
   template <typename Acc>
   ALPAKA_FN_ACC particle *splitParticle(Acc const &acc, particle &mypart,
-                                    alpaka::rand::generator::uniform_cuda_hip::Xor &generator);
+                                        alpaka::rand::generator::uniform_cuda_hip::Xor &generator);
 
   /**
    * @brief steps the particle 0.1 mm in the x-direction. Additionally determines how much energy it loses via @sa
@@ -71,8 +71,8 @@ public:
    * of type particle.
    */
   template <typename Acc>
-  ALPAKA_FN_ACC particle *step(Acc const &acc, particle &processPart, alpaka::rand::generator::uniform_cuda_hip::Xor &generator,
-                           sensitive &SD);
+  ALPAKA_FN_ACC particle *step(Acc const &acc, particle &processPart,
+                               alpaka::rand::generator::uniform_cuda_hip::Xor &generator, sensitive &SD);
 
   /**
    * @brief If called this lowers the threshold used in @sa splitParticle from 0.99 to 0.5.
@@ -112,7 +112,7 @@ ALPAKA_FN_ACC unsigned int particleProcessor::processParticle(Acc const &acc, pa
   // And push in the particle corresponding to this thread:
   PS.push(&partList[iTh]);
 
-  particle *mypart = PS.top();
+  particle *mypart    = PS.top();
   unsigned int nsteps = 0;
   int maxsize         = 0;
   bool firstParticle  = true;
@@ -138,7 +138,7 @@ ALPAKA_FN_ACC unsigned int particleProcessor::processParticle(Acc const &acc, pa
 
 template <typename Acc>
 ALPAKA_FN_ACC particle *particleProcessor::splitParticle(Acc const &acc, particle &mypart,
-                                                     alpaka::rand::generator::uniform_cuda_hip::Xor &generator)
+                                                         alpaka::rand::generator::uniform_cuda_hip::Xor &generator)
 {
   // throw a random number if >0.99 do a splitting (e.g. a Brem or pair production)
   auto func(alpaka::rand::distribution::createUniformReal<float>(acc));
@@ -175,7 +175,8 @@ ALPAKA_FN_ACC particle *particleProcessor::splitParticle(Acc const &acc, particl
 
 template <typename Acc>
 ALPAKA_FN_ACC particle *particleProcessor::step(Acc const &acc, particle &processPart,
-                                            alpaka::rand::generator::uniform_cuda_hip::Xor &generator, sensitive &SD)
+                                                alpaka::rand::generator::uniform_cuda_hip::Xor &generator,
+                                                sensitive &SD)
 {
   // Move the particle by a deltaX=0.1mm in the momentum direction
   float deltaX = 0.1;

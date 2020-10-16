@@ -137,8 +137,8 @@ int main()
 
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
-    vec3 pos                             = vec3(0., 0., (float)ii);
-    mem::view::getPtrNative(host_event)[ii] = particle(pos, mom, 22);   
+    vec3 pos                                = vec3(0., 0., (float)ii);
+    mem::view::getPtrNative(host_event)[ii] = particle(pos, mom, 22);
   }
 
   // Copy particles to the GPU
@@ -152,8 +152,8 @@ int main()
   auto workDiv = workdiv::WorkDivMembers<Dim, Idx>{blocksPerGrid, threadsPerBlock, elementsPerThread};
 
   // Create data for testing particleProcessor.energyLoss
-  auto device_ELoss = mem::buf::alloc<float, Idx>(device, bufferExtent);
-  auto host_ELoss = mem::buf::alloc<float, Idx>(devHost, bufferExtent);
+  auto device_ELoss      = mem::buf::alloc<float, Idx>(device, bufferExtent);
+  auto host_ELoss        = mem::buf::alloc<float, Idx>(devHost, bufferExtent);
   auto device_eventELoss = mem::buf::alloc<particle, Idx>(device, bufferExtent);
   mem::view::copy(queue, device_eventELoss, host_event, bufferExtent);
 
@@ -181,14 +181,15 @@ int main()
 
   // Create data for testing particleProcessor.splitParticle
   auto device_newPartSplit = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  auto host_newPartSplit = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
-  auto device_eventSplit = mem::buf::alloc<particle, Idx>(device, bufferExtent);
+  auto host_newPartSplit   = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
+  auto device_eventSplit   = mem::buf::alloc<particle, Idx>(device, bufferExtent);
   mem::view::copy(queue, device_eventSplit, host_event, bufferExtent);
 
   // Create a task for testSplitParticle, that we can run and then run it via a queue
   testSplitParticle testSplitParticle;
-  auto taskRunTestSplitParticle = kernel::createTaskKernel<Acc>(
-      workDiv, testSplitParticle, mem::view::getPtrNative(device_eventSplit), mem::view::getPtrNative(device_newPartSplit));
+  auto taskRunTestSplitParticle =
+      kernel::createTaskKernel<Acc>(workDiv, testSplitParticle, mem::view::getPtrNative(device_eventSplit),
+                                    mem::view::getPtrNative(device_newPartSplit));
 
   queue::enqueue(queue, taskRunTestSplitParticle);
   // copy the part objects back to the host
@@ -206,8 +207,8 @@ int main()
 
   // Create data for testing particleProcessor.step
   auto device_newPartStep = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  auto host_newPartStep = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
-  auto device_eventStep = mem::buf::alloc<particle, Idx>(device, bufferExtent);
+  auto host_newPartStep   = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
+  auto device_eventStep   = mem::buf::alloc<particle, Idx>(device, bufferExtent);
   mem::view::copy(queue, device_eventStep, host_event, bufferExtent);
 
   // Create a task for testStep, that we can run and then run it via a queue
@@ -245,14 +246,15 @@ int main()
 
   // Create data for testing particleProcessor.processParticle
   auto device_stepsProcess = mem::buf::alloc<int, Idx>(device, bufferExtent);
-  auto host_stepsProcess = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
+  auto host_stepsProcess   = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
   auto device_eventProcess = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  mem::view::copy(queue, device_eventProcess, host_event, bufferExtent);  
+  mem::view::copy(queue, device_eventProcess, host_event, bufferExtent);
 
   // Create a task for testProcessParticle, that we can run and then run it via a queue
   testProcessParticle testProcessParticle;
-  auto taskRunTestProcessParticle = kernel::createTaskKernel<Acc>(
-      workDiv, testProcessParticle, mem::view::getPtrNative(device_eventProcess), mem::view::getPtrNative(device_stepsProcess));
+  auto taskRunTestProcessParticle =
+      kernel::createTaskKernel<Acc>(workDiv, testProcessParticle, mem::view::getPtrNative(device_eventProcess),
+                                    mem::view::getPtrNative(device_stepsProcess));
 
   queue::enqueue(queue, taskRunTestProcessParticle);
   // Copy steps back to the host
