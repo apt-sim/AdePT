@@ -13,7 +13,7 @@
 // process will then work the same was as in the C++ version
 struct processEvent {
   template <typename Acc>
-  ALPAKA_FN_ACC void operator()(Acc const &acc, part *partList, int *steps) const
+  ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, int *steps) const
   {
 
     using namespace alpaka;
@@ -51,12 +51,12 @@ int main()
   // Allocate memory on both the host and device for part objects and numbers of steps
   uint32_t NPART = 200;
   vec::Vec<Dim, Idx> bufferExtent{NPART};
-  auto d_event = mem::buf::alloc<part, Idx>(device, bufferExtent);
-  auto h_event = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
+  auto d_event = mem::buf::alloc<particle, Idx>(device, bufferExtent);
+  auto h_event = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
   auto d_steps = mem::buf::alloc<int, Idx>(device, bufferExtent);
   auto h_steps = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
 
-  int size = NPART * sizeof(part); // memory size to use
+  int size = NPART * sizeof(particle); // memory size to use
   std::cout << "memory allocated " << size << std::endl;
 
   // All photons have momentum 20 GeV along z
@@ -65,7 +65,7 @@ int main()
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
     vec3 pos                             = vec3(0., 0., (float)ii);
-    mem::view::getPtrNative(h_event)[ii] = part(pos, mom, 22);
+    mem::view::getPtrNative(h_event)[ii] = particle(pos, mom, 22);
   }
 
   // Copy particles to the GPU

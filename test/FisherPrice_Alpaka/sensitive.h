@@ -10,7 +10,7 @@
 #ifndef SENSITIVE_H
 #define SENSITIVE_H
 
-#include "part.h"
+#include "particle.h"
 
 class sensitive {
 public:
@@ -38,7 +38,7 @@ public:
   /** @brief add energy to the sensitive detector from a particle.
    * mypart is the particle being considered and E is its energy loss.
    */
-  ALPAKA_FN_ACC inline void add(const part *mypart, float E)
+  ALPAKA_FN_ACC inline void add(const particle *mypart, float E)
   {
     if (mypart->getPos().z() > m_zmin && mypart->getPos().z() < m_zmax) m_totalE += E;
   }

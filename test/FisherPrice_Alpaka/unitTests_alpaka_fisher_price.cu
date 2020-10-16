@@ -4,7 +4,7 @@
 // This is the main include file to give us all of the alpaka classes, functions etc.
 #include <alpaka/alpaka.hpp>
 
-#include "part.h"
+#include "particle.h"
 #include "particleProcessor.h"
 
 #include <iostream>
@@ -13,7 +13,7 @@ using namespace alpaka;
 
 struct testEnergyLoss {
   template <typename Acc>
-  ALPAKA_FN_ACC void operator()(Acc const &acc, part *partList, float *eLoss) const
+  ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, float *eLoss) const
   {
 
     // iTh is the thread number we use this throughout
@@ -31,7 +31,7 @@ struct testEnergyLoss {
 
 struct testSplitParticle {
   template <typename Acc>
-  ALPAKA_FN_ACC void operator()(Acc const &acc, part *partList, part *newPart) const
+  ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, particle *newPart) const
   {
 
     // iTh is the thread number we use this throughout
@@ -46,14 +46,14 @@ struct testSplitParticle {
 
     // Now we call splitParticle. This could return either a valid pointer, if we
     // split the particle or a null pointer if we don't.
-    part *partAfterSplit = (particleProcessor.splitParticle(acc, partList[iTh], generator));
+    particle *partAfterSplit = (particleProcessor.splitParticle(acc, partList[iTh], generator));
     if (partAfterSplit) newPart[iTh] = *partAfterSplit;
   }
 };
 
 struct testStep {
   template <typename Acc>
-  ALPAKA_FN_ACC void operator()(Acc const &acc, part *partList, part *newPart) const
+  ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, particle *newPart) const
   {
 
     // iTh is the thread number we use this throughout
@@ -71,14 +71,14 @@ struct testStep {
 
     // Now we call step. This could return either a valid pointer, if we
     // split the particle via the call internally to splitParticle or a null pointer if we don't.
-    part *partAfterStep = (particleProcessor.step(acc, partList[iTh], generator, SD));
+    particle *partAfterStep = (particleProcessor.step(acc, partList[iTh], generator, SD));
     if (partAfterStep) newPart[iTh] = *partAfterStep;
   }
 };
 
 struct testProcessParticle {
   template <typename Acc>
-  ALPAKA_FN_ACC void operator()(Acc const &acc, part *partList, int *steps) const
+  ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, int *steps) const
   {
 
     using namespace alpaka;
@@ -113,7 +113,7 @@ int main()
   // Allocate memory on both the host and device for part objects and numbers of steps
   uint32_t NPART = 200;
   vec::Vec<Dim, Idx> bufferExtent{NPART};
-  auto h_event = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
+  auto h_event = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
 
   // All photons have momentum 20 GeV along z
   float initialMomentum = 20000.;
@@ -122,7 +122,7 @@ int main()
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
     vec3 pos                             = vec3(0., 0., (float)ii);
-    mem::view::getPtrNative(h_event)[ii] = part(pos, mom, 22);   
+    mem::view::getPtrNative(h_event)[ii] = particle(pos, mom, 22);   
   }
 
   // Copy particles to the GPU
@@ -138,7 +138,7 @@ int main()
   // Create data for testing particleProcessor.energyLoss
   auto d_ELoss = mem::buf::alloc<float, Idx>(device, bufferExtent);
   auto h_ELoss = mem::buf::alloc<float, Idx>(devHost, bufferExtent);
-  auto d_eventELoss = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto d_eventELoss = mem::buf::alloc<particle, Idx>(device, bufferExtent);
   mem::view::copy(queue, d_eventELoss, h_event, bufferExtent);
 
   // Create a task for testEnergyLoss, that we can run and then run it via a queue
@@ -164,9 +164,9 @@ int main()
   std::cout << "Status of testEnergyLoss is " << testOK << std::endl;
 
   // Create data for testing particleProcessor.splitParticle
-  auto d_newPartSplit = mem::buf::alloc<part, Idx>(device, bufferExtent);
-  auto h_newPartSplit = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
-  auto d_eventSplit = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto d_newPartSplit = mem::buf::alloc<particle, Idx>(device, bufferExtent);
+  auto h_newPartSplit = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
+  auto d_eventSplit = mem::buf::alloc<particle, Idx>(device, bufferExtent);
   mem::view::copy(queue, d_eventSplit, h_event, bufferExtent);
 
   // Create a task for testSplitParticle, that we can run and then run it via a queue
@@ -182,16 +182,16 @@ int main()
   // By construction the particle momentum should not be more than the initial momentum.
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
-    part newPart = mem::view::getPtrNative(h_newPartSplit)[counter];
+    particle newPart = mem::view::getPtrNative(h_newPartSplit)[counter];
     if ((newPart.getMom().length()) > initialMomentum) testOK = false;
   }
 
   std::cout << "Status of testSplitParticle is " << testOK << std::endl;
 
   // Create data for testing particleProcessor.step
-  auto d_newPartStep = mem::buf::alloc<part, Idx>(device, bufferExtent);
-  auto h_newPartStep = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
-  auto d_eventStep = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto d_newPartStep = mem::buf::alloc<particle, Idx>(device, bufferExtent);
+  auto h_newPartStep = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
+  auto d_eventStep = mem::buf::alloc<particle, Idx>(device, bufferExtent);
   mem::view::copy(queue, d_eventStep, h_event, bufferExtent);
 
   // Create a task for testStep, that we can run and then run it via a queue
@@ -209,7 +209,7 @@ int main()
   // should not be more than the initial momentum (because step calls splitParticle internally)
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
-    part newPart = mem::view::getPtrNative(h_newPartStep)[counter];
+    particle newPart = mem::view::getPtrNative(h_newPartStep)[counter];
     // skip cases where no splitting occurred, because then there is no particle to check.
     if (!newPart.getMom().length() > 0) continue;
     if ((newPart.getMom().length()) > initialMomentum) {
@@ -230,7 +230,7 @@ int main()
   // Create data for testing particleProcessor.processParticle
   auto d_stepsProcess = mem::buf::alloc<int, Idx>(device, bufferExtent);
   auto h_stepsProcess = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
-  auto d_eventProcess = mem::buf::alloc<part, Idx>(device, bufferExtent);
+  auto d_eventProcess = mem::buf::alloc<particle, Idx>(device, bufferExtent);
   mem::view::copy(queue, d_eventProcess, h_event, bufferExtent);  
 
   //Create a task for testProcessParticle, that we can run and then run it via a queue
