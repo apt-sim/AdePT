@@ -52,9 +52,9 @@ int main()
   uint32_t NPART = 200;
   vec::Vec<Dim, Idx> bufferExtent{NPART};
   auto device_event = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  auto host_event = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
+  auto host_event   = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
   auto device_steps = mem::buf::alloc<int, Idx>(device, bufferExtent);
-  auto host_steps = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
+  auto host_steps   = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
 
   int size = NPART * sizeof(particle); // memory size to use
   std::cout << "memory allocated " << size << std::endl;
@@ -64,7 +64,7 @@ int main()
 
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
-    vec3 pos                             = vec3(0., 0., (float)ii);
+    vec3 pos                                = vec3(0., 0., (float)ii);
     mem::view::getPtrNative(host_event)[ii] = particle(pos, mom, 22);
   }
 
