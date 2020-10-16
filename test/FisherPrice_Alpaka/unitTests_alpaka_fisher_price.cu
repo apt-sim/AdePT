@@ -11,6 +11,10 @@
 
 using namespace alpaka;
 
+/**
+* @brief kernel that tests @sa particleProcessor.energyLoss
+* The output is returned to the host, which checks that output.
+*/
 struct testEnergyLoss {
   template <typename Acc>
   ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, float *eLoss) const
@@ -29,6 +33,10 @@ struct testEnergyLoss {
   }
 };
 
+/**
+* @brief kernel that tests @sa particleProcessor.splitParticle
+* The output is returned to the host, which checks that output.
+*/
 struct testSplitParticle {
   template <typename Acc>
   ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, particle *newPart) const
@@ -51,6 +59,10 @@ struct testSplitParticle {
   }
 };
 
+/**
+* @brief kernel that tests @sa particleProcessor.step
+* The output is returned to the host, which checks that output.
+*/
 struct testStep {
   template <typename Acc>
   ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, particle *newPart) const
@@ -76,6 +88,10 @@ struct testStep {
   }
 };
 
+/**
+* @brief kernel that tests @sa particleProcessor.processParticle
+* The output is returned to the host, which checks that output.
+*/
 struct testProcessParticle {
   template <typename Acc>
   ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, int *steps) const
