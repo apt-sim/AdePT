@@ -3,23 +3,23 @@
 
 /**
  * @file particleStack.h
- * @brief stores an array of particles, part, of size @t ARRAYSIZE
+ * @brief stores an array of particles, particle, of size @t ARRAYSIZE
  * @author Davide Costanzo (d.costanzo@sheffield.ac.uk) and Mark Hodgkinson (d.costanzo@sheffield.ac.uk)
  */
 
 #ifndef PARTICLESTACK_H
 #define PARTICLESTACK_H
 
-#include "part.h"
+#include "particle.h"
 
 #include <alpaka/alpaka.hpp>
 
 template <unsigned int ARRAYSIZE>
 class particleStack {
 private:
-  /** An array, of part, of size ARRAYSIZE */
-  part *m_stack[ARRAYSIZE];
-  /** integer to track how many part are currently contained in the array */
+  /** An array, of particle, of size ARRAYSIZE */
+  particle *m_stack[ARRAYSIZE];
+  /** integer to track how many particle are currently contained in the array */
   int m_nPart;
 
 public:
@@ -31,7 +31,7 @@ public:
       m_stack[ii] = 0;
   }
 
-  /** @brief check whether the number of part currently stored is zero or not.
+  /** @brief check whether the number of particle currently stored is zero or not.
    * returns the result of the query as bool
    */
   ALPAKA_FN_ACC bool empty()
@@ -43,21 +43,21 @@ public:
   }
 
   /** @brief gets the particle at the end of the array
-   * returns a pointer of type part directly from the stored array m_stack.
+   * returns a pointer of type particle directly from the stored array m_stack.
    * @remark assumes the array m_stack is NOT empty.
    */
-  ALPAKA_FN_ACC part *top() { return m_stack[m_nPart - 1]; }
+  ALPAKA_FN_ACC particle *top() { return m_stack[m_nPart - 1]; }
 
-  /** @brief set the part pointer stored at the end of the array to zero */
+  /** @brief set the particle pointer stored at the end of the array to zero */
   ALPAKA_FN_ACC void pop()
   {
     m_stack[m_nPart - 1] = 0;
     m_nPart--;
   }
 
-  /** @brief add a part to the array.
-   * myPart is a pointer to a part */
-  ALPAKA_FN_ACC void push(part *myPart)
+  /** @brief add a particle to the array.
+   * myPart is a pointer to a particle */
+  ALPAKA_FN_ACC void push(particle *myPart)
   {
     m_stack[m_nPart] = myPart;
     m_nPart++;

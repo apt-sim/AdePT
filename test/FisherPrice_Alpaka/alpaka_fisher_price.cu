@@ -13,7 +13,7 @@
 // process will then work the same was as in the C++ version
 struct processEvent {
   template <typename Acc>
-  ALPAKA_FN_ACC void operator()(Acc const &acc, part *partList, int *steps) const
+  ALPAKA_FN_ACC void operator()(Acc const &acc, particle *partList, int *steps) const
   {
 
     using namespace alpaka;
@@ -51,12 +51,12 @@ int main()
   // Allocate memory on both the host and device for part objects and numbers of steps
   uint32_t NPART = 200;
   vec::Vec<Dim, Idx> bufferExtent{NPART};
-  auto d_event = mem::buf::alloc<part, Idx>(device, bufferExtent);
-  auto h_event = mem::buf::alloc<part, Idx>(devHost, bufferExtent);
-  auto d_steps = mem::buf::alloc<int, Idx>(device, bufferExtent);
-  auto h_steps = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
+  auto device_event = mem::buf::alloc<particle, Idx>(device, bufferExtent);
+  auto host_event   = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
+  auto device_steps = mem::buf::alloc<int, Idx>(device, bufferExtent);
+  auto host_steps   = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
 
-  int size = NPART * sizeof(part); // memory size to use
+  int size = NPART * sizeof(particle); // memory size to use
   std::cout << "memory allocated " << size << std::endl;
 
   // All photons have momentum 20 GeV along z
@@ -64,17 +64,17 @@ int main()
 
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
-    vec3 pos                             = vec3(0., 0., (float)ii);
-    mem::view::getPtrNative(h_event)[ii] = part(pos, mom, 22);
+    vec3 pos                                = vec3(0., 0., (float)ii);
+    mem::view::getPtrNative(host_event)[ii] = particle(pos, mom, 22);
   }
 
   // Copy particles to the GPU
   auto queue = queue::Queue<Acc, queue::Blocking>{device};
-  mem::view::copy(queue, d_event, h_event, bufferExtent);
+  mem::view::copy(queue, device_event, host_event, bufferExtent);
 
   // Check that this makes sense on CPU
   for (int ii = 0; ii < NPART; ii++) {
-    std::cout << __CUDACC__ << "  " << ii << ", " << mem::view::getPtrNative(h_event)[ii].getPos().z() << std::endl;
+    std::cout << __CUDACC__ << "  " << ii << ", " << mem::view::getPtrNative(host_event)[ii].getPos().z() << std::endl;
   }
 
   // Launch one thread per particle for NPART particles
@@ -87,15 +87,15 @@ int main()
   // Create a task for processEvent, that we can run and then run it via a queue
   processEvent processEvent;
 
-  auto taskRunProcessEvent = kernel::createTaskKernel<Acc>(workDiv, processEvent, mem::view::getPtrNative(d_event),
-                                                           mem::view::getPtrNative(d_steps));
+  auto taskRunProcessEvent = kernel::createTaskKernel<Acc>(workDiv, processEvent, mem::view::getPtrNative(device_event),
+                                                           mem::view::getPtrNative(device_steps));
 
   queue::enqueue(queue, taskRunProcessEvent);
 
-  mem::view::copy(queue, h_steps, d_steps, bufferExtent);
+  mem::view::copy(queue, host_steps, device_steps, bufferExtent);
   std::cout << "Thread, nsteps" << std::endl;
   for (int ii = 0; ii < NPART; ii++)
-    std::cout << ii << ", " << mem::view::getPtrNative(h_steps)[ii] << std::endl;
+    std::cout << ii << ", " << mem::view::getPtrNative(host_steps)[ii] << std::endl;
 
   return 0;
 }
