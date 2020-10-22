@@ -22,9 +22,6 @@ macro(add_to_test TESTS)
    endforeach()
 endmacro()
 
-# - Minimal test of cuda compilation
-add_executable(example_add example_add.cu)
-
 # - Test that linkage to CopCore target works
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_link_libraries(test_copcore_link PRIVATE VecCore::VecCore CopCore::CopCore)
@@ -38,22 +35,3 @@ set(ADEPT_UNIT_TESTS_BASE
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
-
-# - Examples
-# Noddy example 1 of particle processing on CPU
-add_executable(fisher_price fisher_price.cpp)
-# Noddy example of particle processing with GPU
-add_executable(cufisher_price cufisher_price.cu)
-target_include_directories(cufisher_price PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-)
-target_link_libraries(cufisher_price PRIVATE CUDA::curand VecCore::VecCore CopCore::CopCore)
-
-# Noddy example 2 of particle processing with GPU
-add_executable(cufisher_price_v2 cufisher_price_v2.cu)
-target_include_directories(cufisher_price_v2 PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-  )
-target_link_libraries(cufisher_price_v2 PRIVATE CUDA::curand VecCore::VecCore CopCore::CopCore)
