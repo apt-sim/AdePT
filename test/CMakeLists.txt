@@ -1,51 +1,59 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
+# Helper Macros/Functions
+macro(build_tests TESTS)
+  foreach(TEST ${TESTS})
+    get_filename_component(TARGET_NAME ${TEST} NAME_WE)
+    add_executable(${TARGET_NAME} ${TEST})
+    target_include_directories(${TARGET_NAME} PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+      $<INSTALL_INTERFACE:base>
+    )
+    target_link_libraries(${TARGET_NAME} VecCore::VecCore CopCore::CopCore)
+    target_compile_options(${TARGET_NAME} PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
+   endforeach()
+endmacro()
+
+macro(add_to_test TESTS)
+  foreach(TEST ${TESTS})
+    get_filename_component(TARGET_NAME ${TEST} NAME_WE)
+    add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
+   endforeach()
+endmacro()
 
 # - Minimal test of cuda compilation
 add_executable(example_add example_add.cu)
 
-# Noddy example of particle processing on CPU
+# - Test that linkage to CopCore target works
+add_executable(test_copcore_link test_copcore_link.cpp)
+target_link_libraries(test_copcore_link PRIVATE VecCore::VecCore CopCore::CopCore)
+
+# - Unit tests
+set(ADEPT_UNIT_TESTS_BASE
+  test_atomic.cu               # Unit test for atomic ops
+  test_queue.cu                # Unit test for mpmc_bounded_queue
+  test_track_block.cu          # Unit test for BlockData
+)
+
+build_tests("${ADEPT_UNIT_TESTS_BASE}")
+add_to_test("${ADEPT_UNIT_TESTS_BASE}")
+
+# - Examples
+# Noddy example 1 of particle processing on CPU
 add_executable(fisher_price fisher_price.cpp)
 # Noddy example of particle processing with GPU
 add_executable(cufisher_price cufisher_price.cu)
 target_include_directories(cufisher_price PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
-  )
-target_link_libraries(cufisher_price PRIVATE CUDA::curand VecCore::VecCore VecGeom::vecgeom)
+)
+target_link_libraries(cufisher_price PRIVATE CUDA::curand VecCore::VecCore CopCore::CopCore)
 
-# Noddy example of particle processing with GPU
+# Noddy example 2 of particle processing with GPU
 add_executable(cufisher_price_v2 cufisher_price_v2.cu)
 target_include_directories(cufisher_price_v2 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
   )
-target_link_libraries(cufisher_price_v2 PRIVATE CUDA::curand VecCore::VecCore VecGeom::vecgeom)
-
-# Unit test for atomic ops
-add_executable(test_atomic test_atomic.cu)
-target_include_directories(test_atomic PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-)
-target_link_libraries(test_atomic VecCore::VecCore VecGeom::vecgeom)
-add_test(NAME test_atomic COMMAND test_atomic)
-
-# Unit test for BlockData
-add_executable(test_track_block test_track_block.cu)
-target_include_directories(test_track_block PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-)
-target_link_libraries(test_track_block VecCore::VecCore VecGeom::vecgeom)
-add_test(NAME test_track_block COMMAND test_track_block)
-
-# Unit test for mpmc_bounded_queue
-add_executable(test_queue test_queue.cu)
-target_include_directories(test_queue PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-)
-target_link_libraries(test_queue VecCore::VecCore VecGeom::vecgeom)
-add_test(NAME test_queue COMMAND test_queue)
+target_link_libraries(cufisher_price_v2 PRIVATE CUDA::curand VecCore::VecCore CopCore::CopCore)

@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <cassert>
 #include <AdePT/Atomic.h>
-#include <VecGeom/base/VariableSizeObj.h>
+#include <CopCore/CopCore.h>
 
 namespace adept {
 namespace internal {
@@ -32,12 +32,12 @@ struct Cell_t {
 /** @brief Class MPMC bounded queue */
 template <typename Type>
 class mpmc_bounded_queue
-    : protected vecgeom::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, internal::Cell_t<Type>> {
+    : protected copcore::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, internal::Cell_t<Type>> {
 public:
   using AtomicInt_t = adept::Atomic_t<int>;
   using Value_t     = internal::Cell_t<Type>;
-  using Base_t      = vecgeom::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, Value_t>;
-  using ArrayData_t = vecgeom::VariableSizeObj<Value_t>;
+  using Base_t      = copcore::VariableSizeObjectInterface<mpmc_bounded_queue<Type>, Value_t>;
+  using ArrayData_t = copcore::VariableSizeObj<Value_t>;
 
 private:
   int const fCapacity;  ///< Capacity of the queue
@@ -81,6 +81,23 @@ private:
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
   mpmc_bounded_queue(int /*nvalues*/, mpmc_bounded_queue const & /*other*/) {}
+  /** @brief MPMC bounded queue copy constructor */
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  mpmc_bounded_queue(mpmc_bounded_queue const &other) : mpmc_bounded_queue(other.fCapacity, other) {}
+
+  /** @brief MPMC bounded queue copy constructor with given size */
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  mpmc_bounded_queue(size_t new_size, mpmc_bounded_queue const &other)
+      : fCapacity(new_size), fMask(new_size - 1), fEnqueue(other.fEnqueue), fDequeue(other.fDequeue),
+        fNstored(other.fNstored), fBuffer(new_size, other.fBuffer)
+  {
+    assert((new_size >= 2) && ((new_size & (new_size - 1)) == 0) && "buffer size has to be a power of 2");
+  }
+
+  /** @brief Operator = */
+  void operator=(mpmc_bounded_queue const &) = delete;
 
 public:
   ///< Enumerate the part of the private interface, we want to expose.
@@ -96,11 +113,6 @@ public:
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
   static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
-
-  /** @brief Size of container in bytes */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
-  int SizeOf() const { return mpmc_bounded_queue<Type>::SizeOfInstance(fCapacity); }
 
   /** @brief Maximum number of elements */
   VECCORE_ATT_HOST_DEVICE
@@ -159,12 +171,6 @@ public:
     cell->fSequence.store(pos + fMask + 1);
     return true;
   }
-
-  /** @brief MPMC bounded queue copy constructor */
-  mpmc_bounded_queue(mpmc_bounded_queue const &) = delete;
-
-  /** @brief Operator = */
-  void operator=(mpmc_bounded_queue const &) = delete;
 }; // End mpmc_bounded_queue
 } // End namespace adept
 #endif // ADEPT_MPMC_BOUNDED_QUEUE

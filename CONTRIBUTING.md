@@ -55,6 +55,7 @@ To get started with git, please refer to the [short introduction](http://git-scm
 - Unit tests are provided for new functionalities.
 - For bugfixes: a test case has been added to avoid the re-appearance of this bug in the future.
 - All added cmake options were added to 'cmake/PrintOptions.cmake'.
+- All changes made to the `base/inc/CopCore` subproject should be in separate commits, with no commits containing a mix of files from that project and the main AdePT code.
 
 ### Workflow recommendations
 
@@ -69,6 +70,7 @@ Though not strictly necessary and in the end it is up to you, it is strongly rec
 
 1. **Use atomic commits!**
 Similarly to the concept of branches, each commit should reflect a self-contained change. Try to avoid overly large commits (bad examples are for instance mixing logical change with code cleanup and typo fixes).
+In particular, put changes to the `base/inc/CopCore` subproject in separate commits from any other changes.
 
 1. **Write good commit messages!**
 Well-written commit messages are key to understand your changes. There are many guidelines available on how to write proper commit logs (e.g. [here](http://alistapart.com/article/the-art-of-the-commit), [here](http://chris.beams.io/posts/git-commit/), or [here](https://wiki.openstack.org/wiki/GitCommitMessages#Information_in_commit_messages)). As a short summary:
@@ -111,7 +113,7 @@ This is **TBD**!
 Markdown files should conform to the `markdownlint` specifications from [David Anson](https://github.com/DavidAnson/markdownlint).
 
 ### Example: Make a bugfix while working on a feature
-  
+
 During the development of a new feature you discover a bug which needs to be fixed. In order to not mix bugfix and feature development, the bugfix should happen in a different branch. The recommended procedure for handling this situation is the following:
 
 1. Get into a clean state of your working directory on your feature branch (either by committing open changes or by stashing them).
