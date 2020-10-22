@@ -35,16 +35,14 @@ struct Scoring {
 };
 
 // kernel function that does transportation
-__global__ void transport(int n, adept::BlockData<MyTrack> *block, curandState_t *states, Queue_t* queues)
+__global__ void transport(int n, adept::BlockData<MyTrack> *block, curandState_t *states, Queue_t *queues)
 {
-  for(int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x)
-    {
-      // transport particles
-      for(int xyz=0; xyz<3; xyz++)
-	{
-	  (*block)[i].pos[xyz]= (*block)[i].pos[xyz] + (*block)[i].energy * (*block)[i].dir[xyz];
-	}
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
+    // transport particles
+    for (int xyz = 0; xyz < 3; xyz++) {
+      (*block)[i].pos[xyz] = (*block)[i].pos[xyz] + (*block)[i].energy * (*block)[i].dir[xyz];
     }
+  }
 }
 
 // kernel function that assigns next process to the particle
@@ -70,50 +68,50 @@ __global__ void select_process(adept::BlockData<MyTrack> *block, Scoring *scor, 
 }
 
 // kernel function that does energy loss
-__global__ void process_eloss(int n, adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states, Queue_t* queue)
+__global__ void process_eloss(int n, adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states,
+                              Queue_t *queue)
 {
   int particle_index;
-  for(int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x)
-    {
-      if (!queue->dequeue(particle_index)) return;
- 
-      // check if the particle is still alive (E>0)
-      if ((*block)[particle_index].energy == 0) return;
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
+    if (!queue->dequeue(particle_index)) return;
 
-      // call the 'process'
-      // energy loss
-      float eloss = 0.2f * (*block)[particle_index].energy;
-      scor->totalEnergyLoss.fetch_add(eloss < 0.001f ? (*block)[particle_index].energy : eloss);
-      (*block)[particle_index].energy = (eloss < 0.001f ? 0.0f : ((*block)[particle_index].energy - eloss));
-  
-      // if particle dies (E=0) release the slot
-      if ((*block)[particle_index].energy < 0.001f) block->ReleaseElement(particle_index);
-    }
+    // check if the particle is still alive (E>0)
+    if ((*block)[particle_index].energy == 0) return;
+
+    // call the 'process'
+    // energy loss
+    float eloss = 0.2f * (*block)[particle_index].energy;
+    scor->totalEnergyLoss.fetch_add(eloss < 0.001f ? (*block)[particle_index].energy : eloss);
+    (*block)[particle_index].energy = (eloss < 0.001f ? 0.0f : ((*block)[particle_index].energy - eloss));
+
+    // if particle dies (E=0) release the slot
+    if ((*block)[particle_index].energy < 0.001f) block->ReleaseElement(particle_index);
+  }
 }
 
 // kernel function that does pair production
-__global__ void process_pairprod(int n, adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states, Queue_t* queue)
+__global__ void process_pairprod(int n, adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states,
+                                 Queue_t *queue)
 {
   int particle_index;
-  for(int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x)
-    {
-      if (!queue->dequeue(particle_index)) return;
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
+    if (!queue->dequeue(particle_index)) return;
 
-      // check if the particle is still alive (E>0)
-      if ((*block)[particle_index].energy == 0) return;
-  
-      // pair production
-      float eloss = 0.5f * (*block)[particle_index].energy;
-      (*block)[particle_index].energy -= eloss;
-  
-      // here I need to create a new particle
-      auto secondary_track = block->NextElement();
-      assert(secondary_track != nullptr && "No slot available for secondary track");
-      secondary_track->energy = eloss;
-  
-      // increase the counter of secondaries
-      scor->secondaries.fetch_add(1);
-    }
+    // check if the particle is still alive (E>0)
+    if ((*block)[particle_index].energy == 0) return;
+
+    // pair production
+    float eloss = 0.5f * (*block)[particle_index].energy;
+    (*block)[particle_index].energy -= eloss;
+
+    // here I need to create a new particle
+    auto secondary_track = block->NextElement();
+    assert(secondary_track != nullptr && "No slot available for secondary track");
+    secondary_track->energy = eloss;
+
+    // increase the counter of secondaries
+    scor->secondaries.fetch_add(1);
+  }
 }
 
 /* this GPU kernel function is used to initialize the random states */
@@ -180,10 +178,10 @@ int main()
   track2->energy = 30.0f;
 
   //
- 
+
   const int num_streams = 8;
   cudaStream_t streams[num_streams];
-  
+
   cudaStreamCreate(&streams[0]);
   cudaStreamCreate(&streams[1]);
   cudaStreamCreate(&streams[2]);
@@ -194,7 +192,7 @@ int main()
   dim3 numBlocks, numBlocks_eloss, numBlocks_pairprod, numBlocks_transport;
 
   while (block->GetNused()) {
-    
+
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
 
     // here I set the maximum number of blocks
@@ -203,28 +201,27 @@ int main()
 
     transport<<<numBlocks_transport, nthreads>>>(queues[2]->size(), block, state, queues[2]);
 
-
     // call the kernel to select the process
     select_process<<<numBlocks, nthreads>>>(block, scor, state, queues);
 
     cudaDeviceSynchronize();
 
     // call the process kernels
-     
-    numBlocks_eloss.x = std::min((queues[0]->size()+ nthreads.x - 1) / nthreads.x, maxBlocks.x);
-    numBlocks_pairprod.x = std::min((queues[1]->size() + nthreads.x - 1) / nthreads.x, maxBlocks.x);;
 
-    /*         
+    numBlocks_eloss.x    = std::min((queues[0]->size() + nthreads.x - 1) / nthreads.x, maxBlocks.x);
+    numBlocks_pairprod.x = std::min((queues[1]->size() + nthreads.x - 1) / nthreads.x, maxBlocks.x);
+    ;
+
+    /*
     process_eloss<<<numBlocks_eloss, nthreads, 0, streams[0]>>>(block, scor, state, queues[0]);
 
     process_pairprod<<<numBlocks_pairprod, nthreads, 0, streams[1]>>>(block, scor, state, queues[1]);
     */
-    
+
     process_eloss<<<numBlocks_eloss, nthreads>>>(queues[0]->size(), block, scor, state, queues[0]);
 
     process_pairprod<<<numBlocks_pairprod, nthreads>>>(queues[1]->size(), block, scor, state, queues[1]);
 
-    
     // Wait for GPU to finish before accessing on host
     cudaDeviceSynchronize();
 
