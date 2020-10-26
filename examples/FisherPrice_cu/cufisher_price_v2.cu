@@ -101,12 +101,12 @@ __global__ void process_pairprod(int n, adept::BlockData<MyTrack> *block, Scorin
     if ((*block)[particle_index].energy == 0) return;
 
     // pair production
+    auto secondary_track = block->NextElement();
+    assert(secondary_track != nullptr && "No slot available for secondary track");
+    
     float eloss = 0.5f * (*block)[particle_index].energy;
     (*block)[particle_index].energy -= eloss;
 
-    // here I need to create a new particle
-    auto secondary_track = block->NextElement();
-    assert(secondary_track != nullptr && "No slot available for secondary track");
     secondary_track->energy = eloss;
 
     // increase the counter of secondaries
@@ -177,16 +177,6 @@ int main()
   auto track2    = block->NextElement();
   track2->energy = 30.0f;
 
-  //
-
-  const int num_streams = 8;
-  cudaStream_t streams[num_streams];
-
-  cudaStreamCreate(&streams[0]);
-  cudaStreamCreate(&streams[1]);
-  cudaStreamCreate(&streams[2]);
-
-  //
   constexpr dim3 nthreads(32);
   constexpr dim3 maxBlocks(10);
   dim3 numBlocks, numBlocks_eloss, numBlocks_pairprod, numBlocks_transport;
@@ -210,13 +200,6 @@ int main()
 
     numBlocks_eloss.x    = std::min((queues[0]->size() + nthreads.x - 1) / nthreads.x, maxBlocks.x);
     numBlocks_pairprod.x = std::min((queues[1]->size() + nthreads.x - 1) / nthreads.x, maxBlocks.x);
-    ;
-
-    /*
-    process_eloss<<<numBlocks_eloss, nthreads, 0, streams[0]>>>(block, scor, state, queues[0]);
-
-    process_pairprod<<<numBlocks_pairprod, nthreads, 0, streams[1]>>>(block, scor, state, queues[1]);
-    */
 
     process_eloss<<<numBlocks_eloss, nthreads>>>(queues[0]->size(), block, scor, state, queues[0]);
 
