@@ -103,7 +103,7 @@ __global__ void process_pairprod(int n, adept::BlockData<MyTrack> *block, Scorin
     // pair production
     auto secondary_track = block->NextElement();
     assert(secondary_track != nullptr && "No slot available for secondary track");
-    
+
     float eloss = 0.5f * (*block)[particle_index].energy;
     (*block)[particle_index].energy -= eloss;
 
