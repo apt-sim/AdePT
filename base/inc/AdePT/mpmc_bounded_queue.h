@@ -122,6 +122,18 @@ public:
   /** @brief Size function */
   VECCORE_ATT_HOST_DEVICE
   VECCORE_FORCE_INLINE
+  void clear()
+  {
+    fEnqueue.store(0);
+    fDequeue.store(0);
+    fNstored.store(0);
+    for (int i = 0; i < fCapacity; ++i)
+      fBuffer[i].fSequence.store(i);
+  }
+
+  /** @brief Size function */
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
   int size() const { return fNstored.load(); }
 
   /** @brief MPMC enqueue function */
@@ -171,6 +183,30 @@ public:
     cell->fSequence.store(pos + fMask + 1);
     return true;
   }
+
+  /** @brief Usage as array rather than a queue.
+      @details This mode only allowed if no pending concurrent enqueue/dequeue operations.
+        The index should be smaller than the number of stored elements. The range is only
+        checked in debug mode.
+    */
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  Type &operator[](const int index)
+  {
+    assert(index >= 0 && index < fNstored.load() && "Index in queue out of range");
+    int pos = fDequeue.load() + index;
+    return fBuffer[pos & fMask].fData;
+  }
+
+  VECCORE_ATT_HOST_DEVICE
+  VECCORE_FORCE_INLINE
+  Type const &operator[](const int index) const
+  {
+    assert(index >= 0 && index < fNstored.load() && "Index in queue out of range");
+    int pos = fDequeue.load() + index;
+    return fBuffer[pos & fMask].fData;
+  }
+
 }; // End mpmc_bounded_queue
 } // End namespace adept
 #endif // ADEPT_MPMC_BOUNDED_QUEUE
