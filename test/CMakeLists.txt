@@ -31,7 +31,17 @@ set(ADEPT_UNIT_TESTS_BASE
   test_atomic.cu               # Unit test for atomic ops
   test_queue.cu                # Unit test for mpmc_bounded_queue
   test_track_block.cu          # Unit test for BlockData
+  #graph_executor.cu
+  #kernel_executor.cu
+  test_executor.cu
 )
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
+
+# - Specific executable options
+#target_compile_options(graph_executor PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda -gencode arch=compute_60,code=sm_60>)
+#target_compile_options(kernel_executor PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda -gencode arch=compute_60,code=sm_60>)
+#target_compile_options(smart_executor PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda -gencode arch=compute_60,code=sm_60>)
+target_compile_options(test_executor PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda -gencode arch=compute_60,code=sm_60>)
+#target_link_libraries(smart_executor VecGeom::vecgeom)
