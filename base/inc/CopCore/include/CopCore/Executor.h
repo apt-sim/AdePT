@@ -61,7 +61,7 @@ public:
   int Launch(FunctionPtr, int, LaunchGrid_t, const Args &...) const
   {
     // Not implemented backend launches will end-up here
-    std::string backend_name(copcore::BackendName<backend>);
+    std::string backend_name(copcore::BackendName<backend>::name);
     COPCORE_EXCEPTION("Executor::Launch: No implementation available for " + backend_name);
     return 1;
   }
@@ -103,7 +103,7 @@ public:
           std::min(warpsPerSM * fNumSMs * 32 / block_size, (n_elements + block_size - 1) / block_size);
       exec_grid[0].x = grid_size;
       exec_grid[1].x = block_size;
-      std::cout << "grid_size = " << grid_size << "  block_size = " << block_size << std::endl;
+      // std::cout << "grid_size = " << grid_size << "  block_size = " << block_size << std::endl;
     }
 
     // pack parameter addresses into an array
@@ -117,6 +117,15 @@ public:
     COPCORE_CUDA_CHECK(cudaLaunchKernel(kernel_ptr, exec_grid[0], exec_grid[1], parameter_array, 0, fStream));
     return 0;
   }
+
+  void Wait() const
+  {
+    if (fStream)
+      COPCORE_CUDA_CHECK(cudaStreamSynchronize(fStream));
+    else
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+  }
+
 }; // End  class Executor<BackendType::CUDA>
 #endif
 
@@ -135,6 +144,7 @@ public:
     }
     return 0;
   }
+  void Wait() const {}
 }; // End class Executor<BackendType::CPU>
 
 } // End namespace copcore
