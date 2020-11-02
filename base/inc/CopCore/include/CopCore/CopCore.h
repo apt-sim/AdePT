@@ -13,6 +13,6 @@
 #include "CopCore/VariableSizeObj.h"
 #include "CopCore/VariableSizeObjAllocator.h"
 #include "CopCore/launch_grid.h"
-#include "CopCore/Executor.h"
+#include "CopCore/Launcher.h"
 
 #endif // COPCORE_COPCORE_H_
