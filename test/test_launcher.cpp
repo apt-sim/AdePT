@@ -11,7 +11,9 @@
 #include <AdePT/BlockData.h>
 #include "run_simulation.hpp"
 
+// Forward declare the GPU version of the class.
 int executePipelineGPU();
+
 int executePipelineCPU()
 {
   int result = runSimulation<copcore::BackendType::CPU>();
