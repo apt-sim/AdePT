@@ -31,7 +31,7 @@ int runSimulation()
   //  bool testOK  = true;
   bool success = true;
 
-  // Boilerplate to create the data structures that we need
+  // Boilerplate to allocate the data structures that we need
   TrackAllocator trackAlloc(capacity);
   auto blockT = trackAlloc.allocate(1);
 
@@ -41,7 +41,7 @@ int runSimulation()
   QueueAllocator queueAlloc(capacity);
   auto queue = queueAlloc.allocate(1);
 
-  // Create a stream to work with
+  // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
   Stream_t stream;
   StreamStruct::CreateStream(stream);
 
@@ -49,7 +49,7 @@ int runSimulation()
   copcore::Launcher<backend> generate(stream);
   generate.Run(generateFunc, capacity, {0, 0}, blockT);
 
-  // Allow memory to reach the device
+  // Synchronize stream if we need memory to reach the device
   generate.Wait();
 
   std::cout << "Generated " << blockT->GetNused() << " tracks\n";
@@ -58,10 +58,8 @@ int runSimulation()
   selector.Run(selectTrackFunc, blockT->GetNused(), {0, 0}, blockT, queue);
 
   selector.Wait();
-  std::cout << "Selected " << queue->size() << " tracks\n";
 
-  // Allow all warps to finish
-  // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+  std::cout << "Selected " << queue->size() << " tracks\n";
 
   trackAlloc.deallocate(blockT, 1);
   hitAlloc.deallocate(blockH, 1);
