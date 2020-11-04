@@ -118,13 +118,15 @@ public:
     return 0;
   }
 
-  void Wait() const
+  void WaitStream() const
   {
     if (fStream)
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(fStream));
     else
       COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
   }
+
+  static void WaitDevice() { COPCORE_CUDA_CHECK(cudaDeviceSynchronize()); }
 
 }; // End  class Launcher<BackendType::CUDA>
 #endif
@@ -144,7 +146,9 @@ public:
     }
     return 0;
   }
-  void Wait() const {}
+  void WaitStream() const {}
+  static void WaitDevice() {}
+
 }; // End class Launcher<BackendType::CPU>
 
 } // End namespace copcore
