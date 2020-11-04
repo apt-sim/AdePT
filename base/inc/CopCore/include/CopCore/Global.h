@@ -9,6 +9,7 @@
 #ifndef COPCORE_GLOBAL_H_
 #define COPCORE_GLOBAL_H_
 
+#include <type_traits>
 #include <VecCore/VecCore>
 
 #if (defined(__CUDACC__) || defined(__NVCC__))
@@ -81,6 +82,9 @@ REGISTER_BACKEND_NAME(BackendType::HIP);
 } // End namespace COPCORE_IMPL
 } // End namespace copcore
 
+/** @brief Macro to template-specialize on a specific compile-time requirement */
+#define COPCORE_REQUIRES(...) typename std::enable_if<(__VA_ARGS__)>::type* = nullptr
+
 /** @brief macro to declare device callable functions usable in executors */
 #define COPCORE_CALLABLE_FUNC(FUNC) VECCORE_ATT_DEVICE auto _ptr_##FUNC = FUNC;
 
@@ -88,6 +92,7 @@ REGISTER_BACKEND_NAME(BackendType::HIP);
 #ifdef VECCORE_CUDA
 #define COPCORE_CALLABLE_DECLARE(HVAR, FUNC) \
   auto HVAR = FUNC;                          \
+  /*printf("cudaMemcpyFromSymbol for function: %s\n", #FUNC);*/ \
   cudaMemcpyFromSymbol(&HVAR, _ptr_##FUNC, sizeof(decltype(_ptr_##FUNC)));
 #else
 #define COPCORE_CALLABLE_DECLARE(HVAR, FUNC) auto HVAR = FUNC;
@@ -96,6 +101,7 @@ REGISTER_BACKEND_NAME(BackendType::HIP);
 #ifdef VECCORE_CUDA
 #define COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(HVAR, NAMESPACE, FUNC) \
   auto HVAR = NAMESPACE::FUNC;                                       \
+  /*printf("cudaMemcpyFromSymbol for function: %s::%s\n", #NAMESPACE, #FUNC);*/ \
   cudaMemcpyFromSymbol(&HVAR, NAMESPACE::_ptr_##FUNC, sizeof(decltype(NAMESPACE::_ptr_##FUNC)));
 #else
 #define COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(HVAR, NAMESPACE, FUNC) auto HVAR = NAMESPACE::FUNC;
