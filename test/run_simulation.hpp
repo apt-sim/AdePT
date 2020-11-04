@@ -19,9 +19,11 @@ int runSimulation()
   using QueueAllocator = copcore::VariableSizeObjAllocator<Queue_t, backend>;
   using StreamStruct   = copcore::StreamType<backend>;
   using Stream_t       = typename StreamStruct::value_type;
+  using Launcher_t     = copcore::Launcher<backend>;
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateAndStorePrimary);
+  COPCORE_CALLABLE_DECLARE(elossFunc, elossTrack);
   COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(selectTrackFunc, devfunc, selectTrack);
 
   //  const char *result[2] = {"FAILED", "OK"};
@@ -46,20 +48,37 @@ int runSimulation()
   StreamStruct::CreateStream(stream);
 
   // Allocate some tracks in parallel
-  copcore::Launcher<backend> generate(stream);
+  Launcher_t generate(stream);
   generate.Run(generateFunc, capacity, {0, 0}, blockT);
 
   // Synchronize stream if we need memory to reach the device
-  generate.Wait();
+  generate.WaitStream();
 
   std::cout << "Generated " << blockT->GetNused() << " tracks\n";
 
-  copcore::Launcher<backend> selector(stream);
-  selector.Run(selectTrackFunc, blockT->GetNused(), {0, 0}, blockT, queue);
+  Launcher_t selector(stream);
+  // This will select each 8'th track from a container (see selectTrack impl)
+  selector.Run(selectTrackFunc, blockT->GetNused(), {0, 0}, blockT, 8, queue);
 
-  selector.Wait();
+  selector.WaitStream();
 
   std::cout << "Selected " << queue->size() << " tracks\n";
+
+  Launcher_t process_tracks(stream);
+  process_tracks.Run(elossFunc, queue->size(), {1000, 32}, queue, blockT, blockH);
+
+  process_tracks.WaitStream();
+
+  // Sum up total energy loss (on host)
+  float sum_eloss = 0.;
+  for (auto i = 0; i < 1024; ++i) {
+    auto &hit = (*blockH)[i];
+    sum_eloss += hit.edep.load();
+  }
+
+  std::cout << "Total eloss computed on host: " << sum_eloss << "\n";
+
+  Launcher_t::WaitDevice();
 
   trackAlloc.deallocate(blockT, 1);
   hitAlloc.deallocate(blockH, 1);
