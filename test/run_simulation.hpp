@@ -33,9 +33,20 @@ int runSimulation()
   //  bool testOK  = true;
   bool success = true;
 
+  copcore::Allocator<MyTrack, backend> trackAlloc;
+  MyTrack *tr = trackAlloc.allocate(10, 100.); // allocate array of 10 tracks with energy = 100 GeV
+  assert(tr[9].energy == 100.);
+
+  copcore::Allocator<int, backend> intAlloc;
+  int *int_array = intAlloc.allocate(32, 0); // array of 32 integers, initialized to 0
+
+  using Atomic_int = adept::Atomic_t<int>;
+  copcore::Allocator<Atomic_int, backend> atomicAllocator;
+  Atomic_int *at_index = atomicAllocator.allocate(1); // an atomic integer, initialized by its default ctor with 0
+
   // Boilerplate to allocate the data structures that we need
-  TrackAllocator trackAlloc(capacity);
-  auto blockT = trackAlloc.allocate(1);
+  TrackAllocator trackBlockAlloc(capacity);
+  auto blockT = trackBlockAlloc.allocate(1);
 
   HitAllocator hitAlloc(1024);
   auto blockH = hitAlloc.allocate(1);
@@ -46,6 +57,19 @@ int runSimulation()
   // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
   Stream_t stream;
   StreamStruct::CreateStream(stream);
+
+  // A launcher that runs a lambda function that fills an array with the current thread number
+  Launcher_t fillArray(stream);
+  fillArray.Run([] VECCORE_ATT_DEVICE(int thread_id, Atomic_int *index,
+                                      int *array) { array[thread_id] = (*index)++; }, // lambda being run
+                32,                                                                   // number of elements
+                {2, 16},              // run with 2 block of 16 threads (if backend=CUDA)
+                at_index, int_array); // parameters passed to the lambda (thread_id is automatic)
+  fillArray.WaitStream();
+  std::cout << "Filled array: {" << int_array[0];
+  for (auto i = 1; i < 32; ++i)
+    std::cout << ", " << int_array[i];
+  std::cout << "}\n";
 
   // Allocate some tracks in parallel
   Launcher_t generate(stream);
@@ -80,7 +104,10 @@ int runSimulation()
 
   Launcher_t::WaitDevice();
 
-  trackAlloc.deallocate(blockT, 1);
+  trackAlloc.deallocate(tr, 10);  // Will call the destructor for all 10 elements.
+  intAlloc.deallocate(int_array); // no destructor called
+  atomicAllocator.deallocate(at_index);
+  trackBlockAlloc.deallocate(blockT, 1);
   hitAlloc.deallocate(blockH, 1);
   queueAlloc.deallocate(queue, 1);
 

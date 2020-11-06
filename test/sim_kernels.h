@@ -10,6 +10,9 @@
 struct MyTrack {
   int index{0};
   float energy{0};
+
+  MyTrack() {}
+  MyTrack(float e) { energy = e; }
 };
 
 struct MyHit {
