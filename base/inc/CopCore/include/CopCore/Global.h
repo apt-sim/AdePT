@@ -9,6 +9,7 @@
 #ifndef COPCORE_GLOBAL_H_
 #define COPCORE_GLOBAL_H_
 
+#include <cstdio>
 #include <type_traits>
 #include <VecCore/VecCore>
 
