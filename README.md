@@ -22,11 +22,12 @@ $ cmake -S. -B./adept-build <otherargs>
 ```
 As <otherargs> one needs to provide the paths to the dependence librarties VecCore and VecGeom:
 ```console
-   -DVecCore_DIR=<path_to_veccore_installation>/share/VecCore/cmake \
+   -DVecCore_DIR=<path_to_veccore_installation>/lib/cmake/VecCore \
    -DVecGeom_DIR=<path_to_vecgeom_installation>/lib/cmake/VecGeom \
    [-DVc_DIR=<path_to_vc_installation/lib/cmake/Vc] #only in case VecGeom was compiled using Vc backend
    [-DCMAKE_PREFIX_PATH=<alpakaInstallDir>] #only in case you want to build FisherPrice_Alpaka. <alpakaInstallDir> should point at the folder in which "include/alpaka/" is found.
 ```
+When running CentOS, replace `lib/` by `lib64`.
 
 To build, run:
 
