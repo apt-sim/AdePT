@@ -33,12 +33,12 @@ struct Scoring {
 };
 
 // kernel function that does energy loss or pair production
-__global__ void process(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states)
+__global__ void process(adept::BlockData<MyTrack> *block, Scoring *scor, curandState_t *states, int max_index)
 {
   int particle_index = blockIdx.x * blockDim.x + threadIdx.x;
 
   // check if you are not outside the used block
-  if (particle_index > block->GetNused() + block->GetNholes()) return;
+  if (particle_index > max_index) return;
 
   // check if the particle is still alive (E>0)
   if ((*block)[particle_index].energy == 0) return;
@@ -121,9 +121,10 @@ int main()
   dim3 numBlocks;
 
   while (block->GetNused()) {
-    numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
+    int max_index = block->GetNused() + block->GetNholes();
+    numBlocks.x = (max_index + nthreads.x - 1) / nthreads.x;
     // call the kernels
-    process<<<numBlocks, nthreads>>>(block, scor, state);
+    process<<<numBlocks, nthreads>>>(block, scor, state, max_index);
     // Wait for GPU to finish before accessing on host
     cudaDeviceSynchronize();
 
