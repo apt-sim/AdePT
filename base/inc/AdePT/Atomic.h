@@ -83,7 +83,13 @@ struct AtomicBase_t {
 
   /** @brief Atomically loads and returns the current value of the atomic variable. */
   VECCORE_ATT_DEVICE
-  Type load() const { return fData; }
+  Type load() const
+  {
+    // There is no atomic load on CUDA. Issue a memory fence to get the required
+    // semantics and make sure that the value is really loaded from memory.
+    __threadfence();
+    return fData;
+  }
 
   /** @brief Atomically replaces the underlying value with desired. */
   VECCORE_ATT_DEVICE
