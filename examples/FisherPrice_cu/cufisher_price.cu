@@ -40,8 +40,10 @@ __global__ void process(adept::BlockData<MyTrack> *block, Scoring *scor, curandS
   // check if you are not outside the used block
   if (particle_index > max_index) return;
 
+  double energy = (*block)[particle_index].energy;
+
   // check if the particle is still alive (E>0)
-  if ((*block)[particle_index].energy == 0) return;
+  if (energy == 0) return;
 
   // generate random number
   float r = curand_uniform(states);
@@ -49,16 +51,17 @@ __global__ void process(adept::BlockData<MyTrack> *block, Scoring *scor, curandS
   // call the 'process'
   if (r < 0.5f) {
     // energy loss
-    float eloss = 0.2f * (*block)[particle_index].energy;
-    scor->totalEnergyLoss.fetch_add(eloss < 0.001f ? (*block)[particle_index].energy : eloss);
-    (*block)[particle_index].energy = (eloss < 0.001f ? 0.0f : ((*block)[particle_index].energy - eloss));
+    float eloss = 0.2f * energy;
+    scor->totalEnergyLoss.fetch_add(eloss < 0.001f ? energy : eloss);
+    energy = eloss < 0.001f ? 0.0f : (energy - eloss);
+    (*block)[particle_index].energy = energy;
 
     // if particle dies (E=0) release the slot
-    if ((*block)[particle_index].energy < 0.001f) block->ReleaseElement(particle_index);
+    if (energy < 0.001f) block->ReleaseElement(particle_index);
   } else {
     // pair production
-    float eloss = 0.5f * (*block)[particle_index].energy;
-    (*block)[particle_index].energy -= eloss;
+    float eloss = 0.5f * energy;
+    (*block)[particle_index].energy = energy - eloss;
 
     // here I need to create a new particle
     auto secondary_track = block->NextElement();
