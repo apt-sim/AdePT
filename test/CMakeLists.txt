@@ -39,7 +39,7 @@ target_include_directories(test_launcher PUBLIC
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)
-target_compile_options(test_launcher PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
+target_compile_options(test_launcher PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx;--extended-lambda>")
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")

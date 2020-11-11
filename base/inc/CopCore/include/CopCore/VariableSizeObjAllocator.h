@@ -43,7 +43,8 @@ public:
 
   bool operator!=(const VariableSizeObjAllocator &other) const { return !(*this == other); }
 
-  value_type *allocate(std::size_t n) const
+  template <typename... P>
+  value_type *allocate(std::size_t n, const P &... params) const
   {
     int old_device = SetDevice(fDeviceId);
 
@@ -54,7 +55,7 @@ public:
 
     // allocate all objects at their aligned positions in the buffer
     for (auto i = 0; i < n; ++i) {
-      T::MakeInstanceAt(fCapacity, buff);
+      T::MakeInstanceAt(fCapacity, buff, params...);
       buff += obj_size;
     }
 
@@ -63,7 +64,7 @@ public:
     return result;
   }
 
-  void deallocate(value_type *ptr, std::size_t n) const
+  void deallocate(value_type *ptr, std::size_t n = 0) const
   {
     int old_device       = SetDevice(fDeviceId);
     std::size_t obj_size = T::SizeOfAlignAware(fCapacity);
@@ -119,7 +120,8 @@ public:
 
   bool operator!=(const VariableSizeObjAllocator &other) const { return !(*this == other); }
 
-  value_type *allocate(std::size_t n) const
+  template <typename... P>
+  value_type *allocate(std::size_t n, const P &... params) const
   {
     value_type *result   = nullptr;
     std::size_t obj_size = T::SizeOfAlignAware(fCapacity);
@@ -128,14 +130,14 @@ public:
 
     // allocate all objects at their aligned positions in the buffer
     for (auto i = 0; i < n; ++i) {
-      T::MakeInstanceAt(fCapacity, buff);
+      T::MakeInstanceAt(fCapacity, buff, params...);
       buff += obj_size;
     }
 
     return result;
   }
 
-  void deallocate(value_type *ptr, std::size_t n) const
+  void deallocate(value_type *ptr, std::size_t n = 0) const
   {
     std::size_t obj_size = T::SizeOfAlignAware(fCapacity);
     char *buff           = (char *)ptr;
