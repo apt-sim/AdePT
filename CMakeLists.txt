@@ -34,6 +34,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
 set(CMAKE_CUDA_STANDARD_REQUIRED ${CMAKE_CXX_STANDARD_REQUIRED})
 set(CMAKE_CUDA_EXTENSIONS OFF)
+set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
 # (for now internal) CopCore dependency
 add_subdirectory(base/inc/CopCore)
@@ -59,3 +60,8 @@ add_subdirectory(tracking)
 add_subdirectory(physics)
 add_subdirectory(test)
 add_subdirectory(examples)
+
+
+
+
+

@@ -4,3 +4,4 @@
 add_subdirectory(FisherPrice_Alpaka)
 add_subdirectory(FisherPrice_cpp)
 add_subdirectory(FisherPrice_cu)
+add_subdirectory(Raytracer_Benchmark)
