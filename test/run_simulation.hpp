@@ -9,14 +9,15 @@
 template <copcore::BackendType backend>
 int runSimulation()
 {
-  std::cout << "Executing simulation on " << copcore::BackendName<backend>::name << "\n";
+  // Track capacity of the block
+  constexpr int capacity = 1 << 24;
 
   using TrackBlock     = adept::BlockData<MyTrack>;
   using TrackAllocator = copcore::VariableSizeObjAllocator<TrackBlock, backend>;
   using HitBlock       = adept::BlockData<MyHit>;
   using HitAllocator   = copcore::VariableSizeObjAllocator<HitBlock, backend>;
-  using Queue_t        = adept::mpmc_bounded_queue<int>;
-  using QueueAllocator = copcore::VariableSizeObjAllocator<Queue_t, backend>;
+  using Array_t        = adept::MParray;
+  using ArrayAllocator = copcore::VariableSizeObjAllocator<Array_t, backend>;
   using StreamStruct   = copcore::StreamType<backend>;
   using Stream_t       = typename StreamStruct::value_type;
   using Launcher_t     = copcore::Launcher<backend>;
@@ -26,9 +27,8 @@ int runSimulation()
   COPCORE_CALLABLE_DECLARE(elossFunc, elossTrack);
   COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(selectTrackFunc, devfunc, selectTrack);
 
+  std::cout << "Executing simulation on " << copcore::BackendName<backend>::name << "\n";
   //  const char *result[2] = {"FAILED", "OK"};
-  // Track capacity of the block
-  constexpr int capacity = 1 << 20;
 
   //  bool testOK  = true;
   bool success = true;
@@ -46,13 +46,13 @@ int runSimulation()
 
   // Boilerplate to allocate the data structures that we need
   TrackAllocator trackBlockAlloc(capacity);
-  auto blockT = trackBlockAlloc.allocate(1);
+  TrackBlock *blockT = trackBlockAlloc.allocate(1);
 
   HitAllocator hitAlloc(1024);
-  auto blockH = hitAlloc.allocate(1);
+  HitBlock *blockH = hitAlloc.allocate(1);
 
-  QueueAllocator queueAlloc(capacity);
-  auto queue = queueAlloc.allocate(1);
+  ArrayAllocator arrayAlloc(capacity);
+  Array_t *selection1 = arrayAlloc.allocate(1);
 
   // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
   Stream_t stream;
@@ -81,15 +81,15 @@ int runSimulation()
   std::cout << "Generated " << blockT->GetNused() << " tracks\n";
 
   Launcher_t selector(stream);
-  // This will select each 8'th track from a container (see selectTrack impl)
-  selector.Run(selectTrackFunc, blockT->GetNused(), {0, 0}, blockT, 8, queue);
+  // This will select each 2'nd track from a container (see selectTrack impl)
+  selector.Run(selectTrackFunc, blockT->GetNused(), {0, 0}, blockT, 2, selection1);
 
   selector.WaitStream();
 
-  std::cout << "Selected " << queue->size() << " tracks\n";
+  std::cout << "Selected " << selection1->size() << " tracks\n";
 
   Launcher_t process_tracks(stream);
-  process_tracks.Run(elossFunc, queue->size(), {1000, 32}, queue, blockT, blockH);
+  process_tracks.Run(elossFunc, selection1->size(), {1000, 32}, selection1, blockT, blockH);
 
   process_tracks.WaitStream();
 
@@ -109,7 +109,7 @@ int runSimulation()
   atomicAllocator.deallocate(at_index);
   trackBlockAlloc.deallocate(blockT, 1);
   hitAlloc.deallocate(blockH, 1);
-  queueAlloc.deallocate(queue, 1);
+  arrayAlloc.deallocate(selection1, 1);
 
   if (!success) return 1;
   return 0;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/BlockData.h>
+#include <AdePT/MParray.h>
 #include <AdePT/Atomic.h>
 
 /** @brief Data structures */
@@ -46,22 +47,24 @@ namespace devfunc {
 
 /** @brief Select a track based on its index and add it to a queue */
 VECCORE_ATT_HOST_DEVICE
-void selectTrack(int id, adept::BlockData<MyTrack> *tracks, int each_n, adept::mpmc_bounded_queue<int> *queue)
+void selectTrack(int id, adept::BlockData<MyTrack> *tracks, int each_n, adept::MParray *array)
 {
   auto &track   = (*tracks)[id];
   bool selected = (track.index % each_n == 0);
-  if (selected) queue->enqueue(id);
+  if (selected && !array->push_back(id)) {
+    // Array too small - throw an exception
+    COPCORE_EXCEPTION("Array too small. Aborting...\n");
+  }
 }
 COPCORE_CALLABLE_FUNC(selectTrack)
 } // end namespace devfunc
 
 /** @brief Process a track and sum-up some energy deposit */
 VECCORE_ATT_HOST_DEVICE
-void elossTrack(int id, adept::mpmc_bounded_queue<int> *queue, adept::BlockData<MyTrack> *tracks,
-                adept::BlockData<MyHit> *hits)
+void elossTrack(int id, adept::MParray *array, adept::BlockData<MyTrack> *tracks, adept::BlockData<MyHit> *hits)
 {
   // Say there are 1024 hit objects and they accumulate energy deposits from specific track id's
-  int track_id = (*queue)[id];
+  int track_id = (*array)[id];
   auto &track  = (*tracks)[track_id];
   auto &hit    = (*hits)[id % 1024];
   float edep   = 0.1 * track.energy;
