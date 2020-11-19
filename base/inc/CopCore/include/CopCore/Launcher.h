@@ -114,7 +114,8 @@ public:
     void *kernel_ptr = reinterpret_cast<void *>(&kernel_launcher_impl::kernel_dispatch<DeviceFunctionPtr, Args...>);
 
     // launch the kernel
-    COPCORE_CUDA_CHECK(cudaLaunchKernel(kernel_ptr, exec_grid[0], exec_grid[1], parameter_array, 0, fStream));
+    cudaLaunchKernel(kernel_ptr, exec_grid[0], exec_grid[1], parameter_array, 0, fStream);
+    COPCORE_CUDA_CHECK(cudaGetLastError());
     return 0;
   }
 
