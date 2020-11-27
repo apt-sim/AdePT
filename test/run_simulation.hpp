@@ -27,7 +27,7 @@ int runSimulation()
   COPCORE_CALLABLE_DECLARE(elossFunc, elossTrack);
   COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(selectTrackFunc, devfunc, selectTrack);
 
-  std::cout << "Executing simulation on " << copcore::BackendName<backend>::name << "\n";
+  std::cout << "Executing simulation on " << copcore::BackendName(backend) << "\n";
   //  const char *result[2] = {"FAILED", "OK"};
 
   //  bool testOK  = true;
