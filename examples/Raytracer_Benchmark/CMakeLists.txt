@@ -1,12 +1,13 @@
-# Link specific libraries
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
 
 
-set(VECGEOM_COMMON_SRCS
+set(ADEPT_COMMON_SRCS
   Raytracer.cpp
 )
 
 # add Raytracer.cu
-foreach(SRC_FILE ${VECGEOM_COMMON_SRCS})
+foreach(SRC_FILE ${ADEPT_COMMON_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME_WE)
 
   set(SRC_FILE_CPP ${CMAKE_CURRENT_SOURCE_DIR}/${SRC_FILE})
@@ -17,21 +18,21 @@ foreach(SRC_FILE ${VECGEOM_COMMON_SRCS})
     COMMAND ${CMAKE_COMMAND} -E copy ${SRC_FILE_CPP} ${SRC_FILE_CU}
     DEPENDS ${SRC_FILE_CPP})
 
-  list(APPEND VECGEOM_CUDA_SRCS ${SRC_FILE_CU})
+  list(APPEND ADEPT_CUDA_SRCS ${SRC_FILE_CU})
 
 endforeach()
 
-list(APPEND VECGEOM_CUDA_SRCS
+list(APPEND ADEPT_CUDA_SRCS
   RaytraceBenchmark.cu
 )
 
 # library used for RaytraceBenchmark.cpp
-add_library(raytracercu ${VECGEOM_CUDA_SRCS})
+add_library(raytracercu ${ADEPT_CUDA_SRCS})
 target_include_directories(raytracercu PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
   $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_link_libraries(raytracercu VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static)
+target_link_libraries(raytracercu VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
 target_compile_options(raytracercu PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 set_target_properties(raytracercu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
@@ -42,7 +43,7 @@ target_include_directories(RaytraceBenchmark PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml raytracercu)
+target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml raytracercu CopCore::CopCore)
 target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 set_target_properties(RaytraceBenchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 

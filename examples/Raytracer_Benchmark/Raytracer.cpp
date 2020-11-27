@@ -1,9 +1,14 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 /// \file Raytracer.cpp
 /// \author Andrei Gheata (andrei.gheata@cern.ch)
+/// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
+
 
 #include "examples/Raytracer_Benchmark/Raytracer.h"
 #include "examples/Raytracer_Benchmark/Color.h"
-#include "base/inc/CopCore/include/CopCore/Global.h"
+#include <CopCore/Global.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/base/Stopwatch.h>
@@ -22,37 +27,6 @@
 #include <fstream>
 #include <utility>
 
-// using namespace vecgeom;
-
-// namespace vecgeom {
-
-/**
- * @brief Rounds up an address to the aligned value
- * @param buf Buffer address to align
- */
-
-/*
-VECCORE_ATT_HOST_DEVICE
-static char *round_up_align(char *buf)
-{
-  long remainder = ((long)buf) % 64;
-  if (remainder == 0) return buf;
-  return (buf + 64 - remainder);
-}
-*/
-/**
- * @brief Rounds up a value to upper aligned version
- * @param buf Buffer address to align
- */
-/*
-VECCORE_ATT_HOST_DEVICE
-static size_t round_up_align(size_t value)
-{
-  size_t remainder = ((size_t)value) % 64;
-  if (remainder == 0) return value;
-  return (value + 64 - remainder);
-}
-*/
 inline namespace COPCORE_IMPL {
 /*
 Ray_t::Ray_t(void *addr, int maxdepth) : fMaxDepth(maxdepth)
@@ -128,7 +102,7 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-vecgeom::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
@@ -523,5 +497,3 @@ void write_ppm(std::string filename, unsigned char *buffer, int px, int py)
   }
 }
 #endif
-
-//} // End namespace vecgeom

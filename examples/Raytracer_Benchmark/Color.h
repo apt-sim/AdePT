@@ -1,13 +1,16 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 /// \file Color.h
 /// \author Andrei Gheata
 
-#ifndef VECGEOM_BENCHMARKING_COLOR_H_
-#define VECGEOM_BENCHMARKING_COLOR_H_
+#ifndef RT_BENCHMARK_COLOR_H_
+#define RT_BENCHMARK_COLOR_H_
 
-#include "base/inc/CopCore/include/CopCore/Global.h"
+#include <CopCore/Global.h>
 #include <VecGeom/base/Global.h>
 
-namespace vecgeom {
+namespace adept {
 union Color_t {
   unsigned int fColor; // color representation as unsigned integer
   struct {
@@ -100,8 +103,8 @@ union Color_t {
   {
     float rnorm, gnorm, bnorm, msum, mdiff;
 
-    float minval = Min(Red(), Green(), Blue());
-    float maxval = Max(Red(), Green(), Blue());
+    float minval = vecgeom::Min(Red(), Green(), Blue());
+    float maxval = vecgeom::Max(Red(), Green(), Blue());
 
     rnorm = gnorm = bnorm = 0;
     mdiff                 = maxval - minval;
@@ -179,13 +182,13 @@ union Color_t {
 };
 
 VECCORE_ATT_HOST_DEVICE
-VECGEOM_FORCE_INLINE
+VECCORE_FORCE_INLINE
 Color_t operator+(Color_t const &left, Color_t const &right)
 {
   Color_t color(left);
   color += right;
   return color;
 }
-} // End namespace vecgeom
+} // End namespace adept
 
-#endif // VECGEOM_BENCHMARKING_COLOR_H_
+#endif // RT_BENCHMARK_COLOR_H_

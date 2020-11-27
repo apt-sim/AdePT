@@ -1,26 +1,25 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 /// \file Raytracer.h
 /// \author Andrei Gheata (andrei.gheata@cern.ch)
+/// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
-#ifndef VECGEOM_RAYTRACER_H_
-#define VECGEOM_RAYTRACER_H_
+#ifndef RT_BENCHMARK_RAYTRACER_H_
+#define RT_BENCHMARK_RAYTRACER_H_
 
 #include <list>
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
+
 #include "Color.h"
-#include "base/inc/CopCore/include/CopCore/Global.h"
+#include <CopCore/Global.h>
 
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
-// namespace vecgeom {
-
-// enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
-// enum ERTView { kRTVparallel = 0, kRTVperspective };
-
-// VECGEOM_DEVICE_FORWARD_DECLARE(class VPlacedVolume;);
 
 inline namespace COPCORE_IMPL {
 
@@ -40,7 +39,7 @@ struct Ray_t {
   vecgeom::NavStateIndex fNextState;    ///< navigation state for the next volume
   VPlacedVolumePtr_t fVolume = nullptr; ///< current volume
   int fNcrossed              = 0;       ///< number of crossed boundaries
-  vecgeom::Color_t fColor    = 0;       ///< pixel color
+  adept::Color_t fColor    = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
 
   VECCORE_ATT_HOST_DEVICE
@@ -120,8 +119,8 @@ struct RaytracerData_t {
   int fSize_py               = 1024;            ///< Image pixel size in y
   int fVisDepth              = 1;               ///< Visible geometry depth
   int fMaxDepth              = 0;               ///< Maximum geometry depth
-  vecgeom::Color_t fBkgColor = 0xFFFFFFFF;      ///< Light color
-  vecgeom::Color_t fObjColor = 0x0000FFFF;      ///< Object color
+  adept::Color_t fBkgColor = 0xFFFFFFFF;      ///< Light color
+  adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
   ERTmodel fModel            = kRTxray;         ///< Selected RT model
   ERTView fView              = kRTVperspective; ///< View type
 
@@ -156,7 +155,7 @@ VECCORE_ATT_HOST_DEVICE
 void PropagateRays(RaytracerData_t &data, unsigned char *rays_buffer, unsigned char *output_buffer);
 
 VECCORE_ATT_HOST_DEVICE
-vecgeom::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py);
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py);
 
 // Navigation methods (just temporary here)
 VECCORE_ATT_HOST_DEVICE
@@ -185,6 +184,4 @@ double ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const
 void write_ppm(std::string filename, unsigned char *buffer, int px, int py);
 // void RenderCPU(VPlacedVolume const *const world, int px, int py, int maxdepth);
 
-//} // End namespace vecgeom
-
-#endif // VECGEOM_RAYTRACER_H_
+#endif // RT_BENCHMARK_RAYTRACER_H_

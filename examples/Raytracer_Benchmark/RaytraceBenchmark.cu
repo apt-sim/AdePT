@@ -1,8 +1,13 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 /// \file Raytracer.cu
 /// \author Guilherme Amadio. Rewritten to use navigation from common code by Andrei Gheata.
+/// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
+
 
 #include "Raytracer.h"
-#include "base/inc/CopCore/include/CopCore/Global.h"
+#include <CopCore/Global.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -15,8 +20,6 @@
 
 #include <cassert>
 #include <cstdio>
-
-// using namespace vecgeom;
 
 void check_cuda_err(cudaError_t result, char const *const func, const char *const file, int const line)
 {
@@ -39,7 +42,7 @@ __global__ void RenderKernel(RaytracerData_t rtdata, char *input_buffer, unsigne
   int ray_index = py * rtdata.fSize_px + px;
 
   Ray_t *ray                   = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
-  vecgeom::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py);
+  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py);
 
   int pixel_index = 4 * ray_index;
 
@@ -56,7 +59,7 @@ __global__ void RenderLine(RaytracerData_t rtdata, int py, unsigned char *line)
   if (px >= rtdata.fSize_px) return;
 
   Ray_t ray;
-  vecgeom::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py);
+  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py);
 
   line[4 * px + 0] = pixel_color.fComp.red;
   line[4 * px + 1] = pixel_color.fComp.green;
@@ -75,7 +78,7 @@ __global__ void RenderInterlaced(RaytracerData_t rtdata, int offset, int width, 
   for (int py = offset; py < rtdata.fSize_py; py += width) {
     unsigned char *line = &output[4 * py * rtdata.fSize_px];
 
-    vecgeom::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py);
+    adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py);
 
     line[4 * px + 0] = pixel_color.fComp.red;
     line[4 * px + 1] = pixel_color.fComp.green;
@@ -99,7 +102,7 @@ __global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y, i
   int global_py = offset_y + local_py;
 
   Ray_t *ray                   = (Ray_t *)(tile_in + ray_index * sizeof(Ray_t));
-  vecgeom::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, *ray, global_px, global_py);
+  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, *ray, global_px, global_py);
 
   tile_out[pixel_index + 0] = pixel_color.fComp.red;
   tile_out[pixel_index + 1] = pixel_color.fComp.green;
