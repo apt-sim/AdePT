@@ -1,33 +1,33 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
 /*
  * RaytraceBenchmark.cpp
  *
  *  Created on: Feb 13, 2020
  *      Author: andrei.gheata@cern.ch
  */
+/// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/navigation/NavStatePath.h>
 #include <VecGeom/base/Stopwatch.h>
+
 #include "ArgParser.h"
 #include "examples/Raytracer_Benchmark/Raytracer.h"
-#include "base/inc/CopCore/include/CopCore/Global.h"
+#include <CopCore/Global.h>
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-// using namespace vecgeom;
-
 // forward declarations
 int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata);
 
 #ifdef VECGEOM_ENABLE_CUDA
-// namespace vecgeom {
 namespace cuda {
 struct RaytracerData_t;
 } // namespace cuda
-//} // namespace vecgeom
 
 int RaytraceBenchmarkGPU(cuda::RaytracerData_t *, bool, int);
 #endif
