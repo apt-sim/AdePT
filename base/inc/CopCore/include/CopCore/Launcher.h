@@ -61,7 +61,7 @@ public:
   int Run(FunctionPtr, int, LaunchGrid_t, const Args &...) const
   {
     // Not implemented backend launches will end-up here
-    std::string backend_name(copcore::BackendName<backend>::name);
+    std::string backend_name(copcore::BackendName(backend));
     COPCORE_EXCEPTION("Launcher::Launch: No implementation available for " + backend_name);
     return 1;
   }
