@@ -5,9 +5,11 @@
 /// \author Guilherme Amadio. Rewritten to use navigation from common code by Andrei Gheata.
 /// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
-
 #include "Raytracer.h"
 #include <CopCore/Global.h>
+#include <AdePT/BlockData.h>
+#include "kernels.h"
+#include "examples/Raytracer_Benchmark/LoopNavigator.h"
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -16,10 +18,12 @@
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/base/Stopwatch.h>
 
+
 #include <cuda_profiler_api.h>
 
 #include <cassert>
 #include <cstdio>
+
 
 void check_cuda_err(cudaError_t result, char const *const func, const char *const file, int const line)
 {
@@ -32,7 +36,8 @@ void check_cuda_err(cudaError_t result, char const *const func, const char *cons
 
 #define checkCudaErrors(val) check_cuda_err((val), #val, __FILE__, __LINE__)
 
-__global__ void RenderKernel(RaytracerData_t rtdata, char *input_buffer, unsigned char *output_buffer)
+__global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, char *input_buffer,
+                             unsigned char *output_buffer)
 {
   int px = threadIdx.x + blockIdx.x * blockDim.x;
   int py = threadIdx.y + blockIdx.y * blockDim.y;
@@ -41,8 +46,12 @@ __global__ void RenderKernel(RaytracerData_t rtdata, char *input_buffer, unsigne
 
   int ray_index = py * rtdata.fSize_px + px;
 
-  Ray_t *ray                   = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
-  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py);
+  Ray_t *ray = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
+  ray->index = ray_index;
+
+  (*rays)[ray_index] = *ray;
+  
+  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, ray->index);
 
   int pixel_index = 4 * ray_index;
 
@@ -59,7 +68,8 @@ __global__ void RenderLine(RaytracerData_t rtdata, int py, unsigned char *line)
   if (px >= rtdata.fSize_px) return;
 
   Ray_t ray;
-  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py);
+  adept::BlockData<Ray_t> *rays;
+  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, 0);
 
   line[4 * px + 0] = pixel_color.fComp.red;
   line[4 * px + 1] = pixel_color.fComp.green;
@@ -70,6 +80,7 @@ __global__ void RenderLine(RaytracerData_t rtdata, int py, unsigned char *line)
 __global__ void RenderInterlaced(RaytracerData_t rtdata, int offset, int width, unsigned char *output)
 {
   Ray_t ray;
+  adept::BlockData<Ray_t> *rays;
 
   int px = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -78,7 +89,7 @@ __global__ void RenderInterlaced(RaytracerData_t rtdata, int offset, int width, 
   for (int py = offset; py < rtdata.fSize_py; py += width) {
     unsigned char *line = &output[4 * py * rtdata.fSize_px];
 
-    adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py);
+    adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, 0);
 
     line[4 * px + 0] = pixel_color.fComp.red;
     line[4 * px + 1] = pixel_color.fComp.green;
@@ -87,8 +98,8 @@ __global__ void RenderInterlaced(RaytracerData_t rtdata, int offset, int width, 
   }
 }
 
-__global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y, int tile_size_x, int tile_size_y,
-                           unsigned char *tile_in, unsigned char *tile_out)
+__global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, int offset_x, int offset_y,
+                           int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out)
 {
   int local_px = threadIdx.x + blockIdx.x * blockDim.x;
   int local_py = threadIdx.y + blockIdx.y * blockDim.y;
@@ -101,8 +112,11 @@ __global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y, i
   int global_px = offset_x + local_px;
   int global_py = offset_y + local_py;
 
-  Ray_t *ray                   = (Ray_t *)(tile_in + ray_index * sizeof(Ray_t));
-  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, *ray, global_px, global_py);
+  Ray_t *ray = (Ray_t *)(tile_in + ray_index * sizeof(Ray_t));
+  ray->index = ray_index;
+
+  (*rays)[ray_index] = *ray;
+  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, global_px, global_py, ray->index);
 
   tile_out[pixel_index + 0] = pixel_color.fComp.red;
   tile_out[pixel_index + 1] = pixel_color.fComp.green;
@@ -159,7 +173,8 @@ void RenderImageInterlaced(cuda::RaytracerData_t *rtdata, unsigned char *output)
 }
 
 // subdivide image in 16 tiles and launch each tile on a separate CUDA stream
-void RenderTiledImage(cuda::RaytracerData_t *rtdata, unsigned char *output_buffer, int block_size)
+void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtdata, unsigned char *output_buffer,
+                      int block_size)
 {
   cudaStream_t streams[4];
 
@@ -195,7 +210,7 @@ void RenderTiledImage(cuda::RaytracerData_t *rtdata, unsigned char *output_buffe
       int offset_x = ix * tile_size_x;
       int offset_y = iy * tile_size_y;
 
-      RenderTile<<<blocks, threads, 0, streams[iy]>>>(*rtdata, offset_x, offset_y, tile_size_x, tile_size_y,
+      RenderTile<<<blocks, threads, 0, streams[iy]>>>(rays, *rtdata, offset_x, offset_y, tile_size_x, tile_size_y,
                                                       tile_device_in[idx], tile_device_out[idx]);
     }
   }
@@ -247,6 +262,12 @@ void RenderTiledImage(cuda::RaytracerData_t *rtdata, unsigned char *output_buffe
 
 int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int block_size)
 {
+  using RayBlock     = adept::BlockData<Ray_t>;
+  using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, copcore::BackendType::CUDA>;
+  using Launcher_t     = copcore::Launcher<copcore::BackendType::CUDA>;
+  using StreamStruct   = copcore::StreamType<copcore::BackendType::CUDA>;
+  using Stream_t       = typename StreamStruct::value_type;
+
   // Allocate ray data and output data on the device
   size_t statesize = vecgeom::NavStateIndex::SizeOfInstance(rtdata->fMaxDepth);
   size_t raysize   = Ray_t::SizeOfInstance();
@@ -278,9 +299,27 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
   auto gpu_world = cudaManager.world_gpu();
   assert(gpu_world && "GPU world volume is a null pointer");
 
+  // initialize BlockData of Ray_t structure
+  int capacity = 1 << 20;
+  RayAllocator hitAlloc(capacity);
+  RayBlock *rays = hitAlloc.allocate(1);
+
+  // Boilerplate to get the pointers to the device functions to be used
+  COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
+
+  // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
+  Stream_t stream;
+  StreamStruct::CreateStream(stream);
+
+  // Allocate slots for the BlockData
+  Launcher_t generate(stream);
+  generate.Run(generateFunc, capacity, {0, 0}, rays);
+
+  generate.WaitStream();
+
   // Initialize the navigation state for the view point
   vecgeom::NavStateIndex vpstate;
-  Raytracer::LocateGlobalPoint(rtdata->fWorld, rtdata->fStart, vpstate, true);
+  LoopNavigator::LocateGlobalPoint(rtdata->fWorld, rtdata->fStart, vpstate, true);
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
 
@@ -294,11 +333,11 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
   cudaProfilerStart();
 
   if (use_tiles) {
-    RenderTiledImage(rtdata, image_buffer, block_size);
+    RenderTiledImage(rays, rtdata, image_buffer, block_size);
   } else {
     dim3 threads(block_size, block_size);
     dim3 blocks(rtdata->fSize_px / block_size + 1, rtdata->fSize_py / block_size + 1);
-    RenderKernel<<<blocks, threads>>>(*rtdata, input_buffer, output_buffer);
+    RenderKernel<<<blocks, threads>>>(rays, *rtdata, input_buffer, output_buffer);
     checkCudaErrors(
         cudaMemcpy(image_buffer, output_buffer, 4 * rtdata->fSize_px * rtdata->fSize_py, cudaMemcpyDeviceToHost));
   }
