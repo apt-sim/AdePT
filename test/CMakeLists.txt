@@ -28,6 +28,7 @@ target_link_libraries(test_copcore_link PRIVATE VecCore::VecCore CopCore::CopCor
 # - Unit tests
 set(ADEPT_UNIT_TESTS_BASE
   test_atomic.cu               # Unit test for atomic ops
+  test_ranluxpp.cu             # Unit test for RANLUX++
   test_queue.cu                # Unit test for mpmc_bounded_queue
   test_track_block.cu          # Unit test for BlockData
 )
