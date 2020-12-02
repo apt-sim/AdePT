@@ -107,25 +107,16 @@ public:
   {
     vecgeom::VPlacedVolume const *currentmother = path.Top();
     vecgeom::VPlacedVolume const *entryvol      = currentmother;
-    if (currentmother != nullptr) {
-      vecgeom::Vector3D<vecgeom::Precision> tmp = localpoint;
-      while (currentmother) {
-        if (currentmother == entryvol || currentmother->GetLogicalVolume()->GetUnplacedVolume()->IsAssembly() ||
-            !currentmother->UnplacedContains(tmp)) {
-          path.Pop();
-          vecgeom::Vector3D<vecgeom::Precision> pointhigherup =
-              currentmother->GetTransformation()->InverseTransform(tmp);
-          tmp           = pointhigherup;
-          currentmother = path.Top();
-        } else {
-          break;
-        }
-      }
+    vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
+    do {
+      path.Pop();
+      transformed   = currentmother->GetTransformation()->InverseTransform(transformed);
+      currentmother = path.Top();
+    } while (currentmother && (currentmother->IsAssembly() || !currentmother->UnplacedContains(transformed)));
 
-      if (currentmother) {
-        path.Pop();
-        return LocateGlobalPointExclVolume(currentmother, entryvol, tmp, path, false);
-      }
+    if (currentmother) {
+      path.Pop();
+      return LocateGlobalPointExclVolume(currentmother, entryvol, transformed, path, false);
     }
     return currentmother;
   }
