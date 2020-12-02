@@ -319,7 +319,7 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
 
   // Initialize the navigation state for the view point
   vecgeom::NavStateIndex vpstate;
-  LoopNavigator::LocateGlobalPoint(rtdata->fWorld, rtdata->fStart, vpstate, true);
+  LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
 

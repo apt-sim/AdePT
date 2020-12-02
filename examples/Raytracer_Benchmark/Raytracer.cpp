@@ -121,7 +121,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     ray.fCrtState = rtdata.fVPstate;
     ray.fVolume   = (Ray_t::VPlacedVolumePtr_t)rtdata.fVPstate.Top();
   } else {
-    ray.fVolume = LoopNavigator::LocateGlobalPoint(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+    ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
   }
   int itry = 0;
   while (!ray.fVolume && itry < kMaxTries) {
@@ -130,7 +130,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     if (ray.fDone) return ray.fColor;
     // Propagate to the world volume (but do not increment the boundary count)
     ray.fPos += (snext + kPush) * ray.fDir;
-    ray.fVolume = LoopNavigator::LocateGlobalPoint(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+    ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
   }
   ray.fDone = ray.fVolume == nullptr;
   if (ray.fDone) return ray.fColor;

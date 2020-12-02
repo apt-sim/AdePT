@@ -28,9 +28,9 @@ public:
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 
   VECCORE_ATT_HOST_DEVICE
-  static VPlacedVolumePtr_t LocateGlobalPoint(vecgeom::VPlacedVolume const *vol,
-                                              vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                              vecgeom::NavStateIndex &path, bool top)
+  static VPlacedVolumePtr_t LocatePointIn(vecgeom::VPlacedVolume const *vol,
+                                          vecgeom::Vector3D<vecgeom::Precision> const &point,
+                                          vecgeom::NavStateIndex &path, bool top)
   {
     vecgeom::VPlacedVolume const *candvolume = vol;
     vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
@@ -62,51 +62,10 @@ public:
   }
 
   VECCORE_ATT_HOST_DEVICE
-  static VPlacedVolumePtr_t LocateGlobalPointExclVolume(vecgeom::VPlacedVolume const *vol,
-                                                        vecgeom::VPlacedVolume const *excludedvolume,
-                                                        vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                                        vecgeom::NavStateIndex &path, bool top)
-  {
-    vecgeom::VPlacedVolume const *candvolume = vol;
-    vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
-    if (top) {
-      assert(vol != nullptr);
-      candvolume = (vol->UnplacedContains(point)) ? vol : nullptr;
-    }
-    if (candvolume) {
-      path.Push(candvolume);
-      vecgeom::LogicalVolume const *lvol                  = candvolume->GetLogicalVolume();
-      vecgeom::Vector<vecgeom::Daughter> const *daughters = lvol->GetDaughtersp();
-
-      bool godeeper = true;
-      while (daughters->size() > 0 && godeeper) {
-        godeeper = false;
-        // returns nextvolume; and transformedpoint; modified path
-        for (size_t i = 0; i < daughters->size(); ++i) {
-          vecgeom::VPlacedVolume const *nextvolume = (*daughters)[i];
-          if (nextvolume != excludedvolume) {
-            vecgeom::Vector3D<vecgeom::Precision> transformedpoint;
-            if (nextvolume->Contains(currentpoint, transformedpoint)) {
-              path.Push(nextvolume);
-              currentpoint = transformedpoint;
-              candvolume   = nextvolume;
-              daughters    = candvolume->GetLogicalVolume()->GetDaughtersp();
-              godeeper     = true;
-              break;
-            }
-          } // end if excludedvolume
-        }
-      }
-    }
-    return candvolume;
-  }
-
-  VECCORE_ATT_HOST_DEVICE
-  static VPlacedVolumePtr_t RelocatePointFromPathForceDifferent(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
-                                                                vecgeom::NavStateIndex &path)
+  static VPlacedVolumePtr_t RelocatePoint(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
+                                          vecgeom::NavStateIndex &path)
   {
     vecgeom::VPlacedVolume const *currentmother = path.Top();
-    vecgeom::VPlacedVolume const *entryvol      = currentmother;
     vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
     do {
       path.Pop();
@@ -116,7 +75,7 @@ public:
 
     if (currentmother) {
       path.Pop();
-      return LocateGlobalPointExclVolume(currentmother, entryvol, transformed, path, false);
+      return LocatePointIn(currentmother, transformed, path, false);
     }
     return currentmother;
   }
@@ -214,12 +173,12 @@ public:
     localpoint += (step + 1.E-6) * localdir;
 
     if (out_state.Top() == in_state.Top()) {
-      RelocatePointFromPathForceDifferent(localpoint, out_state);
+      RelocatePoint(localpoint, out_state);
     } else {
       // continue directly further down ( next volume should have been stored in out_state already )
       vecgeom::VPlacedVolume const *nextvol = out_state.Top();
       out_state.Pop();
-      LoopNavigator::LocateGlobalPoint(nextvol, nextvol->GetTransformation()->Transform(localpoint), out_state, false);
+      LoopNavigator::LocatePointIn(nextvol, nextvol->GetTransformation()->Transform(localpoint), out_state, false);
     }
 
     if (out_state.Top() != nullptr) {
