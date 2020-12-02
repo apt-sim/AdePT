@@ -114,47 +114,31 @@ public:
       step         = valid ? ddistance : step;
     }
 
-    // fix state
-    bool done;
-    // step = Impl::PrepareOutState(in_state, out_state, step, step_limit, hitcandidate, done);
     // now we have the candidates and we prepare the out_state
     in_state.CopyTo(&out_state);
-    done = false;
     if (step == vecgeom::kInfLength && step_limit > 0.) {
-      step = vecgeom::kTolerance;
       out_state.SetBoundaryState(true);
       do {
         out_state.Pop();
-      } while (out_state.Top()->GetLogicalVolume()->GetUnplacedVolume()->IsAssembly());
-      done = true;
-    } else {
-      // is geometry further away than physics step?
-      // this is a physics step
-      if (step > step_limit) {
-        // don't need to do anything
-        step = step_limit;
-        out_state.SetBoundaryState(false);
-      } else {
-        // otherwise it is a geometry step
-        out_state.SetBoundaryState(true);
-        if (hitcandidate) out_state.Push(hitcandidate);
+      } while (out_state.Top()->IsAssembly());
 
-        if (step < 0.) {
-          // std::cerr << "WARNING: STEP NEGATIVE; NEXTVOLUME " << nexthitvolume << std::endl;
-          // InspectEnvironmentForPointAndDirection( globalpoint, globaldir, currentstate );
-          step = 0.;
-        }
-      }
+      return vecgeom::kTolerance;
     }
 
-    if (done) {
-      if (out_state.Top() != nullptr) {
-        assert(!out_state.Top()->GetLogicalVolume()->GetUnplacedVolume()->IsAssembly());
-      }
-      return step;
+    // Is geometry further away than physics step?
+    if (step > step_limit) {
+      // Then this is a phyics step and we don't need to do anything.
+      out_state.SetBoundaryState(false);
+      return step_limit;
     }
-    // step was physics limited
-    if (!out_state.IsOnBoundary()) return step;
+
+    // Otherwise it is a geometry step and we push the point to the boundary.
+    out_state.SetBoundaryState(true);
+    if (hitcandidate) out_state.Push(hitcandidate);
+
+    if (step < 0.) {
+      step = 0.;
+    }
 
     // otherwise if necessary do a relocation
     // try relocation to refine out_state to correct location after the boundary
