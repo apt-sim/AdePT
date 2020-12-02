@@ -102,15 +102,8 @@ public:
       // std::cout << "grid_size = " << grid_size << "  block_size = " << block_size << std::endl;
     }
 
-    // pack parameter addresses into an array
-    void *parameter_array[] = {&n_elements, const_cast<DeviceFunctionPtr *>(&func),
-                               const_cast<Args *>(&args)...};
-
-    // Get a pointer to the kernel implementation global function
-    void *kernel_ptr = reinterpret_cast<void *>(&kernel_launcher_impl::kernel_dispatch<DeviceFunctionPtr, Args...>);
-
     // launch the kernel
-    cudaLaunchKernel(kernel_ptr, exec_grid[0], exec_grid[1], parameter_array, 0, fStream);
+    kernel_launcher_impl::kernel_dispatch<<<exec_grid[0], exec_grid[1], 0, fStream>>>(n_elements, func, args...);
     COPCORE_CUDA_CHECK(cudaGetLastError());
     return 0;
   }
