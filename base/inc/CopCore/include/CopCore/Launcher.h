@@ -18,11 +18,11 @@ namespace copcore {
 namespace kernel_launcher_impl {
 
 template <class Function, class... Args>
-__global__ void kernel_dispatch(int *data_size, Function device_func_select, const Args... args)
+__global__ void kernel_dispatch(int data_size, Function device_func_select, const Args... args)
 {
   // Initiate a grid-size loop to maximize reuse of threads and CPU compatibility, keeping adressing within warps
   // unit-stride
-  for (auto id = blockIdx.x * blockDim.x + threadIdx.x; id < *data_size; id += blockDim.x * gridDim.x) {
+  for (auto id = blockIdx.x * blockDim.x + threadIdx.x; id < data_size; id += blockDim.x * gridDim.x) {
 
     device_func_select(id, args...);
   }
@@ -73,12 +73,10 @@ template <>
 class Launcher<BackendType::CUDA> : public LauncherBase<BackendType::CUDA> {
 private:
   int fNumSMs;     ///< number of streaming multi-processors
-  int *fNelements; ///< device pointer to the number of elements
 
 public:
   Launcher(Stream_t stream = 0) : LauncherBase(stream)
   {
-    COPCORE_CUDA_CHECK(cudaMallocManaged(&fNelements, sizeof(int)));
     cudaGetDevice(&fDeviceId);
     cudaDeviceGetAttribute(&fNumSMs, cudaDevAttrMultiProcessorCount, fDeviceId);
   }
@@ -91,8 +89,6 @@ public:
 
     // Compute the launch grid.
     if (!n_elements) return 0;
-    *fNelements = n_elements;
-    // cudaMemcpy(fNelements, &n_elements, sizeof(int), cudaMemcpyHostToDevice);
 
     // Adjust automatically the execution grid. Optimal occupancy:
     // nMaxThreads = fNumSMs * warpsPerSM * 32; grid_size = nmaxthreads / block_size
@@ -107,7 +103,7 @@ public:
     }
 
     // pack parameter addresses into an array
-    void *parameter_array[] = {(int *)(&fNelements), const_cast<DeviceFunctionPtr *>(&func),
+    void *parameter_array[] = {&n_elements, const_cast<DeviceFunctionPtr *>(&func),
                                const_cast<Args *>(&args)...};
 
     // Get a pointer to the kernel implementation global function
