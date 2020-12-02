@@ -44,7 +44,8 @@ public:
 
     bool godeeper = true;
     while (daughters->size() > 0 && godeeper) {
-      for (size_t i = 0; i < daughters->size() && godeeper; ++i) {
+      godeeper = false;
+      for (size_t i = 0; i < daughters->size(); ++i) {
         vecgeom::VPlacedVolume const *nextvolume = (*daughters)[i];
         vecgeom::Vector3D<vecgeom::Precision> transformedpoint;
         if (nextvolume->Contains(currentpoint, transformedpoint)) {
@@ -52,10 +53,10 @@ public:
           currentpoint = transformedpoint;
           candvolume   = nextvolume;
           daughters    = candvolume->GetLogicalVolume()->GetDaughtersp();
+          godeeper     = true;
           break;
         }
       }
-      godeeper = false;
     }
     return candvolume;
   }
