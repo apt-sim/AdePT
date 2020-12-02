@@ -134,25 +134,21 @@ public:
 
     // Otherwise it is a geometry step and we push the point to the boundary.
     out_state.SetBoundaryState(true);
-    if (hitcandidate) out_state.Push(hitcandidate);
 
     if (step < 0.) {
       step = 0.;
     }
 
-    // otherwise if necessary do a relocation
-    // try relocation to refine out_state to correct location after the boundary
-
-    // ((Impl *)this)->Impl::Relocate(MovePointAfterBoundary(localpoint, localdir, step), in_state, out_state);
+    // Relocate the point after the step to refine out_state.
     localpoint += (step + 1.E-6) * localdir;
 
-    if (out_state.Top() == in_state.Top()) {
+    if (!hitcandidate) {
+      // We didn't hit a daughter but instead we're exiting the current volume.
       RelocatePoint(localpoint, out_state);
     } else {
-      // continue directly further down ( next volume should have been stored in out_state already )
-      vecgeom::VPlacedVolume const *nextvol = out_state.Top();
-      out_state.Pop();
-      LoopNavigator::LocatePointIn(nextvol, nextvol->GetTransformation()->Transform(localpoint), out_state, false);
+      // Otherwise check if we're directly entering other daughters transitively.
+      localpoint = hitcandidate->GetTransformation()->Transform(localpoint);
+      LocatePointIn(hitcandidate, localpoint, out_state, false);
     }
 
     if (out_state.Top() != nullptr) {
