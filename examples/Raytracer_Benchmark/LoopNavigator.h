@@ -32,33 +32,31 @@ public:
                                           vecgeom::Vector3D<vecgeom::Precision> const &point,
                                           vecgeom::NavStateIndex &path, bool top)
   {
-    vecgeom::VPlacedVolume const *candvolume = vol;
-    vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
     if (top) {
       assert(vol != nullptr);
       if (!vol->UnplacedContains(point)) return nullptr;
     }
-    path.Push(candvolume);
-    vecgeom::LogicalVolume const *lvol                  = candvolume->GetLogicalVolume();
-    vecgeom::Vector<vecgeom::Daughter> const *daughters = lvol->GetDaughtersp();
 
-    bool godeeper = true;
-    while (daughters->size() > 0 && godeeper) {
+    VPlacedVolumePtr_t currentvolume = vol;
+    vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
+    path.Push(currentvolume);
+
+    bool godeeper;
+    do {
       godeeper = false;
-      for (size_t i = 0; i < daughters->size(); ++i) {
-        vecgeom::VPlacedVolume const *nextvolume = (*daughters)[i];
+      for (auto *daughter : currentvolume->GetDaughters()) {
         vecgeom::Vector3D<vecgeom::Precision> transformedpoint;
-        if (nextvolume->Contains(currentpoint, transformedpoint)) {
-          path.Push(nextvolume);
-          currentpoint = transformedpoint;
-          candvolume   = nextvolume;
-          daughters    = candvolume->GetLogicalVolume()->GetDaughtersp();
-          godeeper     = true;
+        if (daughter->Contains(currentpoint, transformedpoint)) {
+          path.Push(daughter);
+          currentpoint  = transformedpoint;
+          currentvolume = daughter;
+          godeeper      = true;
           break;
         }
       }
-    }
-    return candvolume;
+    } while (godeeper);
+
+    return currentvolume;
   }
 
   VECCORE_ATT_HOST_DEVICE
@@ -96,24 +94,16 @@ public:
     localpoint = m.Transform(globalpoint);
     localdir   = m.TransformDirection(globaldir);
 
-    vecgeom::Precision step                    = step_limit;
-    vecgeom::VPlacedVolume const *hitcandidate = nullptr;
-    auto pvol                                  = in_state.Top();
-    auto lvol                                  = pvol->GetLogicalVolume();
+    vecgeom::Precision step         = step_limit;
+    VPlacedVolumePtr_t hitcandidate = nullptr;
+    VPlacedVolumePtr_t pvol         = in_state.Top();
 
     // need to calc DistanceToOut first
-    // step = Impl::TreatDistanceToMother(pvol, localpoint, localdir, step_limit);
-    step = lvol->GetUnplacedVolume()->DistanceToOut(localpoint, localdir, step_limit);
-    // step = pvol->DistanceToOut(localpoint, localdir, step_limit);
+    step = pvol->DistanceToOut(localpoint, localdir, step_limit);
 
     if (step < 0) step = 0;
-    // "suck in" algorithm from Impl and treat hit detection in local coordinates for daughters
-    //((Impl *)this)
-    //    ->Impl::CheckDaughterIntersections(lvol, localpoint, localdir, &in_state, &out_state, step, hitcandidate);
-    auto *daughters = lvol->GetDaughtersp();
-    auto ndaughters = daughters->size();
-    for (decltype(ndaughters) d = 0; d < ndaughters; ++d) {
-      auto daughter    = daughters->operator[](d);
+
+    for (auto *daughter : pvol->GetDaughters()) {
       double ddistance = daughter->DistanceToIn(localpoint, localdir, step);
 
       // if distance is negative; we are inside that daughter and should relocate
