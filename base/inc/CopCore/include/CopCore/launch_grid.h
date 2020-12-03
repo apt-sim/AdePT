@@ -28,16 +28,16 @@ public:
   launch_grid(int n_blocks, int n_threads) : fGrid{n_blocks, n_threads} {}
 
   /** @brief Access either block [0] or thread [1] grid */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   int operator[](int index) { return fGrid[index]; }
 
   /** @brief Access either block [0] or thread [1] grid */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   int operator[](int index) const { return fGrid[index]; }
 
 }; // End class launch_grid<BackendType::CPU>
 
-#ifdef VECCORE_CUDA
+#ifdef TARGET_DEVICE_CUDA
 template <>
 class launch_grid<BackendType::CUDA> {
 private:
@@ -45,19 +45,19 @@ private:
 
 public:
   /** @brief Construct from block and thread grids */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   launch_grid(const dim3 &block_index, const dim3 &thread_index) : fGrid{block_index, thread_index} {}
 
   /** @brief Default constructor */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   launch_grid() : launch_grid(dim3(), dim3()) {}
 
   /** @brief Access either block [0] or thread [1] grid */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   dim3 &operator[](int index) { return fGrid[index]; }
 
   /** @brief Access either block [0] or thread [1] grid */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   const dim3 &operator[](int index) const { return fGrid[index]; }
 }; // End class launch_grid<BackendType::CUDA>
 #endif
