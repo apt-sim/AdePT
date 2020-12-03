@@ -40,30 +40,30 @@ private:
   friend Base_t;
 
   /** @brief Functions required by VariableSizeObjectInterface */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   ArrayData_t &GetVariableData() { return fData; }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const ArrayData_t &GetVariableData() const { return fData; }
 
   // constructors and assignment operators are private
   // states have to be constructed using MakeInstance() function
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   MParray(size_t nvalues) : fCapacity(nvalues), fData(nvalues) {}
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   MParray(MParray const &other) : MParray(other.fCapacity, other) {}
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   MParray(size_t new_size, MParray const &other) : Base_t(other), fCapacity(new_size), fData(new_size, other.fData) {}
 
-  VECCORE_FORCE_INLINE
-  VECCORE_ATT_HOST_DEVICE
+  COPCORE_FORCE_INLINE
+  __host__ __device__
   ~MParray() {}
 
 public:
@@ -77,18 +77,18 @@ public:
   using Base_t::SizeOfAlignAware;
 
   /** @brief Maximum number of elements */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   size_t size() const { return fNused.load(); }
 
   /** @brief Maximum number of elements */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   constexpr size_t max_size() const { return fCapacity; }
 
   /** @brief Clear the content */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   void clear()
   {
     fNused.store(0);
@@ -96,13 +96,13 @@ public:
   }
 
   /** @brief Read-only index operator */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const_reference operator[](size_t index) const { return fData[index]; }
 
   /** @brief Dispatch next free element, nullptr if none left */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   bool push_back(value_type val)
   {
     // Operation may fail if the max size is exceeded. Has to be checked by the user.
@@ -114,33 +114,33 @@ public:
   }
 
   /** @brief Check if container is fully distributed */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   bool full() const { return (size() == fCapacity); }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const_iterator begin() const { return const_iterator(&fData[0]); }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const_iterator end() const { return const_iterator(&fData[fNused.load()]); }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const_reference front() const { return *begin(); }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const_reference back() const { return fCapacity ? *(end() - 1) : *end(); }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const_pointer data() const { return &fData[0]; }
 
   /** @brief Returns the size in bytes of a BlockData object with given capacity */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
 
 }; // End class MParray

@@ -10,10 +10,10 @@
 #ifndef ADEPT_ATOMIC_H_
 #define ADEPT_ATOMIC_H_
 
-#include <VecCore/VecCore>
+#include <CopCore/CopCore.h>
 #include <cassert>
 
-#ifndef VECCORE_CUDA_DEVICE_COMPILATION
+#ifndef DEVICE_COMPILATION_TRAJECTORY
 #include <atomic>
 #endif
 
@@ -24,7 +24,7 @@ namespace adept {
 template <typename Type>
 struct AtomicBase_t {
 
-#ifndef VECCORE_CUDA_DEVICE_COMPILATION
+#ifndef DEVICE_COMPILATION_TRAJECTORY
   /// Standard library atomic behaviour.
   using AtomicType_t = std::atomic<Type>;
 #else
@@ -35,19 +35,19 @@ struct AtomicBase_t {
   AtomicType_t fData{0}; ///< Atomic data
 
   /** @brief Constructor taking an address */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   AtomicBase_t() : fData{0} {}
 
   /** @brief Copy constructor */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   AtomicBase_t(AtomicBase_t const &other) { store(other.load()); }
 
   /** @brief Assignment */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   AtomicBase_t &operator=(AtomicBase_t const &other) { store(other.load()); }
 
   /** @brief Emplace the data at a given address */
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static AtomicBase_t *MakeInstanceAt(void *addr)
   {
     assert(addr != nullptr && "cannot allocate at nullptr address");
@@ -57,7 +57,7 @@ struct AtomicBase_t {
   }
 
   /// Implementation-dependent
-#ifndef VECCORE_CUDA_DEVICE_COMPILATION
+#ifndef DEVICE_COMPILATION_TRAJECTORY
 
   /** @brief Atomically replaces the current value with desired. */
   void store(Type desired) { fData.store(desired); }
@@ -78,11 +78,11 @@ struct AtomicBase_t {
 #else
 
   /** @brief Atomically replaces the current value with desired. */
-  VECCORE_ATT_DEVICE
+  __device__
   void store(Type desired) { atomicExch(&fData, desired); }
 
   /** @brief Atomically loads and returns the current value of the atomic variable. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type load() const
   {
     // There is no atomic load on CUDA. Issue a memory fence to get the required
@@ -92,12 +92,12 @@ struct AtomicBase_t {
   }
 
   /** @brief Atomically replaces the underlying value with desired. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type exchange(Type desired) { return atomicExch(&fData, desired); }
 
   /** @brief Atomically compares the stored value with the expected one, and if equal stores desired.
    * If not loads the old value into expected. Returns true if swap was successful. */
-  VECCORE_ATT_DEVICE
+  __device__
   bool compare_exchange_strong(Type &expected, Type desired)
   {
     Type old    = atomicCAS(&fData, expected, desired);
@@ -107,47 +107,47 @@ struct AtomicBase_t {
   }
 
   /** @brief Atomically replaces the current value with the result of arithmetic addition of the value and arg. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type fetch_add(Type arg) { return atomicAdd(&fData, arg); }
 
   /** @brief Atomically replaces the current value with the result of arithmetic subtraction of the value and arg. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type fetch_sub(Type arg) { return atomicAdd(&fData, -arg); }
 
   /** @brief Atomically replaces the current value with the result of bitwise AND of the value and arg. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type fetch_and(Type arg) { return atomicAnd(&fData, arg); }
 
   /** @brief Atomically replaces the current value with the result of bitwise OR of the value and arg. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type fetch_or(Type arg) { return atomicOr(&fData, arg); }
 
   /** @brief Atomically replaces the current value with the result of bitwise XOR of the value and arg. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type fetch_xor(Type arg) { return atomicXor(&fData, arg); }
 
   /** @brief Performs atomic add. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator+=(Type arg) { return (fetch_add(arg) + arg); }
 
   /** @brief Performs atomic subtract. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator-=(Type arg) { return (fetch_sub(arg) - arg); }
 
   /** @brief Performs atomic pre-increment. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator++() { return (fetch_add(1) + 1); }
 
   /** @brief Performs atomic post-increment. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator++(int) { return fetch_add(1); }
 
   /** @brief Performs atomic pre-decrement. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator--() { return (fetch_sub(1) - 1); }
 
   /** @brief Performs atomic post-decrement. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator--(int) { return fetch_sub(1); }
 
 #endif
@@ -162,7 +162,7 @@ template <typename Type>
 struct Atomic_t<Type, typename std::enable_if<std::is_integral<Type>::value>::type> : public AtomicBase_t<Type> {
   using AtomicBase_t<Type>::fData;
 
-#ifndef VECCORE_CUDA_DEVICE_COMPILATION
+#ifndef DEVICE_COMPILATION_TRAJECTORY
   /// Standard library atomic operations for integral types
 
   /** @brief Atomically assigns the desired value to the atomic variable. */
@@ -202,7 +202,7 @@ struct Atomic_t<Type, typename std::enable_if<std::is_integral<Type>::value>::ty
   Type operator--(int) { return fetch_sub(1); }
 #else
   /** @brief Atomically assigns the desired value to the atomic variable. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator=(Type desired)
   {
     atomicExch(&fData, desired);
@@ -219,7 +219,7 @@ struct Atomic_t<Type, typename std::enable_if<!std::is_integral<Type>::value>::t
   using Base_t = AtomicBase_t<Type>;
   using Base_t::fData;
 
-#ifndef VECCORE_CUDA_DEVICE_COMPILATION
+#ifndef DEVICE_COMPILATION_TRAJECTORY
 
   /** @brief Atomically assigns the desired value to the atomic variable. */
   Type operator=(Type desired) { return fData.operator=(desired); }
@@ -257,7 +257,7 @@ struct Atomic_t<Type, typename std::enable_if<!std::is_integral<Type>::value>::t
 #else
 
   /** @brief Atomically assigns the desired value to the atomic variable. */
-  VECCORE_ATT_DEVICE
+  __device__
   Type operator=(Type desired)
   {
     atomicExch(&fData, desired);

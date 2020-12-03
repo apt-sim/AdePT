@@ -126,7 +126,7 @@
 #ifndef COPCORE_VARIABLESIZEOBJ_H
 #define COPCORE_VARIABLESIZEOBJ_H
 
-#include <VecCore/VecCore>
+#include <CopCore/backend/BackendCommon.h>
 
 // For memset and memcpy
 #include <string.h>
@@ -146,31 +146,31 @@ public:
 
   VariableSizeObj(TRootIOCtor *) : fSelfAlloc(false), fN(0) {}
 
-  VECCORE_FORCE_INLINE
-  VECCORE_ATT_HOST_DEVICE
+  COPCORE_FORCE_INLINE
+  __host__ __device__
   VariableSizeObj(unsigned int nvalues) : fSelfAlloc(false), fN(nvalues) {}
 
-  VECCORE_FORCE_INLINE
-  VECCORE_ATT_HOST_DEVICE
+  COPCORE_FORCE_INLINE
+  __host__ __device__
   VariableSizeObj(const VariableSizeObj &other) : fSelfAlloc(false), fN(other.fN)
   {
     if (other.fN) memcpy(GetValues(), other.GetValues(), (other.fN) * sizeof(V));
   }
 
-  VECCORE_FORCE_INLINE
-  VECCORE_ATT_HOST_DEVICE
+  COPCORE_FORCE_INLINE
+  __host__ __device__
   VariableSizeObj(size_t new_size, const VariableSizeObj &other) : fSelfAlloc(false), fN(new_size)
   {
     if (other.fN) memcpy(GetValues(), other.GetValues(), (other.fN) * sizeof(V));
   }
 
-  VECCORE_FORCE_INLINE VECCORE_ATT_HOST_DEVICE V *GetValues() { return &fRealArray[0]; }
-  VECCORE_FORCE_INLINE VECCORE_ATT_HOST_DEVICE const V *GetValues() const { return &fRealArray[0]; }
+  COPCORE_FORCE_INLINE __host__ __device__ V *GetValues() { return &fRealArray[0]; }
+  COPCORE_FORCE_INLINE __host__ __device__ const V *GetValues() const { return &fRealArray[0]; }
 
-  VECCORE_FORCE_INLINE VECCORE_ATT_HOST_DEVICE V &operator[](Index_t index) { return GetValues()[index]; };
-  VECCORE_FORCE_INLINE VECCORE_ATT_HOST_DEVICE const V &operator[](Index_t index) const { return GetValues()[index]; };
+  COPCORE_FORCE_INLINE __host__ __device__ V &operator[](Index_t index) { return GetValues()[index]; };
+  COPCORE_FORCE_INLINE __host__ __device__ const V &operator[](Index_t index) const { return GetValues()[index]; };
 
-  VECCORE_FORCE_INLINE VECCORE_ATT_HOST_DEVICE VariableSizeObj &operator=(const VariableSizeObj &rhs)
+  COPCORE_FORCE_INLINE __host__ __device__ VariableSizeObj &operator=(const VariableSizeObj &rhs)
   {
     // Copy data content using memcpy, limited by the respective size
     // of the the object.  If this is smaller there is data truncation,
@@ -199,7 +199,7 @@ public:
   // The static maker to be used to create an instance of the variable size object.
 
   template <typename... T>
-  VECCORE_ATT_HOST_DEVICE static Cont *MakeInstance(size_t nvalues, const T &... params)
+  __host__ __device__ static Cont *MakeInstance(size_t nvalues, const T &... params)
   {
     // Make an instance of the class which allocates the node array. To be
     // released using ReleaseInstance.
@@ -213,7 +213,7 @@ public:
   }
 
   template <typename... T>
-  VECCORE_ATT_HOST_DEVICE static Cont *MakeInstanceAt(size_t nvalues, void *addr, const T &... params)
+  __host__ __device__ static Cont *MakeInstanceAt(size_t nvalues, void *addr, const T &... params)
   {
     // Make an instance of the class which allocates the node array. To be
     // released using ReleaseInstance. If addr is non-zero, the user promised that
@@ -229,7 +229,7 @@ public:
   }
 
   // The equivalent of the copy constructor
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static Cont *MakeCopy(const Cont &other)
   {
     // Make a copy of the variable size array and its container.
@@ -242,7 +242,7 @@ public:
     return copy;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static Cont *MakeCopy(size_t new_size, const Cont &other)
   {
     // Make a copy of a the variable size array and its container with
@@ -257,7 +257,7 @@ public:
   }
 
   // The equivalent of the copy constructor
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static Cont *MakeCopyAt(const Cont &other, void *addr)
   {
     // Make a copy of a the variable size array and its container at the location (if indicated)
@@ -271,7 +271,7 @@ public:
   }
 
   // The equivalent of the copy constructor
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static Cont *MakeCopyAt(size_t new_size, const Cont &other, void *addr)
   {
     // Make a copy of a the variable size array and its container at the location (if indicated)
@@ -285,7 +285,7 @@ public:
   }
 
   // The equivalent of the destructor
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static void ReleaseInstance(Cont *obj)
   {
     // Releases the space allocated for the object
@@ -294,26 +294,26 @@ public:
   }
 
   // Equivalent of sizeof function (not taking into account padding for alignment)
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static constexpr size_t SizeOf(size_t nvalues)
   {
     return (sizeof(Cont) + Cont::SizeOfExtra(nvalues) + sizeof(V) * (nvalues - 1));
   }
 
   // Size of the allocated derived type data members that are also variable size
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static constexpr size_t SizeOfExtra(size_t nvalues) { return 0; }
 
   // equivalent of sizeof function taking into account padding for alignment
   // this function should be used when making arrays of VariableSizeObjects
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static constexpr size_t SizeOfAlignAware(size_t nvalues) { return SizeOf(nvalues) + RealFillUp(nvalues); }
 
 private:
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static constexpr size_t FillUp(size_t nvalues) { return alignof(Cont) - SizeOf(nvalues) % alignof(Cont); }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static constexpr size_t RealFillUp(size_t nvalues)
   {
     return (FillUp(nvalues) == alignof(Cont)) ? 0 : FillUp(nvalues);

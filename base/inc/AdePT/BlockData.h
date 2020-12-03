@@ -41,18 +41,18 @@ private:
   friend Base_t;
 
   /** @brief Functions required by VariableSizeObjectInterface */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   ArrayData_t &GetVariableData() { return fData; }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const ArrayData_t &GetVariableData() const { return fData; }
 
   // constructors and assignment operators are private
   // states have to be constructed using MakeInstance() function
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   BlockData(size_t nvalues) : fCapacity(nvalues), fData(nvalues)
   {
     char *address = (char *)this + Base_t::SizeOfAlignAware(nvalues) - BlockData<Type>::SizeOfExtra(nvalues);
@@ -60,12 +60,12 @@ private:
     Queue_t::MakeInstanceAt(nvalues, address);
   }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   BlockData(BlockData const &other) : BlockData(other.fCapacity, other) {}
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   BlockData(size_t new_size, BlockData const &other) : Base_t(other), fCapacity(new_size), fData(new_size, other.fData)
   {
     char *address = (char *)this + Base_t::SizeOfAlignAware(new_size) - BlockData<Type>::SizeOfExtra(new_size);
@@ -73,13 +73,13 @@ private:
     Queue_t::MakeCopyAt(new_size, *other.fHoles, address);
   }
 
-  VECCORE_FORCE_INLINE
-  VECCORE_ATT_HOST_DEVICE
+  COPCORE_FORCE_INLINE
+  __host__ __device__
   ~BlockData() {}
 
   /** @brief Returns the size in bytes of extra queue data needed by BlockData object with given capacity */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   static size_t SizeOfExtra(int capacity) { return Queue_t::SizeOfAlignAware(capacity); }
 
 public:
@@ -93,18 +93,18 @@ public:
   using Base_t::SizeOfAlignAware;
 
   /** @brief Returns the size in bytes of a BlockData object with given capacity */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
 
   /** @brief Maximum number of elements */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   int Capacity() const { return fCapacity; }
 
   /** @brief Clear the content */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   void Clear()
   {
     fNused.store(0);
@@ -112,18 +112,18 @@ public:
   }
 
   /** @brief Read-only index operator */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   Type const &operator[](const int index) const { return fData[index]; }
 
   /** @brief Read/write index operator */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   Type &operator[](const int index) { return fData[index]; }
 
   /** @brief Dispatch next free element, nullptr if none left */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   Type *NextElement()
   {
     // Try to get a hole index if any
@@ -139,8 +139,8 @@ public:
   }
 
   /** @brief Release an element */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   void ReleaseElement(int index)
   {
     // No checks currently done that the index was given via NextElement
@@ -150,18 +150,18 @@ public:
   }
 
   /** @brief Number of elements currently distributed */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   int GetNused() { return fNused.load(); }
 
   /** @brief Number of holes in the block */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   int GetNholes() { return fHoles->size(); }
 
   /** @brief Check if container is fully distributed */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   bool IsFull() const { return (GetNused() == fCapacity); }
 
 }; // End BlockData

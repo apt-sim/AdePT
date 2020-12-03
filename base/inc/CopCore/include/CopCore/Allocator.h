@@ -14,13 +14,15 @@
 #include <stdexcept>
 #include <iostream>
 
+#include <CopCore/backend/BackendCommon.h>
+
 namespace copcore {
 
 template <class T, BackendType backend>
 class Allocator {
 };
 
-#ifdef VECCORE_CUDA
+#ifdef TARGET_DEVICE_CUDA
 
 /** @brief Partial allocator specialization for the CUDA backend */
 template <class T>

@@ -30,3 +30,11 @@
 #include "CUDABackend.h"
 #endif
 
+// Additional inlinesfrom VecCore
+#ifdef _MSC_VER
+#define COPCORE_FORCE_NOINLINE __declspec(noinline)
+#define COPCORE_FORCE_INLINE inline __forceinline
+#else
+#define COPCORE_FORCE_NOINLINE __attribute__((noinline))
+#define COPCORE_FORCE_INLINE inline __attribute__((always_inline))
+#endif

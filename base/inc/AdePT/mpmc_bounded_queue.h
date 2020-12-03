@@ -51,12 +51,12 @@ private:
   friend Base_t;
 
   /** @brief Functions required by VariableSizeObjectInterface */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   ArrayData_t &GetVariableData() { return fBuffer; }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   const ArrayData_t &GetVariableData() const { return fBuffer; }
 
   // constructors and assignment operators are private
@@ -68,8 +68,8 @@ private:
    * @param addr Address where the queue is allocated.
    * The user should make sure to allocate at least SizeofInstance(fBuffersize) bytes
    */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   mpmc_bounded_queue(int nvalues) : fCapacity(nvalues), fMask(nvalues - 1), fBuffer(nvalues)
   {
     // The queue size must be a power of 2 (for fast access)
@@ -78,17 +78,17 @@ private:
       fBuffer[i].fSequence.store(i);
   }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   mpmc_bounded_queue(int /*nvalues*/, mpmc_bounded_queue const & /*other*/) {}
   /** @brief MPMC bounded queue copy constructor */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   mpmc_bounded_queue(mpmc_bounded_queue const &other) : mpmc_bounded_queue(other.fCapacity, other) {}
 
   /** @brief MPMC bounded queue copy constructor with given size */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   mpmc_bounded_queue(size_t new_size, mpmc_bounded_queue const &other)
       : fCapacity(new_size), fMask(new_size - 1), fEnqueue(other.fEnqueue), fDequeue(other.fDequeue),
         fNstored(other.fNstored), fBuffer(new_size, other.fBuffer)
@@ -110,18 +110,18 @@ public:
   using Base_t::SizeOfAlignAware;
 
   /** @brief Returns the size in bytes of a BlockData object with given capacity */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
 
   /** @brief Maximum number of elements */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   int Capacity() const { return fCapacity; }
 
   /** @brief Size function */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   void clear()
   {
     fEnqueue.store(0);
@@ -132,13 +132,13 @@ public:
   }
 
   /** @brief Size function */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   int size() const { return fNstored.load(); }
 
   /** @brief MPMC enqueue function */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   bool enqueue(Type const &data)
   {
     Value_t *cell;
@@ -161,8 +161,8 @@ public:
   }
 
   /** @brief MPMC dequeue function */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   bool dequeue(Type &data)
   {
     Value_t *cell;
@@ -189,8 +189,8 @@ public:
         The index should be smaller than the number of stored elements. The range is only
         checked in debug mode.
     */
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   Type &operator[](const int index)
   {
     assert(index >= 0 && index < fNstored.load() && "Index in queue out of range");
@@ -198,8 +198,8 @@ public:
     return fBuffer[pos & fMask].fData;
   }
 
-  VECCORE_ATT_HOST_DEVICE
-  VECCORE_FORCE_INLINE
+  __host__ __device__
+  COPCORE_FORCE_INLINE
   Type const &operator[](const int index) const
   {
     assert(index >= 0 && index < fNstored.load() && "Index in queue out of range");
