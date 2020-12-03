@@ -3,8 +3,10 @@
 
 #include <cstdint>
 
+#include <CopCore/backend/BackendCommon.h>
+
 /// Compute `a + b` and set `overflow` accordingly.
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 static inline uint64_t add_overflow(uint64_t a, uint64_t b, unsigned &overflow)
 {
   uint64_t add = a + b;
@@ -13,7 +15,7 @@ static inline uint64_t add_overflow(uint64_t a, uint64_t b, unsigned &overflow)
 }
 
 /// Compute `a + b` and increment `carry` if there was an overflow
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 static inline uint64_t add_carry(uint64_t a, uint64_t b, unsigned &carry)
 {
   unsigned overflow;
@@ -25,7 +27,7 @@ static inline uint64_t add_carry(uint64_t a, uint64_t b, unsigned &carry)
 }
 
 /// Compute `a - b` and set `overflow` accordingly
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 static inline uint64_t sub_overflow(uint64_t a, uint64_t b, unsigned &overflow)
 {
   uint64_t sub = a - b;
@@ -34,7 +36,7 @@ static inline uint64_t sub_overflow(uint64_t a, uint64_t b, unsigned &overflow)
 }
 
 /// Compute `a - b` and increment `carry` if there was an overflow
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 static inline uint64_t sub_carry(uint64_t a, uint64_t b, unsigned &carry)
 {
   unsigned overflow;
@@ -50,7 +52,7 @@ static inline uint64_t sub_carry(uint64_t a, uint64_t b, unsigned &carry)
 /// \param[in] in1 first factor as 9 numbers of 64 bits each
 /// \param[in] in2 second factor as 9 numbers of 64 bits each
 /// \param[out] out result with 18 numbers of 64 bits each
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void multiply9x9(const uint64_t *in1, const uint64_t *in2, uint64_t *out)
 {
   uint64_t next      = 0;
@@ -165,7 +167,7 @@ void multiply9x9(const uint64_t *in1, const uint64_t *in2, uint64_t *out)
 ///
 /// Note that this function does *not* return the smallest value congruent to
 /// the modulus, it only guarantees a value smaller than \f$ 2^{576} \$!
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void mod_m(const uint64_t *mul, uint64_t *out)
 {
   uint64_t r[9] = {0};
@@ -311,7 +313,7 @@ void mod_m(const uint64_t *mul, uint64_t *out)
 ///
 /// \param[in] in1 first factor with 9 numbers of 64 bits each
 /// \param[inout] inout second factor and also the output of the same size
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void mulmod(const uint64_t *in1, uint64_t *inout)
 {
   uint64_t mul[2 * 9] = {0};
@@ -326,7 +328,7 @@ void mulmod(const uint64_t *in1, uint64_t *inout)
 /// \param[in] n exponent
 ///
 /// The arguments base and res may point to the same location.
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void powermod(const uint64_t *base, uint64_t *res, uint64_t n)
 {
   uint64_t fac[9] = {0};

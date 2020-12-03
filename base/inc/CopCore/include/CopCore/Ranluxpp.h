@@ -4,7 +4,7 @@
 #ifndef COPCORE_RANLUXPP_H_
 #define COPCORE_RANLUXPP_H_
 
-#include <VecCore/VecCore>
+#include <CopCore/backend/BackendCommon.h>
 
 #include "mulmod.h"
 
@@ -13,7 +13,7 @@
 
 namespace {
 
-VECCORE_ATT_DEVICE
+__device__
 const uint64_t kA_2048[] = {
     0xed7faa90747aaad9, 0x4cec2c78af55c101, 0xe64dcb31c48228ec, 0x6d8a15a13bee7cb0, 0x20b2ca60cb78c509,
     0x256c3d3c662ea36c, 0xff74e54107684ed2, 0x492edfcc0cc8e753, 0xb48c187cf5b22097,
@@ -32,7 +32,7 @@ private:
   static constexpr int kMaxPos        = 9 * 64;
 
   /// Produce next block of random bits
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void Advance()
   {
     mulmod(kA, fState);
@@ -43,7 +43,7 @@ public:
   RanluxppEngineImpl() = default;
 
   /// Return the next random bits, generate a new block if necessary
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   uint64_t NextRandomBits()
   {
     if (fPosition + w > kMaxPos) {
@@ -67,7 +67,7 @@ public:
   }
 
   /// Initialize and seed the state of the generator
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void SetSeed(uint64_t s)
   {
     fState[0] = 1;
@@ -87,7 +87,7 @@ public:
   }
 
   /// Skip `n` random numbers without generating them
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void Skip(uint64_t n)
   {
     int left = (kMaxPos - fPosition) / w;
@@ -118,13 +118,13 @@ public:
 
 class RanluxppDouble : public RanluxppEngineImpl<52> {
 public:
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   RanluxppDouble(uint64_t seed = 314159265) { this->SetSeed(seed); }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   double Rndm() { return (*this)(); }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   double operator()()
   {
     // Get 52 bits of randomness.
@@ -142,7 +142,7 @@ public:
     return dRandom - 1;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   uint64_t IntRndm() { return this->NextRandomBits(); }
 };
 
