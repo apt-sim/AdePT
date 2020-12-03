@@ -29,7 +29,7 @@ inline namespace COPCORE_IMPL {
               The current index of the loop over the input data
     @param tracks Pointer to the container of tracks
   */
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void generateAndStorePrimary(int id, adept::BlockData<MyTrack> *tracks)
 {
   auto track = tracks->NextElement();
@@ -46,7 +46,7 @@ COPCORE_CALLABLE_FUNC(generateAndStorePrimary)
 namespace devfunc {
 
 /** @brief Select a track based on its index and add it to a queue */
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void selectTrack(int id, adept::BlockData<MyTrack> *tracks, int each_n, adept::MParray *array)
 {
   auto &track   = (*tracks)[id];
@@ -60,7 +60,7 @@ COPCORE_CALLABLE_FUNC(selectTrack)
 } // end namespace devfunc
 
 /** @brief Process a track and sum-up some energy deposit */
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void elossTrack(int id, adept::MParray *array, adept::BlockData<MyTrack> *tracks, adept::BlockData<MyHit> *hits)
 {
   // Say there are 1024 hit objects and they accumulate energy deposits from specific track id's

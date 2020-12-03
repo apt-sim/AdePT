@@ -21,10 +21,10 @@ struct Scoring {
   adept::Atomic_t<int> secondaries;
   adept::Atomic_t<float> totalEnergyLoss;
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Scoring() {}
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static Scoring *MakeInstanceAt(void *addr)
   {
     Scoring *obj = new (addr) Scoring();

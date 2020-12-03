@@ -60,7 +60,7 @@ int runSimulation()
 
   // A launcher that runs a lambda function that fills an array with the current thread number
   Launcher_t fillArray(stream);
-  fillArray.Run([] VECCORE_ATT_DEVICE(int thread_id, Atomic_int *index,
+  fillArray.Run([] __device__ (int thread_id, Atomic_int *index,
                                       int *array) { array[thread_id] = (*index)++; }, // lambda being run
                 32,                                                                   // number of elements
                 {2, 16},              // run with 2 block of 16 threads (if backend=CUDA)
