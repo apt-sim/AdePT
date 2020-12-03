@@ -63,7 +63,7 @@ public:
   static VPlacedVolumePtr_t RelocatePoint(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
                                           vecgeom::NavStateIndex &path)
   {
-    vecgeom::VPlacedVolume const *currentmother = path.Top();
+    vecgeom::VPlacedVolume const *currentmother       = path.Top();
     vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
     do {
       path.Pop();

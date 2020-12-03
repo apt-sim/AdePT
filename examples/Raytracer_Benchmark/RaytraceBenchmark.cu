@@ -8,8 +8,8 @@
 #include "Raytracer.h"
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
-#include "kernels.h"
 #include "examples/Raytracer_Benchmark/LoopNavigator.h"
+#include "RaytraceBenchmark.hpp"
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -17,36 +17,12 @@
 #include <VecGeom/navigation/NavStateIndex.h>
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/base/Stopwatch.h>
+#include <VecGeom/base/Global.h>
 
 #include <cuda_profiler_api.h>
 
 #include <cassert>
 #include <cstdio>
-
-__global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, char *input_buffer,
-                             unsigned char *output_buffer)
-{
-  int px = threadIdx.x + blockIdx.x * blockDim.x;
-  int py = threadIdx.y + blockIdx.y * blockDim.y;
-
-  if ((px >= rtdata.fSize_px) || (py >= rtdata.fSize_py)) return;
-
-  int ray_index = py * rtdata.fSize_px + px;
-
-  Ray_t *ray = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
-  ray->index = ray_index;
-
-  (*rays)[ray_index] = *ray;
-
-  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, ray->index);
-
-  int pixel_index = 4 * ray_index;
-
-  output_buffer[pixel_index + 0] = pixel_color.fComp.red;
-  output_buffer[pixel_index + 1] = pixel_color.fComp.green;
-  output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
-  output_buffer[pixel_index + 3] = 255;
-}
 
 __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, int offset_x, int offset_y,
                            int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out)
@@ -75,7 +51,7 @@ __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata
 }
 
 // subdivide image in 16 tiles and launch each tile on a separate CUDA stream
-void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtdata, unsigned char *output_buffer,
+void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer,
                       int block_size)
 {
   cudaStream_t streams[4];
@@ -162,63 +138,15 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
   COPCORE_CUDA_CHECK(cudaGetLastError());
 }
 
-int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int block_size)
-{
-  using RayBlock     = adept::BlockData<Ray_t>;
-  using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, copcore::BackendType::CUDA>;
-  using Launcher_t   = copcore::Launcher<copcore::BackendType::CUDA>;
-  using StreamStruct = copcore::StreamType<copcore::BackendType::CUDA>;
-  using Stream_t     = typename StreamStruct::value_type;
-
-  // Allocate ray data and output data on the device
-  size_t statesize = vecgeom::NavStateIndex::SizeOfInstance(rtdata->fMaxDepth);
-  size_t raysize   = Ray_t::SizeOfInstance();
-  printf(" State size is %lu, ray size is %lu\n", statesize, raysize);
-
-  printf("=== Allocating %.3f MB of ray data on the device\n", (float)rtdata->fNrays * raysize / 1048576);
-  // char *input_buffer_gpu = nullptr;
-  char *input_buffer = new char[rtdata->fNrays * raysize];
-  COPCORE_CUDA_CHECK(cudaMalloc((void **)&input_buffer, rtdata->fNrays * raysize));
-
-  unsigned char *output_buffer = nullptr;
-  COPCORE_CUDA_CHECK(
-      cudaMalloc((void **)&output_buffer, 4 * sizeof(unsigned char) * rtdata->fSize_px * rtdata->fSize_py));
-
+void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
+  
   // Load and synchronize the geometry on the GPU
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry((vecgeom::cxx::VPlacedVolume *)rtdata->fWorld);
   cudaManager.Synchronize();
 
-  // CudaManager is altering the stack size... setting an appropriate value
-  size_t def_stack_limit = 0, def_heap_limit = 0;
-  cudaDeviceGetLimit(&def_stack_limit, cudaLimitStackSize);
-  cudaDeviceGetLimit(&def_heap_limit, cudaLimitMallocHeapSize);
-  std::cout << "=== cudaLimitStackSize = " << def_stack_limit << "  cudaLimitMallocHeapSize = " << def_heap_limit
-            << std::endl;
-  auto err = cudaDeviceSetLimit(cudaLimitStackSize, 8192);
-  cudaDeviceGetLimit(&def_stack_limit, cudaLimitStackSize);
-  std::cout << "=== CUDA thread stack size limit set now to: " << def_stack_limit << std::endl;
-
   auto gpu_world = cudaManager.world_gpu();
   assert(gpu_world && "GPU world volume is a null pointer");
-
-  // initialize BlockData of Ray_t structure
-  int capacity = 1 << 20;
-  RayAllocator hitAlloc(capacity);
-  RayBlock *rays = hitAlloc.allocate(1);
-
-  // Boilerplate to get the pointers to the device functions to be used
-  COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
-
-  // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
-  Stream_t stream;
-  StreamStruct::CreateStream(stream);
-
-  // Allocate slots for the BlockData
-  Launcher_t generate(stream);
-  generate.Run(generateFunc, capacity, {0, 0}, rays);
-
-  generate.WaitStream();
 
   // Initialize the navigation state for the view point
   vecgeom::NavStateIndex vpstate;
@@ -226,38 +154,11 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
 
-  rtdata->Print();
+}
 
-  unsigned char *image_buffer = new unsigned char[4 * rtdata->fSize_px * rtdata->fSize_py];
-
-  vecgeom::Stopwatch timer;
-  timer.Start();
-
-  cudaProfilerStart();
-
-  if (use_tiles) {
-    RenderTiledImage(rays, rtdata, image_buffer, block_size);
-  } else {
-    dim3 threads(block_size, block_size);
-    dim3 blocks(rtdata->fSize_px / block_size + 1, rtdata->fSize_py / block_size + 1);
-    RenderKernel<<<blocks, threads>>>(rays, *rtdata, input_buffer, output_buffer);
-    COPCORE_CUDA_CHECK(
-        cudaMemcpy(image_buffer, output_buffer, 4 * rtdata->fSize_px * rtdata->fSize_py, cudaMemcpyDeviceToHost));
-  }
-
-  cudaProfilerStop();
-
-  COPCORE_CUDA_CHECK(cudaGetLastError());
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-
-  auto time_gpu = timer.Stop();
-  std::cout << "Time on GPU: " << time_gpu << "\n";
-
-  write_ppm("output.ppm", image_buffer, rtdata->fSize_px, rtdata->fSize_py);
-
-  delete[] image_buffer;
-
-  COPCORE_CUDA_CHECK(cudaFree(input_buffer));
-  COPCORE_CUDA_CHECK(cudaFree(output_buffer));
-  return 0;
+int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+{
+  int result;
+  result = runSimulation<copcore::BackendType::CUDA>(world, argc, argv);
+  return result;
 }
