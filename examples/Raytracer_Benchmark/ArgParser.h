@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <iostream>
+#include <CopCore/Global.h>
 
+inline namespace COPCORE_IMPL {
 double getDoubleOpt(char **begin, char **end, const std::string &option, double defaultval)
 {
   char **itr = std::find(begin, end, option);
@@ -56,3 +58,4 @@ std::string getStringOpt(char **begin, char **end, const std::string &option, co
 #define OPTION_DOUBLE(name, defaultval) double name = getDoubleOpt(argv, argc + argv, "-" #name, defaultval)
 #define OPTION_BOOL(name, defaultval) bool name = getBoolOpt(argv, argc + argv, "-" #name, defaultval)
 #define OPTION_STRING(name, defaultval) std::string name = getStringOpt(argv, argc + argv, "-" #name, defaultval)
+} // End namespace COPCORE_IMPL

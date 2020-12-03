@@ -163,7 +163,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
 
 } // End namespace COPCORE_IMPL
 
-void write_ppm(std::string filename, unsigned char *buffer, int px, int py);
+void write_ppm(std::string filename, NavIndex_t *buffer, int px, int py);
 // void RenderCPU(VPlacedVolume const *const world, int px, int py, int maxdepth);
 
 #endif // RT_BENCHMARK_RAYTRACER_H_
