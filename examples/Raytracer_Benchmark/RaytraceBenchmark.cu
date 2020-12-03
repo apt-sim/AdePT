@@ -18,23 +18,10 @@
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/base/Stopwatch.h>
 
-
 #include <cuda_profiler_api.h>
 
 #include <cassert>
 #include <cstdio>
-
-
-void check_cuda_err(cudaError_t result, char const *const func, const char *const file, int const line)
-{
-  if (result) {
-    fprintf(stderr, "CUDA error = %s at %s:%d\n", cudaGetErrorString(result), file, line);
-    cudaDeviceReset();
-    exit(1);
-  }
-}
-
-#define checkCudaErrors(val) check_cuda_err((val), #val, __FILE__, __LINE__)
 
 __global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, char *input_buffer,
                              unsigned char *output_buffer)
@@ -50,7 +37,7 @@ __global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtda
   ray->index = ray_index;
 
   (*rays)[ray_index] = *ray;
-  
+
   adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, ray->index);
 
   int pixel_index = 4 * ray_index;
@@ -59,43 +46,6 @@ __global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtda
   output_buffer[pixel_index + 1] = pixel_color.fComp.green;
   output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
   output_buffer[pixel_index + 3] = 255;
-}
-
-__global__ void RenderLine(RaytracerData_t rtdata, int py, unsigned char *line)
-{
-  int px = threadIdx.x + blockIdx.x * blockDim.x;
-
-  if (px >= rtdata.fSize_px) return;
-
-  Ray_t ray;
-  adept::BlockData<Ray_t> *rays;
-  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, 0);
-
-  line[4 * px + 0] = pixel_color.fComp.red;
-  line[4 * px + 1] = pixel_color.fComp.green;
-  line[4 * px + 2] = pixel_color.fComp.blue;
-  line[4 * px + 3] = 255;
-}
-
-__global__ void RenderInterlaced(RaytracerData_t rtdata, int offset, int width, unsigned char *output)
-{
-  Ray_t ray;
-  adept::BlockData<Ray_t> *rays;
-
-  int px = threadIdx.x + blockIdx.x * blockDim.x;
-
-  if (px >= rtdata.fSize_px) return;
-
-  for (int py = offset; py < rtdata.fSize_py; py += width) {
-    unsigned char *line = &output[4 * py * rtdata.fSize_px];
-
-    adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, 0);
-
-    line[4 * px + 0] = pixel_color.fComp.red;
-    line[4 * px + 1] = pixel_color.fComp.green;
-    line[4 * px + 2] = pixel_color.fComp.blue;
-    line[4 * px + 3] = 255;
-  }
 }
 
 __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, int offset_x, int offset_y,
@@ -115,61 +65,13 @@ __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata
   Ray_t *ray = (Ray_t *)(tile_in + ray_index * sizeof(Ray_t));
   ray->index = ray_index;
 
-  (*rays)[ray_index] = *ray;
+  (*rays)[ray_index]         = *ray;
   adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, global_px, global_py, ray->index);
 
   tile_out[pixel_index + 0] = pixel_color.fComp.red;
   tile_out[pixel_index + 1] = pixel_color.fComp.green;
   tile_out[pixel_index + 2] = pixel_color.fComp.blue;
   tile_out[pixel_index + 3] = 255;
-}
-
-void RenderImageLines(cuda::RaytracerData_t *rtdata, unsigned char *output)
-{
-#define NSTREAMS 4
-  cudaStream_t streams[NSTREAMS];
-  unsigned char *buffer = nullptr;
-
-  for (int i = 0; i < NSTREAMS; ++i)
-    checkCudaErrors(cudaStreamCreate(&streams[i]));
-
-  checkCudaErrors(cudaMalloc((void **)&buffer, 4 * sizeof(unsigned char) * rtdata->fSize_px * rtdata->fSize_py));
-  checkCudaErrors(cudaDeviceSynchronize());
-
-  dim3 blocks((rtdata->fSize_px >> 5) + 1), threads(32);
-
-  for (int iy = 0; iy < rtdata->fSize_py; ++iy)
-    RenderLine<<<blocks, threads, 0, streams[iy % NSTREAMS]>>>(*rtdata, iy, buffer + 4 * iy * rtdata->fSize_px);
-
-  checkCudaErrors(cudaMemcpy(output, buffer, 4 * sizeof(unsigned char) * rtdata->fSize_px * rtdata->fSize_py,
-                             cudaMemcpyDeviceToHost));
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaFree(buffer));
-  checkCudaErrors(cudaGetLastError());
-}
-
-void RenderImageInterlaced(cuda::RaytracerData_t *rtdata, unsigned char *output)
-{
-#define NSTREAMS 4
-  cudaStream_t streams[NSTREAMS];
-  unsigned char *buffer = nullptr;
-
-  for (int i = 0; i < NSTREAMS; ++i)
-    checkCudaErrors(cudaStreamCreate(&streams[i]));
-
-  checkCudaErrors(cudaMalloc((void **)&buffer, 4 * sizeof(unsigned char) * rtdata->fSize_px * rtdata->fSize_py));
-  checkCudaErrors(cudaDeviceSynchronize());
-
-  dim3 blocks((rtdata->fSize_px >> 5) + 1), threads(32);
-
-  for (int i = 0; i < NSTREAMS; ++i)
-    RenderInterlaced<<<blocks, threads, 0, streams[i % NSTREAMS]>>>(*rtdata, i, NSTREAMS, buffer);
-
-  checkCudaErrors(cudaMemcpy(output, buffer, 4 * sizeof(unsigned char) * rtdata->fSize_px * rtdata->fSize_py,
-                             cudaMemcpyDeviceToHost));
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaFree(buffer));
-  checkCudaErrors(cudaGetLastError());
 }
 
 // subdivide image in 16 tiles and launch each tile on a separate CUDA stream
@@ -190,18 +92,18 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
   dim3 blocks(tile_size_x / block_size + 1, tile_size_y / block_size + 1);
 
   for (int i = 0; i < 4; ++i)
-    checkCudaErrors(cudaStreamCreate(&streams[i]));
+    COPCORE_CUDA_CHECK(cudaStreamCreate(&streams[i]));
 
   for (int i = 0; i < 16; ++i) {
     // allocate tile on host and device
-    checkCudaErrors(cudaMalloc((void **)&tile_device_in[i], tile_size_x * tile_size_y * sizeof(cuda::Ray_t)));
-    checkCudaErrors(cudaMalloc((void **)&tile_device_out[i], 4 * tile_size_x * tile_size_y));
+    COPCORE_CUDA_CHECK(cudaMalloc((void **)&tile_device_in[i], tile_size_x * tile_size_y * sizeof(cuda::Ray_t)));
+    COPCORE_CUDA_CHECK(cudaMalloc((void **)&tile_device_out[i], 4 * tile_size_x * tile_size_y));
     // CUDA streams require host memory to be pinned
-    checkCudaErrors(cudaMallocHost(&tile_host[i], 4 * tile_size_x * tile_size_y));
+    COPCORE_CUDA_CHECK(cudaMallocHost(&tile_host[i], 4 * tile_size_x * tile_size_y));
   }
 
   // wait for memory to reach GPU before launching kernels
-  checkCudaErrors(cudaDeviceSynchronize());
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // call kernels to render each tile
   for (int ix = 0; ix < 4; ++ix) {
@@ -215,22 +117,22 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
     }
   }
 
-  checkCudaErrors(cudaDeviceSynchronize());
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // copy back rendered tile to system memory
   for (int ix = 0; ix < 4; ++ix) {
     for (int iy = 0; iy < 4; ++iy) {
       int idx = 4 * ix + iy;
-      checkCudaErrors(cudaMemcpyAsync(tile_host[idx], tile_device_out[idx], (size_t)4 * tile_size_x * tile_size_y,
-                                      cudaMemcpyDeviceToHost, streams[iy]));
-      checkCudaErrors(cudaFree(tile_device_in[idx]));
-      checkCudaErrors(cudaFree(tile_device_out[idx]));
+      COPCORE_CUDA_CHECK(cudaMemcpyAsync(tile_host[idx], tile_device_out[idx], (size_t)4 * tile_size_x * tile_size_y,
+                                         cudaMemcpyDeviceToHost, streams[iy]));
+      COPCORE_CUDA_CHECK(cudaFree(tile_device_in[idx]));
+      COPCORE_CUDA_CHECK(cudaFree(tile_device_out[idx]));
     }
   }
 
   // ensure all tiles have been copied back
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaGetLastError());
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+  COPCORE_CUDA_CHECK(cudaGetLastError());
 
   for (int ix = 0; ix < 4; ++ix) {
     for (int iy = 0; iy < 4; ++iy) {
@@ -254,19 +156,19 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
           output_buffer[pixel_index + 3] = tile_host[idx][tile_index + 3];
         }
       }
-      checkCudaErrors(cudaFreeHost(tile_host[idx]));
+      COPCORE_CUDA_CHECK(cudaFreeHost(tile_host[idx]));
     }
   }
-  checkCudaErrors(cudaGetLastError());
+  COPCORE_CUDA_CHECK(cudaGetLastError());
 }
 
 int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int block_size)
 {
   using RayBlock     = adept::BlockData<Ray_t>;
   using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, copcore::BackendType::CUDA>;
-  using Launcher_t     = copcore::Launcher<copcore::BackendType::CUDA>;
-  using StreamStruct   = copcore::StreamType<copcore::BackendType::CUDA>;
-  using Stream_t       = typename StreamStruct::value_type;
+  using Launcher_t   = copcore::Launcher<copcore::BackendType::CUDA>;
+  using StreamStruct = copcore::StreamType<copcore::BackendType::CUDA>;
+  using Stream_t     = typename StreamStruct::value_type;
 
   // Allocate ray data and output data on the device
   size_t statesize = vecgeom::NavStateIndex::SizeOfInstance(rtdata->fMaxDepth);
@@ -276,10 +178,11 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
   printf("=== Allocating %.3f MB of ray data on the device\n", (float)rtdata->fNrays * raysize / 1048576);
   // char *input_buffer_gpu = nullptr;
   char *input_buffer = new char[rtdata->fNrays * raysize];
-  checkCudaErrors(cudaMalloc((void **)&input_buffer, rtdata->fNrays * raysize));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&input_buffer, rtdata->fNrays * raysize));
 
   unsigned char *output_buffer = nullptr;
-  checkCudaErrors(cudaMalloc((void **)&output_buffer, 4 * sizeof(unsigned char) * rtdata->fSize_px * rtdata->fSize_py));
+  COPCORE_CUDA_CHECK(
+      cudaMalloc((void **)&output_buffer, 4 * sizeof(unsigned char) * rtdata->fSize_px * rtdata->fSize_py));
 
   // Load and synchronize the geometry on the GPU
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
@@ -338,14 +241,14 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
     dim3 threads(block_size, block_size);
     dim3 blocks(rtdata->fSize_px / block_size + 1, rtdata->fSize_py / block_size + 1);
     RenderKernel<<<blocks, threads>>>(rays, *rtdata, input_buffer, output_buffer);
-    checkCudaErrors(
+    COPCORE_CUDA_CHECK(
         cudaMemcpy(image_buffer, output_buffer, 4 * rtdata->fSize_px * rtdata->fSize_py, cudaMemcpyDeviceToHost));
   }
 
   cudaProfilerStop();
 
-  checkCudaErrors(cudaGetLastError());
-  checkCudaErrors(cudaDeviceSynchronize());
+  COPCORE_CUDA_CHECK(cudaGetLastError());
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   auto time_gpu = timer.Stop();
   std::cout << "Time on GPU: " << time_gpu << "\n";
@@ -354,7 +257,7 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
 
   delete[] image_buffer;
 
-  checkCudaErrors(cudaFree(input_buffer));
-  checkCudaErrors(cudaFree(output_buffer));
+  COPCORE_CUDA_CHECK(cudaFree(input_buffer));
+  COPCORE_CUDA_CHECK(cudaFree(output_buffer));
   return 0;
 }
