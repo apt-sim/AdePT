@@ -19,13 +19,9 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-namespace cuda {
-struct RaytracerData_t;
-}
+void initiliazeCudaWorld(RaytracerData_t *rtdata);
 
-void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata);
-
-void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer,
+void RenderTiledImage(adept::BlockData<Ray_t> *rays, RaytracerData_t *rtdata, NavIndex_t *output_buffer,
                       int block_size);
 
 template <copcore::BackendType backend>
@@ -33,7 +29,7 @@ void InitRTdata(RaytracerData_t *rtdata)
 {
 
   if (backend == copcore::BackendType::CUDA) {
-    initiliazeCudaWorld((cuda::RaytracerData_t *)rtdata);
+    initiliazeCudaWorld((RaytracerData_t *)rtdata);
   } else {
     vecgeom::NavStateIndex vpstate;
     LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
@@ -142,7 +138,7 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   timer.Start();
 
   if (backend == copcore::BackendType::CUDA && use_tiles) {
-    RenderTiledImage(rays, (cuda::RaytracerData_t *)rtdata, output_buffer, block_size);
+    RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
     Launcher_t renderKernel(stream);
     renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, rays, *rtdata, input_buffer, output_buffer);
