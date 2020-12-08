@@ -11,31 +11,37 @@ include(GNUInstallDirs)
 # These can be set from the external project (Namespaced?)
 # ---------------------
 # Device target architecture
-set(TARGET_DEVICE CUDA CACHE STRING "Target architecture of the device")
-set_property(CACHE TARGET_DEVICE PROPERTY STRINGS CPU CUDA)
-set(TARGET_DEFINITION "TARGET_DEVICE_${TARGET_DEVICE}")
-
-# Enable selected Backend
-if(TARGET_DEVICE STREQUAL "CUDA")
+option(COPCORE_ENABLE_CUDA "Build CopCore_CUDA library" ON)
+if(COPCORE_ENABLE_CUDA)
   enable_language(CUDA)
   find_package(CUDAToolkit 10.0 REQUIRED)
 endif()
 
-# Core library
-add_library(CopCore STATIC src/CPUBackend.cpp)
-target_compile_definitions(CopCore PUBLIC ${TARGET_DEFINITION})
-target_compile_features(CopCore INTERFACE cxx_std_14)
-target_include_directories(CopCore INTERFACE
+# CPU library
+add_library(CopCore_CPU STATIC src/CPUBackend.cpp)
+target_compile_definitions(CopCore_CPU PUBLIC TARGET_DEVICE_CPU)
+target_compile_features(CopCore_CPU PUBLIC cxx_std_14)
+target_include_directories(CopCore_CPU PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_link_libraries(CopCore PUBLIC $<$<STREQUAL:"${TARGET_DEVICE}","CUDA">:CUDA::cudart_static>)
+add_library(CopCore::CopCore_CPU ALIAS CopCore_CPU)
 
-# Alias to assist in use as a subproject
-add_library(CopCore::CopCore ALIAS CopCore)
+# CUDA library
+if(COPCORE_ENABLE_CUDA)
+  add_library(CopCore_CUDA INTERFACE)
+  target_compile_definitions(CopCore_CUDA INTERFACE TARGET_DEVICE_CUDA)
+  target_compile_features(CopCore_CUDA INTERFACE cxx_std_14)
+  target_include_directories(CopCore_CUDA INTERFACE
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+  target_link_libraries(CopCore_CUDA INTERFACE CUDA::cudart_static)
+
+  add_library(CopCore::CopCore_CUDA ALIAS CopCore_CUDA)
+endif()
 
 # Install headers and target(s)
 install(DIRECTORY include/CopCore DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-install(TARGETS CopCore EXPORT CopCoreTargets)
+install(TARGETS CopCore_CPU EXPORT CopCoreTargets)
 
 # Support files
 include(CMakePackageConfigHelpers)

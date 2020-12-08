@@ -10,7 +10,7 @@ macro(build_tests TESTS)
       $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
       $<INSTALL_INTERFACE:base>
     )
-    target_link_libraries(${TARGET_NAME} VecCore::VecCore CopCore::CopCore)
+    target_link_libraries(${TARGET_NAME} VecCore::VecCore CopCore::CopCore_CUDA)
    endforeach()
 endmacro()
 
@@ -38,7 +38,7 @@ target_include_directories(test_launcher PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)
+target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore_CUDA)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
