@@ -9,4 +9,4 @@ target_include_directories(example1 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/tracking/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(example1 PRIVATE CUDA::curand VecCore::VecCore CopCore::CopCore)
+target_link_libraries(example1 PRIVATE CUDA::curand VecCore::VecCore VecGeom::vecgeom CopCore::CopCore)
