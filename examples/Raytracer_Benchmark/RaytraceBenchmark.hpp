@@ -87,7 +87,6 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   rtdata->fBkgColor = bkgcol;
   rtdata->fObjColor = objcol;
   rtdata->fVisDepth = vdepth;
-  rtdata->fMaxDepth = vecgeom::GeoManager::Instance().getMaxDepth();
 
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
 

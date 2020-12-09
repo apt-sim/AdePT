@@ -30,21 +30,6 @@
 #include <utility>
 
 inline namespace COPCORE_IMPL {
-/*
-Ray_t::Ray_t(void *addr, int maxdepth) : fMaxDepth(maxdepth)
-{
-  char *path_addr = round_up_align((char *)addr + sizeof(Ray_t));
-  // Geometry paths follow
-  fCrtState       = NavigationState::MakeInstanceAt(maxdepth, path_addr);
-  path_addr      += round_up_align(NavigationState::SizeOfInstance(maxdepth));
-  fNextState      = NavigationState::MakeInstanceAt(maxdepth, path_addr);
-}
-size_t Ray_t::SizeOfInstance(int maxdepth)
-{
-  size_t size = sizeof(Ray_t) + 2 * round_up_align(NavigationState::SizeOfInstance(maxdepth)) + 64;
-  return size;
-}
-*/
 
 void RaytracerData_t::Print()
 {
@@ -52,8 +37,7 @@ void RaytracerData_t::Print()
          fSize_py);
   printf("  light_dir(%g, %g, %g) light_color(0x%08x) obj_color(0x%08x)\n", fSourceDir[0], fSourceDir[1], fSourceDir[2],
          fBkgColor.fColor, fObjColor.fColor);
-  printf("  zoom_factor(%g) visible_depth(%d/%d) rt_model(%d) rt_view(%d)\n", fZoom, fVisDepth, fMaxDepth, (int)fModel,
-         (int)fView);
+  printf("  zoom_factor(%g) visible_depth(%d) rt_model(%d) rt_view(%d)\n", fZoom, fVisDepth, (int)fModel, (int)fView);
   printf("  viewpoint_state: ");
   fVPstate.Print();
 }
