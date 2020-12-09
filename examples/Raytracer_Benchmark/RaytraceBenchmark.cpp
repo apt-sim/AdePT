@@ -8,16 +8,17 @@
  */
 /// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
+#include "Raytracer.h"
+#include "RaytraceBenchmark.hpp"
+
+#include <CopCore/Global.h>
+#include <AdePT/BlockData.h>
+#include <AdePT/LoopNavigator.h>
+
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/navigation/NavStatePath.h>
 #include <VecGeom/base/Stopwatch.h>
-
-#include "examples/Raytracer_Benchmark/Raytracer.h"
-#include <CopCore/Global.h>
-#include <AdePT/BlockData.h>
-#include "examples/Raytracer_Benchmark/LoopNavigator.h"
-#include "RaytraceBenchmark.hpp"
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>

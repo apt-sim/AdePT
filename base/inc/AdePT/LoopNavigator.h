@@ -9,12 +9,11 @@
 #ifndef RT_LOOP_NAVIGATOR_H_
 #define RT_LOOP_NAVIGATOR_H_
 
-#include <list>
+#include <CopCore/Global.h>
+
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
-
-#include <CopCore/Global.h>
 
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
