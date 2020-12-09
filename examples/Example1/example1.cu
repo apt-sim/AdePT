@@ -1,14 +1,6 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <curand.h>
-#include <curand_kernel.h>
-#include <iostream>
-#include <iomanip>
-#include <stdio.h>
-
-#include <AdePT/BlockData.h>
-
 #include "process.h"
 #include "process_list.h"
 #include "pair_production.h"
@@ -16,7 +8,15 @@
 
 #include "track.h"
 
+#include <AdePT/BlockData.h>
 #include <AdePT/MParray.h>
+
+#include <curand.h>
+#include <curand_kernel.h>
+
+#include <iostream>
+#include <iomanip>
+#include <stdio.h>
 
 // some simple scoring
 struct Scoring {
@@ -35,7 +35,8 @@ struct Scoring {
 };
 
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
-__global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list** proclist, adept::MParray **queues, curandState_t *states)
+__global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list **proclist,
+                                         adept::MParray **queues)
 {
   int n = block->GetNused() + block->GetNholes();
 
@@ -44,15 +45,16 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
     // skip particles that are already dead
     if ((*block)[i].status == dead) continue;
 
-    (*proclist)->GetPhysicsInteractionLength(i, block, states); // return value (if step limited by physics or geometry) not used for the moment
+    // return value (if step limited by physics or geometry) not used for the moment
     // now, I know which process wins, so I add the particle to the appropriate queue
+    (*proclist)->GetPhysicsInteractionLength(i, block);
     queues[(*block)[i].current_process]->push_back(i);
   }
 }
 
 // kernel to call Along Step function for particles in the queues
-__global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_list** proclist, adept::MParray **queues, 
-                                        Scoring *scor, curandState_t *states)
+__global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_list **proclist, adept::MParray **queues,
+                                       Scoring *scor)
 {
   int particle_index;
 
@@ -67,7 +69,7 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
           // get particles index from the queue
           particle_index = (*(queues[process_id]))[i];
           // and call the process for it
-          ((*proclist)->list)[process_id]->GenerateInteraction(particle_index, block, states);
+          ((*proclist)->list)[process_id]->GenerateInteraction(particle_index, block);
 
           // a simple version of scoring 
           scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
@@ -79,11 +81,11 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
     }
 }
 
-// kernel function to initialize the random states
-__global__ void init(curandState_t *states)
+// kernel function to initialize a track, most importantly the random state
+__global__ void init_track(track *mytrack)
 {
   /* we have to initialize the state */
-  curand_init(0, 0, 0, states);
+  curand_init(0, 0, 0, &mytrack->curand_state);
 }
 
 // kernel to create the processes and process list
@@ -100,12 +102,6 @@ __global__ void create_processes(process_list **proclist, process **processes)
 //
 int main()
 {
-  // call the kernel to initialize RND engine
-  curandState_t *state;
-  cudaMalloc((void **)&state, sizeof(curandState_t));
-  init<<<1, 1>>>(state);
-  cudaDeviceSynchronize();
-
   // call the kernel to create the processes to be run on the device
   process_list **proclist;
   process **processes;
@@ -151,12 +147,16 @@ int main()
   track->energy = 100.0f;
   track->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
+  init_track<<<1, 1>>>(track);
+  cudaDeviceSynchronize();
 
   // initializing second track in the block
   auto track2    = block->NextElement();
   track2->energy = 30.0f;
   track2->energy_loss = 0.0f;
   //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
+  init_track<<<1, 1>>>(track2);
+  cudaDeviceSynchronize();
 
   // simple version of scoring
   float* energy_deposition = nullptr;
@@ -172,10 +172,10 @@ int main()
     numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
 
     // call the kernel to do check the step lenght and select process
-    DefinePhysicalStepLength<<<numBlocks, nthreads>>>(block, proclist, queues, state);
-    
+    DefinePhysicalStepLength<<<numBlocks, nthreads>>>(block, proclist, queues);
+
     // call the kernel for Along Step Processes
-    CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor, state);
+    CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
     cudaDeviceSynchronize();
     // clear all the queues before next step

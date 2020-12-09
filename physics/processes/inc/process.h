@@ -6,12 +6,12 @@
 
 #include "track.h"
 
+#include <AdePT/BlockData.h>
+
 class process {
 public:
-  __device__ virtual float GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block,
-                                                       curandState_t *states) const = 0;
-  __device__ virtual void GenerateInteraction(int particle_index, adept::BlockData<track> *block,
-                                              curandState_t *states)                = 0;
+  __device__ virtual float GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const = 0;
+  __device__ virtual void GenerateInteraction(int particle_index, adept::BlockData<track> *block)                = 0;
 };
 
 #endif
