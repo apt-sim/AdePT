@@ -26,10 +26,6 @@ inline namespace COPCORE_IMPL {
 enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
 enum ERTView { kRTVparallel = 0, kRTVperspective };
 
-// VECGEOM_DEVICE_FORWARD_DECLARE(class VPlacedVolume;);
-
-class VPlacedVolume;
-
 struct Ray_t {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 

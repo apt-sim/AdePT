@@ -17,7 +17,7 @@ __device__ float energy_loss::GetPhysicsInteractionLength(int particle_index, ad
 {
   track *mytrack = &((*block)[particle_index]);
   // here I will need to calculate the IL based on the particle energy, material, etc
-  float current_length = mytrack->uniform() * 100.0f;
+  float current_length = mytrack->uniform() * 0.2f;
   return current_length;
 }
 

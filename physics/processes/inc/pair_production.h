@@ -17,7 +17,7 @@ __device__ float pair_production::GetPhysicsInteractionLength(int particle_index
 {
   track *mytrack = &((*block)[particle_index]);
   // here I will need to calculate the IL based on the particle energy, material, etc
-  float current_length = mytrack->uniform() * 110.0f;
+  float current_length = mytrack->uniform() * 0.25f;
   return current_length;
 }
 
@@ -38,6 +38,10 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   secondary_track->status                = alive;
   secondary_track->energy_loss           = 0;
   secondary_track->number_of_secondaries = 0;
+  // Inherit current position and direction.
+  secondary_track->pos           = mytrack->pos;
+  secondary_track->dir           = mytrack->dir;
+  secondary_track->current_state = mytrack->current_state;
   // Initialize a new PRNG state.
   curand_init(curand(&mytrack->curand_state), 0, 0, &secondary_track->curand_state);
 }
