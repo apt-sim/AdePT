@@ -8,14 +8,14 @@
 #ifndef RT_BENCHMARK_RAYTRACER_H_
 #define RT_BENCHMARK_RAYTRACER_H_
 
-#include <list>
+#include "Color.h"
+
+#include <CopCore/Global.h>
+#include <AdePT/BlockData.h>
+
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
-#include <AdePT/BlockData.h>
-
-#include "Color.h"
-#include <CopCore/Global.h>
 
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>

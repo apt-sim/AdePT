@@ -6,10 +6,11 @@
 /// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
 #include "Raytracer.h"
+#include "RaytraceBenchmark.hpp"
+
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
-#include "examples/Raytracer_Benchmark/LoopNavigator.h"
-#include "RaytraceBenchmark.hpp"
+#include <AdePT/LoopNavigator.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -18,8 +19,6 @@
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/base/Stopwatch.h>
 #include <VecGeom/base/Global.h>
-
-#include <cuda_profiler_api.h>
 
 #include <cassert>
 #include <cstdio>

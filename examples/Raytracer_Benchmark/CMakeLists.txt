@@ -29,8 +29,7 @@ list(APPEND ADEPT_CUDA_SRCS
 # library used for RaytraceBenchmark.cpp
 add_library(raytracercu ${ADEPT_CUDA_SRCS})
 target_include_directories(raytracercu PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
 )
@@ -41,7 +40,7 @@ set_target_properties(raytracercu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 #exec RaytraceBenchmark.cpp
 add_executable(RaytraceBenchmark Raytracer.cpp RaytraceBenchmark.cpp)
 target_include_directories(RaytraceBenchmark PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )

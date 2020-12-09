@@ -5,11 +5,12 @@
 /// \author Andrei Gheata (andrei.gheata@cern.ch)
 /// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
-#include "examples/Raytracer_Benchmark/Raytracer.h"
-#include "examples/Raytracer_Benchmark/Color.h"
-#include "examples/Raytracer_Benchmark/LoopNavigator.h"
+#include "Raytracer.h"
+#include "Color.h"
+
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
+#include <AdePT/LoopNavigator.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/base/Stopwatch.h>
@@ -19,8 +20,8 @@
 #include <VecGeom/management/GeoManager.h>
 
 #ifdef VECGEOM_CUDA_INTERFACE
-#include "VecGeom/backend/cuda/Backend.h"
-#include "VecGeom/management/CudaManager.h"
+#include <VecGeom/backend/cuda/Backend.h>
+#include <VecGeom/management/CudaManager.h>
 #endif
 
 #include <random>
