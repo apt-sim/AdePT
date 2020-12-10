@@ -11,6 +11,8 @@
 #include <AdePT/BlockData.h>
 #include <AdePT/MParray.h>
 
+#include <VecGeom/base/Stopwatch.h>
+
 #include <curand.h>
 #include <curand_kernel.h>
 
@@ -166,6 +168,9 @@ int main()
   constexpr dim3 maxBlocks(10);
   dim3 numBlocks;
 
+  vecgeom::Stopwatch timer;
+  timer.Start();
+
   while (block->GetNused()>0) 
   {
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
@@ -185,4 +190,7 @@ int main()
     std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused() << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load() 
     << " total number of secondaries: " << scor->secondaries.load() << std::endl;
   }
+
+  auto time_cpu = timer.Stop();
+  std::cout << "Run time: " << time_cpu << "\n";
 }

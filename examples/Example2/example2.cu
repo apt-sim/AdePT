@@ -15,6 +15,7 @@
 #include <AdePT/MParray.h>
 
 #include <VecGeom/base/Config.h>
+#include <VecGeom/base/Stopwatch.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
@@ -201,6 +202,9 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   constexpr dim3 maxBlocks(10);
   dim3 numBlocks;
 
+  vecgeom::Stopwatch timer;
+  timer.Start();
+
   while (block->GetNused() > 0) {
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
     numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
@@ -221,4 +225,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
               << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load() << std::endl;
   }
+
+  auto time_cpu = timer.Stop();
+  std::cout << "Run time: " << time_cpu << "\n";
 }
