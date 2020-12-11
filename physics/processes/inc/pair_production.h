@@ -43,7 +43,8 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   secondary_track->dir           = mytrack->dir;
   secondary_track->current_state = mytrack->current_state;
   // Initialize a new PRNG state.
-  curand_init(curand(&mytrack->curand_state), 0, 0, &secondary_track->curand_state);
+  secondary_track->rng_state = mytrack->rng_state;
+  secondary_track->rng_state.Skip(1 << 15);
 }
 
 #endif

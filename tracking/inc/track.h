@@ -4,17 +4,17 @@
 #ifndef TRACKH
 #define TRACKH
 
+#include <CopCore/Ranluxpp.h>
+
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
-
-#include <curand_kernel.h>
 
 #include <cfloat> // for FLT_MAX
 
 enum TrackStatus { alive, dead };
 
 struct track {
-  curandState_t curand_state;
+  RanluxppDouble rng_state;
   int index{0};
   int pdg{0};
   double energy{10};
@@ -29,7 +29,7 @@ struct track {
   float energy_loss{0};         // primitive version of scoring
   int number_of_secondaries{0}; // primitive version of scoring
 
-  __device__ float uniform() { return curand_uniform(&curand_state); }
+  __device__ double uniform() { return rng_state.Rndm(); }
 
   __device__ void SwapStates()
   {

@@ -13,9 +13,6 @@
 
 #include <VecGeom/base/Stopwatch.h>
 
-#include <curand.h>
-#include <curand_kernel.h>
-
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
@@ -87,7 +84,7 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
 __global__ void init_track(track *mytrack)
 {
   /* we have to initialize the state */
-  curand_init(0, 0, 0, &mytrack->curand_state);
+  mytrack->rng_state.SetSeed(314159265);
 }
 
 // kernel to create the processes and process list
