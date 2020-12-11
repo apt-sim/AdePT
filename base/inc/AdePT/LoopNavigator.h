@@ -26,7 +26,7 @@ class LoopNavigator {
 public:
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static VPlacedVolumePtr_t LocatePointIn(vecgeom::VPlacedVolume const *vol,
                                           vecgeom::Vector3D<vecgeom::Precision> const &point,
                                           vecgeom::NavStateIndex &path, bool top)
@@ -58,7 +58,7 @@ public:
     return currentvolume;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static VPlacedVolumePtr_t RelocatePoint(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
                                           vecgeom::NavStateIndex &path)
   {
@@ -77,7 +77,7 @@ public:
     return currentmother;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static double ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
                                               vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
                                               vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state,

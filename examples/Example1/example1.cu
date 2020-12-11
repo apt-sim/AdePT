@@ -23,10 +23,10 @@ struct Scoring {
   adept::Atomic_t<int> secondaries;
   adept::Atomic_t<float> totalEnergyLoss;
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Scoring() {}
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static Scoring *MakeInstanceAt(void *addr)
   {
     Scoring *obj = new (addr) Scoring();
@@ -41,7 +41,7 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
   int n = block->GetNused() + block->GetNholes();
 
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
-    
+
     // skip particles that are already dead
     if ((*block)[i].status == dead) continue;
 
@@ -59,19 +59,19 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
   int particle_index;
 
   // loop over all processes
-  for (int process_id=0 ; process_id < (*proclist)->list_size; process_id++) 
+  for (int process_id=0 ; process_id < (*proclist)->list_size; process_id++)
     {
       // for each process [process_id] consume the associated queue of particles
       int queue_size = queues[process_id]->size();
 
-      for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queue_size; i += blockDim.x * gridDim.x) 
+      for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queue_size; i += blockDim.x * gridDim.x)
         {
           // get particles index from the queue
           particle_index = (*(queues[process_id]))[i];
           // and call the process for it
           ((*proclist)->list)[process_id]->GenerateInteraction(particle_index, block);
 
-          // a simple version of scoring 
+          // a simple version of scoring
           scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
           scor->secondaries.fetch_add((*block)[particle_index].number_of_secondaries);
 
@@ -135,7 +135,7 @@ int main()
   // Initialize scoring
   scor->secondaries     = 0;
   scor->totalEnergyLoss = 0;
-  
+
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
@@ -166,7 +166,7 @@ int main()
   constexpr dim3 maxBlocks(10);
   dim3 numBlocks;
 
-  while (block->GetNused()>0) 
+  while (block->GetNused()>0)
   {
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
     numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
@@ -182,7 +182,7 @@ int main()
     for (int i = 0; i < numberOfProcesses; i++) queues[i]->clear();
     cudaDeviceSynchronize();
 
-    std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused() << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load() 
+    std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused() << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load()
     << " total number of secondaries: " << scor->secondaries.load() << std::endl;
   }
 }

@@ -10,7 +10,7 @@
 inline namespace COPCORE_IMPL {
 
 // Alocate slots for the BlockData
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void generateRays(int id, adept::BlockData<Ray_t> *rays)
 {
   auto ray = rays->NextElement();
@@ -21,7 +21,7 @@ void generateRays(int id, adept::BlockData<Ray_t> *rays)
 
 COPCORE_CALLABLE_FUNC(generateRays)
 
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void renderKernels(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t &rtdata, NavIndex_t *input_buffer,
                    NavIndex_t *output_buffer)
 {

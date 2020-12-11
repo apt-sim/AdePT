@@ -39,22 +39,22 @@ struct Ray_t {
   bool fDone                 = false;   ///< done flag
   int index                  = -1;      ///< index flag
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Ray_t() {}
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   static size_t SizeOfInstance() { return sizeof(Ray_t); }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   vecgeom::Vector3D<double> Reflect(vecgeom::Vector3D<double> const &normal)
   {
     return (fDir - 2 * fDir.Dot(normal) * normal);
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   vecgeom::Vector3D<double> Refract(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, bool &totalreflect)
   {
     // ior1, ior2 are the refraction indices of the exited and entered volumes respectively
@@ -73,7 +73,7 @@ struct Ray_t {
     return refracted;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void Fresnel(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, float &kr)
   {
     float cosi = fDir.Dot(normal);
@@ -123,7 +123,7 @@ struct RaytracerData_t {
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void Print();
 };
 
@@ -140,18 +140,18 @@ using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 /// it, normal vector pointing to the origin of the world reference frame \param up_vector the projection of this
 /// vector on the camera plane determines the 'up' direction of the image \param img_size_px image size on X in pixels
 /// \param img_size_py image size on Y in pixels
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
 
 /// \brief Entry point to propagate all rays
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char *rays_buffer,
                    unsigned char *output_buffer);
 
-VECCORE_ATT_HOST_DEVICE
+__host__ __device__
 adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index);
 
 } // End namespace Raytracer

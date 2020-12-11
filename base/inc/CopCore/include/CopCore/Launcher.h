@@ -14,7 +14,7 @@
 
 namespace copcore {
 
-#ifdef VECCORE_CUDA
+#ifdef COPCORE_CUDA_COMPILER
 namespace kernel_launcher_impl {
 
 template <class Function, class... Args>
@@ -67,7 +67,7 @@ public:
   }
 };
 
-#ifdef VECCORE_CUDA
+#ifdef COPCORE_CUDA_COMPILER
 /** @brief Specialization of Launcher for the CUDA backend */
 template <>
 class Launcher<BackendType::CUDA> : public LauncherBase<BackendType::CUDA> {
