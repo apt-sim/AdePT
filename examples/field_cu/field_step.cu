@@ -12,7 +12,7 @@
 // #include <CopCore/Ranluxpp.h>
 
 #include <VecGeom/base/Vector3D.h>
-// #include "track.h"
+#include "track.h"
 
 #include <AdePT/BlockData.h>
 
@@ -21,17 +21,7 @@
 using floatX_t = double;  //  float type for X = position
 using floatE_t = double;  //  float type for E = energy  & momentum
 
-// using SimpleTrack = track;
-
-struct SimpleTrack {
-  int      index{0};
-  int      pdg{0};
-  floatE_t energy{0};  // kineticEnergy;
-  floatX_t position[3]{0};
-  vecgeom::Vector3D<double> pos;
-  vecgeom::Vector3D<double> dir;
-  floatX_t interaction_length;    // Current step size
-};
+using SimpleTrack = track;
 
 using  TrackBlock_t    = adept::BlockData<SimpleTrack>;
 
