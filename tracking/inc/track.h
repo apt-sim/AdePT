@@ -32,7 +32,7 @@ struct track {
   short pdg{0};               // Enough for e/g, even p/n/pi/K
   short current_process{0};   // 
    
-  __device__ double uniform() { return rng_state.Rndm(); }
+  __device__ __host__ double uniform() { return rng_state.Rndm(); }
 
   __device__ __host__ int    charge()
   { int chrg= (pdg== -11)-(pdg==11); return chrg; }

@@ -41,6 +41,79 @@ struct Scoring {
   }
 };
 
+
+#include "ConstBzFieldStepper.h"
+#include <CopCore/PhysicalConstants.h>
+
+// Determine the step along curved trajectory for charged particles in a field.
+//  ( Same name as as navigator method. )
+__device__ __host__
+double
+FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
+                                                float     physicsStep,
+                                                float     BzFieldValue
+   )
+{
+   if( aTrack.status != alive ) return 0.0;
+   
+   double kinE = aTrack.energy;   
+   double momentumMag = sqrt( kinE * ( kinE + 2.0 * copcore::units::kElectronMassC2) );
+
+   double charge = aTrack.charge();
+   double curv= std::fabs(ConstBzFieldStepper::kB2C * charge * BzFieldValue) /
+                  (momentumMag + 1.0e-30);  // norm for step   
+
+   constexpr double gEpsilonDeflect = 1.E-2 * copcore::units::cm;
+   // acceptable lateral error from field ~ related to delta_chord sagital distance
+
+   // constexpr double invEpsD= 1.0 / gEpsilonDeflect;
+      
+   double safeLength= 2. * sqrt( gEpsilonDeflect / curv ); // max length along curve for deflectionn
+      // = 2. * sqrt( 1.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
+
+   vecgeom::Vector3D<double>  position=   aTrack.pos;
+   vecgeom::Vector3D<double>  direction=  aTrack.dir;
+   vecgeom::Vector3D<double>  endPosition=  position;
+   vecgeom::Vector3D<double>  endDirection= direction;
+   
+   ConstBzFieldStepper  helixBz(BzFieldValue);
+   
+   // float  stepDone  = 0.0;
+   double remains   = physicsStep;
+
+   constexpr double epsilon_step = 1.0e-7; // Ignore remainder if < e_s * PhysicsStep
+   
+   do
+   {
+      double safeMove = min( remains, safeLength );
+      
+      // fieldPropagatorConstBz( aTrack, BzValue, endPosition, endDirection ); -- Doesn't work
+      helixBz.DoStep( position,    direction, charge, momentumMag, safeMove,
+                      endPosition, endDirection);
+      
+      vecgeom::Vector3D<double>  moveVec= endPosition - aTrack.pos;
+      double  moveLen= moveVec.Length();
+      vecgeom::Vector3D<double>  moveDir= (1.0/moveLen) * moveVec;
+         
+      double move= LoopNavigator::ComputeStepAndPropagatedState(position,
+                                                                direction,
+                                                                moveLen,
+                                                                aTrack.current_state,
+                                                                aTrack.next_state);
+      position=  endPosition;
+      direction= endDirection;
+      
+      // stepDone += move;
+      remains  -= move;
+      
+   } while( ( !aTrack.next_state.IsOnBoundary() )
+            && (remains > epsilon_step * physicsStep)
+      );
+   // stepDone= physicsStep - remains;
+     
+   return physicsStep-remains;
+}
+
 constexpr double kPush = 1.e-8;
 
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
@@ -57,9 +130,23 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
     // return value (if step limited by physics or geometry) not used for the moment
     // now, I know which process wins, so I add the particle to the appropriate queue
     float physics_step = proclist->GetPhysicsInteractionLength(i, block);
-    float step         = LoopNavigator::ComputeStepAndPropagatedState(mytrack.pos, mytrack.dir, physics_step,
-                                                              mytrack.current_state, mytrack.next_state);
-    mytrack.pos += (step + kPush) * mytrack.dir;
+    float step= 0.0;
+
+    constexpr bool BfieldOff = false;
+    constexpr float BzFieldValue = 0.0 * copcore::units::tesla;
+    
+    if( BfieldOff ) {
+       step= LoopNavigator::ComputeStepAndPropagatedState(mytrack.pos, mytrack.dir, physics_step,
+                                                          mytrack.current_state, mytrack.next_state);
+       mytrack.pos += (step + kPush) * mytrack.dir;
+    }    
+    else {
+       step= FieldPropagator__ComputeStepAndPropagatedState(mytrack, physics_step, BzFieldValue
+          );
+       // mytrack.pos = endPosition;   // Already updated in 'mytrack'
+       // mytrack.dir = endDirection;       
+    }
+
     if (mytrack.next_state.IsOnBoundary()) {
       // For now, just count that we hit something.
       scor->hits++;
@@ -71,6 +158,9 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
     mytrack.SwapStates();
   }
 }
+
+
+
 
 // kernel to call Along Step function for particles in the queues
 __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_list *proclist, adept::MParray **queues,
