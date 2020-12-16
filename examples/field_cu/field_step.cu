@@ -17,35 +17,21 @@
 #include <AdePT/BlockData.h>
 
 #include "ConstBzFieldStepper.h"
-
-using floatX_t = double;  //  float type for X = position
-using floatE_t = double;  //  float type for E = energy  & momentum
+#include "fieldPropagator.h"
 
 using  TrackBlock_t    = adept::BlockData<track>;
-
-template<unsigned int N>
-struct FieldPropagationBuffer
-{
-  int      charge[N];
-  floatX_t position[3][N];
-  floatE_t momentum[3][N];
-  int      index[N];
-  bool     active[N];
-};
-
-using copcore::units::kElectronMassC2;
 
 using copcore::units::meter;
 using copcore::units::GeV;
 using copcore::units::MeV;
 
-constexpr floatX_t  minX = -2.0 * meter, maxX = 2.0 * meter;
-constexpr floatX_t  minY = -3.0 * meter, maxY = 3.0 * meter;
-constexpr floatX_t  minZ = -5.0 * meter, maxZ = 5.0 * meter;
+constexpr double  minX = -2.0 * meter, maxX = 2.0 * meter;
+constexpr double  minY = -3.0 * meter, maxY = 3.0 * meter;
+constexpr double  minZ = -5.0 * meter, maxZ = 5.0 * meter;
 
-// constexpr floatE_t  maxP = 1.0 * GeV;
+// constexpr double  maxP = 1.0 * GeV;
 
-constexpr floatX_t maxStepSize = 0.1 * ( (maxX - minX) + (maxY - minY) + (maxZ - minZ) );
+constexpr double maxStepSize = 0.1 * ( (maxX - minX) + (maxY - minY) + (maxZ - minZ) );
 
 #include <CopCore/Ranluxpp.h>
 
@@ -66,21 +52,23 @@ __device__ void initOneTrack(unsigned int  index,
   aTrack.pos[1] = 0.0; // minY + aTrack.uniform() * ( maxY - minY );
   aTrack.pos[2] = 0.0; // minZ + aTrack.uniform() * ( maxZ - minZ );
 
-  floatE_t  px, py, pz;
+  double  px, py, pz;
   px = 4 * MeV ; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );   // -maxP to +maxP
   py = 0; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );
   pz = 3 * MeV ; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );
 
-  floatE_t  pmag2 =  px*px + py*py + pz*pz;
-  floatE_t  inv_pmag = 1.0 / std::sqrt(pmag2);
+  double  pmag2 =  px*px + py*py + pz*pz;
+  double  inv_pmag = 1.0 / std::sqrt(pmag2);
   aTrack.dir[0] = px * inv_pmag; 
   aTrack.dir[1] = py * inv_pmag; 
   aTrack.dir[2] = pz * inv_pmag;
 
   aTrack.interaction_length = 0.001 * index * maxStepSize ; // aTrack.uniform() * maxStepSize;
   
-  floatE_t  mass = ( aTrack.pdg == pdgGamma ) ?  0.0 : kElectronMassC2 ; // rest mass
+  // double  mass = ( aTrack.pdg == pdgGamma ) ?  0.0 : kElectronMassC2 ; // rest mass
+  double  mass = aTrack.mass();
   aTrack.energy = pmag2 / ( sqrt( mass * mass + pmag2 ) + mass);
+  // More accurate than   ( sqrt( mass * mass + pmag2 ) - mass);
 }
 
 // this GPU kernel function is used to initialize 
@@ -108,111 +96,37 @@ constexpr float BzValue = 0.1 * copcore::units::tesla;
 
 // VECCORE_ATT_HOST_DEVICE
 __host__  __device__ 
-void EvaluateField( const floatX_t pos[3], float fieldValue[3] )
+void EvaluateField( const double pos[3], float fieldValue[3] )
 {
     fieldValue[0]= 0.0;
     fieldValue[1]= 0.0;
     fieldValue[2]= BzValue;        
 }
 
-#ifdef USE_VECTOR3D
-#include <VecGeom/Vector3D.h>
-#endif
-
-__host__ __device__
-void moveInField(track& track)
-{
-  floatX_t  step= track.interaction_length;
-
-  // Charge for e+ / e-  only    ( gamma / other neutrals also ok.) 
-  int    charge = track.charge(); // (track.pdg == -11) - (track.pdg == 11);
-  
-  if ( charge == 0.0 ) return;
-  
-  // floatX_t pclPosition[3];
-
-  // Evaluate initial field value
-  // EvaluateField( pclPosition3d, fieldVector );
-
-  // float restMass = ElectronMass;  // For now ... 
-  floatE_t kinE = track.energy;
-  floatE_t momentumMag = sqrt( kinE * ( kinE + 2.0 * kElectronMassC2) );
-  
-  // Collect position, momentum
-  // floatE_t momentum[3] = { momentumMag * track.dir[0], 
-  //                          momentumMag * track.dir[1], 
-  //                          momentumMag * track.dir[2] } ;
-#ifdef VECTOR3D    
-  vecGeom::Vector3D<floatX_t> positionOut3d(  track.pos );
-  vecGeom::Vector3D<floatX_t> directionOut3d( track.dir );
-#endif
-  
-  ConstBzFieldStepper  helixBz(BzValue);
-
-#if 0    
-  track.pos[0] += 0.1 * ( 1. + 0.0001 * step );
-  track.pos[1] += 0.2;
-  track.pos[2] += 0.3;
-  track.direction[0] += 0.3;
-  track.direction[1] += 0.2;
-  track.direction[2] += 0.1;
-#endif    
-
-  // For now all particles ( e-, e+, gamma ) can be propagated using this
-  //   for gammas  charge = 0 works, and ensures that it goes straight.
-#ifndef USE_VECTOR3D
-  floatX_t xOut, yOut, zOut, dirX, dirY, dirZ;  
-  helixBz.DoStep( track.pos[0], track.pos[1], track.pos[2],
-                  track.dir[0], track.dir[1], track.dir[2],
-                  charge, momentumMag, step,
-                  xOut, yOut, zOut, dirX, dirY, dirZ );                  
-
-  // Update position, direction
-  track.pos[0] = xOut;
-  track.pos[1] = yOut;
-  track.pos[2] = zOut;
-  track.dir[0] = dirX;
-  track.dir[1] = dirY;
-  track.dir[2] = dirZ;  
-#else  
-  helixBz.DoStep( track.pos, track.dir, charge, momentumMag, step,
-                  positionOut3d, directionOut3d);
-
-  // Update position, direction
-  track.pos = positionOut3d;  
-  // track.pos[0] = positionOut3d[0];
-  // track.pos[1] = positionOut3d[1];
-  // track.pos[2] = positionOut3d[2];
-  track.dir = directionOut3d;
-  // track.dir[0] = directionOut3d[0];
-  // track.dir[1] = directionOut3d[1];
-  // track.dir[2] = directionOut3d[2];
-#endif
-
-  // Alternative: load into local variables ?
-  // float xIn= track.position[0], yIn= track.position[1], zIn = track.position[2];
-  // float dirXin= track.direction[0], dirYin = track.direction[1], dirZin = track.direction[2];
-
-
-}
-
 // V1 -- one per warp
-__global__ void moveInField_glob(adept::BlockData<track> *trackBlock, int numTracksChk )
+__global__ void fieldPropagator_glob(adept::BlockData<track> *trackBlock, int numTracksChk )
 {
-  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();   
+  vecgeom::Vector3D<double> endPosition;
+  vecgeom::Vector3D<double> endDirection;
 
+  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();   
+  
   // Non-block version:
   //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
 
   for (int pclIdx  = blockIdx.x * blockDim.x + threadIdx.x;  pclIdx < maxIndex;
            pclIdx += blockDim.x * gridDim.x)
   {
-     track &aTrack= (*trackBlock)[pclIdx];
+     track& aTrack= (*trackBlock)[pclIdx];
 
      // check if you are not outside the used block
      if (pclIdx >= maxIndex || aTrack.status == dead) continue;
-  
-     moveInField(aTrack);
+
+     fieldPropagatorConstBz(aTrack, BzValue, endPosition, endDirection);
+
+     // Update position, direction     
+     aTrack.pos = endPosition;  
+     aTrack.dir = endDirection;
   }
 }
 
@@ -221,7 +135,7 @@ void reportOneTrack( const track & aTrack, int id = -1 )
    using std::setw;
    
    std::cout << " Track " << setw(4) << id
-             << " addr= " << & aTrack   << " "
+          // << " addr= " << & aTrack   << " "
              << " pdg = " << setw(4) << aTrack.pdg
              << " x,y,z = "
              << setw(12) << aTrack.pos[0] << " , "
@@ -305,14 +219,15 @@ int main( int argc, char** argv )
   // ----------------------------------------
   std::cout << " Calling move in field (host)." << std::endl;
   for( int i = 0; i<SmallNum ; i++){
-     // (*block)[particle_index].energy = energy;     
-     track& aTrack = (*trackBlock_uniq)[i];
-     // moveInField( aTrack );
+     vecgeom::Vector3D<double> endPosition;
+     vecgeom::Vector3D<double> endDirection;
+     track  ghostTrack = (*trackBlock_uniq)[i];
+  
+     fieldPropagatorConstBz( ghostTrack, BzValue, endPosition, endDirection );
 
-     track  ghostTrack = aTrack;
-     // reportOneTrack( ghostTrack, i );
-     
-     moveInField( ghostTrack );
+     // Update position, direction     
+     ghostTrack.pos = endPosition;  
+     ghostTrack.dir = endDirection;
      
      // std::cout << " Track " << i << " addr = " << &aTrack << std::endl;
      // std::cout << " Track " << i << " pdg = " << aTrack.pdg
@@ -330,7 +245,7 @@ int main( int argc, char** argv )
   std::cout  << " maxIndex = " << maxIndex
              << " numTracks = " << numTracks << std::endl;
   
-  moveInField_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, numTracks);
+  fieldPropagator_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, numTracks);
   //*********
   cudaDeviceSynchronize();  
 
