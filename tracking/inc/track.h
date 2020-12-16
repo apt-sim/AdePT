@@ -31,6 +31,9 @@ struct track {
 
   __device__ double uniform() { return rng_state.Rndm(); }
 
+  __device__ __host__ int charge()
+  { int chrg= (pdg== -11)-(pdg==11); return chrg; }
+   
   __device__ void SwapStates()
   {
     auto state          = this->current_state;

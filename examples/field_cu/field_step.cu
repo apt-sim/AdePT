@@ -21,9 +21,7 @@
 using floatX_t = double;  //  float type for X = position
 using floatE_t = double;  //  float type for E = energy  & momentum
 
-using SimpleTrack = track;
-
-using  TrackBlock_t    = adept::BlockData<SimpleTrack>;
+using  TrackBlock_t    = adept::BlockData<track>;
 
 template<unsigned int N>
 struct FieldPropagationBuffer
@@ -49,65 +47,62 @@ constexpr floatX_t  minZ = -5.0 * meter, maxZ = 5.0 * meter;
 
 constexpr floatX_t maxStepSize = 0.1 * ( (maxX - minX) + (maxY - minY) + (maxZ - minZ) );
 
-#include <curand.h>
-#include <curand_kernel.h>
+#include <CopCore/Ranluxpp.h>
 
-__device__ void initOneTrack(int            index,
-                             SimpleTrack   &track,
-                             curandState_t *states
+__device__ void initOneTrack(unsigned int  index,
+                             uint64_t      rngBase,
+                             track       & aTrack
    )
 {
-  float r = curand_uniform(states);  
-  // track.charge = ( r < 0.45 ? -1 : ( r< 0.9 ? 0 : +1 ) );
+  // Very basic initial state for RNG ... to be improved
+  aTrack.rng_state.SetSeed( rngBase + (uint64_t) index);
+   
+  float r = aTrack.uniform(); // curand_uniform(states);  
+  // aTrack.charge = ( r < 0.45 ? -1 : ( r< 0.9 ? 0 : +1 ) );
   constexpr  int  pdgElec = 11 , pdgGamma = 22;
-  track.pdg = ( r < 0.45 ? pdgElec : ( r< 0.9 ? pdgGamma : -pdgElec ) );
+  aTrack.pdg = ( r < 0.45 ? pdgElec : ( r< 0.9 ? pdgGamma : -pdgElec ) );
 
-  track.pos[0] = 0.0;   // minX + curand_uniform(states) * ( maxX - minX );
-  track.pos[1] = 0.0; // minY + curand_uniform(states) * ( maxY - minY );
-  track.pos[2] = 0.0; // minZ + curand_uniform(states) * ( maxZ - minZ );
+  aTrack.pos[0] = 0.0; // minX + aTrack.uniform() * ( maxX - minX );
+  aTrack.pos[1] = 0.0; // minY + aTrack.uniform() * ( maxY - minY );
+  aTrack.pos[2] = 0.0; // minZ + aTrack.uniform() * ( maxZ - minZ );
 
   floatE_t  px, py, pz;
-  px = 4 * MeV ; // maxP * 2.0 * ( curand_uniform(states) - 0.5 );   // -maxP to +maxP
-  py = 0; // maxP * 2.0 * ( curand_uniform(states) - 0.5 );
-  pz = 3 * MeV ; // maxP * 2.0 * ( curand_uniform(states) - 0.5 );
+  px = 4 * MeV ; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );   // -maxP to +maxP
+  py = 0; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );
+  pz = 3 * MeV ; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );
 
   floatE_t  pmag2 =  px*px + py*py + pz*pz;
   floatE_t  inv_pmag = 1.0 / std::sqrt(pmag2);
-  track.dir[0] = px * inv_pmag; 
-  track.dir[1] = py * inv_pmag; 
-  track.dir[2] = pz * inv_pmag;
+  aTrack.dir[0] = px * inv_pmag; 
+  aTrack.dir[1] = py * inv_pmag; 
+  aTrack.dir[2] = pz * inv_pmag;
 
-  track.interaction_length = 0.001 * index * maxStepSize ; // curand_uniform(states) * maxStepSize;
+  aTrack.interaction_length = 0.001 * index * maxStepSize ; // aTrack.uniform() * maxStepSize;
   
-  floatE_t  mass = ( track.pdg == pdgGamma ) ?  0.0 : kElectronMassC2 ; // rest mass
-  track.energy = pmag2 / ( sqrt( mass * mass + pmag2 ) + mass);
+  floatE_t  mass = ( aTrack.pdg == pdgGamma ) ?  0.0 : kElectronMassC2 ; // rest mass
+  aTrack.energy = pmag2 / ( sqrt( mass * mass + pmag2 ) + mass);
 }
 
 // this GPU kernel function is used to initialize 
 //     .. the particles' state ?
 
-__global__ void initTracks(adept::BlockData<SimpleTrack> *trackBlock,
-                           curandState_t *states,
-                           int maxIndex
+__global__ void initTracks( adept::BlockData<track> *trackBlock,
+                            unsigned int numTracks,                            
+                            unsigned int eventId,
+                            unsigned int   runId = 101
                           )
 {
   /* initialize the tracks with random particles */
   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (pclIdx >= maxIndex) return;
+  if (pclIdx >= numTracks) return;
 
-  SimpleTrack* pTrack =   trackBlock->NextElement();
+  track* pTrack =   trackBlock->NextElement();
 
-  initOneTrack( pclIdx, *pTrack, &states[pclIdx] );
+  uint64_t  rngBase =     runId * (uint64_t(1)<<52)
+                      + eventId * (uint64_t(1)<<36);
+
+  initOneTrack( pclIdx, rngBase, *pTrack ); // , &states[pclIdx] );
 }
-
-__global__ void initCurand(unsigned long long runSeed, curandState_t *states)
-{
-  /* initialize the state */
-  int id = threadIdx.x + blockIdx.x * blockDim.x;
-  /* All threads gets the same seed, a different sequence number, no offset */
-  curand_init(runSeed, id, 0, &states[id]);
-}
-  
 
 constexpr float BzValue = 0.1 * copcore::units::tesla; 
 
@@ -125,12 +120,12 @@ void EvaluateField( const floatX_t pos[3], float fieldValue[3] )
 #endif
 
 __host__ __device__
-void moveInField(SimpleTrack& track)
+void moveInField(track& track)
 {
   floatX_t  step= track.interaction_length;
 
   // Charge for e+ / e-  only    ( gamma / other neutrals also ok.) 
-  int    charge = (track.pdg == -11) - (track.pdg == 11);
+  int    charge = track.charge(); // (track.pdg == -11) - (track.pdg == 11);
   
   if ( charge == 0.0 ) return;
   
@@ -202,35 +197,42 @@ void moveInField(SimpleTrack& track)
 }
 
 // V1 -- one per warp
-__global__ void moveInField_glob(adept::BlockData<SimpleTrack> *trackBlock,
-                            int maxIndex)
+__global__ void moveInField_glob(adept::BlockData<track> *trackBlock, int numTracksChk )
 {
-  int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  SimpleTrack &track= (*trackBlock)[pclIdx];
+  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();   
 
-  // check if you are not outside the used block
-  if (pclIdx >= maxIndex ) return;  // || !track.active ) return;
+  // Non-block version:
+  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
 
-  moveInField(track);  
+  for (int pclIdx  = blockIdx.x * blockDim.x + threadIdx.x;  pclIdx < maxIndex;
+           pclIdx += blockDim.x * gridDim.x)
+  {
+     track &aTrack= (*trackBlock)[pclIdx];
+
+     // check if you are not outside the used block
+     if (pclIdx >= maxIndex || aTrack.status == dead) continue;
+  
+     moveInField(aTrack);
+  }
 }
 
-void reportOneTrack( const SimpleTrack & track, int id = -1 )
+void reportOneTrack( const track & aTrack, int id = -1 )
 {
    using std::setw;
    
    std::cout << " Track " << setw(4) << id
-             << " addr= " << & track   << " "
-             << " pdg = " << setw(4) << track.pdg
+             << " addr= " << & aTrack   << " "
+             << " pdg = " << setw(4) << aTrack.pdg
              << " x,y,z = "
-             << setw(12) << track.pos[0] << " , "
-             << setw(12) << track.pos[1] << " , "
-             << setw(12) << track.pos[2]
-             << " step = " << setw( 12 ) << track.interaction_length
-             << " kinE = " << setw( 10 ) << track.energy
+             << setw(12) << aTrack.pos[0] << " , "
+             << setw(12) << aTrack.pos[1] << " , "
+             << setw(12) << aTrack.pos[2]
+             << " step = " << setw( 12 ) << aTrack.interaction_length
+             << " kinE = " << setw( 10 ) << aTrack.energy
              << " Dir-x,y,z = "
-             << setw(12) << track.dir[0] << " , "
-             << setw(12) << track.dir[1] << " , "
-             << setw(12) << track.dir[2]
+             << setw(12) << aTrack.dir[0] << " , "
+             << setw(12) << aTrack.dir[1] << " , "
+             << setw(12) << aTrack.dir[2]
              << std::endl;
 }
 
@@ -240,45 +242,30 @@ void reportTracks( TrackBlock_t* trackBlock, unsigned int numTracks )
   // size_t  bytesForTracks   = TrackBlock_t::SizeOfInstance(numTracks);
   // mallocManaged(&buffer2, blocksize);
   
-  // SimpleTrack tracksEnd_host[SmallNum];
-  // cudaMemcpy(tracksEnd_host, trackBlock_dev, SmallNum * sizeOfTrack, // sizeof(SimpleTrack),
+  // track tracksEnd_host[SmallNum];
+  // cudaMemcpy(tracksEnd_host, trackBlock_dev, SmallNum * sizeOfTrack, // sizeof(track),
   //            cudaMemcpyDeviceToHost );
 
   // std::cout << " TrackBlock addr= " << trackBlock   << " " << std::endl;
   for( int i = 0; i<numTracks ; i++) {
-     SimpleTrack& track = (*trackBlock)[i];
-     reportOneTrack( track, i );
+     track& aTrack = (*trackBlock)[i];
+     reportOneTrack( aTrack, i );
   }
 }
 
-int main()
+int main( int argc, char** argv )
 {
-  constexpr int numBlocks=2, numThreadsPerBlock=4;
+  constexpr int numBlocks=2, numThreadsPerBlock=16;
   int  totalNumThreads = numBlocks * numThreadsPerBlock;
   
   const int numTracks = totalNumThreads; // Constant at first ...
   
   std::cout << " Bz = " << BzValue / copcore::units::tesla << " T " << std::endl;
   
-  // Initialize Curand
-  //   How-to see: https://docs.nvidia.com/cuda/curand/device-api-overview.html
-
-  curandState_t *randState_dev;
-  auto cudErr= cudaMalloc((void **)&randState_dev,
-                          totalNumThreads * sizeof(curandState_t));
-
-  // curandStateMRG32k3a_t  *devMRGStates;
-
-  unsigned long long runSeed = 12345; 
-  std::cout << " Initialising curand with run seed = ." << runSeed << std::endl;
-
-  initCurand<<<numBlocks, numThreadsPerBlock>>>(runSeed, randState_dev);
-  cudaDeviceSynchronize();
-
   // Track capacity of the block
   constexpr int capacity = 1 << 16;
 
-  // 1. Create container of Tracks  BlockData<SimpleTrack>
+  // 1. Create container of Tracks  BlockData<track>
   // -----------------------------------------------------
   std::cout << " Creating track buffer for " << capacity << " tracks -" // " on GPU device."
             << " in Unified Memory." 
@@ -299,11 +286,14 @@ int main()
   std::cout << " Initialising tracks." << std::endl;
   std::cout << " Max step size = " << maxStepSize << std::endl;
 
-  initTracks<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, randState_dev, numTracks);
+  unsigned  int runId= 101, eventId = 1;
+  unsigned  int numTracksEv1 = numTracks / 2;
+  initTracks<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, numTracksEv1, eventId, runId );
+  initTracks<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, numTracks-numTracksEv1, ++eventId, runId );  
   cudaDeviceSynchronize();
 
   const unsigned int SmallNum= std::max( 2, numTracks);
-  // SimpleTrack tracksStart_host[SmallNum];
+  // track tracksStart_host[SmallNum];
   
   // cudaMemcpy(tracksStart_host, trackBlock_uniq, SmallNum*sizeof(SimpleTrack), cudaMemcpyDeviceToHost );
 
@@ -316,18 +306,18 @@ int main()
   std::cout << " Calling move in field (host)." << std::endl;
   for( int i = 0; i<SmallNum ; i++){
      // (*block)[particle_index].energy = energy;     
-     SimpleTrack& track = (*trackBlock_uniq)[i];
-     // moveInField( track );
+     track& aTrack = (*trackBlock_uniq)[i];
+     // moveInField( aTrack );
 
-     SimpleTrack  ghostTrack = track;
+     track  ghostTrack = aTrack;
      // reportOneTrack( ghostTrack, i );
      
      moveInField( ghostTrack );
      
-     // std::cout << " Track " << i << " addr = " << &track << std::endl;
-     // std::cout << " Track " << i << " pdg = " << track.pdg
-     //          << " x,y,z = " << track.position[0] << " , " << track.position[1]
-     //          << " , " << track.position[3] << std::endl;
+     // std::cout << " Track " << i << " addr = " << &aTrack << std::endl;
+     // std::cout << " Track " << i << " pdg = " << aTrack.pdg
+     //          << " x,y,z = " << aTrack.position[0] << " , " << aTrack.position[1]
+     //          << " , " << aTrack.position[3] << std::endl;
      reportOneTrack( ghostTrack, i );   
   }
   // std::cout << " Tracks moved in host: " << std::endl;
@@ -336,6 +326,10 @@ int main()
   std::cout << std::endl;
   std::cout << " Calling move in field (device)" << std::endl;
 
+  int maxIndex = trackBlock_uniq->GetNused() + trackBlock_uniq->GetNholes();     
+  std::cout  << " maxIndex = " << maxIndex
+             << " numTracks = " << numTracks << std::endl;
+  
   moveInField_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, numTracks);
   //*********
   cudaDeviceSynchronize();  

@@ -42,6 +42,7 @@ add_executable(fieldStepExe field_step.cu)
 target_include_directories(fieldStepExe PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/tracking/inc>  
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(fieldStepExe VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml # field_step_culib
