@@ -9,6 +9,7 @@
 #include "energy_loss.h"
 
 #include "track.h"
+#include "trackBlock.h"
 
 #include <AdePT/BlockData.h>
 #include <AdePT/LoopNavigator.h>
@@ -23,6 +24,8 @@
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
+
+#include <CopCore/PhysicalConstants.h>
 
 // some simple scoring
 struct Scoring {
@@ -41,9 +44,9 @@ struct Scoring {
   }
 };
 
+constexpr double kPush = 1.e-8;
 
 #include "ConstBzFieldStepper.h"
-#include <CopCore/PhysicalConstants.h>
 
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
@@ -73,48 +76,77 @@ FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
 
    vecgeom::Vector3D<double>  position=   aTrack.pos;
    vecgeom::Vector3D<double>  direction=  aTrack.dir;
-   vecgeom::Vector3D<double>  endPosition=  position;
-   vecgeom::Vector3D<double>  endDirection= direction;
    
    ConstBzFieldStepper  helixBz(BzFieldValue);
    
-   // float  stepDone  = 0.0;
+   float  stepDone  = 0.0;
    double remains   = physicsStep;
 
    constexpr double epsilon_step = 1.0e-7; // Ignore remainder if < e_s * PhysicsStep
    
-   do
+   if( aTrack.charge() == 0.0 )
    {
-      double safeMove = min( remains, safeLength );
+      stepDone= LoopNavigator::ComputeStepAndPropagatedState(position,
+                                                             direction,
+                                                             physicsStep,
+                                                             aTrack.current_state,
+                                                             aTrack.next_state);
+      position += (stepDone + kPush) * direction;
+   }
+   else
+   {
+      bool fullChord= false;
       
-      // fieldPropagatorConstBz( aTrack, BzValue, endPosition, endDirection ); -- Doesn't work
-      helixBz.DoStep( position,    direction, charge, momentumMag, safeMove,
-                      endPosition, endDirection);
-      
-      vecgeom::Vector3D<double>  moveVec= endPosition - aTrack.pos;
-      double  moveLen= moveVec.Length();
-      vecgeom::Vector3D<double>  moveDir= (1.0/moveLen) * moveVec;
+      do
+      {
+         vecgeom::Vector3D<double>  endPosition=  position;
+         vecgeom::Vector3D<double>  endDirection= direction;
+         double safeMove = min( remains, safeLength );
          
-      double move= LoopNavigator::ComputeStepAndPropagatedState(position,
-                                                                direction,
-                                                                moveLen,
-                                                                aTrack.current_state,
-                                                                aTrack.next_state);
-      position=  endPosition;
-      direction= endDirection;
+         // fieldPropagatorConstBz( aTrack, BzValue, endPosition, endDirection ); -- Doesn't work
+         helixBz.DoStep( position,    direction, charge, momentumMag, safeMove,
+                         endPosition, endDirection);
       
-      // stepDone += move;
-      remains  -= move;
-      
-   } while( ( !aTrack.next_state.IsOnBoundary() )
-            && (remains > epsilon_step * physicsStep)
-      );
+         vecgeom::Vector3D<double>  chordVec= endPosition - aTrack.pos;
+         double  chordLen= chordVec.Length();
+         vecgeom::Vector3D<double>  chordDir= (1.0/chordLen) * chordVec;
+         
+         double move= LoopNavigator::ComputeStepAndPropagatedState(position,
+                                                                   chordDir,
+                                                                   chordLen,
+                                                                   aTrack.current_state,
+                                                                   aTrack.next_state);
+
+         fullChord= ( move == chordLen );         
+         if( fullChord ) 
+         {
+            position=  endPosition;
+            direction= endDirection;
+         } else {
+            // Accept the intersection point on the surface (bias - TOFIX !)
+            position=  position + move * chordDir;
+         // Primitive approximation of end direction ... 
+            double fraction= chordLen > 0 ? move / chordLen : 0.0;
+            direction= direction * (1.0 - fraction) + endDirection * fraction;
+            direction= direction.Unit();
+         }
+         stepDone += move;
+         remains  -= move;
+         
+      } while( ( !aTrack.next_state.IsOnBoundary() )
+               && fullChord
+               && (remains > epsilon_step * physicsStep) );
+   }
    // stepDone= physicsStep - remains;
-     
-   return physicsStep-remains;
+
+   aTrack.pos= position;
+   aTrack.dir= direction;
+   
+   return stepDone; // physicsStep-remains;
 }
 
-constexpr double kPush = 1.e-8;
+constexpr bool  BfieldOn = true;
+constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
 
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
 __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list *proclist,
@@ -132,10 +164,7 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
     float physics_step = proclist->GetPhysicsInteractionLength(i, block);
     float step= 0.0;
 
-    constexpr bool BfieldOff = false;
-    constexpr float BzFieldValue = 0.0 * copcore::units::tesla;
-    
-    if( BfieldOff ) {
+    if( ! BfieldOn ) {
        step= LoopNavigator::ComputeStepAndPropagatedState(mytrack.pos, mytrack.dir, physics_step,
                                                           mytrack.current_state, mytrack.next_state);
        mytrack.pos += (step + kPush) * mytrack.dir;
@@ -144,10 +173,11 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
        step= FieldPropagator__ComputeStepAndPropagatedState(mytrack, physics_step, BzFieldValue
           );
        // mytrack.pos = endPosition;   // Already updated in 'mytrack'
-       // mytrack.dir = endDirection;       
+       // mytrack.dir = endDirection;
     }
+    mytrack.total_length += step;
 
-    if (mytrack.next_state.IsOnBoundary()) {
+    if ( mytrack.next_state.IsOnBoundary()) { // ( step == physics_step ) {  // JA-TEMP 
       // For now, just count that we hit something.
       scor->hits++;
     } else {
@@ -195,6 +225,7 @@ __global__ void init_track(track *mytrack, const vecgeom::VPlacedVolume *world)
   /* we have to initialize the state */
   mytrack->rng_state.SetSeed(314159265);
   LoopNavigator::LocatePointIn(world, mytrack->pos, mytrack->current_state, true);
+  mytrack->next_state= mytrack->current_state;
 }
 
 // kernel to create the processes and process list
@@ -267,7 +298,9 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
   track->pos = {0, 0, 0};
-  track->dir = {1, 0, 0};
+  track->dir = {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
+  track->pdg= 11;  // e-
+  track->interaction_length= 20.0;  
   init_track<<<1, 1>>>(track, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -277,9 +310,15 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track2->energy_loss = 0.0f;
   //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
   track2->pos = {0, 0.05, 0};
-  track2->dir = {1, 0, 0};
+  track2->dir = {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
+  track2->pdg= -11;  // e+
+  track2->interaction_length= 10.0;
   init_track<<<1, 1>>>(track2, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
+  std::cout << "INFO: running with field " << ( BfieldOn ?  "ON" : "OFF" ) ;
+  if( BfieldOn ) std::cout << " field value: Bz = " << BzFieldValue / copcore::units::tesla << " T ";
+  std::cout << std::endl;
 
   // simple version of scoring
   float *energy_deposition = nullptr;
@@ -287,30 +326,56 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
 
   constexpr dim3 nthreads(32);
   constexpr dim3 maxBlocks(10);
+
   dim3 numBlocks;
 
   vecgeom::Stopwatch timer;
   timer.Start();
 
+  int iterNo=0;
+  int maxPrint = 8;
+
+  std::cout << " Track2 nav index: (current) ";
+  auto cs2= track2->current_state;
+  int level = cs2.GetLevel();
+  std::cout << " level = " << level << std::endl;
+  std::cout << " phyvol-no = " << cs2.ValueAt(level) << std::endl;
+  // track2->current_state.Print();
+  // track2->next_state.Print();
+  std::cout << std::endl;
+  
+  std::cout << " Tracks at simulation start " << std::endl;
+  printTracks(block, true, maxPrint);    
+  
   while (block->GetNused() > 0) {
+     
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
     numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
 
     // call the kernel to do check the step lenght and select process
     DefinePhysicalStepLength<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
+    // cudaDeviceSynchronize();  // Sync to get new values before printing
+    // std::cout << " Tracks after DefinePhysicsStepLength " << std::endl;
+    // printTracks(block, true, maxPrint );
+    
     // call the kernel for Along Step Processes
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
-    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+    cudaDeviceSynchronize();      // Sync to print ...     
+    std::cout << " Tracks after CallsAlongStepProccesses " << std::endl;
+    printTracks(block, true, maxPrint);
+
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());    
     // clear all the queues before next step
     for (int i = 0; i < numberOfProcesses; i++)
       queues[i]->clear();
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-    std::cout << "tracks in flight: " << std::setw(5) << block->GetNused() << " energy depostion: " << std::setw(8)
+    std::cout << "iter " << std::setw(5) << iterNo << " tracks in flight: " << std::setw(5) << block->GetNused() << " energy deposition: " << std::setw(8)
               << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load() << std::endl;
+    iterNo++;
   }
 
   auto time_cpu = timer.Stop();
