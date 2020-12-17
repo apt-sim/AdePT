@@ -4,6 +4,7 @@
 #ifndef EXAMPLE2_H
 #define EXAMPLE2_H
 
+#include <CopCore/Global.h>
 #include <VecGeom/base/Config.h>
 #include <VecGeom/volumes/PlacedVolume.h>
 
