@@ -19,7 +19,8 @@
 #include "ConstBzFieldStepper.h"
 #include "fieldPropagator.h"
 
-using  TrackBlock_t    = adept::BlockData<track>;
+#include "trackBlock.h"
+// using trackBlock_t  = adept::BlockData<track>;
 
 using copcore::units::meter;
 using copcore::units::GeV;
@@ -130,42 +131,7 @@ __global__ void fieldPropagator_glob(adept::BlockData<track> *trackBlock, int nu
   }
 }
 
-void reportOneTrack( const track & aTrack, int id = -1 )
-{
-   using std::setw;
-   
-   std::cout << " Track " << setw(4) << id
-          // << " addr= " << & aTrack   << " "
-             << " pdg = " << setw(4) << aTrack.pdg
-             << " x,y,z = "
-             << setw(12) << aTrack.pos[0] << " , "
-             << setw(12) << aTrack.pos[1] << " , "
-             << setw(12) << aTrack.pos[2]
-             << " step = " << setw( 12 ) << aTrack.interaction_length
-             << " kinE = " << setw( 10 ) << aTrack.energy
-             << " Dir-x,y,z = "
-             << setw(12) << aTrack.dir[0] << " , "
-             << setw(12) << aTrack.dir[1] << " , "
-             << setw(12) << aTrack.dir[2]
-             << std::endl;
-}
 
-void reportTracks( TrackBlock_t* trackBlock, unsigned int numTracks )
-{
-  // unsigned int sizeOfTrack = TrackBlock_t::SizeOfAlignAware;
-  // size_t  bytesForTracks   = TrackBlock_t::SizeOfInstance(numTracks);
-  // mallocManaged(&buffer2, blocksize);
-  
-  // track tracksEnd_host[SmallNum];
-  // cudaMemcpy(tracksEnd_host, trackBlock_dev, SmallNum * sizeOfTrack, // sizeof(track),
-  //            cudaMemcpyDeviceToHost );
-
-  // std::cout << " TrackBlock addr= " << trackBlock   << " " << std::endl;
-  for( int i = 0; i<numTracks ; i++) {
-     track& aTrack = (*trackBlock)[i];
-     reportOneTrack( aTrack, i );
-  }
-}
 
 int main( int argc, char** argv )
 {
@@ -188,12 +154,12 @@ int main( int argc, char** argv )
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   // Note that if we want to allocate several consecutive block in a buffer, we have to use
   // Block_t::SizeOfAlignAware rather than SizeOfInstance to get the space needed per block
-  size_t blocksize = TrackBlock_t::SizeOfInstance(capacity);
+  size_t blocksize = trackBlock_t::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
   cudaError_t allocErr= cudaMallocManaged(&buffer2, blocksize);  // Allocated in Unified memory ... (baby steps)
 
-  // auto trackBlock_dev  = TrackBlock_t::MakeInstanceAt(capacity, buffer2);  
-  auto trackBlock_uniq = TrackBlock_t::MakeInstanceAt(capacity, buffer2);
+  // auto trackBlock_dev  = trackBlock_t::MakeInstanceAt(capacity, buffer2);  
+  auto trackBlock_uniq = trackBlock_t::MakeInstanceAt(capacity, buffer2);
 
   // 2.  Initialise track - on device
   // --------------------------------
@@ -213,7 +179,7 @@ int main( int argc, char** argv )
 
   std::cout << std::endl;
   std::cout << " Initialised tracks: " << std::endl;
-  reportTracks( trackBlock_uniq, numTracks );  
+  printTracks( trackBlock_uniq, false, numTracks );  
 
   // 3.  Move tracks in field - for one step
   // ----------------------------------------
@@ -233,10 +199,11 @@ int main( int argc, char** argv )
      // std::cout << " Track " << i << " pdg = " << aTrack.pdg
      //          << " x,y,z = " << aTrack.position[0] << " , " << aTrack.position[1]
      //          << " , " << aTrack.position[3] << std::endl;
-     reportOneTrack( ghostTrack, i );   
+     ghostTrack.print( i );
+     // printTrack( ghostTrack, i );        
   }
   // std::cout << " Tracks moved in host: " << std::endl;
-  // reportTracks( trackBlock_uniq, numTracks );
+  // printTrackBlock( trackBlock_uniq, numTracks );
 
   std::cout << std::endl;
   std::cout << " Calling move in field (device)" << std::endl;
@@ -253,6 +220,6 @@ int main( int argc, char** argv )
   // 
   //          See where they went ?
   std::cout << " Ending tracks: " << std::endl;
-  reportTracks( trackBlock_uniq, numTracks );
+  printTracks( trackBlock_uniq, false, numTracks );
 }
 
