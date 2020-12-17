@@ -11,8 +11,7 @@
 #include <AdePT/BlockData.h>
 #include <AdePT/MParray.h>
 
-#include <curand.h>
-#include <curand_kernel.h>
+#include <VecGeom/base/Stopwatch.h>
 
 #include <iostream>
 #include <iomanip>
@@ -85,7 +84,7 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
 __global__ void init_track(track *mytrack)
 {
   /* we have to initialize the state */
-  curand_init(0, 0, 0, &mytrack->curand_state);
+  mytrack->rng_state.SetSeed(314159265);
 }
 
 // kernel to create the processes and process list
@@ -166,7 +165,10 @@ int main()
   constexpr dim3 maxBlocks(10);
   dim3 numBlocks;
 
-  while (block->GetNused()>0)
+  vecgeom::Stopwatch timer;
+  timer.Start();
+
+  while (block->GetNused()>0) 
   {
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
     numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
@@ -185,4 +187,7 @@ int main()
     std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused() << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load()
     << " total number of secondaries: " << scor->secondaries.load() << std::endl;
   }
+
+  auto time_cpu = timer.Stop();
+  std::cout << "Run time: " << time_cpu << "\n";
 }
