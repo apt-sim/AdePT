@@ -20,11 +20,11 @@ union Color_t {
     unsigned char red;
   } fComp;
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Color_t() : fColor(0) {}
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Color_t(unsigned int col) { fColor = col; }
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Color_t(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
   {
     fComp.red   = r;
@@ -32,7 +32,7 @@ union Color_t {
     fComp.blue  = b;
     fComp.alpha = a;
   }
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Color_t(float r, float g, float b, float a)
   {
     fComp.red   = 255 * r;
@@ -41,7 +41,7 @@ union Color_t {
     fComp.alpha = 255 * a;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Color_t &operator+=(Color_t const &other)
   {
     if ((fComp.alpha == 0) && (other.fComp.alpha == 0)) return *this;
@@ -56,7 +56,7 @@ union Color_t {
     return *this;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Color_t &operator*=(float val)
   {
     using vecCore::math::Max;
@@ -68,7 +68,7 @@ union Color_t {
     return *this;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   Color_t &operator/=(float val)
   {
     using vecCore::math::Max;
@@ -80,17 +80,17 @@ union Color_t {
     return *this;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   float Red() const { return 1. / 255 * fComp.red; }
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   float Green() const { return 1. / 255 * fComp.green; }
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   float Blue() const { return 1. / 255 * fComp.blue; }
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   float Alpha() const { return 1. / 255 * fComp.alpha; }
   int GetColor() const { return fColor; }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void MultiplyLightChannel(float fact)
   {
     float hue, light, satur;
@@ -98,7 +98,7 @@ union Color_t {
     SetHLS(hue, fact * light, satur);
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void GetHLS(float &hue, float &light, float &satur) const
   {
     float rnorm, gnorm, bnorm, msum, mdiff;
@@ -134,7 +134,7 @@ union Color_t {
     if (hue > 360) hue = hue - 360;
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   void SetHLS(float hue, float light, float satur)
   {
     float rh, rl, rs, rm1, rm2;
@@ -181,8 +181,8 @@ union Color_t {
   }
 };
 
-VECCORE_ATT_HOST_DEVICE
-VECCORE_FORCE_INLINE
+__host__ __device__
+__forceinline__
 Color_t operator+(Color_t const &left, Color_t const &right)
 {
   Color_t color(left);

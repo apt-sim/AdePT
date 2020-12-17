@@ -14,13 +14,15 @@
 #include <stdexcept>
 #include <iostream>
 
+#include <CopCore/Global.h>
+
 namespace copcore {
 
 template <class T, BackendType backend>
 class VariableSizeObjAllocator {
 };
 
-#ifdef VECCORE_CUDA
+#ifdef COPCORE_CUDA_COMPILER
 
 /** @brief Partial variable-size allocator specialization for the CUDA backend */
 template <class T>
