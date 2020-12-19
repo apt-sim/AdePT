@@ -8,6 +8,8 @@
 
 using trackBlock_t  = adept::BlockData<track>;
 
+// static std::atomic<unsigned int> atomicTrackId= 0;
+
 __host__
 void printTracks( trackBlock_t* trackBlock,       //     adept::BlockData<track>*
                   bool          verbose = false,  // include info on navigation state ?
@@ -27,8 +29,13 @@ void printTracks( trackBlock_t* trackBlock,       //     adept::BlockData<track>
      track& trk = (*trackBlock)[i];
      if( trk.status == alive ) {
         // printTrack( trk, i, verbose );
-        trk.print( i, verbose );
-        if( ++numPrinted >= numTracks ) return;
+        if( ++numPrinted < numTracks )
+           trk.print( i, verbose );
+           
+        if( trk.index == 0 )
+           trk.index = trk.mother_index * 100 + i;
+           // trk.index = ++atomicTrackId;
+        // if( ++numPrinted >= numTracks ) return;
      }
   }
 }

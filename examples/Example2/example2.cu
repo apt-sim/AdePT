@@ -25,6 +25,8 @@
 #include <iomanip>
 #include <stdio.h>
 
+// #include <cfloat> // for FLT_MIN
+
 #include <CopCore/PhysicalConstants.h>
 
 // some simple scoring
@@ -145,8 +147,8 @@ FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
    return stepDone; // physicsStep-remains;
 }
 
-constexpr bool  BfieldOn = true;
-constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
+constexpr bool  BfieldOn = false; // true
+constexpr float BzFieldValue = 1.0e-30 * copcore::units::tesla;  // 0.1 * copcore::units::tesla;  // 30. * FLT_MIN; // 
 
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
 __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list *proclist,
@@ -157,6 +159,14 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
     // skip particles that are already dead
     track &mytrack = (*block)[i];
+
+    // Experimental limit on number of steps - to avoid 'forever' particles
+    constexpr uint16_t maxNumSteps = 250;  // Configurable in real simulation -- 1000 ?
+    ++  mytrack.num_step;
+    if( mytrack.num_step > maxNumSteps ) {
+       mytrack.status = dead;
+    }
+    
     if (mytrack.status == dead) continue;
 
     // return value (if step limited by physics or geometry) not used for the moment
@@ -168,24 +178,37 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
        step= LoopNavigator::ComputeStepAndPropagatedState(mytrack.pos, mytrack.dir, physics_step,
                                                           mytrack.current_state, mytrack.next_state);
        mytrack.pos += (step + kPush) * mytrack.dir;
+       if( step < physics_step ) mytrack.current_process = -1;
     }    
     else {
        step= FieldPropagator__ComputeStepAndPropagatedState(mytrack, physics_step, BzFieldValue
           );
        // mytrack.pos = endPosition;   // Already updated in 'mytrack'
        // mytrack.dir = endDirection;
+       if( step < physics_step ) {
+          // assert( ! mytrack.next_state.IsOnBoundary() && "Field Propagator returned step<phys -- yet boundary!" );
+          mytrack.current_process = -2;
+       }
     }
     mytrack.total_length += step;
 
     if ( mytrack.next_state.IsOnBoundary()) { // ( step == physics_step ) {  // JA-TEMP 
       // For now, just count that we hit something.
       scor->hits++;
+      mytrack.SwapStates();      
     } else {
       // Enqueue track index for later processing.
-      queues[mytrack.current_process]->push_back(i);
+      // assert(mytrack.current_process >= 0);
+      if(mytrack.current_process >= 0)  // JA-TOFIX --- take this out !!! 
+         queues[mytrack.current_process]->push_back(i);
+
+      if(mytrack.current_state.IsOnBoundary()) {
+         mytrack.SwapStates();
+         // Just to clear the boundary flag from the current step ... 
+      }
     }
 
-    mytrack.SwapStates();
+    // mytrack.SwapStates();
   }
 }
 
@@ -260,8 +283,11 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   COPCORE_CUDA_CHECK(cudaFree(proclist_dev));
 
   // Capacity of the different containers
-  constexpr int capacity = 1 << 20;
+  constexpr int capacity = 65536; // 1 << 20;
 
+  std::cout << "INFO: capacity of containers (incl. BlockData<track>) set at "
+            << capacity << std::endl;
+  
   // setting the number of existing processes
   constexpr int numberOfProcesses = 2;
   char *buffer1[numberOfProcesses];
@@ -293,16 +319,17 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   auto block = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
 
   // initializing one track in the block
-  auto track         = block->NextElement();
-  track->energy      = 100.0f;
-  track->energy_loss = 0.0f;
+  auto track1        = block->NextElement();
+  track1->energy      = 100.0f;
+  track1->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
-  track->pos = {0, 0, 0};
-  track->dir = {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
-  track->pdg= 11;  // e-
-  track->interaction_length= 20.0;  
-  init_track<<<1, 1>>>(track, gpu_world);
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+  track1->pos = {0, 0, 0};
+  track1->dir = {1.0, 0, 0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
+  track1->pdg= 11;  // e-
+  track1->index= 1; 
+  track1->interaction_length= 20.0;  
+  init_track<<<1, 1>>>(track1, gpu_world);
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());  
 
   // initializing second track in the block
   auto track2         = block->NextElement();
@@ -310,8 +337,9 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track2->energy_loss = 0.0f;
   //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
   track2->pos = {0, 0.05, 0};
-  track2->dir = {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
+  track2->dir = {1.0, 0.0, 0.0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
   track2->pdg= -11;  // e+
+  track1->index= 2;
   track2->interaction_length= 10.0;
   init_track<<<1, 1>>>(track2, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
@@ -333,19 +361,17 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   timer.Start();
 
   int iterNo=0;
-  int maxPrint = 8;
+  int maxPrint = 32;
 
-  std::cout << " Track2 nav index: (current) ";
-  auto cs2= track2->current_state;
-  int level = cs2.GetLevel();
-  std::cout << " level = " << level << std::endl;
-  std::cout << " phyvol-no = " << cs2.ValueAt(level) << std::endl;
-  // track2->current_state.Print();
-  // track2->next_state.Print();
-  std::cout << std::endl;
+  bool verbose= false;
+  std::cout << " Track1 with nav index: " << std::endl;
+  track1->print(1, verbose );
+  
+  std::cout << " Track2 with nav index: " << std::endl;
+  track2->print(2, verbose);
   
   std::cout << " Tracks at simulation start " << std::endl;
-  printTracks(block, true, maxPrint);    
+  printTracks(block, verbose, maxPrint);    
   
   while (block->GetNused() > 0) {
      
@@ -356,8 +382,8 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
     DefinePhysicalStepLength<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
     // cudaDeviceSynchronize();  // Sync to get new values before printing
-    // std::cout << " Tracks after DefinePhysicsStepLength " << std::endl;
-    // printTracks(block, true, maxPrint );
+    std::cout << " Tracks after DefinePhysicsStepLength " << std::endl;
+    printTracks(block, true, maxPrint );
     
     // call the kernel for Along Step Processes
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
@@ -372,7 +398,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
       queues[i]->clear();
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-    std::cout << "iter " << std::setw(5) << iterNo << " tracks in flight: " << std::setw(5) << block->GetNused() << " energy deposition: " << std::setw(8)
+    std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << block->GetNused() << " energy deposition: " << std::setw(8)
               << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load() << std::endl;
     iterNo++;
