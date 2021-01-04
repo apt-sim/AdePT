@@ -16,7 +16,6 @@
 
 #include <AdePT/BlockData.h>
 
-#include "ConstBzFieldStepper.h"
 #include "fieldPropagator.h"
 
 #include "trackBlock.h"
@@ -93,19 +92,23 @@ __global__ void initTracks( adept::BlockData<track> *trackBlock,
   initOneTrack( pclIdx, rngBase, *pTrack ); // , &states[pclIdx] );
 }
 
-constexpr float BzValue = 0.1 * copcore::units::tesla; 
+static float BzValue = 0.1 * copcore::units::tesla;
+
+static float BfieldValue[3] = { 0.001 * copcore::units::tesla,
+                               -0.001 * copcore::units::tesla,
+                                BzValue ); 
 
 // VECCORE_ATT_HOST_DEVICE
 __host__  __device__ 
 void EvaluateField( const double pos[3], float fieldValue[3] )
 {
-    fieldValue[0]= 0.0;
-    fieldValue[1]= 0.0;
-    fieldValue[2]= BzValue;        
+   fieldValue[0]= BfieldValue[0]; // 0.0;
+   fieldValue[1]= BfieldValue[0]; // 0.0;
+   fieldValue[2]= BzValue;        
 }
 
-// V1 -- one per warp
-__global__ void fieldPropagator_glob(adept::BlockData<track> *trackBlock, int numTracksChk )
+// V1 -- field along Z axis
+__global__ void fieldPropagatorBz_glob(adept::BlockData<track> *trackBlock)
 {
   vecgeom::Vector3D<double> endPosition;
   vecgeom::Vector3D<double> endDirection;
@@ -131,16 +134,54 @@ __global__ void fieldPropagator_glob(adept::BlockData<track> *trackBlock, int nu
   }
 }
 
+// V2 -- constant field any direction 
+__global__ void fieldPropagatorAnyDir_glob(adept::BlockData<track> *trackBlock)
+{
+  vecgeom::Vector3D<double> endPosition;
+  vecgeom::Vector3D<double> endDirection;
+
+  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();   
+
+  ConstFieldHelixStepper  helixAnyB(magFieldVec);  // Re-use it (expensive sqrt & div.)
+  
+  // Non-block version:
+  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  for (int pclIdx  = blockIdx.x * blockDim.x + threadIdx.x;  pclIdx < maxIndex;
+           pclIdx += blockDim.x * gridDim.x)
+  {
+     track& aTrack= (*trackBlock)[pclIdx];
+
+     // check if you are not outside the used block
+     if (pclIdx >= maxIndex || aTrack.status == dead) continue;
+
+     fieldPropagatorConstBgeneral(aTrack, helixAnyB, endPosition, endDirection);
+
+     // Update position, direction     
+     aTrack.pos = endPosition;  
+     aTrack.dir = endDirection;
+  }
+}
+
 
 
 int main( int argc, char** argv )
 {
   constexpr int numBlocks=2, numThreadsPerBlock=16;
   int  totalNumThreads = numBlocks * numThreadsPerBlock;
+  bool useBzOnly = true;
+
+  if( argc > 1 )
+     useBzOnly = false;
   
   const int numTracks = totalNumThreads; // Constant at first ...
-  
-  std::cout << " Bz = " << BzValue / copcore::units::tesla << " T " << std::endl;
+
+  std::cout << "Magnetic field used: " << std::endl;
+  if( !useBzOnly ){
+     std::cout << "  Bx = " << BfieldValue[0] / copcore::units::tesla << " T " << std::endl;
+     std::cout << "  By = " << BfieldValue[1] / copcore::units::tesla << " T " << std::endl;
+  } 
+  std::cout << "  Bz = " << BzValue / copcore::units::tesla << " T " << std::endl;
   
   // Track capacity of the block
   constexpr int capacity = 1 << 16;
@@ -159,7 +200,7 @@ int main( int argc, char** argv )
   cudaError_t allocErr= cudaMallocManaged(&buffer2, blocksize);  // Allocated in Unified memory ... (baby steps)
 
   // auto trackBlock_dev  = trackBlock_t::MakeInstanceAt(capacity, buffer2);  
-  auto trackBlock_uniq = trackBlock_t::MakeInstanceAt(capacity, buffer2);
+  auto trackBlock_uniq = trackBlock_t::MakeInstanceAt(capacity, buffer2); // Unified memory => _uniq
 
   // 2.  Initialise track - on device
   // --------------------------------
@@ -173,34 +214,75 @@ int main( int argc, char** argv )
   cudaDeviceSynchronize();
 
   const unsigned int SmallNum= std::max( 2, numTracks);
-  // track tracksStart_host[SmallNum];
-  
-  // cudaMemcpy(tracksStart_host, trackBlock_uniq, SmallNum*sizeof(SimpleTrack), cudaMemcpyDeviceToHost );
 
   std::cout << std::endl;
   std::cout << " Initialised tracks: " << std::endl;
   printTracks( trackBlock_uniq, false, numTracks );  
 
-  // 3.  Move tracks in field - for one step
-  // ----------------------------------------
+  // Copy to array for host to cross-check
+  track tracksStart_host[SmallNum];  
+  memcpy(tracksStart_host, trackBlock_uniq, SmallNum*sizeof(track));
+  // Else if stored on device: 
+  //  cudaMemcpy(tracksStart_host, trackBlock_dev, SmallNum*sizeof(track), cudaMemcpyDeviceToHost );
+  
+  // 3. Move tracks -- on device
+  if( useBzOnly ){
+     fieldPropagatorBz_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq); // , numTracks);
+     //*********
+  } else {
+     fieldPropagatorAnyDir_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq); // , numTracks); 
+  }
+  cudaDeviceSynchronize();  
+
+  // 4. Check results on host
   std::cout << " Calling move in field (host)." << std::endl;
+
+  using ThreeVector = vecgeom::Vector3D<double>;
+  
   for( int i = 0; i<SmallNum ; i++){
-     vecgeom::Vector3D<double> endPosition;
-     vecgeom::Vector3D<double> endDirection;
-     track  ghostTrack = (*trackBlock_uniq)[i];
+     ThreeVector endPosition, endDirection;
+     track  hostTrack = tracksStart_host[i];  // (*trackBlock_uniq)[i]; 
   
      fieldPropagatorConstBz( ghostTrack, BzValue, endPosition, endDirection );
 
-     // Update position, direction     
-     ghostTrack.pos = endPosition;  
-     ghostTrack.dir = endDirection;
+     double move    = (endPosition  - hostTrack.pos).mag();
+     double deflect = (endDirection - hostTrack.dir).mag();
      
-     // std::cout << " Track " << i << " addr = " << &aTrack << std::endl;
-     // std::cout << " Track " << i << " pdg = " << aTrack.pdg
-     //          << " x,y,z = " << aTrack.position[0] << " , " << aTrack.position[1]
-     //          << " , " << aTrack.position[3] << std::endl;
-     ghostTrack.print( i );
-     // printTrack( ghostTrack, i );        
+     // Update position, direction     
+     hostTrack.pos = endPosition;  
+     hostTrack.dir = endDirection;
+
+     track  devTrackVal= (*trackBlock_uniq)[i];
+     ThreeVector posDiff = hostTrack.pos - devTrackVal.pos;     
+     ThreeVector dirDiff = hostTrack.dir - devTrackVal.dir;
+
+     bool badPosition  = posDiff.mag() > tol * move;
+     bool badDirection = dirDiff.mag() > tol * deflection;
+     
+     if( badPosition || badDirection ){
+        std::cout << " Difference seen for Track " << i
+                  << " addr = " << & (*trackBlock_uniq)[i]
+                  << std::endl;
+        std::cout << std::endl;
+        // std::cout << " Track " << i << " addr = " << &aTrack << std::endl;
+        // std::cout << " Track " << i << " pdg = " << aTrack.pdg
+        //          << " x,y,z = " << aTrack.position[0] << " , " << aTrack.position[1]
+        //          << " , " << aTrack.position[3] << std::endl;
+        std::cout << " Ref (host) = ";
+        hostTrack.print( i );
+
+        std::cout << " Device     = ";
+        devTrackVal.print( i );
+
+        if( badPosition ){
+           std::cout << " Position  diff = " << posDiff << " ";
+        }
+        if( badDirection ){
+           std::cout << " Direction diff = " << dirDiff << " ";
+        }
+        
+        // printTrack( hostTrack, i );
+     }
   }
   // std::cout << " Tracks moved in host: " << std::endl;
   // printTrackBlock( trackBlock_uniq, numTracks );
@@ -211,12 +293,8 @@ int main( int argc, char** argv )
   int maxIndex = trackBlock_uniq->GetNused() + trackBlock_uniq->GetNholes();     
   std::cout  << " maxIndex = " << maxIndex
              << " numTracks = " << numTracks << std::endl;
-  
-  fieldPropagator_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, numTracks);
-  //*********
-  cudaDeviceSynchronize();  
 
-  // 4.  Report result of movement
+  // 5.  Report result of movement
   // 
   //          See where they went ?
   std::cout << " Ending tracks: " << std::endl;

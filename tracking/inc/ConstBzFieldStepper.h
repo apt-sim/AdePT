@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * ConstBzFieldStepper.h
  *
@@ -20,7 +23,9 @@
  * ( neglecting energy loss of particle )
  * This class is roughly equivalent to TGeoHelix in ROOT
  */
-class ConstBzFieldStepper {
+class ConstBzFieldStepper
+{
+
 private:
   float fBz;    //   Adequate accuracy for all expected applications
 
@@ -28,7 +33,7 @@ public:
   VECCORE_ATT_HOST_DEVICE
   ConstBzFieldStepper(float Bz = 0.) : fBz(Bz) {}
 
-  void SetBz(float Bz) { fBz = Bz; }
+  void   SetBz(float Bz) { fBz = Bz; }
   double GetBz() const { return fBz; }
 
   static constexpr float kB2C =
@@ -51,7 +56,9 @@ public:
    * output: new position, new direction of particle
    */
   template <typename BaseType, typename BaseIType>
-  inline __attribute__((always_inline)) VECCORE_ATT_HOST_DEVICE void DoStep(
+  inline __attribute__((always_inline))
+  VECCORE_ATT_HOST_DEVICE
+  void DoStep(
       BaseType const & /*posx*/, BaseType const & /*posy*/, BaseType const & /*posz*/, BaseType const & /*dirx*/,
       BaseType const & /*diry*/, BaseType const & /*dirz*/, BaseIType const & /*charge*/, BaseType const & /*momentum*/,
       BaseType const & /*step*/, BaseType & /*newsposx*/, BaseType & /*newposy*/, BaseType & /*newposz*/,
