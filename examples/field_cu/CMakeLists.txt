@@ -45,7 +45,8 @@ target_include_directories(fieldStepExe PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/tracking/inc>  
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(fieldStepExe VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml # field_step_culib
+target_link_libraries(fieldStepExe VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static # VecGeom::globalvecgeomdata ?? idea/JA
+                                   VecGeom::vgdml # field_step_culib
                                    CopCore::CopCore)
 target_compile_options(fieldStepExe PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 set_target_properties(fieldStepExe PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
