@@ -26,6 +26,7 @@ struct track {
   vecgeom::NavStateIndex    next_state;
 
   unsigned int mother_index{0};
+  unsigned int eventId{0};
   TrackStatus  status{alive};
 
   float interaction_length{FLT_MAX};
@@ -113,6 +114,7 @@ void track::print( int extId , bool verbose ) const
              << " / id= " << setw(7) << index << " "
           //  << " pdg = " << setw(4) << (int) pdg
              << " m= " << setw(8) << mother_index << " "
+             << " ev= " << setw(3) << eventId << " "
              << " step# " << setw(4) << (int) num_step             
           // << " addr= " << this   << " "
              << " Pos: "
@@ -121,7 +123,7 @@ void track::print( int extId , bool verbose ) const
              << setw(11) << pos[2]
              << " s= "   << setw( 8 ) << interaction_length
              << " l= "   << setw( 8 ) << total_length
-             << " kE= "  << setw( 5 ) << energy
+             << " kE= "  << setw( 10 ) << energy
              << " Dir: = "
              << setw(8) << dir[0] << " , "
              << setw(8) << dir[1] << " , "
