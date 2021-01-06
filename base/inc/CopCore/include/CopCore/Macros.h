@@ -51,12 +51,20 @@
 #define COPCORE_MACROS_H_
 
 // Macros for separating CUDA compiler from others
-// Checks for
 #ifdef __CUDACC__
 #  define COPCORE_CUDA_COMPILER
-#else
+#endif
+
+// Define function keywords if not already present.
+#ifndef __host__
 #  define __host__
+#endif
+
+#ifndef __device__
 #  define __device__
+#endif
+
+#ifndef __forceinline__
 #  define __forceinline__ inline __attribute__((always_inline))
 #endif
 
