@@ -13,9 +13,7 @@
 #define CONSTFIELDHELIXSTEPPER_H_
 
 #include "VecGeom/base/Global.h"
-
-// #include <base/Vector3D.h>
-// #include <base/SOA3D.h>
+// Needed for Vector3D
 
 // namespace adept {
 // inline namespace ADEPT_IMPL_NAMESPACE {
@@ -28,25 +26,29 @@ class ConstFieldHelixStepper {
   using Vector3D = vecgeom::Vector3D<T>;
 
 public:
+  // VECCORE_ATT_HOST_DEVICE
+  // ConstFieldHelixStepper(); // For default initialisation only
+   
   VECCORE_ATT_HOST_DEVICE
-  ConstFieldHelixStepper(double Bx, double By, double Bz);
+  ConstFieldHelixStepper(float Bx, float By, float Bz);
 
   VECCORE_ATT_HOST_DEVICE
-  ConstFieldHelixStepper(double Bfield[3]);
+  ConstFieldHelixStepper(float Bfield[3]);
 
   VECCORE_ATT_HOST_DEVICE
-  ConstFieldHelixStepper(Vector3D<double> const &Bfield);
+  ConstFieldHelixStepper(Vector3D<float> const &Bfield);
 
   void
   VECCORE_ATT_HOST_DEVICE  
-  SetB(double Bx, double By, double Bz)
+  SetB(float Bx, float By, float Bz)
   {
-    fB.Set(Bx, By, Bz);
-    CalculateDerived();
+    // fB.Set(Bx, By, Bz);
+    Vector3D<float> Bfield(Bx, By, Bz);
+    CalculateDerived( Bfield );
   }
 
   VECCORE_ATT_HOST_DEVICE   
-  Vector3D<double> const &GetFieldVec() const { return fB; }
+  Vector3D<float> const GetFieldVec() const { return fBmag * fUnit; }
 
   static constexpr float kB2C =
      -0.299792458 * (copcore::units::GeV /
@@ -55,7 +57,7 @@ public:
   /*
   template<typename RT, typename Vector3D>
   RT GetCurvature(Vector3D const & dir,
-                  double const charge, double const momentum) const
+                  float const charge, float const momentum) const
   {
     if (charge == 0) return RT(0.);
     return abs( kB2C * fBz * dir.FastInverseScaledXYLength( momentum ) );
@@ -103,43 +105,46 @@ public:
 
 protected:
   inline VECCORE_ATT_HOST_DEVICE
-  void CalculateDerived();
+  void CalculateDerived( Vector3D<float> Bvec );
 
   template <typename Real_t>
   inline  VECCORE_ATT_HOST_DEVICE
   bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const;
 
 private:
-  Vector3D<double> fB;
-  // Auxilary members - calculated from above - cached for speed, code simplicity
-  double fBmag;
-  Vector3D<double> fUnit;
+  // Values below used for speed, code simplicity
+  Vector3D<float> fUnit = Vector3D<float>(1.0, 0.0, 0.0);   // direction
+  float           fBmag = 0.0;                              // magnitude
+   
 }; // end class declaration
 
 inline // __host__ __device__
-void ConstFieldHelixStepper::CalculateDerived()
+void ConstFieldHelixStepper::CalculateDerived(  Vector3D<float> Bvec )
 {
-  fBmag = fB.Mag();
-  fUnit = fBmag > 0.0 ? (1.0/fBmag) * fB : Vector3D<Real_t>(1.0, 0.0, 0.0);
+  fBmag = Bvec.Mag();
+  float  bMagInv = (1.0/fBmag);
+  fUnit = Vector3D<float>(1.0, 0.0, 0.0);
+  if( fBmag > 0.0 )
+     fUnit = bMagInv * Bvec;
 }
 
 inline
-ConstFieldHelixStepper::ConstFieldHelixStepper(double Bx, double By, double Bz) : fB(Bx, By, Bz)
+ConstFieldHelixStepper::ConstFieldHelixStepper(float Bx, float By, float Bz) // : fB(Bx, By, gBz)
 {
-  CalculateDerived();
+  CalculateDerived( Vector3D<float>(Bx, By, Bz) );
 }
 
 inline
-ConstFieldHelixStepper::ConstFieldHelixStepper(double B[3]) : fB(B[0], B[1], B[2])
+ConstFieldHelixStepper::ConstFieldHelixStepper(float B[3]) // : fB(B[0], B[1], B[2])
 {
-  CalculateDerived();
+  CalculateDerived( Vector3D<float>(B[0], B[1], B[2]) );  
 }
 
 inline
 VECCORE_ATT_HOST_DEVICE
-ConstFieldHelixStepper::ConstFieldHelixStepper(vecgeom::Vector3D<double> const &Bfield) : fB(Bfield)
+ConstFieldHelixStepper::ConstFieldHelixStepper(vecgeom::Vector3D<float> const &Bfield)  // : fB(Bfield)
 {
-  CalculateDerived();
+  CalculateDerived( Bfield );
 }
 
 /**
@@ -149,10 +154,11 @@ ConstFieldHelixStepper::ConstFieldHelixStepper(vecgeom::Vector3D<double> const &
  */
 template <typename Real_t>
 inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, Real_t const &z0,
-                                                       Real_t const &dirX0, Real_t const &dirY0, Real_t const &dirZ0,
-                                                       Real_t const &charge, Real_t const &momentum, Real_t const &step,
-                                                       Real_t &x, Real_t &y, Real_t &z, Real_t &dx, Real_t &dy,
-                                                       Real_t &dz) const
+                                           Real_t const &dirX0, Real_t const &dirY0, Real_t const &dirZ0,
+                                           Real_t const &charge, Real_t const &momentum, Real_t const &step,
+                                           Real_t &x,  Real_t &y,  Real_t &z,
+                                           Real_t &dx, Real_t &dy, Real_t &dz) const
+                                           
 {
   vecgeom::Vector3D<Real_t> startPosition(x0, y0, z0);
   vecgeom::Vector3D<Real_t> startDirection(dirX0, dirY0, dirZ0);
@@ -173,7 +179,7 @@ inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, R
 }
 
 template <typename Real_t>
-// inline __attribute__((always_inline))
+inline 
 VECCORE_ATT_HOST_DEVICE
 void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPosition,
                                     vecgeom::Vector3D<Real_t> const &startDirection,
@@ -186,15 +192,6 @@ void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPositi
   // const Real_t kB2C_local(-0.299792458e-3);
   const Real_t kSmall(1.E-30);
   using vecgeom::Vector3D;
-
-  // using vecCore::math::Max;
-  // using vecCore::math::SinCos;
-  
-  // using vecCore::math::Abs;
-  // using vecCore::math::Sqrt;
-  // could do a fast square root here
-
-  // Real_t dt = Sqrt((dx0*dx0) + (dy0*dy0)) + kSmall;
 
   // std::cout << " ConstFieldHelixStepper::DoStep called.  fBmag= " << fBmag
   //          << " unit dir= " << fUnit << std::endl;
@@ -212,9 +209,6 @@ void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPositi
   Vector3D<Real_t> restVelX = startDirection - UVdotUB * dir1Field;
 
   Vector3D<Real_t> dirVelX    = restVelX.Unit();          // Unit must cope with 0 length !!
-  // Vector3D<Real_t>  dirVelX( 0.0, 0.0, 0.0 );            // OK if it is zero - ie. dir // B
-  // if( restVelX.Mag2() > 0.0 ) dirVelX = restVelX.Unit();
-  
   Vector3D<Real_t> dirCrossVB = dirVelX.Cross(dir1Field); // OK if it is zero
 
   /***
@@ -254,7 +248,7 @@ ConstFieldHelixStepper::CheckModulus(Real_t &newdirX_v,
                                      Real_t &newdirY_v,
                                      Real_t &newdirZ_v) const
 {
-  constexpr double perMillion = 1.0e-6;
+  constexpr float perMillion = 1.0e-6;
 
   Real_t modulusDir = newdirX_v * newdirX_v + newdirY_v * newdirY_v + newdirZ_v * newdirZ_v;
   typename vecCore::Mask<Real_t> goodDir;
