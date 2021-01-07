@@ -138,14 +138,13 @@ void track::print( int extId , bool verbose ) const
       // unsigned int currentIndex, nextIndex;
       // char     currentLevel, nextLevel;
 
-      NavigationStateBuffer *pNavStateBuffer= nullptr; 
-      cudaMallocManaged(&pNavStateBuffer, sizeof(NavigationStateBuffer) );
+      static NavigationStateBuffer *pNavStateBuffer= nullptr;
+      if( pNavStateBuffer == nullptr )
+         cudaMallocManaged(&pNavStateBuffer, sizeof(NavigationStateBuffer) );
       // This method changes simulation history 2020.12.18 -- may corrupt memory or ?
       GetNavStateIndices<<<1,1>>>( *this, *pNavStateBuffer );
-      cudaDeviceSynchronize();  // Needed !!
+      cudaDeviceSynchronize();  // Needed -- wait for result !!
       
-      // currentIndex, currentLevel, nextIndex, nextLevel );
-
       std::cout << " current: " <<   pNavStateBuffer->currentTouchIndex << " "
                 << " lv = " << (int) pNavStateBuffer->currentLevel << " "
                 << setw(3) << (current_state.IsOnBoundary() ? "bnd" : " in" ) << " ";
