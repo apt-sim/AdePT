@@ -10,7 +10,7 @@ macro(build_tests TESTS)
       $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
       $<INSTALL_INTERFACE:base>
     )
-    target_link_libraries(${TARGET_NAME} VecCore::VecCore CopCore::CopCore)
+    target_link_libraries(${TARGET_NAME} VecCore::VecCore CopCore::CopCore VecGeom::vecgeom)
    endforeach()
 endmacro()
 
@@ -31,9 +31,11 @@ set(ADEPT_UNIT_TESTS_BASE
   test_ranluxpp.cu             # Unit test for RANLUX++
   test_queue.cu                # Unit test for mpmc_bounded_queue
   test_track_block.cu          # Unit test for BlockData
+  test_sparsevector.cu         # Unit test for SparseVector on GPU
+  test_sparsevector_cpu.cpp    # Unit test for SparseVector on CPU
 )
 
-add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 add_compile_options("$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 
 add_executable(test_launcher test_launcher.cu test_launcher.cpp)
@@ -45,3 +47,7 @@ target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
+
+# Specific options for test_sparsevector
+set_target_properties(test_sparsevector PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+target_compile_options(test_sparsevector PRIVATE -rdc=true;-lcudadevrt)
