@@ -11,6 +11,7 @@
 #include "track.h"
 #include "trackBlock.h"
 
+#include <AdePT/Atomic.h>
 #include <AdePT/BlockData.h>
 #include <AdePT/LoopNavigator.h>
 #include <AdePT/MParray.h>
@@ -48,11 +49,36 @@ struct Scoring {
 
 constexpr double kPush = 1.e-8;
 
+#include "IterationStats.h"
+
+IterationStats     *chordIterStats     = nullptr;
+__device__
+IterationStats_dev *chordIterStats_dev = nullptr;
+
+__host__ void PrepareStatistics()
+{
+  chordIterStats = new IterationStats();
+  // chordIterStats_dev = chordIterStats->GetDevicePtr();
+  cudaMemcpy(&chordIterStats_dev, chordIterStats->GetDevicePtr(),
+              sizeof(__device__ IterationStats_dev*), cudaMemcpyHostToDevice);
+  // Add assert(chordIterStats_dev != nullptr); in first use !?
+}
+
+__host__ void ReportStatistics( IterationStats & iterStats )
+{
+  // int  maxChordItersGPU;
+  // cudaMemcpy(&maxChordItersGPU, maxItersDone_dev, sizeof(int), cudaMemcpyDeviceToHost);   
+   std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() // GetMaxFromDevice()
+             << "  total iters = " <<  iterStats.GetTotal() /*GetTotalFromDevice() */  ;
+   // printf(" -- host = %4d \n", GetMaxIterationsDone_host() );
+   // std::cout << std::endl; // printf(" \n");   
+}
+
 #include "ConstBzFieldStepper.h"
 
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
-__device__ __host__
+__device__  //  __host__
 double
 FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
                                                 float     physicsStep,
@@ -60,7 +86,7 @@ FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
    )
 {
    if( aTrack.status != alive ) return 0.0;
-   
+
    double kinE = aTrack.energy;   
    double momentumMag = sqrt( kinE * ( kinE + 2.0 * copcore::units::kElectronMassC2) );
 
@@ -98,7 +124,9 @@ FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
    else
    {
       bool fullChord= false;
-      
+
+      constexpr int maxChordIters= 250;
+      int chordIters=0; 
       do
       {
          vecgeom::Vector3D<double>  endPosition=  position;
@@ -134,10 +162,18 @@ FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
          }
          stepDone += move;
          remains  -= move;
+         chordIters ++;
          
       } while( ( !aTrack.next_state.IsOnBoundary() )
                && fullChord
-               && (remains > epsilon_step * physicsStep) );
+               && (remains > epsilon_step * physicsStep)
+               && (chordIters < maxChordIters )
+         );
+
+      // This stops it from being usable on __host__
+      if( chordIters > chordIterStats_dev->GetMax() ) {
+         chordIterStats_dev->updateMax( chordIters );
+      }
    }
    // stepDone= physicsStep - remains;
 
@@ -282,8 +318,10 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   COPCORE_CUDA_CHECK(cudaMemcpy(&proclist, proclist_dev, sizeof(process_list *), cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaFree(proclist_dev));
 
+  PrepareStatistics();
+  
   // Capacity of the different containers
-  constexpr int capacity = 65536; // 1 << 20;
+  constexpr int capacity = 4 * 65536; // 1 << 20;
 
   std::cout << "INFO: capacity of containers (incl. BlockData<track>) set at "
             << capacity << std::endl;
@@ -312,7 +350,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   scor->secondaries     = 0;
   scor->totalEnergyLoss = 0;
 
-  // Allocate a block of tracks with capacity larger than the total number of spawned threads
+    // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
   COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer2, blocksize));
@@ -373,7 +411,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   std::cout << " Tracks at simulation start " << std::endl;
   printTracks(block, verbose, maxPrint);    
   
-  while (block->GetNused() > 0) {
+  while (block->GetNused() > 0 && iterNo < 1000 ) {
      
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
     numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
@@ -400,10 +438,15 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
 
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << block->GetNused() << " energy deposition: " << std::setw(8)
               << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
-              << " number of hits: " << std::setw(4) << scor->hits.load() << std::endl;
+              << " number of hits: " << std::setw(4) << scor->hits.load();
+    ReportStatistics(*chordIterStats); // Chord statistics
+    std::cout << std::endl;
+    
     iterNo++;
   }
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
+  //  ReportStatistics(); // Chord statistics
+
 }
