@@ -47,10 +47,10 @@ struct Scoring {
   }
 };
 
-constexpr double kPush = 1.e-8;
-
 #include "IterationStats.h"
+#include "initTracks.h"
 
+// Statistics for propagation chords
 IterationStats     *chordIterStats     = nullptr;
 __device__
 IterationStats_dev *chordIterStats_dev = nullptr;
@@ -59,8 +59,9 @@ __host__ void PrepareStatistics()
 {
   chordIterStats = new IterationStats();
   // chordIterStats_dev = chordIterStats->GetDevicePtr();
-  cudaMemcpy(&chordIterStats_dev, chordIterStats->GetDevicePtr(),
-              sizeof(__device__ IterationStats_dev*), cudaMemcpyHostToDevice);
+  IterationStats_dev* ptrDev= chordIterStats->GetDevicePtr();
+  cudaMemcpy(&chordIterStats_dev, &ptrDev,
+              sizeof(IterationStats_dev*), cudaMemcpyHostToDevice);
   // Add assert(chordIterStats_dev != nullptr); in first use !?
 }
 
@@ -75,6 +76,9 @@ __host__ void ReportStatistics( IterationStats & iterStats )
 }
 
 #include "ConstBzFieldStepper.h"
+
+
+constexpr double kPush = 1.e-8;
 
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
