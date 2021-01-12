@@ -15,24 +15,26 @@ class fieldPropagatorConstBz
 {
   public: 
     __host__ __device__
-    void stepInField(track &    aTrack,
-                     float      BzValue,
+    void stepInField(track                     & aTrack,
+                     float                       BzValue,
                      vecgeom::Vector3D<double> & endPosition,
                      vecgeom::Vector3D<double> & endDirection );
 
 };
 
+// Cannot make __global__ method part of class
 __global__
 void moveInField(adept::BlockData<track> * trackBlock,
-                 fieldPropagatorConstBz&   fieldProp,
+                 fieldPropagatorConstBz  & fieldProp,
                  float                     BzValue );
 
 
 __host__ __device__
-void fieldPropagatorConstBz::stepInField(track &    aTrack,
-                                         float      BzValue,
-                                         vecgeom::Vector3D<double> & endPosition,
-                                         vecgeom::Vector3D<double> & endDirection )
+void
+fieldPropagatorConstBz::stepInField(track &    aTrack,
+                                    float      BzValue,
+                                    vecgeom::Vector3D<double> & endPosition,
+                                    vecgeom::Vector3D<double> & endDirection )
 {
   using copcore::units::kElectronMassC2;
    

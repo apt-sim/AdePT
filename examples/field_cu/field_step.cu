@@ -18,159 +18,21 @@
 
 #include "uniformMagField.h"
 
-// #include "fieldPropagator.h"
+#include "ConstFieldHelixStepper.h"
+
 #include "fieldPropagatorConstBz.h"
+#include "fieldPropagatorConstBany.h"
 
 #include "trackBlock.h"
 // using trackBlock_t  = adept::BlockData<track>;
 
-using copcore::units::meter;
-using copcore::units::GeV;
-using copcore::units::MeV;
-
-constexpr double  minX = -2.0 * meter, maxX = 2.0 * meter;
-constexpr double  minY = -3.0 * meter, maxY = 3.0 * meter;
-constexpr double  minZ = -5.0 * meter, maxZ = 5.0 * meter;
-
-// constexpr double  maxP = 1.0 * GeV;
-
-constexpr double maxStepSize = 0.1 * ( (maxX - minX) + (maxY - minY) + (maxZ - minZ) );
-
-#include <CopCore/Ranluxpp.h>
-
-__device__ void initOneTrack(unsigned int  index,
-                             uint64_t      rngBase,
-                             track       & aTrack,
-                             unsigned int  eventId
-   )
-{
-  // Very basic initial state for RNG ... to be improved
-  aTrack.rng_state.SetSeed( rngBase + (uint64_t) index);
-   
-  float r = aTrack.uniform(); // curand_uniform(states);  
-  // aTrack.charge = ( r < 0.45 ? -1 : ( r< 0.9 ? 0 : +1 ) );
-  constexpr  int  pdgElec = 11 , pdgGamma = 22;
-  aTrack.pdg = ( r < 0.45 ? pdgElec : ( r< 0.9 ? pdgGamma : -pdgElec ) );
-
-  // Make the first tracks electrons -- for now
-  if( index < 20 ) aTrack.pdg = pdgElec;
-  
-  aTrack.index = index;
-  aTrack.eventId = eventId;
-  
-  aTrack.pos[0] = 0.0; // minX + aTrack.uniform() * ( maxX - minX );
-  aTrack.pos[1] = 0.0; // minY + aTrack.uniform() * ( maxY - minY );
-  aTrack.pos[2] = 0.0; // minZ + aTrack.uniform() * ( maxZ - minZ );
-
-  double  px, py, pz;
-  px = 4 * MeV ; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );   // -maxP to +maxP
-  py = 0; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );
-  pz = 3 * MeV ; // maxP * 2.0 * ( aTrack.uniform() - 0.5 );
-
-  double  pmag2 =  px*px + py*py + pz*pz;
-  double  inv_pmag = 1.0 / std::sqrt(pmag2);
-  aTrack.dir[0] = px * inv_pmag; 
-  aTrack.dir[1] = py * inv_pmag; 
-  aTrack.dir[2] = pz * inv_pmag;
-
-  aTrack.interaction_length = 0.001 * (index+1) * maxStepSize ; // aTrack.uniform() * maxStepSize;
-  
-  // double  mass = ( aTrack.pdg == pdgGamma ) ?  0.0 : kElectronMassC2 ; // rest mass
-  double  mass = aTrack.mass();
-  aTrack.energy = pmag2 / ( sqrt( mass * mass + pmag2 ) + mass);
-  // More accurate than   ( sqrt( mass * mass + pmag2 ) - mass);
-}
-
-// this GPU kernel function is used to create and initialize 
-//     .. the particles' state 
-
-__global__ void initTracks( adept::BlockData<track> *trackBlock,
-                            unsigned int numTracks,
-                            unsigned int eventId,
-                            unsigned int   runId = 0
-                          )
-{
-  /* initialize the tracks with random particles */
-  int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (pclIdx >= numTracks) return;
-
-  track* pTrack =   trackBlock->NextElement();
-
-  uint64_t  rngBase =     runId * (uint64_t(1)<<52)
-                      + eventId * (uint64_t(1)<<36);
-
-  initOneTrack( pclIdx, rngBase, *pTrack, eventId );
-}
-
-__global__ void overwriteTracks( adept::BlockData<track> *trackBlock,
-                                 unsigned int numTracks,
-                                 unsigned int eventId,
-                                 unsigned int   runId = 0                                 
-   )
-{
-  /* initialize the tracks with random particles */
-  int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-
-  if( trackBlock->GetNholes() > 0 ) return;
-  // We can only overwrite if there are no holes !
-  
-  numTracks = max ( numTracks, (unsigned int) trackBlock->GetNused() );
-  if (pclIdx >= numTracks ) return;
-  
-  track & trk = (*trackBlock)[pclIdx];
-  uint64_t  rngBase =     runId * (uint64_t(1)<<52)
-                      + eventId * (uint64_t(1)<<36);
-  
-  initOneTrack( pclIdx, rngBase, (*trackBlock)[pclIdx], eventId );
-}
-
-#ifdef OLD_WAY_B_ANY
-#include "ConstFieldHelixStepper.h"
-#endif
+#include "initTracks.h"
 
 static float BzValue = 0.1 * copcore::units::tesla;
 
 static float BfieldValue[3] = { 0.001 * copcore::units::tesla,
                                -0.001 * copcore::units::tesla,
                                BzValue };
-
-#ifdef OLD_WAY_B_ANY
-// V2 -- constant field any direction 
-__global__ void fieldPropagatorAnyDir_glob(adept::BlockData<track> *trackBlock,
-                                           // float Bx, float By, float Bz,
-                                           uniformMagField Bfield )  // by value !?
-                                           // const uniformMagField& Bfield )   
-{
-  // template <type T> using Vector3D = vecgeom::Vector3D<T>;
-  vecgeom::Vector3D<double> endPosition;
-  vecgeom::Vector3D<double> endDirection;
-  
-  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();   
-
-  float Bvalue[3];
-  Bfield.ObtainField( Bvalue );
-  
-  ConstFieldHelixStepper helixAnyB=  ConstFieldHelixStepper( Bvalue );
-  
-  // Non-block version:
-  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-
-  for (int pclIdx  = blockIdx.x * blockDim.x + threadIdx.x;  pclIdx < maxIndex;
-           pclIdx += blockDim.x * gridDim.x)
-  {
-     track& aTrack= (*trackBlock)[pclIdx];
-
-     // check if you are not outside the used block
-     if (pclIdx >= maxIndex || aTrack.status == dead) continue;
-
-     fieldPropagatorConstBgeneral(aTrack, helixAnyB, endPosition, endDirection);
-
-     // Update position, direction     
-     aTrack.pos = endPosition;  
-     aTrack.dir = endDirection;
-  }
-}
-#endif
 
 int main( int argc, char** argv )
 {
@@ -180,24 +42,19 @@ int main( int argc, char** argv )
   int  totalNumThreads = numBlocks * numThreadsPerBlock;
   bool useBzOnly = true;
 
-#ifdef OLD_WAY_B_ANY  
   if( argc > 1 )
      useBzOnly = false;
-#endif
   
   const int numTracks = totalNumThreads; // Constant at first ...
 
   std::cout << "Magnetic field used: " << std::endl;
-#ifdef OLD_WAY_B_ANY  
   if( !useBzOnly ){
      std::cout << "  Bx = " << BfieldValue[0] / copcore::units::tesla << " T " << std::endl;
      std::cout << "  By = " << BfieldValue[1] / copcore::units::tesla << " T " << std::endl;
   }
-#endif  
   std::cout << "  Bz = " << BzValue / copcore::units::tesla << " T " << std::endl;
 
-  // uniformMagField Bfield( BfieldValue );
-  uniformMagField BfieldObj( BfieldValue );
+  uniformMagField Bfield( BfieldValue );
   
   // Track capacity of the block
   constexpr int capacity = 1 << 16;
@@ -218,8 +75,8 @@ int main( int argc, char** argv )
   // auto trackBlock_dev  = trackBlock_t::MakeInstanceAt(capacity, buffer2);  
   auto trackBlock_uniq = trackBlock_t::MakeInstanceAt(capacity, buffer2); // Unified memory => _uniq
 
-  // 2.  Initialise track - on device
-  // --------------------------------
+  // 2.  Initialise tracks - on device
+  // ---------------------------------
   std::cout << " Initialising tracks." << std::endl;
   std::cout << " Max step size = " << maxStepSize << std::endl;
 
@@ -236,6 +93,7 @@ int main( int argc, char** argv )
   std::cout << " Initialised tracks: " << std::endl;
   printTracks( trackBlock_uniq, false, numTracks );  
 
+  // Overwrite the tracks - to get simpler, predictable order (for easier comparisons)
   overwriteTracks<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, numTracks, ++eventId, runId );
   cudaDeviceSynchronize();  
   std::cout << " Overwritten tracks: " << std::endl;
@@ -255,31 +113,28 @@ int main( int argc, char** argv )
   //  cudaMemcpy(tracksStart_host, &(*trackBlock_dev)[0], SmallNum*sizeof(track), cudaMemcpyDeviceToHost );
   
   // 3. Propagate tracks -- on device
-  fieldPropagatorConstBz fieldPropBz;  
+  fieldPropagatorConstBz   fieldPropagatorBz;
+  fieldPropagatorConstBany fieldPropagatorBany;
   if( useBzOnly ){
-     // Old long name
-     // fieldPropagatorBz_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, BzValue );
-
-     moveInField<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, fieldPropBz, BzValue );
+     // Uniform field - parallel to z axis
+     moveInField<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, fieldPropagatorBz, BzValue );
      //*********
   }
-#ifdef OLD_WAY_B_ANY  
-  else {
-     fieldPropagatorAnyDir_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq,
-                                                                   BfieldObj );
+  else
+  {
+     // Uniform field - not along z axis
+     moveInField<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, fieldPropagatorBany, Bfield );
+     //*********
   }
-#endif  
   cudaDeviceSynchronize();  
 
   // 4. Check results on host
   std::cout << " Calling move in field (host)." << std::endl;
 
-#ifdef OLD_WAY_B_ANY    
   vecgeom::Vector3D<float> magFieldVec( BfieldValue[0],
                                         BfieldValue[1],
                                         BfieldValue[2] );
-  ConstFieldHelixStepper  helixStepper( magFieldVec); // -> BfieldObj );  // Re-use it (expensive sqrt & div.)
-#endif
+  ConstFieldHelixStepper  helixStepper( magFieldVec); // -> Bfield );  // Re-use it (expensive sqrt & div.)
   
   for( int i = 0; i<SmallNum ; i++){
      ThreeVector endPosition, endDirection;
@@ -289,12 +144,10 @@ int main( int argc, char** argv )
      if( useBzOnly ){     
         // fieldPropagatorConstBz( hostTrack, BzValue, endPosition, endDirection );
         // fieldPropagatorConstBz::moveInField( hostTrack, BzValue, endPosition, endDirection );
-        fieldPropBz.stepInField( hostTrack, BzValue, endPosition, endDirection );        
+        fieldPropagatorBz.stepInField( hostTrack, BzValue, endPosition, endDirection );
      } else {
-#ifdef B_ANY            
-        // fieldPropagatorConstBgeneral( hostTrack, helixStepper, endPosition, endDirection )
-        helixStepper.stepInField( hostTrack, BzValue, endPosition, endDirection );        ;
-#endif        
+        // fieldPropagatorConstBgeneral( hostTrack, helixStepper, endPosition, endDirection );
+        fieldPropagatorBany.stepInField( hostTrack, helixStepper, endPosition, endDirection );
      }
      
      double move       = (endPosition  - hostTrack.pos).Mag();
