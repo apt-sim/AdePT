@@ -17,7 +17,9 @@
 #include <AdePT/BlockData.h>
 
 #include "uniformMagField.h"
-#include "fieldPropagator.h"
+
+// #include "fieldPropagator.h"
+#include "fieldPropagatorConstBz.h"
 
 #include "trackBlock.h"
 // using trackBlock_t  = adept::BlockData<track>;
@@ -122,40 +124,17 @@ __global__ void overwriteTracks( adept::BlockData<track> *trackBlock,
   initOneTrack( pclIdx, rngBase, (*trackBlock)[pclIdx], eventId );
 }
 
-     
+#ifdef OLD_WAY_B_ANY
+#include "ConstFieldHelixStepper.h"
+#endif
+
 static float BzValue = 0.1 * copcore::units::tesla;
 
 static float BfieldValue[3] = { 0.001 * copcore::units::tesla,
                                -0.001 * copcore::units::tesla,
                                BzValue };
 
-// V1 -- field along Z axis
-__global__ void fieldPropagatorBz_glob(adept::BlockData<track> *trackBlock, float Bz )
-{
-  vecgeom::Vector3D<double> endPosition;
-  vecgeom::Vector3D<double> endDirection;
-
-  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();   
-  
-  // Non-block version:
-  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-
-  for (int pclIdx  = blockIdx.x * blockDim.x + threadIdx.x;  pclIdx < maxIndex;
-           pclIdx += blockDim.x * gridDim.x)
-  {
-     track& aTrack= (*trackBlock)[pclIdx];
-
-     // check if you are not outside the used block
-     if (pclIdx >= maxIndex || aTrack.status == dead) continue;
-
-     fieldPropagatorConstBz(aTrack, Bz, endPosition, endDirection);
-
-     // Update position, direction     
-     aTrack.pos = endPosition;  
-     aTrack.dir = endDirection;
-  }
-}
-
+#ifdef OLD_WAY_B_ANY
 // V2 -- constant field any direction 
 __global__ void fieldPropagatorAnyDir_glob(adept::BlockData<track> *trackBlock,
                                            // float Bx, float By, float Bz,
@@ -191,6 +170,7 @@ __global__ void fieldPropagatorAnyDir_glob(adept::BlockData<track> *trackBlock,
      aTrack.dir = endDirection;
   }
 }
+#endif
 
 int main( int argc, char** argv )
 {
@@ -200,16 +180,20 @@ int main( int argc, char** argv )
   int  totalNumThreads = numBlocks * numThreadsPerBlock;
   bool useBzOnly = true;
 
+#ifdef OLD_WAY_B_ANY  
   if( argc > 1 )
      useBzOnly = false;
+#endif
   
   const int numTracks = totalNumThreads; // Constant at first ...
 
   std::cout << "Magnetic field used: " << std::endl;
+#ifdef OLD_WAY_B_ANY  
   if( !useBzOnly ){
      std::cout << "  Bx = " << BfieldValue[0] / copcore::units::tesla << " T " << std::endl;
      std::cout << "  By = " << BfieldValue[1] / copcore::units::tesla << " T " << std::endl;
-  } 
+  }
+#endif  
   std::cout << "  Bz = " << BzValue / copcore::units::tesla << " T " << std::endl;
 
   // uniformMagField Bfield( BfieldValue );
@@ -271,22 +255,31 @@ int main( int argc, char** argv )
   //  cudaMemcpy(tracksStart_host, &(*trackBlock_dev)[0], SmallNum*sizeof(track), cudaMemcpyDeviceToHost );
   
   // 3. Propagate tracks -- on device
+  fieldPropagatorConstBz fieldPropBz;  
   if( useBzOnly ){
-     fieldPropagatorBz_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, BzValue );
+     // Old long name
+     // fieldPropagatorBz_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, BzValue );
+
+     moveInField<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, fieldPropBz, BzValue );
      //*********
-  } else {
+  }
+#ifdef OLD_WAY_B_ANY  
+  else {
      fieldPropagatorAnyDir_glob<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq,
                                                                    BfieldObj );
   }
+#endif  
   cudaDeviceSynchronize();  
 
   // 4. Check results on host
   std::cout << " Calling move in field (host)." << std::endl;
 
+#ifdef OLD_WAY_B_ANY    
   vecgeom::Vector3D<float> magFieldVec( BfieldValue[0],
                                         BfieldValue[1],
                                         BfieldValue[2] );
   ConstFieldHelixStepper  helixStepper( magFieldVec); // -> BfieldObj );  // Re-use it (expensive sqrt & div.)
+#endif
   
   for( int i = 0; i<SmallNum ; i++){
      ThreeVector endPosition, endDirection;
@@ -294,9 +287,14 @@ int main( int argc, char** argv )
      // hostTrack.pos = 
 
      if( useBzOnly ){     
-        fieldPropagatorConstBz( hostTrack, BzValue, endPosition, endDirection );
+        // fieldPropagatorConstBz( hostTrack, BzValue, endPosition, endDirection );
+        // fieldPropagatorConstBz::moveInField( hostTrack, BzValue, endPosition, endDirection );
+        fieldPropBz.stepInField( hostTrack, BzValue, endPosition, endDirection );        
      } else {
-        fieldPropagatorConstBgeneral( hostTrack, helixStepper, endPosition, endDirection );        
+#ifdef B_ANY            
+        // fieldPropagatorConstBgeneral( hostTrack, helixStepper, endPosition, endDirection )
+        helixStepper.stepInField( hostTrack, BzValue, endPosition, endDirection );        ;
+#endif        
      }
      
      double move       = (endPosition  - hostTrack.pos).Mag();
