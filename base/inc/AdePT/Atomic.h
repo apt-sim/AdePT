@@ -126,6 +126,14 @@ struct AtomicBase_t {
   __device__
   Type fetch_xor(Type arg) { return atomicXor(&fData, arg); }
 
+  /** @brief Atomically replaces the current value with the result of maximum of the value and arg. */
+  __device__
+  Type fetch_max(Type arg) { return atomicMax(&fData, arg); }
+
+  /** @brief Atomically replaces the current value with the result of minimum of the value and arg. */
+  __device__
+  Type fetch_min(Type arg) { return atomicMin(&fData, arg); }
+
   /** @brief Performs atomic add. */
   __device__
   Type operator+=(Type arg) { return (fetch_add(arg) + arg); }
@@ -182,6 +190,12 @@ struct Atomic_t<Type, typename std::enable_if<std::is_integral<Type>::value>::ty
 
   /** @brief Atomically replaces the current value with the result of bitwise XOR of the value and arg. */
   Type fetch_xor(Type arg) { return fData.fetch_xor(arg); }
+
+  /** @brief Atomically replaces the current value with the result of MAX of the value and arg. */
+  Type fetch_max(Type arg) { return fData.fetch_max(&fData, arg); }
+
+  /** @brief Atomically replaces the current value with the result of MIN of the value and arg. */
+  Type fetch_min(Type arg) { return fData.fetch_min(&fData, arg); }
 
   /** @brief Performs atomic pre-increment. */
   Type operator+=(Type arg) { return (fetch_add(arg) + arg); }
