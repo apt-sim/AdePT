@@ -79,16 +79,17 @@ class IterationStats {
    }
 
    __host__   /*unsigned*/ int GetMax(){ /*unsigned*/ int maxNow=0;   // Was GetMaxFromDevice()
-     cudaMemcpyFromSymbol( &maxNow, devPtr->GetMax() /*maxDone.load()*/, sizeof( /*unsigned*/ int) ); return maxNow; }
+     cudaMemcpyFromSymbol( &maxNow,
+                           &(devPtr->maxDone), sizeof( /*unsigned*/ int) ); return maxNow; }
    
    __host__   void SetMaxIterationsDone(/*unsigned*/ int val) {
-     cudaMemcpyToSymbol( devPtr->maxDone, &val, sizeof(/*unsigned*/ int) ); // Directly overwrite 'atomic' address.  Ok now!?
+     cudaMemcpyToSymbol( &(devPtr->maxDone), &val, sizeof(/*unsigned*/ int) ); // Directly overwrite 'atomic' address.  Ok now!?
      // __device__ unsigned int val_dev;
      // cudaMemcpyToSymbol( val_dev, &val, sizeof(unsigned int) );
      // maxDone.store(val_dev);
    }
    __host__   /*unsigned*/ int GetTotal(){ /*unsigned*/ int totalNow=0;   // Was GetTotalFromDevice()
-     cudaMemcpyFromSymbol( &totalNow, devPtr->GetTotal() /*totalIterations.load()*/, sizeof(/*unsigned*/ int) ); return totalNow; }
+      cudaMemcpyFromSymbol( &totalNow, &(devPtr->totalIterations), sizeof(/*unsigned*/ int) ); return totalNow; }
 
    __host__ IterationStats_dev* GetDevicePtr() { return devPtr; }
    
@@ -135,9 +136,10 @@ class IterationStats {
 
 // __host__ PrepareStatistics
 
-__host__ void ReportStatistics( IterationStats & iterStats )
-{
+// __host__ void ReportStatistics( IterationStats & iterStats )
+// {
   // int  maxChordItersGPU;
   // cudaMemcpy(&maxChordItersGPU, maxItersDone_dev, sizeof(int), cudaMemcpyDeviceToHost);   
+// }
 
 #endif
