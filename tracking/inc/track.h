@@ -111,9 +111,9 @@ void track::print( int extId , bool verbose ) const
    std::cout // << " Track "
              << setw(4) << extId << " "
              << setw(2) << particleName[charge()+1] << " "  // Ok for e-/g/e+ only
-             << " / id= " << setw(7) << index << " "
+             << " / id= " << setw(11) << index << " "
           //  << " pdg = " << setw(4) << (int) pdg
-             << " m= " << setw(8) << mother_index << " "
+             << " m= " << setw(11) << mother_index << " "
              << " ev= " << setw(3) << eventId << " "
              << " step# " << setw(4) << (int) num_step             
           // << " addr= " << this   << " "
