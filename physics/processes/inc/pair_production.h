@@ -30,16 +30,29 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   // pair production
   mytrack->energy -= esecond;
   mytrack->energy_loss           = 0;
-  mytrack->number_of_secondaries = 1;
+  mytrack->number_of_secondaries++;
 
   auto secondary_track = block->NextElement();
   if (secondary_track == nullptr) {
     COPCORE_EXCEPTION("No slot available for secondary track");
-  }
+
   secondary_track->energy                = esecond;  
   secondary_track->status                = alive;
   secondary_track->energy_loss           = 0;
-  secondary_track->number_of_secondaries = 0;
+  
+  // Book-keeping parts of state
+  secondary_track->index                 = 100 * mytrack->index + mytrack->number_of_secondaries;  // For tracing / debugging
+  secondary_track->mother_index          = mytrack->index;
+  secondary_track->number_of_secondaries = 0;     
+  secondary_track->eventId    = mytrack->eventId;
+  secondary_track->num_step   = 0;
+
+  // Inherit current position and direction.
+  secondary_track->pos           = mytrack->pos;
+  secondary_track->dir           = mytrack->dir;
+  secondary_track->current_state = mytrack->current_state;
+  secondary_track->next_state =    mytrack->current_state;
+
   // Inherit current position and direction.
   secondary_track->pos           = mytrack->pos;
   secondary_track->dir           = mytrack->dir;
@@ -49,8 +62,6 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   secondary_track->rng_state.Skip(1 << 15);
 
   // secondary_track->index              = ++slowIndex;  // ???  Relevant for debugging etc only
-  secondary_track->mother_index          = mytrack->index;
-  secondary_track->next_state =    mytrack->current_state;
 }
 
 #endif
