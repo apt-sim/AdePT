@@ -129,8 +129,13 @@ FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
    {
       bool fullChord= false;
 
+      //  Locate the intersection of the curved trajectory and the boundaries of the current
+      //    volume (including daughters). 
+      //  Most electron tracks are short, limited by physics interactions -- the expected
+      //    average value of iterations is small.
+      //    ( Measuring iterations to confirm the maximum. )
       constexpr int maxChordIters= 250;
-      int chordIters=0; 
+      int chordIters=0;
       do
       {
          vecgeom::Vector3D<double>  endPosition=  position;
