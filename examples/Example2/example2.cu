@@ -51,17 +51,23 @@ struct Scoring {
 #include "initTracks.h"
 
 // Statistics for propagation chords
-IterationStats     *chordIterStats     = nullptr;
+IterationStats      *chordIterStats     = nullptr;
 __device__
-IterationStats_dev *chordIterStats_dev = nullptr;
+IterationStats_impl *chordIterStats_dev = nullptr;
+
+__host__ void ReportStatistics( IterationStats & iterStats );
+// For temporary use in PrepareSta
 
 __host__ void PrepareStatistics()
 {
   chordIterStats = new IterationStats();
   // chordIterStats_dev = chordIterStats->GetDevicePtr();
-  IterationStats_dev* ptrDev= chordIterStats->GetDevicePtr();
+  IterationStats_impl* ptrDev= chordIterStats->GetDevicePtr();
+  assert( ptrDev != nullptr );
   cudaMemcpy(&chordIterStats_dev, &ptrDev,
-              sizeof(IterationStats_dev*), cudaMemcpyHostToDevice);
+             sizeof(IterationStats_impl*), cudaMemcpyHostToDevice);
+  cudaMemcpyToSymbol(chordIterStats_dev, &ptrDev,
+                     sizeof(IterationStats_impl*));
   // Add assert(chordIterStats_dev != nullptr); in first use !?
 }
 
@@ -71,128 +77,17 @@ __host__ void ReportStatistics( IterationStats & iterStats )
   // cudaMemcpy(&maxChordItersGPU, maxItersDone_dev, sizeof(int), cudaMemcpyDeviceToHost);   
    std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() // GetMaxFromDevice()
              << "  total iters = " <<  iterStats.GetTotal() /*GetTotalFromDevice() */  ;
+   std::cout << "  addr = " << iterStats.GetDevicePtr() << " "; 
    // printf(" -- host = %4d \n", GetMaxIterationsDone_host() );
    // std::cout << std::endl; // printf(" \n");   
 }
 
 #include "ConstBzFieldStepper.h"
-
+#include "fieldPropagatorConstBz.h"
 
 constexpr double kPush = 1.e-8;
 
-// Determine the step along curved trajectory for charged particles in a field.
-//  ( Same name as as navigator method. )
-__device__  //  __host__
-double
-FieldPropagator__ComputeStepAndPropagatedState( track   & aTrack,
-                                                float     physicsStep,
-                                                float     BzFieldValue
-   )
-{
-   if( aTrack.status != alive ) return 0.0;
-
-   double kinE = aTrack.energy;   
-   double momentumMag = sqrt( kinE * ( kinE + 2.0 * copcore::units::kElectronMassC2) );
-
-   double charge = aTrack.charge();
-   double curv= std::fabs(ConstBzFieldStepper::kB2C * charge * BzFieldValue) /
-                  (momentumMag + 1.0e-30);  // norm for step   
-
-   constexpr double gEpsilonDeflect = 1.E-2 * copcore::units::cm;
-   // acceptable lateral error from field ~ related to delta_chord sagital distance
-
-   // constexpr double invEpsD= 1.0 / gEpsilonDeflect;
-      
-   double safeLength= 2. * sqrt( gEpsilonDeflect / curv ); // max length along curve for deflectionn
-      // = 2. * sqrt( 1.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
-
-   vecgeom::Vector3D<double>  position=   aTrack.pos;
-   vecgeom::Vector3D<double>  direction=  aTrack.dir;
-   
-   ConstBzFieldStepper  helixBz(BzFieldValue);
-   
-   float  stepDone  = 0.0;
-   double remains   = physicsStep;
-
-   constexpr double epsilon_step = 1.0e-7; // Ignore remainder if < e_s * PhysicsStep
-   
-   if( aTrack.charge() == 0.0 )
-   {
-      stepDone= LoopNavigator::ComputeStepAndPropagatedState(position,
-                                                             direction,
-                                                             physicsStep,
-                                                             aTrack.current_state,
-                                                             aTrack.next_state);
-      position += (stepDone + kPush) * direction;
-   }
-   else
-   {
-      bool fullChord= false;
-
-      //  Locate the intersection of the curved trajectory and the boundaries of the current
-      //    volume (including daughters). 
-      //  Most electron tracks are short, limited by physics interactions -- the expected
-      //    average value of iterations is small.
-      //    ( Measuring iterations to confirm the maximum. )
-      constexpr int maxChordIters= 250;
-      int chordIters=0;
-      do
-      {
-         vecgeom::Vector3D<double>  endPosition=  position;
-         vecgeom::Vector3D<double>  endDirection= direction;
-         double safeMove = min( remains, safeLength );
-         
-         // fieldPropagatorConstBz( aTrack, BzValue, endPosition, endDirection ); -- Doesn't work
-         helixBz.DoStep( position,    direction, charge, momentumMag, safeMove,
-                         endPosition, endDirection);
-      
-         vecgeom::Vector3D<double>  chordVec= endPosition - aTrack.pos;
-         double  chordLen= chordVec.Length();
-         vecgeom::Vector3D<double>  chordDir= (1.0/chordLen) * chordVec;
-         
-         double move= LoopNavigator::ComputeStepAndPropagatedState(position,
-                                                                   chordDir,
-                                                                   chordLen,
-                                                                   aTrack.current_state,
-                                                                   aTrack.next_state);
-
-         fullChord= ( move == chordLen );         
-         if( fullChord ) 
-         {
-            position=  endPosition;
-            direction= endDirection;
-         } else {
-            // Accept the intersection point on the surface (bias - TOFIX !)
-            position=  position + move * chordDir;
-         // Primitive approximation of end direction ... 
-            double fraction= chordLen > 0 ? move / chordLen : 0.0;
-            direction= direction * (1.0 - fraction) + endDirection * fraction;
-            direction= direction.Unit();
-         }
-         stepDone += move;
-         remains  -= move;
-         chordIters ++;
-         
-      } while( ( !aTrack.next_state.IsOnBoundary() )
-               && fullChord
-               && (remains > epsilon_step * physicsStep)
-               && (chordIters < maxChordIters )
-         );
-
-      // This stops it from being usable on __host__
-      if( chordIters > chordIterStats_dev->GetMax() ) {
-         chordIterStats_dev->updateMax( chordIters );
-      }
-   }
-   // stepDone= physicsStep - remains;
-
-   aTrack.pos= position;
-   aTrack.dir= direction;
-   
-   return stepDone; // physicsStep-remains;
-}
-
-constexpr bool  BfieldOn = false; // true
+constexpr bool  BfieldOn = true;
 constexpr float BzFieldValue = 1.0e-30 * copcore::units::tesla;  // 0.1 * copcore::units::tesla;  // 30. * FLT_MIN; // 
 
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
@@ -226,10 +121,9 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
        if( step < physics_step ) mytrack.current_process = -1;
     }    
     else {
-       step= FieldPropagator__ComputeStepAndPropagatedState(mytrack, physics_step, BzFieldValue
-          );
-       // mytrack.pos = endPosition;   // Already updated in 'mytrack'
-       // mytrack.dir = endDirection;
+       fieldPropagatorConstBz fieldPropagator;
+       step= fieldPropagator.ComputeStepAndPropagatedState(mytrack, physics_step, BzFieldValue);
+       // updates state of 'mytrack'
        if( step < physics_step ) {
           // assert( ! mytrack.next_state.IsOnBoundary() && "Field Propagator returned step<phys -- yet boundary!" );
           mytrack.current_process = -2;
@@ -373,7 +267,8 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track1->pos = {0, 0, 0};
   track1->dir = {1.0, 0, 0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
   track1->pdg= 11;  // e-
-  track1->index= 1; 
+  track1->index= 1;
+  track1->status= alive;  
   track1->interaction_length= 20.0;  
   init_track<<<1, 1>>>(track1, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());  
@@ -386,7 +281,8 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track2->pos = {0, 0.05, 0};
   track2->dir = {1.0, 0.0, 0.0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
   track2->pdg= -11;  // e+
-  track1->index= 2;
+  track2->index= 2;
+  track2->status= alive;    
   track2->interaction_length= 10.0;
   init_track<<<1, 1>>>(track2, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
@@ -428,10 +324,6 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
     // call the kernel to do check the step lenght and select process
     DefinePhysicalStepLength<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
-    // cudaDeviceSynchronize();  // Sync to get new values before printing
-    std::cout << " Tracks after DefinePhysicsStepLength " << std::endl;
-    printTracks(block, true, maxPrint );
-    
     // call the kernel for Along Step Processes
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
@@ -456,6 +348,4 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
-  //  ReportStatistics(); // Chord statistics
-
 }
