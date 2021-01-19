@@ -104,10 +104,10 @@ int main()
   // call the kernel to create the processes to be run on the device
   process_list **proclist;
   process **processes;
-  cudaMalloc((void**)&proclist, sizeof(process_list*));
-  cudaMalloc((void**)&processes, 2*sizeof(process*));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&proclist, sizeof(process_list *)));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&processes, 2 * sizeof(process *)));
   create_processes<<<1,1>>>(proclist, processes);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // Capacity of the different containers
   constexpr int capacity = 1 << 20;
@@ -118,18 +118,18 @@ int main()
 
   // reserving queues for each of the processes
   adept::MParray **queues = nullptr;
-  cudaMallocManaged(&queues, numberOfProcesses * sizeof(adept::MParray *));
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&queues, numberOfProcesses * sizeof(adept::MParray *)));
   size_t buffersize = adept::MParray::SizeOfInstance(capacity);
 
   for (int i = 0; i < numberOfProcesses; i++) {
     buffer1[i] = nullptr;
-    cudaMallocManaged(&buffer1[i], buffersize);
+    COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer1[i], buffersize));
     queues[i] = adept::MParray::MakeInstanceAt(capacity, buffer1[i]);
   }
 
   // Allocate the content of Scoring in a buffer
   char *buffer_scor = nullptr;
-  cudaMallocManaged(&buffer_scor, sizeof(Scoring));
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer_scor, sizeof(Scoring)));
   Scoring *scor = Scoring::MakeInstanceAt(buffer_scor);
   // Initialize scoring
   scor->secondaries     = 0;
@@ -138,7 +138,7 @@ int main()
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
-  cudaMallocManaged(&buffer2, blocksize);
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer2, blocksize));
   auto block = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
 
   // initializing one track in the block
@@ -147,7 +147,7 @@ int main()
   track->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
   init_track<<<1, 1>>>(track);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // initializing second track in the block
   auto track2    = block->NextElement();
@@ -155,11 +155,11 @@ int main()
   track2->energy_loss = 0.0f;
   //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
   init_track<<<1, 1>>>(track2);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // simple version of scoring
   float* energy_deposition = nullptr;
-  cudaMalloc((void **)&energy_deposition, sizeof(float));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&energy_deposition, sizeof(float)));
 
   constexpr dim3 nthreads(32);
   constexpr dim3 maxBlocks(10);
@@ -179,10 +179,10 @@ int main()
     // call the kernel for Along Step Processes
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
-    cudaDeviceSynchronize();
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
     // clear all the queues before next step
     for (int i = 0; i < numberOfProcesses; i++) queues[i]->clear();
-    cudaDeviceSynchronize();
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
     std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused() << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load()
     << " total number of secondaries: " << scor->secondaries.load() << std::endl;
