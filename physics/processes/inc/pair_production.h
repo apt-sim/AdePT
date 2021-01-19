@@ -33,7 +33,9 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   mytrack->number_of_secondaries = 1;
 
   auto secondary_track = block->NextElement();
-  assert(secondary_track != nullptr && "No slot available for secondary track");
+  if (secondary_track == nullptr) {
+    COPCORE_EXCEPTION("No slot available for secondary track");
+  }
   secondary_track->energy                = eloss;
   secondary_track->status                = alive;
   secondary_track->energy_loss           = 0;
