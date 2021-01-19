@@ -43,10 +43,10 @@ struct track {
   __device__ __host__ double uniform() { return rng_state.Rndm(); }
 
   __device__ __host__ int    charge() const
-  { int chrg= (pdg== -11)-(pdg==11); return chrg; }
+  { constexpr char pdgElec= 11;  int chrg= (pdg== -pdgElec)-(pdg==pdgElec); return chrg; }
 
   __device__ __host__ double mass() const // Rest mass
-  { return  (pdg== 22) ? 0 : copcore::units::kElectronMassC2; } 
+  { constexpr char pdgGamma= 22; return  (pdg== pdgGamma) ? 0.0 : copcore::units::kElectronMassC2; } 
 
   __host__ void print( int id = -1, bool verbose = false) const;
    
@@ -141,20 +141,19 @@ void track::print( int extId , bool verbose ) const
       static NavigationStateBuffer *pNavStateBuffer= nullptr;
       if( pNavStateBuffer == nullptr )
          cudaMallocManaged(&pNavStateBuffer, sizeof(NavigationStateBuffer) );
-      // This method changes simulation history 2020.12.18 -- may corrupt memory or ?
+
       GetNavStateIndices<<<1,1>>>( *this, *pNavStateBuffer );
       cudaDeviceSynchronize();  // Needed -- wait for result !!
       
       std::cout << " current: " <<   pNavStateBuffer->currentTouchIndex << " "
                 << " lv = " << (int) pNavStateBuffer->currentLevel << " "
                 << setw(3) << (current_state.IsOnBoundary() ? "bnd" : " in" ) << " ";
-      // std::cout << " - ";
 
       std::cout << " next: " << pNavStateBuffer->nextTouchIndex << " "
                 << " lv = "  << pNavStateBuffer->nextLevel << " "
                 << setw(3) << (next_state.IsOnBoundary() ? "bnd" : " in" ) << " ";
-      // std::cout << " - ";
-      
+
+      // 2020.12.18 -- caused crash Dec 2020 / Jan 2021 ? - check if still the case
       // current_state.printValueSequence(std::cout);            
       // next_state.printValueSequence(std::cout);
       std::cout << ">";

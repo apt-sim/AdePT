@@ -199,7 +199,8 @@ fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
          } else {
             // Accept the intersection point on the surface (bias - TOFIX !)
             position=  position + move * chordDir;
-         // Primitive approximation of end direction ... 
+
+            // Primitive approximation of end direction ... 
             double fraction= chordLen > 0 ? move / chordLen : 0.0;
             direction= direction * (1.0 - fraction) + endDirection * fraction;
             direction= direction.Unit();

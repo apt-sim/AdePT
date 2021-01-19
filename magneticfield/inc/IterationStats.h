@@ -56,32 +56,18 @@ __global__ void Initialise_glob( IterationStats_impl* iterStats_dev )
 // Host class for creating and interfacing to 'iteration' statistics on device
 // 
 
-class IterationStats {
-
+class IterationStats
+{
  public:
    
-   __host__ 
-   IterationStats()  {
-      // Simplification suggested by Jonas H. 2021.01.14
-      cudaMalloc(&this->devPtr, sizeof(IterationStats_impl));   // In device ('global') memory
-      // cudaMallocManaged(&this->devPtr, sizeof(IterationStats_impl));   // In device ('global') memory
-      Initialise_glob<<<1,1>>>( this->devPtr );
-   }
+   inline __host__ IterationStats();
    
-   ~IterationStats()  {
-      cudaFree(devPtr);
-   }
+   ~IterationStats()  { cudaFree(devPtr); }
 
-   __host__   /*unsigned*/ int GetMax(){ /*unsigned*/ int maxNow=0;   // Was GetMaxFromDevice()
-     cudaMemcpy(&maxNow, &(devPtr->maxDone), sizeof( /*unsigned*/ int), cudaMemcpyDeviceToHost);   
-     return maxNow; }
-      // cudaMemcpyFromSymbol( &maxNow, (devPtr->maxDone), sizeof( /*unsigned*/ int) ); return maxNow; }
-   
-   __host__   void SetMaxIterationsDone(/*unsigned*/ int val) {
-     // Directly overwrite 'atomic' address -- is correct-ness implementation dependent ?
-      cudaMemcpy( &(devPtr->maxDone), &val, sizeof(/*unsigned*/ int ), cudaMemcpyHostToDevice);
-     // cudaMemcpyToSymbol( &(devPtr->maxDone), &val, sizeof(/*unsigned*/ int) );
-   }
+   inline __host__ /*unsigned*/ int GetMax();   // Was GetMaxFromDevice()
+
+   inline __host__ void SetMaxIterationsDone(/*unsigned*/ int val);
+
    __host__   /*unsigned*/ int GetTotal(){ /*unsigned*/ int totalNow=0;   // Was GetTotalFromDevice()
       cudaMemcpy( &totalNow, &(devPtr->totalIterations), sizeof(/*unsigned*/ int), cudaMemcpyDeviceToHost); 
       // cudaMemcpyFromSymbol( &totalNow, devPtr->totalIterations, sizeof(/*unsigned*/ int) );
@@ -90,8 +76,32 @@ class IterationStats {
    __host__ IterationStats_impl* GetDevicePtr() { return devPtr; }
    
  private:
-   // __device__
-   IterationStats_impl* devPtr= nullptr;  // 
+   IterationStats_impl* devPtr= nullptr;  // Host copy of pointer in device memory
 };
+
+inline
+IterationStats::IterationStats()
+{   
+  // Simplification suggested by Jonas H. 2021.01.14
+  cudaMalloc(&this->devPtr, sizeof(IterationStats_impl));   // In device ('global') memory
+  // cudaMallocManaged(&this->devPtr, sizeof(IterationStats_impl));   // In device ('global') memory
+  Initialise_glob<<<1,1>>>( this->devPtr );
+}
+
+
+inline
+/*unsigned*/ int IterationStats::GetMax()
+{ /*unsigned*/ int maxNow=0;  
+   cudaMemcpy(&maxNow, &(devPtr->maxDone), sizeof( /*unsigned*/ int), cudaMemcpyDeviceToHost);
+   // cudaMemcpyFromSymbol( &maxNow, (devPtr->maxDone), sizeof( /*unsigned*/ int) );
+   return maxNow;
+}
+
+inline __host__ void IterationStats::SetMaxIterationsDone(/*unsigned*/ int val)
+{
+   // Directly overwrite 'atomic' address -- is correct-ness implementation dependent ?
+   cudaMemcpy( &(devPtr->maxDone), &val, sizeof(/*unsigned*/ int ), cudaMemcpyHostToDevice);
+   // cudaMemcpyToSymbol( &(devPtr->maxDone), &val, sizeof(/*unsigned*/ int) );
+}   
 
 #endif

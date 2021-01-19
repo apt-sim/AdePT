@@ -48,7 +48,6 @@ struct Scoring {
 };
 
 #include "IterationStats.h"
-#include "initTracks.h"
 
 // Statistics for propagation chords
 IterationStats      *chordIterStats     = nullptr;
@@ -77,7 +76,7 @@ __host__ void ReportStatistics( IterationStats & iterStats )
   // cudaMemcpy(&maxChordItersGPU, maxItersDone_dev, sizeof(int), cudaMemcpyDeviceToHost);   
    std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() // GetMaxFromDevice()
              << "  total iters = " <<  iterStats.GetTotal() /*GetTotalFromDevice() */  ;
-   std::cout << "  addr = " << iterStats.GetDevicePtr() << " "; 
+   // std::cout << "  addr = " << iterStats.GetDevicePtr() << " "; 
    // printf(" -- host = %4d \n", GetMaxIterationsDone_host() );
    // std::cout << std::endl; // printf(" \n");   
 }
