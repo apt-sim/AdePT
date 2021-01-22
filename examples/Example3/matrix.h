@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #ifndef MATRIX_H
 #define MATRIX_H
 

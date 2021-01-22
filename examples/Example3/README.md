@@ -1,5 +1,10 @@
-README
-======
+<!--
+SPDX-FileCopyrightText: 2020 CERN
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
+Example3 README
+===============
 
 This code is work in progress. The idea with this is to focus on
 learning how to fit HEP simulations on the GPU with capabilities more or
