@@ -57,6 +57,11 @@ pipeline {
           steps {
             buildAndTest()
           }
+          post {
+            success {
+              deleteDir()
+            }
+          }
         }
       }
     }
@@ -72,6 +77,11 @@ pipeline {
         stage('Build&Test') {
           steps {
             buildAndTest()
+          }
+          post {
+            success {
+              deleteDir()
+            }
           }
         }
       }

@@ -59,6 +59,21 @@ set(config_options -DCMAKE_INSTALL_PREFIX=${CTEST_INSTALL_PREFIX}
                    -DCMAKE_CUDA_ARCHITECTURES=75 
                    $ENV{ExtraCMakeOptions})
 
+# git command configuration------------------------------------------------------
+find_program(CTEST_GIT_COMMAND NAMES git)
+set(CTEST_GIT_UPDATE_COMMAND "${CTEST_GIT_COMMAND}")
+if(${CTEST_MODEL} MATCHES Nightly OR Experimental)
+  if(NOT "$ENV{GIT_COMMIT}" STREQUAL "")
+    set(CTEST_CHECKOUT_COMMAND "cmake -E chdir ${CTEST_SOURCE_DIRECTORY} ${CTEST_GIT_COMMAND} checkout -f $ENV{GIT_PREVIOUS_COMMIT}")
+    set(CTEST_GIT_UPDATE_CUSTOM  ${CTEST_GIT_COMMAND} checkout -f $ENV{GIT_COMMIT})
+  endif()
+else()
+  if(NOT "$ENV{GIT_COMMIT}" STREQUAL "")
+    set(CTEST_CHECKOUT_COMMAND "cmake -E chdir ${CTEST_SOURCE_DIRECTORY} ${CTEST_GIT_COMMAND} checkout -f $ENV{GIT_COMMIT}")
+    set(CTEST_GIT_UPDATE_CUSTOM  ${CTEST_GIT_COMMAND} checkout -f $ENV{GIT_COMMIT})
+  endif()
+endif()
+
 # Print summary information-----------------------------------------------------
 foreach(v
     CTEST_SITE
