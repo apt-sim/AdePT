@@ -111,4 +111,3 @@ ctest_test(BUILD ${CTEST_BINARY_DIRECTORY}
           ${ctest_test_args}
           APPEND)
 ctest_submit(PARTS Test)
-
