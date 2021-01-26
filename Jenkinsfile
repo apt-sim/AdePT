@@ -3,6 +3,8 @@
 // Other jobs may call this pipeline to execute the build, test and installation of a set platforms.
 //
 // Author: Pere Mato
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
 //----------------------------------------------------------------------------------------------------------------------
 
 pipeline {

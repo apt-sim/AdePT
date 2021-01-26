@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
 ################################################################################
 # Before run should be exported next variables:
 # CMAKE_SOURCE_DIR        // CMake source directory
@@ -7,7 +9,6 @@
 # COMPILER                // Compiler keyword: gcc8, clang10
 # MODEL                   // CTest model (Experimental, Continuous, or Nightly)
 # ExtraCMakeOptions       // Additional options
-
 ################################################################################
 
 # Build name settings (CTEST_BUILD_NAME)----------------------------------------
