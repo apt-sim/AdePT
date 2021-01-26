@@ -54,7 +54,8 @@ set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CTEST_BUILD_FLAGS "-j${N}")
 
 # Fixed set of CMake options----------------------------------------------------
-set(config_options -DCMAKE_CUDA_ARCHITECTURES=75 
+set(config_options -DCMAKE_INSTALL_PREFIX=${CTEST_INSTALL_PREFIX}
+                   -DCMAKE_CUDA_ARCHITECTURES=75 
                    $ENV{ExtraCMakeOptions})
 
 # Print summary information-----------------------------------------------------
@@ -63,6 +64,7 @@ foreach(v
     CTEST_BUILD_NAME
     CTEST_SOURCE_DIRECTORY
     CTEST_BINARY_DIRECTORY
+    CTEST_INSTALL_PREFIX
     CTEST_CMAKE_GENERATOR
     )
   set(vars "${vars}  ${v}=[${${v}}]\n")
