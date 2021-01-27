@@ -42,4 +42,3 @@ Any other code in the project has (C) and license terms clearly indicated.
 
 Contributions of all authors to AdePT and their institutes are acknowledged in
 the `AUTHORS.md` file.
-
