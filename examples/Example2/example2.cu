@@ -130,13 +130,13 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   // call the kernel to create the processes to be run on the device
   process_list **proclist_dev;
   process **processes;
-  cudaMalloc((void **)&proclist_dev, sizeof(process_list *));
-  cudaMalloc((void **)&processes, 2 * sizeof(process *));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&proclist_dev, sizeof(process_list *)));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&processes, 2 * sizeof(process *)));
   create_processes<<<1, 1>>>(proclist_dev, processes);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
   process_list *proclist;
-  cudaMemcpy(&proclist, proclist_dev, sizeof(process_list *), cudaMemcpyDeviceToHost);
-  cudaFree(proclist_dev);
+  COPCORE_CUDA_CHECK(cudaMemcpy(&proclist, proclist_dev, sizeof(process_list *), cudaMemcpyDeviceToHost));
+  COPCORE_CUDA_CHECK(cudaFree(proclist_dev));
 
   // Capacity of the different containers
   constexpr int capacity = 1 << 20;
@@ -147,18 +147,18 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
 
   // reserving queues for each of the processes
   adept::MParray **queues = nullptr;
-  cudaMallocManaged(&queues, numberOfProcesses * sizeof(adept::MParray *));
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&queues, numberOfProcesses * sizeof(adept::MParray *)));
   size_t buffersize = adept::MParray::SizeOfInstance(capacity);
 
   for (int i = 0; i < numberOfProcesses; i++) {
     buffer1[i] = nullptr;
-    cudaMallocManaged(&buffer1[i], buffersize);
+    COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer1[i], buffersize));
     queues[i] = adept::MParray::MakeInstanceAt(capacity, buffer1[i]);
   }
 
   // Allocate the content of Scoring in a buffer
   char *buffer_scor = nullptr;
-  cudaMallocManaged(&buffer_scor, sizeof(Scoring));
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer_scor, sizeof(Scoring)));
   Scoring *scor = Scoring::MakeInstanceAt(buffer_scor);
   // Initialize scoring
   scor->hits            = 0;
@@ -168,7 +168,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
-  cudaMallocManaged(&buffer2, blocksize);
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer2, blocksize));
   auto block = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
 
   // initializing one track in the block
@@ -179,7 +179,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track->pos = {0, 0, 0};
   track->dir = {1, 0, 0};
   init_track<<<1, 1>>>(track, gpu_world);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // initializing second track in the block
   auto track2         = block->NextElement();
@@ -189,11 +189,11 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track2->pos = {0, 0.05, 0};
   track2->dir = {1, 0, 0};
   init_track<<<1, 1>>>(track2, gpu_world);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // simple version of scoring
   float *energy_deposition = nullptr;
-  cudaMalloc((void **)&energy_deposition, sizeof(float));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&energy_deposition, sizeof(float)));
 
   constexpr dim3 nthreads(32);
   constexpr dim3 maxBlocks(10);
@@ -212,11 +212,11 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
     // call the kernel for Along Step Processes
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
-    cudaDeviceSynchronize();
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
     // clear all the queues before next step
     for (int i = 0; i < numberOfProcesses; i++)
       queues[i]->clear();
-    cudaDeviceSynchronize();
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
     std::cout << "tracks in flight: " << std::setw(5) << block->GetNused() << " energy depostion: " << std::setw(8)
               << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()

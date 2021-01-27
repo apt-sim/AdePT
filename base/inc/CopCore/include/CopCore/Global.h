@@ -46,7 +46,11 @@ inline void error_check(cudaError_t err, const char *file, int line)
 #ifndef COPCORE_DEVICE_COMPILATION
 #define COPCORE_EXCEPTION(message) throw std::runtime_error(message)
 #else
-#define COPCORE_EXCEPTION(message) asm("trap;") // can do better here
+#define COPCORE_EXCEPTION(message)      \
+  do {                                  \
+    printf("Exception: %s\n", message); \
+    asm("trap;");                       \
+  } while (0)
 #endif
 
 template <BackendType T>
