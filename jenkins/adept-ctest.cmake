@@ -13,8 +13,8 @@
 
 # Build name settings (CTEST_BUILD_NAME)----------------------------------------
 set(CTEST_BUILD_NAME "AdePT-$ENV{COMPILER}-$ENV{BUILDTYPE}")
-if(NOT "$ENV{gitlabMergedByUser}$ENV{gitlabMergeRequestIid}" STREQUAL "")
-  set(CTEST_BUILD_NAME "$ENV{gitlabMergedByUser}#$ENV{gitlabMergeRequestIid}-${CTEST_BUILD_NAME}")
+if(NOT "$ENV{ghprbPullAuthorLogin}$ENV{ghprbPullId}" STREQUAL "")
+  set(CTEST_BUILD_NAME "$ENV{ghprbPullAuthorLogin}#$ENV{ghprbPullId}-${CTEST_BUILD_NAME}")
 endif()
 
 # Site name (CTEST_SITE)--------------------------------------------------------
