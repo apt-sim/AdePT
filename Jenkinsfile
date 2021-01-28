@@ -94,7 +94,7 @@ pipeline {
 }
 
 def setJobName() {
-  if (parms.ghprbPullId) {
+  if (params.ghprbPullId) {
     currentBuild.displayName = "#${BUILD_NUMBER}" + '-' + params.ghprbPullAuthorLogin + '#' +  params.ghprbPullId + '-' + params.COMPILER + '-' + params.BUILDTYPE
   } 
   else {
