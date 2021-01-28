@@ -16,6 +16,8 @@ pipeline {
     string(name: 'LABEL', defaultValue: 'TeslaT4', description: 'Jenkins label for physical nodes or container image for docker')
     string(name: 'ExtraCMakeOptions', defaultValue: '', description: 'CMake extra configuration options')
     string(name: 'DOCKER_LABEL', defaultValue: 'docker-host-noafs', description: 'Label for the the nodes able to launch docker images')
+    string(name: 'ghprbPullAuthorLogin', description: 'Author of the Pull Request (provided by GitHub)')
+    string(name: 'ghprbPullId', description: 'Pull Request id (provided by GitHub)')
   }
 
   environment {
@@ -47,6 +49,8 @@ pipeline {
           args  """-v /cvmfs:/cvmfs
                    -v /ec:/ec
                    -e SHELL 
+                   -e ghprbPullAuthorLogin 
+                   -e ghprbPullId
                    --net=host
                    --hostname ${LABEL}-docker
                 """
@@ -90,7 +94,12 @@ pipeline {
 }
 
 def setJobName() {
-  currentBuild.displayName = "#${BUILD_NUMBER}" + ' ' + params.COMPILER + '-' + params.BUILDTYPE
+  if (parms.ghprbPullId) {
+    currentBuild.displayName = "#${BUILD_NUMBER}" + '-' + params.ghprbPullAuthorLogin + '#' +  params.ghprbPullId + '-' + params.COMPILER + '-' + params.BUILDTYPE
+  } 
+  else {
+    currentBuild.displayName = "#${BUILD_NUMBER}" + ' ' + params.COMPILER + '-' + params.BUILDTYPE
+  }
 }
 
 def buildAndTest() {
