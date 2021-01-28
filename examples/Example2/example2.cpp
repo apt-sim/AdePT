@@ -13,7 +13,7 @@
 
 void example2();
 
-int main(int argc, char *argv[]))
+int main(int argc, char *argv[])
 {
 #ifndef VECGEOM_GDML
   std::cout << "### VecGeom must be compiled with GDML support to run this.\n";
