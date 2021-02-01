@@ -10,6 +10,7 @@
 
 #include "track.h"
 #include "trackBlock.h"
+#include "transportation.h"
 
 #include <AdePT/Atomic.h>
 #include <AdePT/BlockData.h>
@@ -50,24 +51,24 @@ struct Scoring {
 #include "IterationStats.h"
 
 // Statistics for propagation chords
-IterationStats      *chordIterStats     = nullptr;
+IterationStats      *chordIterStatsPBz     = nullptr;
 __device__
-IterationStats_impl *chordIterStats_dev = nullptr;
+IterationStats_impl *chordIterStatsPBz_dev = nullptr;
 
 __host__ void ReportStatistics( IterationStats & iterStats );
 // For temporary use in PrepareSta
 
 __host__ void PrepareStatistics()
 {
-  chordIterStats = new IterationStats();
-  // chordIterStats_dev = chordIterStats->GetDevicePtr();
-  IterationStats_impl* ptrDev= chordIterStats->GetDevicePtr();
+  chordIterStatsPBz = new IterationStats();
+  // chordIterStatsPBz_dev = chordIterStatsPBz->GetDevicePtr();
+  IterationStats_impl* ptrDev= chordIterStatsPBz->GetDevicePtr();
   assert( ptrDev != nullptr );
-  cudaMemcpy(&chordIterStats_dev, &ptrDev,
+  cudaMemcpy(&chordIterStatsPBz_dev, &ptrDev,
              sizeof(IterationStats_impl*), cudaMemcpyHostToDevice);
-  cudaMemcpyToSymbol(chordIterStats_dev, &ptrDev,
+  cudaMemcpyToSymbol(chordIterStatsPBz_dev, &ptrDev,
                      sizeof(IterationStats_impl*));
-  // Add assert(chordIterStats_dev != nullptr); in first use !?
+  // Add assert(chordIterStatsPBz_dev != nullptr); in first use !?
 }
 
 __host__ void ReportStatistics( IterationStats & iterStats )
@@ -84,17 +85,17 @@ __host__ void ReportStatistics( IterationStats & iterStats )
 #include "ConstBzFieldStepper.h"
 #include "fieldPropagatorConstBz.h"
 
-constexpr double kPush = 1.e-8;
-
 constexpr bool  BfieldOn = true;
-constexpr float BzFieldValue = 1.0e-30 * copcore::units::tesla;  // 0.1 * copcore::units::tesla;  // 30. * FLT_MIN; // 
-
+constexpr float BzFieldValue = 0.1 * copcore::units::tesla;  // 30. * FLT_MIN; // 
+                          // = 1.0e-30 * copcore::units::tesla;  //
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
 __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list *proclist,
                                          adept::MParray **queues, Scoring *scor)
 {
   int n = block->GetNused() + block->GetNholes();
 
+  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+  
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
     // skip particles that are already dead
     track &mytrack = (*block)[i];
@@ -111,26 +112,12 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
     // return value (if step limited by physics or geometry) not used for the moment
     // now, I know which process wins, so I add the particle to the appropriate queue
     float physics_step = proclist->GetPhysicsInteractionLength(i, block);
-    float step= 0.0;
+    
+    float geom_step= 
+       transportation<fieldPropagatorConstBz>::transport(mytrack, fieldPropagatorBz, physics_step);
+    mytrack.total_length += geom_step;
 
-    if( ! BfieldOn ) {
-       step= LoopNavigator::ComputeStepAndPropagatedState(mytrack.pos, mytrack.dir, physics_step,
-                                                          mytrack.current_state, mytrack.next_state);
-       mytrack.pos += (step + kPush) * mytrack.dir;
-       if( step < physics_step ) mytrack.current_process = -1;
-    }    
-    else {
-       fieldPropagatorConstBz fieldPropagator;
-       step= fieldPropagator.ComputeStepAndPropagatedState(mytrack, physics_step, BzFieldValue);
-       // updates state of 'mytrack'
-       if( step < physics_step ) {
-          // assert( ! mytrack.next_state.IsOnBoundary() && "Field Propagator returned step<phys -- yet boundary!" );
-          mytrack.current_process = -2;
-       }
-    }
-    mytrack.total_length += step;
-
-    if ( mytrack.next_state.IsOnBoundary()) { // ( step == physics_step ) {  // JA-TEMP 
+    if ( mytrack.next_state.IsOnBoundary()) { // ( geom_step == physics_step ) {  // JA-TEMP 
       // For now, just count that we hit something.
       scor->hits++;
       mytrack.SwapStates();      
@@ -303,7 +290,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   timer.Start();
 
   int iterNo=0;
-  int maxPrint = 32;
+  int maxPrint = 128;
 
   bool verbose= false;
   std::cout << " Track1 with nav index: " << std::endl;
@@ -339,7 +326,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << block->GetNused() << " energy deposition: " << std::setw(8)
               << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load();
-    ReportStatistics(*chordIterStats); // Chord statistics
+    ReportStatistics(*chordIterStatsPBz); // Chord statistics
     std::cout << std::endl;
     
     iterNo++;

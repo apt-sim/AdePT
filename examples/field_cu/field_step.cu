@@ -20,12 +20,16 @@
 
 #include "ConstFieldHelixStepper.h"
 
+
+#if 0
 #include "IterationStats.h"
+
 // Statistics for propagation chords
-IterationStats      *chordIterStats     = nullptr;
+IterationStats      *chordIterStatsPBz      = nullptr;
 __device__
-IterationStats_impl *chordIterStats_impl = nullptr;
+IterationStats_impl *chordIterStatsPBz_impl = nullptr;
 // Needed for fieldPropagatorConstBz.h -- for now
+#endif
 
 #include "fieldPropagatorConstBz.h"
 #include "fieldPropagatorConstBany.h"
@@ -120,11 +124,11 @@ int main( int argc, char** argv )
   //  cudaMemcpy(tracksStart_host, &(*trackBlock_dev)[0], SmallNum*sizeof(track), cudaMemcpyDeviceToHost );
   
   // 3. Propagate tracks -- on device
-  fieldPropagatorConstBz   fieldPropagatorBz;
+  fieldPropagatorConstBz   fieldPropagatorBz(BzValue);
   fieldPropagatorConstBany fieldPropagatorBany;
   if( useBzOnly ){
      // Uniform field - parallel to z axis
-     moveInField<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, fieldPropagatorBz, BzValue );
+     moveInField<<<numBlocks, numThreadsPerBlock>>>(trackBlock_uniq, fieldPropagatorBz); // , BzValue );
      //*********
   }
   else
@@ -151,7 +155,7 @@ int main( int argc, char** argv )
      if( useBzOnly ){     
         // fieldPropagatorConstBz( hostTrack, BzValue, endPosition, endDirection );
         // fieldPropagatorConstBz::moveInField( hostTrack, BzValue, endPosition, endDirection );
-        fieldPropagatorBz.stepInField( hostTrack, BzValue, endPosition, endDirection );
+        fieldPropagatorBz.stepInField( hostTrack, /*BzValue,*/ endPosition, endDirection );
      } else {
         // fieldPropagatorConstBgeneral( hostTrack, helixStepper, endPosition, endDirection );
         fieldPropagatorBany.stepInField( hostTrack, helixStepper, endPosition, endDirection );
