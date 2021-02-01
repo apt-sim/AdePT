@@ -14,39 +14,47 @@
 #include "track.h"
 #include "ConstBzFieldStepper.h"
 
-// #include "chordIterationStatistics.h"
-// chordIterStats_dev
+// #define  CHORD_STATS 1
 
-extern IterationStats      *chordIterStats;
+#ifdef CHORD_STATS
+// #include "chordIterationStatistics.h"
+extern IterationStats   *chordIterStatsPBz;
 extern
 __device__
-IterationStats_impl *chordIterStats_dev;
+IterationStats_impl *chordIterStatsPBz_dev;
+#endif
 
 // Data structures for statistics of propagation chords
 #include "IterationStats.h"
 
 class fieldPropagatorConstBz
 {
-  public: 
+  public:
+    __host__ __device__
+    fieldPropagatorConstBz(float Bz ) { BzValue= Bz; }
+    __host__ __device__   
+    ~fieldPropagatorConstBz(){}
+   
     __host__ __device__
     void stepInField(track                     & aTrack,
-                     float                       BzValue,
+                     //             float                       BzValue,
                      vecgeom::Vector3D<double> & endPosition,
                      vecgeom::Vector3D<double> & endDirection );
 
     __device__  //  __host__
     double
     ComputeStepAndPropagatedState( track   & aTrack,
-                                   float     physicsStep,
-                                   float     BzFieldValue );
-
+                                   float     physicsStep );
+                                   // , float     BzFieldValue );
+  private:
+    float   BzValue;
 };
 
 // Cannot make __global__ method part of class
 __global__
 void moveInField(adept::BlockData<track> * trackBlock,
-                 fieldPropagatorConstBz  & fieldProp,
-                 float                     BzValue );
+                 fieldPropagatorConstBz  & fieldProp ); 
+             //  float                     BzValue );
 
 constexpr double kPushField = 1.e-8;
 
@@ -55,7 +63,7 @@ constexpr double kPushField = 1.e-8;
 __host__ __device__
 void
 fieldPropagatorConstBz::stepInField(track &    aTrack,
-                                    float      BzValue,
+                                    // float      BzValue,
                                     vecgeom::Vector3D<double> & endPosition,
                                     vecgeom::Vector3D<double> & endDirection )
 {
@@ -86,9 +94,9 @@ fieldPropagatorConstBz::stepInField(track &    aTrack,
 
 // V1 -- field along Z axis
 __global__ void 
-moveInField(adept::BlockData<track> *trackBlock,
-            fieldPropagatorConstBz&    ,    // Just to choose this type of propagation
-            float Bz )                      // Field strength carried there (for now)
+moveInField(adept::BlockData<track> * trackBlock,
+            fieldPropagatorConstBz  & fieldPropagator )
+            // float Bz )                      // Field strength carried there (for now)
 {
   vecgeom::Vector3D<double> endPosition;
   vecgeom::Vector3D<double> endDirection;
@@ -97,7 +105,6 @@ moveInField(adept::BlockData<track> *trackBlock,
   
   // Non-block version:
   //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  fieldPropagatorConstBz fieldProp;
   for (int pclIdx  = blockIdx.x * blockDim.x + threadIdx.x;  pclIdx < maxIndex;
            pclIdx += blockDim.x * gridDim.x)
   {
@@ -107,7 +114,7 @@ moveInField(adept::BlockData<track> *trackBlock,
      if (pclIdx >= maxIndex || aTrack.status == dead) continue;
 
      // fieldPropagatorConstBz::
-     fieldProp.stepInField(aTrack, Bz, endPosition, endDirection);
+     fieldPropagator.stepInField(aTrack, /*Bz,*/ endPosition, endDirection);
 
      // Update position, direction     
      aTrack.pos = endPosition;  
@@ -117,11 +124,11 @@ moveInField(adept::BlockData<track> *trackBlock,
 
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
-__device__  //  __host__
+__device__    // __host__
 double
 fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
-                                                       float     physicsStep,
-                                                       float     BzFieldValue
+                                                       float     physicsStep
+                                                       // , float     BzField
    )
 {
    if( aTrack.status != alive ) return 0.0;
@@ -130,7 +137,7 @@ fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
    double momentumMag = sqrt( kinE * ( kinE + 2.0 * copcore::units::kElectronMassC2) );
 
    double charge = aTrack.charge();
-   double curv= std::fabs(ConstBzFieldStepper::kB2C * charge * BzFieldValue) /
+   double curv= std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) /
                   (momentumMag + 1.0e-30);  // norm for step   
 
    constexpr double gEpsilonDeflect = 1.E-2 * copcore::units::cm;
@@ -144,7 +151,7 @@ fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
    vecgeom::Vector3D<double>  position=   aTrack.pos;
    vecgeom::Vector3D<double>  direction=  aTrack.dir;
    
-   ConstBzFieldStepper  helixBz(BzFieldValue);
+   ConstBzFieldStepper  helixBz(BzValue);
    
    float  stepDone  = 0.0;
    double remains   = physicsStep;
@@ -215,13 +222,13 @@ fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
                && (chordIters < maxChordIters )
          );
 
-#if 1
-      // auto chordIterStats_dev = chordIterationStatistics::getStats_dev();
-      assert( chordIterStats_dev != nullptr );
-      if( (chordIterStats_dev != nullptr) && chordIters > chordIterStats_dev->GetMax() ) {
-         chordIterStats_dev->updateMax( chordIters );
+#ifdef CHORD_STATS
+      // auto chordIterStatsPBz_dev = chordIterationStatistics::getStats_dev();
+      assert( chordIterStatsPBz_dev != nullptr );
+      if( (chordIterStatsPBz_dev != nullptr) && chordIters > chordIterStatsPBz_dev->GetMax() ) {
+         chordIterStatsPBz_dev->updateMax( chordIters );
       }
-      chordIterStats_dev->addIters( chordIters );
+      chordIterStatsPBz_dev->addIters( chordIters );
       // This stops it from being usable on __host__
 #endif
       
