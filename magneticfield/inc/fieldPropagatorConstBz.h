@@ -95,8 +95,7 @@ fieldPropagatorConstBz::stepInField(track &    aTrack,
 // V1 -- field along Z axis
 __global__ void 
 moveInField(adept::BlockData<track> * trackBlock,
-            fieldPropagatorConstBz  & fieldPropagator )
-            // float Bz )                      // Field strength carried there (for now)
+            fieldPropagatorConstBz  & fieldPropagator )  // Carries field strength 
 {
   vecgeom::Vector3D<double> endPosition;
   vecgeom::Vector3D<double> endDirection;
@@ -128,7 +127,6 @@ __device__    // __host__
 double
 fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
                                                        float     physicsStep
-                                                       // , float     BzField
    )
 {
    if( aTrack.status != alive ) return 0.0;
@@ -176,7 +174,7 @@ fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
       //  Most electron tracks are short, limited by physics interactions -- the expected
       //    average value of iterations is small.
       //    ( Measuring iterations to confirm the maximum. )
-      constexpr int maxChordIters= 250;
+      constexpr int maxChordIters= 10;
       int chordIters=0;
       do
       {
@@ -204,7 +202,11 @@ fieldPropagatorConstBz::ComputeStepAndPropagatedState( track   & aTrack,
             position=  endPosition;
             direction= endDirection;
          } else {
-            // Accept the intersection point on the surface (bias - TOFIX !)
+            // Accept the intersection point on the surface.  This means that 
+            //   the point at the boundary will be on the 'straight'-line chord,
+            //   not the curved trajectory.
+            // ( This involves a bias -- relevant for muons in trackers.
+            //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
             position=  position + move * chordDir;
 
             // Primitive approximation of end direction ... 
