@@ -53,6 +53,32 @@ inline void error_check(cudaError_t err, const char *file, int line)
   } while (0)
 #endif
 
+/** @brief Check if pointer id device-resident */
+#ifndef COPCORE_CUDA_COMPILER
+inline bool is_device_pointer(void *ptr) { return false; }
+#else
+inline bool is_device_pointer(void *ptr)
+{
+  cudaPointerAttributes attr;
+  cudaError_t err = cudaPointerGetAttributes(&attr, ptr);
+  COPCORE_CUDA_CHECK(err);
+  return (attr.type == cudaMemoryTypeDevice);
+}
+#endif
+
+/** @brief Get number of SMs on the current device */
+#ifndef COPCORE_CUDA_COMPILER
+inline int get_num_SMs() { return 0; }
+#else
+inline int get_num_SMs()
+{
+  int deviceId, numSMs;
+  COPCORE_CUDA_CHECK(cudaGetDevice(&deviceId));
+  COPCORE_CUDA_CHECK(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, deviceId));
+  return numSMs;
+}
+#endif
+
 template <BackendType T>
 struct StreamType {
   using value_type = int;
