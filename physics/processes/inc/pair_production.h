@@ -29,7 +29,7 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
 
   // pair production
   mytrack->energy -= esecond;
-  mytrack->energy_loss           = 0;
+  mytrack->energy_loss = 0;
   mytrack->number_of_secondaries++;
 
   auto secondary_track = block->NextElement();
@@ -60,8 +60,6 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   // Initialize a new PRNG state.
   secondary_track->rng_state = mytrack->rng_state;
   secondary_track->rng_state.Skip(1 << 15);
-
-  // secondary_track->index              = ++slowIndex;  // ???  Relevant for debugging etc only
 }
 
 #endif
