@@ -55,7 +55,8 @@ set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CTEST_BUILD_FLAGS "-j${N}")
 
 # Fixed set of CMake options----------------------------------------------------
-set(config_options -DCMAKE_INSTALL_PREFIX=${CTEST_INSTALL_PREFIX} 
+set(config_options -DCMAKE_INSTALL_PREFIX=${CTEST_INSTALL_PREFIX}
+                   -DCMAKE_CUDA_ARCHITECTURES=$ENV{CUDA_CAPABILITY} 
                    $ENV{ExtraCMakeOptions})
 
 # git command configuration------------------------------------------------------

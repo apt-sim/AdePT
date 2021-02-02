@@ -83,7 +83,7 @@ pipeline {
         stage('PreCheckNode') {
           steps {
             script {
-              sh (script: '/usr/bin/nvidia-smi', returnStdout: true)
+              sh (script: '/usr/bin/nvidia-smi')
               def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
               if (fileExists(deviceQuery)) {
                 dev_out = sh (script: deviceQuery, returnStdout: true)
@@ -119,7 +119,7 @@ def setJobName() {
 def buildAndTest() {
   sh label: 'build_and_test', script: """
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-centos7-${COMPILER}-opt/setup.sh
-    export ExtraCMakeOptions='${ExtraCMakeOptions} -DCMAKE_CUDA_ARCHITECTURES=${CUDA_CAPABILITY}'
+    export CUDA_CAPABILITY=${CUDA_CAPABILITY}
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
     ctest -VV -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
