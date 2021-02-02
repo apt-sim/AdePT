@@ -79,13 +79,15 @@ pipeline {
       }
       stages {
         stage('PreCheckNode') {
-          script {
-            smi_out = sh (script: '/usr/bin/nvidia-smi', returnStdout: true)
-            print(smi_out)
-            def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
-            if (fileExists(deviceQuery)) {
-              dev_out = sh (script: deviceQuery, returnStdout: true)
-              print(dev_out)
+          steps {
+            script {
+              smi_out = sh (script: '/usr/bin/nvidia-smi', returnStdout: true)
+              print(smi_out)
+              def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
+              if (fileExists(deviceQuery)) {
+                dev_out = sh (script: deviceQuery, returnStdout: true)
+                print(dev_out)
+              }
             }
           }
         }
