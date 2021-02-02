@@ -41,7 +41,7 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   secondary_track->energy_loss           = 0;
   
   // Book-keeping parts of state
-  secondary_track->index                 = 100 * mytrack->index + mytrack->number_of_secondaries;  // For tracing / debugging
+  secondary_track->index                 = 10 * mytrack->index + mytrack->number_of_secondaries;  // For tracing / debugging
   secondary_track->mother_index          = mytrack->index;
   secondary_track->number_of_secondaries = 0;     
   secondary_track->eventId    = mytrack->eventId;
