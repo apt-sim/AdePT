@@ -7,6 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //----------------------------------------------------------------------------------------------------------------------
 
+def CUDA_CAPABILITY = '75'  // Default is 7.5
+
 pipeline {
   parameters {
     string(name: 'EXTERNALS', defaultValue: 'devAdePT/latest', description: 'LCG software stack in CVMFS')
@@ -81,12 +83,11 @@ pipeline {
         stage('PreCheckNode') {
           steps {
             script {
-              smi_out = sh (script: '/usr/bin/nvidia-smi', returnStdout: true)
-              print(smi_out)
+              sh (script: '/usr/bin/nvidia-smi', returnStdout: true)
               def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
               if (fileExists(deviceQuery)) {
                 dev_out = sh (script: deviceQuery, returnStdout: true)
-                print(dev_out)
+                CUDA_CAPABILITY = ( dev_out =~ 'CUDA Capability.*([0-9]+[.][0-9]+)')[0][1].replace('.','')
               }
             }
           }
@@ -118,6 +119,7 @@ def setJobName() {
 def buildAndTest() {
   sh label: 'build_and_test', script: """
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-centos7-${COMPILER}-opt/setup.sh
+    export ExtraCMakeOptions='${ExtraCMakeOptions} -DCMAKE_CUDA_ARCHITECTURES=${CUDA_CAPABILITY}'
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
     ctest -VV -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
