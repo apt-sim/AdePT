@@ -42,10 +42,11 @@ struct track {
 
   __device__ __host__ double uniform() { return rng_state.Rndm(); }
 
-  __device__ __host__ int    charge() const
-  { constexpr char pdgElec= 11;  int chrg= (pdg== -pdgElec)-(pdg==pdgElec); return chrg; }
-
-  __device__ __host__ double mass() const // Rest mass
+  __device__ __host__ int    charge() const  // charge for e- / e+ / gamma only
+  { constexpr char pdgElec= 11;
+    int chrg= (pdg== -pdgElec ? 1 : 0)+(pdg==  pdgElec ? -1 : 0 ); return chrg; }
+                                    
+  __device__ __host__ double mass() const // Rest mass for e- / e+ / gamma only
   { constexpr char pdgGamma= 22; return  (pdg== pdgGamma) ? 0.0 : copcore::units::kElectronMassC2; } 
 
   __host__ void print( int id = -1, bool verbose = false) const;
