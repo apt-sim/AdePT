@@ -7,8 +7,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //----------------------------------------------------------------------------------------------------------------------
 
-def CUDA_CAPABILITY = '75'  // Default is 7.5
-
 pipeline {
   parameters {
     string(name: 'EXTERNALS', defaultValue: 'devAdePT/latest', description: 'LCG software stack in CVMFS')
@@ -82,14 +80,7 @@ pipeline {
       stages {
         stage('PreCheckNode') {
           steps {
-            script {
-              sh (script: '/usr/bin/nvidia-smi')
-              def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
-              if (fileExists(deviceQuery)) {
-                dev_out = sh (script: deviceQuery, returnStdout: true)
-                CUDA_CAPABILITY = ( dev_out =~ 'CUDA Capability.*([0-9]+[.][0-9]+)')[0][1].replace('.','')
-              }
-            }
+            preCheckNode()
           }
         }
         stage('Build&Test') {
@@ -107,12 +98,24 @@ pipeline {
   }
 }
 
+def CUDA_CAPABILITY = '75'  // Default is 7.5
+
 def setJobName() {
   if (params.ghprbPullId) {
     currentBuild.displayName = "#${BUILD_NUMBER}" + '-' + params.ghprbPullAuthorLogin + '#' +  params.ghprbPullId + '-' + params.COMPILER + '-' + params.BUILDTYPE
   } 
   else {
     currentBuild.displayName = "#${BUILD_NUMBER}" + ' ' + params.COMPILER + '-' + params.BUILDTYPE
+  }
+}
+
+def preCheckNode() {
+  def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
+  sh (script: '/usr/bin/nvidia-smi')
+  if (fileExists(deviceQuery)) {
+    dev_out = sh (script: deviceQuery, returnStdout: true)
+    CUDA_CAPABILITY = ( dev_out =~ 'CUDA Capability.*([0-9]+[.][0-9]+)')[0][1].replace('.','')
+    print('Cuda capability is verskion is = ' + CUDA_CAPABILITY)
   }
 }
 
