@@ -56,7 +56,7 @@ __device__ IterationStats_impl *chordIterStatsPBz_dev = nullptr;
 
 __host__ void PrepareStatistics()
 {
-  chordIterStatsPBz = new IterationStats();
+  chordIterStatsPBz           = new IterationStats();
   IterationStats_impl *ptrDev = chordIterStatsPBz->GetDevicePtr();
   assert(ptrDev != nullptr);
   cudaMemcpy(&chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *), cudaMemcpyHostToDevice);
@@ -66,15 +66,14 @@ __host__ void PrepareStatistics()
 
 __host__ void ReportStatistics(IterationStats &iterStats)
 {
-  std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() 
-            << "  total iters = " << iterStats.GetTotal();
+  std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() << "  total iters = " << iterStats.GetTotal();
 }
 
 #include "ConstBzFieldStepper.h"
 #include "fieldPropagatorConstBz.h"
 
 constexpr bool BfieldOn      = true;
-constexpr float BzFieldValue = 0.1 * copcore::units::tesla; 
+constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
 
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
 __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list *proclist,
@@ -245,14 +244,14 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   // Initialise tracks on device
   std::cout << " Initialising tracks on device." << std::endl;
 
-  constexpr int numBlocksInit=2, numThreadsPerBlock=16;
-  const     int numTracks = numBlocksInit * numThreadsPerBlock;
-  
-  unsigned  int runId= 101, eventId = 1;
-  createTracks<<<numBlocksInit, numThreadsPerBlock>>>(trackBlock_uniq, gpu_world, numTracks, eventId, runId );
-                                                
+  constexpr int numBlocksInit = 2, numThreadsPerBlock = 16;
+  const int numTracks = numBlocksInit * numThreadsPerBlock;
+
+  unsigned int runId = 101, eventId = 1;
+  createTracks<<<numBlocksInit, numThreadsPerBlock>>>(trackBlock_uniq, gpu_world, numTracks, eventId, runId);
+
   cudaDeviceSynchronize();
-  
+
   std::cout << "INFO: running with field " << (BfieldOn ? "ON" : "OFF");
   if (BfieldOn) std::cout << " field value: Bz = " << BzFieldValue / copcore::units::tesla << " T ";
   std::cout << std::endl;
@@ -276,12 +275,12 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   std::cout << " Track1 with nav index: " << std::endl;
   track1->print(1, verboseVolume);
 
-  int verbose= 0;
-  if( verbose > 0 ) {
-     std::cout << " Tracks at simulation start " << std::endl;
-     printTracks(trackBlock_uniq, verboseVolume, maxPrint);
+  int verbose = 0;
+  if (verbose > 0) {
+    std::cout << " Tracks at simulation start " << std::endl;
+    printTracks(trackBlock_uniq, verboseVolume, maxPrint);
   }
-  
+
   while (trackBlock_uniq->GetNused() > 0 && iterNo < 1000) {
 
     numBlocks.x = (trackBlock_uniq->GetNused() + trackBlock_uniq->GetNholes() + nthreads.x - 1) / nthreads.x;
@@ -293,12 +292,11 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
     // call the kernel for Along Step Processes
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(trackBlock_uniq, proclist, queues, scor);
 
-    if( verbose > 1)
-    {
-       cudaDeviceSynchronize(); // Sync to print ...
-       std::cout << " Tracks after iteration " << iterNo << std::endl;
-       printTracks(trackBlock_uniq, true, maxPrint);
-    }       
+    if (verbose > 1) {
+      cudaDeviceSynchronize(); // Sync to print ...
+      std::cout << " Tracks after iteration " << iterNo << std::endl;
+      printTracks(trackBlock_uniq, true, maxPrint);
+    }
 
     cudaDeviceSynchronize();
     // clear all the queues before next step
@@ -306,8 +304,8 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
       queues[i]->clear();
     cudaDeviceSynchronize();
 
-    std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << trackBlock_uniq->GetNused()
-              << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()
+    std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5)
+              << trackBlock_uniq->GetNused() << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()
               << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load();
     ReportStatistics(*chordIterStatsPBz); // Chord statistics

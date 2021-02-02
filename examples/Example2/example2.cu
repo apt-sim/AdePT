@@ -9,10 +9,7 @@
 #include "energy_loss.h"
 
 #include "track.h"
-#include "trackBlock.h"
-#include "transportation.h"
 
-#include <AdePT/Atomic.h>
 #include <AdePT/BlockData.h>
 #include <AdePT/LoopNavigator.h>
 #include <AdePT/MParray.h>
@@ -27,107 +24,51 @@
 #include <iomanip>
 #include <stdio.h>
 
-// #include <cfloat> // for FLT_MIN
-
-#include <CopCore/PhysicalConstants.h>
-
 // some simple scoring
 struct Scoring {
   adept::Atomic_t<int> hits;
   adept::Atomic_t<int> secondaries;
   adept::Atomic_t<float> totalEnergyLoss;
 
-  __host__ __device__ Scoring() {}
+  __host__ __device__
+  Scoring() {}
 
-  __host__ __device__ static Scoring *MakeInstanceAt(void *addr)
+  __host__ __device__
+  static Scoring *MakeInstanceAt(void *addr)
   {
     Scoring *obj = new (addr) Scoring();
     return obj;
   }
 };
 
-#include "IterationStats.h"
+constexpr double kPush = 1.e-8;
 
-// Statistics for propagation chords
-IterationStats *chordIterStatsPBz                     = nullptr;
-__device__ IterationStats_impl *chordIterStatsPBz_dev = nullptr;
-
-__host__ void ReportStatistics(IterationStats &iterStats);
-// For temporary use in PrepareSta
-
-__host__ void PrepareStatistics()
-{
-  chordIterStatsPBz = new IterationStats();
-  // chordIterStatsPBz_dev = chordIterStatsPBz->GetDevicePtr();
-  IterationStats_impl *ptrDev = chordIterStatsPBz->GetDevicePtr();
-  assert(ptrDev != nullptr);
-  cudaMemcpy(&chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *), cudaMemcpyHostToDevice);
-  cudaMemcpyToSymbol(chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *));
-  // Add assert(chordIterStatsPBz_dev != nullptr); in first use !?
-}
-
-__host__ void ReportStatistics(IterationStats &iterStats)
-{
-  // int  maxChordItersGPU;
-  // cudaMemcpy(&maxChordItersGPU, maxItersDone_dev, sizeof(int), cudaMemcpyDeviceToHost);
-  std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() // GetMaxFromDevice()
-            << "  total iters = " << iterStats.GetTotal() /*GetTotalFromDevice() */;
-  // std::cout << "  addr = " << iterStats.GetDevicePtr() << " ";
-  // printf(" -- host = %4d \n", GetMaxIterationsDone_host() );
-  // std::cout << std::endl; // printf(" \n");
-}
-
-#include "ConstBzFieldStepper.h"
-#include "fieldPropagatorConstBz.h"
-
-constexpr bool BfieldOn      = true;
-constexpr float BzFieldValue = 0.1 * copcore::units::tesla; // 30. * FLT_MIN; //
-                                                            // = 1.0e-30 * copcore::units::tesla;  //
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
 __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list *proclist,
                                          adept::MParray **queues, Scoring *scor)
 {
   int n = block->GetNused() + block->GetNholes();
 
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
-
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
     // skip particles that are already dead
     track &mytrack = (*block)[i];
-
-    // Experimental limit on number of steps - to avoid 'forever' particles
-    constexpr uint16_t maxNumSteps = 250; // Configurable in real simulation -- 1000 ?
-    ++mytrack.num_step;
-    if (mytrack.num_step > maxNumSteps) {
-      mytrack.status = dead;
-    }
-
     if (mytrack.status == dead) continue;
 
     // return value (if step limited by physics or geometry) not used for the moment
     // now, I know which process wins, so I add the particle to the appropriate queue
     float physics_step = proclist->GetPhysicsInteractionLength(i, block);
-
-    float geom_step = transportation<fieldPropagatorConstBz>::transport(mytrack, fieldPropagatorBz, physics_step);
-    mytrack.total_length += geom_step;
-
-    if (mytrack.next_state.IsOnBoundary()) { // ( geom_step == physics_step ) {  // JA-TEMP
+    float step         = LoopNavigator::ComputeStepAndPropagatedState(mytrack.pos, mytrack.dir, physics_step,
+                                                              mytrack.current_state, mytrack.next_state);
+    mytrack.pos += (step + kPush) * mytrack.dir;
+    if (mytrack.next_state.IsOnBoundary()) {
       // For now, just count that we hit something.
       scor->hits++;
-      mytrack.SwapStates();
     } else {
       // Enqueue track index for later processing.
-      // assert(mytrack.current_process >= 0);
-      if (mytrack.current_process >= 0) // JA-TOFIX --- take this out !!!
-        queues[mytrack.current_process]->push_back(i);
-
-      if (mytrack.current_state.IsOnBoundary()) {
-        mytrack.SwapStates();
-        // Just to clear the boundary flag from the current step ...
-      }
+      queues[mytrack.current_process]->push_back(i);
     }
 
-    // mytrack.SwapStates();
+    mytrack.SwapStates();
   }
 }
 
@@ -164,7 +105,6 @@ __global__ void init_track(track *mytrack, const vecgeom::VPlacedVolume *world)
   /* we have to initialize the state */
   mytrack->rng_state.SetSeed(314159265);
   LoopNavigator::LocatePointIn(world, mytrack->pos, mytrack->current_state, true);
-  mytrack->next_state = mytrack->current_state;
 }
 
 // kernel to create the processes and process list
@@ -198,12 +138,8 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   COPCORE_CUDA_CHECK(cudaMemcpy(&proclist, proclist_dev, sizeof(process_list *), cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaFree(proclist_dev));
 
-  PrepareStatistics();
-
   // Capacity of the different containers
-  constexpr int capacity = 4 * 65536; // 1 << 20;
-
-  std::cout << "INFO: capacity of containers (incl. BlockData<track>) set at " << capacity << std::endl;
+  constexpr int capacity = 1 << 20;
 
   // setting the number of existing processes
   constexpr int numberOfProcesses = 2;
@@ -236,9 +172,9 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   auto block = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
 
   // initializing one track in the block
-  auto track1         = block->NextElement();
-  track1->energy      = 100.0f;
-  track1->energy_loss = 0.0f;
+  auto track         = block->NextElement();
+  track->energy      = 100.0f;
+  track->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
   track1->pos                = {0, 0, 0};
   track1->dir                = {1.0, 0, 0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
@@ -254,18 +190,10 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track2->energy      = 30.0f;
   track2->energy_loss = 0.0f;
   //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
-  track2->pos                = {0, 0.05, 0};
-  track2->dir                = {1.0, 0.0, 0.0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
-  track2->pdg                = -11;             // e+
-  track2->index              = 2;
-  track2->status             = alive;
-  track2->interaction_length = 10.0;
+  track2->pos = {0, 0.05, 0};
+  track2->dir = {1, 0, 0};
   init_track<<<1, 1>>>(track2, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-
-  std::cout << "INFO: running with field " << (BfieldOn ? "ON" : "OFF");
-  if (BfieldOn) std::cout << " field value: Bz = " << BzFieldValue / copcore::units::tesla << " T ";
-  std::cout << std::endl;
 
   // simple version of scoring
   float *energy_deposition = nullptr;
@@ -273,27 +201,12 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
 
   constexpr dim3 nthreads(32);
   constexpr dim3 maxBlocks(10);
-
   dim3 numBlocks;
 
   vecgeom::Stopwatch timer;
   timer.Start();
 
-  int iterNo   = 0;
-  int maxPrint = 128;
-
-  bool verbose = false;
-  std::cout << " Track1 with nav index: " << std::endl;
-  track1->print(1, verbose);
-
-  std::cout << " Track2 with nav index: " << std::endl;
-  track2->print(2, verbose);
-
-  std::cout << " Tracks at simulation start " << std::endl;
-  printTracks(block, verbose, maxPrint);
-
-  while (block->GetNused() > 0 && iterNo < 1000) {
-
+  while (block->GetNused() > 0) {
     numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
     numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
 
@@ -313,14 +226,9 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
       queues[i]->clear();
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-    std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << block->GetNused()
-              << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()
-              << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
-              << " number of hits: " << std::setw(4) << scor->hits.load();
-    ReportStatistics(*chordIterStatsPBz); // Chord statistics
-    std::cout << std::endl;
-
-    iterNo++;
+    std::cout << "tracks in flight: " << std::setw(5) << block->GetNused() << " energy depostion: " << std::setw(8)
+              << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
+              << " number of hits: " << std::setw(4) << scor->hits.load() << std::endl;
   }
 
   auto time_cpu = timer.Stop();
