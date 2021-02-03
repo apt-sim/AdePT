@@ -182,15 +182,13 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   // call the kernel to create the processes to be run on the device
   process_list **proclist_dev;
   process **processes;
-  cudaMalloc((void **)&proclist_dev, sizeof(process_list *));
-  cudaMalloc((void **)&processes, 2 * sizeof(process *));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&proclist_dev, sizeof(process_list *)));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&processes, 2 * sizeof(process *)));
   create_processes<<<1, 1>>>(proclist_dev, processes);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
   process_list *proclist;
-  cudaMemcpy(&proclist, proclist_dev, sizeof(process_list *), cudaMemcpyDeviceToHost);
-  cudaFree(proclist_dev);
-
-  PrepareStatistics();
+  COPCORE_CUDA_CHECK(cudaMemcpy(&proclist, proclist_dev, sizeof(process_list *), cudaMemcpyDeviceToHost));
+  COPCORE_CUDA_CHECK(cudaFree(proclist_dev));
 
   // Capacity of the different containers
   constexpr int capacity = 4 * 65536; // 1 << 20;
@@ -203,18 +201,18 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
 
   // reserving queues for each of the processes
   adept::MParray **queues = nullptr;
-  cudaMallocManaged(&queues, numberOfProcesses * sizeof(adept::MParray *));
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&queues, numberOfProcesses * sizeof(adept::MParray *)));
   size_t buffersize = adept::MParray::SizeOfInstance(capacity);
 
   for (int i = 0; i < numberOfProcesses; i++) {
     buffer1[i] = nullptr;
-    cudaMallocManaged(&buffer1[i], buffersize);
+    COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer1[i], buffersize));
     queues[i] = adept::MParray::MakeInstanceAt(capacity, buffer1[i]);
   }
 
   // Allocate the content of Scoring in a buffer
   char *buffer_scor = nullptr;
-  cudaMallocManaged(&buffer_scor, sizeof(Scoring));
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer_scor, sizeof(Scoring)));
   Scoring *scor = Scoring::MakeInstanceAt(buffer_scor);
   // Initialize scoring
   scor->hits            = 0;
@@ -224,7 +222,7 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
-  cudaMallocManaged(&buffer2, blocksize);
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer2, blocksize));  
   auto trackBlock_uniq = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
 
   // Initializing one track in the block
@@ -239,7 +237,7 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   track1->status             = alive;
   track1->interaction_length = 20.0;
   init_track<<<1, 1>>>(track1, gpu_world);
-  cudaDeviceSynchronize();
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());  
 
   // Initialise tracks on device
   std::cout << " Initialising tracks on device." << std::endl;
@@ -258,11 +256,10 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
 
   // simple version of scoring
   float *energy_deposition = nullptr;
-  cudaMalloc((void **)&energy_deposition, sizeof(float));
+  COPCORE_CUDA_CHECK(cudaMalloc((void **)&energy_deposition, sizeof(float)));
 
   constexpr dim3 nthreads(32);
   constexpr dim3 maxBlocks(10);
-
   dim3 numBlocks;
 
   vecgeom::Stopwatch timer;
@@ -293,16 +290,17 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(trackBlock_uniq, proclist, queues, scor);
 
     if (verbose > 1) {
-      cudaDeviceSynchronize(); // Sync to print ...
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());       
       std::cout << " Tracks after iteration " << iterNo << std::endl;
       printTracks(trackBlock_uniq, true, maxPrint);
     }
 
-    cudaDeviceSynchronize();
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+    
     // clear all the queues before next step
     for (int i = 0; i < numberOfProcesses; i++)
       queues[i]->clear();
-    cudaDeviceSynchronize();
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());    
 
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5)
               << trackBlock_uniq->GetNused() << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-# Example 2 of particle processing with GPU, including geometry
+# Example 4 of particle processing with GPU, including geometry, magnetic field
 # and reproducible results using one RANLUX++ state per track.
 add_executable(example4 example4.cpp example4.cu)
 target_include_directories(example4 PUBLIC
