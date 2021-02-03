@@ -30,11 +30,9 @@ struct Scoring {
   adept::Atomic_t<int> secondaries;
   adept::Atomic_t<float> totalEnergyLoss;
 
-  __host__ __device__
-  Scoring() {}
+  __host__ __device__ Scoring() {}
 
-  __host__ __device__
-  static Scoring *MakeInstanceAt(void *addr)
+  __host__ __device__ static Scoring *MakeInstanceAt(void *addr)
   {
     Scoring *obj = new (addr) Scoring();
     return obj;
@@ -86,12 +84,15 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queue_size; i += blockDim.x * gridDim.x) {
       // get particles index from the queue
       particle_index = (*(queues[process_id]))[i];
+      int  preNumber = (*block)[particle_index].number_of_secondaries; // For scoring too
+      
       // and call the process for it
       proclist->list[process_id]->GenerateInteraction(particle_index, block);
 
       // a simple version of scoring
+      int postNumber = (*block)[particle_index].number_of_secondaries;
       scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
-      scor->secondaries.fetch_add((*block)[particle_index].number_of_secondaries > 0 ? 1 : 0);
+      scor->secondaries.fetch_add( postNumber - preNumber );
 
       // if particles returns with 'dead' status, release the element from the block
       if ((*block)[particle_index].status == dead) block->ReleaseElement(particle_index);
@@ -172,9 +173,9 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   auto block = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
 
   // initializing one track in the block
-  auto track         = block->NextElement();
-  track->energy      = 100.0f;
-  track->energy_loss = 0.0f;
+  auto track1         = block->NextElement();
+  track1->energy      = 100.0f;
+  track1->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
   track1->pos                = {0, 0, 0};
   track1->dir                = {1.0, 0, 0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
@@ -183,7 +184,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
   track1->status             = alive;
   track1->interaction_length = 20.0;
   init_track<<<1, 1>>>(track1, gpu_world);
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());  
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // initializing second track in the block
   auto track2         = block->NextElement();
@@ -216,11 +217,8 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
     // call the kernel for Along Step Processes
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
-    cudaDeviceSynchronize(); // Sync to print ...
-    std::cout << " Tracks after CallsAlongStepProccesses " << std::endl;
-    printTracks(block, true, maxPrint);
-
-    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());    
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+    
     // clear all the queues before next step
     for (int i = 0; i < numberOfProcesses; i++)
       queues[i]->clear();

@@ -137,13 +137,16 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queue_size; i += blockDim.x * gridDim.x) {
       // get particles index from the queue
       particle_index = (*(queues[process_id]))[i];
+      int  preNumber = (*block)[particle_index].number_of_secondaries; // For scoring
+
       // and call the process for it
       proclist->list[process_id]->GenerateInteraction(particle_index, block);
 
       // a simple version of scoring
       scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
-      scor->secondaries.fetch_add((*block)[particle_index].number_of_secondaries);
-
+      int postNumber = (*block)[particle_index].number_of_secondaries;      
+      scor->secondaries.fetch_add( postNumber - preNumber );
+      
       // if particles returns with 'dead' status, release the element from the block
       if ((*block)[particle_index].status == dead) block->ReleaseElement(particle_index);
     }
@@ -219,6 +222,8 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   scor->secondaries     = 0;
   scor->totalEnergyLoss = 0;
 
+  PrepareStatistics();  // Statistics for chord iterations (magnetic field)
+  
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
@@ -306,7 +311,7 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
               << trackBlock_uniq->GetNused() << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()
               << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load();
-    ReportStatistics(*chordIterStatsPBz); // Chord statistics
+    if( chordIterStatsPBz != nullptr ) ReportStatistics(*chordIterStatsPBz); // Chord statistics
     std::cout << std::endl;
 
     iterNo++;
