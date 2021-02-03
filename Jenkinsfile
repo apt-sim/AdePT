@@ -98,6 +98,10 @@ pipeline {
   }
 }
 
+//----------------------------------------------------------------------------------------------------------------------
+//---Common Functions---------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+
 def CUDA_CAPABILITY = '75'  // Default is 7.5
 
 def setJobName() {
@@ -115,7 +119,7 @@ def preCheckNode() {
   if (fileExists(deviceQuery)) {
     dev_out = sh (script: deviceQuery, returnStdout: true)
     CUDA_CAPABILITY = ( dev_out =~ 'CUDA Capability.*([0-9]+[.][0-9]+)')[0][1].replace('.','')
-    print('Cuda capability is verskion is = ' + CUDA_CAPABILITY)
+    print('Cuda capability version is = ' + CUDA_CAPABILITY)
   }
 }
 
