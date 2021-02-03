@@ -91,7 +91,7 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
 
       // a simple version of scoring
       scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
-      scor->secondaries.fetch_add((*block)[particle_index].number_of_secondaries);
+      scor->secondaries.fetch_add((*block)[particle_index].number_of_secondaries > 0 ? 1 : 0);
 
       // if particles returns with 'dead' status, release the element from the block
       if ((*block)[particle_index].status == dead) block->ReleaseElement(particle_index);
