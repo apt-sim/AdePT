@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
 
 #ifndef CREATE_TRACKS_H
 #define CREATE_TRACKS_H 1

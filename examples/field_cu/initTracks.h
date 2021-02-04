@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
+// Author: J. Apostolakis  Nov/Dec 2020
 
 #ifndef INIT_TRACKS_H
 #define INIT_TRACKS_H  1
