@@ -34,8 +34,8 @@ IterationStats_impl *chordIterStatsPBz_impl = nullptr;
 #include "fieldPropagatorConstBz.h"
 #include "fieldPropagatorConstBany.h"
 
-#include "trackBlock.h"
-// using trackBlock_t  = adept::BlockData<track>;
+#include "printTracks.h"
+using trackBlock_t  = adept::BlockData<track>;
 
 #include "initTracks.h"
 
