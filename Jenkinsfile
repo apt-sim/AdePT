@@ -78,6 +78,11 @@ pipeline {
         label "$LABEL"
       }
       stages {
+        stage('PreCheckNode') {
+          steps {
+            preCheckNode()
+          }
+        }
         stage('Build&Test') {
           steps {
             buildAndTest()
@@ -93,6 +98,12 @@ pipeline {
   }
 }
 
+//----------------------------------------------------------------------------------------------------------------------
+//---Common Functions---------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+
+def CUDA_CAPABILITY = '75'  // Default is 7.5
+
 def setJobName() {
   if (params.ghprbPullId) {
     currentBuild.displayName = "#${BUILD_NUMBER}" + '-' + params.ghprbPullAuthorLogin + '#' +  params.ghprbPullId + '-' + params.COMPILER + '-' + params.BUILDTYPE
@@ -102,9 +113,20 @@ def setJobName() {
   }
 }
 
+def preCheckNode() {
+  def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
+  sh (script: '/usr/bin/nvidia-smi')
+  if (fileExists(deviceQuery)) {
+    dev_out = sh (script: deviceQuery, returnStdout: true)
+    CUDA_CAPABILITY = ( dev_out =~ 'CUDA Capability.*([0-9]+[.][0-9]+)')[0][1].replace('.','')
+    print('Cuda capability version is = ' + CUDA_CAPABILITY)
+  }
+}
+
 def buildAndTest() {
   sh label: 'build_and_test', script: """
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-centos7-${COMPILER}-opt/setup.sh
+    export CUDA_CAPABILITY=${CUDA_CAPABILITY}
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
     ctest -VV -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
