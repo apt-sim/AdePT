@@ -31,10 +31,10 @@ struct track {
 
   float interaction_length{FLT_MAX};
   float total_length{0.0};        // length since track start
-   
-  float energy_loss{0};           // primitive version of scoring
-  int   number_of_secondaries{0}; // primitive version of scoring
 
+  int   number_of_secondaries{0}; // total since track start -- used as counter for RNG
+  float    energy_loss{0};        // current step's eloss -- used by primitive version of scoring
+   
   uint16_t    num_step{0}; // number of Steps -- for killing after MaX
    
   char        current_process{0}; // -1 for Navigation / -2 for Field Propagation

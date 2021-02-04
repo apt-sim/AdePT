@@ -48,7 +48,12 @@ struct Scoring {
   }
 };
 
+#include "ConstBzFieldStepper.h"
+
+// #define  CHORD_STATS 1
+
 #include "IterationStats.h"
+#include "fieldPropagatorConstBz.h"
 
 // Statistics for propagation chords
 IterationStats *chordIterStatsPBz                     = nullptr;
@@ -56,21 +61,22 @@ __device__ IterationStats_impl *chordIterStatsPBz_dev = nullptr;
 
 __host__ void PrepareStatistics()
 {
+#ifdef  CHORD_STATS   
   chordIterStatsPBz           = new IterationStats();
   IterationStats_impl *ptrDev = chordIterStatsPBz->GetDevicePtr();
   assert(ptrDev != nullptr);
   cudaMemcpy(&chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *), cudaMemcpyHostToDevice);
   cudaMemcpyToSymbol(chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *));
   // Add assert(chordIterStatsPBz_dev != nullptr); in first use !?
+#endif  
 }
 
 __host__ void ReportStatistics(IterationStats &iterStats)
 {
+#ifdef  CHORD_STATS   
   std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() << "  total iters = " << iterStats.GetTotal();
+#endif  
 }
-
-#include "ConstBzFieldStepper.h"
-#include "fieldPropagatorConstBz.h"
 
 constexpr bool BfieldOn      = true;
 constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
