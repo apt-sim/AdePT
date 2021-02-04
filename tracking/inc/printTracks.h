@@ -1,23 +1,17 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef TRACKBLOCKH
-#define TRACKBLOCKH
+#ifndef PRINT_TRACKS_H
+#define PRINT_TRACKS_H
 
 #include "track.h"
 
-using trackBlock_t  = adept::BlockData<track>;
-
-// static std::atomic<unsigned int> atomicTrackId= 0;
-
 __host__
-void printTracks( trackBlock_t* trackBlock,       //     adept::BlockData<track>*
+void printTracks( adept::BlockData<track>* trackBlock,       //     adept::BlockData<track>*
                   bool          verbose = false,  // include info on navigation state ?
                   int           numTracks = -1 )  // only print those with index < numTracks
 {
-  // Likely need to call 
-  //  cudaDeviceSynchronize();  // Sync to get new values before printing
-  // before printing - to have updated state
+  cudaDeviceSynchronize();  // Sync to get new values before printing
    
   int numLive = trackBlock->GetNused() ;
   int lastTrack= numLive + trackBlock->GetNholes();
