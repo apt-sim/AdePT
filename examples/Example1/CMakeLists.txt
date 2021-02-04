@@ -10,5 +10,6 @@ target_include_directories(example1 PUBLIC
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(example1 PRIVATE VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml CopCore::CopCore)
+set_target_properties(example1 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 add_test(NAME example1 COMMAND example1)
 
