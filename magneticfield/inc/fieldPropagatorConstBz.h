@@ -27,13 +27,13 @@ public:
   __host__ __device__ fieldPropagatorConstBz(float Bz) { BzValue = Bz; }
   __host__ __device__ ~fieldPropagatorConstBz() {}
 
-  __host__ __device__ void stepInField(track &aTrack,
-                                       vecgeom::Vector3D<double> &endPosition,
+  __host__ __device__ void stepInField(track &aTrack, vecgeom::Vector3D<double> &endPosition,
                                        vecgeom::Vector3D<double> &endDirection);
 
   __device__ //  __host__
       double
       ComputeStepAndPropagatedState(track &aTrack, float physicsStep);
+
 private:
   float BzValue;
 };
@@ -188,7 +188,7 @@ __device__ // __host__
              (chordIters < maxChordIters));
 
 #ifdef CHORD_STATS
-    // This stops it from being usable on __host__    
+    // This stops it from being usable on __host__
     assert(chordIterStatsPBz_dev != nullptr);
     if ((chordIterStatsPBz_dev != nullptr) && chordIters > chordIterStatsPBz_dev->GetMax()) {
       chordIterStatsPBz_dev->updateMax(chordIters);

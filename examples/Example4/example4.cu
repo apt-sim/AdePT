@@ -61,21 +61,21 @@ __device__ IterationStats_impl *chordIterStatsPBz_dev = nullptr;
 
 __host__ void PrepareStatistics()
 {
-#ifdef  CHORD_STATS   
+#ifdef CHORD_STATS
   chordIterStatsPBz           = new IterationStats();
   IterationStats_impl *ptrDev = chordIterStatsPBz->GetDevicePtr();
   assert(ptrDev != nullptr);
   cudaMemcpy(&chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *), cudaMemcpyHostToDevice);
   cudaMemcpyToSymbol(chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *));
   // Add assert(chordIterStatsPBz_dev != nullptr); in first use !?
-#endif  
+#endif
 }
 
 __host__ void ReportStatistics(IterationStats &iterStats)
 {
-#ifdef  CHORD_STATS   
+#ifdef CHORD_STATS
   std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() << "  total iters = " << iterStats.GetTotal();
-#endif  
+#endif
 }
 
 constexpr bool BfieldOn      = true;
@@ -143,16 +143,16 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queue_size; i += blockDim.x * gridDim.x) {
       // get particles index from the queue
       particle_index = (*(queues[process_id]))[i];
-      int  preNumber = (*block)[particle_index].number_of_secondaries; // For scoring
+      int preNumber  = (*block)[particle_index].number_of_secondaries; // For scoring
 
       // and call the process for it
       proclist->list[process_id]->GenerateInteraction(particle_index, block);
 
       // a simple version of scoring
       scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
-      int postNumber = (*block)[particle_index].number_of_secondaries;      
-      scor->secondaries.fetch_add( postNumber - preNumber );
-      
+      int postNumber = (*block)[particle_index].number_of_secondaries;
+      scor->secondaries.fetch_add(postNumber - preNumber);
+
       // if particles returns with 'dead' status, release the element from the block
       if ((*block)[particle_index].status == dead) block->ReleaseElement(particle_index);
     }
@@ -228,12 +228,12 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   scor->secondaries     = 0;
   scor->totalEnergyLoss = 0;
 
-  PrepareStatistics();  // Statistics for chord iterations (magnetic field)
-  
+  PrepareStatistics(); // Statistics for chord iterations (magnetic field)
+
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer2, blocksize));  
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer2, blocksize));
   auto trackBlock_uniq = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
 
   // Initializing one track in the block
@@ -248,7 +248,7 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   track1->status             = alive;
   track1->interaction_length = 20.0;
   init_track<<<1, 1>>>(track1, gpu_world);
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());  
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // Initialise tracks on device
   std::cout << " Initialising tracks on device." << std::endl;
@@ -301,23 +301,23 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(trackBlock_uniq, proclist, queues, scor);
 
     if (verbose > 1) {
-      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());       
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
       std::cout << " Tracks after iteration " << iterNo << std::endl;
       printTracks(trackBlock_uniq, true, maxPrint);
     }
 
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-    
+
     // clear all the queues before next step
     for (int i = 0; i < numberOfProcesses; i++)
       queues[i]->clear();
-    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());    
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5)
               << trackBlock_uniq->GetNused() << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()
               << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load();
-    if( chordIterStatsPBz != nullptr ) ReportStatistics(*chordIterStatsPBz); // Chord statistics
+    if (chordIterStatsPBz != nullptr) ReportStatistics(*chordIterStatsPBz); // Chord statistics
     std::cout << std::endl;
 
     iterNo++;

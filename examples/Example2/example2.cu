@@ -84,16 +84,18 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
     for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queue_size; i += blockDim.x * gridDim.x) {
       // get particles index from the queue
       particle_index = (*(queues[process_id]))[i];
-      int  preNumber = (*block)[particle_index].number_of_secondaries; // For scoring too
-      
+      int preNumber  = (*block)[particle_index].number_of_secondaries; // For scoring too
+
       // and call the process for it
       proclist->list[process_id]->GenerateInteraction(particle_index, block);
 
       // a simple version of scoring
       int postNumber = (*block)[particle_index].number_of_secondaries;
       scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
-      int  secondaries_in_step=  postNumber - preNumber;
-      if( secondaries_in_step > 0  ) { scor->secondaries.fetch_add( secondaries_in_step ); }
+      int secondaries_in_step = postNumber - preNumber;
+      if (secondaries_in_step > 0) {
+        scor->secondaries.fetch_add(secondaries_in_step);
+      }
 
       // if particles returns with 'dead' status, release the element from the block
       if ((*block)[particle_index].status == dead) block->ReleaseElement(particle_index);
@@ -219,7 +221,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
     CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
 
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-    
+
     // clear all the queues before next step
     for (int i = 0; i < numberOfProcesses; i++)
       queues[i]->clear();

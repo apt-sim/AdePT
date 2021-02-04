@@ -3,7 +3,7 @@
 
 /*
  * Created on: January 4, 2021
- * 
+ *
  * Adapted from GeantV/ConstFieldHelixStepper.h
  *
  *      Author: J. Apostolakis
@@ -19,7 +19,7 @@
 // inline namespace ADEPT_IMPL_NAMESPACE {
 /**
  * A simple stepper treating the propagation of particles in a constant magnetic field
- *   ( not just along the z-axis-- for that there is ConstBzFieldHelixStepper ) 
+ *   ( not just along the z-axis-- for that there is ConstBzFieldHelixStepper )
  */
 class ConstFieldHelixStepper {
   template <typename T>
@@ -28,7 +28,7 @@ class ConstFieldHelixStepper {
 public:
   // VECCORE_ATT_HOST_DEVICE
   // ConstFieldHelixStepper(); // For default initialisation only
-   
+
   VECCORE_ATT_HOST_DEVICE
   ConstFieldHelixStepper(float Bx, float By, float Bz);
 
@@ -38,22 +38,18 @@ public:
   VECCORE_ATT_HOST_DEVICE
   ConstFieldHelixStepper(Vector3D<float> const &Bfield);
 
-  void
-  VECCORE_ATT_HOST_DEVICE  
-  SetB(float Bx, float By, float Bz)
+  void VECCORE_ATT_HOST_DEVICE SetB(float Bx, float By, float Bz)
   {
     // fB.Set(Bx, By, Bz);
     Vector3D<float> Bfield(Bx, By, Bz);
-    CalculateDerived( Bfield );
+    CalculateDerived(Bfield);
   }
 
-  VECCORE_ATT_HOST_DEVICE   
+  VECCORE_ATT_HOST_DEVICE
   Vector3D<float> const GetFieldVec() const { return fBmag * fUnit; }
 
-  static constexpr float kB2C =
-     -0.299792458 * (copcore::units::GeV /
-                     (copcore::units::tesla * copcore::units::meter) ) ;
-   
+  static constexpr float kB2C = -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
+
   /*
   template<typename RT, typename Vector3D>
   RT GetCurvature(Vector3D const & dir,
@@ -70,81 +66,64 @@ public:
    * output: new position, new direction of particle
    */
   template <typename Real_t>
-  VECCORE_ATT_HOST_DEVICE
-  void DoStep(Real_t const &posx, Real_t const &posy, Real_t const &posz,
-              Real_t const &dirx, Real_t const &diry, Real_t const &dirz,
-              Real_t const &charge,
-              Real_t const &momentum,
-              Real_t const &step,
-              Real_t &newposx, Real_t &newposy, Real_t &newposz,
-              Real_t &newdirx, Real_t &newdiry, Real_t &newdirz
-     ) const;
-   
+  VECCORE_ATT_HOST_DEVICE void DoStep(Real_t const &posx, Real_t const &posy, Real_t const &posz, Real_t const &dirx,
+                                      Real_t const &diry, Real_t const &dirz, Real_t const &charge,
+                                      Real_t const &momentum, Real_t const &step, Real_t &newposx, Real_t &newposy,
+                                      Real_t &newposz, Real_t &newdirx, Real_t &newdiry, Real_t &newdirz) const;
+
   /**
    * this function propagates the track along the helix solution by a step
    * input: current position, current direction, some particle properties
    * output: new position, new direction of particle
    */
   template <typename Real_t>
-  inline   
-  VECCORE_ATT_HOST_DEVICE
-  void DoStep(Vector3D<Real_t> const & position,
-              Vector3D<Real_t> const & direction,
-              Real_t           const & charge,
-              Real_t           const & momentum,
-              Real_t           const & step,
-              Vector3D<Real_t>       & endPosition,
-              Vector3D<Real_t>       & endDirection) const;
-   
+  inline VECCORE_ATT_HOST_DEVICE void DoStep(Vector3D<Real_t> const &position, Vector3D<Real_t> const &direction,
+                                             Real_t const &charge, Real_t const &momentum, Real_t const &step,
+                                             Vector3D<Real_t> &endPosition, Vector3D<Real_t> &endDirection) const;
+
   // Auxiliary methods
   template <typename Real_t>
-   void PrintStep(vecgeom::Vector3D<Real_t> const &startPosition,
-                                    vecgeom::Vector3D<Real_t> const &startDirection, Real_t const &charge,
-                                    Real_t const &momentum, Real_t const &step, vecgeom::Vector3D<Real_t> &endPosition,
-                                    vecgeom::Vector3D<Real_t> &endDirection) const;
+  void PrintStep(vecgeom::Vector3D<Real_t> const &startPosition, vecgeom::Vector3D<Real_t> const &startDirection,
+                 Real_t const &charge, Real_t const &momentum, Real_t const &step,
+                 vecgeom::Vector3D<Real_t> &endPosition, vecgeom::Vector3D<Real_t> &endDirection) const;
 
 protected:
-  inline VECCORE_ATT_HOST_DEVICE
-  void CalculateDerived( Vector3D<float> Bvec );
+  inline VECCORE_ATT_HOST_DEVICE void CalculateDerived(Vector3D<float> Bvec);
 
   template <typename Real_t>
-  inline  VECCORE_ATT_HOST_DEVICE
-  bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const;
+  inline VECCORE_ATT_HOST_DEVICE bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const;
 
 private:
   // Values below used for speed, code simplicity
-  Vector3D<float> fUnit = Vector3D<float>(1.0, 0.0, 0.0);   // direction
-  float           fBmag = 0.0;                              // magnitude
-   
+  Vector3D<float> fUnit = Vector3D<float>(1.0, 0.0, 0.0); // direction
+  float fBmag           = 0.0;                            // magnitude
+
 }; // end class declaration
 
 inline // __host__ __device__
-void ConstFieldHelixStepper::CalculateDerived(  Vector3D<float> Bvec )
+    void
+    ConstFieldHelixStepper::CalculateDerived(Vector3D<float> Bvec)
 {
-  fBmag = Bvec.Mag();
-  float  bMagInv = (1.0/fBmag);
-  fUnit = Vector3D<float>(1.0, 0.0, 0.0);
-  if( fBmag > 0.0 )
-     fUnit = bMagInv * Bvec;
+  fBmag         = Bvec.Mag();
+  float bMagInv = (1.0 / fBmag);
+  fUnit         = Vector3D<float>(1.0, 0.0, 0.0);
+  if (fBmag > 0.0) fUnit = bMagInv * Bvec;
 }
 
-inline
-ConstFieldHelixStepper::ConstFieldHelixStepper(float Bx, float By, float Bz) // : fB(Bx, By, gBz)
+inline ConstFieldHelixStepper::ConstFieldHelixStepper(float Bx, float By, float Bz) // : fB(Bx, By, gBz)
 {
-  CalculateDerived( Vector3D<float>(Bx, By, Bz) );
+  CalculateDerived(Vector3D<float>(Bx, By, Bz));
 }
 
-inline
-ConstFieldHelixStepper::ConstFieldHelixStepper(float B[3]) // : fB(B[0], B[1], B[2])
+inline ConstFieldHelixStepper::ConstFieldHelixStepper(float B[3]) // : fB(B[0], B[1], B[2])
 {
-  CalculateDerived( Vector3D<float>(B[0], B[1], B[2]) );  
+  CalculateDerived(Vector3D<float>(B[0], B[1], B[2]));
 }
 
-inline
-VECCORE_ATT_HOST_DEVICE
-ConstFieldHelixStepper::ConstFieldHelixStepper(vecgeom::Vector3D<float> const &Bfield)  // : fB(Bfield)
+inline VECCORE_ATT_HOST_DEVICE ConstFieldHelixStepper::ConstFieldHelixStepper(
+    vecgeom::Vector3D<float> const &Bfield) // : fB(Bfield)
 {
-  CalculateDerived( Bfield );
+  CalculateDerived(Bfield);
 }
 
 /**
@@ -153,12 +132,11 @@ ConstFieldHelixStepper::ConstFieldHelixStepper(vecgeom::Vector3D<float> const &B
  * output: new position, new direction of particle
  */
 template <typename Real_t>
-inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, Real_t const &z0,
-                                           Real_t const &dirX0, Real_t const &dirY0, Real_t const &dirZ0,
-                                           Real_t const &charge, Real_t const &momentum, Real_t const &step,
-                                           Real_t &x,  Real_t &y,  Real_t &z,
+inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, Real_t const &z0, Real_t const &dirX0,
+                                           Real_t const &dirY0, Real_t const &dirZ0, Real_t const &charge,
+                                           Real_t const &momentum, Real_t const &step, Real_t &x, Real_t &y, Real_t &z,
                                            Real_t &dx, Real_t &dy, Real_t &dz) const
-                                           
+
 {
   vecgeom::Vector3D<Real_t> startPosition(x0, y0, z0);
   vecgeom::Vector3D<Real_t> startDirection(dirX0, dirY0, dirZ0);
@@ -179,15 +157,12 @@ inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, R
 }
 
 template <typename Real_t>
-inline 
-VECCORE_ATT_HOST_DEVICE
-void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPosition,
-                                    vecgeom::Vector3D<Real_t> const &startDirection,
-                                    Real_t const &charge,
-                                    Real_t const &momentum,
-                                    Real_t const &step,
-                                    vecgeom::Vector3D<Real_t> &endPosition,
-                                    vecgeom::Vector3D<Real_t> &endDirection) const
+inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPosition,
+                                                                   vecgeom::Vector3D<Real_t> const &startDirection,
+                                                                   Real_t const &charge, Real_t const &momentum,
+                                                                   Real_t const &step,
+                                                                   vecgeom::Vector3D<Real_t> &endPosition,
+                                                                   vecgeom::Vector3D<Real_t> &endDirection) const
 {
   // const Real_t kB2C_local(-0.299792458e-3);
   const Real_t kSmall(1.E-30);
@@ -231,8 +206,8 @@ void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPositi
 
   // printf("CVFHS> phi= %g \n", vecCore::Get(phi,0) );  // phi (scalar)  or phi[0] (vector)
 
-  Real_t cosphi;              //  = cos(phi);
-  Real_t sinphi;              //  = sin(phi);
+  Real_t cosphi; //  = cos(phi);
+  Real_t sinphi; //  = sin(phi);
   sincos(phi, &sinphi, &cosphi);
 
   endPosition = startPosition + R * (cosphi - 1) * dirCrossVB - R * sinphi * dirVelX +
@@ -243,10 +218,7 @@ void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPositi
 
 //________________________________________________________________________________
 template <typename Real_t>
-bool
-ConstFieldHelixStepper::CheckModulus(Real_t &newdirX_v,
-                                     Real_t &newdirY_v,
-                                     Real_t &newdirZ_v) const
+bool ConstFieldHelixStepper::CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const
 {
   constexpr float perMillion = 1.0e-6;
 
@@ -260,17 +232,12 @@ ConstFieldHelixStepper::CheckModulus(Real_t &newdirX_v,
   return allGood;
 }
 
-
 template <typename Real_t>
-inline
-void ConstFieldHelixStepper::PrintStep(
-   vecgeom::Vector3D<Real_t> const &startPosition,
-   vecgeom::Vector3D<Real_t> const &startDirection,
-   Real_t const &charge,
-   Real_t const &momentum,
-   Real_t const &step,
-   vecgeom::Vector3D<Real_t> &endPosition,
-   vecgeom::Vector3D<Real_t> &endDirection) const
+inline void ConstFieldHelixStepper::PrintStep(vecgeom::Vector3D<Real_t> const &startPosition,
+                                              vecgeom::Vector3D<Real_t> const &startDirection, Real_t const &charge,
+                                              Real_t const &momentum, Real_t const &step,
+                                              vecgeom::Vector3D<Real_t> &endPosition,
+                                              vecgeom::Vector3D<Real_t> &endDirection) const
 {
   // Debug printing of input & output
   printf(" HelixSteper::PrintStep \n");
@@ -290,15 +257,12 @@ void ConstFieldHelixStepper::PrintStep(
   dy    = endDirection.y();
   dz    = endDirection.z();
   for (int i = 0; i < vectorSize; i++) {
-    printf("Start> Lane= %1d Pos= %8.5f %8.5f %8.5f  Dir= %8.5f %8.5f %8.5f ",
-           i, x0, y0, z0,
-           dirX0, dirY0, dirZ0);
-    printf(" s= %10.6f ", step );     // / units::mm );
-    printf(" q= %3.1f ", charge );    // in e+ units ?
-    printf(" p= %10.6f ", momentum ); // / units::GeV );
+    printf("Start> Lane= %1d Pos= %8.5f %8.5f %8.5f  Dir= %8.5f %8.5f %8.5f ", i, x0, y0, z0, dirX0, dirY0, dirZ0);
+    printf(" s= %10.6f ", step);     // / units::mm );
+    printf(" q= %3.1f ", charge);    // in e+ units ?
+    printf(" p= %10.6f ", momentum); // / units::GeV );
     // printf(" ang= %7.5f ", angle );
-    printf(" End> Pos= %9.6f %9.6f %9.6f  Mom= %9.6f %9.6f %9.6f\n", x, y, z, dx,
-           dy, dz);
+    printf(" End> Pos= %9.6f %9.6f %9.6f  Mom= %9.6f %9.6f %9.6f\n", x, y, z, dx, dy, dz);
   }
 }
 
