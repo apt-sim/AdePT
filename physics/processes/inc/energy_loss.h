@@ -30,7 +30,6 @@ __device__ void energy_loss::GenerateInteraction(int particle_index, adept::Bloc
   // energy loss
   mytrack->energy_loss           = (eloss < 0.001f ? mytrack->energy : eloss); // primitive version of scoring
   mytrack->energy                = (eloss < 0.001f ? 0.0f : mytrack->energy - eloss);
-  mytrack->number_of_secondaries = 0;
 
   // if particle has E=0 kill it
   if (mytrack->energy < 0.001f) mytrack->status = dead;
