@@ -81,6 +81,7 @@ pipeline {
         stage('PreCheckNode') {
           steps {
             preCheckNode()
+            addPullComment('Starting the build ...')
           }
         }
         stage('Build&Test') {
@@ -130,4 +131,11 @@ def buildAndTest() {
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
     ctest -VV -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
+}
+
+def addPullComment(message) {
+  // CHANGE_ID is set only for pull requests, so it is safe to access the pullRequest global variable
+  if (params.ghprbPullId) {
+    pullRequest.comment(message)
+  }
 }
