@@ -116,6 +116,10 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     // Propagate to the world volume (but do not increment the boundary count)
     ray.fPos += (snext + kPush) * ray.fDir;
     ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+    if (ray.fVolume) {
+      ray.fNextState = ray.fCrtState;
+      Raytracer::ApplyRTmodel(ray, snext, rtdata);
+    }
   }
   ray.fDone = ray.fVolume == nullptr;
   if (ray.fDone) return ray.fColor;

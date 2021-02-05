@@ -20,29 +20,24 @@ union Color_t {
     unsigned char red;
   } fComp;
 
-  __host__ __device__
-  Color_t() : fColor(0) {}
-  __host__ __device__
-  Color_t(unsigned int col) { fColor = col; }
-  __host__ __device__
-  Color_t(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
+  __host__ __device__ Color_t() : fColor(0) {}
+  __host__ __device__ Color_t(unsigned int col) { fColor = col; }
+  __host__ __device__ Color_t(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
   {
     fComp.red   = r;
     fComp.green = g;
     fComp.blue  = b;
     fComp.alpha = a;
   }
-  __host__ __device__
-  Color_t(float r, float g, float b, float a)
+  __host__ __device__ Color_t(float r, float g, float b, float a)
   {
     fComp.red   = 255 * r;
     fComp.green = 255 * g;
-    fComp.blue  = b;
+    fComp.blue  = 255 * b;
     fComp.alpha = 255 * a;
   }
 
-  __host__ __device__
-  Color_t &operator+=(Color_t const &other)
+  __host__ __device__ Color_t &operator+=(Color_t const &other)
   {
     if ((fComp.alpha == 0) && (other.fComp.alpha == 0)) return *this;
     float alpha = 1 - (1 - other.Alpha()) * (1 - Alpha()); // cannot be 0
@@ -56,8 +51,7 @@ union Color_t {
     return *this;
   }
 
-  __host__ __device__
-  Color_t &operator*=(float val)
+  __host__ __device__ Color_t &operator*=(float val)
   {
     using vecCore::math::Max;
     using vecCore::math::Min;
@@ -68,8 +62,7 @@ union Color_t {
     return *this;
   }
 
-  __host__ __device__
-  Color_t &operator/=(float val)
+  __host__ __device__ Color_t &operator/=(float val)
   {
     using vecCore::math::Max;
     using vecCore::math::Min;
@@ -80,26 +73,20 @@ union Color_t {
     return *this;
   }
 
-  __host__ __device__
-  float Red() const { return 1. / 255 * fComp.red; }
-  __host__ __device__
-  float Green() const { return 1. / 255 * fComp.green; }
-  __host__ __device__
-  float Blue() const { return 1. / 255 * fComp.blue; }
-  __host__ __device__
-  float Alpha() const { return 1. / 255 * fComp.alpha; }
+  __host__ __device__ float Red() const { return 1. / 255 * fComp.red; }
+  __host__ __device__ float Green() const { return 1. / 255 * fComp.green; }
+  __host__ __device__ float Blue() const { return 1. / 255 * fComp.blue; }
+  __host__ __device__ float Alpha() const { return 1. / 255 * fComp.alpha; }
   int GetColor() const { return fColor; }
 
-  __host__ __device__
-  void MultiplyLightChannel(float fact)
+  __host__ __device__ void MultiplyLightChannel(float fact)
   {
     float hue, light, satur;
     GetHLS(hue, light, satur);
     SetHLS(hue, fact * light, satur);
   }
 
-  __host__ __device__
-  void GetHLS(float &hue, float &light, float &satur) const
+  __host__ __device__ void GetHLS(float &hue, float &light, float &satur) const
   {
     float rnorm, gnorm, bnorm, msum, mdiff;
 
@@ -134,8 +121,7 @@ union Color_t {
     if (hue > 360) hue = hue - 360;
   }
 
-  __host__ __device__
-  void SetHLS(float hue, float light, float satur)
+  __host__ __device__ void SetHLS(float hue, float light, float satur)
   {
     float rh, rl, rs, rm1, rm2;
     rh = rl = rs = 0;
@@ -181,9 +167,7 @@ union Color_t {
   }
 };
 
-__host__ __device__
-__forceinline__
-Color_t operator+(Color_t const &left, Color_t const &right)
+__host__ __device__ __forceinline__ Color_t operator+(Color_t const &left, Color_t const &right)
 {
   Color_t color(left);
   color += right;
