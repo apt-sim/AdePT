@@ -67,8 +67,8 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   vecgeom::Vector3D<double> up(upx, upy, upz);
 
   // Light color, object color (no color per volume yet) - in RGBA chars compressed into an unsigned integer
-  OPTION_INT(bkgcol, 0xFF0000FF); // red
-  OPTION_INT(objcol, 0x0000FFFF); // blue
+  OPTION_INT(bkgcol, 0xFF000080); // red (keep 80 as alpha channel for correct color blending)
+  OPTION_INT(objcol, 0x0000FF80); // blue
   OPTION_INT(vdepth, 4);          // visible depth
 
   OPTION_INT(use_tiles, 0);  // run on GPU in tiled mode
