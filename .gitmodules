@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+[submodule "external/g4hepem"]
+	path = external/g4hepem
+	url = ../../mnovak42/g4hepem.git
