@@ -15,3 +15,5 @@ add_subdirectory(Example6)
 add_subdirectory(Example8)
 add_subdirectory(Example9)
 add_subdirectory(TestEm3)
+add_subdirectory(ECS)
+
