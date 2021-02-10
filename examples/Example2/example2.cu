@@ -90,12 +90,9 @@ __global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_l
       proclist->list[process_id]->GenerateInteraction(particle_index, block);
 
       // a simple version of scoring
-      int postNumber = (*block)[particle_index].number_of_secondaries;
       scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
-      int secondaries_in_step = postNumber - preNumber;
-      if (secondaries_in_step > 0) {
-        scor->secondaries.fetch_add(secondaries_in_step);
-      }
+      int postNumber = (*block)[particle_index].number_of_secondaries;
+      scor->secondaries.fetch_add(postNumber - preNumber);
 
       // if particles returns with 'dead' status, release the element from the block
       if ((*block)[particle_index].status == dead) block->ReleaseElement(particle_index);
