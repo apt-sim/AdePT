@@ -55,13 +55,20 @@ message(STATUS "Using VecGeom version ${VecGeom_VERSION}")
 # make sure we import VecGeom architecture flags - is this needed?
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VECGEOM_CXX_FLAGS}")
 
+# Find Geant4, optional for now
+find_package(Geant4 QUIET)
+if(Geant4_FOUND)
+  message(STATUS "Using Geant4 version ${Geant4_VERSION} from ${Geant4_INCLUDE_DIRS}")
+else()
+  message(STATUS "Did not find Geant4")
+endif()
+
+# Add external dependencies before our own code to allow checking for the
+# targets and depend on them.
+add_subdirectory(external)
+
 # Builds...
 add_subdirectory(tracking)
 add_subdirectory(physics)
 add_subdirectory(test)
 add_subdirectory(examples)
-
-
-
-
-
