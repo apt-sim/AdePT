@@ -35,10 +35,6 @@ __host__ __device__ float transportation<fieldPropagator_t, BfieldOn>::transport
     mytrack.pos += (step + kPushLinear) * mytrack.dir;
   } else {
     step = fieldPropagator.ComputeStepAndPropagatedState(mytrack, physics_step);
-    // updates state of 'mytrack'
-    if (step < physics_step) {
-      assert(!mytrack.next_state.IsOnBoundary() && "Field Propagator returned step<phys -- yet boundary!");
-    }
   }
   if (step < physics_step) mytrack.current_process = BfieldOn ? -2 : -1;
 
