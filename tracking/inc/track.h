@@ -19,6 +19,7 @@ struct track {
   RanluxppDouble rng_state;
   unsigned int index{0};
   double energy{10};
+  double numIALeft[3];
 
   vecgeom::Vector3D<double> pos;
   vecgeom::Vector3D<double> dir;
@@ -44,14 +45,12 @@ struct track {
 
   __device__ __host__ int charge() const // charge for e- / e+ / gamma only
   {
-    constexpr char pdgElec = 11;
-    int chrg               = (pdg == -pdgElec ? 1 : 0) + (pdg == pdgElec ? -1 : 0);
+    int chrg = (pdg == pdgPositron ? 1 : 0) + (pdg == pdgElectron ? -1 : 0);
     return chrg;
   }
 
   __device__ __host__ double mass() const // Rest mass for e- / e+ / gamma only
   {
-    constexpr char pdgGamma = 22;
     return (pdg == pdgGamma) ? 0.0 : copcore::units::kElectronMassC2;
   }
 
@@ -63,6 +62,10 @@ struct track {
     this->current_state = this->next_state;
     this->next_state    = state;
   }
+
+  static constexpr char pdgElectron = 11;
+  static constexpr char pdgPositron = -11;
+  static constexpr char pdgGamma    = 22;
 };
 
 struct NavigationStateBuffer {
