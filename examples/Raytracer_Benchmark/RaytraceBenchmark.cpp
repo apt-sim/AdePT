@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
 
 #ifdef VECGEOM_GDML
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(cache_depth);
-  bool load = vgdml::Frontend::Load(gdml_name.c_str(), false);
+  // The vecgeom millimeter unit is the last parameter of vgdml::Frontend::Load
+  bool load = vgdml::Frontend::Load(gdml_name.c_str(), false, 1);
   if (!load) return 2;
 #endif
 

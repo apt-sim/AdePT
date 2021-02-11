@@ -50,15 +50,15 @@ static constexpr double kPiSquare = kPi * kPi;
 //
 // Length [L]
 //
-static constexpr double centimeter  = 1.;
-static constexpr double centimeter2 = centimeter * centimeter;
-static constexpr double centimeter3 = centimeter * centimeter * centimeter;
-
-static constexpr double millimeter  = 0.1 * centimeter;
+static constexpr double millimeter  = 1.;
 static constexpr double millimeter2 = millimeter * millimeter;
 static constexpr double millimeter3 = millimeter * millimeter * millimeter;
 
-static constexpr double meter  = 100. * centimeter;
+static constexpr double centimeter  = 10. * millimeter;
+static constexpr double centimeter2 = centimeter * centimeter;
+static constexpr double centimeter3 = centimeter * centimeter * centimeter;
+
+static constexpr double meter  = 1000. * millimeter;
 static constexpr double meter2 = meter * meter;
 static constexpr double meter3 = meter * meter * meter;
 
@@ -125,10 +125,10 @@ static constexpr double deg  = degree;
 //
 // Time [T]
 //
-static constexpr double second      = 1.;
+static constexpr double nanosecond  = 1.;
+static constexpr double second      = 1.e+9 * nanosecond;
 static constexpr double millisecond = 1.e-3 * second;
 static constexpr double microsecond = 1.e-6 * second;
-static constexpr double nanosecond  = 1.e-9 * second;
 static constexpr double picosecond  = 1.e-12 * second;
 
 static constexpr double hertz     = 1. / second;
@@ -144,18 +144,18 @@ static constexpr double ns = nanosecond;
 // Electric charge [Q]
 //
 static constexpr double eplus   = 1.;              // positron charge
-static constexpr double e_SI    = 1.602176487e-19; // positron charge in coulomb
+static constexpr double e_SI    = 1.602176634e-19; // positron charge in coulomb (use PDG 2019 value of e_SI = CLHEP)
 static constexpr double coulomb = eplus / e_SI;    // coulomb = 6.24150 e+18 * eplus
 
 //
 // Energy [E]
 //
-static constexpr double gigaelectronvolt = 1.;
-static constexpr double megaelectronvolt = 1.e-3 * gigaelectronvolt;
-static constexpr double kiloelectronvolt = 1.e-6 * gigaelectronvolt;
-static constexpr double electronvolt     = 1.e-9 * gigaelectronvolt;
-static constexpr double teraelectronvolt = 1.e+3 * gigaelectronvolt;
-static constexpr double petaelectronvolt = 1.e+6 * gigaelectronvolt;
+static constexpr double megaelectronvolt = 1.;
+static constexpr double electronvolt     = 1.e-6 * megaelectronvolt;
+static constexpr double kiloelectronvolt = 1.e-3 * megaelectronvolt;
+static constexpr double gigaelectronvolt = 1.e+3 * megaelectronvolt;
+static constexpr double teraelectronvolt = 1.e+6 * megaelectronvolt;
+static constexpr double petaelectronvolt = 1.e+9 * megaelectronvolt;
 
 static constexpr double joule = electronvolt / e_SI; // joule = 6.24150 e+9 * GeV
 
@@ -207,10 +207,10 @@ static constexpr double nanoampere  = 1.e-9 * ampere;
 //
 // Electric potential [E][Q^-1]
 //
-static constexpr double gigavolt = gigaelectronvolt / eplus;
-static constexpr double megavolt = 1.e-3 * gigavolt;
+static constexpr double megavolt = megaelectronvolt / eplus;
+static constexpr double gigavolt = 1.e+3 * megavolt;
 static constexpr double kilovolt = 1.e-3 * megavolt;
-static constexpr double volt     = 1.e-3 * kilovolt;
+static constexpr double volt     = 1.e-6 * megavolt;
 
 //
 // Electric resistance [E][T][Q^-2]
