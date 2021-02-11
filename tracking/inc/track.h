@@ -82,7 +82,6 @@ __global__ void GetNavStateIndices(const track &trk_dev,                // Unifi
   //
   // trk.current_state.IsOnBoundary();
   // std::cout << " current: "; // <<    setw(3) << next_state.IsOnBoundary();
-  assert(NavIndAddr(trk_dev.current_state) != nullptr && "Invalid Current state in track");
 
   auto currentLevel = trk_dev.current_state.GetLevel();
 
@@ -92,8 +91,6 @@ __global__ void GetNavStateIndices(const track &trk_dev,                // Unifi
   // auto currentPhysVolume = trk_dev.current_state.ValueAt(currentLevel);
 
   // std::cout << " next: "; // <<    setw(3) << next_state.IsOnBoundary();
-  assert(trk_dev.next_state != nullptr && "Invalid Next state in track");
-  assert(NavIndAddr(trk_dev.next_state) != nullptr && "Invalid Next state in track");
 
   auto nextLevel               = trk_dev.next_state.GetLevel(); // This crashes consistently - in gdb 2020.12.17-18
   navState_unif.nextTouchIndex = trk_dev.next_state.GetNavIndex(nextLevel);
