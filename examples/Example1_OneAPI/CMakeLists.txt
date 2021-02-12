@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-# Example 1 of particle processing with GPU
-add_executable(example1 example1.cu)
+# Example 1 of particle processing with GPU or CPU
+add_executable(example1_OneAPI example1.cpp)
 target_include_directories(example1 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/physics/processes/inc>

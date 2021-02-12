@@ -1,198 +1,43 @@
-// SPDX-FileCopyrightText: 2021 CERN
+// SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
-
-#include "process.h"
-#include "process_list.h"
-#include "pair_production.h"
-#include "energy_loss.h"
-
-#include "track.h"
-
-#include <AdePT/BlockData.h>
-#include <AdePT/MParray.h>
-
-#include <VecGeom/base/Stopwatch.h>
-
-#include <iostream>
-#include <iomanip>
-#include <stdio.h>
 
 #include <CL/sycl.hpp>
 
-// some simple scoring
-struct Scoring {
-  adept::Atomic_t<int> secondaries;
-  adept::Atomic_t<float> totalEnergyLoss;
+int main() {
+   // Creating buffer of 4 ints to be used inside the kernel code
+   cl::sycl::buffer<cl::sycl::cl_int, 1> Buffer(4);
 
-  __host__ __device__
-  Scoring() {}
+   // Creating SYCL queue
+   cl::sycl::queue Queue;
 
-  __host__ __device__
-  static Scoring *MakeInstanceAt(void *addr)
-  {
-    Scoring *obj = new (addr) Scoring();
-    return obj;
-  }
-};
+   cl::sycl::range<1> NumOfWorkItems{Buffer.get_count()};
 
-// kernel select processes based on interaction lenght and put particles in the appropriate queues
-__global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list **proclist,
-                                         adept::MParray **queues)
-{
-  int n = block->GetNused() + block->GetNholes();
 
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
+   Queue.submit([&](cl::sycl::handler &cgh) {
 
-    // skip particles that are already dead
-    if ((*block)[i].status == dead) continue;
+    auto Accessor = Buffer.get_access<cl::sycl::access::mode::write>(cgh);
+        // Executing kernel
+	cgh.parallel_for<class FillBuffer>(
+	NumOfWorkItems, [=](cl::sycl::id<1> WIid) {
+	// Fill buffer with indexes
+	Accessor[WIid] = (cl::sycl::cl_int)WIid.get(0);
+	});
+    });
 
-    // return value (if step limited by physics or geometry) not used for the moment
-    // now, I know which process wins, so I add the particle to the appropriate queue
-    (*proclist)->GetPhysicsInteractionLength(i, block);
-    queues[(*block)[i].current_process]->push_back(i);
-  }
-}
+   const auto HostAccessor = Buffer.get_access<cl::sycl::access::mode::read>();
 
-// kernel to call Along Step function for particles in the queues
-__global__ void CallAlongStepProcesses(adept::BlockData<track> *block, process_list **proclist, adept::MParray **queues,
-                                       Scoring *scor)
-{
-  int particle_index;
-
-  // loop over all processes
-  for (int process_id=0 ; process_id < (*proclist)->list_size; process_id++)
-    {
-      // for each process [process_id] consume the associated queue of particles
-      int queue_size = queues[process_id]->size();
-
-      for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queue_size; i += blockDim.x * gridDim.x)
-        {
-          // get particles index from the queue
-          particle_index = (*(queues[process_id]))[i];
-          int preNumber  = (*block)[particle_index].number_of_secondaries; // For scoring too
-
-          // and call the process for it
-          ((*proclist)->list)[process_id]->GenerateInteraction(particle_index, block);
-
-          // a simple version of scoring
-          scor->totalEnergyLoss.fetch_add((*block)[particle_index].energy_loss);
-          int postNumber = (*block)[particle_index].number_of_secondaries;
-          scor->secondaries.fetch_add(postNumber - preNumber);
-
-          // if particles returns with 'dead' status, release the element from the block
-          if ((*block)[particle_index].status == dead) block->ReleaseElement(particle_index);
-        }
+   bool MismatchFound = false;
+   for (size_t I = 0; I < Buffer.get_count(); ++I) {
+     if (HostAccessor[I] != I) {
+         std::cout << "The result is incorrect for element: " << I
+                  << " , expected: " << I << " , got: " << HostAccessor[I] << std::endl;
+         MismatchFound = true;
+         }
     }
-}
 
-// kernel function to initialize a track, most importantly the random state
-__global__ void init_track(track *mytrack)
-{
-  /* we have to initialize the state */
-  mytrack->rng_state.SetSeed(314159265);
-}
-
-// kernel to create the processes and process list
-__global__ void create_processes(process_list **proclist, process **processes)
-{
-  // instantiate the existing processes
-  *(processes) = new energy_loss();
-  *(processes+1) = new pair_production();
-
-  // add them to process_list (process manager)
-  *proclist = new process_list(processes, 2);
-}
-
-//
-int main()
-{
-  // call the kernel to create the processes to be run on the device
-  process_list **proclist;
-  process **processes;
-  COPCORE_CUDA_CHECK(cudaMalloc((void **)&proclist, sizeof(process_list *)));
-  COPCORE_CUDA_CHECK(cudaMalloc((void **)&processes, 2 * sizeof(process *)));
-  create_processes<<<1,1>>>(proclist, processes);
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-
-  // Capacity of the different containers
-  constexpr int capacity = 1 << 20;
-
-  // setting the number of existing processes
-  constexpr int numberOfProcesses = 2;
-  char *buffer1[numberOfProcesses];
-
-  // reserving queues for each of the processes
-  adept::MParray **queues = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocManaged(&queues, numberOfProcesses * sizeof(adept::MParray *)));
-  size_t buffersize = adept::MParray::SizeOfInstance(capacity);
-
-  for (int i = 0; i < numberOfProcesses; i++) {
-    buffer1[i] = nullptr;
-    COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer1[i], buffersize));
-    queues[i] = adept::MParray::MakeInstanceAt(capacity, buffer1[i]);
-  }
-
-  // Allocate the content of Scoring in a buffer
-  char *buffer_scor = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer_scor, sizeof(Scoring)));
-  Scoring *scor = Scoring::MakeInstanceAt(buffer_scor);
-  // Initialize scoring
-  scor->secondaries     = 0;
-  scor->totalEnergyLoss = 0;
-
-  // Allocate a block of tracks with capacity larger than the total number of spawned threads
-  size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
-  char *buffer2    = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocManaged(&buffer2, blocksize));
-  auto block = adept::BlockData<track>::MakeInstanceAt(capacity, buffer2);
-
-  // initializing one track in the block
-  auto track    = block->NextElement();
-  track->energy = 100.0f;
-  track->energy_loss = 0.0f;
-  //  track->index = 1; // this is not use for the moment, but it should be a unique track index
-  init_track<<<1, 1>>>(track);
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-
-  // initializing second track in the block
-  auto track2    = block->NextElement();
-  track2->energy = 30.0f;
-  track2->energy_loss = 0.0f;
-  //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
-  init_track<<<1, 1>>>(track2);
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-
-  // simple version of scoring
-  float* energy_deposition = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc((void **)&energy_deposition, sizeof(float)));
-
-  constexpr dim3 nthreads(32);
-  constexpr dim3 maxBlocks(10);
-  dim3 numBlocks;
-
-  vecgeom::Stopwatch timer;
-  timer.Start();
-
-  while (block->GetNused()>0) 
-  {
-    numBlocks.x = (block->GetNused() + block->GetNholes() + nthreads.x - 1) / nthreads.x;
-    numBlocks.x = std::min(numBlocks.x, maxBlocks.x);
-
-    // call the kernel to do check the step lenght and select process
-    DefinePhysicalStepLength<<<numBlocks, nthreads>>>(block, proclist, queues);
-
-    // call the kernel for Along Step Processes
-    CallAlongStepProcesses<<<numBlocks, nthreads>>>(block, proclist, queues, scor);
-
-    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-    // clear all the queues before next step
-    for (int i = 0; i < numberOfProcesses; i++) queues[i]->clear();
-    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-
-    std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused() << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load()
-    << " total number of secondaries: " << scor->secondaries.load() << std::endl;
-  }
-
-  auto time_cpu = timer.Stop();
-  std::cout << "Run time: " << time_cpu << "\n";
+   if (!MismatchFound) {
+       std::cout << "The results are correct!" << std::endl;
+   }
+   std::cout << "Device: " << Queue.get_device().get_info<cl::sycl::info::device::name>() << std::endl;
+   return MismatchFound;
 }
