@@ -38,6 +38,7 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   }
   secondary_track->energy      = esecond;
   secondary_track->status      = alive;
+  secondary_track->pdg         = 11;
   secondary_track->energy_loss = 0;
 
   // Book-keeping parts of state
@@ -53,10 +54,6 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
   secondary_track->current_state = mytrack->current_state;
   secondary_track->next_state    = mytrack->current_state;
 
-  // Inherit current position and direction.
-  secondary_track->pos           = mytrack->pos;
-  secondary_track->dir           = mytrack->dir;
-  secondary_track->current_state = mytrack->current_state;
   // Initialize a new PRNG state.
   secondary_track->rng_state = mytrack->rng_state;
   secondary_track->rng_state.Skip(1 << 15);
