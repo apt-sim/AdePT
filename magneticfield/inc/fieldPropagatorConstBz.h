@@ -30,6 +30,7 @@ public:
   __host__ __device__ void stepInField(track &aTrack, vecgeom::Vector3D<double> &endPosition,
                                        vecgeom::Vector3D<double> &endDirection);
 
+  template <bool Relocate = true>
   __device__ //  __host__
       double
       ComputeStepAndPropagatedState(track &aTrack, float physicsStep);
@@ -103,6 +104,7 @@ __global__ void moveInField(adept::BlockData<track> *trackBlock,
 
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
+template <bool Relocate>
 __device__ // __host__
     double
     fieldPropagatorConstBz::ComputeStepAndPropagatedState(track &aTrack, float physicsStep)
@@ -135,8 +137,13 @@ __device__ // __host__
   constexpr double epsilon_step = 1.0e-7; // Ignore remainder if < e_s * PhysicsStep
 
   if (aTrack.charge() == 0.0) {
-    stepDone = LoopNavigator::ComputeStepAndPropagatedState(position, direction, physicsStep, aTrack.current_state,
-                                                            aTrack.next_state);
+    if (Relocate) {
+      stepDone = LoopNavigator::ComputeStepAndPropagatedState(position, direction, physicsStep, aTrack.current_state,
+                                                              aTrack.next_state);
+    } else {
+      stepDone = LoopNavigator::ComputeStepAndNextVolume(position, direction, physicsStep, aTrack.current_state,
+                                                         aTrack.next_state);
+    }
     position += (stepDone + kPushField) * direction;
   } else {
     bool fullChord = false;
@@ -160,8 +167,14 @@ __device__ // __host__
       double chordLen                    = chordVec.Length();
       vecgeom::Vector3D<double> chordDir = (1.0 / chordLen) * chordVec;
 
-      double move = LoopNavigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, aTrack.current_state,
-                                                                 aTrack.next_state);
+      double move;
+      if (Relocate) {
+        move = LoopNavigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, aTrack.current_state,
+                                                            aTrack.next_state);
+      } else {
+        move = LoopNavigator::ComputeStepAndNextVolume(position, chordDir, chordLen, aTrack.current_state,
+                                                       aTrack.next_state);
+      }
 
       fullChord = (move == chordLen);
       if (fullChord) {
