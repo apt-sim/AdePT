@@ -182,8 +182,8 @@ __device__ struct G4HepEmElectronManager electronManager;
 // Compute the physics and geomtry step limit, transport the particle while
 // applying the continuous effects and possibly select a discrete process that
 // could generate secondaries.
-__global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *discreteQueue, Scoring *scoring,
-                            int maxIndex)
+__global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *relocateQueue,
+                            adept::MParray *discreteQueue, Scoring *scoring, int maxIndex)
 {
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
@@ -280,7 +280,7 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
       // For now, just count that we hit something.
       scoring->hits++;
 
-      LoopNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.next_state);
+      relocateQueue->push_back(i);
 
       // Move to the next boundary.
       currentTrack.SwapStates();
@@ -303,6 +303,136 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     // Queue the particle (via its index) to perform the discrete interaction.
     currentTrack.current_process = winnerProcessIndex;
     discreteQueue->push_back(i);
+  }
+}
+
+__device__ __forceinline__
+vecgeom::VPlacedVolume const * ShuffleVolume(unsigned mask, vecgeom::VPlacedVolume const *ptr, int src)
+{
+  // __shfl_sync only accepts integer and floating point values, so we have to
+  // cast into a type of approriate length...
+  auto val = reinterpret_cast<unsigned long long>(ptr);
+  val = __shfl_sync(mask, val, src);
+  return reinterpret_cast<vecgeom::VPlacedVolume const *>(val);
+}
+
+// A parallel version of LoopNavigator::RelocateToNextVolume. This function
+// uses the parallelism of a warp to check daughters in parallel.
+__global__ void RelocateToNextVolume(adept::BlockData<track> *allTracks, adept::MParray *relocateQueue)
+{
+  // Determine which threads are active in the current warp.
+  unsigned mask = __activemask();
+  int threadsInWrap = __popc(mask);
+  // Count warps per block, including incomplete ones.
+  int warpsPerBlock = (blockDim.x + warpSize - 1) / warpSize;
+  // Find this thread's warp and lane.
+  int warp = threadIdx.x / warpSize;
+  int lane = threadIdx.x % warpSize;
+
+  int queueSize = relocateQueue->size();
+  // Note the loop setup: All threads in a block relocate one particle.
+  // For comparison, here's the usual grid-strided loop header:
+  //   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queueSize; i += blockDim.x * gridDim.x)
+  for (int i = blockIdx.x * warpsPerBlock + warp; i < queueSize; i += warpsPerBlock * gridDim.x) {
+    int particleIndex   = (*relocateQueue)[i];
+    track &currentTrack = (*allTracks)[particleIndex];
+
+    vecgeom::NavStateIndex &state = currentTrack.current_state;
+
+    vecgeom::VPlacedVolume const *currentVolume;
+    vecgeom::Precision localCoordinates[3];
+
+    // The first lane removes all volumes from the state that were left, and
+    // stores it in the variable currentVolume. During the process, it also
+    // transforms the point to local coordinates, eventually stored in the
+    // variable localCoordinates.
+    if (lane == 0) {
+      // Push the point inside the next volume.
+      vecgeom::Vector3D<vecgeom::Precision> pushed = currentTrack.pos + 1.E-6 * currentTrack.dir;
+
+      // Calculate local point from global point.
+      vecgeom::Transformation3D m;
+      state.TopMatrix(m);
+      vecgeom::Vector3D<vecgeom::Precision> localPoint = m.Transform(pushed);
+
+      currentVolume = state.Top();
+
+      // Remove all volumes that were left.
+      while (currentVolume && (currentVolume->IsAssembly() || !currentVolume->UnplacedContains(localPoint))) {
+        state.Pop();
+        localPoint    = currentVolume->GetTransformation()->InverseTransform(localPoint);
+        currentVolume = state.Top();
+      }
+
+      // Store the transformed coordinates, to be broadcasted to the other
+      // active threads in this warp.
+      localCoordinates[0] = localPoint.x();
+      localCoordinates[1] = localPoint.y();
+      localCoordinates[2] = localPoint.z();
+    }
+
+    // Broadcast the values.
+    currentVolume = ShuffleVolume(mask, currentVolume, 0);
+    for (int dim = 0; dim < 3; dim++) {
+      localCoordinates[dim] = __shfl_sync(mask, localCoordinates[dim], 0);
+    }
+
+    if (currentVolume) {
+      unsigned hasNextVolume;
+      do {
+
+        vecgeom::Vector3D<vecgeom::Precision> localPoint(localCoordinates[0], localCoordinates[1], localCoordinates[2]);
+
+        const auto &daughters = currentVolume->GetDaughters();
+        auto daughtersSize    = daughters.size();
+        vecgeom::Vector3D<vecgeom::Precision> transformedPoint;
+        vecgeom::VPlacedVolume const *nextVolume = nullptr;
+        // The active threads in the wrap check all daughters in parallel.
+        for (int d = lane; d < daughtersSize; d += threadsInWrap) {
+          const auto *daughter = daughters[d];
+          if (daughter->Contains(localPoint, transformedPoint)) {
+            nextVolume = daughter;
+            break;
+          }
+        }
+
+        // All active threads in the warp synchronize and vote which of them
+        // found a daughter that is entered. The result has the Nth bit set if
+        // the Nth lane has a nextVolume != nullptr.
+        hasNextVolume = __ballot_sync(mask, nextVolume != nullptr);
+        if (hasNextVolume != 0) {
+          // Determine which volume to use if there are multiple: Just pick the
+          // first one, corresponding to the position of the first set bit.
+          int firstThread = __ffs(hasNextVolume) - 1;
+          if (lane == firstThread) {
+            localCoordinates[0] = transformedPoint.x();
+            localCoordinates[1] = transformedPoint.y();
+            localCoordinates[2] = transformedPoint.z();
+
+            currentVolume = nextVolume;
+            state.Push(currentVolume);
+          }
+
+          // Broadcast the values.
+          currentVolume = ShuffleVolume(mask, currentVolume, firstThread);
+          for (int dim = 0; dim < 3; dim++) {
+            localCoordinates[dim] = __shfl_sync(mask, localCoordinates[dim], firstThread);
+          }
+        }
+        // If hasNextVolume is zero, there is no point in synchronizing since
+        // this will exit the loop.
+      } while (hasNextVolume != 0);
+    }
+
+    // Finally the first lane again leaves all assembly volumes.
+    if (lane == 0) {
+      if (state.Top() != nullptr) {
+        while (state.Top()->IsAssembly()) {
+          state.Pop();
+        }
+        assert(!state.Top()->GetLogicalVolume()->GetUnplacedVolume()->IsAssembly());
+      }
+    }
   }
 }
 
@@ -528,6 +658,12 @@ void example6(const vecgeom::cxx::VPlacedVolume *world)
 
   size_t queueSize = adept::MParray::SizeOfInstance(Capacity);
 
+  // Allocate a queue to remember all particles that need to be relocated
+  // to the next volume.
+  void *relocateBuffer = nullptr;
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&relocateBuffer, queueSize));
+  auto relocateQueue = adept::MParray::MakeInstanceAt(Capacity, relocateBuffer);
+
   // Allocate a queue to remember all particles that have a discrete
   // interaction. This potentially creates secondaries, so we must be
   // careful to not spawn particles in holes of the above block.
@@ -576,10 +712,11 @@ void example6(const vecgeom::cxx::VPlacedVolume *world)
   std::cout << "INFO: running with field Bz = " << BzFieldValue / copcore::units::tesla << " T";
   std::cout << std::endl;
 
-  constexpr int maxBlocks   = 1024;
-  constexpr int allThreads  = 32;
-  constexpr int usedThreads = 32;
-  int allBlocks, usedBlocks;
+  constexpr int maxBlocks       = 1024;
+  constexpr int allThreads      = 32;
+  constexpr int relocateThreads = 32;
+  constexpr int usedThreads     = 32;
+  int allBlocks, relocateBlocks, usedBlocks;
 
   vecgeom::Stopwatch timer;
   timer.Start();
@@ -593,20 +730,27 @@ void example6(const vecgeom::cxx::VPlacedVolume *world)
     allBlocks = (maxIndex + allThreads - 1) / allThreads;
     allBlocks = std::min(allBlocks, maxBlocks);
 
+    relocateBlocks = std::min(inFlight, maxBlocks);
+
     usedBlocks = (inFlight + usedThreads - 1) / usedThreads;
     usedBlocks = std::min(usedBlocks, maxBlocks);
 
     // Call the kernel to compute the physics and geomtry step limit, transport
     // the particle while applying the continuous effects and possibly select a
     // discrete process that could generate secondaries.
-    PerformStep<<<allBlocks, allThreads>>>(allTracks, discreteQueue, scoring, maxIndex);
+    PerformStep<<<allBlocks, allThreads>>>(allTracks, relocateQueue, discreteQueue, scoring, maxIndex);
+
+    // Call the kernel to relocate particles that left their current volume,
+    // either entering a new daughter or moving out of the current volume.
+    RelocateToNextVolume<<<relocateBlocks, relocateThreads>>>(allTracks, relocateQueue);
 
     // Call the kernel to perform the discrete interactions.
     PerformDiscreteInteractions<<<usedBlocks, usedThreads>>>(allTracks, discreteQueue, scoring);
 
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-    // Clear the queue of particles that just had their discrete interaction.
+    // Clear the queues of particles from this iteration.
+    relocateQueue->clear();
     discreteQueue->clear();
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
