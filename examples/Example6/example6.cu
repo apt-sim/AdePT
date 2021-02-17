@@ -239,8 +239,8 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    double geometryStepLength =
-        fieldPropagatorBz.ComputeStepAndPropagatedState(currentTrack, geometricalStepLengthFromPhysics);
+    double geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false>(
+        currentTrack, geometricalStepLengthFromPhysics);
     currentTrack.total_length += geometryStepLength;
 
     if (currentTrack.next_state.IsOnBoundary()) {
@@ -279,6 +279,8 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     if (currentTrack.next_state.IsOnBoundary()) {
       // For now, just count that we hit something.
       scoring->hits++;
+
+      LoopNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.next_state);
 
       // Move to the next boundary.
       currentTrack.SwapStates();
