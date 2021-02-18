@@ -30,21 +30,14 @@ list(APPEND ADEPT_CUDA_SRCS
 add_library(raytracercu ${ADEPT_CUDA_SRCS})
 target_include_directories(raytracercu PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
 )
-target_link_libraries(raytracercu VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
+target_link_libraries(raytracercu AdePT CopCore::CopCore VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static)
 target_compile_options(raytracercu PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 set_target_properties(raytracercu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 #exec RaytraceBenchmark.cpp
 add_executable(RaytraceBenchmark Raytracer.cpp RaytraceBenchmark.cpp)
-target_include_directories(RaytraceBenchmark PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-)
-target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml raytracercu CopCore::CopCore)
+target_link_libraries(RaytraceBenchmark PRIVATE raytracercu AdePT CopCore::CopCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml)
 target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 set_target_properties(RaytraceBenchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 

@@ -6,11 +6,7 @@ macro(build_tests TESTS)
   foreach(TEST ${TESTS})
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
-    target_include_directories(${TARGET_NAME} PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
-      $<INSTALL_INTERFACE:base>
-    )
-    target_link_libraries(${TARGET_NAME} VecCore::VecCore CopCore::CopCore VecGeom::vecgeom)
+    target_link_libraries(${TARGET_NAME} AdePT VecCore::VecCore VecGeom::vecgeom)
    endforeach()
 endmacro()
 

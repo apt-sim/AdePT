@@ -68,6 +68,20 @@ endif()
 add_subdirectory(external)
 
 # Builds...
+# Target for use of AdePT
+# NB: NOT complete yet due to dependence of AdePT/LoopNavigator.h on VecGeom
+#     This would be another INTERFACE link library, but needs care because it
+#     involves VecGeom+CUDA, so usage requirements need some care and thought
+add_library(AdePT INTERFACE)
+target_include_directories(AdePT
+  INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/base/inc>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/magneticfield/inc>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/physics/processes/inc>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/tracking/inc>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_link_libraries(AdePT INTERFACE CopCore::CopCore)
+
 add_subdirectory(tracking)
 add_subdirectory(physics)
 add_subdirectory(test)
