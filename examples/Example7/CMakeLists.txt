@@ -30,5 +30,6 @@ target_include_directories(example7-adept
   PRIVATE
     "${PROJECT_SOURCE_DIR}/base/inc"
     "${PROJECT_SOURCE_DIR}/base/inc/CopCore/include")
-# Partially copied from example6, but causing link error locally (TBU)
-target_link_libraries(example7-adept PRIVATE VecGeom::vgdml)
+# We're not using CUDA just yet, but we need the following to link to VecGeom with CUDA enabled
+target_link_libraries(example7-adept PRIVATE VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml g4HepEmData CUDA::cudart)
+set_target_properties(example7-adept PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
