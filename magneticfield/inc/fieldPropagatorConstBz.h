@@ -40,7 +40,7 @@ private:
 };
 
 // Cannot make __global__ method part of class
-__global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBz &fieldProp);
+__global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBz fieldProp);
 //  float                     BzValue );
 
 constexpr double kPushField = 1.e-8;
@@ -78,7 +78,7 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(track &aTrack,
 
 // V1 -- field along Z axis
 __global__ void moveInField(adept::BlockData<track> *trackBlock,
-                            fieldPropagatorConstBz &fieldPropagator) // Carries field strength
+                            fieldPropagatorConstBz fieldPropagator) // Carries field strength
 {
   vecgeom::Vector3D<double> endPosition;
   vecgeom::Vector3D<double> endDirection;
