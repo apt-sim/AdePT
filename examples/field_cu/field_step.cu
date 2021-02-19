@@ -20,16 +20,6 @@
 
 #include "ConstFieldHelixStepper.h"
 
-#if 0
-#include "IterationStats.h"
-
-// Statistics for propagation chords
-IterationStats      *chordIterStatsPBz      = nullptr;
-__device__
-IterationStats_impl *chordIterStatsPBz_impl = nullptr;
-// Needed for fieldPropagatorConstBz.h -- for now
-#endif
-
 #include "fieldPropagatorConstBz.h"
 #include "fieldPropagatorConstBany.h"
 

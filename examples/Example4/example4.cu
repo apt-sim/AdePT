@@ -88,6 +88,9 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
   int n = block->GetNused() + block->GetNholes();
 
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+#ifdef CHORD_STATS
+  fieldPropagatorBz.SetChordIterStats(chordIterStatsPBz_dev);
+#endif
 
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += blockDim.x * gridDim.x) {
     // skip particles that are already dead

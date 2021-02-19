@@ -14,10 +14,8 @@
 #include "track.h"
 #include "ConstBzFieldStepper.h"
 
-#include "IterationStats.h"
 #ifdef CHORD_STATS
-extern IterationStats *chordIterStatsPBz;
-extern __device__ IterationStats_impl *chordIterStatsPBz_dev;
+#include "IterationStats.h"
 #endif
 
 // Data structures for statistics of propagation chords
@@ -26,6 +24,13 @@ class fieldPropagatorConstBz {
 public:
   __host__ __device__ fieldPropagatorConstBz(float Bz) { BzValue = Bz; }
   __host__ __device__ ~fieldPropagatorConstBz() {}
+
+#ifdef CHORD_STATS
+  __host__ __device__ SetChordIterStats(IterationStats_impl *stats)
+  {
+    chordIterStats = stats;
+  }
+#endif
 
   __host__ __device__ void stepInField(track &aTrack, vecgeom::Vector3D<double> &endPosition,
                                        vecgeom::Vector3D<double> &endDirection);
@@ -36,6 +41,9 @@ public:
       ComputeStepAndPropagatedState(track &aTrack, float physicsStep);
 
 private:
+#ifdef CHORD_STATS
+  IterationStats_impl *chordIterStats = nullptr;
+#endif
   float BzValue;
 };
 
@@ -169,12 +177,12 @@ __device__ // __host__
              (chordIters < maxChordIters));
 
 #ifdef CHORD_STATS
-    // This stops it from being usable on __host__
-    assert(chordIterStatsPBz_dev != nullptr);
-    if ((chordIterStatsPBz_dev != nullptr) && chordIters > chordIterStatsPBz_dev->GetMax()) {
-      chordIterStatsPBz_dev->updateMax(chordIters);
+    if (chordIterStats != nullptr) {
+      if (chordIters > chordIterStats->GetMax()) {
+        chordIterStatsPBz_dev->updateMax(chordIters);
+      }
+      chordIterStats->addIters(chordIters);
     }
-    chordIterStatsPBz_dev->addIters(chordIters);
 #endif
   }
   // stepDone= physicsStep - remains;
