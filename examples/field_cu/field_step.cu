@@ -38,6 +38,70 @@ using trackBlock_t = adept::BlockData<track>;
 
 #include "initTracks.h"
 
+// -------------------------------------------------------------------------------
+
+// V1 -- field along Z axis
+__global__ void moveInField(adept::BlockData<track> *trackBlock,
+                            fieldPropagatorConstBz fieldPropagator) // Carries field strength
+{
+  vecgeom::Vector3D<double> endPosition;
+  vecgeom::Vector3D<double> endDirection;
+
+  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
+
+  // Non-block version:
+  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int pclIdx = blockIdx.x * blockDim.x + threadIdx.x; pclIdx < maxIndex; pclIdx += blockDim.x * gridDim.x) {
+    track &aTrack = (*trackBlock)[pclIdx];
+
+    // check if you are not outside the used block
+    if (pclIdx >= maxIndex || aTrack.status == dead) continue;
+
+    // fieldPropagatorConstBz::
+    fieldPropagator.stepInField(aTrack, /*Bz,*/ endPosition, endDirection);
+
+    // Update position, direction
+    aTrack.pos = endPosition;
+    aTrack.dir = endDirection;
+  }
+}
+
+// -----------------------------------------------------------------------------
+
+// Constant field any direction
+//
+// was void fieldPropagatorAnyDir_glob(...)
+__global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBany &fieldProp,
+                            uniformMagField Bfield) // by value !
+{
+  // template <type T> using Vector3D = vecgeom::Vector3D<T>;
+  vecgeom::Vector3D<double> endPosition;
+  vecgeom::Vector3D<double> endDirection;
+
+  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
+
+  float Bvalue[3];
+  Bfield.ObtainField(Bvalue);
+
+  ConstFieldHelixStepper helixAnyB = ConstFieldHelixStepper(Bvalue);
+
+  // Non-block version:
+  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  for (int pclIdx = blockIdx.x * blockDim.x + threadIdx.x; pclIdx < maxIndex; pclIdx += blockDim.x * gridDim.x) {
+    track &aTrack = (*trackBlock)[pclIdx];
+
+    // check if you are not outside the used block
+    if (pclIdx >= maxIndex || aTrack.status == dead) continue;
+
+    fieldProp.stepInField(aTrack, helixAnyB, endPosition, endDirection);
+
+    // Update position, direction
+    aTrack.pos = endPosition;
+    aTrack.dir = endDirection;
+  }
+}
+
 static float BzValue = 0.1 * copcore::units::tesla;
 
 static float BfieldValue[3] = {0.001 * copcore::units::tesla, -0.001 * copcore::units::tesla, BzValue};

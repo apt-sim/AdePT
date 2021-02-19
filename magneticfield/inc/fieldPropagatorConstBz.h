@@ -39,10 +39,6 @@ private:
   float BzValue;
 };
 
-// Cannot make __global__ method part of class
-__global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBz fieldProp);
-//  float                     BzValue );
-
 constexpr double kPushField = 1.e-8;
 
 // -----------------------------------------------------------------------------
@@ -71,34 +67,6 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(track &aTrack,
     // Also move gammas - for now ..
     endPosition  = aTrack.pos + step * aTrack.dir;
     endDirection = aTrack.dir;
-  }
-}
-
-// -------------------------------------------------------------------------------
-
-// V1 -- field along Z axis
-__global__ void moveInField(adept::BlockData<track> *trackBlock,
-                            fieldPropagatorConstBz fieldPropagator) // Carries field strength
-{
-  vecgeom::Vector3D<double> endPosition;
-  vecgeom::Vector3D<double> endDirection;
-
-  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
-
-  // Non-block version:
-  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  for (int pclIdx = blockIdx.x * blockDim.x + threadIdx.x; pclIdx < maxIndex; pclIdx += blockDim.x * gridDim.x) {
-    track &aTrack = (*trackBlock)[pclIdx];
-
-    // check if you are not outside the used block
-    if (pclIdx >= maxIndex || aTrack.status == dead) continue;
-
-    // fieldPropagatorConstBz::
-    fieldPropagator.stepInField(aTrack, /*Bz,*/ endPosition, endDirection);
-
-    // Update position, direction
-    aTrack.pos = endPosition;
-    aTrack.dir = endDirection;
   }
 }
 

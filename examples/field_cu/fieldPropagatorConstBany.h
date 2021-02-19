@@ -20,10 +20,6 @@ public:
                                        vecgeom::Vector3D<double> &endPosition, vecgeom::Vector3D<double> &endDirection);
 };
 
-// Cannot make __global__ method part of class
-__global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBany &fieldProp,
-                            uniformMagField Bfield); // by value!
-
 // ----------------------------------------------------------------------------
 
 __host__ __device__ void fieldPropagatorConstBany::stepInField(track &aTrack, ConstFieldHelixStepper &helixAnyB,
@@ -49,41 +45,6 @@ __host__ __device__ void fieldPropagatorConstBany::stepInField(track &aTrack, Co
   }
 }
 
-// -----------------------------------------------------------------------------
-
-// Constant field any direction
-//
-// was void fieldPropagatorAnyDir_glob(...)
-__global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBany &fieldProp,
-                            uniformMagField Bfield) // by value !
-{
-  // template <type T> using Vector3D = vecgeom::Vector3D<T>;
-  vecgeom::Vector3D<double> endPosition;
-  vecgeom::Vector3D<double> endDirection;
-
-  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
-
-  float Bvalue[3];
-  Bfield.ObtainField(Bvalue);
-
-  ConstFieldHelixStepper helixAnyB = ConstFieldHelixStepper(Bvalue);
-
-  // Non-block version:
-  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-
-  for (int pclIdx = blockIdx.x * blockDim.x + threadIdx.x; pclIdx < maxIndex; pclIdx += blockDim.x * gridDim.x) {
-    track &aTrack = (*trackBlock)[pclIdx];
-
-    // check if you are not outside the used block
-    if (pclIdx >= maxIndex || aTrack.status == dead) continue;
-
-    fieldProp.stepInField(aTrack, helixAnyB, endPosition, endDirection);
-
-    // Update position, direction
-    aTrack.pos = endPosition;
-    aTrack.dir = endDirection;
-  }
-}
 #endif
 
 // EvaluateField( pclPosition3d, fieldVector );    // initial field value
