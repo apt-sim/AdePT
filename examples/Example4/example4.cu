@@ -50,33 +50,7 @@ struct Scoring {
 
 #include "ConstBzFieldStepper.h"
 
-// #define  CHORD_STATS 1
-
-#include "IterationStats.h"
 #include "fieldPropagatorConstBz.h"
-
-// Statistics for propagation chords
-IterationStats *chordIterStatsPBz                     = nullptr;
-__device__ IterationStats_impl *chordIterStatsPBz_dev = nullptr;
-
-__host__ void PrepareStatistics()
-{
-#ifdef CHORD_STATS
-  chordIterStatsPBz           = new IterationStats();
-  IterationStats_impl *ptrDev = chordIterStatsPBz->GetDevicePtr();
-  assert(ptrDev != nullptr);
-  cudaMemcpy(&chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *), cudaMemcpyHostToDevice);
-  cudaMemcpyToSymbol(chordIterStatsPBz_dev, &ptrDev, sizeof(IterationStats_impl *));
-  // Add assert(chordIterStatsPBz_dev != nullptr); in first use !?
-#endif
-}
-
-__host__ void ReportStatistics(IterationStats &iterStats)
-{
-#ifdef CHORD_STATS
-  std::cout << "-  Chord iterations: max (dev) = " << iterStats.GetMax() << "  total iters = " << iterStats.GetTotal();
-#endif
-}
 
 constexpr bool BfieldOn      = true;
 constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
@@ -104,9 +78,9 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
 
     // return value (if step limited by physics or geometry) not used for the moment
     // now, I know which process wins, so I add the particle to the appropriate queue
-    float physics_step = proclist->GetPhysicsInteractionLength(i, block);
+    double physics_step = proclist->GetPhysicsInteractionLength(i, block);
 
-    float geom_step = transportation<fieldPropagatorConstBz>::transport(mytrack, fieldPropagatorBz, physics_step);
+    double geom_step = transportation<fieldPropagatorConstBz>::transport(mytrack, fieldPropagatorBz, physics_step);
     mytrack.total_length += geom_step;
 
     if (mytrack.next_state.IsOnBoundary()) { // ( geom_step == physics_step ) {  // JA-TEMP
@@ -228,8 +202,6 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   scor->secondaries     = 0;
   scor->totalEnergyLoss = 0;
 
-  PrepareStatistics(); // Statistics for chord iterations (magnetic field)
-
   // Allocate a block of tracks with capacity larger than the total number of spawned threads
   size_t blocksize = adept::BlockData<track>::SizeOfInstance(capacity);
   char *buffer2    = nullptr;
@@ -317,7 +289,6 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
               << trackBlock_uniq->GetNused() << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()
               << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load();
-    if (chordIterStatsPBz != nullptr) ReportStatistics(*chordIterStatsPBz); // Chord statistics
     std::cout << std::endl;
 
     iterNo++;

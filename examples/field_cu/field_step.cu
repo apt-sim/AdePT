@@ -20,16 +20,6 @@
 
 #include "ConstFieldHelixStepper.h"
 
-#if 0
-#include "IterationStats.h"
-
-// Statistics for propagation chords
-IterationStats      *chordIterStatsPBz      = nullptr;
-__device__
-IterationStats_impl *chordIterStatsPBz_impl = nullptr;
-// Needed for fieldPropagatorConstBz.h -- for now
-#endif
-
 #include "fieldPropagatorConstBz.h"
 #include "fieldPropagatorConstBany.h"
 
@@ -37,6 +27,57 @@ IterationStats_impl *chordIterStatsPBz_impl = nullptr;
 using trackBlock_t = adept::BlockData<track>;
 
 #include "initTracks.h"
+
+// -------------------------------------------------------------------------------
+
+// V1 -- field along Z axis
+__global__ void moveInField(adept::BlockData<track> *trackBlock,
+                            fieldPropagatorConstBz fieldPropagator) // Carries field strength
+{
+  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
+
+  // Non-block version:
+  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int pclIdx = blockIdx.x * blockDim.x + threadIdx.x; pclIdx < maxIndex; pclIdx += blockDim.x * gridDim.x) {
+    track &aTrack = (*trackBlock)[pclIdx];
+
+    // check if you are not outside the used block
+    if (pclIdx >= maxIndex || aTrack.status == dead) continue;
+
+    // fieldPropagatorConstBz::
+    fieldPropagator.stepInField(aTrack.energy, aTrack.mass(), aTrack.charge(), aTrack.interaction_length, aTrack.pos,
+                                aTrack.dir);
+  }
+}
+
+// -----------------------------------------------------------------------------
+
+// Constant field any direction
+//
+// was void fieldPropagatorAnyDir_glob(...)
+__global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBany &fieldProp,
+                            uniformMagField Bfield) // by value !
+{
+  int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
+
+  float Bvalue[3];
+  Bfield.ObtainField(Bvalue);
+
+  ConstFieldHelixStepper helixAnyB = ConstFieldHelixStepper(Bvalue);
+
+  // Non-block version:
+  //   int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  for (int pclIdx = blockIdx.x * blockDim.x + threadIdx.x; pclIdx < maxIndex; pclIdx += blockDim.x * gridDim.x) {
+    track &aTrack = (*trackBlock)[pclIdx];
+
+    // check if you are not outside the used block
+    if (pclIdx >= maxIndex || aTrack.status == dead) continue;
+
+    fieldProp.stepInField(helixAnyB, aTrack.energy, aTrack.mass(), aTrack.charge(), aTrack.interaction_length,
+                          aTrack.pos, aTrack.dir);
+  }
+}
 
 static float BzValue = 0.1 * copcore::units::tesla;
 
@@ -139,25 +180,23 @@ int main(int argc, char **argv)
   ConstFieldHelixStepper helixStepper(magFieldVec); // -> Bfield );  // Re-use it (expensive sqrt & div.)
 
   for (int i = 0; i < SmallNum; i++) {
-    ThreeVector endPosition, endDirection;
     track hostTrack = tracksStart_host[i]; // (*trackBlock_uniq)[i];
-    // hostTrack.pos =
+    ThreeVector oldPosition  = hostTrack.pos;
+    ThreeVector oldDirection = hostTrack.dir;
 
     if (useBzOnly) {
       // fieldPropagatorConstBz( hostTrack, BzValue, endPosition, endDirection );
       // fieldPropagatorConstBz::moveInField( hostTrack, BzValue, endPosition, endDirection );
-      fieldPropagatorBz.stepInField(hostTrack, /*BzValue,*/ endPosition, endDirection);
+      fieldPropagatorBz.stepInField(hostTrack.energy, hostTrack.mass(), hostTrack.charge(),
+                                    hostTrack.interaction_length, hostTrack.pos, hostTrack.dir);
     } else {
       // fieldPropagatorConstBgeneral( hostTrack, helixStepper, endPosition, endDirection );
-      fieldPropagatorBany.stepInField(hostTrack, helixStepper, endPosition, endDirection);
+      fieldPropagatorBany.stepInField(helixStepper, hostTrack.energy, hostTrack.mass(), hostTrack.charge(),
+                                      hostTrack.interaction_length, hostTrack.pos, hostTrack.dir);
     }
 
-    double move       = (endPosition - hostTrack.pos).Mag();
-    double deflection = (endDirection - hostTrack.dir).Mag();
-
-    // Update position, direction
-    hostTrack.pos = endPosition;
-    hostTrack.dir = endDirection;
+    double move       = (hostTrack.pos - oldPosition).Mag();
+    double deflection = (hostTrack.dir - oldDirection).Mag();
 
     track devTrackVal   = (*trackBlock_uniq)[i];
     ThreeVector posDiff = hostTrack.pos - devTrackVal.pos;
