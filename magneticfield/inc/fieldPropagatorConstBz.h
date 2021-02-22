@@ -25,9 +25,7 @@ public:
                                        vecgeom::Vector3D<double> &endDirection);
 
   template <bool Relocate = true>
-  __device__ //  __host__
-      double
-      ComputeStepAndPropagatedState(track &aTrack, float physicsStep);
+  __host__ __device__ double ComputeStepAndPropagatedState(track &aTrack, float physicsStep);
 
 private:
   float BzValue;
@@ -67,9 +65,7 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(track &aTrack,
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 template <bool Relocate>
-__device__ // __host__
-    double
-    fieldPropagatorConstBz::ComputeStepAndPropagatedState(track &aTrack, float physicsStep)
+__host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState(track &aTrack, float physicsStep)
 {
   if (aTrack.status != alive) return 0.0;
 
