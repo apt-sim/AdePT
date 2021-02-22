@@ -65,9 +65,9 @@ public:
    * input: current position, current direction, some particle properties
    * output: new position, new direction of particle
    */
-  template <typename Real_t>
+  template <typename Real_t, typename Int_t>
   VECCORE_ATT_HOST_DEVICE void DoStep(Real_t const &posx, Real_t const &posy, Real_t const &posz, Real_t const &dirx,
-                                      Real_t const &diry, Real_t const &dirz, Real_t const &charge,
+                                      Real_t const &diry, Real_t const &dirz, Int_t const &charge,
                                       Real_t const &momentum, Real_t const &step, Real_t &newposx, Real_t &newposy,
                                       Real_t &newposz, Real_t &newdirx, Real_t &newdiry, Real_t &newdirz) const;
 
@@ -76,15 +76,15 @@ public:
    * input: current position, current direction, some particle properties
    * output: new position, new direction of particle
    */
-  template <typename Real_t>
+  template <typename Real_t, typename Int_t>
   inline VECCORE_ATT_HOST_DEVICE void DoStep(Vector3D<Real_t> const &position, Vector3D<Real_t> const &direction,
-                                             Real_t const &charge, Real_t const &momentum, Real_t const &step,
+                                             Int_t const &charge, Real_t const &momentum, Real_t const &step,
                                              Vector3D<Real_t> &endPosition, Vector3D<Real_t> &endDirection) const;
 
   // Auxiliary methods
-  template <typename Real_t>
+  template <typename Real_t, typename Int_t>
   void PrintStep(vecgeom::Vector3D<Real_t> const &startPosition, vecgeom::Vector3D<Real_t> const &startDirection,
-                 Real_t const &charge, Real_t const &momentum, Real_t const &step,
+                 Int_t const &charge, Real_t const &momentum, Real_t const &step,
                  vecgeom::Vector3D<Real_t> &endPosition, vecgeom::Vector3D<Real_t> &endDirection) const;
 
 protected:
@@ -131,9 +131,9 @@ inline VECCORE_ATT_HOST_DEVICE ConstFieldHelixStepper::ConstFieldHelixStepper(
  * input: current position (x0, y0, z0), current direction ( dirX0, dirY0, dirZ0 ), some particle properties
  * output: new position, new direction of particle
  */
-template <typename Real_t>
+template <typename Real_t, typename Int_t>
 inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, Real_t const &z0, Real_t const &dirX0,
-                                           Real_t const &dirY0, Real_t const &dirZ0, Real_t const &charge,
+                                           Real_t const &dirY0, Real_t const &dirZ0, Int_t const &charge,
                                            Real_t const &momentum, Real_t const &step, Real_t &x, Real_t &y, Real_t &z,
                                            Real_t &dx, Real_t &dy, Real_t &dz) const
 
@@ -156,10 +156,10 @@ inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, R
   // PrintStep(startPosition, startDirection, charge, momentum, step, endPosition, endDirection);
 }
 
-template <typename Real_t>
+template <typename Real_t, typename Int_t>
 inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPosition,
                                                                    vecgeom::Vector3D<Real_t> const &startDirection,
-                                                                   Real_t const &charge, Real_t const &momentum,
+                                                                   Int_t const &charge, Real_t const &momentum,
                                                                    Real_t const &step,
                                                                    vecgeom::Vector3D<Real_t> &endPosition,
                                                                    vecgeom::Vector3D<Real_t> &endDirection) const
@@ -179,7 +179,7 @@ inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vect
   Real_t sinVB   = sqrt(dt2) + kSmall;
 
   // radius has sign and determines the sense of rotation
-  Real_t R = momentum * sinVB / (kB2C * charge * fBmag);
+  Real_t R = momentum * sinVB / (kB2C * Real_t(charge) * fBmag);
 
   Vector3D<Real_t> restVelX = startDirection - UVdotUB * dir1Field;
 
@@ -202,7 +202,7 @@ inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vect
   assert(fabs(dirVelX.Dot(dirCrossVB)) < 1.e-6);
   assert(fabs(dirCrossVB.Dot(dir1Field)) < 1.e-6);
 
-  Real_t phi = -step * charge * fBmag * kB2C / momentum;
+  Real_t phi = -step * Real_t(charge) * fBmag * kB2C / momentum;
 
   // printf("CVFHS> phi= %g \n", vecCore::Get(phi,0) );  // phi (scalar)  or phi[0] (vector)
 
@@ -232,9 +232,9 @@ bool ConstFieldHelixStepper::CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, 
   return allGood;
 }
 
-template <typename Real_t>
+template <typename Real_t, typename Int_t>
 inline void ConstFieldHelixStepper::PrintStep(vecgeom::Vector3D<Real_t> const &startPosition,
-                                              vecgeom::Vector3D<Real_t> const &startDirection, Real_t const &charge,
+                                              vecgeom::Vector3D<Real_t> const &startDirection, Int_t const &charge,
                                               Real_t const &momentum, Real_t const &step,
                                               vecgeom::Vector3D<Real_t> &endPosition,
                                               vecgeom::Vector3D<Real_t> &endDirection) const
@@ -259,7 +259,7 @@ inline void ConstFieldHelixStepper::PrintStep(vecgeom::Vector3D<Real_t> const &s
   for (int i = 0; i < vectorSize; i++) {
     printf("Start> Lane= %1d Pos= %8.5f %8.5f %8.5f  Dir= %8.5f %8.5f %8.5f ", i, x0, y0, z0, dirX0, dirY0, dirZ0);
     printf(" s= %10.6f ", step);     // / units::mm );
-    printf(" q= %3.1f ", charge);    // in e+ units ?
+    printf(" q= %d ", charge);       // in e+ units ?
     printf(" p= %10.6f ", momentum); // / units::GeV );
     // printf(" ang= %7.5f ", angle );
     printf(" End> Pos= %9.6f %9.6f %9.6f  Mom= %9.6f %9.6f %9.6f\n", x, y, z, dx, dy, dz);

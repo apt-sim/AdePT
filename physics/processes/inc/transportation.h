@@ -7,7 +7,7 @@
 template <class fieldPropagator_t, bool BfieldOn = true>
 class transportation {
 public:
-  static __host__ __device__ float transport(track &mytrack, fieldPropagator_t &fieldPropagator, float physics_step);
+  static __host__ __device__ double transport(track &mytrack, fieldPropagator_t &fieldPropagator, double physics_step);
   // fieldPropagator_t fieldPropagator;  // => would need to be device pointer etc
 };
 
@@ -21,12 +21,12 @@ public:
 constexpr float kPushLinear = 1.0e-8; // * copcore::units::millimeter;
 
 template <class fieldPropagator_t, bool BfieldOn>
-__host__ __device__ float transportation<fieldPropagator_t, BfieldOn>::transport(track &mytrack,
-                                                                                 fieldPropagator_t &fieldPropagator,
-                                                                                 float physics_step)
+__host__ __device__ double transportation<fieldPropagator_t, BfieldOn>::transport(track &mytrack,
+                                                                                  fieldPropagator_t &fieldPropagator,
+                                                                                  double physics_step)
 {
-  // return value (if step limited by physics or geometry) not used for the moment
-  // now, I know which process wins, so I add the particle to the appropriate queue
+  // FIXME: Type should be double, but this leads to problems with below
+  // condition checking 'step < physics_step'.
   float step = 0.0;
 
   if (!BfieldOn) {
@@ -34,7 +34,9 @@ __host__ __device__ float transportation<fieldPropagator_t, BfieldOn>::transport
                                                         mytrack.next_state);
     mytrack.pos += (step + kPushLinear) * mytrack.dir;
   } else {
-    step = fieldPropagator.ComputeStepAndPropagatedState(mytrack, physics_step);
+    step = fieldPropagator.ComputeStepAndPropagatedState(mytrack.energy, mytrack.mass(), mytrack.charge(), physics_step,
+                                                         mytrack.pos, mytrack.dir, mytrack.current_state,
+                                                         mytrack.next_state);
   }
   if (step < physics_step) mytrack.current_process = BfieldOn ? -2 : -1;
 

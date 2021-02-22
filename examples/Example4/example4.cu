@@ -78,9 +78,9 @@ __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process
 
     // return value (if step limited by physics or geometry) not used for the moment
     // now, I know which process wins, so I add the particle to the appropriate queue
-    float physics_step = proclist->GetPhysicsInteractionLength(i, block);
+    double physics_step = proclist->GetPhysicsInteractionLength(i, block);
 
-    float geom_step = transportation<fieldPropagatorConstBz>::transport(mytrack, fieldPropagatorBz, physics_step);
+    double geom_step = transportation<fieldPropagatorConstBz>::transport(mytrack, fieldPropagatorBz, physics_step);
     mytrack.total_length += geom_step;
 
     if (mytrack.next_state.IsOnBoundary()) { // ( geom_step == physics_step ) {  // JA-TEMP

@@ -34,9 +34,6 @@ using trackBlock_t = adept::BlockData<track>;
 __global__ void moveInField(adept::BlockData<track> *trackBlock,
                             fieldPropagatorConstBz fieldPropagator) // Carries field strength
 {
-  vecgeom::Vector3D<double> endPosition;
-  vecgeom::Vector3D<double> endDirection;
-
   int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
 
   // Non-block version:
@@ -48,11 +45,8 @@ __global__ void moveInField(adept::BlockData<track> *trackBlock,
     if (pclIdx >= maxIndex || aTrack.status == dead) continue;
 
     // fieldPropagatorConstBz::
-    fieldPropagator.stepInField(aTrack, /*Bz,*/ endPosition, endDirection);
-
-    // Update position, direction
-    aTrack.pos = endPosition;
-    aTrack.dir = endDirection;
+    fieldPropagator.stepInField(aTrack.energy, aTrack.mass(), aTrack.charge(), aTrack.interaction_length, aTrack.pos,
+                                aTrack.dir);
   }
 }
 
@@ -64,10 +58,6 @@ __global__ void moveInField(adept::BlockData<track> *trackBlock,
 __global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagatorConstBany &fieldProp,
                             uniformMagField Bfield) // by value !
 {
-  // template <type T> using Vector3D = vecgeom::Vector3D<T>;
-  vecgeom::Vector3D<double> endPosition;
-  vecgeom::Vector3D<double> endDirection;
-
   int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
 
   float Bvalue[3];
@@ -84,11 +74,8 @@ __global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagator
     // check if you are not outside the used block
     if (pclIdx >= maxIndex || aTrack.status == dead) continue;
 
-    fieldProp.stepInField(aTrack, helixAnyB, endPosition, endDirection);
-
-    // Update position, direction
-    aTrack.pos = endPosition;
-    aTrack.dir = endDirection;
+    fieldProp.stepInField(helixAnyB, aTrack.energy, aTrack.mass(), aTrack.charge(), aTrack.interaction_length,
+                          aTrack.pos, aTrack.dir);
   }
 }
 
@@ -193,25 +180,23 @@ int main(int argc, char **argv)
   ConstFieldHelixStepper helixStepper(magFieldVec); // -> Bfield );  // Re-use it (expensive sqrt & div.)
 
   for (int i = 0; i < SmallNum; i++) {
-    ThreeVector endPosition, endDirection;
     track hostTrack = tracksStart_host[i]; // (*trackBlock_uniq)[i];
-    // hostTrack.pos =
+    ThreeVector oldPosition  = hostTrack.pos;
+    ThreeVector oldDirection = hostTrack.dir;
 
     if (useBzOnly) {
       // fieldPropagatorConstBz( hostTrack, BzValue, endPosition, endDirection );
       // fieldPropagatorConstBz::moveInField( hostTrack, BzValue, endPosition, endDirection );
-      fieldPropagatorBz.stepInField(hostTrack, /*BzValue,*/ endPosition, endDirection);
+      fieldPropagatorBz.stepInField(hostTrack.energy, hostTrack.mass(), hostTrack.charge(),
+                                    hostTrack.interaction_length, hostTrack.pos, hostTrack.dir);
     } else {
       // fieldPropagatorConstBgeneral( hostTrack, helixStepper, endPosition, endDirection );
-      fieldPropagatorBany.stepInField(hostTrack, helixStepper, endPosition, endDirection);
+      fieldPropagatorBany.stepInField(helixStepper, hostTrack.energy, hostTrack.mass(), hostTrack.charge(),
+                                      hostTrack.interaction_length, hostTrack.pos, hostTrack.dir);
     }
 
-    double move       = (endPosition - hostTrack.pos).Mag();
-    double deflection = (endDirection - hostTrack.dir).Mag();
-
-    // Update position, direction
-    hostTrack.pos = endPosition;
-    hostTrack.dir = endDirection;
+    double move       = (hostTrack.pos - oldPosition).Mag();
+    double deflection = (hostTrack.dir - oldDirection).Mag();
 
     track devTrackVal   = (*trackBlock_uniq)[i];
     ThreeVector posDiff = hostTrack.pos - devTrackVal.pos;
