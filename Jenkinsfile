@@ -124,6 +124,9 @@ def preCheckNode() {
 }
 
 def buildAndTest() {
+  dir('AdePT') {
+    sh 'git submodule update --init'
+  }
   sh label: 'build_and_test', script: """
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-centos7-${COMPILER}-opt/setup.sh
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
