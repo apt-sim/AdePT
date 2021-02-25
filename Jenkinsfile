@@ -59,6 +59,9 @@ pipeline {
       stages {
         stage('Build&Test') {
           steps {
+            dir('AdePT') {
+              sh 'git submodule update --init'
+            }
             buildAndTest()
           }
           post {
