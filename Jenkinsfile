@@ -131,6 +131,6 @@ def buildAndTest() {
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-centos7-${COMPILER}-opt/setup.sh
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
-    ctest -VV -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+    ctest -V --output-on-failure -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
 }
