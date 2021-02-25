@@ -127,5 +127,10 @@ ctest_submit(PARTS Build)
 
 ctest_test(BUILD ${CTEST_BINARY_DIRECTORY}
           ${ctest_test_args}
+          RETURN_VALUE test_result
           APPEND)
 ctest_submit(PARTS Test)
+
+if (test_result)
+  message(FATAL_ERROR "Failed to test")
+endif ()
