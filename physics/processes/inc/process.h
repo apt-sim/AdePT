@@ -10,8 +10,8 @@
 
 class process {
 public:
-  __device__ virtual float GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const = 0;
-  __device__ virtual void GenerateInteraction(int particle_index, adept::BlockData<track> *block)                = 0;
+  __device__ virtual double GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const = 0;
+  __device__ virtual void GenerateInteraction(int particle_index, adept::BlockData<track> *block)                 = 0;
 };
 
 #endif
