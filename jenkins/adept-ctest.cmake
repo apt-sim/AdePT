@@ -37,9 +37,11 @@ endif()
 # Use multiple CPU cores to build-----------------------------------------------
 include(ProcessorCount)
 ProcessorCount(N)
-if(NOT N EQUAL 0)
-  set(ctest_test_args ${ctest_test_args} PARALLEL_LEVEL ${N})
-endif()
+
+# Tests cannot be run in parallel (GPU no really shareable)
+#if(NOT N EQUAL 0)
+#   set(ctest_test_args ${ctest_test_args} PARALLEL_LEVEL ${N})
+#endif()
 
 # CTest/CMake settings----------------------------------------------------------
 set(CTEST_CUSTOM_MAXIMUM_NUMBER_OF_ERRORS "1000")
