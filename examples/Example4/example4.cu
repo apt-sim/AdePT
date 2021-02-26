@@ -156,6 +156,9 @@ __global__ void create_processes(process_list **proclist, process **processes)
 //
 void example4(const vecgeom::cxx::VPlacedVolume *world)
 {
+  using copcore::units::cm;
+  using copcore::units::GeV;
+  using copcore::units::MeV;
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
@@ -210,19 +213,17 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
 
   // Initializing one track in the block
   auto track1         = trackBlock_uniq->NextElement();
-  track1->energy      = 100.0f;
-  track1->energy_loss = 0.0f;
+  track1->energy      = 100 * GeV;
+  track1->energy_loss = 0.0 * GeV;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
   track1->pos                = {0, 0, 0};
   track1->dir                = {1.0, 0, 0}; // {1.0/sqrt(2.), 0, 1.0/sqrt(2.)};
   track1->pdg                = 11;          // e-
   track1->index              = 1;
-  track1->status             = alive;
-  track1->interaction_length = 20.0;
   init_track<<<1, 1>>>(track1, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-  // Initialise tracks on device
+// Initialise tracks on device
   std::cout << " Initialising tracks on device." << std::endl;
 
   constexpr int numBlocksInit = 2, numThreadsPerBlock = 16;
@@ -252,7 +253,6 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
   int maxPrint = 128;
 
   bool verboseVolume = false;
-  std::cout << " Track1 with nav index: " << std::endl;
   track1->print(1, verboseVolume);
 
   int verbose = 0;
@@ -286,7 +286,7 @@ void example4(const vecgeom::cxx::VPlacedVolume *world)
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5)
-              << trackBlock_uniq->GetNused() << " energy deposition: " << std::setw(8) << scor->totalEnergyLoss.load()
+              << trackBlock_uniq->GetNused() << " energy deposition [MeV]: " << std::setw(8) << scor->totalEnergyLoss.load() / MeV
               << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
               << " number of hits: " << std::setw(4) << scor->hits.load();
     std::cout << std::endl;

@@ -25,8 +25,6 @@ __host__ __device__ double transportation<fieldPropagator_t, BfieldOn>::transpor
                                                                                   fieldPropagator_t &fieldPropagator,
                                                                                   double physics_step)
 {
-  // FIXME: Type should be double, but this leads to problems with below
-  // condition checking 'step < physics_step'.
   double step = 0.0;
 
   if (!BfieldOn) {
