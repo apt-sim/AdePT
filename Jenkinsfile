@@ -128,9 +128,11 @@ def buildAndTest() {
     sh 'git submodule update --init'
   }
   sh label: 'build_and_test', script: """
+    set +x
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-centos7-${COMPILER}-opt/setup.sh
+    set -x
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
-    ctest -VV -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+    ctest -V --output-on-failure -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
 }
