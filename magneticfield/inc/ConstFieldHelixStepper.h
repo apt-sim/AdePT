@@ -48,7 +48,7 @@ public:
   VECCORE_ATT_HOST_DEVICE
   Vector3D<float> const GetFieldVec() const { return fBmag * fUnit; }
 
-  static constexpr float kB2C = -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
+  static constexpr double kB2C = -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
 
   /*
   template<typename RT, typename Vector3D>

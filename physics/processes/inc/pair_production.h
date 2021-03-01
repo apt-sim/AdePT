@@ -9,15 +9,16 @@
 class pair_production : public process {
 public:
   __device__ pair_production() {}
-  __device__ virtual float GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const;
+  __device__ virtual double GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const;
   __device__ virtual void GenerateInteraction(int particle_index, adept::BlockData<track> *block);
 };
 
-__device__ float pair_production::GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const
+__device__ double pair_production::GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const
 {
+  using copcore::units::cm;
   track *mytrack = &((*block)[particle_index]);
   // here I will need to calculate the IL based on the particle energy, material, etc
-  float current_length = mytrack->uniform() * 0.25f;
+  double current_length = mytrack->uniform() * 0.25 * cm;
   return current_length;
 }
 
@@ -25,8 +26,7 @@ __device__ void pair_production::GenerateInteraction(int particle_index, adept::
 {
   track *mytrack = &((*block)[particle_index]);
 
-  float esecond = 0.5f * mytrack->energy;
-
+  double esecond = 0.5 * mytrack->energy;
   // pair production
   mytrack->energy -= esecond;
   mytrack->energy_loss = 0;

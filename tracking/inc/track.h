@@ -18,23 +18,23 @@ enum TrackStatus { alive, dead };
 struct track {
   RanluxppDouble rng_state;
   unsigned int index{0};
+  unsigned int mother_index{0};
+  unsigned int eventId{0};
+
   double energy{10};
+  double energy_loss{0}; // current step's eloss -- used by primitive version of scoring
   double numIALeft[3];
+  double interaction_length{DBL_MAX};
+  double total_length{0.0}; // length since track start
 
   vecgeom::Vector3D<double> pos;
   vecgeom::Vector3D<double> dir;
   vecgeom::NavStateIndex current_state;
   vecgeom::NavStateIndex next_state;
 
-  unsigned int mother_index{0};
-  unsigned int eventId{0};
   TrackStatus status{alive};
 
-  float interaction_length{FLT_MAX};
-  float total_length{0.0}; // length since track start
-
   int number_of_secondaries{0}; // total since track start -- used as counter for RNG
-  float energy_loss{0};         // current step's eloss -- used by primitive version of scoring
 
   uint16_t num_step{0}; // number of Steps -- for killing after MaX
 
@@ -54,7 +54,7 @@ struct track {
     return (pdg == pdgGamma) ? 0.0 : copcore::units::kElectronMassC2;
   }
 
-  __host__ void print(int id = -1, bool verbose = false) const;
+  __host__ __device__ void print(int id = -1, bool verbose = false) const;
 
   __device__ __host__ void SwapStates()
   {
@@ -68,95 +68,29 @@ struct track {
   static constexpr char pdgGamma    = 22;
 };
 
-struct NavigationStateBuffer {
-  unsigned int currentTouchIndex;
-  unsigned int nextTouchIndex;
-  int currentLevel;
-  int nextLevel;
-};
-
-// inline
-__global__ void GetNavStateIndices(const track &trk_dev,                // Unified or device
-                                   NavigationStateBuffer &navState_unif // Return => Unified memory
-)
+void track::print(int extId, bool verbose) const
 {
-  // Needed because type of NavStateIndex (in track) is vecgeom:L:cxx::NavStateIndex
-  // Solution for printing by Andrei Gheata.
-  //
-  // trk.current_state.IsOnBoundary();
-  // std::cout << " current: "; // <<    setw(3) << next_state.IsOnBoundary();
-
-  auto currentLevel = trk_dev.current_state.GetLevel();
-
-  navState_unif.currentTouchIndex = trk_dev.current_state.GetNavIndex(currentLevel);
-
-  navState_unif.currentLevel = currentLevel;
-  // auto currentPhysVolume = trk_dev.current_state.ValueAt(currentLevel);
-
-  // std::cout << " next: "; // <<    setw(3) << next_state.IsOnBoundary();
-
-  auto nextLevel               = trk_dev.next_state.GetLevel(); // This crashes consistently - in gdb 2020.12.17-18
-  navState_unif.nextTouchIndex = trk_dev.next_state.GetNavIndex(nextLevel);
-
-  navState_unif.nextLevel = nextLevel;
-
-  // auto nextTouchVolume = trk_dev.next_state.ValueAt(nextLevel);
-}
-
-#include <cstdio>
-#include <iomanip>
-
-// inline
-__host__ void track::print(int extId, bool verbose) const
-{
-  using std::setw;
-  int oldPrec = std::cout.precision(5);
-
-  static std::string particleName[3] = {"e-", "g", "e+"};
-  std::cout                                                                      // << " Track "
-      << setw(4) << extId << " " << setw(2) << particleName[charge() + 1] << " " // Ok for e-/g/e+ only
-      << " / id= " << setw(11) << index
-      << " "
-      //  << " pdg = " << setw(4) << (int) pdg
-      << " m= " << setw(11) << mother_index << " "
-      << " ev= " << setw(3) << eventId << " "
-      << " step# " << setw(4)
-      << (int)num_step
-      // << " addr= " << this   << " "
-      << " Pos: " << setw(11) << pos[0] << " , " << setw(11) << pos[1] << " , " << setw(11) << pos[2]
-      << " s= " << setw(8) << interaction_length << " l= " << setw(8) << total_length << " kE= " << setw(10) << energy
-      << " Dir: = " << setw(8) << dir[0] << " , " << setw(8) << dir[1] << " , " << setw(8) << dir[2] << " " << setw(11)
-      << (status == alive ? "Alive" : "Dead ") << " "
-      << " proc= " << setw(1) << (int)current_process << " ";
+  using copcore::units::MeV;
+  using copcore::units::mm;
+  static const char *particleName[3] = {"e-", "g", "e+"};
+  printf(" %2s / id= %6d  m= %6d  ev=%3d  step# %4d  Pos[mm]: %11.6f, %11.6f, %11.6f  intl[mm]= %8.6g  len[mm]= %8.6f "
+         "kE[MeV]= %12.10f  loss[MeV]= %10.6f  "
+         "Dir: %11.6f, %11.6f, %11.6f %8s  proc= %1d",
+         particleName[charge() + 1], index, mother_index, eventId, (int)num_step, pos[0] / mm, pos[1] / mm, pos[2] / mm,
+         interaction_length / mm, total_length / mm, energy / MeV, energy_loss / MeV, dir[0], dir[1], dir[2],
+         (status == alive ? "Alive" : "Dead "), (int)current_process);
 
   if (verbose) {
-    std::cout << "<";
-    // current_state.Print();
-    // unsigned int currentIndex, nextIndex;
-    // char     currentLevel, nextLevel;
-
-    static NavigationStateBuffer *pNavStateBuffer = nullptr;
-    if (pNavStateBuffer == nullptr) cudaMallocManaged(&pNavStateBuffer, sizeof(NavigationStateBuffer));
-
-    GetNavStateIndices<<<1, 1>>>(*this, *pNavStateBuffer);
-    cudaDeviceSynchronize(); // Needed -- wait for result !!
-
-    std::cout << " current: " << pNavStateBuffer->currentTouchIndex << " "
-              << " lv = " << (int)pNavStateBuffer->currentLevel << " " << setw(3)
-              << (current_state.IsOnBoundary() ? "bnd" : " in") << " ";
-
-    std::cout << " next: " << pNavStateBuffer->nextTouchIndex << " "
-              << " lv = " << pNavStateBuffer->nextLevel << " " << setw(3) << (next_state.IsOnBoundary() ? "bnd" : " in")
-              << " ";
-
-    // 2020.12.18 -- caused crash Dec 2020 / Jan 2021 ? - check if still the case
-    // current_state.printValueSequence(std::cout);
-    // next_state.printValueSequence(std::cout);
-    std::cout << ">";
+#ifdef COPCORE_DEVICE_COMPILATION
+    auto currentLevel = current_state.GetLevel();
+    auto currentIndex = current_state.GetNavIndex(currentLevel);
+    auto nextLevel    = next_state.GetLevel();
+    auto nextIndex    = next_state.GetNavIndex(nextLevel);
+    printf("  current: (lv= %3d  ind= %8u  bnd= %1d)  next: (lv= %3d  ind= %8u  bnd= %1d)", currentLevel, currentIndex,
+           (int)current_state.IsOnBoundary(), nextLevel, nextIndex, (int)next_state.IsOnBoundary());
+#endif
   }
-
-  std::cout << std::endl;
-  std::cout.precision(oldPrec);
+  printf("\n");
 }
 
 #endif

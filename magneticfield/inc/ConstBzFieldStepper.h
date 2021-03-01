@@ -33,9 +33,9 @@ public:
   ConstBzFieldStepper(float Bz = 0.) : fBz(Bz) {}
 
   void SetBz(float Bz) { fBz = Bz; }
-  double GetBz() const { return fBz; }
+  float GetBz() const { return fBz; }
 
-  static constexpr float kB2C = -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
+  static constexpr double kB2C = -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
 
   /*
   template<typename RT, typename Vector3D>
@@ -58,7 +58,7 @@ public:
       BaseType const & /*diry*/, BaseType const & /*dirz*/, BaseIType const & /*charge*/, BaseType const & /*momentum*/,
       BaseType const & /*step*/, BaseType & /*newsposx*/, BaseType & /*newposy*/, BaseType & /*newposz*/,
       BaseType & /*newdirx*/, BaseType & /*newdiry*/, BaseType & /*newdirz*/
-  ) const;
+      ) const;
 
   /**
    * this function propagates the track along the helix solution by a step

@@ -52,7 +52,7 @@ __device__ void createOneTrack(unsigned int index, uint64_t rngBase, track &aTra
   constexpr double minP = 25.0 * MeV;
   double px, py, pz;
   px = 4 * MeV + minP * 2.0 * (aTrack.uniform() - 0.5); // later: -maxP to +maxP
-  py = 0 + minP * 2.0 * (aTrack.uniform() - 0.5);
+  py = 0 * MeV + minP * 2.0 * (aTrack.uniform() - 0.5);
   pz = 3 * MeV + minP * 2.0 * (aTrack.uniform() - 0.5);
 
   double pmag2    = px * px + py * py + pz * pz;
@@ -75,17 +75,19 @@ __global__ void createTracks(adept::BlockData<track> *trackBlock, const vecgeom:
                              unsigned int numTracks, unsigned int eventId, unsigned int runId = 0)
 {
   /* initialize the tracks with random particles */
-  int pclIdx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (pclIdx >= numTracks) return;
+  for (int pclIdx = blockIdx.x * blockDim.x + threadIdx.x; pclIdx < numTracks; pclIdx += blockDim.x * gridDim.x) {
 
-  track *pTrack = trackBlock->NextElement();
+    if (pclIdx >= numTracks) return;
 
-  uint64_t rngBase = runId * (uint64_t(1) << 52) + eventId * (uint64_t(1) << 36);
+    track *pTrack = trackBlock->NextElement();
 
-  createOneTrack(pclIdx, rngBase, *pTrack, eventId);
+    uint64_t rngBase = runId * (uint64_t(1) << 52) + eventId * (uint64_t(1) << 36);
 
-  LoopNavigator::LocatePointIn(world, pTrack->pos, pTrack->current_state, true);
-  pTrack->next_state = pTrack->current_state;
+    createOneTrack(pclIdx, rngBase, *pTrack, eventId);
+
+    LoopNavigator::LocatePointIn(world, pTrack->pos, pTrack->current_state, true);
+    pTrack->next_state = pTrack->current_state;
+  }
 }
 
 #endif

@@ -14,15 +14,15 @@ public:
     list      = l;
     list_size = n;
   }
-  __device__ virtual float GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const;
+  __device__ virtual double GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const;
   process **list;
   int list_size;
 };
 
-__device__ float process_list::GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const
+__device__ double process_list::GetPhysicsInteractionLength(int particle_index, adept::BlockData<track> *block) const
 {
 
-  float current_length = FLT_MAX;
+  double current_length = DBL_MAX;
 
   for (int i = 0; i < list_size; i++) {
     float temp = list[i]->GetPhysicsInteractionLength(particle_index, block);

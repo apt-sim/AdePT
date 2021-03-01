@@ -34,7 +34,7 @@ private:
   float BzValue;
 };
 
-constexpr double kPushField = 1.e-8;
+constexpr double kPushField = 1.e-8 * copcore::units::cm;
 
 // -----------------------------------------------------------------------------
 
@@ -69,33 +69,33 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
     vecgeom::NavStateIndex &next_state)
 {
   double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
+  double momentumXYMag =
+      momentumMag * sqrt((1. - direction[2]) * (1. + direction[2])); // only XY component matters for the curvature
 
-  double curv   = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / (momentumMag + 1.0e-30); // norm for step
+  double curv = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / (momentumXYMag + 1.0e-30); // norm for step
 
   constexpr double gEpsilonDeflect = 1.E-2 * copcore::units::cm;
+
   // acceptable lateral error from field ~ related to delta_chord sagital distance
 
   // constexpr double invEpsD= 1.0 / gEpsilonDeflect;
 
   double safeLength =
-      2. * sqrt(gEpsilonDeflect / curv); // max length along curve for deflectionn
-                                         // = 2. * sqrt( 1.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
-
-  vecgeom::Vector3D<double> origPosition = position;
+      sqrt(2 * gEpsilonDeflect / curv); // max length along curve for deflectionn
+                                        // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
 
   ConstBzFieldStepper helixBz(BzValue);
 
   double stepDone = 0.0;
-  double remains = physicsStep;
+  double remains  = physicsStep;
 
-  constexpr double epsilon_step = 1.0e-7; // Ignore remainder if < e_s * PhysicsStep
+  const double epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
 
   if (charge == 0) {
     if (Relocate) {
-      stepDone =
-          LoopNavigator::ComputeStepAndPropagatedState(position, direction, physicsStep, current_state, next_state);
+      stepDone = LoopNavigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state);
     } else {
-      stepDone = LoopNavigator::ComputeStepAndNextVolume(position, direction, physicsStep, current_state, next_state);
+      stepDone = LoopNavigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
     }
     position += (stepDone + kPushField) * direction;
   } else {
@@ -116,7 +116,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
       // fieldPropagatorConstBz( aTrack, BzValue, endPosition, endDirection ); -- Doesn't work
       helixBz.DoStep(position, direction, charge, momentumMag, safeMove, endPosition, endDirection);
 
-      vecgeom::Vector3D<double> chordVec = endPosition - origPosition;
+      vecgeom::Vector3D<double> chordVec = endPosition - position;
       double chordLen                    = chordVec.Length();
       vecgeom::Vector3D<double> chordDir = (1.0 / chordLen) * chordVec;
 
@@ -131,6 +131,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
       if (fullChord) {
         position  = endPosition;
         direction = endDirection;
+        move      = safeMove;
       } else {
         // Accept the intersection point on the surface.  This means that
         //   the point at the boundary will be on the 'straight'-line chord,
@@ -148,8 +149,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
       remains -= move;
       chordIters++;
 
-    } while ((!next_state.IsOnBoundary()) && fullChord && (remains > epsilon_step * physicsStep) &&
-             (chordIters < maxChordIters));
+    } while ((!next_state.IsOnBoundary()) && fullChord && (remains > epsilon_step) && (chordIters < maxChordIters));
   }
 
   return stepDone;

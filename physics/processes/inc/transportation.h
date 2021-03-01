@@ -18,16 +18,14 @@ public:
 //
 // Description last updated: 2021.01.19
 
-constexpr float kPushLinear = 1.0e-8; // * copcore::units::millimeter;
+constexpr double kPushLinear = 1.0e-8 * copcore::units::millimeter;
 
 template <class fieldPropagator_t, bool BfieldOn>
 __host__ __device__ double transportation<fieldPropagator_t, BfieldOn>::transport(track &mytrack,
                                                                                   fieldPropagator_t &fieldPropagator,
                                                                                   double physics_step)
 {
-  // FIXME: Type should be double, but this leads to problems with below
-  // condition checking 'step < physics_step'.
-  float step = 0.0;
+  double step = 0.0;
 
   if (!BfieldOn) {
     step = LoopNavigator::ComputeStepAndPropagatedState(mytrack.pos, mytrack.dir, physics_step, mytrack.current_state,
