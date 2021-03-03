@@ -23,6 +23,7 @@
  * \li  steradian               (steradian)
  *
  * You can add your own constants.
+ * // CLHEP 17.07.20   use PDG 2019 values
  *
  */
 
@@ -37,7 +38,7 @@ namespace units {
 //
 //
 //
-static constexpr double kAvogadro = 6.02214179e+23 / mole;
+static constexpr double kAvogadro = 6.02214076e+23 / mole;
 
 //
 // kCLight       ->   c   = 2.9979246e+10 [cm/s]
@@ -47,11 +48,11 @@ static constexpr double kCLight       = 2.99792458e+8 * m / s;
 static constexpr double kCLightSquare = kCLight * kCLight;
 
 //
-// kHPlanck          -> h        = 4.1356673e-24 [GeV*s]
-// kHBarPlanck       -> h/(2Pi)  = 6.582119e-25  [GeV*s]
-// kHBarPlanckCLight -> hc/(2Pi) = 1.9732696e-14 [GeV*cm]
+// kHPlanck          -> h        = 4.13566e-12   [MeV * ns]
+// kHBarPlanck       -> h/(2Pi)  = 6.58212e-13   [MeV * ns]
+// kHBarPlanckCLight -> hc/(2Pi) = 197.32705e-12 [MeV * mm]
 //
-static constexpr double kHPlanck                = 6.62606896e-34 * joule * s;
+static constexpr double kHPlanck                = 6.62607015e-34 * joule * s;
 static constexpr double kHBarPlanck             = kHPlanck / kTwoPi;
 static constexpr double kHBarPlanckCLight       = kHBarPlanck * kCLight;
 static constexpr double kHBarPlanckCLightSquare = kHBarPlanckCLight * kHBarPlanckCLight;
@@ -96,7 +97,7 @@ static constexpr double kBohrRadius                = kRedElectronComptonWLenght 
 //
 //
 //
-static constexpr double kBoltzmann = 8.617343e-11 * MeV / kelvin;
+static constexpr double kBoltzmann = 8.617333e-11 * MeV / kelvin;
 
 //
 // STP -> Standard Temperature and Pressure
