@@ -17,7 +17,7 @@ endif()
 # Refactor I/O into separate library here...
 
 # example7-geant4 is the "full" Geant4 application for data export
-add_executable(example7-geant4 example7-geant4.cc)
+add_executable(example7-geant4 example7-geant4.cc geant4_mock.h geant4_mock.cc)
 target_include_directories(example7-geant4
   PRIVATE
     "${PROJECT_SOURCE_DIR}/base/inc"
