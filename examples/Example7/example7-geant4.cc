@@ -6,6 +6,7 @@
 #include <AdePT/ArgParser.h>
 
 #include "G4GDMLParser.hh"
+#include "G4ProductionCutsTable.hh"
 
 int main(int argc, char* argv[])
 {
@@ -15,9 +16,16 @@ int main(int argc, char* argv[])
   OPTION_STRING(g4hepem_file, "example7.g4hepem");
 
   // Build mock geant4 setup
+  // - Should create geometry, regions and cuts
   G4PVPlacement* world = geant4_mock();
 
+  // Dump cuts couples to check
+  G4ProductionCutsTable::GetProductionCutsTable()->DumpCouples();
+
   // Persist data
+  // Add export of regions and energy cuts to see what these
+  // do and how to use. Remove pointer from exported names for
+  // now to aid reabability (we know we won't have duplicated names)
   G4GDMLParser gdmlParser;
   gdmlParser.SetAddPointerToName(false);
   gdmlParser.SetOutputFileOverwrite(true);
