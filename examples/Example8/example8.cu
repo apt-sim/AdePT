@@ -56,7 +56,6 @@ struct Track {
   vecgeom::NavStateIndex current_state;
   vecgeom::NavStateIndex next_state;
 
-  char current_process;
   char pdg; // Large enough for e/g. Then uint16_t for p/n
 
   __device__ __host__ double uniform() { return rng_state.Rndm(); }
@@ -163,13 +162,82 @@ static void FreeG4HepEm(G4HepEmState *state)
   delete state;
 }
 
+class RanluxppDoubleEngine : public G4HepEmRandomEngine {
+  // Wrapper functions to call into RanluxppDouble.
+  static __host__ __device__ double flatWrapper(void *object) { return ((RanluxppDouble *)object)->Rndm(); }
+  static __host__ __device__ void flatArrayWrapper(void *object, const int size, double *vect)
+  {
+    for (int i = 0; i < size; i++) {
+      vect[i] = ((RanluxppDouble *)object)->Rndm();
+    }
+  }
+
+public:
+  __host__ __device__ RanluxppDoubleEngine(RanluxppDouble *engine)
+      : G4HepEmRandomEngine(/*object=*/engine, &flatWrapper, &flatArrayWrapper)
+  {
+  }
+};
+
+__host__ __device__ void InitSecondary(Track &secondary, const Track &parent)
+{
+  // Initialize a new PRNG state.
+  secondary.rng_state = parent.rng_state;
+  secondary.rng_state.Skip(1 << 15);
+
+  // The caller is responsible to set the energy.
+  secondary.numIALeft[0] = -1.0;
+  secondary.numIALeft[1] = -1.0;
+  secondary.numIALeft[2] = -1.0;
+
+  // The caller is responsible to set the particle type (via pdg).
+
+  // A secondary inherits the position of its parent; the caller is responsible
+  // to update the directions.
+  secondary.pos           = parent.pos;
+  secondary.current_state = parent.current_state;
+  secondary.next_state    = parent.current_state;
+}
+
+// Create a pair of e-/e+ from the intermediate gamma.
+__host__ __device__ void PairProduce(Track *allTracks, SlotManager *manager, adept::MParray *activeQueue,
+                                     const Track &currentTrack, double energy, const double *dir)
+{
+  int electronSlot = manager->nextSlot();
+  if (electronSlot == -1) {
+    COPCORE_EXCEPTION("No slot available for secondary electron track");
+  }
+  activeQueue->push_back(electronSlot);
+  Track &electron = allTracks[electronSlot];
+
+  int positronSlot = manager->nextSlot();
+  if (positronSlot == -1) {
+    COPCORE_EXCEPTION("No slot available for secondary positron track");
+  }
+  activeQueue->push_back(positronSlot);
+  Track &positron = allTracks[positronSlot];
+
+  // TODO: Distribute energy and momentum.
+  double remainingEnergy = energy - 2 * copcore::units::kElectronMassC2;
+
+  InitSecondary(electron, /*parent=*/currentTrack);
+  electron.pdg    = Track::pdgElectron;
+  electron.energy = remainingEnergy / 2;
+  electron.dir.Set(dir[0], dir[1], dir[2]);
+
+  InitSecondary(positron, /*parent=*/currentTrack);
+  positron.pdg    = Track::pdgPositron;
+  positron.energy = remainingEnergy / 2;
+  positron.dir.Set(dir[0], dir[1], dir[2]);
+}
+
 __device__ struct G4HepEmElectronManager electronManager;
 
 // Compute the physics and geometry step limit, transport the particle while
 // applying the continuous effects and possibly select a discrete process that
 // could generate secondaries.
-__global__ void PerformStep(Track *allTracks, const adept::MParray *currentlyActive, adept::MParray *activeQueue,
-                            adept::MParray *relocateQueue, adept::MParray *discreteQueue, Scoring *scoring)
+__global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept::MParray *currentlyActive,
+                            adept::MParray *activeQueue, adept::MParray *relocateQueue, Scoring *scoring)
 {
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
@@ -273,9 +341,95 @@ __global__ void PerformStep(Track *allTracks, const adept::MParray *currentlyAct
       continue;
     }
 
-    // Queue the particle (via its index) to perform the discrete interaction.
-    currentTrack.current_process = winnerProcessIndex;
-    discreteQueue->push_back(slot);
+    // Perform the discrete interaction.
+    RanluxppDoubleEngine rnge(&currentTrack.rng_state);
+
+    // For now, just assume a single material.
+    int theMCIndex        = 1;
+    const double energy   = currentTrack.energy;
+    const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
+
+    switch (winnerProcessIndex) {
+    case 0: {
+      // Invoke ionization (for e-/e+):
+      double deltaEkin = (isElectron) ? SampleETransferMoller(theElCut, energy, &rnge)
+                                      : SampleETransferBhabha(theElCut, energy, &rnge);
+
+      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirSecondary[3];
+      SampleDirectionsIoni(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
+      int secondarySlot = manager->nextSlot();
+      if (secondarySlot == -1) {
+        COPCORE_EXCEPTION("No slot available for secondary track");
+      }
+      activeQueue->push_back(secondarySlot);
+      Track &secondary = allTracks[secondarySlot];
+      scoring->secondaries++;
+
+      InitSecondary(secondary, /*parent=*/currentTrack);
+      secondary.pdg    = Track::pdgElectron;
+      secondary.energy = deltaEkin;
+      secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+
+      currentTrack.energy = energy - deltaEkin;
+      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+      // The current track continues to live.
+      activeQueue->push_back(slot);
+      break;
+    }
+    case 1: {
+      // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
+      double logEnergy = std::log(energy);
+      double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
+                             ? SampleETransferBremSB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron)
+                             : SampleETransferBremRB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron);
+
+      // We would need to create a gamma, but only do so if it has enough energy
+      // to immediately pair-produce. Otherwise just deposit the energy locally.
+      if (deltaEkin > 2 * copcore::units::kElectronMassC2) {
+        double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+        double dirSecondary[3];
+        SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
+        PairProduce(allTracks, manager, activeQueue, currentTrack, deltaEkin, dirSecondary);
+        scoring->secondaries += 2;
+      } else {
+        scoring->totalEnergyDeposit.fetch_add(deltaEkin);
+      }
+
+      currentTrack.energy = energy - deltaEkin;
+      // The current track continues to live.
+      activeQueue->push_back(slot);
+      break;
+    }
+    case 2: {
+      // Invoke annihilation (in-flight) for e+
+      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double theGamma1Ekin, theGamma2Ekin;
+      double theGamma1Dir[3], theGamma2Dir[3];
+      SampleEnergyAndDirectionsForAnnihilationInFlight(energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin,
+                                                       theGamma2Dir, &rnge);
+
+      // For each of the two gammas, pair-produce if they have enough energy
+      // or deposit the energy locally.
+      if (theGamma1Ekin > 2 * copcore::units::kElectronMassC2) {
+        PairProduce(allTracks, manager, activeQueue, currentTrack, theGamma1Ekin, theGamma1Dir);
+        scoring->secondaries += 2;
+      } else {
+        scoring->totalEnergyDeposit.fetch_add(theGamma1Ekin);
+      }
+      if (theGamma2Ekin > 2 * copcore::units::kElectronMassC2) {
+        PairProduce(allTracks, manager, activeQueue, currentTrack, theGamma2Ekin, theGamma2Dir);
+        scoring->secondaries += 2;
+      } else {
+        scoring->totalEnergyDeposit.fetch_add(theGamma2Ekin);
+      }
+
+      // The current track is killed by not enqueuing into the next activeQueue.
+      break;
+    }
+    }
   }
 }
 
@@ -409,185 +563,12 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
   }
 }
 
-class RanluxppDoubleEngine : public G4HepEmRandomEngine {
-  // Wrapper functions to call into RanluxppDouble.
-  static __host__ __device__ double flatWrapper(void *object) { return ((RanluxppDouble *)object)->Rndm(); }
-  static __host__ __device__ void flatArrayWrapper(void *object, const int size, double *vect)
-  {
-    for (int i = 0; i < size; i++) {
-      vect[i] = ((RanluxppDouble *)object)->Rndm();
-    }
-  }
-
-public:
-  __host__ __device__ RanluxppDoubleEngine(RanluxppDouble *engine)
-      : G4HepEmRandomEngine(/*object=*/engine, &flatWrapper, &flatArrayWrapper)
-  {
-  }
-};
-
-__host__ __device__ void InitSecondary(Track &secondary, const Track &parent)
-{
-  // Initialize a new PRNG state.
-  secondary.rng_state = parent.rng_state;
-  secondary.rng_state.Skip(1 << 15);
-
-  // The caller is responsible to set the energy.
-  secondary.numIALeft[0] = -1.0;
-  secondary.numIALeft[1] = -1.0;
-  secondary.numIALeft[2] = -1.0;
-
-  secondary.current_process = 0;
-  // The caller is responsible to set the particle type (via pdg).
-
-  // A secondary inherits the position of its parent; the caller is responsible
-  // to update the directions.
-  secondary.pos           = parent.pos;
-  secondary.current_state = parent.current_state;
-  secondary.next_state    = parent.current_state;
-}
-
-// Create a pair of e-/e+ from the intermediate gamma.
-__host__ __device__ void PairProduce(Track *allTracks, SlotManager *manager, adept::MParray *activeQueue,
-                                     const Track &currentTrack, double energy, const double *dir)
-{
-  int electronSlot = manager->nextSlot();
-  if (electronSlot == -1) {
-    COPCORE_EXCEPTION("No slot available for secondary electron track");
-  }
-  activeQueue->push_back(electronSlot);
-  Track &electron = allTracks[electronSlot];
-
-  int positronSlot = manager->nextSlot();
-  if (positronSlot == -1) {
-    COPCORE_EXCEPTION("No slot available for secondary positron track");
-  }
-  activeQueue->push_back(positronSlot);
-  Track &positron = allTracks[positronSlot];
-
-  // TODO: Distribute energy and momentum.
-  double remainingEnergy = energy - 2 * copcore::units::kElectronMassC2;
-
-  InitSecondary(electron, /*parent=*/currentTrack);
-  electron.pdg    = Track::pdgElectron;
-  electron.energy = remainingEnergy / 2;
-  electron.dir.Set(dir[0], dir[1], dir[2]);
-
-  InitSecondary(positron, /*parent=*/currentTrack);
-  positron.pdg    = Track::pdgPositron;
-  positron.energy = remainingEnergy / 2;
-  positron.dir.Set(dir[0], dir[1], dir[2]);
-}
-
-// Perform the discrete interactions for e-/e+; for photons, either pair-produce
-// or deposit the energy.
-__global__ void PerformDiscreteInteractions(Track *allTracks, const adept::MParray *discreteQueue, SlotManager *manager,
-                                            adept::MParray *activeQueue, Scoring *scoring)
-{
-  int queueSize = discreteQueue->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queueSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*discreteQueue)[i];
-    Track &currentTrack = allTracks[slot];
-    RanluxppDoubleEngine rnge(&currentTrack.rng_state);
-
-    // For now, just assume a single material.
-    int theMCIndex             = 1;
-    const double energy        = currentTrack.energy;
-    const double theElCut      = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
-    // In this kernel, we only have electrons and positrons.
-    const bool isElectron = currentTrack.pdg == Track::pdgElectron;
-
-    switch (currentTrack.current_process) {
-    case 0: {
-      // Invoke ionization (for e-/e+):
-      double deltaEkin = (isElectron) ? SampleETransferMoller(theElCut, energy, &rnge)
-                                      : SampleETransferBhabha(theElCut, energy, &rnge);
-
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-      double dirSecondary[3];
-      SampleDirectionsIoni(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
-      int secondarySlot = manager->nextSlot();
-      if (secondarySlot == -1) {
-        COPCORE_EXCEPTION("No slot available for secondary track");
-      }
-      activeQueue->push_back(secondarySlot);
-      Track &secondary = allTracks[secondarySlot];
-      scoring->secondaries++;
-
-      InitSecondary(secondary, /*parent=*/currentTrack);
-      secondary.pdg    = Track::pdgElectron;
-      secondary.energy = deltaEkin;
-      secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
-
-      currentTrack.energy = energy - deltaEkin;
-      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      // The current track continues to live.
-      activeQueue->push_back(slot);
-      break;
-    }
-    case 1: {
-      // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-      double logEnergy = std::log(energy);
-      double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? SampleETransferBremSB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron)
-                             : SampleETransferBremRB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron);
-
-      // We would need to create a gamma, but only do so if it has enough energy
-      // to immediately pair-produce. Otherwise just deposit the energy locally.
-      if (deltaEkin > 2 * copcore::units::kElectronMassC2) {
-        double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-        double dirSecondary[3];
-        SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
-        PairProduce(allTracks, manager, activeQueue, currentTrack, deltaEkin, dirSecondary);
-        scoring->secondaries += 2;
-      } else {
-        scoring->totalEnergyDeposit.fetch_add(deltaEkin);
-      }
-
-      currentTrack.energy = energy - deltaEkin;
-      // The current track continues to live.
-      activeQueue->push_back(slot);
-      break;
-    }
-    case 2: {
-      // Invoke annihilation (in-flight) for e+
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-      double theGamma1Ekin, theGamma2Ekin;
-      double theGamma1Dir[3], theGamma2Dir[3];
-      SampleEnergyAndDirectionsForAnnihilationInFlight(energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin,
-                                                       theGamma2Dir, &rnge);
-
-      // For each of the two gammas, pair-produce if they have enough energy
-      // or deposit the energy locally.
-      if (theGamma1Ekin > 2 * copcore::units::kElectronMassC2) {
-        PairProduce(allTracks, manager, activeQueue, currentTrack, theGamma1Ekin, theGamma1Dir);
-        scoring->secondaries += 2;
-      } else {
-        scoring->totalEnergyDeposit.fetch_add(theGamma1Ekin);
-      }
-      if (theGamma2Ekin > 2 * copcore::units::kElectronMassC2) {
-        PairProduce(allTracks, manager, activeQueue, currentTrack, theGamma2Ekin, theGamma2Dir);
-        scoring->secondaries += 2;
-      } else {
-        scoring->totalEnergyDeposit.fetch_add(theGamma2Ekin);
-      }
-
-      // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
-    }
-  }
-}
-
 __global__ void FinishStep(adept::MParray *currentlyActive, const adept::MParray *nextActive,
-                           adept::MParray *relocateQueue, adept::MParray *discreteQueue, int *inFlight)
+                           adept::MParray *relocateQueue, int *inFlight)
 {
   currentlyActive->clear();
   *inFlight = nextActive->size();
   relocateQueue->clear();
-  discreteQueue->clear();
 }
 
 // Kernel function to initialize a single queue.
@@ -619,8 +600,7 @@ __global__ void InitPrimaries(Track *allTracks, SlotManager *manager, adept::MPa
     LoopNavigator::LocatePointIn(world, track.pos, track.current_state, true);
     // next_state is initialized as needed.
 
-    track.current_process = 0;
-    track.pdg             = Track::pdgElectron;
+    track.pdg = Track::pdgElectron;
   }
 }
 
@@ -653,8 +633,7 @@ void example8(const vecgeom::cxx::VPlacedVolume *world, int particles, double en
   // Allocate queues to remember particles:
   //  * Two for active particles, one for the current iteration and the second for the next.
   //  * One for all particles that need to be relocated to the next volume.
-  //  * One for particles that have a discrete interaction.
-  constexpr int NumQueues = 4;
+  constexpr int NumQueues = 3;
   const size_t queueSize  = adept::MParray::SizeOfInstance(Capacity);
 
   adept::MParray *queues[NumQueues];
@@ -668,7 +647,6 @@ void example8(const vecgeom::cxx::VPlacedVolume *world, int particles, double en
   adept::MParray *nextActive      = queues[1];
 
   adept::MParray *relocateQueue = queues[2];
-  adept::MParray *discreteQueue = queues[3];
 
   // Allocate memory for an integer to transfer the number of particles in flight.
   int *inFlight_dev = nullptr;
@@ -695,8 +673,7 @@ void example8(const vecgeom::cxx::VPlacedVolume *world, int particles, double en
   constexpr int maxBlocks       = 1024;
   constexpr int stepThreads     = 32;
   constexpr int relocateThreads = 32;
-  constexpr int discreteThreads = 32;
-  int stepBlocks, relocateBlocks, discreteBlocks;
+  int stepBlocks, relocateBlocks;
 
   vecgeom::Stopwatch timer;
   timer.Start();
@@ -710,25 +687,18 @@ void example8(const vecgeom::cxx::VPlacedVolume *world, int particles, double en
 
     relocateBlocks = std::min(inFlight, maxBlocks);
 
-    discreteBlocks = (inFlight + discreteThreads - 1) / discreteThreads;
-    discreteBlocks = std::min(discreteBlocks, maxBlocks);
-
     // Call the kernel to compute the physics and geomtry step limit, transport
-    // the particle while applying the continuous effects and possibly select a
-    // discrete process that could generate secondaries.
-    PerformStep<<<stepBlocks, stepThreads>>>(allTracks, currentlyActive, nextActive, relocateQueue, discreteQueue,
+    // the particle while applying the continuous effects and maybe a discrete
+    // process that could generate secondaries.
+    PerformStep<<<stepBlocks, stepThreads>>>(allTracks, slotManager, currentlyActive, nextActive, relocateQueue,
                                              scoring);
 
     // Call the kernel to relocate particles that left their current volume,
     // either entering a new daughter or moving out of the current volume.
     RelocateToNextVolume<<<relocateBlocks, relocateThreads>>>(allTracks, relocateQueue);
 
-    // Call the kernel to perform the discrete interactions.
-    PerformDiscreteInteractions<<<discreteBlocks, discreteThreads>>>(allTracks, discreteQueue, slotManager, nextActive,
-                                                                     scoring);
-
     // Call the kernel to finish the current step, clear the queues, and return the number of particles in flight.
-    FinishStep<<<1, 1>>>(currentlyActive, nextActive, relocateQueue, discreteQueue, inFlight_dev);
+    FinishStep<<<1, 1>>>(currentlyActive, nextActive, relocateQueue, inFlight_dev);
 
     // Copy number of particles in flight and Scoring for output. Also synchronizes with the device.
     COPCORE_CUDA_CHECK(cudaMemcpy(&scoring_host, scoring, sizeof(Scoring), cudaMemcpyDeviceToHost));
