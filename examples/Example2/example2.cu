@@ -39,7 +39,7 @@ struct Scoring {
   }
 };
 
-constexpr double kPush = 1.e-8;
+constexpr double kPush = 1.e-8 * copcore::units::cm;
 
 // kernel select processes based on interaction lenght and put particles in the appropriate queues
 __global__ void DefinePhysicalStepLength(adept::BlockData<track> *block, process_list *proclist,
@@ -174,7 +174,7 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
 
   // initializing one track in the block
   auto track1         = block->NextElement();
-  track1->energy      = 100.0f;
+  track1->energy      = 100.0 * copcore::units::GeV;
   track1->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
   track1->pos                = {0, 0, 0};
@@ -188,10 +188,10 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
 
   // initializing second track in the block
   auto track2         = block->NextElement();
-  track2->energy      = 30.0f;
+  track2->energy      = 30.0 * copcore::units::GeV;
   track2->energy_loss = 0.0f;
   //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
-  track2->pos = {0, 0.05, 0};
+  track2->pos = {0, 0.05 * copcore::units::cm, 0};
   track2->dir = {1, 0, 0};
   init_track<<<1, 1>>>(track2, gpu_world);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
@@ -225,8 +225,8 @@ void example2(const vecgeom::cxx::VPlacedVolume *world)
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
     std::cout << "tracks in flight: " << std::setw(5) << block->GetNused() << " energy depostion: " << std::setw(8)
-              << scor->totalEnergyLoss.load() << " number of secondaries: " << std::setw(5) << scor->secondaries.load()
-              << " number of hits: " << std::setw(4) << scor->hits.load() << std::endl;
+              << scor->totalEnergyLoss.load() / copcore::units::GeV << " number of secondaries: " << std::setw(5)
+              << scor->secondaries.load() << " number of hits: " << std::setw(4) << scor->hits.load() << std::endl;
   }
 
   auto time_cpu = timer.Stop();

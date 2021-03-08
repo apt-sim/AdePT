@@ -146,7 +146,7 @@ int main()
 
   // initializing one track in the block
   auto track    = block->NextElement();
-  track->energy = 100.0f;
+  track->energy      = 100.0 * copcore::units::GeV;
   track->energy_loss = 0.0f;
   //  track->index = 1; // this is not use for the moment, but it should be a unique track index
   init_track<<<1, 1>>>(track);
@@ -154,7 +154,7 @@ int main()
 
   // initializing second track in the block
   auto track2    = block->NextElement();
-  track2->energy = 30.0f;
+  track2->energy      = 30.0 * copcore::units::GeV;
   track2->energy_loss = 0.0f;
   //  track2->index = 2; // this is not use for the moment, but it should be a unique track index
   init_track<<<1, 1>>>(track2);
@@ -187,8 +187,9 @@ int main()
     for (int i = 0; i < numberOfProcesses; i++) queues[i]->clear();
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-    std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused() << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load()
-    << " total number of secondaries: " << scor->secondaries.load() << std::endl;
+    std::cout << "Number of tracks in flight: " << std::setw(8) << block->GetNused()
+              << " total energy depostion: " << std::setw(10) << scor->totalEnergyLoss.load() / copcore::units::GeV
+              << " total number of secondaries: " << scor->secondaries.load() << std::endl;
   }
 
   auto time_cpu = timer.Stop();
