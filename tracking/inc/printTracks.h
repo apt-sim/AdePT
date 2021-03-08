@@ -28,5 +28,6 @@ __host__ void printTracks(adept::BlockData<track> *trackBlock, //     adept::Blo
       if (numPrinted++ < numTracks) printTrack<<<1, 1>>>(trackBlock, i, verbose);
     }
   }
+  cudaDeviceSynchronize();
 }
 #endif
