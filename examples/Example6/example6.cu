@@ -206,8 +206,7 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
     G4HepEmTrack *theTrack = elTrack.GetTrack();
-    // Transform the units ...
-    theTrack->SetEKin(currentTrack.energy / copcore::units::GeV * GeV);
+    theTrack->SetEKin(currentTrack.energy);
     // For now, just assume a single material.
     theTrack->SetMCIndex(1);
     // In this kernel, we only have electrons and positrons.
@@ -227,8 +226,8 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     // Call G4HepEm to compute the physics step limit.
     electronManager.HowFar(&g4HepEmData, &g4HepEmPars, &elTrack);
 
-    // Get result into variables and transform the units.
-    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength() / mm * copcore::units::mm;
+    // Get result into variables.
+    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
     // The phyiscal step length is the amount that the particle experiences
     // which might be longer than the geometrical step length due to MSC. As
     // long as we call PerformContinuous in the same kernel we don't need to
@@ -245,18 +244,15 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     currentTrack.total_length += geometryStepLength;
 
     if (currentTrack.next_state.IsOnBoundary()) {
-      theTrack->SetGStepLength(geometryStepLength / copcore::units::cm * cm);
+      theTrack->SetGStepLength(geometryStepLength);
       theTrack->SetOnBoundary(true);
     }
 
     // Apply continuous effects.
     bool stopped = electronManager.PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack);
     // Collect the changes.
-    double energyDeposit    = theTrack->GetEnergyDeposit();
-    double newKineticEnergy = theTrack->GetEKin();
-    // Transform the units ...
-    currentTrack.energy = newKineticEnergy / MeV * copcore::units::MeV;
-    scoring->totalEnergyDeposit.fetch_add(energyDeposit / MeV * copcore::units::MeV);
+    currentTrack.energy = theTrack->GetEKin();
+    scoring->totalEnergyDeposit.fetch_add(theTrack->GetEnergyDeposit());
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -529,7 +525,6 @@ __global__ void PerformDiscreteInteractions(adept::BlockData<track> *allTracks, 
     // For now, just assume a single material.
     int theMCIndex             = 1;
     const double energy        = currentTrack.energy;
-    const double energyG4HepEm = energy / copcore::units::GeV * GeV;
     const double theElCut      = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
     // In this kernel, we only have electrons and positrons.
     const bool isElectron = currentTrack.pdg == track::pdgElectron;
@@ -537,13 +532,12 @@ __global__ void PerformDiscreteInteractions(adept::BlockData<track> *allTracks, 
     switch (currentTrack.current_process) {
     case 0: {
       // Invoke ioninization (for e-/e+):
-      double deltaEkin = (isElectron) ? SampleETransferMoller(theElCut, energyG4HepEm, &rnge)
-                                      : SampleETransferBhabha(theElCut, energyG4HepEm, &rnge);
+      double deltaEkin = (isElectron) ? SampleETransferMoller(theElCut, energy, &rnge)
+                                      : SampleETransferBhabha(theElCut, energy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];
-      SampleDirectionsIoni(energyG4HepEm, deltaEkin, dirSecondary, dirPrimary, &rnge);
-      deltaEkin = deltaEkin / MeV * copcore::units::MeV;
+      SampleDirectionsIoni(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       auto secondary = allTracks->NextElement();
       if (secondary == nullptr) {
@@ -563,28 +557,27 @@ __global__ void PerformDiscreteInteractions(adept::BlockData<track> *allTracks, 
     }
     case 1: {
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-      double logEnergy = std::log(energyG4HepEm);
+      double logEnergy = std::log(energy);
       double deltaEkin =
-          energyG4HepEm < g4HepEmPars.fElectronBremModelLim
-              ? SampleETransferBremSB(&g4HepEmData, energyG4HepEm, logEnergy, theMCIndex, &rnge, isElectron)
-              : SampleETransferBremRB(&g4HepEmData, energyG4HepEm, logEnergy, theMCIndex, &rnge, isElectron);
-      double transformedDeltaEkin = deltaEkin / MeV * copcore::units::MeV;
+          energy < g4HepEmPars.fElectronBremModelLim
+              ? SampleETransferBremSB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron)
+              : SampleETransferBremRB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron);
 
       // We would need to create a gamma, but only do so if it has enough energy
       // to immediately pair-produce. Otherwise just deposit the energy locally.
-      if (transformedDeltaEkin > 2 * copcore::units::kElectronMassC2) {
+      if (deltaEkin > 2 * copcore::units::kElectronMassC2) {
         double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
         double dirSecondary[3];
-        SampleDirectionsBrem(energyG4HepEm, deltaEkin, dirSecondary, dirPrimary, &rnge);
+        SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-        PairProduce(allTracks, currentTrack, transformedDeltaEkin, dirSecondary);
+        PairProduce(allTracks, currentTrack, deltaEkin, dirSecondary);
         currentTrack.number_of_secondaries += 2;
         scoring->secondaries += 2;
       } else {
-        scoring->totalEnergyDeposit.fetch_add(transformedDeltaEkin);
+        scoring->totalEnergyDeposit.fetch_add(deltaEkin);
       }
 
-      currentTrack.energy = energy - transformedDeltaEkin;
+      currentTrack.energy = energy - deltaEkin;
       break;
     }
     case 2: {
@@ -593,10 +586,8 @@ __global__ void PerformDiscreteInteractions(adept::BlockData<track> *allTracks, 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double theGamma1Ekin, theGamma2Ekin;
       double theGamma1Dir[3], theGamma2Dir[3];
-      SampleEnergyAndDirectionsForAnnihilationInFlight(energyG4HepEm, dirPrimary, &theGamma1Ekin, theGamma1Dir,
+      SampleEnergyAndDirectionsForAnnihilationInFlight(energy, dirPrimary, &theGamma1Ekin, theGamma1Dir,
                                                        &theGamma2Ekin, theGamma2Dir, &rnge);
-      theGamma1Ekin = theGamma1Ekin / MeV * copcore::units::MeV;
-      theGamma2Ekin = theGamma2Ekin / MeV * copcore::units::MeV;
 
       // For each of the two gammas, pair-produce if they have enough energy
       // or deposit the energy locally.
