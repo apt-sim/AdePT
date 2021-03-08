@@ -759,7 +759,7 @@ void example6(const vecgeom::cxx::VPlacedVolume *world)
 
     std::cout << std::fixed << std::setprecision(4) << std::setfill(' ');
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << inFlight
-              << " energy deposition: " << std::setw(10) << scoring->totalEnergyDeposit.load()
+              << " energy deposition: " << std::setw(10) << scoring->totalEnergyDeposit.load() / copcore::units::GeV
               << " number of secondaries: " << std::setw(5) << scoring->secondaries.load()
               << " number of hits: " << std::setw(4) << scoring->hits.load();
     std::cout << std::endl;
