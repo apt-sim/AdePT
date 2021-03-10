@@ -28,6 +28,7 @@
 #include <G4HepEmPositronInteractionAnnihilation.hh>
 // Pull in implementation.
 #include <G4HepEmRunUtils.icc>
+#include <G4HepEmInteractionUtils.icc>
 #include <G4HepEmElectronManager.icc>
 #include <G4HepEmElectronInteractionBrem.icc>
 #include <G4HepEmElectronInteractionIoni.icc>
