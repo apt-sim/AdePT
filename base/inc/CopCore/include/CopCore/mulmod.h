@@ -53,7 +53,7 @@ static inline uint64_t sub_carry(uint64_t a, uint64_t b, unsigned &carry)
 /// \param[in] in2 second factor as 9 numbers of 64 bits each
 /// \param[out] out result with 18 numbers of 64 bits each
 __host__ __device__
-void multiply9x9(const uint64_t *in1, const uint64_t *in2, uint64_t *out)
+static inline void multiply9x9(const uint64_t *in1, const uint64_t *in2, uint64_t *out)
 {
   uint64_t next      = 0;
   unsigned nextCarry = 0;
@@ -168,7 +168,7 @@ void multiply9x9(const uint64_t *in1, const uint64_t *in2, uint64_t *out)
 /// Note that this function does *not* return the smallest value congruent to
 /// the modulus, it only guarantees a value smaller than \f$ 2^{576} \$!
 __host__ __device__
-void mod_m(const uint64_t *mul, uint64_t *out)
+static inline void mod_m(const uint64_t *mul, uint64_t *out)
 {
   uint64_t r[9] = {0};
 
@@ -314,7 +314,7 @@ void mod_m(const uint64_t *mul, uint64_t *out)
 /// \param[in] in1 first factor with 9 numbers of 64 bits each
 /// \param[inout] inout second factor and also the output of the same size
 __host__ __device__
-void mulmod(const uint64_t *in1, uint64_t *inout)
+static inline void mulmod(const uint64_t *in1, uint64_t *inout)
 {
   uint64_t mul[2 * 9] = {0};
   multiply9x9(in1, inout, mul);
@@ -329,7 +329,7 @@ void mulmod(const uint64_t *in1, uint64_t *inout)
 ///
 /// The arguments base and res may point to the same location.
 __host__ __device__
-void powermod(const uint64_t *base, uint64_t *res, uint64_t n)
+static inline void powermod(const uint64_t *base, uint64_t *res, uint64_t n)
 {
   uint64_t fac[9] = {0};
   fac[0]          = base[0];
