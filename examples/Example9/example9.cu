@@ -20,6 +20,7 @@
 
 #include <G4HepEmData.hh>
 #include <G4HepEmElectronInit.hh>
+#include <G4HepEmGammaInit.hh>
 #include <G4HepEmMatCutData.hh>
 #include <G4HepEmMaterialInit.hh>
 #include <G4HepEmParameters.hh>
@@ -47,6 +48,7 @@ static G4HepEmState *InitG4HepEm()
 
   InitElectronData(&state->data, &state->parameters, true);
   InitElectronData(&state->data, &state->parameters, false);
+  InitGammaData(&state->data, &state->parameters);
 
   G4HepEmMatCutData *cutData = state->data.fTheMatCutData;
   std::cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData
@@ -64,6 +66,7 @@ static G4HepEmState *InitG4HepEm()
   dataOnDevice.fTheElectronData = state->data.fTheElectronData_gpu;
   dataOnDevice.fThePositronData = state->data.fThePositronData_gpu;
   dataOnDevice.fTheSBTableData  = state->data.fTheSBTableData_gpu;
+  dataOnDevice.fTheGammaData    = state->data.fTheGammaData_gpu;
   // The other pointers should never be used.
   dataOnDevice.fTheMatCutData_gpu   = nullptr;
   dataOnDevice.fTheMaterialData_gpu = nullptr;
@@ -71,6 +74,7 @@ static G4HepEmState *InitG4HepEm()
   dataOnDevice.fTheElectronData_gpu = nullptr;
   dataOnDevice.fThePositronData_gpu = nullptr;
   dataOnDevice.fTheSBTableData_gpu  = nullptr;
+  dataOnDevice.fTheGammaData_gpu    = nullptr;
 
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
 
@@ -291,7 +295,25 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
     }
 
     // *** GAMMAS ***
-    // tbd
+    int numGammas = stats->inFlight[ParticleType::Gamma];
+    if (numGammas > 0) {
+      transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
+      transportBlocks = std::min(transportBlocks, MaxBlocks);
+
+      relocateBlocks = std::min(numGammas, MaxBlocks);
+
+      TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+          gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
+          gammas.queues.relocate, scoring);
+
+      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, gammas.stream>>>(gammas.tracks,
+                                                                                  gammas.queues.relocate);
+
+      COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
+      COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event));
+    }
+
+    // *** END OF TRANSPORT ***
 
     // The events ensure synchronization before finishing this iteration and
     // copying the Stats back to the host.

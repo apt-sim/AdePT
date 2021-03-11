@@ -140,6 +140,9 @@ extern template __global__ void TransportElectrons</*IsElectron*/false>(
     Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
     adept::MParray *relocateQueue, GlobalScoring *scoring);
 
+__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                                adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring);
+
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in example9.cu)
 extern __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
