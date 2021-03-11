@@ -385,13 +385,13 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
                              ? SampleETransferBremSB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron)
                              : SampleETransferBremRB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron);
 
+      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirSecondary[3];
+      SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
       // We would need to create a gamma, but only do so if it has enough energy
       // to immediately pair-produce. Otherwise just deposit the energy locally.
       if (deltaEkin > 2 * copcore::units::kElectronMassC2) {
-        double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-        double dirSecondary[3];
-        SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
         PairProduce(allTracks, manager, activeQueue, currentTrack, deltaEkin, dirSecondary);
         scoring->secondaries += 2;
       } else {
@@ -399,6 +399,7 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
       }
 
       currentTrack.energy = energy - deltaEkin;
+      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       // The current track continues to live.
       activeQueue->push_back(slot);
       break;
