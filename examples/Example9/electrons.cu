@@ -22,25 +22,6 @@
 
 __device__ struct G4HepEmElectronManager electronManager;
 
-// Create a pair of e-/e+ from the intermediate gamma.
-__host__ __device__ void PairProduce(Secondaries &secondaries, const Track &currentTrack, double energy,
-                                     const double *dir)
-{
-  Track &electron = secondaries.electrons.NextTrack();
-  Track &positron = secondaries.positrons.NextTrack();
-
-  // TODO: Distribute energy and momentum.
-  double remainingEnergy = energy - 2 * copcore::units::kElectronMassC2;
-
-  electron.InitAsSecondary(/*parent=*/currentTrack);
-  electron.energy = remainingEnergy / 2;
-  electron.dir.Set(dir[0], dir[1], dir[2]);
-
-  positron.InitAsSecondary(/*parent=*/currentTrack);
-  positron.energy = remainingEnergy / 2;
-  positron.dir.Set(dir[0], dir[1], dir[2]);
-}
-
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
@@ -119,11 +100,25 @@ __global__ void TransportElectrons(Track *electrons, const adept::MParray *activ
 
     if (stopped) {
       if (!IsElectron) {
-        // For a stopped positron, we should call annihilation but this produces
-        // a gamma which we don't yet have processes for. Deposit the amount of
-        // energy that the photon would have from the annihilation at rest with
-        // an electron.
-        atomicAdd(&scoring->energyDeposit, 2 * copcore::units::kElectronMassC2);
+        // Annihilate the stopped positron into two gammas heading to opposite
+        // directions (isotropic).
+        Track &gamma1 = secondaries.gammas.NextTrack();
+        Track &gamma2 = secondaries.gammas.NextTrack();
+        atomicAdd(&scoring->secondaries, 2);
+
+        const double cost = 2 * currentTrack.Uniform() - 1;
+        const double sint = sqrt(1 - cost * cost);
+        const double phi  = k2Pi * currentTrack.Uniform();
+        double sinPhi, cosPhi;
+        sincos(phi, &sinPhi, &cosPhi);
+
+        gamma1.InitAsSecondary(/*parent=*/currentTrack);
+        gamma1.energy = copcore::units::kElectronMassC2;
+        gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
+
+        gamma2.InitAsSecondary(/*parent=*/currentTrack);
+        gamma2.energy = copcore::units::kElectronMassC2;
+        gamma2.dir    = -gamma1.dir;
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
       continue;
@@ -196,14 +191,12 @@ __global__ void TransportElectrons(Track *electrons, const adept::MParray *activ
       double dirSecondary[3];
       SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-      // We would need to create a gamma, but only do so if it has enough energy
-      // to immediately pair-produce. Otherwise just deposit the energy locally.
-      if (deltaEkin > 2 * copcore::units::kElectronMassC2) {
-        PairProduce(secondaries, currentTrack, deltaEkin, dirSecondary);
-        atomicAdd(&scoring->secondaries, 2);
-      } else {
-        atomicAdd(&scoring->energyDeposit, deltaEkin);
-      }
+      Track &gamma = secondaries.gammas.NextTrack();
+      atomicAdd(&scoring->secondaries, 1);
+
+      gamma.InitAsSecondary(/*parent=*/currentTrack);
+      gamma.energy = deltaEkin;
+      gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
       currentTrack.energy = energy - deltaEkin;
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
@@ -219,20 +212,17 @@ __global__ void TransportElectrons(Track *electrons, const adept::MParray *activ
       SampleEnergyAndDirectionsForAnnihilationInFlight(energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin,
                                                        theGamma2Dir, &rnge);
 
-      // For each of the two gammas, pair-produce if they have enough energy
-      // or deposit the energy locally.
-      if (theGamma1Ekin > 2 * copcore::units::kElectronMassC2) {
-        PairProduce(secondaries, currentTrack, theGamma1Ekin, theGamma1Dir);
-        atomicAdd(&scoring->secondaries, 2);
-      } else {
-        atomicAdd(&scoring->energyDeposit, theGamma1Ekin);
-      }
-      if (theGamma2Ekin > 2 * copcore::units::kElectronMassC2) {
-        PairProduce(secondaries, currentTrack, theGamma2Ekin, theGamma2Dir);
-        atomicAdd(&scoring->secondaries, 2);
-      } else {
-        atomicAdd(&scoring->energyDeposit, theGamma2Ekin);
-      }
+      Track &gamma1 = secondaries.gammas.NextTrack();
+      Track &gamma2 = secondaries.gammas.NextTrack();
+      atomicAdd(&scoring->secondaries, 2);
+
+      gamma1.InitAsSecondary(/*parent=*/currentTrack);
+      gamma1.energy = theGamma1Ekin;
+      gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
+
+      gamma2.InitAsSecondary(/*parent=*/currentTrack);
+      gamma2.energy = theGamma2Ekin;
+      gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
