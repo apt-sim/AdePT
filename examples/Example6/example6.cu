@@ -504,13 +504,13 @@ __global__ void PerformDiscreteInteractions(adept::BlockData<track> *allTracks, 
               ? SampleETransferBremSB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron)
               : SampleETransferBremRB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron);
 
+      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirSecondary[3];
+      SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
       // We would need to create a gamma, but only do so if it has enough energy
       // to immediately pair-produce. Otherwise just deposit the energy locally.
       if (deltaEkin > 2 * copcore::units::kElectronMassC2) {
-        double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-        double dirSecondary[3];
-        SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
         PairProduce(allTracks, currentTrack, deltaEkin, dirSecondary);
         currentTrack.number_of_secondaries += 2;
         scoring->secondaries += 2;
@@ -519,6 +519,7 @@ __global__ void PerformDiscreteInteractions(adept::BlockData<track> *allTracks, 
       }
 
       currentTrack.energy = energy - deltaEkin;
+      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       break;
     }
     case 2: {
