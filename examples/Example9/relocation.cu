@@ -21,7 +21,8 @@ __device__ __forceinline__ vecgeom::VPlacedVolume const *ShuffleVolume(unsigned 
 
 // A parallel version of LoopNavigator::RelocateToNextVolume. This function
 // uses the parallelism of a warp to check daughters in parallel.
-__global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *relocateQueue)
+__global__ void RelocateToNextVolume(adept::SparseVectorInterface<Track> &allTracks,
+                                     const adept::MParray *relocateQueue)
 {
   // Determine which threads are active in the current warp.
   unsigned mask     = __activemask();

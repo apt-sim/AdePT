@@ -26,8 +26,9 @@ __device__ struct G4HepEmElectronManager electronManager;
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron>
-__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring)
+__global__ void TransportElectrons(adept::SparseVectorInterface<Track> &electrons, const adept::MParray *active,
+                                   Secondaries secondaries, adept::MParray *activeQueue, adept::MParray *relocateQueue,
+                                   GlobalScoring *scoring)
 {
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
@@ -232,10 +233,12 @@ __global__ void TransportElectrons(Track *electrons, const adept::MParray *activ
 }
 
 // Instantiate template for electrons and positrons.
-template __global__ void TransportElectrons</*IsElectron*/ true>(Track *electrons, const adept::MParray *active,
-                                                                 Secondaries secondaries, adept::MParray *activeQueue,
+template __global__ void TransportElectrons</*IsElectron*/ true>(adept::SparseVectorInterface<Track> &electrons,
+                                                                 const adept::MParray *active, Secondaries secondaries,
+                                                                 adept::MParray *activeQueue,
                                                                  adept::MParray *relocateQueue, GlobalScoring *scoring);
-template __global__ void TransportElectrons</*IsElectron*/ false>(Track *electrons, const adept::MParray *active,
-                                                                  Secondaries secondaries, adept::MParray *activeQueue,
+template __global__ void TransportElectrons</*IsElectron*/ false>(adept::SparseVectorInterface<Track> &electrons,
+                                                                  const adept::MParray *active, Secondaries secondaries,
+                                                                  adept::MParray *activeQueue,
                                                                   adept::MParray *relocateQueue,
                                                                   GlobalScoring *scoring);

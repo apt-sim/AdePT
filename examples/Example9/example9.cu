@@ -99,7 +99,7 @@ struct ParticleQueues {
 };
 
 struct ParticleType {
-  Track *tracks;
+  adept::SparseVectorInterface<Track> *tracks;
   SlotManager *slotManager;
   ParticleQueues queues;
   cudaStream_t stream;
@@ -176,6 +176,8 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
 
   // Capacity of the different containers aka the maximum number of particles.
   constexpr int Capacity = 256 * 1024;
+  using TrackContainer   = adept::SparseVector<Track, Capacity>;
+  using TrackVec_t       = adept::SparseVectorInterface<Track>;
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
 
@@ -184,7 +186,7 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
   //  * objects to manage slots inside the memory,
   //  * queues of slots to remember active particle and those needing relocation,
   //  * a stream and an event for synchronization of kernels.
-  constexpr size_t TracksSize  = sizeof(Track) * Capacity;
+  constexpr size_t TracksSize  = sizeof(TrackContainer);
   constexpr size_t ManagerSize = sizeof(SlotManager);
   const size_t QueueSize       = adept::MParray::SizeOfInstance(Capacity);
 
@@ -192,6 +194,7 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
   SlotManager slotManagerInit(Capacity);
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].tracks, TracksSize));
+    TrackContainer::MakeInstanceAt(particles[i].tracks);
 
     COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].slotManager, ManagerSize));
     COPCORE_CUDA_CHECK(cudaMemcpy(particles[i].slotManager, &slotManagerInit, ManagerSize, cudaMemcpyHostToDevice));
@@ -227,7 +230,7 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
   // Initialize primary particles.
   constexpr int InitThreads = 32;
   int initBlocks            = (numParticles + InitThreads - 1) / InitThreads;
-  ParticleGenerator electronGenerator(electrons.tracks, electrons.slotManager, electrons.queues.currentlyActive);
+  ParticleGenerator electronGenerator(electrons.tracks, electrons.queues.currentlyActive);
   InitPrimaries<<<initBlocks, InitThreads>>>(electronGenerator, numParticles, energy, world_dev);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -251,9 +254,9 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
 
   do {
     Secondaries secondaries = {
-        .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
-        .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
-        .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
+        .electrons = {electrons.tracks, electrons.queues.nextActive},
+        .positrons = {positrons.tracks, positrons.queues.nextActive},
+        .gammas    = {gammas.tracks, gammas.queues.nextActive},
     };
 
     // *** ELECTRONS ***
@@ -265,10 +268,10 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
       relocateBlocks = std::min(numElectrons, MaxBlocks);
 
       TransportElectrons</*IsElectron*/ true><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+          *electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
           electrons.queues.relocate, scoring);
 
-      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, electrons.stream>>>(electrons.tracks,
+      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, electrons.stream>>>(*electrons.tracks,
                                                                                      electrons.queues.relocate);
 
       COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
@@ -284,10 +287,10 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
       relocateBlocks = std::min(numPositrons, MaxBlocks);
 
       TransportElectrons</*IsElectron*/ false><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
+          *positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
           positrons.queues.relocate, scoring);
 
-      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, positrons.stream>>>(positrons.tracks,
+      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, positrons.stream>>>(*positrons.tracks,
                                                                                      positrons.queues.relocate);
 
       COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
@@ -303,10 +306,10 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
       relocateBlocks = std::min(numGammas, MaxBlocks);
 
       TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-          gammas.queues.relocate, scoring);
+          *gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, gammas.queues.relocate,
+          scoring);
 
-      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, gammas.stream>>>(gammas.tracks,
+      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, gammas.stream>>>(*gammas.tracks,
                                                                                   gammas.queues.relocate);
 
       COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));

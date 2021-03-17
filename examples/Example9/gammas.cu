@@ -19,8 +19,9 @@ __device__ struct G4HepEmGammaManager gammaManager;
 
 constexpr double kPush = 1.e-8 * copcore::units::cm;
 
-__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring)
+__global__ void TransportGammas(adept::SparseVectorInterface<Track> &gammas, const adept::MParray *active,
+                                Secondaries secondaries, adept::MParray *activeQueue, adept::MParray *relocateQueue,
+                                GlobalScoring *scoring)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -54,7 +55,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = emTrack.GetGStepLength();
-    int winnerProcessIndex = emTrack.GetWinnerProcessIndex();
+    int winnerProcessIndex                  = emTrack.GetWinnerProcessIndex();
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
 
@@ -100,7 +101,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Perform the discrete interaction.
     RanluxppDoubleEngine rnge(&currentTrack.rngState);
 
-    const double energy   = currentTrack.energy;
+    const double energy = currentTrack.energy;
 
     switch (winnerProcessIndex) {
     case 0: {
@@ -153,7 +154,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
         electron.InitAsSecondary(/*parent=*/currentTrack);
         electron.energy = energyEl;
-        electron.dir = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
+        electron.dir    = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
         atomicAdd(&scoring->energyDeposit, energyEl);
@@ -162,7 +163,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       // Check the new gamma energy and deposit if below threshold.
       if (newEnergyGamma > LowEnergyThreshold) {
         currentTrack.energy = newEnergyGamma;
-        currentTrack.dir = newDirGamma;
+        currentTrack.dir    = newDirGamma;
 
         // The current track continues to live.
         activeQueue->push_back(slot);

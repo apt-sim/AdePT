@@ -70,14 +70,10 @@ __device__ inline bool is_used(int index, const SparseVectorInterface<Type> *sve
   return svector->is_used(index);
 }
 
-__device__ void print_mask(unsigned int mask)
+__device__ inline void print_mask(unsigned int mask)
 {
-  for (int lane = 0; lane < 32; ++lane) {
-    if ((mask & (1 << lane)))
-      printf("1");
-    else
-      printf("0");
-  }
+  for (int lane = 0; lane < 32; ++lane)
+    printf("%s", ((mask & (1 << lane)) == 0) ? "0" : "1");
   printf("\n");
 }
 
@@ -540,6 +536,21 @@ public:
     //  https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/
     set_bit(index);
     return (data() + index);
+  }
+
+  /** @brief Dispatch next free slot at the end, nullptr if none left. Construct in place using provided params */
+  template <typename... T>
+  __host__ __device__ __forceinline__ int NextSlot(const T &... params)
+  {
+    // Operation may fail if the max size is exceeded, returning -1.
+    int index = fNshared.fetch_add(1);
+    if (index >= fCapacity) return -1;
+    // construct in place
+    new ((data() + index)) Type(params...);
+    // fNshared++;
+    fNused++;
+    set_bit(index);
+    return index;
   }
 
   /** @brief Release the element at index i */

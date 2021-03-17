@@ -5,6 +5,7 @@
 #define EXAMPLE9_CUH
 
 #include <AdePT/MParray.h>
+#include <AdePT/SparseVector.h>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 
@@ -14,7 +15,6 @@
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
-
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
@@ -50,7 +50,7 @@ struct Track {
 
     // A secondary inherits the position of its parent; the caller is responsible
     // to update the directions.
-    this->pos           = parent.pos;
+    this->pos          = parent.pos;
     this->currentState = parent.currentState;
     this->nextState    = parent.nextState;
   }
@@ -72,7 +72,6 @@ public:
   {
   }
 };
-
 
 // A data structure for some global scoring. The accessors must make sure to use
 // atomic operations if needed.
@@ -100,22 +99,26 @@ public:
 
 // A bundle of pointers to generate particles of an implicit type.
 class ParticleGenerator {
-  Track *fTracks;
-  SlotManager *fSlotManager;
-  adept::MParray *fActiveQueue;
+  using TrackVec_t = adept::SparseVectorInterface<Track>;
+  using IndexVec_t = adept::MParray;
+
+  TrackVec_t *fTracks;
+  IndexVec_t *fActiveQueue;
 
 public:
-  __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue)
-    : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue) {}
+  __host__ __device__ ParticleGenerator(TrackVec_t *tracks, IndexVec_t *activeQueue)
+      : fTracks(tracks), fActiveQueue(activeQueue)
+  {
+  }
 
   __host__ __device__ Track &NextTrack()
   {
-    int slot = fSlotManager->NextSlot();
+    int slot = fTracks->NextSlot();
     if (slot == -1) {
       COPCORE_EXCEPTION("No slot available in ParticleGenerator::NextTrack");
     }
     fActiveQueue->push_back(slot);
-    return fTracks[slot];
+    return (*fTracks)[slot];
   }
 };
 
@@ -126,22 +129,24 @@ struct Secondaries {
   ParticleGenerator gammas;
 };
 
-
 // Kernels in different TUs.
-__global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *relocateQueue);
+__global__ void RelocateToNextVolume(adept::SparseVectorInterface<Track> &allTracks,
+                                     const adept::MParray *relocateQueue);
 
 template <bool IsElectron>
-__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring);
-extern template __global__ void TransportElectrons</*IsElectron*/true>(
-    Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    adept::MParray *relocateQueue, GlobalScoring *scoring);
-extern template __global__ void TransportElectrons</*IsElectron*/false>(
-    Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    adept::MParray *relocateQueue, GlobalScoring *scoring);
+__global__ void TransportElectrons(adept::SparseVectorInterface<Track> &electrons, const adept::MParray *active,
+                                   Secondaries secondaries, adept::MParray *activeQueue, adept::MParray *relocateQueue,
+                                   GlobalScoring *scoring);
+extern template __global__ void TransportElectrons</*IsElectron*/ true>(
+    adept::SparseVectorInterface<Track> &electrons, const adept::MParray *active, Secondaries secondaries,
+    adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring);
+extern template __global__ void TransportElectrons</*IsElectron*/ false>(
+    adept::SparseVectorInterface<Track> &electrons, const adept::MParray *active, Secondaries secondaries,
+    adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring);
 
-__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring);
+__global__ void TransportGammas(adept::SparseVectorInterface<Track> &gammas, const adept::MParray *active,
+                                Secondaries secondaries, adept::MParray *activeQueue, adept::MParray *relocateQueue,
+                                GlobalScoring *scoring);
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in example9.cu)
