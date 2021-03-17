@@ -28,6 +28,23 @@ struct Track {
   vecgeom::NavStateIndex currentState;
   vecgeom::NavStateIndex nextState;
 
+  __host__ __device__ Track() = default;
+
+  __host__ __device__ Track(const Track &parent, bool /*asSecondary*/)
+      : rngState(parent.rngState), pos(parent.pos), currentState(parent.currentState), nextState(parent.nextState)
+  {
+    // A secondary inherits the position of its parent; the caller is responsible
+    // to update the direction and energy
+
+    // Initialize a new PRNG state.
+    this->rngState.Skip(1 << 15);
+
+    // The caller is responsible to set the energy.
+    this->numIALeft[0] = -1.0;
+    this->numIALeft[1] = -1.0;
+    this->numIALeft[2] = -1.0;
+  }
+
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
   __host__ __device__ void SwapStates()
@@ -111,9 +128,10 @@ public:
   {
   }
 
-  __host__ __device__ Track &NextTrack()
+  template <typename... T>
+  __host__ __device__ Track &NextTrack(const T &... params)
   {
-    int slot = fTracks->NextSlot();
+    int slot = fTracks->NextSlot(params...);
     if (slot == -1) {
       COPCORE_EXCEPTION("No slot available in ParticleGenerator::NextTrack");
     }

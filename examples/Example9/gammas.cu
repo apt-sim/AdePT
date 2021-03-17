@@ -30,6 +30,7 @@ __global__ void TransportGammas(adept::SparseVectorInterface<Track> &gammas, con
     auto volume         = currentTrack.currentState.Top();
     if (volume == nullptr) {
       // The particle left the world, kill it by not enqueuing into activeQueue.
+      gammas.release(slot);
       continue;
     }
 
@@ -119,19 +120,20 @@ __global__ void TransportGammas(adept::SparseVectorInterface<Track> &gammas, con
       double dirSecondaryEl[3], dirSecondaryPos[3];
       SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy, posKinEnergy, &rnge);
 
-      Track &electron = secondaries.electrons.NextTrack();
-      Track &positron = secondaries.positrons.NextTrack();
+      Track &electron = secondaries.electrons.NextTrack(currentTrack, true);
+      Track &positron = secondaries.positrons.NextTrack(currentTrack, true);
       atomicAdd(&scoring->secondaries, 2);
 
-      electron.InitAsSecondary(/*parent=*/currentTrack);
+      // electron.InitAsSecondary(/*parent=*/currentTrack);
       electron.energy = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
-      positron.InitAsSecondary(/*parent=*/currentTrack);
+      // positron.InitAsSecondary(/*parent=*/currentTrack);
       positron.energy = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
+      gammas.release(slot);
       break;
     }
     case 1: {
@@ -149,10 +151,10 @@ __global__ void TransportGammas(adept::SparseVectorInterface<Track> &gammas, con
       const double energyEl = energy - newEnergyGamma;
       if (energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
-        Track &electron = secondaries.electrons.NextTrack();
+        Track &electron = secondaries.electrons.NextTrack(currentTrack, true);
         atomicAdd(&scoring->secondaries, 1);
 
-        electron.InitAsSecondary(/*parent=*/currentTrack);
+        // electron.InitAsSecondary(/*parent=*/currentTrack);
         electron.energy = energyEl;
         electron.dir    = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
@@ -170,6 +172,7 @@ __global__ void TransportGammas(adept::SparseVectorInterface<Track> &gammas, con
       } else {
         atomicAdd(&scoring->energyDeposit, newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
+        gammas.release(slot);
       }
       break;
     }
@@ -177,6 +180,7 @@ __global__ void TransportGammas(adept::SparseVectorInterface<Track> &gammas, con
       // Invoke photoelectric process: right now only absorb the gamma.
       atomicAdd(&scoring->energyDeposit, energy);
       // The current track is killed by not enqueuing into the next activeQueue.
+      gammas.release(slot);
       break;
     }
     }

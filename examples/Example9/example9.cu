@@ -116,7 +116,9 @@ struct ParticleType {
 
 // A bundle of queues for the three particle types.
 struct AllParticleQueues {
+  using TrackVec_t = adept::SparseVectorInterface<Track>;
   ParticleQueues queues[ParticleType::NumParticleTypes];
+  TrackVec_t *tracks[ParticleType::NumParticleTypes];
 };
 
 // Kernel to initialize the set of queues per particle type.
@@ -151,6 +153,7 @@ __global__ void InitPrimaries(ParticleGenerator generator, int particles, double
 struct Stats {
   GlobalScoring scoring;
   int inFlight[ParticleType::NumParticleTypes];
+  float sparsity[ParticleType::NumParticleTypes];
 };
 
 // Finish iteration: clear queues and fill statistics.
@@ -161,6 +164,7 @@ __global__ void FinishIteration(AllParticleQueues all, const GlobalScoring *scor
     all.queues[i].currentlyActive->clear();
     stats->inFlight[i] = all.queues[i].nextActive->size();
     all.queues[i].relocate->clear();
+    stats->sparsity[i] = all.tracks[i]->get_sparsity();
   }
 }
 
@@ -187,17 +191,12 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
   //  * queues of slots to remember active particle and those needing relocation,
   //  * a stream and an event for synchronization of kernels.
   constexpr size_t TracksSize  = sizeof(TrackContainer);
-  constexpr size_t ManagerSize = sizeof(SlotManager);
   const size_t QueueSize       = adept::MParray::SizeOfInstance(Capacity);
 
   ParticleType particles[ParticleType::NumParticleTypes];
-  SlotManager slotManagerInit(Capacity);
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].tracks, TracksSize));
     TrackContainer::MakeInstanceAt(particles[i].tracks);
-
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].slotManager, ManagerSize));
-    COPCORE_CUDA_CHECK(cudaMemcpy(particles[i].slotManager, &slotManagerInit, ManagerSize, cudaMemcpyHostToDevice));
 
     COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.currentlyActive, QueueSize));
     COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.nextActive, QueueSize));
@@ -320,7 +319,8 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
 
     // The events ensure synchronization before finishing this iteration and
     // copying the Stats back to the host.
-    AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
+    AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues},
+                                {electrons.tracks, positrons.tracks, gammas.tracks}};
     FinishIteration<<<1, 1, 0, stream>>>(queues, scoring, stats_dev);
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(stats, stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, stream));
 
@@ -342,7 +342,9 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << inFlight
               << " energy deposition: " << std::setw(10) << stats->scoring.energyDeposit / copcore::units::GeV
               << " number of secondaries: " << std::setw(5) << stats->scoring.secondaries
-              << " number of hits: " << std::setw(4) << stats->scoring.hits;
+              << " number of hits: " << std::setw(4) << stats->scoring.hits << " sparsity: (" << std::setw(5)
+              << stats->sparsity[0] << ", " << std::setw(5) << stats->sparsity[1] << ", " << std::setw(5)
+              << stats->sparsity[2] << ")";
     std::cout << std::endl;
 
     iterNo++;
@@ -360,7 +362,6 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
 
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     COPCORE_CUDA_CHECK(cudaFree(particles[i].tracks));
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].slotManager));
 
     COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.currentlyActive));
     COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.nextActive));
