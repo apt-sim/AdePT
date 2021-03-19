@@ -104,15 +104,15 @@ __global__ void TransportElectrons(adept::SparseVectorInterface<Track> &electron
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
-        Track &gamma1 = secondaries.gammas.NextTrack(currentTrack, true);
-        Track &gamma2 = secondaries.gammas.NextTrack(currentTrack, true);
-        atomicAdd(&scoring->secondaries, 2);
-
         const double cost = 2 * currentTrack.Uniform() - 1;
         const double sint = sqrt(1 - cost * cost);
         const double phi  = k2Pi * currentTrack.Uniform();
         double sinPhi, cosPhi;
         sincos(phi, &sinPhi, &cosPhi);
+
+        Track &gamma1 = secondaries.gammas.NextTrack(currentTrack, true);
+        Track &gamma2 = secondaries.gammas.NextTrack(currentTrack, true);
+        atomicAdd(&scoring->secondaries, 2);
 
         // gamma1.InitAsSecondary(/*parent=*/currentTrack);
         gamma1.energy = copcore::units::kElectronMassC2;
