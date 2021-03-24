@@ -15,6 +15,19 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 
+#define CAST_TO_BOX
+#define QUALIFY_CALLS
+
+#ifdef CAST_TO_BOX
+#include <VecGeom/volumes/Box.h>
+using Box_t = const vecgeom::SimpleBox;
+#ifdef QUALIFY_CALLS
+#define BOX_CALL Box_t::
+#else
+#define BOX_CALL
+#endif
+#endif
+
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
@@ -33,7 +46,12 @@ public:
   {
     if (top) {
       assert(vol != nullptr);
+#ifdef CAST_TO_BOX
+      Box_t *box = static_cast<Box_t *>(vol);
+      if (!box->BOX_CALL UnplacedContains(point)) return nullptr;
+#else
       if (!vol->UnplacedContains(point)) return nullptr;
+#endif
     }
 
     VPlacedVolumePtr_t currentvolume = vol;
@@ -45,7 +63,12 @@ public:
       godeeper = false;
       for (auto *daughter : currentvolume->GetDaughters()) {
         vecgeom::Vector3D<vecgeom::Precision> transformedpoint;
+#ifdef CAST_TO_BOX
+        Box_t *dBox = static_cast<Box_t *>(daughter);
+        if (dBox->BOX_CALL Contains(currentpoint, transformedpoint)) {
+#else
         if (daughter->Contains(currentpoint, transformedpoint)) {
+#endif
           path.Push(daughter);
           currentpoint  = transformedpoint;
           currentvolume = daughter;
@@ -64,11 +87,19 @@ public:
   {
     vecgeom::VPlacedVolume const *currentmother       = path.Top();
     vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
+#ifdef CAST_TO_BOX
+    Box_t *mBox;
+#endif
     do {
       path.Pop();
       transformed   = currentmother->GetTransformation()->InverseTransform(transformed);
       currentmother = path.Top();
+#ifdef CAST_TO_BOX
+      mBox = static_cast<Box_t *>(currentmother);
+    } while (currentmother && (currentmother->IsAssembly() || !mBox->BOX_CALL UnplacedContains(transformed)));
+#else
     } while (currentmother && (currentmother->IsAssembly() || !currentmother->UnplacedContains(transformed)));
+#endif
 
     if (currentmother) {
       path.Pop();
@@ -93,12 +124,22 @@ private:
     VPlacedVolumePtr_t pvol         = in_state.Top();
 
     // need to calc DistanceToOut first
+#ifdef CAST_TO_BOX
+    Box_t *pBox = static_cast<Box_t *>(pvol);
+    step = pBox->BOX_CALL DistanceToOut(localpoint, localdir, step_limit);
+#else
     step = pvol->DistanceToOut(localpoint, localdir, step_limit);
+#endif
 
     if (step < 0) step = 0;
 
     for (auto *daughter : pvol->GetDaughters()) {
+#ifdef CAST_TO_BOX
+      Box_t *dBox = static_cast<Box_t *>(daughter);
+      double ddistance = dBox->BOX_CALL DistanceToIn(localpoint, localdir, step);
+#else
       double ddistance = daughter->DistanceToIn(localpoint, localdir, step);
+#endif
 
       // if distance is negative; we are inside that daughter and should relocate
       // unless distance is minus infinity
@@ -234,7 +275,12 @@ public:
 
     VPlacedVolumePtr_t pvol = state.Top();
 
+#ifdef CAST_TO_BOX
+    Box_t *pBox = static_cast<Box_t *>(pvol);
+    if (!pBox->BOX_CALL UnplacedContains(localpoint)) {
+#else
     if (!pvol->UnplacedContains(localpoint)) {
+#endif
       RelocatePoint(localpoint, state);
     } else {
       state.Pop();

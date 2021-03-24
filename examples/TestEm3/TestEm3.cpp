@@ -34,7 +34,7 @@
 #include <iostream>
 
 const char *WorldMaterial    = "G4_Galactic";
-const char *GapMaterial      = "G4_Pb";
+const char *GapMaterial      = "G4_PbWO4";
 const char *AbsorberMaterial = "G4_lAr";
 
 enum MaterialCutCouples {

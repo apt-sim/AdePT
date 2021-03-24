@@ -3,6 +3,8 @@
 
 #include "TestEm3.cuh"
 
+#include <AdePT/LoopNavigator.h> // for CAST_TO_BOX
+
 #include <AdePT/MParray.h>
 
 #include <VecGeom/base/Vector3D.h>
@@ -61,10 +63,18 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
       currentVolume = state.Top();
 
       // Remove all volumes that were left.
+#ifdef CAST_TO_BOX
+      Box_t *cBox = static_cast<Box_t *>(currentVolume);
+      while (currentVolume && (currentVolume->IsAssembly() || !cBox->BOX_CALL UnplacedContains(localPoint))) {
+#else
       while (currentVolume && (currentVolume->IsAssembly() || !currentVolume->UnplacedContains(localPoint))) {
+#endif
         state.Pop();
         localPoint    = currentVolume->GetTransformation()->InverseTransform(localPoint);
         currentVolume = state.Top();
+#ifdef CAST_TO_BOX
+        cBox = static_cast<Box_t *>(currentVolume);
+#endif
       }
 
       // Store the transformed coordinates, to be broadcasted to the other
@@ -93,7 +103,12 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
         // The active threads in the wrap check all daughters in parallel.
         for (int d = lane; d < daughtersSize; d += threadsInWrap) {
           const auto *daughter = daughters[d];
+#ifdef CAST_TO_BOX
+          Box_t *dBox = static_cast<Box_t *>(daughter);
+          if (dBox->BOX_CALL Contains(localPoint, transformedPoint)) {
+#else
           if (daughter->Contains(localPoint, transformedPoint)) {
+#endif
             nextVolume = daughter;
             break;
           }
