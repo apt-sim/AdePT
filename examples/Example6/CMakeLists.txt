@@ -6,10 +6,6 @@ if(NOT TARGET G4HepEm::g4HepEm)
   return()
 endif()
 
-# Example 6 of particle transportation with GPUs: one container for all tracks,
-# geometry, magnetic field with constant Bz, and physics processes for e-/e+.
-# Photons immediately pair-produce if allowed or deposit their energy. Results
-# are reproducible using one RANLUX++ state per track.
 add_executable(example6 example6.cpp example6.cu)
 target_link_libraries(example6 PRIVATE AdePT CopCore::CopCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml ${Geant4_LIBRARIES} G4HepEm::g4HepEmData G4HepEm::g4HepEmInit G4HepEm::g4HepEmRun)
 target_compile_options(example6 PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
