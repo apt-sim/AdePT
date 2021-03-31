@@ -4,57 +4,80 @@
 #include "Raytracer.h"
 
 #include <AdePT/BlockData.h>
+#include <AdePT/SparseVector.h>
 
 #include <VecGeom/base/Global.h>
 
 inline namespace COPCORE_IMPL {
 
-// Alocate slots for the BlockData
-__host__ __device__
-void generateRays(int id, adept::BlockData<Ray_t> *rays)
-{
-  auto ray = rays->NextElement();
-  if (!ray) COPCORE_EXCEPTION("generateRays: Not enough space for rays");
+constexpr int VectorSize = 1 << 22;
+using Vector_t = adept::SparseVector<Ray_t, VectorSize>;
 
-  ray->index = id;
+// Add color in the vector of color (ascending order)
+__host__ __device__ void add_color(int index, int rays_per_pixel, adept::Atomic_t<unsigned int> *color, unsigned int pixel_color)
+{
+  for (int i = index; i < index + rays_per_pixel; ++i)
+  {
+    if (color[i].load() == 0) {
+      color[i].store(pixel_color);
+      return;
+    }
+    else if (pixel_color < color[i].load()){
+      unsigned int x = color[i].load();
+      color[i].store(pixel_color);
+      pixel_color = x;
+    }
+  }
+}
+
+// Add initial rays in SparseVector
+__host__ __device__ void generateRays(int id, const RaytracerData_t &rtdata)
+{
+  Ray_t *ray      = rtdata.sparse_rays[0]->next_free();
+  ray->index      = id;
+  ray->generation = 0;
+  ray->intensity.store(1.);
+
+  Raytracer::InitRay(rtdata, *ray);
 }
 
 COPCORE_CALLABLE_FUNC(generateRays)
 
-__host__ __device__
-void renderKernels(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t &rtdata, NavIndex_t *input_buffer,
-                   NavIndex_t *output_buffer)
+__host__ __device__ void renderKernels(int id, const RaytracerData_t &rtdata, int generation, int rays_per_pixel,
+                                       adept::Atomic_t<unsigned int> *color)
 {
   // Propagate all rays and write out the image on the backend
-  // size_t n10  = 0.1 * rtdata.fNrays;
+  if (!(rtdata.sparse_rays)[generation]->is_used(id)) return;
 
-  int ray_index = id;
+  Ray_t &ray = (*rtdata.sparse_rays[generation])[id];
 
-  int px = 0;
-  int py = 0;
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, ray, generation);
+  if (pixel_color.fColor == 0)
+    return;
 
-  if (ray_index) {
-    px = ray_index % rtdata.fSize_px;
-    py = ray_index / rtdata.fSize_px;
+  add_color(rays_per_pixel*ray.index, rays_per_pixel, color, pixel_color.fColor);
+}
+
+COPCORE_CALLABLE_FUNC(renderKernels)
+
+__host__ __device__ void print_vector(Vector_t *vect)
+{
+  printf("=== vect: fNshared=%lu/%lu fNused=%lu fNbooked=%lu - shared=%.1f%% sparsity=%.1f%%\n", vect->size(),
+         vect->capacity(), vect->size_used(), vect->size_booked(), 100. * vect->get_shared_fraction(),
+         100. * vect->get_sparsity());
+}
+
+// Check if there are rays in containers
+__host__ __device__ bool check_used(const RaytracerData_t &rtdata, int no_generations)
+{
+
+  auto rays_containers = rtdata.sparse_rays;
+
+  for (int i = 0; i < no_generations; ++i) {
+    if (rays_containers[i]->size_used() > 0) return true;
   }
 
-  if ((px >= rtdata.fSize_px) || (py >= rtdata.fSize_py)) return;
-
-  // fprintf(stderr, "P3\n%d %d\n255\n", fSize_px, fSize_py);
-  // if ((ray_index % n10) == 0) printf("%lu %%\n", 10 * ray_index / n10);
-  Ray_t *ray = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
-  ray->index = ray_index;
-
-  (*rays)[ray_index] = *ray;
-
-  auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, ray->index);
-
-  int pixel_index                = 4 * ray_index;
-  output_buffer[pixel_index + 0] = pixel_color.fComp.red;
-  output_buffer[pixel_index + 1] = pixel_color.fComp.green;
-  output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
-  output_buffer[pixel_index + 3] = 255;
+  return false;
 }
-COPCORE_CALLABLE_FUNC(renderKernels)
 
 } // End namespace COPCORE_IMPL

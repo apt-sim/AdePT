@@ -11,13 +11,15 @@
 #include "Color.h"
 
 #include <CopCore/Global.h>
+#include <CopCore/PhysicalConstants.h>
 #include <AdePT/BlockData.h>
+#include <AdePT/SparseVector.h>
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 
-#ifdef VECGEOM_ENABLE_CUDA
+#ifdef COPCORE_CUDA_COMPILER
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
@@ -25,6 +27,13 @@ inline namespace COPCORE_IMPL {
 
 enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
 enum ERTView { kRTVparallel = 0, kRTVperspective };
+
+struct MyMediumProp {
+  ERTmodel material         = kRTxray;
+  adept::Color_t fObjColor  = 0;
+  float refr_index          = 0;
+  float transparency_per_cm = 0;
+};
 
 struct Ray_t {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
@@ -38,24 +47,30 @@ struct Ray_t {
   adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
   int index                  = -1;      ///< index flag
+  adept::Atomic_t<float> intensity;     ///< intensity flag
+  int generation = -1;                  ///< generation flag (used for kRTfresnel model)
 
-  __host__ __device__
-  static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
+  __host__ __device__ static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
 
-  __host__ __device__
-  Ray_t() {}
+  __host__ __device__ Ray_t() {}
 
-  __host__ __device__
-  static size_t SizeOfInstance() { return sizeof(Ray_t); }
+  __host__ __device__ static size_t SizeOfInstance() { return sizeof(Ray_t); }
 
-  __host__ __device__
-  vecgeom::Vector3D<double> Reflect(vecgeom::Vector3D<double> const &normal)
+  __host__ __device__ vecgeom::Vector3D<double> Reflect(vecgeom::Vector3D<double> const &normal)
   {
     return (fDir - 2 * fDir.Dot(normal) * normal);
   }
 
-  __host__ __device__
-  vecgeom::Vector3D<double> Refract(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, bool &totalreflect)
+  __host__ __device__ void UpdateToNextVolume()
+  {
+    auto tmpstate = fCrtState;
+    fCrtState     = fNextState;
+    fNextState    = tmpstate;
+    fVolume       = fCrtState.Top();
+  }
+
+  __host__ __device__ vecgeom::Vector3D<double> Refract(vecgeom::Vector3D<double> const &normal, float ior1, float ior2,
+                                                        bool &totalreflect)
   {
     // ior1, ior2 are the refraction indices of the exited and entered volumes respectively
     float cosi                  = fDir.Dot(normal);
@@ -73,8 +88,21 @@ struct Ray_t {
     return refracted;
   }
 
-  __host__ __device__
-  void Fresnel(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, float &kr)
+  __host__ __device__ void TraverseTransparentLayer(float transparency_per_cm, float step, adept::Color_t object_color)
+  {
+    // Calculate transmittance = I/I0 = exp(ktr * step);
+    // where: ktr = log(transparency_per_cm)
+    float ktr           = log(transparency_per_cm);
+    float transmittance = exp(ktr * step / copcore::units::cm);
+    auto blend_color    = object_color;
+    blend_color *= (1 - transmittance);
+    fColor += blend_color;
+    float x = intensity.load();
+    x *= transmittance;
+    intensity.store(x);
+  }
+
+  __host__ __device__ void Fresnel(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, float &kr)
   {
     float cosi = fDir.Dot(normal);
     // Vector3D<double> n = (cosi < 0) ? normal : -normal;
@@ -99,32 +127,33 @@ struct Ray_t {
 struct RaytracerData_t {
 
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
+  using Array_t            = adept::SparseVector<Ray_t, 1 << 22>;
 
-  double fScale     = 0;                      ///< Scaling from pixels to world coordinates
-  double fShininess = 1.;                     ///< Shininess exponent in the specular model
-  double fZoom      = 1.;                     ///< Zoom with respect to the default view
-  vecgeom::Vector3D<double> fSourceDir;       ///< Light source direction
-  vecgeom::Vector3D<double> fScreenPos;       ///< Screen position
-  vecgeom::Vector3D<double> fStart;           ///< Eye position in perspectove mode
-  vecgeom::Vector3D<double> fDir;             ///< Start direction of all rays in parallel view mode
-  vecgeom::Vector3D<double> fUp;              ///< Up vector in the shooting rectangle plane
-  vecgeom::Vector3D<double> fRight;           ///< Right vector in the shooting rectangle plane
-  vecgeom::Vector3D<double> fLeftC;           ///< left-down corner of the ray shooting rectangle
-  int fVerbosity           = 0;               ///< Verbosity level
-  int fNrays               = 0;               ///< Number of rays left to propagate
-  int fSize_px             = 1024;            ///< Image pixel size in x
-  int fSize_py             = 1024;            ///< Image pixel size in y
-  int fVisDepth            = 1;               ///< Visible geometry depth
-  adept::Color_t fBkgColor = 0xFFFFFFFF;      ///< Light color
-  adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
-  ERTmodel fModel          = kRTxray;         ///< Selected RT model
-  ERTView fView            = kRTVperspective; ///< View type
+  double fScale     = 0;                ///< Scaling from pixels to world coordinates
+  double fShininess = 1.;               ///< Shininess exponent in the specular model
+  double fZoom      = 1.;               ///< Zoom with respect to the default view
+  vecgeom::Vector3D<double> fSourceDir; ///< Light source direction
+  vecgeom::Vector3D<double> fScreenPos; ///< Screen position
+  vecgeom::Vector3D<double> fStart;     ///< Eye position in perspectove mode
+  vecgeom::Vector3D<double> fDir;       ///< Start direction of all rays in parallel view mode
+  vecgeom::Vector3D<double> fUp;        ///< Up vector in the shooting rectangle plane
+  vecgeom::Vector3D<double> fRight;     ///< Right vector in the shooting rectangle plane
+  vecgeom::Vector3D<double> fLeftC;     ///< left-down corner of the ray shooting rectangle
+  int fVerbosity = 0;                   ///< Verbosity level
+  int fNrays     = 0;                   ///< Number of rays left to propagate
+  int fSize_px   = 1024;                ///< Image pixel size in x
+  int fSize_py   = 1024;                ///< Image pixel size in y
+  adept::Color_t fBkgColor = 0xFFFFFF80; ///< Background color
+  ERTmodel fModel  = kRTxray;         ///< Selected RT model
+  ERTView fView    = kRTVperspective; ///< View type
+  bool fReflection = false;           ///< Reflection model
 
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
 
-  __host__ __device__
-  void Print();
+  Array_t **sparse_rays = nullptr; ///< pointer to the rays containers
+
+  __host__ __device__ void Print();
 };
 
 /// \brief Raytracing a logical volume content using a given model
@@ -140,19 +169,17 @@ using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 /// it, normal vector pointing to the origin of the world reference frame \param up_vector the projection of this
 /// vector on the camera plane determines the 'up' direction of the image \param img_size_px image size on X in pixels
 /// \param img_size_py image size on Y in pixels
-__host__ __device__
-void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
+__host__ __device__ void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
-__host__ __device__
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
+__host__ __device__ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int generation);
 
 /// \brief Entry point to propagate all rays
-__host__ __device__
-void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char *rays_buffer,
-                   unsigned char *output_buffer);
+// __host__ __device__ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char *rays_buffer,
+                                       // unsigned char *output_buffer);
 
-__host__ __device__
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index);
+__host__ __device__ void InitRay(RaytracerData_t const &rtdata, Ray_t &ray);
+
+__host__ __device__ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int generation);
 
 } // End namespace Raytracer
 

@@ -10,6 +10,8 @@
 
 #include "Raytracer.h"
 #include "RaytraceBenchmark.hpp"
+#include "Material.h"
+#include <vector>
 
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
@@ -24,11 +26,18 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[]);
+namespace cuda {
+struct MyMediumProp;
+} // namespace cuda
 
-int executePipelineCPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+int executePipelineGPU(const cuda::MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
+                       char *argv[]);
+
+int executePipelineCPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
+                       char *argv[])
 {
-  int result = runSimulation<copcore::BackendType::CPU>(world, argc, argv);
+
+  int result = runSimulation<copcore::BackendType::CPU>(volume_container, world, argc, argv);
   return result;
 }
 
@@ -50,20 +59,30 @@ int main(int argc, char *argv[])
 
 #ifdef VECGEOM_GDML
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(cache_depth);
-  // The vecgeom millimeter unit is the last parameter of vgdml::Frontend::Load
-  bool load = vgdml::Frontend::Load(gdml_name.c_str(), false, 1);
+  bool load = vgdml::Frontend::Load(gdml_name.c_str(), false);
   if (!load) return 2;
 #endif
 
   const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
   if (!world) return 3;
 
-  auto ierr = 0;
+  auto ierr               = 0;
+  const int maxno_volumes = 1000;
+
+  // Allocate material structure
+  static MyMediumProp *volume_container;
+  cudaMallocManaged(&volume_container, maxno_volumes * sizeof(MyMediumProp));
+
+  std::vector<vecgeom::LogicalVolume *> logicalvolumes;
+  vecgeom::GeoManager::Instance().GetAllLogicalVolumes(logicalvolumes);
+
+  getMaterialStruct(volume_container, logicalvolumes, on_gpu);
 
   if (on_gpu) {
-    ierr = executePipelineGPU(world, argc, argv);
+    auto volume_container_cuda = reinterpret_cast<cuda::MyMediumProp *>(volume_container);
+    ierr                       = executePipelineGPU(volume_container_cuda, world, argc, argv);
   } else {
-    ierr = executePipelineCPU(world, argc, argv);
+    ierr = executePipelineCPU(volume_container, world, argc, argv);
   }
   if (ierr) std::cout << "TestNavIndex FAILED\n";
 
