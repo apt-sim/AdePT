@@ -70,6 +70,7 @@ __device__ inline bool is_used(int index, const SparseVectorInterface<Type> *sve
   return svector->is_used(index);
 }
 
+template <typename Type>
 __device__ void print_mask(unsigned int mask)
 {
   for (int lane = 0; lane < 32; ++lane) {
