@@ -122,11 +122,6 @@ union Color_t {
     if (hue > 360) hue = hue - 360;
   }
 
-  __host__ __device__ void print()
-  {
-    printf("Red: %d. Green: %d, Blue: %d, Alpha: %d\n", fComp.red, fComp.green, fComp.blue, fComp.alpha);
-  }
-
   __host__ __device__ void print() const
   {
     printf("Red: %d. Green: %d, Blue: %d, Alpha: %d\n", fComp.red, fComp.green, fComp.blue, fComp.alpha);
@@ -185,13 +180,13 @@ __host__ __device__ __forceinline__ Color_t operator+(Color_t const &left, Color
   return color;
 }
 
-__host__ __device__ __forceinline__ Color_t mix_vector_color(int index, adept::Atomic_t<unsigned int> *color, int rays_per_pixel)
+__host__ __device__ __forceinline__ Color_t mix_vector_color(int index, adept::Atomic_t<unsigned int> *color,
+                                                             int rays_per_pixel)
 {
   Color_t left_color(0);
-  for (int j = 0; j < rays_per_pixel; ++j)
-  {
-    if (color[10*index + j].load() > 0) {      
-      Color_t right_color(color[10*index + j].load());
+  for (int j = 0; j < rays_per_pixel; ++j) {
+    if (color[10 * index + j].load() > 0) {
+      Color_t right_color(color[10 * index + j].load());
       left_color += right_color;
     }
   }

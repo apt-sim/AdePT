@@ -1,11 +1,21 @@
+// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-License-Identifier: Apache-2.0
+
+/// \file Material.h
+/// \author Antonio Petre (antonio.petre@spacescience.ro)
+
+#ifndef RT_BENCHMARK_MATERIAL_H_
+#define RT_BENCHMARK_MATERIAL_H_
+
 #include "Raytracer.h"
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/navigation/NavStatePath.h>
 #include <VecGeom/base/Stopwatch.h>
+#include <VecGeom/management/CudaManager.h>
 
-void getMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::LogicalVolume *> logicalvolumes,
+void SetMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::LogicalVolume *> logicalvolumes,
                        bool on_gpu)
 {
 
@@ -24,7 +34,7 @@ void getMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::Logi
       volume_container[i].material            = kRTtransparent;
       volume_container[i].fObjColor           = 0x0000FF80;
       volume_container[i].refr_index          = 1.1;
-      volume_container[i].transparency_per_cm = 0.82;
+      volume_container[i].transparency_per_cm = 0.982;
     }
 
     else if (!strncmp(lvol->GetName(), "BoxVol", 6)) {
@@ -68,12 +78,12 @@ void getMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::Logi
              !strcmp(lvol->GetName(), "M7_10")     || !strcmp(lvol->GetName(), "M7_12")     ||
              !strcmp(lvol->GetName(), "M7_14")     || !strcmp(lvol->GetName(), "M7_2")      ||
              !strcmp(lvol->GetName(), "M7_4")      || !strcmp(lvol->GetName(), "M7_6")      || 
-             !strcmp(lvol->GetName(), "M8_2")      || !strcmp(lvol->GetName(), "M8_4")      || 
-             !strcmp(lvol->GetName(), "M8_6")      || !strcmp(lvol->GetName(), "M7_8")      ||
+             !strcmp(lvol->GetName(), "M8_4")      || !strcmp(lvol->GetName(), "M8_6")      ||
              !strcmp(lvol->GetName(), "M8_8")      || !strcmp(lvol->GetName(), "M9_10")     ||
              !strcmp(lvol->GetName(), "M9_12")     || !strcmp(lvol->GetName(), "M9_14")     ||
-             !strcmp(lvol->GetName(), "M9_2")      || !strcmp(lvol->GetName(), "M9_4")      || 
-             !strcmp(lvol->GetName(), "M9_6")      || !strcmp(lvol->GetName(), "M9_8")) {
+             !strcmp(lvol->GetName(), "M9_2")      || !strcmp(lvol->GetName(), "M9_4")      ||
+             !strcmp(lvol->GetName(), "M9_8")      || !strcmp(lvol->GetName(), "M8_2")      || 
+             !strcmp(lvol->GetName(), "M7_8")      || !strcmp(lvol->GetName(), "M9_6")) {
       volume_container[i].material            = kRTtransparent;
       volume_container[i].fObjColor           = 0x0000FF80;
       volume_container[i].refr_index          = 1.5;
@@ -85,8 +95,11 @@ void getMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::Logi
       volume_container[i].transparency_per_cm = 1.;
     }
 
-    if (!on_gpu) lvol->SetBasketManagerPtr(&volume_container[i]);
+    if (!on_gpu)
+      lvol->SetBasketManagerPtr(&volume_container[i]);
 
     i++;
   }
 }
+
+#endif // RT_BENCHMARK_MATERIAL_H_
