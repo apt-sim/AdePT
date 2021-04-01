@@ -5,6 +5,7 @@
 #include <AdePT/BlockData.h>
 #include <AdePT/LoopNavigator.h>
 #include <AdePT/MParray.h>
+#include <AdePT/VolumeDispatcher.h>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/base/Stopwatch.h>
@@ -296,7 +297,8 @@ __global__ void RelocateToNextVolume(adept::BlockData<track> *allTracks, adept::
       currentVolume = state.Top();
 
       // Remove all volumes that were left.
-      while (currentVolume && (currentVolume->IsAssembly() || !currentVolume->UnplacedContains(localPoint))) {
+      while (currentVolume &&
+             (currentVolume->IsAssembly() || !VolumeDispatcher::UnplacedContains(currentVolume, localPoint))) {
         state.Pop();
         localPoint    = currentVolume->GetTransformation()->InverseTransform(localPoint);
         currentVolume = state.Top();
@@ -328,7 +330,7 @@ __global__ void RelocateToNextVolume(adept::BlockData<track> *allTracks, adept::
         // The active threads in the wrap check all daughters in parallel.
         for (int d = lane; d < daughtersSize; d += threadsInWrap) {
           const auto *daughter = daughters[d];
-          if (daughter->Contains(localPoint, transformedPoint)) {
+          if (VolumeDispatcher::Contains(daughter, localPoint, transformedPoint)) {
             nextVolume = daughter;
             break;
           }
