@@ -196,6 +196,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int ge
   bool exit_transparent        = medium_prop_last->material == kRTtransparent;
   bool transparent_transparent = medium_prop_next->material == kRTtransparent &&
                                  medium_prop_last->material == kRTtransparent &&
+                                 medium_prop_last->refr_index != medium_prop_next->refr_index &&
                                  (medium_prop_next->refr_index * medium_prop_last->refr_index) > 1.;
 
   if (exit_transparent) {
@@ -240,7 +241,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int ge
     ray.generation++; // increase generation before making a copy of the ray, so daughters will inherit the new value
 
     if (kr * initial_int > 0.1) {
-      Ray_t *reflected_ray = (totalreflect) ? &ray : rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
+      Ray_t *reflected_ray = (totalreflect) ? &ray : rtdata.sparse_rays[ray.generation % 10].next_free(ray);
       if (!reflected_ray) COPCORE_EXCEPTION("No available rays left.");
 
       // Update reflected ray direction and state

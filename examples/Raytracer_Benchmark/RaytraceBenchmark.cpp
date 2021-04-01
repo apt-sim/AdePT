@@ -30,14 +30,14 @@ namespace cuda {
 struct MyMediumProp;
 } // namespace cuda
 
-int executePipelineGPU(const cuda::MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
-                       char *argv[]);
+int executePipelineGPU(const cuda::MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
+                       std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[]);
 
-int executePipelineCPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
-                       char *argv[])
+int executePipelineCPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
+                       std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[])
 {
 
-  int result = runSimulation<copcore::BackendType::CPU>(volume_container, world, argc, argv);
+  int result = runSimulation<copcore::BackendType::CPU>(volume_container, world, logicalvolumes, argc, argv);
   return result;
 }
 
@@ -59,7 +59,9 @@ int main(int argc, char *argv[])
 
 #ifdef VECGEOM_GDML
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(cache_depth);
-  bool load = vgdml::Frontend::Load(gdml_name.c_str(), false);
+
+  // The vecgeom millimeter unit is the last parameter of vgdml::Frontend::Load
+  bool load = vgdml::Frontend::Load(gdml_name.c_str(), false, 1);
   if (!load) return 2;
 #endif
 
@@ -76,13 +78,13 @@ int main(int argc, char *argv[])
   std::vector<vecgeom::LogicalVolume *> logicalvolumes;
   vecgeom::GeoManager::Instance().GetAllLogicalVolumes(logicalvolumes);
 
-  getMaterialStruct(volume_container, logicalvolumes, on_gpu);
+  SetMaterialStruct(volume_container, logicalvolumes, on_gpu);
 
   if (on_gpu) {
     auto volume_container_cuda = reinterpret_cast<cuda::MyMediumProp *>(volume_container);
-    ierr                       = executePipelineGPU(volume_container_cuda, world, argc, argv);
+    ierr                       = executePipelineGPU(volume_container_cuda, world, logicalvolumes, argc, argv);
   } else {
-    ierr = executePipelineCPU(volume_container, world, argc, argv);
+    ierr = executePipelineCPU(volume_container, world, logicalvolumes, argc, argv);
   }
   if (ierr) std::cout << "TestNavIndex FAILED\n";
 

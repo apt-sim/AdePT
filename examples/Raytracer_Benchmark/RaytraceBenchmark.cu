@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <vector>
 
+
 __global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y,
                            int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out, int generation)
 {
@@ -39,8 +40,8 @@ __global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y,
 
   int ray_index = global_py*tile_size_x + global_px;
 
-  if (!(rtdata.sparse_rays)[generation]->is_used(ray_index)) return;
-  Ray_t *ray = &(*rtdata.sparse_rays[generation])[ray_index];
+  if (!(rtdata.sparse_rays)[generation].is_used(ray_index)) return;
+  Ray_t *ray = &rtdata.sparse_rays[generation][ray_index];
 
   auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, generation);
 
@@ -137,43 +138,13 @@ void RenderTiledImage(cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer, 
   COPCORE_CUDA_CHECK(cudaGetLastError());
 }
 
-__global__ void getAllLogicalVolumes(vecgeom::VPlacedVolume *currentVolume, vecgeom::Vector<vecgeom::LogicalVolume *> *container)
-{
-  
-  auto lvol = (vecgeom::LogicalVolume *)currentVolume->GetLogicalVolume();
-  bool cond = true;
-
-  for (auto it = container->begin(); it != container->end(); it++) {
-    if (lvol == *it)
-      cond = false;
-  }
-
-  if (cond) {
-    container->reserve(1*sizeof(vecgeom::LogicalVolume *));
-    container->push_back(lvol);
-  }
-
-  const vecgeom::Vector<vecgeom::VPlacedVolume const *> placedvolumes = lvol->GetDaughters();
-
-  for (auto crt: placedvolumes) {
-    getAllLogicalVolumes<<<1,1>>>((vecgeom::VPlacedVolume *)  crt, container);
-  }
+// Attach material structure to logical volume
+__global__ void AttachRegions(const MyMediumProp *volume_container, vecgeom::LogicalVolume *dev_lvol, int pos) {
+  dev_lvol->SetBasketManagerPtr((void *)&volume_container[pos]);
 }
 
-
-// Attach material structure to all logical volumes
-__global__ void AttachRegions(const MyMediumProp *volume_container, vecgeom::Vector<vecgeom::LogicalVolume *> *container)
-{
-  int i = 0;
-  for (auto x: *container) {
-    // x->Print();
-    x->SetBasketManagerPtr((void *)&volume_container[i]);
-    i++;
-  }
-}
-
-
-void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volume_container) {
+void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volume_container,
+                          std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes) {
   
   // Load and synchronize the geometry on the GPU
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
@@ -189,19 +160,59 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volu
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
 
-  vecgeom::Vector<vecgeom::LogicalVolume *> *container;
-  cudaMallocManaged(&container, sizeof(vecgeom::Vector<vecgeom::LogicalVolume *>));
-
-  getAllLogicalVolumes<<<1,1>>>((vecgeom::VPlacedVolume *)gpu_world, container);
+  int i = 0;
+  for (auto lvol : logicalvolumes) {
+      // Get the device pointer to logical volume
+      auto dev_lvol = (vecgeom::cuda::LogicalVolume *) cudaManager.LookupLogical(lvol);
+      AttachRegions<<<1,1>>>(volume_container, dev_lvol, i);
+      i++;
+  }
 
   cudaDeviceSynchronize();
-
-  AttachRegions<<<1,1>>>(volume_container, container);
 }
 
-int executePipelineGPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+
+// Print information about containers
+__global__ void print(cuda::RaytracerData_t *rtdata, int index) {
+  auto *vect = &rtdata->sparse_rays[index];
+
+  printf("=== vect: fNshared=%lu/%lu fNused=%lu fNbooked=%lu - shared=%.1f%% sparsity=%.1f%%\n", vect->size(),
+         vect->capacity(), vect->size_used(), vect->size_booked(), 100. * vect->get_shared_fraction(),
+         100. * vect->get_sparsity());
+}
+
+// Print information about containers
+void print_vector_cuda(cuda::RaytracerData_t *rtdata, int no_generations) {
+  for (int i = 0; i < no_generations; ++i)
+    print<<<1,1>>>(rtdata, i); 
+}
+
+// Check if there are rays in containers
+__global__ void check_containers(cuda::RaytracerData_t *rtdata, int no_generations, bool *value)
+{
+  *value = false;
+  for (int i = 0; i < no_generations; ++i) {
+    auto x = &rtdata->sparse_rays[i];
+    if (x->size_used() > 0) {
+      *value = true;
+      return;
+    }
+  }
+}
+
+// Check if there are rays in containers
+bool check_used_cuda(cuda::RaytracerData_t *rtdata, int no_generations) {
+  bool *ctr;
+  cudaMallocManaged(&ctr, sizeof(bool));
+  check_containers<<<1,1>>>(rtdata, no_generations, ctr);
+  cudaDeviceSynchronize();
+  return *ctr;
+}
+
+int executePipelineGPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
+                       std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[])
 {
   int result;
-  result = runSimulation<copcore::BackendType::CUDA>(volume_container, world, argc, argv);
+  result = runSimulation<copcore::BackendType::CUDA>(volume_container, world, logicalvolumes, argc, argv);
   return result;
 }

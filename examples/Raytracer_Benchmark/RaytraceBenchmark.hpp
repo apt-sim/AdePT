@@ -25,44 +25,67 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-void initiliazeCudaWorld(RaytracerData_t *rtdata, const MyMediumProp *volume_container);
+void print_vector_cuda(RaytracerData_t *rtdata, int no_generations);
+
+void initiliazeCudaWorld(RaytracerData_t *rtdata, const MyMediumProp *volume_container,
+                         std::vector<vecgeom::cxx::LogicalVolume *> logicalvolume);
 
 void RenderTiledImage(RaytracerData_t *rtdata, NavIndex_t *output_buffer, int generation, int block_size);
 
+bool check_used_cuda(RaytracerData_t *rtdata, int no_generations);
+
 template <copcore::BackendType backend>
-void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container, int no_generations)
+void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container, int no_generations,
+                std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes)
 {
-  Vector_t **x;
+  Vector_t *x;
 
   if (backend == copcore::BackendType::CUDA) {
-    initiliazeCudaWorld((RaytracerData_t *)rtdata, volume_container);
-    
+    initiliazeCudaWorld((RaytracerData_t *)rtdata, volume_container, logicalvolumes);
     COPCORE_CUDA_CHECK(cudaMalloc(&x, no_generations * sizeof(Vector_t)));
-
-    for (int i = 0; i < no_generations; ++i) {
-      COPCORE_CUDA_CHECK(cudaMalloc(&x[i], sizeof(Vector_t)));
-      Vector_t::MakeInstanceAt(&x[i]);
-    }
 
   } else {
     vecgeom::NavStateIndex vpstate;
     LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
     rtdata->fVPstate = vpstate;
 
-    COPCORE_CUDA_CHECK(cudaMallocManaged(&x, no_generations * sizeof(Vector_t *)));
-
-    for (int i = 0; i < no_generations; ++i) {
-      COPCORE_CUDA_CHECK(cudaMallocManaged(&(x[i]), sizeof(Vector_t)));
-      Vector_t::MakeInstanceAt(x[i]);
-    }
-    
+    // COPCORE_CUDA_CHECK(cudaMallocManaged(&x, no_generations * sizeof(Vector_t)));
+    x = (Vector_t *)malloc(no_generations * sizeof(Vector_t));
   }
+
+  for (int i = 0; i < no_generations; ++i) {
+    Vector_t::MakeInstanceAt(&x[i]);
+  }
+
   rtdata->sparse_rays = x;
 }
 
+// Print information about containers
 template <copcore::BackendType backend>
-int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
-                  char *argv[])
+void print(RaytracerData_t *rtdata, int no_generations)
+{
+  if (backend == copcore::BackendType::CUDA) {
+    print_vector_cuda(rtdata, no_generations);
+  } else {
+    for (int i = 0; i < no_generations; ++i)
+      print_vector(&rtdata->sparse_rays[i]);
+  }
+}
+
+// Check if there are rays in containers
+template <copcore::BackendType backend>
+bool check_used(RaytracerData_t *rtdata, int no_generations)
+{
+  if (backend == copcore::BackendType::CUDA) {
+    return check_used_cuda(rtdata, no_generations);
+  } else {
+    return check_used_cpp(*rtdata, no_generations);
+  }
+}
+
+template <copcore::BackendType backend>
+int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
+                  std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[])
 {
   // image size in pixels
   OPTION_INT(px, 1840);
@@ -102,12 +125,12 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
   rtdata->fScreenPos.Set(screenx, screeny, screenz);
   rtdata->fUp.Set(upx, upy, upz);
-  rtdata->fZoom     = zoom;
-  rtdata->fModel    = (ERTmodel)model;
-  rtdata->fView     = (ERTView)view;
-  rtdata->fSize_px  = px;
-  rtdata->fSize_py  = py;
-  rtdata->fBkgColor = bkgcol;
+  rtdata->fZoom       = zoom;
+  rtdata->fModel      = (ERTmodel)model;
+  rtdata->fView       = (ERTView)view;
+  rtdata->fSize_px    = px;
+  rtdata->fSize_py    = py;
+  rtdata->fBkgColor   = bkgcol;
   rtdata->fReflection = reflection;
 
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
@@ -125,9 +148,9 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
   int no_generations = 1;
   if (rtdata->fReflection) no_generations = 10;
-  int rays_per_pixel = 10;  // maximum number of rays per pixel
+  int rays_per_pixel = 10; // maximum number of rays per pixel
 
-  InitRTdata<backend>(rtdata, volume_container, no_generations);
+  InitRTdata<backend>(rtdata, volume_container, no_generations, logicalvolumes);
 
   rtdata->Print();
 
@@ -137,6 +160,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateRaysFunc, generateRays);
   COPCORE_CALLABLE_DECLARE(renderkernelFunc, renderKernels);
+  COPCORE_CALLABLE_DECLARE(printFunc, print_vector);
 
   // Create a stream to work with.
   Stream_t stream;
@@ -176,19 +200,19 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
     RenderTiledImage((RaytracerData_t *)rtdata, output_buffer, 0, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    while (check_used(*rtdata, no_generations)) {
+    while (check_used<backend>(rtdata, no_generations)) {
       for (int i = 0; i < no_generations; ++i) {
         renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, i, rays_per_pixel, color);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
         auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true); };
-        VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
+        VectorInterface::select(&(rtdata->sparse_rays[i]), select_func, sel_vector_d, nselected_hd);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-        VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
+        VectorInterface::release_selected(&(rtdata->sparse_rays[i]), sel_vector_d, nselected_hd);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-        VectorInterface::select_used(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
+        VectorInterface::select_used(&(rtdata->sparse_rays[i]), sel_vector_d, nselected_hd);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
       }
       // printf("-----------------------------------------\n");
@@ -196,8 +220,8 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   }
 
   for (int i = 0; i < no_pixels; i++) {
-    int pixel_index = 4 * i;
-    adept::Color_t pixel = mix_vector_color(i, color, rays_per_pixel);
+    int pixel_index                = 4 * i;
+    adept::Color_t pixel           = mix_vector_color(i, color, rays_per_pixel);
     output_buffer[pixel_index + 0] = pixel.fComp.red;
     output_buffer[pixel_index + 1] = pixel.fComp.green;
     output_buffer[pixel_index + 2] = pixel.fComp.blue;
@@ -205,8 +229,8 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   }
 
   // Print basic information about containers
-  for (int i = 0; i < no_generations; ++i)
-    print_vector(rtdata->sparse_rays[i]);
+  print<backend>(rtdata, no_generations);
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
@@ -214,13 +238,11 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   // Write the output
   write_ppm("output.ppm", output_buffer, rtdata->fSize_px, rtdata->fSize_py);
 
-  for (int i = 0; i < no_generations; ++i)
-    COPCORE_CUDA_CHECK(cudaFree(rtdata->sparse_rays[i]));
-
   COPCORE_CUDA_CHECK(cudaFree(rtdata->sparse_rays));
   COPCORE_CUDA_CHECK(cudaFree(color));
   COPCORE_CUDA_CHECK(cudaFree(sel_vector_d));
   COPCORE_CUDA_CHECK(cudaFree(nselected_hd));
+  COPCORE_CUDA_CHECK(cudaFree(rtdata));
 
   return 0;
 }

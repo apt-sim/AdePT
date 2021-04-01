@@ -129,29 +129,29 @@ struct RaytracerData_t {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
   using Array_t            = adept::SparseVector<Ray_t, 1 << 22>;
 
-  double fScale     = 0;                ///< Scaling from pixels to world coordinates
-  double fShininess = 1.;               ///< Shininess exponent in the specular model
-  double fZoom      = 1.;               ///< Zoom with respect to the default view
-  vecgeom::Vector3D<double> fSourceDir; ///< Light source direction
-  vecgeom::Vector3D<double> fScreenPos; ///< Screen position
-  vecgeom::Vector3D<double> fStart;     ///< Eye position in perspectove mode
-  vecgeom::Vector3D<double> fDir;       ///< Start direction of all rays in parallel view mode
-  vecgeom::Vector3D<double> fUp;        ///< Up vector in the shooting rectangle plane
-  vecgeom::Vector3D<double> fRight;     ///< Right vector in the shooting rectangle plane
-  vecgeom::Vector3D<double> fLeftC;     ///< left-down corner of the ray shooting rectangle
-  int fVerbosity = 0;                   ///< Verbosity level
-  int fNrays     = 0;                   ///< Number of rays left to propagate
-  int fSize_px   = 1024;                ///< Image pixel size in x
-  int fSize_py   = 1024;                ///< Image pixel size in y
-  adept::Color_t fBkgColor = 0xFFFFFF80; ///< Background color
-  ERTmodel fModel  = kRTxray;         ///< Selected RT model
-  ERTView fView    = kRTVperspective; ///< View type
-  bool fReflection = false;           ///< Reflection model
+  double fScale     = 0;                      ///< Scaling from pixels to world coordinates
+  double fShininess = 1.;                     ///< Shininess exponent in the specular model
+  double fZoom      = 1.;                     ///< Zoom with respect to the default view
+  vecgeom::Vector3D<double> fSourceDir;       ///< Light source direction
+  vecgeom::Vector3D<double> fScreenPos;       ///< Screen position
+  vecgeom::Vector3D<double> fStart;           ///< Eye position in perspectove mode
+  vecgeom::Vector3D<double> fDir;             ///< Start direction of all rays in parallel view mode
+  vecgeom::Vector3D<double> fUp;              ///< Up vector in the shooting rectangle plane
+  vecgeom::Vector3D<double> fRight;           ///< Right vector in the shooting rectangle plane
+  vecgeom::Vector3D<double> fLeftC;           ///< left-down corner of the ray shooting rectangle
+  int fVerbosity           = 0;               ///< Verbosity level
+  int fNrays               = 0;               ///< Number of rays left to propagate
+  int fSize_px             = 1024;            ///< Image pixel size in x
+  int fSize_py             = 1024;            ///< Image pixel size in y
+  adept::Color_t fBkgColor = 0xFFFFFF80;      ///< Background color
+  ERTmodel fModel          = kRTxray;         ///< Selected RT model
+  ERTView fView            = kRTVperspective; ///< View type
+  bool fReflection         = false;           ///< Reflection model
 
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
 
-  Array_t **sparse_rays = nullptr; ///< pointer to the rays containers
+  Array_t *sparse_rays = nullptr; ///< pointer to the rays containers
 
   __host__ __device__ void Print();
 };
@@ -174,8 +174,8 @@ __host__ __device__ void InitializeModel(VPlacedVolumePtr_t world, RaytracerData
 __host__ __device__ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int generation);
 
 /// \brief Entry point to propagate all rays
-// __host__ __device__ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char *rays_buffer,
-                                       // unsigned char *output_buffer);
+// __host__ __device__ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char
+// *rays_buffer, unsigned char *output_buffer);
 
 __host__ __device__ void InitRay(RaytracerData_t const &rtdata, Ray_t &ray);
 
