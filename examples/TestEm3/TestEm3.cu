@@ -344,7 +344,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
                                                                                        electrons.queues.relocate);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
       }
 
       // *** POSITRONS ***
@@ -363,7 +363,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
                                                                                        positrons.queues.relocate);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
       }
 
       // *** GAMMAS ***
@@ -382,7 +382,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
                                                                                     gammas.queues.relocate);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
       }
 
       // *** END OF TRANSPORT ***
