@@ -32,7 +32,6 @@ set(ADEPT_UNIT_TESTS_BASE
 )
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
-add_compile_options("$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 
 add_executable(test_launcher test_launcher.cu test_launcher.cpp)
 target_include_directories(test_launcher PUBLIC
@@ -45,5 +44,4 @@ build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
 
 # Specific options for test_sparsevector
-set_target_properties(test_sparsevector PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-target_compile_options(test_sparsevector PRIVATE -rdc=true;-lcudadevrt)
+set_target_properties(test_sparsevector PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
