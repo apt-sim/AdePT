@@ -45,5 +45,4 @@ build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
 
 # Specific options for test_sparsevector
-set_target_properties(test_sparsevector PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-target_compile_options(test_sparsevector PRIVATE -rdc=true;-lcudadevrt)
+set_target_properties(test_sparsevector PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
