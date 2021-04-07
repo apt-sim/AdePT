@@ -67,6 +67,11 @@ endif()
 # targets and depend on them.
 add_subdirectory(external)
 
+if(BUILD_TESTING)
+  set(TESTING_GDML "${PROJECT_BINARY_DIR}/trackML.gdml")
+  file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/master/persistency/gdml/gdmls/trackML.gdml "${TESTING_GDML}")
+endif()
+
 # Builds...
 # Target for use of AdePT
 # NB: NOT complete yet due to dependence of AdePT/LoopNavigator.h on VecGeom

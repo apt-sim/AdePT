@@ -11,3 +11,5 @@ add_executable(TestEm3 TestEm3.cpp TestEm3.cu electrons.cu gammas.cu relocation.
 target_link_libraries(TestEm3 PRIVATE AdePT CopCore::CopCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml ${Geant4_LIBRARIES} G4HepEm::g4HepEmData G4HepEm::g4HepEmInit G4HepEm::g4HepEmRun)
 target_compile_options(TestEm3 PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 set_target_properties(TestEm3 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+
+add_test(NAME TestEm3 COMMAND TestEm3)
