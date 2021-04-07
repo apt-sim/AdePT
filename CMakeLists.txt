@@ -63,6 +63,14 @@ else()
   message(STATUS "Did not find Geant4")
 endif()
 
+# Set up debugging levels for CUDA:
+# - For RelWithDebInfo (the default), generate line info to enable profiling.
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
+# - For Debug, generate full debug information - this completely disables optimizations!
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Debug>>:--device-debug>")
+# - For both, interleave the source in PTX to enhance the debugging experience.
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:--source-in-ptx>")
+
 # Add external dependencies before our own code to allow checking for the
 # targets and depend on them.
 add_subdirectory(external)
