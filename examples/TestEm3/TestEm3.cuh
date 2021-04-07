@@ -124,15 +124,11 @@ struct Secondaries {
 // Kernels in different TUs.
 __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *relocateQueue);
 
-template <bool IsElectron>
-__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *relocateQueue,
-                                   GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
-extern template __global__ void TransportElectrons</*IsElectron*/true>(
+__global__ void TransportElectrons(
     Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
     adept::MParray *relocateQueue, GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
-extern template __global__ void TransportElectrons</*IsElectron*/false>(
-    Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
+__global__ void TransportPositrons(
+    Track *positrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
     adept::MParray *relocateQueue, GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
