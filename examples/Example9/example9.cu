@@ -264,7 +264,7 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
 
       relocateBlocks = std::min(numElectrons, MaxBlocks);
 
-      TransportElectrons</*IsElectron*/ true><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
+      TransportElectrons<<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
           electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
           electrons.queues.relocate, scoring);
 
@@ -283,7 +283,7 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
 
       relocateBlocks = std::min(numPositrons, MaxBlocks);
 
-      TransportElectrons</*IsElectron*/ false><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
+      TransportPositrons<<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
           positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
           positrons.queues.relocate, scoring);
 

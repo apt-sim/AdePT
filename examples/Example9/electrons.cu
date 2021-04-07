@@ -26,8 +26,9 @@ __device__ struct G4HepEmElectronManager electronManager;
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron>
-__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring)
+static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
+                                                          Secondaries &secondaries, adept::MParray *activeQueue,
+                                                          adept::MParray *relocateQueue, GlobalScoring *scoring)
 {
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
@@ -231,11 +232,14 @@ __global__ void TransportElectrons(Track *electrons, const adept::MParray *activ
   }
 }
 
-// Instantiate template for electrons and positrons.
-template __global__ void TransportElectrons</*IsElectron*/ true>(Track *electrons, const adept::MParray *active,
-                                                                 Secondaries secondaries, adept::MParray *activeQueue,
-                                                                 adept::MParray *relocateQueue, GlobalScoring *scoring);
-template __global__ void TransportElectrons</*IsElectron*/ false>(Track *electrons, const adept::MParray *active,
-                                                                  Secondaries secondaries, adept::MParray *activeQueue,
-                                                                  adept::MParray *relocateQueue,
-                                                                  GlobalScoring *scoring);
+// Instantiate kernels for electrons and positrons.
+__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                                   adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring)
+{
+  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, relocateQueue, scoring);
+}
+__global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
+                                   adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring)
+{
+  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, relocateQueue, scoring);
+}
