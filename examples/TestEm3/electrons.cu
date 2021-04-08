@@ -133,7 +133,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
         gamma2.InitAsSecondary(/*parent=*/currentTrack);
-        gamma2.rngState = currentTrack.rngState.Branch();
+        // Reuse the RNG state of the dying track.
+        gamma2.rngState = currentTrack.rngState;
         gamma2.energy = copcore::units::kElectronMassC2;
         gamma2.dir    = -gamma1.dir;
       }
@@ -241,7 +242,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
       gamma2.InitAsSecondary(/*parent=*/currentTrack);
-      gamma2.rngState = currentTrack.rngState.Branch();
+      // Reuse the RNG state of the dying track.
+      gamma2.rngState = currentTrack.rngState;
       gamma2.energy = theGamma2Ekin;
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
