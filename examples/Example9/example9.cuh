@@ -39,11 +39,7 @@ struct Track {
 
   __host__ __device__ void InitAsSecondary(const Track &parent)
   {
-    // Initialize a new PRNG state.
-    this->rngState = parent.rngState;
-    this->rngState.Skip(1 << 15);
-
-    // The caller is responsible to set the energy.
+    // The caller is responsible to branch a new RNG state and to set the energy.
     this->numIALeft[0] = -1.0;
     this->numIALeft[1] = -1.0;
     this->numIALeft[2] = -1.0;

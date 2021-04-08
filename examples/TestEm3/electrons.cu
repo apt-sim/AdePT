@@ -128,10 +128,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         sincos(phi, &sinPhi, &cosPhi);
 
         gamma1.InitAsSecondary(/*parent=*/currentTrack);
+        gamma1.rngState = currentTrack.rngState.Branch();
         gamma1.energy = copcore::units::kElectronMassC2;
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
         gamma2.InitAsSecondary(/*parent=*/currentTrack);
+        gamma2.rngState = currentTrack.rngState.Branch();
         gamma2.energy = copcore::units::kElectronMassC2;
         gamma2.dir    = -gamma1.dir;
       }
@@ -186,6 +188,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       atomicAdd(&globalScoring->numElectrons, 1);
 
       secondary.InitAsSecondary(/*parent=*/currentTrack);
+      secondary.rngState = currentTrack.rngState.Branch();
       secondary.energy = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
@@ -210,6 +213,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       atomicAdd(&globalScoring->numGammas, 1);
 
       gamma.InitAsSecondary(/*parent=*/currentTrack);
+      gamma.rngState = currentTrack.rngState.Branch();
       gamma.energy = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
@@ -232,10 +236,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       atomicAdd(&globalScoring->numGammas, 2);
 
       gamma1.InitAsSecondary(/*parent=*/currentTrack);
+      gamma1.rngState = currentTrack.rngState.Branch();
       gamma1.energy = theGamma1Ekin;
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
       gamma2.InitAsSecondary(/*parent=*/currentTrack);
+      gamma2.rngState = currentTrack.rngState.Branch();
       gamma2.energy = theGamma2Ekin;
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 

@@ -125,10 +125,12 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       atomicAdd(&globalScoring->numPositrons, 1);
 
       electron.InitAsSecondary(/*parent=*/currentTrack);
+      electron.rngState = currentTrack.rngState.Branch();
       electron.energy = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
       positron.InitAsSecondary(/*parent=*/currentTrack);
+      positron.rngState = currentTrack.rngState.Branch();
       positron.energy = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
@@ -154,6 +156,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         atomicAdd(&globalScoring->numElectrons, 1);
 
         electron.InitAsSecondary(/*parent=*/currentTrack);
+        electron.rngState = currentTrack.rngState.Branch();
         electron.energy = energyEl;
         electron.dir    = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();

@@ -31,6 +31,23 @@ private:
   static constexpr const uint64_t *kA = kA_2048;
   static constexpr int kMaxPos        = 9 * 64;
 
+protected:
+  __host__ __device__
+  void SaveState(uint64_t *state) const
+  {
+    for (int i = 0; i < 9; i++) {
+      state[i] = fState[i];
+    }
+  }
+
+  __host__ __device__
+  void XORstate(const uint64_t *state)
+  {
+    for (int i = 0; i < 9; i++) {
+      fState[i] ^= state[i];
+    }
+  }
+
   /// Produce next block of random bits
   __host__ __device__
   void Advance()
@@ -144,6 +161,20 @@ public:
 
   __host__ __device__
   uint64_t IntRndm() { return this->NextRandomBits(); }
+
+  /// Branch a new RNG state, also advancing the current one.
+  __host__ __device__
+  RanluxppDouble Branch()
+  {
+    // Save the current state, will be used to branch a new RNG.
+    uint64_t oldState[9];
+    this->SaveState(oldState);
+    this->Advance();
+    // Copy and modify the new RNG state.
+    RanluxppDouble newRNG(*this);
+    newRNG.XORstate(oldState);
+    return newRNG;
+  }
 };
 
 #endif // COPCORE_RANLUXPP_H_
