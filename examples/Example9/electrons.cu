@@ -157,6 +157,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Perform the discrete interaction.
     RanluxppDoubleEngine rnge(&currentTrack.rngState);
+    // We will need one branched RNG state, prepare while threads are synchronized.
+    RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
     const double energy   = currentTrack.energy;
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
@@ -175,7 +177,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       atomicAdd(&scoring->secondaries, 1);
 
       secondary.InitAsSecondary(/*parent=*/currentTrack);
-      secondary.rngState = currentTrack.rngState.Branch();
+      secondary.rngState = newRNG;
       secondary.energy = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
@@ -200,7 +202,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       atomicAdd(&scoring->secondaries, 1);
 
       gamma.InitAsSecondary(/*parent=*/currentTrack);
-      gamma.rngState = currentTrack.rngState.Branch();
+      gamma.rngState = newRNG;
       gamma.energy = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
@@ -223,7 +225,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       atomicAdd(&scoring->secondaries, 2);
 
       gamma1.InitAsSecondary(/*parent=*/currentTrack);
-      gamma1.rngState = currentTrack.rngState.Branch();
+      gamma1.rngState = newRNG;
       gamma1.energy = theGamma1Ekin;
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 

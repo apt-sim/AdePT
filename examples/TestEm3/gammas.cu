@@ -100,6 +100,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     // Perform the discrete interaction.
     RanluxppDoubleEngine rnge(&currentTrack.rngState);
+    // We might need one branched RNG state, prepare while threads are synchronized.
+    RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
     const double energy = currentTrack.energy;
 
@@ -125,7 +127,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       atomicAdd(&globalScoring->numPositrons, 1);
 
       electron.InitAsSecondary(/*parent=*/currentTrack);
-      electron.rngState = currentTrack.rngState.Branch();
+      electron.rngState = newRNG;
       electron.energy = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
@@ -157,7 +159,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         atomicAdd(&globalScoring->numElectrons, 1);
 
         electron.InitAsSecondary(/*parent=*/currentTrack);
-        electron.rngState = currentTrack.rngState.Branch();
+        electron.rngState = newRNG;
         electron.energy = energyEl;
         electron.dir    = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
