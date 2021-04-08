@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2021 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #ifndef EXAMPLES_ECS_KERNELS_H_
 #define EXAMPLES_ECS_KERNELS_H_
 

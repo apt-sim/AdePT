@@ -1,4 +1,8 @@
+// SPDX-FileCopyrightText: 2021 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #include "ecs.h"
+
 #include "Kernels.h"
 #include "mergeAndSortBlocks.cuh"
 #include "CudaHelpers.h"

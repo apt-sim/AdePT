@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2021 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #ifndef MERGE_AND_SORT_BLOCKS_H
 #define MERGE_AND_SORT_BLOCKS_H
 
