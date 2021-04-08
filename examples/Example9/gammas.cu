@@ -128,7 +128,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
       positron.InitAsSecondary(/*parent=*/currentTrack);
-      positron.rngState = currentTrack.rngState.Branch();
+      // Reuse the RNG state of the dying track.
+      positron.rngState = currentTrack.rngState;
       positron.energy = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
