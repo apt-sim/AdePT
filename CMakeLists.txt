@@ -90,12 +90,10 @@ target_include_directories(AdePT
   INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/base/inc>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/magneticfield/inc>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/physics/processes/inc>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/tracking/inc>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(AdePT INTERFACE CopCore::CopCore)
 
 add_subdirectory(tracking)
-add_subdirectory(physics)
 add_subdirectory(test)
 add_subdirectory(examples)
