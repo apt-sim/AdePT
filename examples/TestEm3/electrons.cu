@@ -41,12 +41,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
     auto volume         = currentTrack.currentState.Top();
-    if (volume == nullptr) {
-      // The particle left the world, kill it by not enqueuing into activeQueue.
-      continue;
-    }
-    int volumeID   = volume->id();
-    int theMCIndex = MCIndex[volumeID];
+    int volumeID        = volume->id();
+    int theMCIndex      = MCIndex[volumeID];
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
@@ -145,11 +141,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       // For now, just count that we hit something.
       atomicAdd(&globalScoring->hits, 1);
 
-      activeQueue->push_back(slot);
-      relocateQueue->push_back(slot);
+      // Kill the particle if it left the world.
+      if (currentTrack.nextState.Top() != nullptr) {
+        activeQueue->push_back(slot);
+        relocateQueue->push_back(slot);
 
-      // Move to the next boundary.
-      currentTrack.SwapStates();
+        // Move to the next boundary.
+        currentTrack.SwapStates();
+      }
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
