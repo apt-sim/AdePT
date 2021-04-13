@@ -220,10 +220,12 @@ int main(void)
                             &nused[0]);
   get_vector_data<<<1, 1>>>(vect2_ptr_d, [] __device__(const VectorInterface *arr) { return arr->size_used(); },
                             &nused[1]);
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
   std::cout << "\ntime_compact = " << time_compact << std::endl;
   print_vector<<<1, 1>>>(1, vect1_ptr_d);
   print_vector<<<1, 1>>>(2, vect2_ptr_d);
   print_tracks<<<1, 1>>>(vect2_ptr_d, 0, 32);
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
   if ((nused[0] != 0) || (nused[1] != nused_after_move2 + nused_after_move)) {
     std::cerr << "Error in compact.\n";
     return 6;
