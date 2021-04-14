@@ -21,8 +21,6 @@
 #include <G4HepEmElectronInteractionIoni.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
-__device__ struct G4HepEmElectronManager electronManager;
-
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
@@ -62,7 +60,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Call G4HepEm to compute the physics step limit.
-    electronManager.HowFar(&g4HepEmData, &g4HepEmPars, &elTrack);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack);
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -96,7 +94,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Apply continuous effects.
-    bool stopped = electronManager.PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack);
+    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack);
     // Collect the changes.
     currentTrack.energy  = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
@@ -162,7 +160,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
     // Check if a delta interaction happens instead of the real discrete process.
-    if (electronManager.CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
+    if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
       // A delta interaction happened, move on.
       activeQueue->push_back(slot);
       continue;
@@ -179,12 +177,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke ionization (for e-/e+):
-      double deltaEkin = (IsElectron) ? SampleETransferMoller(theElCut, energy, &rnge)
-                                      : SampleETransferBhabha(theElCut, energy, &rnge);
+      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
+                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];
-      SampleDirectionsIoni(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &secondary = secondaries.electrons.NextTrack();
       atomicAdd(&globalScoring->numElectrons, 1);
@@ -204,12 +202,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
       double logEnergy = std::log(energy);
       double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? SampleETransferBremSB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, IsElectron)
-                             : SampleETransferBremRB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, IsElectron);
+                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
+                                                                                 theMCIndex, &rnge, IsElectron)
+                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
+                                                                                 theMCIndex, &rnge, IsElectron);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];
-      SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &gamma = secondaries.gammas.NextTrack();
       atomicAdd(&globalScoring->numGammas, 1);
@@ -230,8 +230,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double theGamma1Ekin, theGamma2Ekin;
       double theGamma1Dir[3], theGamma2Dir[3];
-      SampleEnergyAndDirectionsForAnnihilationInFlight(energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin,
-                                                       theGamma2Dir, &rnge);
+      G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
+          energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
       Track &gamma1 = secondaries.gammas.NextTrack();
       Track &gamma2 = secondaries.gammas.NextTrack();

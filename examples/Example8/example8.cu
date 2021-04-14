@@ -232,8 +232,6 @@ __host__ __device__ void PairProduce(Track *allTracks, SlotManager *manager, ade
   positron.dir.Set(dir[0], dir[1], dir[2]);
 }
 
-__device__ struct G4HepEmElectronManager electronManager;
-
 // Compute the physics and geometry step limit, transport the particle while
 // applying the continuous effects and possibly select a discrete process that
 // could generate secondaries.
@@ -268,7 +266,7 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     }
 
     // Call G4HepEm to compute the physics step limit.
-    electronManager.HowFar(&g4HepEmData, &g4HepEmPars, &elTrack);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack);
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -292,7 +290,7 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     }
 
     // Apply continuous effects.
-    bool stopped = electronManager.PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack);
+    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack);
     // Collect the changes.
     currentTrack.energy = theTrack->GetEKin();
     scoring->totalEnergyDeposit.fetch_add(theTrack->GetEnergyDeposit());
@@ -336,7 +334,7 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
     // Check if a delta interaction happens instead of the real discrete process.
-    if (electronManager.CheckDelta(&g4HepEmData, theTrack, currentTrack.uniform())) {
+    if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.uniform())) {
       // A delta interaction happened, move on.
       activeQueue->push_back(slot);
       continue;
@@ -353,12 +351,12 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke ionization (for e-/e+):
-      double deltaEkin = (isElectron) ? SampleETransferMoller(theElCut, energy, &rnge)
-                                      : SampleETransferBhabha(theElCut, energy, &rnge);
+      double deltaEkin = (isElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
+                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];
-      SampleDirectionsIoni(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       int secondarySlot = manager->nextSlot();
       if (secondarySlot == -1) {
@@ -383,12 +381,14 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
       double logEnergy = std::log(energy);
       double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? SampleETransferBremSB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron)
-                             : SampleETransferBremRB(&g4HepEmData, energy, logEnergy, theMCIndex, &rnge, isElectron);
+                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
+                                                                                 theMCIndex, &rnge, isElectron)
+                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
+                                                                                 theMCIndex, &rnge, isElectron);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];
-      SampleDirectionsBrem(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       // We would need to create a gamma, but only do so if it has enough energy
       // to immediately pair-produce. Otherwise just deposit the energy locally.
@@ -410,8 +410,8 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double theGamma1Ekin, theGamma2Ekin;
       double theGamma1Dir[3], theGamma2Dir[3];
-      SampleEnergyAndDirectionsForAnnihilationInFlight(energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin,
-                                                       theGamma2Dir, &rnge);
+      G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
+          energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
       // For each of the two gammas, pair-produce if they have enough energy
       // or deposit the energy locally.

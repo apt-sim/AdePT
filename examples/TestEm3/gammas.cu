@@ -16,8 +16,6 @@
 #include <G4HepEmGammaInteractionCompton.icc>
 #include <G4HepEmGammaInteractionConversion.icc>
 
-__device__ struct G4HepEmGammaManager gammaManager;
-
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, adept::MParray *relocateQueue,
                                 GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
@@ -46,7 +44,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     }
 
     // Call G4HepEm to compute the physics step limit.
-    gammaManager.HowFar(&g4HepEmData, &g4HepEmPars, &emTrack);
+    G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &emTrack);
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = emTrack.GetGStepLength();
@@ -66,7 +64,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       emTrack.SetOnBoundary(true);
     }
 
-    gammaManager.UpdateNumIALeft(&emTrack);
+    G4HepEmGammaManager::UpdateNumIALeft(&emTrack);
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -114,11 +112,13 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       double logEnergy = std::log(energy);
       double elKinEnergy, posKinEnergy;
-      SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy, posKinEnergy, &rnge);
+      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy,
+                                                           posKinEnergy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondaryEl[3], dirSecondaryPos[3];
-      SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy, posKinEnergy, &rnge);
+      G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
+                                                          posKinEnergy, &rnge);
 
       Track &electron = secondaries.electrons.NextTrack();
       Track &positron = secondaries.positrons.NextTrack();
@@ -148,7 +148,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       }
       const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirPrimary[3];
-      const double newEnergyGamma = SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
+      const double newEnergyGamma =
+          G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
       vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
 
       const double energyEl = energy - newEnergyGamma;

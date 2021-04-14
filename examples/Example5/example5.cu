@@ -139,8 +139,6 @@ static void FreeG4HepEm(G4HepEmState *state)
   delete state;
 }
 
-__device__ struct G4HepEmElectronManager electronManager;
-
 class RanluxppDoubleEngine : public G4HepEmRandomEngine {
   // Wrapper functions to call into CLHEP::HepRandomEngine.
   static __host__ __device__ double flatWrapper(void *object) {
@@ -182,12 +180,12 @@ __global__ void TransportParticle()
       }
     }
 
-    electronManager.HowFar(&g4HepEmData, &g4HepEmPars, theElTrack);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, theElTrack);
     printf("sampled process: %d, particle travels %fmm\n", theTrack->GetWinnerProcessIndex(),
            theTrack->GetGStepLength());
 
     const int iDProc = theTrack->GetWinnerProcessIndex();
-    bool stopped     = electronManager.PerformContinuous(&g4HepEmData, &g4HepEmPars, theElTrack);
+    bool stopped     = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, theElTrack);
     printf("energy after continuous process: %fMeV\n", theTrack->GetEKin());
     if (stopped) {
       // call annihilation for e+ !!!
@@ -206,7 +204,7 @@ __global__ void TransportParticle()
     theTrack->SetNumIALeft(-1.0, iDProc);
 
     // Check if a delta interaction happens instead of the real discrete process.
-    if (electronManager.CheckDelta(&g4HepEmData, theTrack, r.Rndm())) {
+    if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, r.Rndm())) {
       printf("delta interaction happened!\n");
       continue;
     }
@@ -220,19 +218,22 @@ __global__ void TransportParticle()
     case 0: {
       // invoke ioni (for e-/e+):
       // PerformElectronIoni(tlData, hepEmData, isElectron);
-      const double deltaEkin =
-          (isElectron) ? SampleETransferMoller(theElCut, theEkin, &rnge) : SampleETransferBhabha(theElCut, theEkin, &rnge);
+      const double deltaEkin = (isElectron)
+                                   ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, theEkin, &rnge)
+                                   : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, theEkin, &rnge);
       theTrack->SetEKin(theEkin - deltaEkin);
       break;
     }
     case 1: // invoke brem (for e-/e+): either SB- or Rel-Brem
       if (theEkin < g4HepEmPars.fElectronBremModelLim) {
         // PerformElectronBremSB(tlData, hepEmData, isElectron);
-        double deltaEkin = SampleETransferBremSB(&g4HepEmData, theEkin, theLogEkin, theMCIndx, &rnge, isElectron);
+        double deltaEkin = G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, theEkin, theLogEkin,
+                                                                             theMCIndx, &rnge, isElectron);
         theTrack->SetEKin(theEkin - deltaEkin);
       } else {
         // PerformElectronBremRB(tlData, hepEmData);
-        double deltaEkin = SampleETransferBremRB(&g4HepEmData, theEkin, theLogEkin, theMCIndx, &rnge, isElectron);
+        double deltaEkin = G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, theEkin, theLogEkin,
+                                                                             theMCIndx, &rnge, isElectron);
         theTrack->SetEKin(theEkin - deltaEkin);
       }
       break;
