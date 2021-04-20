@@ -10,6 +10,7 @@
 #include "G4Material.hh"
 #include "G4NistManager.hh"
 #include "G4PVPlacement.hh"
+#include "G4PVReplica.hh"
 #include "G4SystemOfUnits.hh"
 #include "G4ThreeVector.hh"
 
@@ -21,73 +22,114 @@
 #include "G4ProductionCuts.hh"
 #include "G4ProductionCutsTable.hh"
 
+#include "example7-geometry.h"
+
 G4PVPlacement* geant4_mock() {
-  // This largely follows G4HepEM's testing methods
-  // Want nested regions with common materials to make sure we can connect these up
+  // - GEOMETRY
+  // materials
+  G4Material *fDefaultMaterial = G4NistManager::Instance()->FindOrBuildMaterial(WorldMaterial);
+  G4Material *gap      = G4NistManager::Instance()->FindOrBuildMaterial(GapMaterial);
+  G4Material *absorber = G4NistManager::Instance()->FindOrBuildMaterial(AbsorberMaterial);
 
-  // -- Materials (Matched to TestEm3)
-  G4Material* g4Galactic = G4NistManager::Instance()->FindOrBuildMaterial("G4_Galactic");
-  G4Material* g4Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
-  G4Material* g4LAr = G4NistManager::Instance()->FindOrBuildMaterial("G4_lAr");
+  G4Material* fAbsorMaterial[fNbOfAbsorbers+1] = {fDefaultMaterial, gap, absorber};
 
-  // -- Geometry
-  const G4double worldHalfLength = 5.0*CLHEP::m;
-  const G4double outerAbsHalfLength = 0.8*worldHalfLength;
-  const G4double scintHalfLength = 0.8*outerAbsHalfLength;
-  const G4double innerAbsHalfLength = 0.8*scintHalfLength;
+  //
+  // World
+  //
+  auto* fSolidWorld = new G4Box("World",                                                 // its name
+                                fWorldSizeX / 2., fWorldSizeYZ / 2., fWorldSizeYZ / 2.); // its size
 
-  // world...
-  auto* worldBox = new G4Box("World", worldHalfLength, worldHalfLength, worldHalfLength);
-  auto* worldLogical = new G4LogicalVolume(worldBox, g4Galactic, "World");
-  auto* worldPhysical = new G4PVPlacement(0, G4ThreeVector(), worldLogical, "World", 0, false, 0);
+  auto* fLogicWorld = new G4LogicalVolume(fSolidWorld,      // its solid
+                                          fDefaultMaterial, // its material
+                                          "World");         // its name
 
-  // Lead "Outer Absorber"
-  auto* outerAbsBox =new G4Box("OuterAbsorber", outerAbsHalfLength, outerAbsHalfLength, outerAbsHalfLength);
-  auto* outerAbsLogical = new G4LogicalVolume(outerAbsBox, g4Pb, "OuterAbsorber");
-  auto* outerAbsPhysical = new G4PVPlacement(0, G4ThreeVector(), outerAbsLogical, "OuterAbsorber", worldLogical, false, 0);
+  auto* fPhysiWorld = new G4PVPlacement(0,               // no rotation
+                                        G4ThreeVector(), // at (0,0,0)
+                                        fLogicWorld,     // its fLogical volume
+                                        "World",         // its name
+                                        0,               // its mother  volume
+                                        false,           // no boolean operation
+                                        0);              // copy number
 
-  // Liquid argon "scintillator"
-  auto* scintBox =new G4Box("Scintillator", scintHalfLength, scintHalfLength, scintHalfLength);
-  auto* scintLogical = new G4LogicalVolume(scintBox, g4LAr, "Scintillator");
-  auto* scintPhysical = new G4PVPlacement(0, G4ThreeVector(), scintLogical, "Scintillator", outerAbsLogical, false, 0);
+  //
+  // Calorimeter
+  //
+  auto* fSolidCalor = new G4Box("Calorimeter", fCalorThickness / 2., fCalorSizeYZ / 2., fCalorSizeYZ / 2.);
 
-   // Lead "Inner Absorber"
-  auto* innerAbsBox = new G4Box("InnerAbsorber", innerAbsHalfLength, innerAbsHalfLength, innerAbsHalfLength);
-  auto* innerAbsLogical = new G4LogicalVolume(innerAbsBox, g4Pb, "InnerAbsorber");
-  auto* innerAbsPhysical = new G4PVPlacement(0, G4ThreeVector(), innerAbsLogical, "InnerAbsorber", scintLogical, false, 0);
+  auto* fLogicCalor = new G4LogicalVolume(fSolidCalor, fDefaultMaterial, "Calorimeter");
 
-  // -- Create particles that have secondary production threshold.
+  auto* fPhysiCalor = new G4PVPlacement(0,               // no rotation
+                                        G4ThreeVector(), // at (0,0,0)
+                                        fLogicCalor,     // its fLogical volume
+                                        "Calorimeter",   // its name
+                                        fLogicWorld,     // its mother  volume
+                                        false,           // no boolean operation
+                                        0);              // copy number
+
+  //
+  // Layers
+  //
+  auto* fSolidLayer = new G4Box("Layer", fLayerThickness / 2, fCalorSizeYZ / 2, fCalorSizeYZ / 2);
+
+  auto* fLogicLayer = new G4LogicalVolume(fSolidLayer, fDefaultMaterial, "Layer");
+
+  // Layers
+  // VecGeom doesn't support replica volumes, so use direct placement for now (different from original TestEm3)
+  G4VPhysicalVolume* fPhysiLayer = nullptr;
+  G4double xstart = -0.5 * fCalorThickness;
+  for (G4int k = 1; k <= fNbOfLayers; ++k) {
+    G4double xcenter = xstart + (k - 1 + 0.5) * fLayerThickness;
+    fPhysiLayer = new G4PVPlacement(0,
+                                    G4ThreeVector(xcenter, 0., 0.),
+                                    fLogicLayer,
+                                    "Layer",
+                                    fLogicCalor,
+                                    false,
+                                    k);
+  }
+
+  //
+  // Absorbers
+  //
+  G4double xfront = -0.5 * fLayerThickness;
+  for (G4int k = 1; k <= fNbOfAbsorbers; k++) {
+    auto* fSolidAbsor = new G4Box("Absorber", // its name
+                                  fAbsorThickness[k] / 2, fCalorSizeYZ / 2, fCalorSizeYZ / 2);
+
+    auto* fLogicAbsor = new G4LogicalVolume(fSolidAbsor,    // its solid
+                                            fAbsorMaterial[k], // its material
+                                            fAbsorMaterial[k]->GetName());
+
+    G4double xcenter = xfront + 0.5 * fAbsorThickness[k];
+    xfront += fAbsorThickness[k];
+    auto* fPhysiAbsor = new G4PVPlacement(0, G4ThreeVector(xcenter, 0., 0.), fLogicAbsor, fAbsorMaterial[k]->GetName(),
+                                         fLogicLayer, false,
+                                         k); // copy number
+  }
+
+  // - PHYSICS
+  // --- Create particles that have secondary production threshold.
   G4Gamma::Gamma();
   G4Electron::Electron();
   G4Positron::Positron();
   G4Proton::Proton();
-  G4ParticleTable* partTable = G4ParticleTable::GetParticleTable();
+  G4ParticleTable *partTable = G4ParticleTable::GetParticleTable();
   partTable->SetReadiness();
-
+  //
   // --- Create production - cuts object and set the secondary production threshold.
-  G4ProductionCuts* productionCuts = new G4ProductionCuts();
-  constexpr G4double ProductionCut = 1 * mm;
+  auto *productionCuts = new G4ProductionCuts();
   productionCuts->SetProductionCut(ProductionCut);
-
-  // --- Register a default region
-  G4Region* reg = new G4Region("default");
-  reg->AddRootLogicalVolume(worldLogical);
+  //
+  // --- Register a region for the world.
+  auto *reg = new G4Region("default");
+  reg->AddRootLogicalVolume(fLogicWorld);
   reg->UsedInMassGeometry(true);
   reg->SetProductionCuts(productionCuts);
-
-  // --- and one for the Inner Absorber with different production cuts
-  G4Region* absReg = new G4Region("inner_absorber");
-  absReg->AddRootLogicalVolume(innerAbsLogical);
-  absReg->UsedInMassGeometry(true);
-
-  auto* absProductionCuts = new G4ProductionCuts();
-  absProductionCuts->SetProductionCut(0.7*CLHEP::mm);
-
-  absReg->SetProductionCuts(absProductionCuts);
-
+  //
   // --- Update the couple tables.
-  G4ProductionCutsTable* theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
-  theCoupleTable->UpdateCoupleTable(worldPhysical);
+  G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
+  theCoupleTable->UpdateCoupleTable(fPhysiWorld);
 
-  return worldPhysical;
+  // Return geometry, ...
+  return fPhysiWorld;
 }
