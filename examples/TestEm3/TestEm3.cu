@@ -317,7 +317,8 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     int transportBlocks;
 
     int inFlight;
-    int iterNo = 0;
+    int loopingNo = 0;
+    int previousElectrons = -1, previousPositrons = -1;
 
     do {
       Secondaries secondaries = {
@@ -390,8 +391,19 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
       positrons.queues.SwapActive();
       gammas.queues.SwapActive();
 
-      iterNo++;
-    } while (inFlight > 0 && iterNo < 1000);
+      // Check if only charged particles are left that are looping.
+      numElectrons = stats->inFlight[ParticleType::Electron];
+      numPositrons = stats->inFlight[ParticleType::Positron];
+      numGammas = stats->inFlight[ParticleType::Gamma];
+      if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
+        loopingNo++;
+      } else {
+        previousElectrons = numElectrons;
+        previousPositrons = numPositrons;
+        loopingNo = 0;
+      }
+
+    } while (inFlight > 0 && loopingNo < 20);
 
     if (inFlight > 0) {
       std::cout << std::endl;
