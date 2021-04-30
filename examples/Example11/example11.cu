@@ -243,7 +243,8 @@ void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
   timer.Start();
 
   int inFlight;
-  int iterNo = 0;
+  int iterNo = 0, loopingNo = 0;
+  int previousElectrons = -1, previousPositrons = -1;
 
   do {
     Secondaries secondaries = {
@@ -320,8 +321,20 @@ void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
               << " number of hits: " << std::setw(4) << stats->scoring.hits;
     std::cout << std::endl;
 
+    // Check if only charged particles are left that are looping.
+    numElectrons = stats->inFlight[ParticleType::Electron];
+    numPositrons = stats->inFlight[ParticleType::Positron];
+    numGammas = stats->inFlight[ParticleType::Gamma];
+    if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
+      loopingNo++;
+    } else {
+      previousElectrons = numElectrons;
+      previousPositrons = numPositrons;
+      loopingNo = 0;
+    }
+
     iterNo++;
-  } while (inFlight > 0 && iterNo < 1000);
+  } while (inFlight > 0 && loopingNo < 20);
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
