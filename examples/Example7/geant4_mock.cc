@@ -22,7 +22,27 @@
 #include "G4ProductionCuts.hh"
 #include "G4ProductionCutsTable.hh"
 
-#include "example7-geometry.h"
+// This basically copies the TestEm3 example's way of constructing the test geometry
+// Yes, global, but fine for a dumb example where we just need a couple of constants common
+// in two programs...
+const char *WorldMaterial    = "G4_Galactic";
+const char *GapMaterial      = "G4_Pb";
+const char *AbsorberMaterial = "G4_lAr";
+
+constexpr double ProductionCut = 0.7 * mm;
+
+constexpr double fCalorSizeYZ       = 40 * cm;
+constexpr int fNbOfLayers           = 50;
+constexpr int fNbOfAbsorbers        = 2;
+constexpr double GapThickness      = 2.3 * mm;
+constexpr double AbsorberThickness = 5.7 * mm;
+constexpr double fAbsorThickness[fNbOfAbsorbers+1] = {0.0, GapThickness, AbsorberThickness};
+
+constexpr double fLayerThickness = GapThickness + AbsorberThickness;
+constexpr double fCalorThickness = fNbOfLayers * fLayerThickness;
+
+constexpr double fWorldSizeX  = 1.2 * fCalorThickness;
+constexpr double fWorldSizeYZ = 1.2 * fCalorSizeYZ;
 
 G4PVPlacement* geant4_mock() {
   // - GEOMETRY

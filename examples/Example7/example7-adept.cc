@@ -5,6 +5,7 @@
 #include <iomanip>
 
 #include <AdePT/ArgParser.h>
+#include <CopCore/SystemOfUnits.h>
 
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/gdml/Frontend.h>
@@ -16,7 +17,7 @@
 #include <G4HepEmDataJsonIO.hh>
 
 // Just to get sizes so we know where to start particles
-#include "example7-geometry.h"
+//#include "example7-geometry.h"
 
 #include "TestEm3.h"
 
@@ -39,6 +40,13 @@ void PrintDaughters(const vecgeom::VPlacedVolume *placed, int level = 0)
     std::cout << " ID " << daughter->id() << " @ " << trans->Translation() << std::endl;
     PrintDaughters(daughter, level + 1);
   }
+}
+
+// We shoot particles along {1,0,0} starting from {-x, 0, 0}
+// Calculate -x as distance to world boundary plus a small tolerance
+double GetStartX(const vecgeom::VPlacedVolume *volume) {
+  auto dist = volume->DistanceToOut({0,0,0}, {-1,0,0});
+  return -1.0*dist + 1.0*copcore::units::mm;
 }
 
 int main(int argc, char* argv[])
@@ -147,7 +155,7 @@ int main(int argc, char* argv[])
   }
 
   // Place particles between the world boundary and the calorimeter.
-  double startX = (-0.5 * fWorldSizeX) + 1.0*copcore::units::mm;
+  double startX = GetStartX(world);
   GlobalScoring globalScoring;
 
   // NB: Scoring per Volume retained for interface compatibility with TestEm3 but it doesn't work here yet
