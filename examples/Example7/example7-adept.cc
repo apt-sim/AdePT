@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: 2020 CERN
+// SPDX-FileCopyrightText: 2021 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 #include <iostream>
 #include <iomanip>
+#include <unordered_set>
 
 #include <AdePT/ArgParser.h>
 #include <CopCore/SystemOfUnits.h>
@@ -124,7 +125,7 @@ int main(int argc, char* argv[])
   // set of pointers afterwards to uniq the list.
   std::vector<vecgeom::VPlacedVolume*> tmpPlacedVolumes;
   vecgeom::GeoManager::Instance().getAllPlacedVolumes(tmpPlacedVolumes);
-  std::set<vecgeom::VPlacedVolume*> allPlacedVolumes{tmpPlacedVolumes.begin(), tmpPlacedVolumes.end()};
+  std::unordered_set<vecgeom::VPlacedVolume*> allPlacedVolumes{tmpPlacedVolumes.begin(), tmpPlacedVolumes.end()};
 
   const auto NumVolumes = allPlacedVolumes.size();
   int* MCCIndex = new int[NumVolumes];

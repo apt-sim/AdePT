@@ -29,11 +29,7 @@ endif()
 
 # example7-geant4 is the "full" Geant4 application for data export
 add_executable(example7-geant4 example7-geant4.cc geant4_mock.h geant4_mock.cc)
-target_include_directories(example7-geant4
-  PRIVATE
-    "${PROJECT_SOURCE_DIR}/base/inc"
-    "${PROJECT_SOURCE_DIR}/base/inc/CopCore/include")
-target_link_libraries(example7-geant4 PRIVATE ${Geant4_LIBRARIES} G4HepEm::g4HepEm G4HepEm::g4HepEmDataJsonIO)
+target_link_libraries(example7-geant4 PRIVATE AdePT ${Geant4_LIBRARIES} G4HepEm::g4HepEm G4HepEm::g4HepEmDataJsonIO)
 
 # example7-adept is the pure AdePT application for the data import
 add_executable(example7-adept
@@ -42,11 +38,6 @@ add_executable(example7-adept
   electrons.cu
   gammas.cu
   relocation.cu)
-target_include_directories(example7-adept
-  PRIVATE
-    "${PROJECT_SOURCE_DIR}/base/inc"
-    "${PROJECT_SOURCE_DIR}/base/inc/CopCore/include")
-# We're not using CUDA just yet, but we need the following to link to VecGeom with CUDA enabled
 target_link_libraries(example7-adept
   PRIVATE
     AdePT
