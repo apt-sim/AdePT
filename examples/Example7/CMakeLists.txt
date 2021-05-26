@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-FileCopyrightText: 2021 CERN
 # SPDX-License-Identifier: Apache-2.0
 
 if(NOT TARGET G4HepEm::g4HepEm)
