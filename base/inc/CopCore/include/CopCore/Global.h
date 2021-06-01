@@ -27,9 +27,9 @@ enum BackendType { CPU = 0, CUDA, HIP };
 
 /** @brief CUDA error checking */
 #ifndef COPCORE_CUDA_COMPILER
-inline void error_check(int, const char *, int) {}
+static inline void error_check(int, const char *, int) {}
 #else
-inline void error_check(cudaError_t err, const char *file, int line)
+static inline void error_check(cudaError_t err, const char *file, int line)
 {
   if (err != cudaSuccess) {
     ::fprintf(stderr, "CUDA ERROR at %s[%d] : %s\n", file, line, cudaGetErrorString(err));
@@ -55,9 +55,9 @@ inline void error_check(cudaError_t err, const char *file, int line)
 
 /** @brief Check if pointer id device-resident */
 #ifndef COPCORE_CUDA_COMPILER
-inline bool is_device_pointer(void *ptr) { return false; }
+static inline bool is_device_pointer(void *ptr) { return false; }
 #else
-inline bool is_device_pointer(void *ptr)
+static inline bool is_device_pointer(void *ptr)
 {
   cudaPointerAttributes attr;
   cudaError_t err = cudaPointerGetAttributes(&attr, ptr);
@@ -68,9 +68,9 @@ inline bool is_device_pointer(void *ptr)
 
 /** @brief Get number of SMs on the current device */
 #ifndef COPCORE_CUDA_COMPILER
-inline int get_num_SMs() { return 0; }
+static inline int get_num_SMs() { return 0; }
 #else
-inline int get_num_SMs()
+static inline int get_num_SMs()
 {
   int deviceId, numSMs;
   COPCORE_CUDA_CHECK(cudaGetDevice(&deviceId));
