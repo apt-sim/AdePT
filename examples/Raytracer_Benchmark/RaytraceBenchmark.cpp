@@ -15,9 +15,9 @@
 
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
-#include <AdePT/LoopNavigator.h>
 
 #include <VecGeom/base/Vector3D.h>
+#include <VecGeom/management/BVHManager.h>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/navigation/NavStatePath.h>
 #include <VecGeom/base/Stopwatch.h>
@@ -25,6 +25,17 @@
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>
 #endif
+
+// Note: The function below needs to be in a .cpp file,
+// otherwise the vecgeom::cxx namespace is not accessible.
+
+void InitBVH(bool on_gpu)
+{
+  vecgeom::cxx::BVHManager::Init();
+
+  if (on_gpu)
+    vecgeom::cxx::BVHManager::DeviceInit();
+}
 
 namespace cuda {
 struct MyMediumProp;
