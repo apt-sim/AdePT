@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Raytracer.h"
 #include "kernels.h"
-#include <vector>
-#include "Color.h"
+#include "Raytracer.h"
 
 #include <CopCore/Global.h>
 #include <AdePT/ArgParser.h>
@@ -12,14 +10,15 @@
 #include <AdePT/LoopNavigator.h>
 #include <AdePT/SparseVector.h>
 
-#include <VecGeom/base/Vector3D.h>
-#include <VecGeom/management/GeoManager.h>
-#include <VecGeom/navigation/NavStatePath.h>
-#include <VecGeom/base/Stopwatch.h>
-#include <VecGeom/management/CudaManager.h>
 #include <VecGeom/base/Global.h>
+#include <VecGeom/base/Vector3D.h>
+#include <VecGeom/base/Stopwatch.h>
+#include <VecGeom/management/GeoManager.h>
+#include <VecGeom/management/CudaManager.h>
+#include <VecGeom/navigation/NavStatePath.h>
 
 #include <atomic>
+#include <vector>
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>
@@ -33,6 +32,8 @@ void initiliazeCudaWorld(RaytracerData_t *rtdata, const MyMediumProp *volume_con
 void RenderTiledImage(RaytracerData_t *rtdata, NavIndex_t *output_buffer, int generation, int block_size);
 
 bool check_used_cuda(RaytracerData_t *rtdata, int no_generations);
+
+void InitBVH(bool);
 
 template <copcore::BackendType backend>
 void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container, int no_generations,
@@ -156,6 +157,9 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
   // rtdata->sparse_rays = array_ptr;
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
+  bool on_gpu = backend == copcore::BackendType::CUDA;
+  InitBVH(on_gpu); // note: needs to be called after geometry has been uploaded to the GPU
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateRaysFunc, generateRays);

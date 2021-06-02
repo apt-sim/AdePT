@@ -5,12 +5,12 @@
 /// \author Andrei Gheata (andrei.gheata@cern.ch)
 /// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
-#include "Raytracer.h"
 #include "Color.h"
+#include "Raytracer.h"
 
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
-#include <AdePT/LoopNavigator.h>
+#include <AdePT/BVHNavigator.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/base/Stopwatch.h>
@@ -106,7 +106,7 @@ void InitRay(RaytracerData_t const &rtdata, Ray_t &ray)
     ray.fCrtState = rtdata.fVPstate;
     ray.fVolume   = (Ray_t::VPlacedVolumePtr_t)rtdata.fVPstate.Top();
   } else {
-    ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+    ray.fVolume = BVHNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
   }
 }
 
@@ -123,7 +123,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
     if (ray.fDone) return ray.fColor;
     // Propagate to the world volume (but do not increment the boundary count)
     ray.fPos += (snext + kPush) * ray.fDir;
-    ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+    ray.fVolume = BVHNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
 
     if (ray.fVolume) {
       ray.fNextState = ray.fCrtState;
@@ -149,7 +149,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
     // }
 
     while (nextvol == ray.fVolume && nsmall < kMaxTries) {
-      snext   = LoopNavigator::ComputeStepAndPropagatedState(ray.fPos, ray.fDir, vecgeom::kInfLength, ray.fCrtState,
+      snext   = BVHNavigator::ComputeStepAndPropagatedState(ray.fPos, ray.fDir, vecgeom::kInfLength, ray.fCrtState,
                                                            ray.fNextState);
       nextvol = (Ray_t::VPlacedVolumePtr_t)ray.fNextState.Top();
       ray.fPos += (snext + kPush) * ray.fDir;
