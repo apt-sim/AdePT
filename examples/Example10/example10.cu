@@ -212,9 +212,11 @@ void example10(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
   ParticleType &positrons = particles[ParticleType::Positron];
   ParticleType &gammas    = particles[ParticleType::Gamma];
 
-  // Create a stream to synchronize kernels of all particle types.
+  // Create a stream and an event to synchronize kernels of all particle types.
   cudaStream_t stream;
+  cudaEvent_t event;
   COPCORE_CUDA_CHECK(cudaStreamCreate(&stream));
+  COPCORE_CUDA_CHECK(cudaEventCreate(&event));
 
   // Allocate and initialize scoring and statistics.
   GlobalScoring *scoring = nullptr;
@@ -233,10 +235,6 @@ void example10(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
   InitPrimaries<<<initBlocks, InitThreads>>>(electronGenerator, numParticles, energy, world_dev);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-  stats->inFlight[ParticleType::Electron] = numParticles;
-  stats->inFlight[ParticleType::Positron] = 0;
-  stats->inFlight[ParticleType::Gamma]    = 0;
-
   std::cout << "INFO: running with field Bz = " << BzFieldValue / copcore::units::tesla << " T";
   std::cout << std::endl;
 
@@ -248,94 +246,123 @@ void example10(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
   vecgeom::Stopwatch timer;
   timer.Start();
 
-  int inFlight;
+  int inFlight, numElectrons, numPositrons, numGammas;
   int iterNo = 0;
 
+  numElectrons = numParticles;
+  numPositrons = 0;
+  numGammas    = 0;
+  inFlight     = numElectrons + numPositrons + numGammas;
+
   do {
-    Secondaries secondaries = {
-        .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
-        .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
-        .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
-    };
+    int maxElectrons = numElectrons;
+    int maxPositrons = numPositrons;
+    int maxGammas    = numGammas;
 
-    // *** ELECTRONS ***
-    int numElectrons = stats->inFlight[ParticleType::Electron];
-    if (numElectrons > 0) {
-      transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
-      transportBlocks = std::min(transportBlocks, MaxBlocks);
+    for (int s = 0; s < 4; s++) {
 
-      relocateBlocks = std::min(numElectrons, MaxBlocks);
+      // Wait for previous step to finish.
+      if (s != 0) {
+        COPCORE_CUDA_CHECK(cudaEventRecord(event, stream));
 
-      TransportElectrons<<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-          electrons.queues.relocate, scoring);
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(electrons.stream, event, 0));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(positrons.stream, event, 0));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gammas.stream, event, 0));
+      }
 
-      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, electrons.stream>>>(electrons.tracks,
-                                                                                     electrons.queues.relocate);
+      Secondaries secondaries = {
+          .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
+          .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
+          .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
+      };
 
-      COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
-      COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
+      // *** ELECTRONS ***
+      if (maxElectrons > 0) {
+        transportBlocks = (maxElectrons + TransportThreads - 1) / TransportThreads;
+        transportBlocks = std::min(transportBlocks, MaxBlocks);
+
+        relocateBlocks = std::min(maxElectrons, MaxBlocks);
+
+        TransportElectrons<<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
+            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+            electrons.queues.relocate, scoring, 4);
+
+        RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, electrons.stream>>>(electrons.tracks,
+                                                                                       electrons.queues.relocate);
+
+        COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
+      }
+
+      // *** POSITRONS ***
+      if (maxPositrons > 0) {
+        transportBlocks = (maxPositrons + TransportThreads - 1) / TransportThreads;
+        transportBlocks = std::min(transportBlocks, MaxBlocks);
+
+        relocateBlocks = std::min(maxPositrons, MaxBlocks);
+
+        TransportPositrons<<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
+            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
+            positrons.queues.relocate, scoring, 4);
+
+        RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, positrons.stream>>>(positrons.tracks,
+                                                                                       positrons.queues.relocate);
+
+        COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
+      }
+
+      // *** GAMMAS ***
+      if (maxGammas > 0) {
+        transportBlocks = (maxGammas + TransportThreads - 1) / TransportThreads;
+        transportBlocks = std::min(transportBlocks, MaxBlocks);
+
+        relocateBlocks = std::min(maxGammas, MaxBlocks);
+
+        TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, gammas.queues.relocate,
+            scoring, 4);
+
+        RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, gammas.stream>>>(gammas.tracks,
+                                                                                    gammas.queues.relocate);
+
+        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
+      }
+
+      // *** END OF TRANSPORT ***
+
+      // The events ensure synchronization before finishing this iteration.
+      AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
+      FinishIteration<<<1, 1, 0, stream>>>(queues, scoring, stats_dev);
+
+      // Swap the queues for the next iteration. Note: This is purely on the host and *not* synchronized
+      // with the FinishIteration kernel on the device!
+      electrons.queues.SwapActive();
+      positrons.queues.SwapActive();
+      gammas.queues.SwapActive();
+
+      // Estimate the maximum number of secondaries that could occur in the next iteration.
+      int nextMaxElectrons = maxElectrons + /*ioni*/ maxElectrons + /*conversion*/ maxGammas + /*Compton*/ maxGammas;
+      int nextMaxPositrons = maxPositrons + /*conversion*/ maxGammas;
+      int nextMaxGammas    = maxGammas + /*brems*/ maxElectrons + /*annihilation*/ 2 * maxPositrons;
+
+      maxElectrons = nextMaxElectrons;
+      maxPositrons = nextMaxPositrons;
+      maxGammas    = nextMaxGammas;
     }
 
-    // *** POSITRONS ***
-    int numPositrons = stats->inFlight[ParticleType::Positron];
-    if (numPositrons > 0) {
-      transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
-      transportBlocks = std::min(transportBlocks, MaxBlocks);
-
-      relocateBlocks = std::min(numPositrons, MaxBlocks);
-
-      TransportPositrons<<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-          positrons.queues.relocate, scoring);
-
-      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, positrons.stream>>>(positrons.tracks,
-                                                                                     positrons.queues.relocate);
-
-      COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
-      COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
-    }
-
-    // *** GAMMAS ***
-    int numGammas = stats->inFlight[ParticleType::Gamma];
-    if (numGammas > 0) {
-      transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
-      transportBlocks = std::min(transportBlocks, MaxBlocks);
-
-      relocateBlocks = std::min(numGammas, MaxBlocks);
-
-      TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, gammas.queues.relocate,
-          scoring);
-
-      RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, gammas.stream>>>(gammas.tracks,
-                                                                                  gammas.queues.relocate);
-
-      COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
-      COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
-    }
-
-    // *** END OF TRANSPORT ***
-
-    // The events ensure synchronization before finishing this iteration and
-    // copying the Stats back to the host.
-    AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
-    FinishIteration<<<1, 1, 0, stream>>>(queues, scoring, stats_dev);
+    // Copy the stats back to the host that were gathered in FinishIteration.
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(stats, stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, stream));
 
     // Finally synchronize all kernels.
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
 
     // Count the number of particles in flight.
-    inFlight = 0;
-    for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-      inFlight += stats->inFlight[i];
-    }
-
-    // Swap the queues for the next iteration.
-    electrons.queues.SwapActive();
-    positrons.queues.SwapActive();
-    gammas.queues.SwapActive();
+    numElectrons = stats->inFlight[ParticleType::Electron];
+    numPositrons = stats->inFlight[ParticleType::Positron];
+    numGammas    = stats->inFlight[ParticleType::Gamma];
+    inFlight     = numElectrons + numPositrons + numGammas;
 
     std::cout << std::fixed << std::setprecision(4) << std::setfill(' ');
     std::cout << "iter " << std::setw(4) << iterNo << " -- tracks in flight: " << std::setw(5) << inFlight

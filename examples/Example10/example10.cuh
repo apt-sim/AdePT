@@ -147,13 +147,13 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
 
 __global__ void TransportElectrons(
     Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    adept::MParray *relocateQueue, GlobalScoring *scoring);
+    adept::MParray *relocateQueue, GlobalScoring *scoring, int maxSteps);
 __global__ void TransportPositrons(
     Track *positrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    adept::MParray *relocateQueue, GlobalScoring *scoring);
+    adept::MParray *relocateQueue, GlobalScoring *scoring, int maxSteps);
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring);
+                                adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring, int maxSteps);
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in example10.cu)
