@@ -240,7 +240,8 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   std::cout << "Run time: " << time_cpu << "\n";
 
   // Write the output
-  write_ppm("output.ppm", output_buffer, rtdata->fSize_px, rtdata->fSize_py);
+  const char *output_name = on_gpu ? "output-gpu.ppm" : "output-cpu.ppm";
+  write_ppm(output_name, output_buffer, rtdata->fSize_px, rtdata->fSize_py);
 
   COPCORE_CUDA_CHECK(cudaFree(rtdata->sparse_rays));
   COPCORE_CUDA_CHECK(cudaFree(color));
