@@ -49,3 +49,26 @@ target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeo
 target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-fmad=false>")
 set_target_properties(RaytraceBenchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
+add_test(NAME RaytraceBenchmarkCPU
+  COMMAND $<TARGET_FILE:RaytraceBenchmark> -gdml_name ${CMAKE_BINARY_DIR}/trackML.gdml -on_gpu 0)
+set_tests_properties(RaytraceBenchmarkCPU PROPERTIES ATTACHED_FILES_ON_FAIL "output-cpu.ppm")
+
+add_test(NAME RaytraceBenchmarkGPU
+  COMMAND $<TARGET_FILE:RaytraceBenchmark> -gdml_name ${CMAKE_BINARY_DIR}/trackML.gdml -on_gpu 1)
+set_tests_properties(RaytraceBenchmarkGPU PROPERTIES ATTACHED_FILES_ON_FAIL "output-gpu.ppm")
+
+add_test(NAME RaytraceBenchmarkDiff
+  COMMAND diff output-cpu.ppm output-gpu.ppm)
+
+find_program(COMPARE NAMES compare)
+
+if(EXISTS ${COMPARE})
+  add_test(NAME RaytraceBenchmarkCompare
+    COMMAND ${COMPARE} -metric MAE output-cpu.ppm output-gpu.ppm diff.ppm)
+
+  set_tests_properties(RaytraceBenchmarkCompare PROPERTIES
+    ATTACHED_FILES_ON_FAIL "${CMAKE_CURRENT_BINARY_DIR}/diff.ppm"
+    REQUIRED_FILES "output-cpu.ppm;output-gpu.ppm"
+    DEPENDS "RaytraceBenchmarkCPU;RaytraceBenchmarkGPU"
+    PASS_REGULAR_EXPRESSION "^0 \\(0\\)")
+endif()
