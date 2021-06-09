@@ -49,6 +49,7 @@ struct Ray_t {
   int index                  = -1;      ///< index flag
   adept::Atomic_t<float> intensity;     ///< intensity flag
   int generation = -1;                  ///< generation flag (used for kRTfresnel model)
+  bool reflection = false;              ///< mark reflected ray
 
   __host__ __device__ static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
 
@@ -74,9 +75,13 @@ struct Ray_t {
   {
     // ior1, ior2 are the refraction indices of the exited and entered volumes respectively
     float cosi                  = fDir.Dot(normal);
+    float eta                   = ior1 / ior2;
+
+    if (cosi >= 0)
+      eta = 1./eta;
+
     vecgeom::Vector3D<double> n = (cosi < 0) ? normal : -normal;
     cosi                        = vecCore::math::Abs(cosi);
-    float eta                   = ior1 / ior2;
     float k                     = 1 - eta * eta * (1 - cosi * cosi);
     vecgeom::Vector3D<double> refracted;
     if (k < 0) {
@@ -105,9 +110,15 @@ struct Ray_t {
   __host__ __device__ void Fresnel(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, float &kr)
   {
     float cosi = fDir.Dot(normal);
+    if (cosi > 0) {
+      float x = ior1;
+      ior1 = ior2;
+      ior2 = x;
+    }
+    float eta = ior1 / ior2;
+
     // Vector3D<double> n = (cosi < 0) ? normal : -normal;
     cosi      = vecCore::math::Abs(cosi);
-    float eta = ior1 / ior2;
     // Compute sini using Snell's law
     float sint = eta * vecCore::math::Sqrt(vecCore::math::Max(0.f, 1.f - cosi * cosi));
     // Total internal reflection
@@ -127,7 +138,9 @@ struct Ray_t {
 struct RaytracerData_t {
 
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
-  using Array_t            = adept::SparseVector<Ray_t, 1 << 22>;
+  static const int VectorSize = 1 << 22;  
+  using Vector_t           = adept::SparseVector<Ray_t, VectorSize>;  
+  using Vector_t_int       = adept::SparseVector<int, VectorSize>;
 
   double fScale     = 0;                      ///< Scaling from pixels to world coordinates
   double fShininess = 1.;                     ///< Shininess exponent in the specular model
@@ -151,7 +164,9 @@ struct RaytracerData_t {
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
 
-  Array_t *sparse_rays = nullptr; ///< pointer to the rays containers
+  Vector_t *sparse_rays = nullptr; ///< pointer to the rays containers
+  Vector_t_int *sparse_int = nullptr; ///<
+  Vector_t_int *sparse_int_copy       = nullptr; ///<
 
   __host__ __device__ void Print();
 };

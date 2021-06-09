@@ -117,24 +117,25 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
 
   int itry = 0;
 
-  while (!ray.fVolume && itry < kMaxTries) {
-    auto snext = rtdata.fWorld->DistanceToIn(ray.fPos, ray.fDir);
-    ray.fDone  = snext == vecgeom::kInfLength;
-    if (ray.fDone) return ray.fColor;
-    // Propagate to the world volume (but do not increment the boundary count)
-    ray.fPos += (snext + kPush) * ray.fDir;
-    ray.fVolume = BVHNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+  if (generation == 0) {
+    while (!ray.fVolume && itry < kMaxTries) {
+      auto snext = rtdata.fWorld->DistanceToIn(ray.fPos, ray.fDir);
+      ray.fDone  = snext == vecgeom::kInfLength;
+      if (ray.fDone) return ray.fColor;
+      // Propagate to the world volume (but do not increment the boundary count)
+      ray.fPos += (snext + kPush) * ray.fDir;
+      ray.fVolume = BVHNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
 
-    if (ray.fVolume) {
-      ray.fNextState = ray.fCrtState;
-      Raytracer::ApplyRTmodel(ray, snext, rtdata, generation);
+      if (ray.fVolume) {
+        ray.fNextState = ray.fCrtState;
+        Raytracer::ApplyRTmodel(ray, snext, rtdata, generation);
+      }
     }
+    ray.fDone = ray.fVolume == nullptr;
+    if (ray.fDone) return ray.fColor;
   }
-  ray.fDone = ray.fVolume == nullptr;
-  if (ray.fDone) return ray.fColor;
 
-  // Now propagate ray
-  while (!ray.fDone) {
+  else {
 
     auto nextvol = ray.fVolume;
     double snext = vecgeom::kInfLength;
@@ -178,7 +179,11 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
       ray.fColor += bkg_contrib;
       ray.fDone = true;
     }
+
+    ray.reflection = false;   // index already added in container of indices
   }
+
+
 
   return ray.fColor;
 }
@@ -228,8 +233,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int ge
 
     auto initial_int = ray.intensity.load();
 
-    adept::Color_t col_refracted = 0, col_reflected = 0;
-
     // Compute reflected and refracted directions, check for total reflection
     bool totalreflect = false;
     reflected         = ray.Reflect(norm);
@@ -241,7 +244,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int ge
     ray.generation++; // increase generation before making a copy of the ray, so daughters will inherit the new value
 
     if (kr * initial_int > 0.1) {
-      Ray_t *reflected_ray = (totalreflect) ? &ray : rtdata.sparse_rays[ray.generation % 10].next_free(ray);
+      Ray_t *reflected_ray = (totalreflect) ? &ray : rtdata.sparse_rays->next_free(ray);
       if (!reflected_ray) COPCORE_EXCEPTION("No available rays left.");
 
       // Update reflected ray direction and state
@@ -250,6 +253,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int ge
       reflected_ray->fDone = false;
       // Reflected ray stays in the same volume, no need to update to next
       reflected_ray->fVolume = lastvol;
+      reflected_ray->reflection = true;
     }
 
     if (!totalreflect) {
