@@ -172,19 +172,29 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volu
 }
 
 
-// Print information about containers
-__global__ void print(cuda::RaytracerData_t *rtdata, int index) {
-  auto *vect = &rtdata->sparse_rays[index];
-
-  printf("=== vect: fNshared=%lu/%lu fNused=%lu fNbooked=%lu - shared=%.1f%% sparsity=%.1f%%\n", vect->size(),
-         vect->capacity(), vect->size_used(), vect->size_booked(), 100. * vect->get_shared_fraction(),
-         100. * vect->get_sparsity());
-}
-
-// Print information about containers
-void print_vector_cuda(cuda::RaytracerData_t *rtdata, int no_generations) {
-  for (int i = 0; i < no_generations; ++i)
-    print<<<1,1>>>(rtdata, i); 
+// Print information about containers 
+__global__ void print(Vector_t *x) { 
+    
+  printf("=== vect: fNshared=%lu/%lu fNused=%lu fNbooked=%lu - shared=%.1f%% sparsity=%.1f%%\n", x->size(), 
+         x->capacity(), x->size_used(), x->size_booked(), 100. * x->get_shared_fraction(),  
+         100. * x->get_sparsity()); 
+} 
+    
+// Print information about containers 
+__global__ void print(Vector_t_int *x) { 
+    
+  printf("=== vect: fNshared=%lu/%lu fNused=%lu fNbooked=%lu - shared=%.1f%% sparsity=%.1f%%\n", x->size(), 
+         x->capacity(), x->size_used(), x->size_booked(), 100. * x->get_shared_fraction(),  
+         100. * x->get_sparsity()); 
+} 
+    
+// Print information about containers 
+void print_vector_cuda(cuda::RaytracerData_t *rtdata, int no_generations) { 
+  for (int i = 0; i < no_generations; ++i) {  
+    print<<<1,1>>>(rtdata->sparse_rays); 
+    // print<<<1,1>>>(rtdata->sparse_int);  
+    // print<<<1,1>>>(rtdata->sparse_int_copy);  
+  } 
 }
 
 // Check if there are rays in containers
@@ -192,7 +202,7 @@ __global__ void check_containers(cuda::RaytracerData_t *rtdata, int no_generatio
 {
   *value = false;
   for (int i = 0; i < no_generations; ++i) {
-    auto x = &rtdata->sparse_rays[i];
+    auto x = &rtdata->sparse_int[i];
     if (x->size_used() > 0) {
       *value = true;
       return;
@@ -207,6 +217,56 @@ bool check_used_cuda(cuda::RaytracerData_t *rtdata, int no_generations) {
   check_containers<<<1,1>>>(rtdata, no_generations, ctr);
   cudaDeviceSynchronize();
   return *ctr;
+}
+
+// Add elements from sel_vector_d in container sparse_vector  
+__global__ void add_indices_kernel(Vector_t_int *sparse_vector, unsigned int *sel_vector_d, unsigned int *nselected_hd) { 
+  
+  for (int j = 0; j < *nselected_hd; ++j)  
+    sparse_vector->next_free(sel_vector_d[j]); 
+  
+} 
+    
+// Add elements from array in container sparse_vector
+void add_indices_cuda(Vector_t_int *sparse_vector, unsigned *sel_vector_d, unsigned *nselected_hd) { 
+  add_indices_kernel<<<1,1>>>(sparse_vector, sel_vector_d, nselected_hd); 
+} 
+    
+__global__ void size_used(Vector_t *x, unsigned int *size) {  
+  *size = (unsigned int) x->size_used();  
+}
+
+// Return number of elements in use
+unsigned int size_used_cuda(Vector_t *x) {  
+  unsigned int *size; 
+  cudaMallocManaged(&size, sizeof(unsigned int)); 
+  size_used<<<1,1>>>(x, size);  
+  cudaDeviceSynchronize();  
+  return *size; 
+} 
+    
+__global__ void size_used(Vector_t_int *x, unsigned int *size) {  
+  *size = (unsigned int) x->size_used();  
+} 
+
+// Return number of elements in use    
+unsigned int size_used_cuda(Vector_t_int *x) {  
+  unsigned int *size; 
+  cudaMallocManaged(&size, sizeof(unsigned int)); 
+  size_used<<<1,1>>>(x, size);  
+  cudaDeviceSynchronize();  
+  return *size; 
+} 
+
+__global__ void clear_sparse_vector_kernel(Vector_t_int *vector) { 
+      
+  vector->clear();
+
+} 
+
+// Clear sparse vector
+void clear_sparse_vector_cuda(Vector_t_int *vector) {  
+  clear_sparse_vector_kernel<<<1,1>>>(vector); 
 }
 
 int executePipelineGPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,

@@ -18,12 +18,9 @@ It currently works for only 2 gdml files: "trackML.gdml" (placed in the source t
 
 ## Ray transport
 
-Every ray has a parameter called generation. The initial container contains as many rays as pixels and empty containers are created for the reflected rays of higher generations​.
+The initial container contains as many rays as pixels. In addition, two containers of indices are used. Initially, the first container hold all the indices for initial rays.
 
-The current version of scheduling is: transport the ray to first boundary only, then generate reflected ray and increase generation, moving to next container. Then, the refracted ray is transported to the next boundary.
-
-The number of generations for the reflected rays is unknown, so 10 containers are created for secondary rays (the rays with generation greater than 10 will be added in the (generation % 10) container). After transporting all the rays from a container, the initial rays are selected and released. This step is repeated for all the containers. In order to be sure that all the secondary rays are transported, the program verifies if there are any secondary rays in the containers. If yes, reiterate over all the containers and transport the rays.
-
+The current version of scheduling is: get the ray using the index from the first container of indices, then transport the ray only to the next boundary. If it's still alive, add the index in the second container of indices. After all the rays were transported to the next boundary, swap the pointers of the first and second containers of indices and clear the second container. Finally, add the indices of the reflected rays in the first container of indices. Repeat this at every step. The loop is finished when the number of elements in use from the first container of indices is equal to 0.
 
 ## How to use:
 
