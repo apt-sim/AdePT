@@ -11,10 +11,9 @@
 #include <G4ProductionCutsTable.hh>
 #include <Randomize.hh>
 
-#include <G4HepEmRunManager.hh>
-#include <G4HepEmCLHEPRandomEngine.hh>
 #include <G4HepEmData.hh>
 #include <G4HepEmState.hh>
+#include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
 #include <G4HepEmDataJsonIO.hh>
@@ -30,13 +29,9 @@ int main(int argc, char* argv[])
   // - Should create geometry, regions and cuts
   G4PVPlacement* world = geant4_mock();
 
-  // Construct the G4HepEmRunManager, which will fill the data structures
-  // on calls to Initialize
-  auto* runMgr    = new G4HepEmRunManager(true);
-  auto* rngEngine = new G4HepEmCLHEPRandomEngine(G4Random::getTheEngine());
-  runMgr->Initialize(rngEngine, 0);
-  runMgr->Initialize(rngEngine, 1);
-  runMgr->Initialize(rngEngine, 2);
+  // Construct and initialize the G4HepEmState data/tables
+  G4HepEmState outState;
+  InitG4HepEmState(&outState);
 
   // Persist data
   // GDML + G4HepEmData auxiliary info for connection
@@ -55,13 +50,9 @@ int main(int argc, char* argv[])
 
   G4GDMLAuxStructType g4hepemAux{"g4hepemfile", g4hepem_file, "", nullptr};
   gdmlParser.AddAuxiliary(g4hepemAux);
-
   gdmlParser.Write(gdml_file, world);
 
-  // G4HepEm
-  G4HepEmState outState;
-  outState.fParameters = runMgr->GetHepEmParameters();
-  outState.fData = runMgr->GetHepEmData();
+  // Persist G4HepEm
   {
     std::ofstream jsonOS{ g4hepem_file.c_str() };
     if(!G4HepEmStateToJson(jsonOS, &outState))
