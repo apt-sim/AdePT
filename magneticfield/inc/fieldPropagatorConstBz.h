@@ -23,7 +23,7 @@ public:
   __host__ __device__ void stepInField(double kinE, double mass, int charge, double step,
                                        vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &direction);
 
-  template <bool Relocate = true>
+  template <bool Relocate = true, class Navigator = LoopNavigator>
   __host__ __device__ double ComputeStepAndPropagatedState(double kinE, double mass, int charge, double physicsStep,
                                                            vecgeom::Vector3D<double> &position,
                                                            vecgeom::Vector3D<double> &direction,
@@ -62,7 +62,7 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double
 
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
-template <bool Relocate>
+template <bool Relocate, class Navigator>
 __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState(
     double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<double> &position,
     vecgeom::Vector3D<double> &direction, vecgeom::NavStateIndex const &current_state,
@@ -93,9 +93,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
 
   if (charge == 0) {
     if (Relocate) {
-      stepDone = LoopNavigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state);
+      stepDone = Navigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state);
     } else {
-      stepDone = LoopNavigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
+      stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
     }
     position += (stepDone + kPushField) * direction;
   } else {
@@ -122,9 +122,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
 
       double move;
       if (Relocate) {
-        move = LoopNavigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, current_state, next_state);
+        move = Navigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, current_state, next_state);
       } else {
-        move = LoopNavigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
+        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
       }
 
       fullChord = (move == chordLen);
