@@ -18,7 +18,7 @@ __host__ __device__ static void multiply9x9(const uint64_t *in1, const uint64_t 
   uint64_t next      = 0;
   unsigned nextCarry = 0;
 
-#if defined(__clang__) || defined(__INTEL_COMPILER) || defined(__CUDACC__)
+#if defined(__clang__) || defined(__INTEL_COMPILER) || defined(__CUDA_ARCH__)
 #pragma unroll
 #elif defined(__GNUC__) && __GNUC__ >= 8
 // This pragma was introduced in GCC version 8.
@@ -31,7 +31,7 @@ __host__ __device__ static void multiply9x9(const uint64_t *in1, const uint64_t 
     next      = 0;
     nextCarry = 0;
 
-#if defined(__clang__) || defined(__INTEL_COMPILER) || defined(__CUDACC__)
+#if defined(__clang__) || defined(__INTEL_COMPILER) || defined(__CUDA_ARCH__)
 #pragma unroll
 #elif defined(__GNUC__) && __GNUC__ >= 8
 // This pragma was introduced in GCC version 8.
