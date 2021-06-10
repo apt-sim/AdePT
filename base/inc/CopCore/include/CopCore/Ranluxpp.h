@@ -6,15 +6,15 @@
 
 #include <CopCore/Global.h>
 
-#include "mulmod.h"
+#include "ranluxpp/mulmod.h"
+#include "ranluxpp/ranlux_lcg.h"
 
 #include <cassert>
 #include <cstdint>
 
 namespace {
 
-__device__
-const uint64_t kA_2048[] = {
+__device__ const uint64_t kA_2048[] = {
     0xed7faa90747aaad9, 0x4cec2c78af55c101, 0xe64dcb31c48228ec, 0x6d8a15a13bee7cb0, 0x20b2ca60cb78c509,
     0x256c3d3c662ea36c, 0xff74e54107684ed2, 0x492edfcc0cc8e753, 0xb48c187cf5b22097,
 };
@@ -25,7 +25,8 @@ template <int w>
 class RanluxppEngineImpl {
 
 private:
-  uint64_t fState[9]; ///< State of the generator
+  uint64_t fState[9]; ///< RANLUX state of the generator
+  unsigned fCarry;    ///< Carry bit of the RANLUX state
   int fPosition = 0;  ///< Current position in bits
 
   static constexpr const uint64_t *kA = kA_2048;
@@ -49,10 +50,12 @@ protected:
   }
 
   /// Produce next block of random bits
-  __host__ __device__
-  void Advance()
+  __host__ __device__ void Advance()
   {
-    mulmod(kA, fState);
+    uint64_t lcg[9];
+    to_lcg(fState, fCarry, lcg);
+    mulmod(kA, lcg);
+    to_ranlux(lcg, fState, fCarry);
     fPosition = 0;
   }
 
@@ -60,8 +63,7 @@ public:
   RanluxppEngineImpl() = default;
 
   /// Return the next random bits, generate a new block if necessary
-  __host__ __device__
-  uint64_t NextRandomBits()
+  __host__ __device__ uint64_t NextRandomBits()
   {
     if (fPosition + w > kMaxPos) {
       Advance();
@@ -83,13 +85,21 @@ public:
     return bits;
   }
 
-  /// Initialize and seed the state of the generator
-  __host__ __device__
-  void SetSeed(uint64_t s)
+  /// Return a floating point number, converted from the next random bits.
+  __host__ __device__ double NextRandomFloat()
   {
-    fState[0] = 1;
+    static constexpr double div = 1.0 / (uint64_t(1) << w);
+    uint64_t bits               = NextRandomBits();
+    return bits * div;
+  }
+
+  /// Initialize and seed the state of the generator
+  __host__ __device__ void SetSeed(uint64_t s)
+  {
+    uint64_t lcg[9];
+    lcg[0] = 1;
     for (int i = 1; i < 9; i++) {
-      fState[i] = 0;
+      lcg[i] = 0;
     }
 
     uint64_t a_seed[9];
@@ -98,14 +108,14 @@ public:
     powermod(a_seed, a_seed, uint64_t(1) << 48);
     // Skip another s states.
     powermod(a_seed, a_seed, s);
-    mulmod(a_seed, fState);
+    mulmod(a_seed, lcg);
 
+    to_ranlux(lcg, fState, fCarry);
     fPosition = 0;
   }
 
   /// Skip `n` random numbers without generating them
-  __host__ __device__
-  void Skip(uint64_t n)
+  __host__ __device__ void Skip(uint64_t n)
   {
     int left = (kMaxPos - fPosition) / w;
     assert(left >= 0 && "position was out of range!");
@@ -123,7 +133,11 @@ public:
 
     uint64_t a_skip[9];
     powermod(kA, a_skip, skip + 1);
-    mulmod(a_skip, fState);
+
+    uint64_t lcg[9];
+    to_lcg(fState, fCarry, lcg);
+    mulmod(a_skip, lcg);
+    to_ranlux(lcg, fState, fCarry);
 
     // Potentially skip numbers in the freshly generated block.
     int remaining = n - skip * nPerState;
@@ -133,34 +147,16 @@ public:
   }
 };
 
-class RanluxppDouble : public RanluxppEngineImpl<52> {
+class RanluxppDouble final : public RanluxppEngineImpl<48> {
 public:
-  __host__ __device__
-  RanluxppDouble(uint64_t seed = 314159265) { this->SetSeed(seed); }
+  __host__ __device__ RanluxppDouble(uint64_t seed = 314159265) { this->SetSeed(seed); }
 
-  __host__ __device__
-  double Rndm() { return (*this)(); }
-
-  __host__ __device__
-  double operator()()
-  {
-    // Get 52 bits of randomness.
-    uint64_t bits = this->NextRandomBits();
-
-    // Construct the double in [1, 2), using the random bits as mantissa.
-    static constexpr uint64_t exp = 0x3ff0000000000000;
-    union {
-      double dRandom;
-      uint64_t iRandom;
-    };
-    iRandom = exp | bits;
-
-    // Shift to the right interval of [0, 1).
-    return dRandom - 1;
-  }
-
-  __host__ __device__
-  uint64_t IntRndm() { return this->NextRandomBits(); }
+  /// Generate a double-precision random number with 48 bits of randomness
+  __host__ __device__ double Rndm() { return (*this)(); }
+  /// Generate a double-precision random number (non-virtual method)
+  __host__ __device__ double operator()() { return this->NextRandomFloat(); }
+  /// Generate a random integer value with 48 bits
+  __host__ __device__ uint64_t IntRndm() { return this->NextRandomBits(); }
 
   /// Branch a new RNG state, also advancing the current one.
   __host__ __device__
@@ -178,4 +174,4 @@ public:
   }
 };
 
-#endif // COPCORE_RANLUXPP_H_
+#endif
