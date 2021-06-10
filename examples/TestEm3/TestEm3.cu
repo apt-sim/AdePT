@@ -93,11 +93,9 @@ static void FreeG4HepEm(G4HepEmState *state)
 
 // A bundle of queues per particle type:
 //  * Two for active particles, one for the current iteration and the second for the next.
-//  * One for all particles that need to be relocated to the next volume.
 struct ParticleQueues {
   adept::MParray *currentlyActive;
   adept::MParray *nextActive;
-  adept::MParray *relocate;
 
   void SwapActive() { std::swap(currentlyActive, nextActive); }
 };
@@ -128,7 +126,6 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t Capacity)
 {
   adept::MParray::MakeInstanceAt(Capacity, queues.currentlyActive);
   adept::MParray::MakeInstanceAt(Capacity, queues.nextActive);
-  adept::MParray::MakeInstanceAt(Capacity, queues.relocate);
 }
 
 // Kernel function to initialize a set of primary particles.
@@ -165,7 +162,6 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats)
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     all.queues[i].currentlyActive->clear();
     stats->inFlight[i] = all.queues[i].nextActive->size();
-    all.queues[i].relocate->clear();
   }
 }
 
@@ -247,7 +243,6 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
 
     COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.currentlyActive, QueueSize));
     COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.nextActive, QueueSize));
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.relocate, QueueSize));
     InitParticleQueues<<<1, 1>>>(particles[i].queues, Capacity);
 
     COPCORE_CUDA_CHECK(cudaStreamCreate(&particles[i].stream));
@@ -317,8 +312,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
 
     constexpr int MaxBlocks        = 1024;
     constexpr int TransportThreads = 32;
-    constexpr int RelocateThreads  = 32;
-    int transportBlocks, relocateBlocks;
+    int transportBlocks;
 
     int inFlight;
     int iterNo = 0;
@@ -336,14 +330,9 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
         transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
         transportBlocks = std::min(transportBlocks, MaxBlocks);
 
-        relocateBlocks = std::min(numElectrons, MaxBlocks);
-
         TransportElectrons<<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.relocate, globalScoring, scoringPerVolume);
-
-        RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, electrons.stream>>>(electrons.tracks,
-                                                                                       electrons.queues.relocate);
+            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive, globalScoring,
+            scoringPerVolume);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
@@ -355,14 +344,9 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
         transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
         transportBlocks = std::min(transportBlocks, MaxBlocks);
 
-        relocateBlocks = std::min(numPositrons, MaxBlocks);
-
         TransportPositrons<<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.relocate, globalScoring, scoringPerVolume);
-
-        RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, positrons.stream>>>(positrons.tracks,
-                                                                                       positrons.queues.relocate);
+            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive, globalScoring,
+            scoringPerVolume);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
@@ -374,14 +358,9 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
         transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
         transportBlocks = std::min(transportBlocks, MaxBlocks);
 
-        relocateBlocks = std::min(numGammas, MaxBlocks);
-
         TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, gammas.queues.relocate,
-            globalScoring, scoringPerVolume);
-
-        RelocateToNextVolume<<<relocateBlocks, RelocateThreads, 0, gammas.stream>>>(gammas.tracks,
-                                                                                    gammas.queues.relocate);
+            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, globalScoring,
+            scoringPerVolume);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
@@ -466,7 +445,6 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
 
     COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.currentlyActive));
     COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.nextActive));
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.relocate));
 
     COPCORE_CUDA_CHECK(cudaStreamDestroy(particles[i].stream));
     COPCORE_CUDA_CHECK(cudaEventDestroy(particles[i].event));

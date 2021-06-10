@@ -17,8 +17,8 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, adept::MParray *relocateQueue,
-                                GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -79,7 +79,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       // Kill the particle if it left the world.
       if (currentTrack.nextState.Top() != nullptr) {
         activeQueue->push_back(slot);
-        relocateQueue->push_back(slot);
+        LoopNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 
         // Move to the next boundary.
         currentTrack.SwapStates();

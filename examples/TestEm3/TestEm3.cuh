@@ -137,18 +137,16 @@ struct Secondaries {
 
 
 // Kernels in different TUs.
-__global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *relocateQueue);
-
 __global__ void TransportElectrons(
     Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    adept::MParray *relocateQueue, GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
+    GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
 __global__ void TransportPositrons(
     Track *positrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    adept::MParray *relocateQueue, GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
+    GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, adept::MParray *relocateQueue,
-                                GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume);
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)
