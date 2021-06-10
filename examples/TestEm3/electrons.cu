@@ -3,7 +3,7 @@
 
 #include "TestEm3.cuh"
 
-#include <AdePT/LoopNavigator.h>
+#include <AdePT/BVHNavigator.h>
 #include <fieldPropagatorConstBz.h>
 
 #include <CopCore/PhysicalConstants.h>
@@ -76,13 +76,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if there's a volume boundary in between.
     double geometryStepLength;
     if (BzFieldValue != 0) {
-      geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false>(
+      geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false, BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
           currentTrack.currentState, currentTrack.nextState);
     } else {
       geometryStepLength =
-          LoopNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
-                                                  currentTrack.currentState, currentTrack.nextState);
+          BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
+                                                 currentTrack.currentState, currentTrack.nextState);
       currentTrack.pos += (geometryStepLength + kPush) * currentTrack.dir;
     }
     atomicAdd(&globalScoring->chargedSteps, 1);
@@ -143,7 +143,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       // Kill the particle if it left the world.
       if (currentTrack.nextState.Top() != nullptr) {
         activeQueue->push_back(slot);
-        LoopNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
+        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 
         // Move to the next boundary.
         currentTrack.SwapStates();

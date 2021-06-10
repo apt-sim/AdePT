@@ -27,6 +27,7 @@
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/base/Transformation3D.h>
+#include <VecGeom/management/BVHManager.h>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/volumes/UnplacedBox.h>
@@ -168,6 +169,12 @@ void PrintScoringPerVolume(const vecgeom::VPlacedVolume *placed, const ScoringPe
               << " mm; Energy-Dep " << scoring->energyDeposit[id] / copcore::units::MeV << " MeV" << std::endl;
     PrintScoringPerVolume(daughter, scoring, level + 1);
   }
+}
+
+void InitBVH()
+{
+  vecgeom::cxx::BVHManager::Init();
+  vecgeom::cxx::BVHManager::DeviceInit();
 }
 
 int main(int argc, char *argv[])

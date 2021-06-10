@@ -3,7 +3,7 @@
 
 #include "TestEm3.cuh"
 
-#include <AdePT/LoopNavigator.h>
+#include <AdePT/BVHNavigator.h>
 
 #include <CopCore/PhysicalConstants.h>
 
@@ -54,8 +54,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     // Check if there's a volume boundary in between.
     double geometryStepLength =
-        LoopNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
-                                                currentTrack.currentState, currentTrack.nextState);
+        BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
+                                               currentTrack.currentState, currentTrack.nextState);
     currentTrack.pos += (geometryStepLength + kPush) * currentTrack.dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
@@ -79,7 +79,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       // Kill the particle if it left the world.
       if (currentTrack.nextState.Top() != nullptr) {
         activeQueue->push_back(slot);
-        LoopNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
+        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 
         // Move to the next boundary.
         currentTrack.SwapStates();

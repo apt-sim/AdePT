@@ -5,7 +5,7 @@ SPDX-License-Identifier: CC-BY-4.0
 
 ## TestEm3
 
-Test application for the validation of particle transportation on GPUs, with the same workflow as Example 9:
+Test application for the validation of particle transportation on GPUs, with the same workflow as Example 11:
 
  * geometry via VecGeom and optionally a magnetic field with constant Bz,
  * physics processes for e-/e+ and gammas using G4HepEm.
