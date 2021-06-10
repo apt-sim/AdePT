@@ -27,7 +27,7 @@
 template <bool IsElectron>
 static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
-                                                          adept::MParray *relocateQueue, GlobalScoring *globalScoring,
+                                                          GlobalScoring *globalScoring,
                                                           ScoringPerVolume *scoringPerVolume)
 {
   constexpr int Charge  = IsElectron ? -1 : 1;
@@ -143,7 +143,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       // Kill the particle if it left the world.
       if (currentTrack.nextState.Top() != nullptr) {
         activeQueue->push_back(slot);
-        relocateQueue->push_back(slot);
+        LoopNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 
         // Move to the next boundary.
         currentTrack.SwapStates();
@@ -257,16 +257,15 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
 // Instantiate kernels for electrons and positrons.
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *relocateQueue,
-                                   GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
+                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                   ScoringPerVolume *scoringPerVolume)
 {
-  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, relocateQueue, globalScoring,
-                                          scoringPerVolume);
+  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, globalScoring, scoringPerVolume);
 }
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *relocateQueue,
-                                   GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
+                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                   ScoringPerVolume *scoringPerVolume)
 {
-  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, relocateQueue, globalScoring,
+  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, globalScoring,
                                            scoringPerVolume);
 }
