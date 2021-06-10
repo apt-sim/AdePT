@@ -31,4 +31,6 @@ struct ScoringPerVolume {
 void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double energy, int batch, double startX,
              const int *MCIndex, ScoringPerVolume *scoringPerVolume, int numVolumes, GlobalScoring *globalScoring);
 
+void InitBVH();
+
 #endif

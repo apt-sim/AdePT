@@ -5,7 +5,7 @@
 #include "TestEm3.cuh"
 
 #include <AdePT/Atomic.h>
-#include <AdePT/LoopNavigator.h>
+#include <AdePT/BVHNavigator.h>
 #include <AdePT/MParray.h>
 
 #include <CopCore/Global.h>
@@ -144,7 +144,7 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
     track.pos = {startX, 0, 0};
     track.dir = {1.0, 0, 0};
     track.currentState.Clear();
-    LoopNavigator::LocatePointIn(world, track.pos, track.currentState, true);
+    BVHNavigator::LocatePointIn(world, track.pos, track.currentState, true);
     // nextState is initialized as needed.
 
     atomicAdd(&globalScoring->numElectrons, 1);
@@ -200,6 +200,8 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   cudaManager.Synchronize();
 
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
+
+  InitBVH();
 
   G4HepEmState *state = InitG4HepEm();
 
