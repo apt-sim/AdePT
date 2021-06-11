@@ -173,6 +173,7 @@ public:
     // Copy and modify the new RNG state.
     RanluxppDouble newRNG(*this);
     newRNG.XORstate(oldState);
+    newRNG.Advance();
     return newRNG;
   }
 };
