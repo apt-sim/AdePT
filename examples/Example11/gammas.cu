@@ -15,8 +15,6 @@
 #include <G4HepEmGammaInteractionCompton.icc>
 #include <G4HepEmGammaInteractionConversion.icc>
 
-constexpr double kPush = 1.e-8 * copcore::units::cm;
-
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, GlobalScoring *scoring)
 {
@@ -55,7 +53,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
                                                 currentTrack.currentState, currentTrack.nextState);
-    currentTrack.pos += (geometryStepLength + kPush) * currentTrack.dir;
+    currentTrack.pos += geometryStepLength * currentTrack.dir;
 
     if (currentTrack.nextState.IsOnBoundary()) {
       emTrack.SetGStepLength(geometryStepLength);

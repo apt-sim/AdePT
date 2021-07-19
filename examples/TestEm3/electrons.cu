@@ -83,7 +83,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       geometryStepLength =
           BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
                                                  currentTrack.currentState, currentTrack.nextState);
-      currentTrack.pos += (geometryStepLength + kPush) * currentTrack.dir;
+      currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
     atomicAdd(&globalScoring->chargedSteps, 1);
     atomicAdd(&scoringPerVolume->chargedTrackLength[volumeID], geometryStepLength);

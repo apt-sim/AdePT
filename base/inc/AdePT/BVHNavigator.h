@@ -211,17 +211,18 @@ public:
   // Relocate a state that was returned from ComputeStepAndNextVolume: It first
   // removes all volumes from the state that were left, and then recursively
   // locates the pushed point in the containing volume.
-  __host__ __device__ static void RelocateToNextVolume(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
+  __host__ __device__ static void RelocateToNextVolume(vecgeom::Vector3D<vecgeom::Precision> &globalpoint,
                                                        vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
                                                        vecgeom::NavStateIndex &state)
   {
     // Push the point inside the next volume.
-    vecgeom::Vector3D<vecgeom::Precision> pushed = globalpoint + 1.E-6 * globaldir;
+    static constexpr double kPush = 1.e-8;
+    globalpoint += kPush * globaldir;
 
     // Calculate local point from global point.
     vecgeom::Transformation3D m;
     state.TopMatrix(m);
-    vecgeom::Vector3D<vecgeom::Precision> localpoint = m.Transform(pushed);
+    vecgeom::Vector3D<vecgeom::Precision> localpoint = m.Transform(globalpoint);
 
     VPlacedVolumePtr_t pvol = state.Top();
 

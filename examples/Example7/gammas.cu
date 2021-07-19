@@ -56,7 +56,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     double geometryStepLength =
         LoopNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
                                                 currentTrack.currentState, currentTrack.nextState);
-    currentTrack.pos += (geometryStepLength + kPush) * currentTrack.dir;
+    currentTrack.pos += geometryStepLength * currentTrack.dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
     if (currentTrack.nextState.IsOnBoundary()) {
