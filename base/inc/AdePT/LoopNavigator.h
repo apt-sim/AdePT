@@ -100,10 +100,9 @@ private:
     for (auto *daughter : pvol->GetDaughters()) {
       double ddistance = daughter->DistanceToIn(localpoint, localdir, step);
 
-      // if distance is negative; we are inside that daughter and should relocate
-      // unless distance is minus infinity
-      const bool valid = (ddistance < step && !vecgeom::IsInf(ddistance)) &&
-                         !((ddistance <= 0.) && in_state.GetLastExited() == daughter);
+      // If ddistance is negative, we are already inside that daughter. The most
+      // likely case is that we just left it and should should not enter again.
+      const bool valid = (ddistance >= 0 && ddistance < step && !vecgeom::IsInf(ddistance));
       hitcandidate = valid ? daughter : hitcandidate;
       step         = valid ? ddistance : step;
     }
@@ -128,10 +127,6 @@ private:
 
     // Otherwise it is a geometry step and we push the point to the boundary.
     out_state.SetBoundaryState(true);
-
-    if (step < 0.) {
-      step = 0.;
-    }
 
     return step;
   }
