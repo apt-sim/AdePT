@@ -159,6 +159,5 @@ extern __constant__ __device__ int *MCIndex;
 
 // constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
 constexpr double BzFieldValue = 0;
-constexpr double kPush = 1.e-8 * copcore::units::cm;
 
 #endif

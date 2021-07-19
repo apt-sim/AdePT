@@ -34,8 +34,6 @@ private:
   float BzValue;
 };
 
-constexpr double kPushField = 1.e-8 * copcore::units::cm;
-
 // -----------------------------------------------------------------------------
 
 __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double mass, int charge, double step,
@@ -97,7 +95,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
     } else {
       stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
     }
-    position += (stepDone + kPushField) * direction;
+    position += stepDone * direction;
   } else {
     bool fullChord = false;
 
