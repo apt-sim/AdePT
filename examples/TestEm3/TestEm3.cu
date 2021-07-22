@@ -286,6 +286,12 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   Stats *stats = nullptr;
   COPCORE_CUDA_CHECK(cudaMallocHost(&stats, sizeof(Stats)));
 
+  // Allocate memory to hold a "vanilla" SlotManager to initialize for each batch.
+  SlotManager slotManagerInit(Capacity);
+  SlotManager *slotManagerInit_dev = nullptr;
+  COPCORE_CUDA_CHECK(cudaMalloc(&slotManagerInit_dev, sizeof(SlotManager)));
+  COPCORE_CUDA_CHECK(cudaMemcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
+
   vecgeom::Stopwatch timer;
   timer.Start();
 
@@ -295,18 +301,18 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     int left  = numParticles - startEvent + 1;
     int chunk = std::min(left, batch);
 
-    SlotManager slotManagerInit(Capacity);
     for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-      COPCORE_CUDA_CHECK(cudaMemcpy(particles[i].slotManager, &slotManagerInit, ManagerSize, cudaMemcpyHostToDevice));
+      COPCORE_CUDA_CHECK(cudaMemcpyAsync(particles[i].slotManager, slotManagerInit_dev, ManagerSize,
+                                         cudaMemcpyDeviceToDevice, stream));
     }
 
     // Initialize primary particles.
     constexpr int InitThreads = 32;
     int initBlocks            = (chunk + InitThreads - 1) / InitThreads;
     ParticleGenerator electronGenerator(electrons.tracks, electrons.slotManager, electrons.queues.currentlyActive);
-    InitPrimaries<<<initBlocks, InitThreads>>>(electronGenerator, startEvent, chunk, energy, startX, world_dev,
-                                               globalScoring);
-    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+    InitPrimaries<<<initBlocks, InitThreads, 0, stream>>>(electronGenerator, startEvent, chunk, energy, startX,
+                                                          world_dev, globalScoring);
+    COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
 
     stats->inFlight[ParticleType::Electron] = chunk;
     stats->inFlight[ParticleType::Positron] = 0;
@@ -450,6 +456,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   COPCORE_CUDA_CHECK(cudaFree(scoringPerVolume));
   COPCORE_CUDA_CHECK(cudaFree(stats_dev));
   COPCORE_CUDA_CHECK(cudaFreeHost(stats));
+  COPCORE_CUDA_CHECK(cudaFree(slotManagerInit_dev));
 
   COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
 
