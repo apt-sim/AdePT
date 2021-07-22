@@ -308,7 +308,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
                                                globalScoring);
     COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-    stats->inFlight[ParticleType::Electron] = numParticles;
+    stats->inFlight[ParticleType::Electron] = chunk;
     stats->inFlight[ParticleType::Positron] = 0;
     stats->inFlight[ParticleType::Gamma]    = 0;
 
