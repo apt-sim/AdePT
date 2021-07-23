@@ -50,12 +50,12 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    double geometryStepLength =
-        BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
-                                                currentTrack.currentState, currentTrack.nextState);
+    vecgeom::NavStateIndex nextState;
+    double geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(
+        currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState);
     currentTrack.pos += geometryStepLength * currentTrack.dir;
 
-    if (currentTrack.nextState.IsOnBoundary()) {
+    if (nextState.IsOnBoundary()) {
       emTrack.SetGStepLength(geometryStepLength);
       emTrack.SetOnBoundary(true);
     }
@@ -68,17 +68,17 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       currentTrack.numIALeft[ip] = numIALeft;
     }
 
-    if (currentTrack.nextState.IsOnBoundary()) {
+    if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
       atomicAdd(&scoring->hits, 1);
 
       // Kill the particle if it left the world.
-      if (currentTrack.nextState.Top() != nullptr) {
+      if (nextState.Top() != nullptr) {
         activeQueue->push_back(slot);
 
         // Move to the next boundary.
-	BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
-        currentTrack.SwapStates();
+        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
+        currentTrack.navState = nextState;
       }
       continue;
     } else if (winnerProcessIndex < 0) {

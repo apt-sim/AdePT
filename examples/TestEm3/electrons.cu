@@ -38,7 +38,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
-    auto volume         = currentTrack.currentState.Top();
+    auto volume         = currentTrack.navState.Top();
     int volumeID        = volume->id();
     int theMCIndex      = MCIndex[volumeID];
 
@@ -75,20 +75,20 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Check if there's a volume boundary in between.
     double geometryStepLength;
+    vecgeom::NavStateIndex nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false, BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-          currentTrack.currentState, currentTrack.nextState);
+          currentTrack.navState, nextState);
     } else {
-      geometryStepLength =
-          BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
-                                                 currentTrack.currentState, currentTrack.nextState);
+      geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(
+          currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState);
       currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
     atomicAdd(&globalScoring->chargedSteps, 1);
     atomicAdd(&scoringPerVolume->chargedTrackLength[volumeID], geometryStepLength);
 
-    if (currentTrack.nextState.IsOnBoundary()) {
+    if (nextState.IsOnBoundary()) {
       theTrack->SetGStepLength(geometryStepLength);
       theTrack->SetOnBoundary(true);
     }
@@ -136,17 +136,17 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       continue;
     }
 
-    if (currentTrack.nextState.IsOnBoundary()) {
+    if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
       atomicAdd(&globalScoring->hits, 1);
 
       // Kill the particle if it left the world.
-      if (currentTrack.nextState.Top() != nullptr) {
+      if (nextState.Top() != nullptr) {
         activeQueue->push_back(slot);
-        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
+        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
-        currentTrack.SwapStates();
+        currentTrack.navState = nextState;
       }
       continue;
     } else if (winnerProcessIndex < 0) {

@@ -71,11 +71,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
+    vecgeom::NavStateIndex nextState;
     double geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false>(
         currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-        currentTrack.currentState, currentTrack.nextState);
+        currentTrack.navState, nextState);
 
-    if (currentTrack.nextState.IsOnBoundary()) {
+    if (nextState.IsOnBoundary()) {
       theTrack->SetGStepLength(geometryStepLength);
       theTrack->SetOnBoundary(true);
     }
@@ -121,17 +122,17 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       continue;
     }
 
-    if (currentTrack.nextState.IsOnBoundary()) {
+    if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
       atomicAdd(&scoring->hits, 1);
 
       // Kill the particle if it left the world.
-      if (currentTrack.nextState.Top() != nullptr) {
+      if (nextState.Top() != nullptr) {
         activeQueue->push_back(slot);
         relocateQueue->push_back(slot);
 
         // Move to the next boundary.
-        currentTrack.SwapStates();
+        currentTrack.navState = nextState;
       }
       continue;
     } else if (winnerProcessIndex < 0) {
