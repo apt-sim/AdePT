@@ -4,6 +4,8 @@
 #include "example9.h"
 #include "example9.cuh"
 
+#include <AdePT/NVTX.h>
+
 #include <AdePT/Atomic.h>
 #include <AdePT/LoopNavigator.h>
 #include <AdePT/MParray.h>
@@ -42,6 +44,8 @@ struct G4HepEmState {
 
 static G4HepEmState *InitG4HepEm()
 {
+  NVTXTracer tracer("InitG4HepEm");
+
   G4HepEmState *state = new G4HepEmState;
   InitG4HepEmData(&state->data);
   InitHepEmParameters(&state->parameters);
@@ -169,8 +173,11 @@ __global__ void FinishIteration(AllParticleQueues all, const GlobalScoring *scor
 void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double energy)
 {
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
-  cudaManager.LoadGeometry(world);
-  cudaManager.Synchronize();
+  {
+    NVTXTracer tracer("InitVecGeom");
+    cudaManager.LoadGeometry(world);
+    cudaManager.Synchronize();
+  }
 
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
 
@@ -192,21 +199,25 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
 
   ParticleType particles[ParticleType::NumParticleTypes];
   SlotManager slotManagerInit(Capacity);
-  for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].tracks, TracksSize));
+  {
+    NVTXTracer tracer("InitMemAndQueues");
+    for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+      COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].tracks, TracksSize));
 
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].slotManager, ManagerSize));
-    COPCORE_CUDA_CHECK(cudaMemcpy(particles[i].slotManager, &slotManagerInit, ManagerSize, cudaMemcpyHostToDevice));
+      COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].slotManager, ManagerSize));
+      COPCORE_CUDA_CHECK(cudaMemcpy(particles[i].slotManager, &slotManagerInit, ManagerSize, cudaMemcpyHostToDevice));
 
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.currentlyActive, QueueSize));
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.nextActive, QueueSize));
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.relocate, QueueSize));
-    InitParticleQueues<<<1, 1>>>(particles[i].queues, Capacity);
+      COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.currentlyActive, QueueSize));
+      COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.nextActive, QueueSize));
+      COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.relocate, QueueSize));
+      InitParticleQueues<<<1, 1>>>(particles[i].queues, Capacity);
 
-    COPCORE_CUDA_CHECK(cudaStreamCreate(&particles[i].stream));
-    COPCORE_CUDA_CHECK(cudaEventCreate(&particles[i].event));
+      COPCORE_CUDA_CHECK(cudaStreamCreate(&particles[i].stream));
+      COPCORE_CUDA_CHECK(cudaEventCreate(&particles[i].event));
+    }
+    COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
   }
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
 
   ParticleType &electrons = particles[ParticleType::Electron];
   ParticleType &positrons = particles[ParticleType::Positron];
@@ -248,16 +259,26 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
   vecgeom::Stopwatch timer;
   timer.Start();
 
-  int inFlight;
+  int inFlight = numParticles;
   int iterNo = 0, loopingNo = 0;
   int previousElectrons = -1, previousPositrons = -1;
 
+  NVTXTracer tracer("SimulationLoop");
+  NVTXTracer occupTracer("LowOccup");
   do {
     Secondaries secondaries = {
         .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
         .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
         .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
     };
+
+    if (inFlight > 3400) {
+      occupTracer.setTag("PeakOccup");
+    } else if (inFlight > 1000) {
+      occupTracer.setTag("HighOccup");
+    } else {
+      occupTracer.setTag("LowOccup");
+    }
 
     // *** ELECTRONS ***
     int numElectrons = stats->inFlight[ParticleType::Electron];
