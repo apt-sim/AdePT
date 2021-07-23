@@ -145,9 +145,8 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
 
     track.pos = {startX, 0, 0};
     track.dir = {1.0, 0, 0};
-    track.currentState.Clear();
-    BVHNavigator::LocatePointIn(world, track.pos, track.currentState, true);
-    // nextState is initialized as needed.
+    track.navState.Clear();
+    BVHNavigator::LocatePointIn(world, track.pos, track.navState, true);
 
     atomicAdd(&globalScoring->numElectrons, 1);
   }
@@ -175,7 +174,7 @@ __global__ void DepositEnergy(Track *allTracks, const adept::MParray *queue, Glo
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queueSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*queue)[i];
     Track &currentTrack = allTracks[slot];
-    auto volume         = currentTrack.currentState.Top();
+    auto volume         = currentTrack.navState.Top();
     if (volume == nullptr) {
       // The particle left the world, why wasn't it killed before?!
       continue;

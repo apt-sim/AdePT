@@ -27,17 +27,9 @@ struct Track {
 
   vecgeom::Vector3D<double> pos;
   vecgeom::Vector3D<double> dir;
-  vecgeom::NavStateIndex currentState;
-  vecgeom::NavStateIndex nextState;
+  vecgeom::NavStateIndex navState;
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
-
-  __host__ __device__ void SwapStates()
-  {
-    auto state         = this->currentState;
-    this->currentState = this->nextState;
-    this->nextState    = state;
-  }
 
   __host__ __device__ void InitAsSecondary(const Track &parent)
   {
@@ -48,9 +40,8 @@ struct Track {
 
     // A secondary inherits the position of its parent; the caller is responsible
     // to update the directions.
-    this->pos           = parent.pos;
-    this->currentState = parent.currentState;
-    this->nextState    = parent.nextState;
+    this->pos      = parent.pos;
+    this->navState = parent.navState;
   }
 };
 

@@ -40,7 +40,7 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
     const int slot      = (*relocateQueue)[i];
     Track &currentTrack = allTracks[slot];
 
-    vecgeom::NavStateIndex &state = currentTrack.currentState;
+    vecgeom::NavStateIndex &state = currentTrack.navState;
 
     vecgeom::VPlacedVolume const *currentVolume;
     vecgeom::Precision localCoordinates[3];

@@ -144,8 +144,7 @@ __global__ void InitPrimaries(ParticleGenerator generator, int particles, double
 
     track.pos = {0, 0, 0};
     track.dir = {1.0, 0, 0};
-    LoopNavigator::LocatePointIn(world, track.pos, track.currentState, true);
-    // nextState is initialized as needed.
+    LoopNavigator::LocatePointIn(world, track.pos, track.navState, true);
   }
 }
 
