@@ -78,7 +78,8 @@ union Color_t {
   __host__ __device__ float Green() const { return 1. / 255 * fComp.green; }
   __host__ __device__ float Blue() const { return 1. / 255 * fComp.blue; }
   __host__ __device__ float Alpha() const { return 1. / 255 * fComp.alpha; }
-  int GetColor() const { return fColor; }
+
+  __host__ __device__ int GetColor() const { return fColor; }
 
   __host__ __device__ void MultiplyLightChannel(float fact)
   {

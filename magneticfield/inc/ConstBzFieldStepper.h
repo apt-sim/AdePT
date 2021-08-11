@@ -70,7 +70,7 @@ public:
                                       BaseType const &momentum, BaseType const &step, Vector3D &newpos,
                                       Vector3D &newdir) const
   {
-    DoStep(pos[0], pos[1], pos[2], dir[0], dir[1], dir[2], charge, momentum, step, newpos[0], newpos[1], newpos[2],
+    DoStep<BaseType,BaseIType>(pos[0], pos[1], pos[2], dir[0], dir[1], dir[2], charge, momentum, step, newpos[0], newpos[1], newpos[2],
            newdir[0], newdir[1], newdir[2]);
   }
 

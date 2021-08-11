@@ -141,7 +141,7 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
 
-    track.pos = {startX, 0, 0};
+    track.pos = {vecgeom::Precision(startX), 0, 0};
     track.dir = {1.0, 0, 0};
     track.navState.Clear();
     BVHNavigator::LocatePointIn(world, track.pos, track.navState, true);

@@ -99,8 +99,8 @@ public:
           std::min(warpsPerSM * fNumSMs * 32 / block_size, (n_elements + block_size - 1) / block_size);
       exec_grid[0].x = grid_size;
       exec_grid[1].x = block_size;
-      // std::cout << "grid_size = " << grid_size << "  block_size = " << block_size << std::endl;
     }
+    //std::cout << "grid_size = " << exec_grid[0].x << "  block_size = " << exec_grid[1].x << std::endl;
 
     // launch the kernel
     kernel_launcher_impl::kernel_dispatch<<<exec_grid[0], exec_grid[1], 0, fStream>>>(n_elements, func, args...);

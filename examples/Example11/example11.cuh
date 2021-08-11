@@ -19,12 +19,13 @@
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
+  using Precision = vecgeom::Precision;
   RanluxppDouble rngState;
   double energy;
   double numIALeft[3];
 
-  vecgeom::Vector3D<double> pos;
-  vecgeom::Vector3D<double> dir;
+  vecgeom::Vector3D<Precision> pos;
+  vecgeom::Vector3D<Precision> dir;
   vecgeom::NavStateIndex navState;
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }

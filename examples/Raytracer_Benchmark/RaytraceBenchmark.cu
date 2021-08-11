@@ -24,6 +24,13 @@
 #include <cstdio>
 #include <vector>
 
+__global__ void LocateViewpointKernel(cuda::RaytracerData_t *rtdata)
+{
+  // Initialize the navigation state for the view point
+  vecgeom::NavStateIndex vpstate;
+  LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
+  rtdata->fVPstate = vpstate;
+}
 
 __global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y,
                            int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out, int generation)
@@ -153,12 +160,9 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volu
 
   auto gpu_world = cudaManager.world_gpu();
   assert(gpu_world && "GPU world volume is a null pointer");
+  rtdata->fWorld = gpu_world;
 
-  // Initialize the navigation state for the view point
-  vecgeom::NavStateIndex vpstate;
-  LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
-  rtdata->fVPstate = vpstate;
-  rtdata->fWorld   = gpu_world;
+  LocateViewpointKernel<<<1,1>>>(rtdata);
 
   int i = 0;
   for (auto lvol : logicalvolumes) {
