@@ -112,8 +112,8 @@ int main(void)
   COPCORE_CUDA_CHECK(cudaMallocManaged(&nselected, 2 * sizeof(int)));
 
   // static allocator for convenience
-  Vector_t::MakeInstanceAt(vect1_ptr_d);
-  Vector_t::MakeInstanceAt(vect2_ptr_d);
+  Vector_t::MakeInstanceAt<copcore::BackendType::CUDA>(vect1_ptr_d);
+  Vector_t::MakeInstanceAt<copcore::BackendType::CUDA>(vect2_ptr_d);
 
   reset_selection<<<1, 1>>>(nselected_hd);
 

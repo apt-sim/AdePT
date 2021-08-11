@@ -107,8 +107,8 @@ int main(void)
   int nshared[2] = {0}, nused[2] = {0}, nselected[2] = {0};
 
   // static allocator for convenience
-  vect1_ptr_d = Vector_t::MakeInstanceAt(nullptr);
-  vect2_ptr_d = Vector_t::MakeInstanceAt(nullptr);
+  vect1_ptr_d = Vector_t::MakeInstanceAt<copcore::BackendType::CPU>(nullptr);
+  vect2_ptr_d = Vector_t::MakeInstanceAt<copcore::BackendType::CPU>(nullptr);
 
   // Construct and distribute tracks concurrently
   timer.Start();

@@ -53,19 +53,6 @@ static inline void error_check(cudaError_t err, const char *file, int line)
   } while (0)
 #endif
 
-/** @brief Check if pointer id device-resident */
-#ifndef COPCORE_CUDA_COMPILER
-static inline bool is_device_pointer(void *ptr) { return false; }
-#else
-static inline bool is_device_pointer(void *ptr)
-{
-  cudaPointerAttributes attr;
-  cudaError_t err = cudaPointerGetAttributes(&attr, ptr);
-  COPCORE_CUDA_CHECK(err);
-  return (attr.type == cudaMemoryTypeDevice);
-}
-#endif
-
 /** @brief Get number of SMs on the current device */
 #ifndef COPCORE_CUDA_COMPILER
 static inline int get_num_SMs() { return 0; }
