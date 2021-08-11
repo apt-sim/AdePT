@@ -718,15 +718,23 @@ protected:
   }
 
 public:
-  __host__ static SparseVector *MakeInstanceAt(void *addr = nullptr)
+
+  template <copcore::BackendType backend>
+  __host__ static SparseVector *MakeInstanceAt(void *addr)
   {
-    if (!addr) return new SparseVector(N);
-    bool devicePtr = copcore::is_device_pointer(addr);
-    if (devicePtr) return SparseVector::ConstructOnDevice(addr);
-    return new (addr) SparseVector(N);
+    switch (backend) {
+      case copcore::BackendType::CUDA:
+        return SparseVector::ConstructOnDevice(addr);
+      case copcore::BackendType::CPU:
+        if (!addr)
+          return new SparseVector(N);
+        return new (addr) SparseVector(N);
+    }
+    return nullptr;
   }
 
 }; // End class SparseVector
+
 } // End namespace adept
 
 #endif // ADEPT_SPARSEVECTOR_H_

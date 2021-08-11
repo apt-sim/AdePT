@@ -23,9 +23,9 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-unsigned int size_used_cuda(Vector_t *sparse_vector); 
-unsigned int size_used_cuda(Vector_t_int *sparse_vector); 
-    
+unsigned int size_used_cuda(Vector_t *sparse_vector);
+unsigned int size_used_cuda(Vector_t_int *sparse_vector);
+
 void clear_sparse_vector_cuda(Vector_t_int *vector);
 
 void add_indices_cuda(Vector_t_int *sparse_vector, unsigned *sel_vector_d, unsigned *nselected_hd);
@@ -51,30 +51,28 @@ void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container, i
   if (backend == copcore::BackendType::CUDA) {
     initiliazeCudaWorld((RaytracerData_t *)rtdata, volume_container, logicalvolumes);
     COPCORE_CUDA_CHECK(cudaMalloc(&x, no_generations * sizeof(Vector_t)));
-
-    COPCORE_CUDA_CHECK(cudaMalloc(&sparse_int_copy, no_generations * sizeof(Vector_t_int))); 
+    COPCORE_CUDA_CHECK(cudaMalloc(&sparse_int_copy, no_generations * sizeof(Vector_t_int)));
     COPCORE_CUDA_CHECK(cudaMalloc(&sparse_int, no_generations * sizeof(Vector_t_int)));
-
   } else {
     vecgeom::NavStateIndex vpstate;
     BVHNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
     rtdata->fVPstate = vpstate;
 
     // COPCORE_CUDA_CHECK(cudaMallocManaged(&x, no_generations * sizeof(Vector_t)));
-    x = (Vector_t *)malloc(no_generations * sizeof(Vector_t));  
-    sparse_int_copy = (Vector_t_int *)malloc(no_generations * sizeof(Vector_t_int)); 
-    sparse_int          = (Vector_t_int *)malloc(no_generations * sizeof(Vector_t_int));
+    x               = (Vector_t *)malloc(no_generations * sizeof(Vector_t));
+    sparse_int_copy = (Vector_t_int *)malloc(no_generations * sizeof(Vector_t_int));
+    sparse_int      = (Vector_t_int *)malloc(no_generations * sizeof(Vector_t_int));
   }
 
   for (int i = 0; i < no_generations; ++i) {
-    Vector_t::MakeInstanceAt(&x[i]);
-    Vector_t_int::MakeInstanceAt(&sparse_int_copy[i]);
-    Vector_t_int::MakeInstanceAt(&sparse_int[i]);
+    Vector_t::MakeInstanceAt<backend>(&x[i]);
+    Vector_t_int::MakeInstanceAt<backend>(&sparse_int_copy[i]);
+    Vector_t_int::MakeInstanceAt<backend>(&sparse_int[i]);
   }
 
-  rtdata->sparse_rays = x;
-  rtdata->sparse_int_copy  = sparse_int_copy; 
-  rtdata->sparse_int = sparse_int;
+  rtdata->sparse_rays     = x;
+  rtdata->sparse_int_copy = sparse_int_copy;
+  rtdata->sparse_int      = sparse_int;
 }
 
 // Print information about containers
@@ -90,48 +88,48 @@ void print(RaytracerData_t *rtdata, int no_generations)
 }
 
 // Add elements from sel_vector in sparse_vector
-template <copcore::BackendType backend> 
-void add_indices(Vector_t_int *sparse_vector, unsigned *sel_vector, unsigned *nselected_hd)  
-{ 
-  if (backend == copcore::BackendType::CUDA) {  
-    add_indices_cuda(sparse_vector, sel_vector, nselected_hd); 
-  } else {  
+template <copcore::BackendType backend>
+void add_indices(Vector_t_int *sparse_vector, unsigned *sel_vector, unsigned *nselected_hd)
+{
+  if (backend == copcore::BackendType::CUDA) {
+    add_indices_cuda(sparse_vector, sel_vector, nselected_hd);
+  } else {
     add_indices_cpp(sparse_vector, sel_vector, nselected_hd);
-  } 
-} 
-    
+  }
+}
+
 // Return number of elements in use
-template <copcore::BackendType backend> 
-unsigned int size_used(Vector_t *sparse_vector) 
-{ 
-  if (backend == copcore::BackendType::CUDA) {  
-    return size_used_cuda(sparse_vector); 
-  } else {  
-  return (unsigned int) sparse_vector->size_used(); 
-  } 
-} 
-    
+template <copcore::BackendType backend>
+unsigned int size_used(Vector_t *sparse_vector)
+{
+  if (backend == copcore::BackendType::CUDA) {
+    return size_used_cuda(sparse_vector);
+  } else {
+    return (unsigned int)sparse_vector->size_used();
+  }
+}
+
 // Return number of elements in use
-template <copcore::BackendType backend> 
-unsigned int size_used(Vector_t_int *sparse_vector) 
-{ 
-  if (backend == copcore::BackendType::CUDA) {  
-    return size_used_cuda(sparse_vector); 
-  } else {  
-    return (unsigned int) sparse_vector->size_used(); 
-  } 
+template <copcore::BackendType backend>
+unsigned int size_used(Vector_t_int *sparse_vector)
+{
+  if (backend == copcore::BackendType::CUDA) {
+    return size_used_cuda(sparse_vector);
+  } else {
+    return (unsigned int)sparse_vector->size_used();
+  }
 }
 
 // Clear sparse vector
-template <copcore::BackendType backend> 
-void clear_sparse_vector(Vector_t_int *vector) {  
-  if (backend == copcore::BackendType::CUDA) {  
-    clear_sparse_vector_cuda(vector);  
-  }   
-  else {  
+template <copcore::BackendType backend>
+void clear_sparse_vector(Vector_t_int *vector)
+{
+  if (backend == copcore::BackendType::CUDA) {
+    clear_sparse_vector_cuda(vector);
+  } else {
     vector->clear();
-  } 
-}  
+  }
+}
 
 // Check if there are rays in containers
 template <copcore::BackendType backend>
@@ -203,8 +201,8 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   using StreamStruct = copcore::StreamType<backend>;
   using Stream_t     = typename StreamStruct::value_type;
   using Vector_t     = adept::SparseVector<Ray_t, VectorSize>; // 1<<16 is the default vector size if parameter omitted
-  using VectorInterface = adept::SparseVectorInterface<Ray_t>;
-  using Vector_t_int    = adept::SparseVector<int, VectorSize>; 
+  using VectorInterface     = adept::SparseVectorInterface<Ray_t>;
+  using Vector_t_int        = adept::SparseVector<int, VectorSize>;
   using VectorInterface_int = adept::SparseVectorInterface<int>;
 
   int no_generations = 1;
@@ -223,14 +221,14 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateRaysFunc, generateRays);
   COPCORE_CALLABLE_DECLARE(renderkernelFunc, renderKernels);
-  COPCORE_CALLABLE_DECLARE(sortColorFunc, sortColor); 
-    
-  unsigned *sel_vector_d; 
-  COPCORE_CUDA_CHECK(cudaMallocManaged(&sel_vector_d, VectorSize * sizeof(unsigned)));  
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());  
-    
-  unsigned *nselected_hd; 
-  COPCORE_CUDA_CHECK(cudaMallocManaged(&nselected_hd, sizeof(unsigned))); 
+  COPCORE_CALLABLE_DECLARE(sortColorFunc, sortColor);
+
+  unsigned *sel_vector_d;
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&sel_vector_d, VectorSize * sizeof(unsigned)));
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
+  unsigned *nselected_hd;
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&nselected_hd, sizeof(unsigned)));
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // Create a stream to work with.
@@ -259,21 +257,21 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   generate.Run(generateRaysFunc, no_pixels, {0, 0}, *rtdata);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-  int step = 0; 
+  int step = 0;
   int size = 0;
 
   if (backend == copcore::BackendType::CUDA && use_tiles) {
     RenderTiledImage((RaytracerData_t *)rtdata, output_buffer, 0, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    while (check_used<backend>(rtdata, no_generations)) {  
+    while (check_used<backend>(rtdata, no_generations)) {
 
       size = size_used<backend>(rtdata->sparse_int);
 
       renderKernel.Run(renderkernelFunc, size, {0, 0}, *rtdata, step, rays_per_pixel, color);
       COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-      std::swap(rtdata->sparse_int, rtdata->sparse_int_copy);  // swap the pointers
+      std::swap(rtdata->sparse_int, rtdata->sparse_int_copy); // swap the pointers
 
       clear_sparse_vector<backend>(rtdata->sparse_int_copy);
       COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
@@ -285,18 +283,18 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
         VectorInterface::select(&(rtdata->sparse_rays[0]), select_func2, sel_vector_d, nselected_hd);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-        if (*nselected_hd > 0)
-          add_indices<backend>(rtdata->sparse_int, sel_vector_d, nselected_hd);
+        if (*nselected_hd > 0) add_indices<backend>(rtdata->sparse_int, sel_vector_d, nselected_hd);
       }
-      
+
       COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
       step++;
+      // printf("step %d: remaining %d\n", step, size);
     }
   }
 
-  // Sort colors (for every index)  
-  generate.Run(sortColorFunc, no_pixels, {0, 0}, rays_per_pixel, color);  
+  // Sort colors (for every index)
+  generate.Run(sortColorFunc, no_pixels, {0, 0}, rays_per_pixel, color);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   for (int i = 0; i < no_pixels; i++) {
