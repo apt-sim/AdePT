@@ -139,7 +139,7 @@ private:
       // bvh->CheckDaughterIntersections(localpoint, localdir, step, pvol, hitcandidate);
       bvh->ApproachNextDaughter(localpoint, localdir, step, pvol);
       // Make sure we don't "step" on next boundary
-      step -= vecgeom::kTolerance;
+      step -= 10. * vecgeom::kTolerance;
     }
 
     if (step == vecgeom::kInfLength && step_limit > 0.) return 0.;
@@ -197,7 +197,7 @@ public:
       }
 
       if (out_state.Top() != nullptr) {
-        while (out_state.Top()->IsAssembly()) {
+        while (out_state.Top()->IsAssembly() || out_state.GetNavIndex() == in_state.GetNavIndex()) {
           out_state.Pop();
         }
         assert(!out_state.Top()->GetLogicalVolume()->GetUnplacedVolume()->IsAssembly());

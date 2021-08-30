@@ -30,6 +30,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           adept::MParray *relocateQueue, GlobalScoring *globalScoring,
                                                           ScoringPerVolume *scoringPerVolume)
 {
+  const Precision kPush = 10 * vecgeom::kTolerance;
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
@@ -82,7 +83,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     } else {
       geometryStepLength =
           LoopNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
-                                                  currentTrack.currentState, currentTrack.nextState);
+                                                  currentTrack.currentState, currentTrack.nextState, kPush);
       currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
     atomicAdd(&globalScoring->chargedSteps, 1);

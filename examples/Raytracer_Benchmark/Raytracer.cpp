@@ -156,12 +156,11 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
       ray.fPos += snext * ray.fDir;
       snext += dist;
       nsmall++;
-    }
-
-    if (nsmall == kMaxTries) {
-      ray.fDone  = true;
-      ray.fColor = 0; // black rays for errors
-      return ray.fColor;
+      if (nsmall == kMaxTries) {
+        ray.fDone  = true;
+        ray.fColor = 0; // black rays for errors
+        return ray.fColor;
+      }
     }
 
     // Apply the selected RT model
