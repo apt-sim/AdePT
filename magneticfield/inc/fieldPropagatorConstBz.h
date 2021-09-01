@@ -69,7 +69,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
     vecgeom::NavStateIndex &next_state)
 {
   using Precision = vecgeom::Precision;
-  double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
+  constexpr Precision kPush = 10. * vecgeom::kTolerance;
+
+double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
   double momentumXYMag =
       momentumMag * sqrt((1. - direction[2]) * (1. + direction[2])); // only XY component matters for the curvature
 
@@ -94,9 +96,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
 
   if (charge == 0) {
     if (Relocate) {
-      stepDone = Navigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state);
+      stepDone = Navigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state, kPush);
     } else {
-      stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
+      stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
     }
     position += stepDone * direction;
   } else {
@@ -123,9 +125,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
 
       double move;
       if (Relocate) {
-        move = Navigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, current_state, next_state);
+        move = Navigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, current_state, next_state, kPush);
       } else {
-        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
+        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
       }
 
       fullChord = (move == chordLen);

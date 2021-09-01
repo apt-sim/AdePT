@@ -158,7 +158,7 @@ public:
 
     VPlacedVolumePtr_t hitcandidate = nullptr;
     vecgeom::Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
-    step += push;
+    if (step < step_limit) step += push;
 
     if (out_state.IsOnBoundary()) {
       // Relocate the point after the step to refine out_state.
@@ -211,7 +211,7 @@ public:
 
     VPlacedVolumePtr_t hitcandidate = nullptr;
     vecgeom::Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
-    step += push;
+    if (step < step_limit) step += push;
 
     if (out_state.IsOnBoundary()) {
       if (!hitcandidate) {
