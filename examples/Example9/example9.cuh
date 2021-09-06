@@ -42,12 +42,6 @@ struct Track {
     this->pos      = parent.pos;
     this->navState = parent.navState;
   }
-
-  __host__ __device__ void Print()
-  {
-    printf("pos:(%g,%g,%g), dir:(%g,%g,%g), ene=%g ", pos[0],pos[1],pos[2],dir[0],dir[1],dir[2],energy);
-    navState.Print();
-  }
 };
 
 // Defined in example9.cu

@@ -69,9 +69,12 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
     vecgeom::NavStateIndex &next_state)
 {
   using Precision = vecgeom::Precision;
-  constexpr Precision kPush = 10. * vecgeom::kTolerance;
-
-double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
+  #ifdef VECGEOM_FLOAT_PRECISION
+  const Precision kPush = 10 * vecgeom::kTolerance;
+#else
+  const Precision kPush = 0.;
+#endif
+  double momentumMag   = sqrt(kinE * (kinE + 2.0 * mass));
   double momentumXYMag =
       momentumMag * sqrt((1. - direction[2]) * (1. + direction[2])); // only XY component matters for the curvature
 

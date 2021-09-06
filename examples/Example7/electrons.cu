@@ -30,7 +30,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           adept::MParray *relocateQueue, GlobalScoring *globalScoring,
                                                           ScoringPerVolume *scoringPerVolume)
 {
+#ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
+#else
+  const Precision kPush = 0.;
+#endif
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);

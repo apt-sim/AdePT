@@ -51,7 +51,7 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
     // variable localCoordinates.
     if (lane == 0) {
       // Push the point inside the next volume.
-      static constexpr double kPush = 1.e-8;
+      static constexpr double kPush = 10. * vecgeom::kTolerance;
       currentTrack.pos += kPush * currentTrack.dir;
 
       // Calculate local point from global point.

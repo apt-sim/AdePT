@@ -128,10 +128,6 @@ private:
     // Otherwise it is a geometry step and we push the point to the boundary.
     out_state.SetBoundaryState(true);
 
-    if (step < 0.) {
-      step = 0.;
-    }
-
     return step;
   }
 
