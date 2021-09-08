@@ -1,4 +1,4 @@
-/ SPDX-FileCopyrightText: 2021 CERN
+/x/ SPDX-FileCopyrightText: 2021 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 #include "example11.h"
@@ -28,9 +28,6 @@
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/BVHManager.h>
 #include <VecGeom/management/GeoManager.h>
-#ifdef VECGEOM_GDML
-#include <VecGeom/gdml/Frontend.h>
-#endif
 
 #include <G4String.hh>
 #include <G4GDMLParser.hh>
@@ -126,10 +123,6 @@ void InitBVH()
 
 int main(int argc, char *argv[])
 {
-#ifndef VECGEOM_GDML
-  std::cout << "### VecGeom must be compiled with GDML support to run this.\n";
-  return 1;
-#endif
 #ifndef VECGEOM_USE_NAVINDEX
   std::cout << "### VecGeom must be compiled with USE_NAVINDEX support to run this.\n";
   return 2;
