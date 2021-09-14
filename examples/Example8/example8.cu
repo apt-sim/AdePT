@@ -48,12 +48,13 @@
 
 // A data structure to represent a particle.
 struct Track {
+  using Precision = vecgeom::Precision;
   RanluxppDouble rng_state;
   double energy;
   double numIALeft[3];
 
-  vecgeom::Vector3D<double> pos;
-  vecgeom::Vector3D<double> dir;
+  vecgeom::Vector3D<Precision> pos;
+  vecgeom::Vector3D<Precision> dir;
   vecgeom::NavStateIndex current_state;
   vecgeom::NavStateIndex next_state;
 

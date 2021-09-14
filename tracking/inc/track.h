@@ -27,8 +27,8 @@ struct track {
   double interaction_length{DBL_MAX};
   double total_length{0.0}; // length since track start
 
-  vecgeom::Vector3D<double> pos;
-  vecgeom::Vector3D<double> dir;
+  vecgeom::Vector3D<vecgeom::Precision> pos;
+  vecgeom::Vector3D<vecgeom::Precision> dir;
   vecgeom::NavStateIndex current_state;
   vecgeom::NavStateIndex next_state;
 

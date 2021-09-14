@@ -16,17 +16,18 @@
 // Data structures for statistics of propagation chords
 
 class fieldPropagatorConstBz {
+  using Precision = vecgeom::Precision;
 public:
   __host__ __device__ fieldPropagatorConstBz(float Bz) { BzValue = Bz; }
   __host__ __device__ ~fieldPropagatorConstBz() {}
 
   __host__ __device__ void stepInField(double kinE, double mass, int charge, double step,
-                                       vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &direction);
+                                       vecgeom::Vector3D<Precision> &position, vecgeom::Vector3D<Precision> &direction);
 
   template <bool Relocate = true, class Navigator = LoopNavigator>
   __host__ __device__ double ComputeStepAndPropagatedState(double kinE, double mass, int charge, double physicsStep,
-                                                           vecgeom::Vector3D<double> &position,
-                                                           vecgeom::Vector3D<double> &direction,
+                                                           vecgeom::Vector3D<Precision> &position,
+                                                           vecgeom::Vector3D<Precision> &direction,
                                                            vecgeom::NavStateIndex const &current_state,
                                                            vecgeom::NavStateIndex &new_state);
 
@@ -37,9 +38,10 @@ private:
 // -----------------------------------------------------------------------------
 
 __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double mass, int charge, double step,
-                                                             vecgeom::Vector3D<double> &position,
-                                                             vecgeom::Vector3D<double> &direction)
+                                                             vecgeom::Vector3D<vecgeom::Precision> &position,
+                                                             vecgeom::Vector3D<vecgeom::Precision> &direction)
 {
+  using Precision = vecgeom::Precision;
   if (charge != 0) {
     double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
 
@@ -47,9 +49,9 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double
     //   for gammas  charge = 0 works, and ensures that it goes straight.
     ConstBzFieldStepper helixBz(BzValue);
 
-    vecgeom::Vector3D<double> endPosition  = position;
-    vecgeom::Vector3D<double> endDirection = direction;
-    helixBz.DoStep(position, direction, charge, momentumMag, step, endPosition, endDirection);
+    vecgeom::Vector3D<Precision> endPosition  = position;
+    vecgeom::Vector3D<Precision> endDirection = direction;
+    helixBz.DoStep<vecgeom::Vector3D<Precision>,Precision,int>(position, direction, charge, momentumMag, step, endPosition, endDirection);
     position  = endPosition;
     direction = endDirection;
   } else {
@@ -62,11 +64,17 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double
 //  ( Same name as as navigator method. )
 template <bool Relocate, class Navigator>
 __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState(
-    double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<double> &position,
-    vecgeom::Vector3D<double> &direction, vecgeom::NavStateIndex const &current_state,
+    double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
+    vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
     vecgeom::NavStateIndex &next_state)
 {
-  double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
+  using Precision = vecgeom::Precision;
+  #ifdef VECGEOM_FLOAT_PRECISION
+  const Precision kPush = 10 * vecgeom::kTolerance;
+#else
+  const Precision kPush = 0.;
+#endif
+  double momentumMag   = sqrt(kinE * (kinE + 2.0 * mass));
   double momentumXYMag =
       momentumMag * sqrt((1. - direction[2]) * (1. + direction[2])); // only XY component matters for the curvature
 
@@ -91,9 +99,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
 
   if (charge == 0) {
     if (Relocate) {
-      stepDone = Navigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state);
+      stepDone = Navigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state, kPush);
     } else {
-      stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
+      stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
     }
     position += stepDone * direction;
   } else {
@@ -107,22 +115,22 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
     constexpr int maxChordIters = 10;
     int chordIters              = 0;
     do {
-      vecgeom::Vector3D<double> endPosition  = position;
-      vecgeom::Vector3D<double> endDirection = direction;
+      vecgeom::Vector3D<Precision> endPosition  = position;
+      vecgeom::Vector3D<Precision> endDirection = direction;
       double safeMove                        = min(remains, safeLength);
 
       // fieldPropagatorConstBz( aTrack, BzValue, endPosition, endDirection ); -- Doesn't work
-      helixBz.DoStep(position, direction, charge, momentumMag, safeMove, endPosition, endDirection);
+      helixBz.DoStep<vecgeom::Vector3D<Precision>,Precision,int>(position, direction, charge, momentumMag, safeMove, endPosition, endDirection);
 
-      vecgeom::Vector3D<double> chordVec = endPosition - position;
+      vecgeom::Vector3D<Precision> chordVec = endPosition - position;
       double chordLen                    = chordVec.Length();
-      vecgeom::Vector3D<double> chordDir = (1.0 / chordLen) * chordVec;
+      vecgeom::Vector3D<Precision> chordDir = (1.0 / chordLen) * chordVec;
 
       double move;
       if (Relocate) {
-        move = Navigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, current_state, next_state);
+        move = Navigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, current_state, next_state, kPush);
       } else {
-        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
+        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
       }
 
       fullChord = (move == chordLen);

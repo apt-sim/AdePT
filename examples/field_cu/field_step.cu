@@ -86,7 +86,7 @@ static float BfieldValue[3] = {0.001 * copcore::units::tesla, -0.001 * copcore::
 int main(int argc, char **argv)
 {
   // template<type T>
-  using ThreeVector       = vecgeom::Vector3D<double>;
+  using ThreeVector       = vecgeom::Vector3D<vecgeom::Precision>;
   constexpr int numBlocks = 2, numThreadsPerBlock = 16;
   int totalNumThreads = numBlocks * numThreadsPerBlock;
   bool useBzOnly      = true;

@@ -159,6 +159,9 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   // Use reflection
   OPTION_BOOL(reflection, 0);
 
+  // Approach solids first
+  OPTION_BOOL(approach, 0);
+
   // zoom w.r.t to the default view mode
   OPTION_DOUBLE(zoom, 3.5);
 
@@ -191,6 +194,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   rtdata->fSize_py    = py;
   rtdata->fBkgColor   = bkgcol;
   rtdata->fReflection = reflection;
+  rtdata->fApproach   = approach;
 
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
 
@@ -321,7 +325,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   COPCORE_CUDA_CHECK(cudaFree(color));
   COPCORE_CUDA_CHECK(cudaFree(sel_vector_d));
   COPCORE_CUDA_CHECK(cudaFree(nselected_hd));
-  COPCORE_CUDA_CHECK(cudaFree(rtdata));
+  rayAlloc.deallocate(rtdata, 1);
 
   return 0;
 }

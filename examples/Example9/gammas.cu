@@ -18,6 +18,11 @@
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, adept::MParray *relocateQueue, GlobalScoring *scoring)
 {
+#ifdef VECGEOM_FLOAT_PRECISION
+  const Precision kPush = 10 * vecgeom::kTolerance;
+#else
+  const Precision kPush = 0.;
+#endif
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
@@ -52,7 +57,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Check if there's a volume boundary in between.
     vecgeom::NavStateIndex nextState;
     double geometryStepLength = LoopNavigator::ComputeStepAndNextVolume(
-        currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState);
+        currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState, kPush);
     currentTrack.pos += geometryStepLength * currentTrack.dir;
 
     if (nextState.IsOnBoundary()) {

@@ -21,12 +21,13 @@
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
+  using Precision = vecgeom::Precision;
   RanluxppDouble rngState;
   double energy;
   double numIALeft[3];
 
-  vecgeom::Vector3D<double> pos;
-  vecgeom::Vector3D<double> dir;
+  vecgeom::Vector3D<Precision> pos;
+  vecgeom::Vector3D<Precision> dir;
   vecgeom::NavStateIndex currentState;
   vecgeom::NavStateIndex nextState;
 
@@ -48,7 +49,7 @@ struct Track {
 
     // A secondary inherits the position of its parent; the caller is responsible
     // to update the directions.
-    this->pos           = parent.pos;
+    this->pos          = parent.pos;
     this->currentState = parent.currentState;
     this->nextState    = parent.nextState;
   }

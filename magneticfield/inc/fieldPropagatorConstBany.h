@@ -14,26 +14,27 @@
 class fieldPropagatorConstBany {
 public:
   __host__ __device__ void stepInField(ConstFieldHelixStepper &helixAnyB, double kinE, double mass, int charge,
-                                       double step, vecgeom::Vector3D<double> &position,
-                                       vecgeom::Vector3D<double> &direction);
+                                       double step, vecgeom::Vector3D<vecgeom::Precision> &position,
+                                       vecgeom::Vector3D<vecgeom::Precision> &direction);
 };
 
 // ----------------------------------------------------------------------------
 
 __host__ __device__ void fieldPropagatorConstBany::stepInField(ConstFieldHelixStepper &helixAnyB, double kinE,
                                                                double mass, int charge, double step,
-                                                               vecgeom::Vector3D<double> &position,
-                                                               vecgeom::Vector3D<double> &direction)
+                                                               vecgeom::Vector3D<vecgeom::Precision> &position,
+                                                               vecgeom::Vector3D<vecgeom::Precision> &direction)
 {
+  using Precision = vecgeom::Precision;
   if (charge != 0) {
     double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
 
     // For now all particles ( e-, e+, gamma ) can be propagated using this
     //   for gammas  charge = 0 works, and ensures that it goes straight.
 
-    vecgeom::Vector3D<double> endPosition  = position;
-    vecgeom::Vector3D<double> endDirection = direction;
-    helixAnyB.DoStep(position, direction, charge, momentumMag, step, endPosition, endDirection);
+    vecgeom::Vector3D<Precision> endPosition  = position;
+    vecgeom::Vector3D<Precision> endDirection = direction;
+    helixAnyB.DoStep<Precision,int>(position, direction, charge, momentumMag, step, endPosition, endDirection);
     position  = endPosition;
     direction = endDirection;
   } else {
