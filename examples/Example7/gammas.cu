@@ -11,10 +11,12 @@
 #include <G4HepEmTrack.hh>
 #include <G4HepEmGammaInteractionCompton.hh>
 #include <G4HepEmGammaInteractionConversion.hh>
+#include <G4HepEmGammaInteractionPhotoelectric.hh>
 // Pull in implementation.
 #include <G4HepEmGammaManager.icc>
 #include <G4HepEmGammaInteractionCompton.icc>
 #include <G4HepEmGammaInteractionConversion.icc>
+#include <G4HepEmGammaInteractionPhotoelectric.icc>
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, adept::MParray *relocateQueue,
@@ -188,9 +190,33 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       break;
     }
     case 2: {
-      // Invoke photoelectric process: right now only absorb the gamma.
-      atomicAdd(&globalScoring->energyDeposit, energy);
-      atomicAdd(&scoringPerVolume->energyDeposit[volumeID], energy);
+      // Invoke photoelectric process.
+      const double theLowEnergyThreshold = 1 * copcore::units::eV;
+      const int theMatIndx               = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fHepEmMatIndex;
+      const G4HepEmMatData *matData      = &g4HepEmData.fTheMaterialData->fMaterialData[theMatIndx];
+
+      // Only check the maximum binding energy of the current material. If the
+      // gamma energy is below that, the energy of the secondary photo electron
+      // will be so low that it won't travel far and we can skip generating it.
+      double edep             = matData->fMaxBinding;
+      const double photoElecE = energy - edep;
+      if (photoElecE > theLowEnergyThreshold) {
+        // Create a secondary electron and sample directions.
+        Track &electron = secondaries.electrons.NextTrack();
+        atomicAdd(&globalScoring->numElectrons, 1);
+
+        double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+        double dirPhotoElec[3];
+        G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
+
+        electron.InitAsSecondary(/*parent=*/currentTrack);
+        electron.rngState = newRNG;
+        electron.energy   = photoElecE;
+        electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
+      } else {
+        edep = energy;
+      }
+      atomicAdd(&globalScoring->energyDeposit, edep);
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }

@@ -182,8 +182,8 @@ void example12(int numParticles, double energy, int batch, const int *MCIndex_ho
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
   if (batch == -1) {
-    // Rule of thumb: at most 1000 particles of one type per GeV primary.
-    batch = Capacity / ((int)energy / copcore::units::GeV) / 1000;
+    // Rule of thumb: at most 2000 particles of one type per GeV primary.
+    batch = Capacity / ((int)energy / copcore::units::GeV) / 2000;
   } else if (batch < 1) {
     batch = 1;
   }
