@@ -28,6 +28,8 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmParametersInit.hh>
 
+#define NOMSC
+
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
@@ -39,6 +41,7 @@
 #include <G4HepEmElectronManager.icc>
 #include <G4HepEmElectronInteractionBrem.icc>
 #include <G4HepEmElectronInteractionIoni.icc>
+#include <G4HepEmElectronInteractionMSC.icc> // Needed to make a debug build succeed.
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
 #include <CopCore/Global.h>
@@ -180,12 +183,12 @@ __global__ void TransportParticle()
       }
     }
 
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, theElTrack);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, theElTrack, nullptr);
     printf("sampled process: %d, particle travels %fmm\n", theTrack->GetWinnerProcessIndex(),
            theTrack->GetGStepLength());
 
     const int iDProc = theTrack->GetWinnerProcessIndex();
-    bool stopped     = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, theElTrack);
+    bool stopped     = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, theElTrack, nullptr);
     printf("energy after continuous process: %fMeV\n", theTrack->GetEKin());
     if (stopped) {
       // call annihilation for e+ !!!

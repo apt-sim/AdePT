@@ -20,6 +20,8 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmParametersInit.hh>
 
+#define NOMSC
+
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
@@ -267,7 +269,7 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -291,7 +293,7 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     }
 
     // Apply continuous effects.
-    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack);
+    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
     // Collect the changes.
     currentTrack.energy = theTrack->GetEKin();
     scoring->totalEnergyDeposit.fetch_add(theTrack->GetEnergyDeposit());
