@@ -8,6 +8,8 @@
 #include <CopCore/PhysicalConstants.h>
 #include <AdePT/BVHNavigator.h>
 
+#define NOMSC
+
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
@@ -58,7 +60,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -83,7 +85,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Apply continuous effects.
-    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack);
+    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
     // Collect the changes.
     currentTrack.energy = theTrack->GetEKin();
     atomicAdd(&scoring->energyDeposit, theTrack->GetEnergyDeposit());
