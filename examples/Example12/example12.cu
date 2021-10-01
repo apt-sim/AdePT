@@ -240,9 +240,16 @@ void example12(int numParticles, double energy, int batch, const int *MCIndex_ho
   vecgeom::Stopwatch timer;
   timer.Start();
 
-  std::cout << std::endl << "Simulating particle ";
+  std::cout << std::endl << "Simulating particles ";
+  const bool detailed = (numParticles / batch) < 50;
+  if (!detailed) {
+    std::cout << "... " << std::flush;
+  }
+
   for (int startEvent = 1; startEvent <= numParticles; startEvent += batch) {
-    std::cout << startEvent << " ... " << std::flush;
+    if (detailed) {
+      std::cout << startEvent << " ... " << std::flush;
+    }
     int left  = numParticles - startEvent + 1;
     int chunk = std::min(left, batch);
 
