@@ -24,6 +24,7 @@ struct Track {
   RanluxppDouble rngState;
   double energy;
   double numIALeft[3];
+  double initialRange;
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
@@ -37,6 +38,7 @@ struct Track {
     this->numIALeft[0] = -1.0;
     this->numIALeft[1] = -1.0;
     this->numIALeft[2] = -1.0;
+    this->initialRange = -1.0;
 
     // A secondary inherits the position of its parent; the caller is responsible
     // to update the directions.

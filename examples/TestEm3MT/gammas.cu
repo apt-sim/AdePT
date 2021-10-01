@@ -61,10 +61,14 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     currentTrack.pos += geometryStepLength * currentTrack.dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
-    if (nextState.IsOnBoundary()) {
-      emTrack.SetGStepLength(geometryStepLength);
-      emTrack.SetOnBoundary(true);
-    }
+    // Set boundary state in navState so the next step and secondaries get the
+    // correct information (currentTrack.navState = nextState only if relocated
+    // in case of a boundary; see below)
+    currentTrack.navState.SetBoundaryState(nextState.IsOnBoundary());
+
+    // Propagate information from geometrical step to G4HepEm.
+    emTrack.SetGStepLength(geometryStepLength);
+    emTrack.SetOnBoundary(nextState.IsOnBoundary());
 
     G4HepEmGammaManager::UpdateNumIALeft(&emTrack);
 

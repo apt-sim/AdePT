@@ -8,7 +8,7 @@ SPDX-License-Identifier: CC-BY-4.0
 Test application for the validation of particle transportation on GPUs, with the same workflow as Example 11:
 
  * geometry via VecGeom and optionally a magnetic field with constant Bz,
- * physics processes for e-/e+ and gammas using G4HepEm.
+ * physics processes for e-/e+ (including MSC) and gammas using G4HepEm.
 
 Electrons, positrons, and gammas are stored in separate containers in device memory.
 Free positions in the storage are handed out with monotonic slot numbers, slots are not reused.
@@ -24,11 +24,13 @@ They are synchronized via a forth stream using CUDA events.
 
 #### `TransportElectrons<bool IsElectron>`
 
-1. Determine physics step limit.
-2. Call magnetic field to get geometry step length.
-3. Apply continuous effects; kill track if stopped.
-4. If the particle reaches a boundary, perform relocation.
-5. If not, and if there is a discrete process:
+1. Obtain safety unless the track is currently on a boundary.
+2. Determine physics step limit, including conversion to geometric step length according to MSC.
+3. Query geometry (or optionally magnetic field) to get geometry step length.
+4. Convert geometry to true step length according to MSC, apply net direction change and discplacement.
+5. Apply continuous effects; kill track if stopped.
+6. If the particle reaches a boundary, perform relocation.
+7. If not, and if there is a discrete process:
  1. Sample the final state.
  2. Update the primary and produce secondaries.
 

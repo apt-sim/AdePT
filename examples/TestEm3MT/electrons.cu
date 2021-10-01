@@ -8,12 +8,11 @@
 
 #include <CopCore/PhysicalConstants.h>
 
-#define NOMSC
-
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
 #include <G4HepEmElectronInteractionIoni.hh>
+#include <G4HepEmElectronInteractionMSC.hh>
 #include <G4HepEmPositronInteractionAnnihilation.hh>
 // Pull in implementation.
 #include <G4HepEmRunUtils.icc>
@@ -21,6 +20,7 @@
 #include <G4HepEmElectronManager.icc>
 #include <G4HepEmElectronInteractionBrem.icc>
 #include <G4HepEmElectronInteractionIoni.icc>
+#include <G4HepEmElectronInteractionMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
 // Compute the physics and geometry step limit, transport the electrons while
@@ -49,7 +49,20 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     G4HepEmTrack *theTrack = elTrack.GetTrack();
     theTrack->SetEKin(currentTrack.energy);
     theTrack->SetMCIndex(theMCIndex);
+    theTrack->SetOnBoundary(currentTrack.navState.IsOnBoundary());
     theTrack->SetCharge(Charge);
+    G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
+    mscData->fIsFirstStep        = currentTrack.initialRange < 0;
+    mscData->fInitialRange       = currentTrack.initialRange;
+
+    // Compute safety, needed for MSC step limit.
+    double safety = 0;
+    if (!currentTrack.navState.IsOnBoundary()) {
+      safety = BVHNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
+    }
+    theTrack->SetSafety(safety);
+
+    RanluxppDoubleEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -62,7 +75,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+
+    // Remember value of initial range for the next step.
+    currentTrack.initialRange = mscData->fInitialRange;
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -87,17 +103,62 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState);
       currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
-    atomicAdd(&globalScoring->chargedSteps, 1);
-    atomicAdd(&scoringPerVolume->chargedTrackLength[volumeID], geometryStepLength);
 
-    if (nextState.IsOnBoundary()) {
-      theTrack->SetGStepLength(geometryStepLength);
-      theTrack->SetOnBoundary(true);
-    }
+    // Set boundary state in navState so the next step and secondaries get the
+    // correct information (currentTrack.navState = nextState only if relocated
+    // in case of a boundary; see below)
+    currentTrack.navState.SetBoundaryState(nextState.IsOnBoundary());
+
+    // Propagate information from geometrical step to MSC.
+    theTrack->SetDirection(currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z());
+    theTrack->SetGStepLength(geometryStepLength);
+    theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
     // Apply continuous effects.
-    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
-    // Collect the changes.
+    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+
+    // Collect the direction change and displacement by MSC.
+    const double *direction = theTrack->GetDirection();
+    currentTrack.dir.Set(direction[0], direction[1], direction[2]);
+    if (!nextState.IsOnBoundary()) {
+      const double *mscDisplacement = mscData->GetDisplacement();
+      vecgeom::Vector3D<Precision> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
+      const double dLength2            = displacement.Length2();
+      constexpr double kGeomMinLength  = 5 * copcore::units::nm;          // 0.05 [nm]
+      constexpr double kGeomMinLength2 = kGeomMinLength * kGeomMinLength; // (0.05 [nm])^2
+      if (dLength2 > kGeomMinLength2) {
+        const double dispR = std::sqrt(dLength2);
+        // Estimate safety by subtracting the geometrical step length.
+        safety -= geometryStepLength;
+        constexpr double sFact = 0.99;
+        double reducedSafety   = sFact * safety;
+
+        // Apply displacement, depending on how close we are to a boundary.
+        // 1a. Far away from geometry boundary:
+        if (reducedSafety > 0.0 && dispR <= reducedSafety) {
+          currentTrack.pos += displacement;
+        } else {
+          // Recompute safety.
+          safety        = BVHNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
+          reducedSafety = sFact * safety;
+
+          // 1b. Far away from geometry boundary:
+          if (reducedSafety > 0.0 && dispR <= reducedSafety) {
+            currentTrack.pos += displacement;
+            // 2. Push to boundary:
+          } else if (reducedSafety > kGeomMinLength) {
+            currentTrack.pos += displacement * (reducedSafety / dispR);
+          }
+          // 3. Very small safety: do nothing.
+        }
+      }
+    }
+
+    // Collect the charged step length (might be changed by MSC).
+    atomicAdd(&globalScoring->chargedSteps, 1);
+    atomicAdd(&scoringPerVolume->chargedTrackLength[volumeID], elTrack.GetPStepLength());
+
+    // Collect the changes in energy and deposit.
     currentTrack.energy  = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
     atomicAdd(&globalScoring->energyDeposit, energyDeposit);
@@ -169,7 +230,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Perform the discrete interaction.
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
     // We will need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
