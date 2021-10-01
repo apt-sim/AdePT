@@ -164,27 +164,6 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats)
   }
 }
 
-// Deposit energy of particles still in flight.
-__global__ void DepositEnergy(Track *allTracks, const adept::MParray *queue, GlobalScoring *globalScoring,
-                              ScoringPerVolume *scoringPerVolume)
-{
-  int queueSize = queue->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queueSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*queue)[i];
-    Track &currentTrack = allTracks[slot];
-    auto volume         = currentTrack.navState.Top();
-    if (volume == nullptr) {
-      // The particle left the world, why wasn't it killed before?!
-      continue;
-    }
-    int volumeID = volume->id();
-
-    double energy = currentTrack.energy;
-    atomicAdd(&globalScoring->energyDeposit, energy);
-    atomicAdd(&scoringPerVolume->energyDeposit[volumeID], energy);
-  }
-}
-
 __global__ void ClearQueue(adept::MParray *queue)
 {
   queue->clear();
@@ -411,10 +390,6 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     } while (inFlight > 0 && loopingNo < 20);
 
     if (inFlight > 0) {
-      std::cout << std::endl;
-      std::cout << "WARN: Depositing energy of " << inFlight << " particles still in flight!" << std::endl;
-      constexpr int DepositThreads = 32;
-
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
         ParticleType &pType   = particles[i];
         int inFlightParticles = stats->inFlight[i];
@@ -422,14 +397,9 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
           continue;
         }
 
-        int depositBlocks = (inFlightParticles + DepositThreads - 1) / DepositThreads;
-        depositBlocks     = std::min(depositBlocks, MaxBlocks);
-        DepositEnergy<<<depositBlocks, DepositThreads, 0, stream>>>(pType.tracks, pType.queues.currentlyActive,
-                                                                    globalScoring, scoringPerVolume);
         ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);
       }
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-      std::cout << " ... ";
     }
   }
   std::cout << "done!" << std::endl;
