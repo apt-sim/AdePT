@@ -23,6 +23,8 @@
 #include <G4Region.hh>
 #include <G4ProductionCutsTable.hh>
 
+#include <G4EmParameters.hh>
+
 #include <G4SystemOfUnits.hh>
 
 #include <VecGeom/base/Config.h>
@@ -102,6 +104,11 @@ static void InitGeant4()
   // --- Update the couple tables.
   G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
   theCoupleTable->UpdateCoupleTable(worldPlaced);
+  //
+  // --- Set MSC range factor to match G4HepEm physics lists.
+  G4EmParameters *param = G4EmParameters::Instance();
+  param->SetDefaults();
+  param->SetMscRangeFactor(0.06);
 }
 
 const void CreateVecGeomWorld()

@@ -158,6 +158,26 @@ private:
   }
 
 public:
+  // Computes the isotropic safety from the globalpoint.
+  __host__ __device__ static double ComputeSafety(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
+                                                  vecgeom::NavStateIndex const &state)
+  {
+    VPlacedVolumePtr_t pvol = state.Top();
+    vecgeom::Transformation3D m;
+    state.TopMatrix(m);
+    vecgeom::Vector3D<vecgeom::Precision> localpoint = m.Transform(globalpoint);
+
+    // need to calc DistanceToOut first
+    vecgeom::Precision safety = pvol->SafetyToOut(localpoint);
+
+    if (safety > 0 && pvol->GetDaughters().size() > 0) {
+      auto bvh = vecgeom::BVHManager::GetBVH(pvol->GetLogicalVolume()->id());
+      safety   = bvh->ComputeSafety(localpoint, safety);
+    }
+
+    return safety;
+  }
+
   // Computes a step from the globalpoint (which must be in the current volume)
   // into globaldir, taking step_limit into account. If a volume is hit, the
   // function calls out_state.SetBoundaryState(true) and relocates the state to
