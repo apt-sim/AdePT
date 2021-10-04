@@ -54,6 +54,10 @@ find_package(VecGeom ${VecGeom_VERSION} REQUIRED)
 message(STATUS "Using VecGeom version ${VecGeom_VERSION}")
 # make sure we import VecGeom architecture flags - is this needed?
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VECGEOM_CXX_FLAGS}")
+# Make sure VecGeom::vgdml is enabled
+if(NOT TARGET VecGeom::vgdml)
+  message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
+endif()
 
 # Find Geant4, optional for now
 find_package(Geant4 QUIET)
@@ -80,7 +84,9 @@ add_subdirectory(external)
 
 if(BUILD_TESTING)
   set(TESTING_GDML "${PROJECT_BINARY_DIR}/trackML.gdml")
+  set(CMS2018_GDML "${PROJECT_BINARY_DIR}/cms2018.gdml")
   file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/master/persistency/gdml/gdmls/trackML.gdml "${TESTING_GDML}")
+  file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/master/persistency/gdml/gdmls/cms2018.gdml "${CMS2018_GDML}")
 endif()
 
 # Builds...
