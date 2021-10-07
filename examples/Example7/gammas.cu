@@ -8,6 +8,7 @@
 #include <CopCore/PhysicalConstants.h>
 
 #include <G4HepEmGammaManager.hh>
+#include <G4HepEmGammaTrack.hh>
 #include <G4HepEmTrack.hh>
 #include <G4HepEmGammaInteractionCompton.hh>
 #include <G4HepEmGammaInteractionConversion.hh>
@@ -36,9 +37,10 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     int theMCIndex      = MCIndex[volumeID];
 
     // Init a track with the needed data to call into G4HepEm.
-    G4HepEmTrack emTrack;
-    emTrack.SetEKin(currentTrack.energy);
-    emTrack.SetMCIndex(theMCIndex);
+    G4HepEmGammaTrack gammaTrack;
+    G4HepEmTrack *theTrack = gammaTrack.GetTrack();
+    theTrack->SetEKin(currentTrack.energy);
+    theTrack->SetMCIndex(theMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -47,15 +49,15 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         numIALeft                  = -std::log(currentTrack.Uniform());
         currentTrack.numIALeft[ip] = numIALeft;
       }
-      emTrack.SetNumIALeft(numIALeft, ip);
+      theTrack->SetNumIALeft(numIALeft, ip);
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &emTrack);
+    G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
 
     // Get result into variables.
-    double geometricalStepLengthFromPhysics = emTrack.GetGStepLength();
-    int winnerProcessIndex                  = emTrack.GetWinnerProcessIndex();
+    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
+    int winnerProcessIndex                  = theTrack->GetWinnerProcessIndex();
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
 
@@ -67,15 +69,15 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     atomicAdd(&globalScoring->neutralSteps, 1);
 
     if (currentTrack.nextState.IsOnBoundary()) {
-      emTrack.SetGStepLength(geometryStepLength);
-      emTrack.SetOnBoundary(true);
+      theTrack->SetGStepLength(geometryStepLength);
+      theTrack->SetOnBoundary(true);
     }
 
-    G4HepEmGammaManager::UpdateNumIALeft(&emTrack);
+    G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft           = emTrack.GetNumIALeft(ip);
+      double numIALeft           = theTrack->GetNumIALeft(ip);
       currentTrack.numIALeft[ip] = numIALeft;
     }
 
@@ -192,13 +194,11 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     case 2: {
       // Invoke photoelectric process.
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
-      const int theMatIndx               = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fHepEmMatIndex;
-      const G4HepEmMatData *matData      = &g4HepEmData.fTheMaterialData->fMaterialData[theMatIndx];
 
-      // Only check the maximum binding energy of the current material. If the
-      // gamma energy is below that, the energy of the secondary photo electron
-      // will be so low that it won't travel far and we can skip generating it.
-      double edep             = matData->fMaxBinding;
+      const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
+          &g4HepEmData, theMCIndex, gammaTrack.GetPEmxSec(), energy, &rnge);
+
+      double edep             = bindingEnergy;
       const double photoElecE = energy - edep;
       if (photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
