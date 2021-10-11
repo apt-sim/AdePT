@@ -49,6 +49,9 @@ protected:
     }
   }
 
+public:
+  RanluxppEngineImpl() = default;
+
   /// Produce next block of random bits
   __host__ __device__ void Advance()
   {
@@ -58,9 +61,6 @@ protected:
     to_ranlux(lcg, fState, fCarry);
     fPosition = 0;
   }
-
-public:
-  RanluxppEngineImpl() = default;
 
   /// Return the next random bits, generate a new block if necessary
   __host__ __device__ uint64_t NextRandomBits()
@@ -159,8 +159,9 @@ public:
   __host__ __device__ uint64_t IntRndm() { return this->NextRandomBits(); }
 
   /// Branch a new RNG state, also advancing the current one.
-  __host__ __device__
-  RanluxppDouble Branch()
+  /// The caller must Advance() the branched RNG state to decorrelate the
+  /// produced numbers.
+  __host__ __device__ RanluxppDouble BranchNoAdvance()
   {
     // Save the current state, will be used to branch a new RNG.
     uint64_t oldState[9];
@@ -169,6 +170,13 @@ public:
     // Copy and modify the new RNG state.
     RanluxppDouble newRNG(*this);
     newRNG.XORstate(oldState);
+    return newRNG;
+  }
+
+  /// Branch a new RNG state, also advancing the current one.
+  __host__ __device__ RanluxppDouble Branch()
+  {
+    RanluxppDouble newRNG(BranchNoAdvance());
     newRNG.Advance();
     return newRNG;
   }
