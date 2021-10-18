@@ -75,7 +75,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Check if there's a volume boundary in between.
     vecgeom::NavStateIndex nextState;
-    double geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false, BVHNavigator>(
+    double geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
         currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
         currentTrack.navState, nextState);
 

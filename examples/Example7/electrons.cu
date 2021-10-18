@@ -83,7 +83,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if there's a volume boundary in between.
     double geometryStepLength;
     if (BzFieldValue != 0) {
-      geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false>(
+      geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
           currentTrack.currentState, currentTrack.nextState);
     } else {

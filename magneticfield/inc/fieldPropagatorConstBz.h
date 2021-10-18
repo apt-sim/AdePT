@@ -24,12 +24,12 @@ public:
   __host__ __device__ void stepInField(double kinE, double mass, int charge, double step,
                                        vecgeom::Vector3D<Precision> &position, vecgeom::Vector3D<Precision> &direction);
 
-  template <bool Relocate = true, class Navigator = LoopNavigator>
-  __host__ __device__ double ComputeStepAndPropagatedState(double kinE, double mass, int charge, double physicsStep,
-                                                           vecgeom::Vector3D<Precision> &position,
-                                                           vecgeom::Vector3D<Precision> &direction,
-                                                           vecgeom::NavStateIndex const &current_state,
-                                                           vecgeom::NavStateIndex &new_state);
+  template <class Navigator = LoopNavigator>
+  __host__ __device__ double ComputeStepAndNextVolume(double kinE, double mass, int charge, double physicsStep,
+                                                      vecgeom::Vector3D<Precision> &position,
+                                                      vecgeom::Vector3D<Precision> &direction,
+                                                      vecgeom::NavStateIndex const &current_state,
+                                                      vecgeom::NavStateIndex &new_state);
 
 private:
   float BzValue;
@@ -62,8 +62,8 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double
 
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
-template <bool Relocate, class Navigator>
-__host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState(
+template <class Navigator>
+__host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
     vecgeom::NavStateIndex &next_state)
@@ -98,11 +98,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
   const double epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
 
   if (charge == 0) {
-    if (Relocate) {
-      stepDone = Navigator::ComputeStepAndPropagatedState(position, direction, remains, current_state, next_state, kPush);
-    } else {
-      stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
-    }
+    stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
     position += stepDone * direction;
   } else {
     bool fullChord = false;
@@ -126,12 +122,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndPropagatedState
       double chordLen                    = chordVec.Length();
       vecgeom::Vector3D<Precision> chordDir = (1.0 / chordLen) * chordVec;
 
-      double move;
-      if (Relocate) {
-        move = Navigator::ComputeStepAndPropagatedState(position, chordDir, chordLen, current_state, next_state, kPush);
-      } else {
-        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
-      }
+      double move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
 
       fullChord = (move == chordLen);
       if (fullChord) {

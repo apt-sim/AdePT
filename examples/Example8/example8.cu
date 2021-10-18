@@ -283,7 +283,7 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    double geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false>(
+    double geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume(
         currentTrack.energy, currentTrack.mass(), currentTrack.charge(), geometricalStepLengthFromPhysics,
         currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state);
 
