@@ -29,7 +29,8 @@ public:
 
   __host__ __device__ static VPlacedVolumePtr_t LocatePointIn(vecgeom::VPlacedVolume const *vol,
                                                               vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                                              vecgeom::NavStateIndex &path, bool top)
+                                                              vecgeom::NavStateIndex &path, bool top,
+                                                              vecgeom::VPlacedVolume const *exclude = nullptr)
   {
     if (top) {
       assert(vol != nullptr);
@@ -44,10 +45,13 @@ public:
     for (auto v = vol; v->GetDaughters().size() > 0;) {
       auto bvh = vecgeom::BVHManager::GetBVH(v->GetLogicalVolume()->id());
 
-      if (!bvh->LevelLocate(currentpoint, v, daughterlocalpoint)) break;
+      if (!bvh->LevelLocate(exclude, currentpoint, v, daughterlocalpoint)) break;
 
       currentpoint = daughterlocalpoint;
       path.Push(v);
+      // Only exclude the placed volume once since we could enter it again via a
+      // different volume history.
+      exclude = nullptr;
     }
 
     return path.Top();
@@ -230,10 +234,10 @@ public:
   // Computes a step from the globalpoint (which must be in the current volume)
   // into globaldir, taking step_limit into account. If a volume is hit, the
   // function calls out_state.SetBoundaryState(true) and
-  //  - removes the current volume from out_state if the it is left, or
+  //  - removes all volumes from out_state if the current volume is left, or
   //  - adds the hit daughter volume to out_state if one is hit.
   // However the function does _NOT_ relocate the state to the next volume,
-  // such as leaving or entering multiple volumes that share a boundary.
+  // that is entering multiple volumes that share a boundary.
   __host__ __device__ static double ComputeStepAndNextVolume(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
                                                              vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
                                                              vecgeom::Precision step_limit,
@@ -258,7 +262,18 @@ public:
 
     if (out_state.IsOnBoundary()) {
       if (!hitcandidate) {
-        out_state.Pop();
+        vecgeom::VPlacedVolume const *currentmother       = out_state.Top();
+        vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
+        // Push the point inside the next volume.
+        static constexpr double kPush = 10. * vecgeom::kTolerance;
+        transformed += (step + kPush) * localdir;
+
+        do {
+          out_state.SetLastExited();
+          out_state.Pop();
+          transformed   = currentmother->GetTransformation()->InverseTransform(transformed);
+          currentmother = out_state.Top();
+        } while (currentmother && (currentmother->IsAssembly() || !currentmother->UnplacedContains(transformed)));
       } else {
         out_state.Push(hitcandidate);
       }
@@ -287,9 +302,8 @@ public:
     return step;
   }
 
-  // Relocate a state that was returned from ComputeStepAndNextVolume: It first
-  // removes all volumes from the state that were left, and then recursively
-  // locates the pushed point in the containing volume.
+  // Relocate a state that was returned from ComputeStepAndNextVolume: It
+  // recursively locates the pushed point in the containing volume.
   __host__ __device__ static void RelocateToNextVolume(vecgeom::Vector3D<vecgeom::Precision> &globalpoint,
                                                        vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
                                                        vecgeom::NavStateIndex &state)
@@ -305,12 +319,8 @@ public:
 
     VPlacedVolumePtr_t pvol = state.Top();
 
-    if (!pvol->UnplacedContains(localpoint)) {
-      RelocatePoint(localpoint, state);
-    } else {
-      state.Pop();
-      LocatePointIn(pvol, localpoint, state, false);
-    }
+    state.Pop();
+    LocatePointIn(pvol, localpoint, state, false, state.GetLastExited());
 
     if (state.Top() != nullptr) {
       while (state.Top()->IsAssembly()) {

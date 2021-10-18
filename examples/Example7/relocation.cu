@@ -61,13 +61,6 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
 
       currentVolume = state.Top();
 
-      // Remove all volumes that were left.
-      while (currentVolume && (currentVolume->IsAssembly() || !currentVolume->UnplacedContains(localPoint))) {
-        state.Pop();
-        localPoint    = currentVolume->GetTransformation()->InverseTransform(localPoint);
-        currentVolume = state.Top();
-      }
-
       // Store the transformed coordinates, to be broadcasted to the other
       // active threads in this warp.
       localCoordinates[0] = localPoint.x();
