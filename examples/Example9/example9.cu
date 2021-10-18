@@ -378,7 +378,7 @@ void example9(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double
     }
 
     iterNo++;
-  } while (inFlight > 0 && loopingNo < 20);
+  } while (inFlight > 0 && loopingNo < 200);
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
