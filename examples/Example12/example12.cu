@@ -362,7 +362,7 @@ void example12(int numParticles, double energy, int batch, const int *MCIndex_ho
         loopingNo         = 0;
       }
 
-    } while (inFlight > 0 && loopingNo < 20);
+    } while (inFlight > 0 && loopingNo < 200);
 
     if (inFlight > 0) {
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
