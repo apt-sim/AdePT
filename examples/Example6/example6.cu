@@ -179,7 +179,7 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    double geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false>(
+    double geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume(
         currentTrack.energy, currentTrack.mass(), currentTrack.charge(), geometricalStepLengthFromPhysics,
         currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state);
     currentTrack.total_length += geometryStepLength;

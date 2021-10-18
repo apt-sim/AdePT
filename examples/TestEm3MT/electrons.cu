@@ -100,7 +100,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     double geometryStepLength;
     vecgeom::NavStateIndex nextState;
     if (BzFieldValue != 0) {
-      geometryStepLength = fieldPropagatorBz.ComputeStepAndPropagatedState</*Relocate=*/false, BVHNavigator>(
+      geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
           currentTrack.navState, nextState);
     } else {
