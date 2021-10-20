@@ -74,9 +74,17 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Check if there's a volume boundary in between.
     vecgeom::NavStateIndex nextState;
+    bool propagated = true;
     double geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume(
         currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-        currentTrack.navState, nextState);
+        currentTrack.navState, nextState, propagated);
+
+    if (!propagated) {
+      // error condition from field propagator. Just kill the track here and account for it explicitly.
+      atomicAdd(&scoring->killedInPropagation, 1);
+      // Particles are killed by not enqueuing them into the new activeQueue.
+      continue;
+    }
 
     if (nextState.IsOnBoundary()) {
       theTrack->SetGStepLength(geometryStepLength);
