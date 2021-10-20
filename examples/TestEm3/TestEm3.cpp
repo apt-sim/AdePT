@@ -237,6 +237,8 @@ int main(int argc, char *argv[])
             << "Mean number of charged steps " << ((double)globalScoring.chargedSteps / particles) << "\n"
             << "Mean number of neutral steps " << ((double)globalScoring.neutralSteps / particles) << "\n"
             << "Mean number of hits          " << ((double)globalScoring.hits / particles) << "\n";
+  if (globalScoring.killedInPropagation)
+    std::cout << "Killed in propagation:       " << globalScoring.killedInPropagation << "\n";
   std::cout << std::endl;
 
   // Average charged track length and energy deposit per particle.

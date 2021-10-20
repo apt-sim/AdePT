@@ -91,6 +91,7 @@ struct Track {
 struct Scoring {
   adept::Atomic_t<int> hits;
   adept::Atomic_t<int> secondaries;
+  adept::Atomic_t<int> killedInPropagation;
   adept::Atomic_t<float> totalEnergyDeposit;
 };
 
@@ -283,9 +284,17 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
+    bool propagated = true;
     double geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume(
         currentTrack.energy, currentTrack.mass(), currentTrack.charge(), geometricalStepLengthFromPhysics,
-        currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state);
+        currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state, propagated);
+
+    if (!propagated) {
+      // Error condition from field propagator. Account for it explicitly.
+      scoring->killedInPropagation++;
+      // Particles are killed by not enqueuing them into the new activeQueue.
+      continue;
+    }
 
     if (currentTrack.next_state.IsOnBoundary()) {
       theTrack->SetGStepLength(geometryStepLength);

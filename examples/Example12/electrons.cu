@@ -83,18 +83,27 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
+    bool propagated = true;
     double geometryStepLength;
     vecgeom::NavStateIndex nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-          currentTrack.navState, nextState);
+          currentTrack.navState, nextState, propagated);
     } else {
       geometryStepLength =
           BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
                                                  currentTrack.navState, nextState, kPush);
       currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
+
+    if (!propagated) {
+      // error condition from field propagator. Just kill the track here and account for it explicitly.
+      atomicAdd(&globalScoring->killedInPropagation, 1);
+      // Particles are killed by not enqueuing them into the new activeQueue.
+      continue;
+    }
+
     atomicAdd(&globalScoring->chargedSteps, 1);
     atomicAdd(&scoringPerVolume->chargedTrackLength[volumeID], geometryStepLength);
 

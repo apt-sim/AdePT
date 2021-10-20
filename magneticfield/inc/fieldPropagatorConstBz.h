@@ -29,7 +29,10 @@ public:
                                                       vecgeom::Vector3D<Precision> &position,
                                                       vecgeom::Vector3D<Precision> &direction,
                                                       vecgeom::NavStateIndex const &current_state,
-                                                      vecgeom::NavStateIndex &new_state);
+                                                      vecgeom::NavStateIndex &new_state,
+                                                      bool &propagated,
+                                                      double safety = 0.0,
+                                                      const int max_iteration = 100);
 
 private:
   float BzValue;
@@ -66,7 +69,7 @@ template <class Navigator>
 __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state)
+    vecgeom::NavStateIndex &next_state, bool &propagated, const double /*safety*/, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
   #ifdef VECGEOM_FLOAT_PRECISION
@@ -92,10 +95,10 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
 
   ConstBzFieldStepper helixBz(BzValue);
 
-  double stepDone = 0.0;
-  double remains  = physicsStep;
-
+  double stepDone           = 0.0;
+  double remains            = physicsStep;
   const double epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
+  int chordIters            = 0;
 
   if (charge == 0) {
     stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
@@ -105,11 +108,6 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
 
     //  Locate the intersection of the curved trajectory and the boundaries of the current
     //    volume (including daughters).
-    //  Most electron tracks are short, limited by physics interactions -- the expected
-    //    average value of iterations is small.
-    //    ( Measuring iterations to confirm the maximum. )
-    constexpr int maxChordIters = 10;
-    int chordIters              = 0;
     do {
       vecgeom::Vector3D<Precision> endPosition  = position;
       vecgeom::Vector3D<Precision> endDirection = direction;
@@ -146,8 +144,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
       remains -= move;
       chordIters++;
 
-    } while ((!next_state.IsOnBoundary()) && fullChord && (remains > epsilon_step) && (chordIters < maxChordIters));
+    } while ((!next_state.IsOnBoundary()) && fullChord && (remains > epsilon_step) && (chordIters < max_iterations));
   }
 
+  propagated = (chordIters < max_iterations);
   return stepDone;
 }

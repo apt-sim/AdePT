@@ -179,10 +179,19 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
+    bool propagated = true;
     double geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume(
         currentTrack.energy, currentTrack.mass(), currentTrack.charge(), geometricalStepLengthFromPhysics,
-        currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state);
+        currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state, propagated);
     currentTrack.total_length += geometryStepLength;
+
+    if (!propagated) {
+      // error condition from field propagator. Just kill the track here but in general
+      // we should propagate the error or account for it explicitly.
+      allTracks->ReleaseElement(i);
+      currentTrack.status = dead;
+      continue;
+    }
 
     if (currentTrack.next_state.IsOnBoundary()) {
       theTrack->SetGStepLength(geometryStepLength);
