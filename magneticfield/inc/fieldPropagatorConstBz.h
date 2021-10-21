@@ -135,10 +135,14 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
         //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
         position = position + move * chordDir;
 
-        // Primitive approximation of end direction ...
+        // Primitive approximation of end direction and move to the crossing point ...
         double fraction = chordLen > 0 ? move / chordLen : 0.0;
         direction       = direction * (1.0 - fraction) + endDirection * fraction;
         direction       = direction.Unit();
+        // safeMove is how much the track would have been moved if not hitting the boundary
+        // We approximate the actual reduction along the curved trajectory to be the same
+        // as the reduction of the full chord due to the boundary crossing.
+        move            = fraction * safeMove;
       }
       stepDone += move;
       remains -= move;
