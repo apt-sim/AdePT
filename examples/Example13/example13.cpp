@@ -32,8 +32,18 @@
 #include <CopCore/SystemOfUnits.h>
 #include <AdePT/ArgParser.h>
 
+static constexpr double DefaultCut = 0.7 * mm;
+
 const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
 {
+  auto defaultRegion = new G4Region("DefaultRegionForTheWorld"); // deleted by store
+  auto pcuts = G4ProductionCutsTable::GetProductionCutsTable()->GetDefaultProductionCuts();
+  pcuts->SetProductionCut(DefaultCut, "gamma");
+  pcuts->SetProductionCut(DefaultCut, "e-");
+  pcuts->SetProductionCut(DefaultCut, "e+");
+  pcuts->SetProductionCut(DefaultCut, "proton");
+  defaultRegion->SetProductionCuts(pcuts);
+
   // Read the geometry, regions and cuts from the GDML file
   std::cout << "reading " << gdml_file << " transiently on CPU for Geant4 ...\n";
   G4GDMLParser parser;
@@ -57,12 +67,12 @@ const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
   // - REGIONS
   if (world->GetLogicalVolume()->GetRegion() == nullptr) {
     // Add default region if none available
-    auto defaultRegion = new G4Region("DefaultRegionForTheWorld"); // deleted by store
     defaultRegion->AddRootLogicalVolume(world->GetLogicalVolume());
-    defaultRegion->SetProductionCuts(G4ProductionCutsTable::GetProductionCutsTable()->GetDefaultProductionCuts());
   }
-  for (auto region : *G4RegionStore::GetInstance())
+  for (auto region : *G4RegionStore::GetInstance()) {
     region->UsedInMassGeometry(true); // make sure all regions are marked as used
+    region->UpdateMaterialList();
+  }
 
   // - UPDATE COUPLES
   std::cout << "updating material-cut couples based on " << G4RegionStore::GetInstance()->size() << " regions ...\n";
