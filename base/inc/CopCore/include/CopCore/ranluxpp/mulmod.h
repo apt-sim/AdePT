@@ -43,7 +43,13 @@ __host__ __device__ static void multiply9x9(const uint64_t *in1, const uint64_t 
 
       uint64_t fac1 = in1[j];
       uint64_t fac2 = in2[k];
-#if defined(__SIZEOF_INT128__) && !defined(ROOT_NO_INT128) && !defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__)
+      // In principle, we could use the "portable" code path with __int128
+      // starting from CUDA 11.5, but the math intrinsic is equally easy to
+      // write and should work in older versions of CUDA.
+      uint64_t lower = fac1 * fac2;
+      uint64_t upper = __umul64hi(fac1, fac2);
+#elif defined(__SIZEOF_INT128__)
       unsigned __int128 prod = fac1;
       prod                   = prod * fac2;
 
