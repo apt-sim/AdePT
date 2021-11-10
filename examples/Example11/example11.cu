@@ -7,6 +7,7 @@
 #include <AdePT/Atomic.h>
 #include <AdePT/BVHNavigator.h>
 #include <AdePT/MParray.h>
+#include <AdePT/NVTX.h>
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>
@@ -161,14 +162,17 @@ __global__ void FinishIteration(AllParticleQueues all, const GlobalScoring *scor
 
 void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double energy)
 {
+  NVTXTracer tracer("Geometry");
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
 
+  tracer.setTag("BVH");
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
 
   InitBVH();
 
+  tracer.setTag("G4HepEM");
   G4HepEmState *state = InitG4HepEm();
 
   // Capacity of the different containers aka the maximum number of particles.
@@ -176,6 +180,7 @@ void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
 
+  tracer.setTag("initGPU");
   // Allocate structures to manage tracks of an implicit type:
   //  * memory to hold the actual Track elements,
   //  * objects to manage slots inside the memory,
@@ -240,6 +245,8 @@ void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
 
   vecgeom::Stopwatch timer;
   timer.Start();
+  tracer.setTag("sim");
+  std::unique_ptr<NVTXTracer> peakOccupTracer;
 
   int inFlight;
   int iterNo = 0, loopingNo = 0;
@@ -251,6 +258,9 @@ void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
         .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
         .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
     };
+
+    if (inFlight >= 2000 && !peakOccupTracer) peakOccupTracer.reset(new NVTXTracer("PeakOccup"));
+    if (inFlight < 2000) peakOccupTracer.reset();
 
     // *** ELECTRONS ***
     int numElectrons = stats->inFlight[ParticleType::Electron];
