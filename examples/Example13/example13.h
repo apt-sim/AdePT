@@ -27,6 +27,6 @@ struct ScoringPerVolume {
 
 // Interface between C++ and CUDA.
 void example13(int numParticles, double energy, int batch, const int *MCCindex, ScoringPerVolume *scoringPerVolume,
-               GlobalScoring *globalScoring, int numVolumes, int numPlaced, G4HepEmState *state);
+               GlobalScoring *globalScoring, int numVolumes, int numPlaced, G4HepEmState *state, bool rotatingParticleGun);
 
 #endif
