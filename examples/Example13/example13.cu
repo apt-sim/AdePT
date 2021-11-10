@@ -7,6 +7,7 @@
 #include <AdePT/Atomic.h>
 #include <AdePT/BVHNavigator.h>
 #include <AdePT/MParray.h>
+#include <AdePT/NVTX.h>
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>
@@ -160,8 +161,10 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
                ScoringPerVolume *scoringPerVolume_host, GlobalScoring *globalScoring_host, int numVolumes,
                int numPlaced, G4HepEmState *state, bool rotatingParticleGun)
 {
+  NVTXTracer tracer("InitG4HepEM");
   InitG4HepEmGPU(state);
 
+  tracer.setTag("InitParticles/malloc/copy");
   // Transfer MC indices.
   int *MCIndex_dev = nullptr;
   COPCORE_CUDA_CHECK(cudaMalloc(&MCIndex_dev, sizeof(int) * numVolumes));
@@ -251,6 +254,7 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
 
   vecgeom::Stopwatch timer;
   timer.Start();
+  tracer.setTag("sim");
 
   std::cout << std::endl << "Simulating particles ";
   const bool detailed = (numParticles / batch) < 50;
@@ -290,6 +294,10 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
     int inFlight;
     int loopingNo         = 0;
     int previousElectrons = -1, previousPositrons = -1;
+#ifdef USE_NVTX
+    int maxInFlight = chunk, localMinInFlight = chunk;
+    NVTXTracer occupTracer("Occup trace");
+#endif
 
     do {
       Secondaries secondaries = {
@@ -356,6 +364,18 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
         inFlight += stats->inFlight[i];
       }
+
+#ifdef USE_NVTX
+      if (inFlight < maxInFlight * 0.8) {
+        occupTracer.setTag(("Occup do from " +  std::to_string(maxInFlight)).c_str());
+        localMinInFlight = maxInFlight;
+      }
+      if (inFlight > localMinInFlight * 1.1) {
+        occupTracer.setTag(("Occup up from " +  std::to_string(localMinInFlight)).c_str());
+      }
+      maxInFlight = std::max(inFlight, maxInFlight);
+      localMinInFlight = std::min(inFlight, localMinInFlight);
+#endif
 
       // Swap the queues for the next iteration.
       electrons.queues.SwapActive();

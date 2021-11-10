@@ -31,6 +31,7 @@
 
 #include <CopCore/SystemOfUnits.h>
 #include <AdePT/ArgParser.h>
+#include <AdePT/NVTX.h>
 
 static constexpr double DefaultCut = 0.7 * mm;
 
@@ -194,22 +195,27 @@ int main(int argc, char *argv[])
   vecgeom::Stopwatch timer;
   timer.Start();
 
+  NVTXTracer tracer("InitG4");
+
   // Initialize Geant4
   auto g4world = InitGeant4(gdml_file);
   if (!g4world) return 3;
 
+  tracer.setTag("InitVecGeom");
   // Initialize VecGeom
   std::cout << "reading " << gdml_file << " transiently on CPU for VecGeom ...\n";
   auto world = InitVecGeom(gdml_file, cache_depth);
   if (!world) return 3;
 
   // Construct and initialize the G4HepEmState data/tables
+  tracer.setTag("InitG4HepEM");
   std::cout << "initializing G4HepEm state ...\n";
   G4HepEmState hepEmState;
   InitG4HepEmState(&hepEmState);
 
   // Initialize G4HepEm material-cut couple array indexed by VecGeom volume id.
   // (In future we should connect the index directly to the VecGeom logical volume)
+  tracer.setTag("InitMaterialCutCouple");
   std::cout << "initializing material-cut couple indices ...\n";
   int *MCCindex = nullptr;
 
@@ -221,10 +227,13 @@ int main(int argc, char *argv[])
   }
 
   // Load and synchronize the geometry on the GPU
+  tracer.setTag("SyncGeom");
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
+
+  tracer.setTag("InitBVH");
   InitBVH();
 
   auto time_cpu = timer.Stop();
@@ -241,6 +250,7 @@ int main(int argc, char *argv[])
   scoringPerVolume.energyDeposit      = energyDeposit;
   GlobalScoring globalScoring;
 
+  tracer.setTag("callExample13");
   example13(particles, energy, batch, MCCindex, &scoringPerVolume, &globalScoring, NumVolumes, NumPlaced, &hepEmState,
             rotatingParticleGun);
 

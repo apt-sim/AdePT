@@ -37,6 +37,9 @@ target_link_libraries(example13
 
 set_target_properties(example13 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
+# NVTX
+target_link_libraries(example13 PRIVATE NVTX)
+
 # Tests
 add_test(NAME example13
   COMMAND $<TARGET_FILE:example13> -gdml_file ${CMAKE_BINARY_DIR}/cms2018.gdml)
