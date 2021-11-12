@@ -289,9 +289,10 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
     stats->inFlight[ParticleType::Positron] = 0;
     stats->inFlight[ParticleType::Gamma]    = 0;
 
-    constexpr int MaxBlocks        = 1024;
-    constexpr int TransportThreads = 32;
-    int transportBlocks;
+    constexpr int MaxBlocks              = 1024;
+    constexpr int MinParticlesForThreads = 32;
+    constexpr int TransportThreads       = 32;
+    int transportThreads, transportBlocks;
 
     int inFlight;
     int loopingNo         = 0;
@@ -311,10 +312,11 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
       // *** ELECTRONS ***
       int numElectrons = stats->inFlight[ParticleType::Electron];
       if (numElectrons > 0) {
-        transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
-        transportBlocks = std::min(transportBlocks, MaxBlocks);
+        transportThreads = std::min(std::max(1, numElectrons / MinParticlesForThreads), TransportThreads);
+        transportBlocks  = (numElectrons + transportThreads - 1) / transportThreads;
+        transportBlocks  = std::min(transportBlocks, MaxBlocks);
 
-        TransportElectrons<<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
+        TransportElectrons<<<transportBlocks, transportThreads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive, globalScoring,
             scoringPerVolume);
 
@@ -325,10 +327,11 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
       // *** POSITRONS ***
       int numPositrons = stats->inFlight[ParticleType::Positron];
       if (numPositrons > 0) {
-        transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
-        transportBlocks = std::min(transportBlocks, MaxBlocks);
+        transportThreads = std::min(std::max(1, numPositrons / MinParticlesForThreads), TransportThreads);
+        transportBlocks  = (numPositrons + transportThreads - 1) / transportThreads;
+        transportBlocks  = std::min(transportBlocks, MaxBlocks);
 
-        TransportPositrons<<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
+        TransportPositrons<<<transportBlocks, transportThreads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive, globalScoring,
             scoringPerVolume);
 
@@ -339,10 +342,11 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
       // *** GAMMAS ***
       int numGammas = stats->inFlight[ParticleType::Gamma];
       if (numGammas > 0) {
-        transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
-        transportBlocks = std::min(transportBlocks, MaxBlocks);
+        transportThreads = std::min(std::max(1, numGammas / MinParticlesForThreads), TransportThreads);
+        transportBlocks  = (numGammas + transportThreads - 1) / transportThreads;
+        transportBlocks  = std::min(transportBlocks, MaxBlocks);
 
-        TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+        TransportGammas<<<transportBlocks, transportThreads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, globalScoring,
             scoringPerVolume);
 
