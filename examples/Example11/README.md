@@ -19,7 +19,7 @@ Results are reproducible using one RANLUX++ state per track.
 ### Kernels
 
 This example uses one stream per particle type to launch kernels asynchronously.
-They are synchronized via a forth stream using CUDA events.
+They are synchronized via a fourth stream using CUDA events.
 
 #### `TransportElectrons<bool IsElectron>`
 

@@ -30,6 +30,7 @@ set(ADEPT_UNIT_TESTS_BASE
   test_track_block.cu          # Unit test for BlockData
   test_sparsevector.cu         # Unit test for SparseVector on GPU
   test_sparsevector_cpu.cpp    # Unit test for SparseVector on CPU
+  test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
 )
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")

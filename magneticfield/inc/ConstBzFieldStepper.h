@@ -15,6 +15,8 @@
 
 #include "VecGeom/base/Global.h"
 
+#include "fieldConstants.h"
+
 // namespace adept {
 // inline namespace ADEPT_IMPL_NAMESPACE {
 
@@ -30,14 +32,14 @@ private:
   Precision fBz;
 
 public:
-  VECCORE_ATT_HOST_DEVICE
-  ConstBzFieldStepper(Precision Bz = 0) : fBz(Bz) {}
+  __host__ __device__
+  ConstBzFieldStepper(float Bz = 0.) : fBz(Bz) {}
 
   void SetBz(Precision Bz) { fBz = Bz; }
   Precision GetBz() const { return fBz; }
 
-  static constexpr Precision kB2C =
-      -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
+  // static constexpr Precision kB2C =
+  //    -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
 
   /*
   template<typename RT, typename Vector3D>
@@ -45,7 +47,7 @@ public:
           double const charge, double const momentum ) const
   {
     if (charge == 0) return RT(0.);
-    return abs( kB2C * fBz * dir.FastInverseScaledXYLength( momentum ) );
+    return abs( fieldConstants::kB2C * fBz * dir.FastInverseScaledXYLength( momentum ) );
   }
   */
 
@@ -55,7 +57,7 @@ public:
    * output: new position, new direction of particle
    */
   template <typename BaseType, typename BaseIType>
-  inline __attribute__((always_inline)) VECCORE_ATT_HOST_DEVICE void DoStep(
+  inline __attribute__((always_inline)) __host__ __device__ void DoStep(
       BaseType const & /*posx*/, BaseType const & /*posy*/, BaseType const & /*posz*/, BaseType const & /*dirx*/,
       BaseType const & /*diry*/, BaseType const & /*dirz*/, BaseIType const & /*charge*/, BaseType const & /*momentum*/,
       BaseType const & /*step*/, BaseType & /*newsposx*/, BaseType & /*newposy*/, BaseType & /*newposz*/,
@@ -68,7 +70,7 @@ public:
    * output: new position, new direction of particle
    */
   template <typename Vector3D, typename BaseType, typename BaseIType>
-  VECCORE_ATT_HOST_DEVICE void DoStep(Vector3D const &pos, Vector3D const &dir, BaseIType const &charge,
+  __host__ __device__ void DoStep(Vector3D const &pos, Vector3D const &dir, BaseIType const &charge,
                                       BaseType const &momentum, BaseType const &step, Vector3D &newpos,
                                       Vector3D &newdir) const
   {
@@ -94,11 +96,11 @@ inline __attribute__((always_inline)) void ConstBzFieldStepper::DoStep(
   BaseDType dt      = sqrt((dx0 * dx0) + (dy0 * dy0)) + kSmall;
   BaseDType invnorm = 1. / dt;
   // radius has sign and determines the sense of rotation
-  BaseDType R = momentum * dt / ((BaseDType(kB2C) * BaseDType(charge)) * (fBz));
+  BaseDType R = momentum * dt / ((BaseDType(fieldConstants::kB2C) * BaseDType(charge)) * (fBz));
 
   BaseDType cosa = dx0 * invnorm;
   BaseDType sina = dy0 * invnorm;
-  BaseDType phi  = step * BaseDType(charge) * fBz * BaseDType(kB2C) / momentum;
+  BaseDType phi  = step * BaseDType(charge) * fBz * BaseDType(fieldConstants::kB2C) / momentum;
 
   BaseDType cosphi;
   BaseDType sinphi;
