@@ -343,7 +343,7 @@ void example10(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
       gammas.queues.SwapActive();
 
       // Estimate the maximum number of secondaries that could occur in the next iteration.
-      int nextMaxElectrons = maxElectrons + /*ioni*/ maxElectrons + /*conversion*/ maxGammas + /*Compton*/ maxGammas;
+      int nextMaxElectrons = maxElectrons + /*ioni*/ maxElectrons + /*ioni*/ maxPositrons + /*conversion/Compton/photoelectric*/ maxGammas;
       int nextMaxPositrons = maxPositrons + /*conversion*/ maxGammas;
       int nextMaxGammas    = maxGammas + /*brems*/ maxElectrons + /*annihilation*/ 2 * maxPositrons;
 
