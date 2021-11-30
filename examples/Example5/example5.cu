@@ -1,25 +1,11 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <G4NistManager.hh>
-#include <G4Material.hh>
+#include "example5.h"
 
-#include <G4Box.hh>
-#include <G4LogicalVolume.hh>
-#include <G4PVPlacement.hh>
-
-#include <G4ParticleTable.hh>
-#include <G4Electron.hh>
-#include <G4Positron.hh>
-#include <G4Gamma.hh>
-#include <G4Proton.hh>
-
-#include <G4ProductionCuts.hh>
-#include <G4Region.hh>
-#include <G4ProductionCutsTable.hh>
-
-#include <G4UnitsTable.hh>
-#include <G4SystemOfUnits.hh>
+#include <CopCore/Global.h>
+#include <CopCore/SystemOfUnits.h>
+#include <CopCore/Ranluxpp.h>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmElectronInit.hh>
@@ -44,51 +30,6 @@
 #include <G4HepEmElectronInteractionMSC.icc> // Needed to make a debug build succeed.
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
-#include <CopCore/Global.h>
-#include <CopCore/Ranluxpp.h>
-
-static void InitGeant4()
-{
-  // --- Create materials.
-  G4Material *galactic = G4NistManager::Instance()->FindOrBuildMaterial("G4_Galactic");
-  G4Material *silicon  = G4NistManager::Instance()->FindOrBuildMaterial("G4_Si");
-  //
-  // --- Define a world.
-  G4double worldDim         = 1 * m;
-  G4Box *worldBox           = new G4Box("world", worldDim, worldDim, worldDim);
-  G4LogicalVolume *worldLog = new G4LogicalVolume(worldBox, galactic, "world");
-  G4PVPlacement *world      = new G4PVPlacement(nullptr, {}, worldLog, "world", nullptr, false, 0);
-  // --- Define a box.
-  G4double boxDim             = 0.5 * m;
-  G4double boxPos             = 0.5 * boxDim;
-  G4Box *siliconBox           = new G4Box("silicon", boxDim, boxDim, boxDim);
-  G4LogicalVolume *siliconLog = new G4LogicalVolume(siliconBox, silicon, "silicon");
-  new G4PVPlacement(nullptr, {boxPos, boxPos, boxPos}, siliconLog, "silicon", worldLog, false, 0);
-  //
-  // --- Create particles that have secondary production threshold.
-  G4Gamma::Gamma();
-  G4Electron::Electron();
-  G4Positron::Positron();
-  G4Proton::Proton();
-  G4ParticleTable *partTable = G4ParticleTable::GetParticleTable();
-  partTable->SetReadiness();
-  //
-  // --- Create production - cuts object and set the secondary production threshold.
-  G4ProductionCuts *productionCuts = new G4ProductionCuts();
-  constexpr G4double ProductionCut = 1 * mm;
-  productionCuts->SetProductionCut(ProductionCut);
-  //
-  // --- Register a region for the world.
-  G4Region *reg = new G4Region("default");
-  reg->AddRootLogicalVolume(worldLog);
-  reg->UsedInMassGeometry(true);
-  reg->SetProductionCuts(productionCuts);
-  //
-  // --- Update the couple tables.
-  G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
-  theCoupleTable->UpdateCoupleTable(world);
-}
-
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
@@ -109,7 +50,7 @@ static G4HepEmState *InitG4HepEm()
   InitElectronData(&state->data, &state->parameters, false);
 
   G4HepEmMatCutData *cutData = state->data.fTheMatCutData;
-  G4cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData << G4endl;
+  printf("fNumG4MatCuts = %d, fNumMatCutData = %d\n", cutData->fNumG4MatCuts, cutData->fNumMatCutData);
 
   // Copy to GPU.
   CopyG4HepEmDataToGPU(&state->data);
@@ -169,7 +110,7 @@ __global__ void TransportParticle()
   // To simplify copy&paste...
   G4HepEmElectronTrack *theElTrack = &elTrack;
   G4HepEmTrack *theTrack           = elTrack.GetTrack();
-  theTrack->SetEKin(100 * GeV);
+  theTrack->SetEKin(100 * copcore::units::GeV);
   theTrack->SetMCIndex(1);
   const bool isElectron = true;
   printf("Starting with %fMeV\n", theTrack->GetEKin());
@@ -248,9 +189,8 @@ __global__ void TransportParticle()
   }
 }
 
-int main()
+void example5()
 {
-  InitGeant4();
   G4HepEmState *state = InitG4HepEm();
 
   printf("Launching particle transport on GPU\n");
@@ -260,6 +200,4 @@ int main()
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   FreeG4HepEm(state);
-
-  return 0;
 }
