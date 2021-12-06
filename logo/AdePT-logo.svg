@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="148mm"
+   viewBox="0 0 210 148"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   sodipodi:docname="adept-logo.svg"
+   inkscape:export-filename="C:\Users\graem\code\AdePT\logo\adept-logo.png"
+   inkscape:export-xdpi="123.86"
+   inkscape:export-ydpi="123.86"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <title
+     id="title26068">AdePT Logo</title>
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.54698372"
+     inkscape:cx="552.11881"
+     inkscape:cy="257.77732"
+     inkscape:window-width="1452"
+     inkscape:window-height="942"
+     inkscape:window-x="2331"
+     inkscape:window-y="62"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2">
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker25930"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(-0.6)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round"
+         id="path25652" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow1Send"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow1Send"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.2,0,0,-0.2,-1.2,0)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         id="path25640" />
+    </marker>
+    <linearGradient
+       id="linearGradient22403"
+       inkscape:swatch="solid">
+      <stop
+         style="stop-color:#000000;stop-opacity:1;"
+         offset="0"
+         id="stop22401" />
+    </linearGradient>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutL"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutL"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.8)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path48216" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow2Mend"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(-0.6)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round"
+         id="path48101" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow2Lend"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Lend"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-1.1,0,0,-1.1,-1.1,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round"
+         id="path48095" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow1Lend"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow1Lend"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         id="path48077" />
+    </marker>
+    <rect
+       x="36.564159"
+       y="457.052"
+       width="970.77844"
+       height="124.31814"
+       id="rect41539" />
+    <rect
+       x="38.392368"
+       y="352.84415"
+       width="731.2832"
+       height="268.74658"
+       id="rect23189" />
+    <rect
+       x="85.925774"
+       y="585.02655"
+       width="1146.2864"
+       height="605.13684"
+       id="rect2079" />
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-4"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-3" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-40"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-8" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-8"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-6" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-0"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-88" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-2"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-5" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-1"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-89" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-5"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-0" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-17"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path25770-7" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       transform="scale(0.26458333)"
+       id="text2077"
+       style="font-style:normal;font-weight:normal;font-size:192px;line-height:1.25;font-family:sans-serif;white-space:pre;shape-inside:url(#rect2079);fill:#000000;fill-opacity:1;stroke:none" />
+    <text
+       xml:space="preserve"
+       transform="matrix(0.35931626,0,0,0.34172701,-3.810562,-31.375265)"
+       id="text23187"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:96px;line-height:1.25;font-family:'Lucida Sans';-inkscape-font-specification:'Lucida Sans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;letter-spacing:5px;white-space:pre;shape-inside:url(#rect23189);fill:#e22c2c;fill-opacity:1"><tspan
+         x="38.392578"
+         y="440.67366"
+         id="tspan28049"><tspan
+           style="font-family:Arial;-inkscape-font-specification:Arial"
+           id="tspan28047">AdePT</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       transform="matrix(0.33340793,0,0,0.26458333,-2.5335543,1.0583333)"
+       id="text41537"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:18.6667px;line-height:1.25;font-family:'Lucida Sans';-inkscape-font-specification:'Lucida Sans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;letter-spacing:2.04px;white-space:pre;shape-inside:url(#rect41539);fill:#e22c2c;fill-opacity:1"><tspan
+         x="36.564453"
+         y="474.1308"
+         id="tspan28053"><tspan
+           style="font-style:italic;-inkscape-font-specification:'Lucida Sans Italic'"
+           id="tspan28051">Accelerated Particle Transport</tspan></tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.976298;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#TriangleOutM-5)"
+       d="m 145.55476,58.037983 22.58238,4.162772 25.6011,4.883528"
+       id="path47257-2"
+       sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.976298;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#TriangleOutM-1)"
+       d="M 104.31931,84.554438 123.59243,72.070885 145.55476,58.037983"
+       id="path47257-7"
+       sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.976298;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#TriangleOutM-2)"
+       d="m 198.91053,111.56849 -24.7951,-8.02928 -21.88941,-6.93873"
+       id="path47257-5"
+       sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.976298;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#TriangleOutM-0)"
+       d="m 152.22602,96.60048 21.15277,-8.936037 24.07071,-9.993339"
+       id="path47257-4"
+       sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.976298;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#TriangleOutM-8)"
+       d="M 57.284479,98.382285 79.29353,91.83293 104.31931,84.554438"
+       id="path47257-8"
+       sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="m 145.55476,58.037983 c -0.21314,-0.925974 -0.42457,-1.849893 -0.52956,-2.64393 -0.10496,-0.794065 -0.10043,-1.454511 0.0758,-1.905531 0.17623,-0.450983 0.52591,-0.690428 1.04364,-0.724828 0.5177,-0.03444 1.20326,0.135914 1.98575,0.424496 0.78251,0.288564 1.65993,0.692965 2.52428,1.081474 0.86443,0.388505 1.71274,0.757328 2.44329,0.982495 0.73057,0.225211 1.34047,0.303207 1.77514,0.167414 0.43462,-0.135822 0.69218,-0.487094 0.78755,-1.036776 0.0954,-0.549683 0.0287,-1.297022 -0.12249,-2.147504 -0.15117,-0.850456 -0.38463,-1.801275 -0.59073,-2.718716 -0.20611,-0.917489 -0.38174,-1.797749 -0.42912,-2.521566 -0.0474,-0.723857 0.0363,-1.287837 0.29732,-1.63484 0.26129,-0.347261 0.70163,-0.476117 1.29784,-0.414836 0.5962,0.06129 1.34758,0.311877 2.17051,0.649732 0.82289,0.337822 1.71492,0.759975 2.56542,1.131494 0.85052,0.371513 1.65637,0.688542 2.32431,0.837332 0.66769,0.149053 1.19508,0.126396 1.54354,-0.114561 0.34845,-0.240949 0.51682,-0.701574 0.53698,-1.342991 0.0202,-0.641469 -0.10705,-1.462651 -0.29228,-2.354632 -0.18524,-0.892031 -0.42601,-1.851758 -0.61136,-2.743898 -0.18536,-0.892144 -0.3124,-1.712595 -0.29255,-2.354409 0.0199,-0.641771 0.1889,-1.101617 0.53698,-1.342995 0.34811,-0.241384 0.8761,-0.263286 1.54382,-0.114788 0.66767,0.148479 1.47384,0.465905 2.32429,0.837344 0.85045,0.371432 1.7424,0.793518 2.56516,1.131713 0.82305,0.338018 1.57401,0.588091 2.1705,0.649739 0.59651,0.06163 1.03618,-0.06801 1.29785,-0.414843 0.26169,-0.346789 0.34474,-0.911518 0.29758,-1.635055 -0.0471,-0.723505 -0.22306,-1.604163 -0.42911,-2.521572 -0.20631,-0.917134 -0.43967,-1.867844 -0.59101,-2.718485 -0.15137,-0.85069 -0.21755,-1.597426 -0.12248,-2.147515 0.095,-0.550066 0.35352,-0.900779 0.78782,-1.036997 0.43434,-0.136186 1.04479,-0.05751 1.77514,0.167415 0.73031,0.224897 1.57862,0.594252 2.44301,0.982722 0.86441,0.388459 1.74167,0.792602 2.52437,1.0814 0.7827,0.288807 1.46779,0.458491 1.98582,0.424437 0.51809,-0.03403 0.86712,-0.274267 1.0437,-0.724877 0.17659,-0.45061 0.1806,-1.111753 0.0756,-1.90535 -0.10472,-0.793791 -0.31637,-1.718004 -0.52945,-2.643958"
+       title="t sin(4*t)"
+       id="path26798-4" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="m 104.31931,84.554438 c 0.61702,-0.722584 1.23341,-1.442584 1.80884,-1.99972 0.57546,-0.55713 1.10877,-0.946734 1.57604,-1.073724 0.46726,-0.126941 0.86785,0.01143 1.20374,0.406891 0.33592,0.395414 0.60726,1.047637 0.84132,1.848125 0.23409,0.800495 0.43163,1.746219 0.63416,2.671973 0.20257,0.92582 0.41137,1.826965 0.66545,2.547966 0.25406,0.721049 0.55456,1.25749 0.92245,1.525849 0.36791,0.26831 0.80349,0.266077 1.3019,0.01541 0.4984,-0.250669 1.05913,-0.749207 1.6524,-1.377089 0.59324,-0.627836 1.21813,-1.381543 1.83251,-2.09339 0.61437,-0.711898 1.21702,-1.377123 1.77033,-1.846167 0.55334,-0.46909 1.05625,-0.737683 1.49047,-0.734559 0.43458,0.0032 0.8003,0.280208 1.10606,0.795696 0.30575,0.515484 0.55183,1.268364 0.77037,2.130677 0.21856,0.862265 0.41054,1.830293 0.61847,2.734813 0.20794,0.904518 0.43306,1.740717 0.71122,2.365936 0.27781,0.625182 0.61004,1.035402 1.01111,1.171884 0.40105,0.13648 0.87138,-0.0025 1.39871,-0.368233 0.52735,-0.365762 1.11137,-0.956904 1.7177,-1.636826 0.60636,-0.67997 1.23406,-1.444848 1.84045,-2.124968 0.6064,-0.680119 1.18991,-1.270701 1.71737,-1.636912 0.52744,-0.366162 0.99753,-0.504164 1.39872,-0.36823 0.40119,0.135937 0.73318,0.547096 1.01144,1.171969 0.27827,0.624821 0.50326,1.461514 0.71122,2.365936 0.20796,0.904421 0.39995,1.872346 0.61812,2.734725 0.21851,0.862514 0.46473,1.614746 0.77038,2.130677 0.30565,0.515934 0.67161,0.79199 1.10605,0.795696 0.43444,0.0038 0.93759,-0.265778 1.49082,-0.734474 0.55321,-0.468647 1.15599,-1.134366 1.77034,-1.846165 0.614,-0.711834 1.23886,-1.465393 1.83217,-2.093475 0.59332,-0.628133 1.15386,-1.125926 1.6524,-1.377088 0.49852,-0.251165 0.93419,-0.252324 1.30223,0.01549 0.36802,0.267862 0.6683,0.805144 0.92245,1.525847 0.25418,0.720654 0.46252,1.622109 0.66511,2.54788 0.20259,0.92577 0.40025,1.871206 0.63426,2.672 0.23402,0.800793 0.5056,1.452231 0.84142,1.84815 0.33581,0.395968 0.73665,0.533344 1.20381,0.406909 0.46717,-0.126435 1.00073,-0.516875 1.57577,-1.073794 0.57538,-0.556779 1.19188,-1.277119 1.80893,-1.999643"
+       title="t sin(4*t)"
+       id="path26798-6" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="Particle Sources"
+     style="display:none">
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.976298;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#TriangleOutM-17)"
+       d="M 14.501023,18.589579 37.462357,18.325934 63.524728,18.188258"
+       id="path47257-81"
+       sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="m 14.934421,39.664473 c 0.42219,-0.851236 0.84439,-1.69981 1.26659,-2.38045 0.42223,-0.680641 0.84443,-1.188535 1.26663,-1.425639 0.42219,-0.237051 0.84443,-0.200546 1.26663,0.101068 0.42219,0.301562 0.84439,0.867926 1.26659,1.587171 0.42223,0.719244 0.84443,1.588246 1.26659,2.436666 0.42224,0.848471 0.84447,1.671496 1.2667,2.308771 0.42224,0.637326 0.84447,1.084294 1.2667,1.254838 0.42223,0.170493 0.84411,0.06211 1.26635,-0.302535 0.42223,-0.36464 0.84446,-0.984866 1.2667,-1.738464 0.42223,-0.753549 0.84446,-1.636886 1.2667,-2.477063 0.42223,-0.840228 0.84446,-1.632329 1.2667,-2.222142 0.42223,-0.589864 0.84446,-0.972987 1.26634,-1.075846 0.42224,-0.10291 0.84447,0.07659 1.2667,0.501956 0.42223,0.425361 0.84447,1.095506 1.2667,1.878493 0.42223,0.782937 0.84447,1.674927 1.2667,2.501434 0.42223,0.826506 0.84447,1.582563 1.2667,2.121075 0.42188,0.538563 0.84411,0.855383 1.26635,0.889942 0.42223,0.03456 0.84446,-0.214934 1.26669,-0.698202 0.42224,-0.483319 0.84447,-1.199031 1.2667,-2.006287 0.42224,-0.807307 0.84447,-1.702164 1.2667,-2.509624 0.42224,-0.807461 0.84412,-1.522508 1.26635,-2.006287 0.42223,-0.483729 0.84447,-0.732198 1.2667,-0.698202 0.42223,0.034 0.84446,0.351789 1.2667,0.889942 0.42223,0.538102 0.84446,1.294671 1.2667,2.121075 0.42223,0.826405 0.84446,1.718292 1.26634,2.501434 0.42224,0.783192 0.84447,1.452671 1.2667,1.878493 0.42224,0.425823 0.84447,0.604303 1.2667,0.501956 0.42224,-0.102296 0.84447,-0.486391 1.2667,-1.075846 0.42223,-0.589404 0.84447,-1.382017 1.2667,-2.222142 0.42188,-0.840074 0.84411,-1.723259 1.26635,-2.477063 0.42223,-0.753855 0.84446,-1.373312 1.2667,-1.738464 0.42223,-0.365152 0.84446,-0.472516 1.2667,-0.302535 0.42223,0.170032 0.84446,0.61787 1.26669,1.254838 0.42224,0.636916 0.84412,1.460351 1.26635,2.308771 0.42223,0.848419 0.84447,1.717114 1.2667,2.436666 0.42223,0.719552 0.84447,1.285097 1.2667,1.587171 0.42223,0.302126 0.84447,0.337607 1.2667,0.101067 0.42223,-0.23654 0.84447,-0.745305 1.26634,-1.425638 0.42224,-0.680282 0.84447,-1.529214 1.2667,-2.380398"
+       title="t sin(4*t)"
+       id="path26798-67" />
+  </g>
+  <metadata
+     id="metadata26066">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-nc/4.0/" />
+        <dc:title>AdePT Logo</dc:title>
+        <dc:date>2021-12-17</dc:date>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Graeme A Stewart</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:publisher>
+          <cc:Agent>
+            <dc:title>CERN</dc:title>
+          </cc:Agent>
+        </dc:publisher>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-nc/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:prohibits
+           rdf:resource="http://creativecommons.org/ns#CommercialUse" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+</svg>
