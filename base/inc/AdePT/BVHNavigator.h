@@ -27,6 +27,8 @@ class BVHNavigator {
 public:
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 
+  static constexpr vecgeom::Precision kBoundaryPush = 10 * vecgeom::kTolerance;
+
   __host__ __device__ static VPlacedVolumePtr_t LocatePointIn(vecgeom::VPlacedVolume const *vol,
                                                               vecgeom::Vector3D<vecgeom::Precision> const &point,
                                                               vecgeom::NavStateIndex &path, bool top,
@@ -191,7 +193,6 @@ public:
       vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state, vecgeom::NavStateIndex &out_state,
       vecgeom::Precision push = 0.)
   {
-    constexpr vecgeom::Precision kPush = 10. * vecgeom::kTolerance;
     // calculate local point/dir from global point/dir
     vecgeom::Vector3D<vecgeom::Precision> localpoint;
     vecgeom::Vector3D<vecgeom::Precision> localdir;
@@ -209,7 +210,7 @@ public:
 
     if (out_state.IsOnBoundary()) {
       // Relocate the point after the step to refine out_state.
-      localpoint += (step + kPush) * localdir;
+      localpoint += (step + kBoundaryPush) * localdir;
 
       if (!hitcandidate) {
         // We didn't hit a daughter but instead we're exiting the current volume.
@@ -265,8 +266,7 @@ public:
         vecgeom::VPlacedVolume const *currentmother       = out_state.Top();
         vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
         // Push the point inside the next volume.
-        static constexpr double kPush = 10. * vecgeom::kTolerance;
-        transformed += (step + kPush) * localdir;
+        transformed += (step + kBoundaryPush) * localdir;
 
         do {
           out_state.SetLastExited();
@@ -309,8 +309,7 @@ public:
                                                        vecgeom::NavStateIndex &state)
   {
     // Push the point inside the next volume.
-    static constexpr double kPush = 10. * vecgeom::kTolerance;
-    globalpoint += kPush * globaldir;
+    globalpoint += kBoundaryPush * globaldir;
 
     // Calculate local point from global point.
     vecgeom::Transformation3D m;
