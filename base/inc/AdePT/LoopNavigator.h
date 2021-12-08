@@ -173,6 +173,14 @@ public:
     if (in_state.IsOnBoundary()) {
       push += kBoundaryPush;
     }
+    if (step_limit < push) {
+      // Go as far as the step limit says, assuming there is no boundary.
+      // TODO: Does this make sense?
+      in_state.CopyTo(&out_state);
+      out_state.SetBoundaryState(false);
+      return step_limit;
+    }
+    step_limit -= push;
 
     // calculate local point/dir from global point/dir
     vecgeom::Vector3D<vecgeom::Precision> localpoint;
@@ -187,7 +195,7 @@ public:
 
     VPlacedVolumePtr_t hitcandidate = nullptr;
     vecgeom::Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
-    if (step < step_limit) step += push;
+    step += push;
 
     if (out_state.IsOnBoundary()) {
       // Relocate the point after the step to refine out_state.
@@ -231,6 +239,14 @@ public:
     if (in_state.IsOnBoundary()) {
       push += kBoundaryPush;
     }
+    if (step_limit < push) {
+      // Go as far as the step limit says, assuming there is no boundary.
+      // TODO: Does this make sense?
+      in_state.CopyTo(&out_state);
+      out_state.SetBoundaryState(false);
+      return step_limit;
+    }
+    step_limit -= push;
 
     // calculate local point/dir from global point/dir
     vecgeom::Vector3D<vecgeom::Precision> localpoint;
@@ -245,7 +261,7 @@ public:
 
     VPlacedVolumePtr_t hitcandidate = nullptr;
     vecgeom::Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
-    if (step < step_limit) step += push;
+    step += push;
 
     if (out_state.IsOnBoundary()) {
       if (!hitcandidate) {
