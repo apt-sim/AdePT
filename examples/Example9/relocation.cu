@@ -3,6 +3,7 @@
 
 #include "example9.cuh"
 
+#include <AdePT/LoopNavigator.h>
 #include <AdePT/MParray.h>
 
 #include <VecGeom/base/Vector3D.h>
@@ -51,13 +52,13 @@ __global__ void RelocateToNextVolume(Track *allTracks, const adept::MParray *rel
     // variable localCoordinates.
     if (lane == 0) {
       // Push the point inside the next volume.
-      static constexpr double kPush = 10. * vecgeom::kTolerance;
-      currentTrack.pos += kPush * currentTrack.dir;
+      static constexpr double kPush = LoopNavigator::kBoundaryPush;
+      vecgeom::Vector3D<vecgeom::Precision> pushed = currentTrack.pos + kPush * currentTrack.dir;
 
       // Calculate local point from global point.
       vecgeom::Transformation3D m;
       state.TopMatrix(m);
-      vecgeom::Vector3D<vecgeom::Precision> localPoint = m.Transform(currentTrack.pos);
+      vecgeom::Vector3D<vecgeom::Precision> localPoint = m.Transform(pushed);
 
       currentVolume = state.Top();
 

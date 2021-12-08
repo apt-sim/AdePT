@@ -295,13 +295,13 @@ __global__ void RelocateToNextVolume(adept::BlockData<track> *allTracks, adept::
     // variable localCoordinates.
     if (lane == 0) {
       // Push the point inside the next volume.
-      static constexpr double kPush = 10. * vecgeom::kTolerance;
-      currentTrack.pos += kPush * currentTrack.dir;
+      static constexpr double kPush = LoopNavigator::kBoundaryPush;
+      vecgeom::Vector3D<vecgeom::Precision> pushed = currentTrack.pos + kPush * currentTrack.dir;
 
       // Calculate local point from global point.
       vecgeom::Transformation3D m;
       state.TopMatrix(m);
-      vecgeom::Vector3D<vecgeom::Precision> localPoint = m.Transform(currentTrack.pos);
+      vecgeom::Vector3D<vecgeom::Precision> localPoint = m.Transform(pushed);
 
       currentVolume = state.Top();
 

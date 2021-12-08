@@ -193,6 +193,11 @@ public:
       vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state, vecgeom::NavStateIndex &out_state,
       vecgeom::Precision push = 0.)
   {
+    // If we are on the boundary, push a bit more.
+    if (in_state.IsOnBoundary()) {
+      push += kBoundaryPush;
+    }
+
     // calculate local point/dir from global point/dir
     vecgeom::Vector3D<vecgeom::Precision> localpoint;
     vecgeom::Vector3D<vecgeom::Precision> localdir;
@@ -246,6 +251,11 @@ public:
                                                              vecgeom::NavStateIndex &out_state,
                                                              vecgeom::Precision push = 0.)
   {
+    // If we are on the boundary, push a bit more.
+    if (in_state.IsOnBoundary()) {
+      push += kBoundaryPush;
+    }
+
     // calculate local point/dir from global point/dir
     vecgeom::Vector3D<vecgeom::Precision> localpoint;
     vecgeom::Vector3D<vecgeom::Precision> localdir;
@@ -304,17 +314,17 @@ public:
 
   // Relocate a state that was returned from ComputeStepAndNextVolume: It
   // recursively locates the pushed point in the containing volume.
-  __host__ __device__ static void RelocateToNextVolume(vecgeom::Vector3D<vecgeom::Precision> &globalpoint,
+  __host__ __device__ static void RelocateToNextVolume(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
                                                        vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
                                                        vecgeom::NavStateIndex &state)
   {
     // Push the point inside the next volume.
-    globalpoint += kBoundaryPush * globaldir;
+    vecgeom::Vector3D<vecgeom::Precision> pushed = globalpoint + kBoundaryPush * globaldir;
 
     // Calculate local point from global point.
     vecgeom::Transformation3D m;
     state.TopMatrix(m);
-    vecgeom::Vector3D<vecgeom::Precision> localpoint = m.Transform(globalpoint);
+    vecgeom::Vector3D<vecgeom::Precision> localpoint = m.Transform(pushed);
 
     VPlacedVolumePtr_t pvol = state.Top();
 
