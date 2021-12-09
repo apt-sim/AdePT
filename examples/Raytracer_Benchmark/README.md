@@ -25,7 +25,7 @@ The current version of scheduling is: get the ray using the index from the first
 ## How to use:
 
 ```console
-$ ./RaytraceBenchmark -gdml_name <path to gdml file>
+$ ./RaytraceBenchmark -gdml_file <path to gdml file>
 ```
 
 ## Parameters

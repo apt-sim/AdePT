@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
   return 2;
 #endif
 
-  OPTION_STRING(gdml_name, "trackML.gdml");
+  OPTION_STRING(gdml_file, "trackML.gdml");
   OPTION_INT(cache_depth, 0); // 0 = full depth
 
   InitGeant4();
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 #ifdef VECGEOM_GDML
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(cache_depth);
   // The vecgeom millimeter unit is the last parameter of vgdml::Frontend::Load
-  bool load = vgdml::Frontend::Load(gdml_name.c_str(), false, 1);
+  bool load = vgdml::Frontend::Load(gdml_file.c_str(), false, 1);
   if (!load) return 3;
 #endif
 
