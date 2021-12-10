@@ -65,7 +65,7 @@ struct Scoring {
   }
 };
 
-constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
+constexpr vecgeom::Precision BzFieldValue = 0.1 * copcore::units::tesla;
 
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;

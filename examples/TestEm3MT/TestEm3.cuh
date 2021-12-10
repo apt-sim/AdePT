@@ -146,7 +146,7 @@ extern __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 extern __constant__ __device__ int *MCIndex;
 
-// constexpr double BzFieldValue = 1 * copcore::units::tesla;
-constexpr double BzFieldValue = 0;
+// constexpr vecgeom::Precision BzFieldValue = 1 * copcore::units::tesla;
+constexpr vecgeom::Precision BzFieldValue = 0;
 
 #endif

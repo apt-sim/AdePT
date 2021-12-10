@@ -162,6 +162,6 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 extern __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 extern __constant__ __device__ struct G4HepEmData g4HepEmData;
 
-constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
+constexpr vecgeom::Precision BzFieldValue = 0.1 * copcore::units::tesla;
 
 #endif
