@@ -24,15 +24,15 @@ inline namespace COPCORE_IMPL {
 class LoopNavigator {
 
 public:
+  using Precision          = vecgeom::Precision;
+  using Vector3D           = vecgeom::Vector3D<vecgeom::Precision>;
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 
-  static constexpr vecgeom::Precision kBoundaryPush = 10 * vecgeom::kTolerance;
+  static constexpr Precision kBoundaryPush = 10 * vecgeom::kTolerance;
 
-  __host__ __device__
-  static VPlacedVolumePtr_t LocatePointIn(vecgeom::VPlacedVolume const *vol,
-                                          vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                          vecgeom::NavStateIndex &path, bool top,
-                                          vecgeom::VPlacedVolume const *exclude = nullptr)
+  __host__ __device__ static VPlacedVolumePtr_t LocatePointIn(VPlacedVolumePtr_t vol, Vector3D const &point,
+                                                              vecgeom::NavStateIndex &path, bool top,
+                                                              VPlacedVolumePtr_t exclude = nullptr)
   {
     if (top) {
       assert(vol != nullptr);
@@ -40,7 +40,7 @@ public:
     }
 
     VPlacedVolumePtr_t currentvolume = vol;
-    vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
+    Vector3D currentpoint(point);
     path.Push(currentvolume);
 
     bool godeeper;
@@ -50,7 +50,7 @@ public:
         if (daughter == exclude) {
           continue;
         }
-        vecgeom::Vector3D<vecgeom::Precision> transformedpoint;
+        Vector3D transformedpoint;
         if (daughter->Contains(currentpoint, transformedpoint)) {
           path.Push(daughter);
           currentpoint  = transformedpoint;
@@ -68,12 +68,10 @@ public:
     return currentvolume;
   }
 
-  __host__ __device__
-  static VPlacedVolumePtr_t RelocatePoint(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
-                                          vecgeom::NavStateIndex &path)
+  __host__ __device__ static VPlacedVolumePtr_t RelocatePoint(Vector3D const &localpoint, vecgeom::NavStateIndex &path)
   {
-    vecgeom::VPlacedVolume const *currentmother       = path.Top();
-    vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
+    VPlacedVolumePtr_t currentmother = path.Top();
+    Vector3D transformed             = localpoint;
     do {
       path.Pop();
       transformed   = currentmother->GetTransformation()->InverseTransform(transformed);
@@ -92,15 +90,13 @@ private:
   // taking step_limit into account. If a volume is hit, the function calls
   // out_state.SetBoundaryState(true) and hitcandidate is set to the hit
   // daughter volume, or kept unchanged if the current volume is left.
-  __host__ __device__ static double ComputeStepAndHit(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
-                                                      vecgeom::Vector3D<vecgeom::Precision> const &localdir,
-                                                      vecgeom::Precision step_limit,
-                                                      vecgeom::NavStateIndex const &in_state,
-                                                      vecgeom::NavStateIndex &out_state,
-                                                      VPlacedVolumePtr_t &hitcandidate)
+  __host__ __device__ static Precision ComputeStepAndHit(Vector3D const &localpoint, Vector3D const &localdir,
+                                                         Precision step_limit, vecgeom::NavStateIndex const &in_state,
+                                                         vecgeom::NavStateIndex &out_state,
+                                                         VPlacedVolumePtr_t &hitcandidate)
   {
-    vecgeom::Precision step         = step_limit;
-    VPlacedVolumePtr_t pvol         = in_state.Top();
+    Precision step          = step_limit;
+    VPlacedVolumePtr_t pvol = in_state.Top();
 
     // need to calc DistanceToOut first
     step = pvol->DistanceToOut(localpoint, localdir, step_limit);
@@ -143,15 +139,14 @@ private:
 
 public:
   // Computes the isotropic safety from the globalpoint.
-  __host__ __device__ static double ComputeSafety(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
-                                                  vecgeom::NavStateIndex const &state)
+  __host__ __device__ static Precision ComputeSafety(Vector3D const &globalpoint, vecgeom::NavStateIndex const &state)
   {
     VPlacedVolumePtr_t pvol = state.Top();
     vecgeom::Transformation3D m;
     state.TopMatrix(m);
-    vecgeom::Vector3D<vecgeom::Precision> localpoint = m.Transform(globalpoint);
+    Vector3D localpoint = m.Transform(globalpoint);
 
-    vecgeom::Precision safety = pvol->SafetyToOut(localpoint);
+    Precision safety = pvol->SafetyToOut(localpoint);
 
     for (auto *daughter : pvol->GetDaughters()) {
       double dsafety = daughter->SafetyToIn(localpoint);
@@ -165,9 +160,11 @@ public:
   // into globaldir, taking step_limit into account. If a volume is hit, the
   // function calls out_state.SetBoundaryState(true) and relocates the state to
   // the next volume.
-  __host__ __device__ static double ComputeStepAndPropagatedState(
-      vecgeom::Vector3D<vecgeom::Precision> const &globalpoint, vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
-      vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state, vecgeom::NavStateIndex &out_state, vecgeom::Precision push = 0.)
+  __host__ __device__ static Precision ComputeStepAndPropagatedState(Vector3D const &globalpoint,
+                                                                     Vector3D const &globaldir, Precision step_limit,
+                                                                     vecgeom::NavStateIndex const &in_state,
+                                                                     vecgeom::NavStateIndex &out_state,
+                                                                     Precision push = 0)
   {
     // If we are on the boundary, push a bit more.
     if (in_state.IsOnBoundary()) {
@@ -183,8 +180,8 @@ public:
     step_limit -= push;
 
     // calculate local point/dir from global point/dir
-    vecgeom::Vector3D<vecgeom::Precision> localpoint;
-    vecgeom::Vector3D<vecgeom::Precision> localdir;
+    Vector3D localpoint;
+    Vector3D localdir;
     // Impl::DoGlobalToLocalTransformation(in_state, globalpoint, globaldir, localpoint, localdir);
     vecgeom::Transformation3D m;
     in_state.TopMatrix(m);
@@ -194,7 +191,7 @@ public:
     localpoint += push * localdir;
 
     VPlacedVolumePtr_t hitcandidate = nullptr;
-    vecgeom::Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
+    Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
     step += push;
 
     if (out_state.IsOnBoundary()) {
@@ -228,12 +225,10 @@ public:
   //  - adds the hit daughter volume to out_state if one is hit.
   // However the function does _NOT_ relocate the state to the next volume,
   // that is entering multiple volumes that share a boundary.
-  __host__ __device__ static double ComputeStepAndNextVolume(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
-                                                             vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
-                                                             vecgeom::Precision step_limit,
-                                                             vecgeom::NavStateIndex const &in_state,
-                                                             vecgeom::NavStateIndex &out_state,
-                                                             vecgeom::Precision push = 0.)
+  __host__ __device__ static Precision ComputeStepAndNextVolume(Vector3D const &globalpoint, Vector3D const &globaldir,
+                                                                Precision step_limit,
+                                                                vecgeom::NavStateIndex const &in_state,
+                                                                vecgeom::NavStateIndex &out_state, Precision push = 0)
   {
     // If we are on the boundary, push a bit more.
     if (in_state.IsOnBoundary()) {
@@ -249,8 +244,8 @@ public:
     step_limit -= push;
 
     // calculate local point/dir from global point/dir
-    vecgeom::Vector3D<vecgeom::Precision> localpoint;
-    vecgeom::Vector3D<vecgeom::Precision> localdir;
+    Vector3D localpoint;
+    Vector3D localdir;
     // Impl::DoGlobalToLocalTransformation(in_state, globalpoint, globaldir, localpoint, localdir);
     vecgeom::Transformation3D m;
     in_state.TopMatrix(m);
@@ -260,13 +255,13 @@ public:
     localpoint += push * localdir;
 
     VPlacedVolumePtr_t hitcandidate = nullptr;
-    vecgeom::Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
+    Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
     step += push;
 
     if (out_state.IsOnBoundary()) {
       if (!hitcandidate) {
-        vecgeom::VPlacedVolume const *currentmother       = out_state.Top();
-        vecgeom::Vector3D<vecgeom::Precision> transformed = localpoint;
+        VPlacedVolumePtr_t currentmother = out_state.Top();
+        Vector3D transformed             = localpoint;
         // Push the point inside the next volume.
         transformed += (step + kBoundaryPush) * localdir;
         do {
@@ -285,17 +280,16 @@ public:
 
   // Relocate a state that was returned from ComputeStepAndNextVolume: It
   // recursively locates the pushed point in the containing volume.
-  __host__ __device__ static void RelocateToNextVolume(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
-                                                       vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
+  __host__ __device__ static void RelocateToNextVolume(Vector3D const &globalpoint, Vector3D const &globaldir,
                                                        vecgeom::NavStateIndex &state)
   {
     // Push the point inside the next volume.
-    vecgeom::Vector3D<vecgeom::Precision> pushed = globalpoint + kBoundaryPush * globaldir;
+    Vector3D pushed = globalpoint + kBoundaryPush * globaldir;
 
     // Calculate local point from global point.
     vecgeom::Transformation3D m;
     state.TopMatrix(m);
-    vecgeom::Vector3D<vecgeom::Precision> localpoint = m.Transform(pushed);
+    Vector3D localpoint = m.Transform(pushed);
 
     VPlacedVolumePtr_t pvol = state.Top();
 
