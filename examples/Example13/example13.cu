@@ -124,10 +124,9 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
       // Generate particles flat in phi and in eta between -5 and 5. We'll lose the far forwards ones, so no need to simulate.
       const double phi = 2. * M_PI * track.rngState.Rndm();
       const double eta = -5. + 10. * track.rngState.Rndm();
-      track.dir = {
-        cos(phi) / cosh(eta),
-        sin(phi) / cosh(eta),
-                   tanh(eta)};
+      track.dir.x()    = static_cast<vecgeom::Precision>(cos(phi) / cosh(eta));
+      track.dir.y()    = static_cast<vecgeom::Precision>(sin(phi) / cosh(eta));
+      track.dir.z()    = static_cast<vecgeom::Precision>(tanh(eta));
     } else {
       track.dir = {1.0, 0, 0};
     }
