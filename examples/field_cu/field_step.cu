@@ -60,7 +60,7 @@ __global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagator
 {
   int maxIndex = trackBlock->GetNused() + trackBlock->GetNholes();
 
-  float Bvalue[3];
+  vecgeom::Precision Bvalue[3];
   Bfield.ObtainField(Bvalue);
 
   ConstFieldHelixStepper helixAnyB = ConstFieldHelixStepper(Bvalue);
@@ -79,9 +79,9 @@ __global__ void moveInField(adept::BlockData<track> *trackBlock, fieldPropagator
   }
 }
 
-static float BzValue = 0.1 * copcore::units::tesla;
+static vecgeom::Precision BzValue = 0.1 * copcore::units::tesla;
 
-static float BfieldValue[3] = {0.001 * copcore::units::tesla, -0.001 * copcore::units::tesla, BzValue};
+static vecgeom::Precision BfieldValue[3] = {0.001 * copcore::units::tesla, -0.001 * copcore::units::tesla, BzValue};
 
 int main(int argc, char **argv)
 {

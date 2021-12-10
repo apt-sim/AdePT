@@ -17,44 +17,42 @@
 
 class fieldPropagatorConstBz {
   using Precision = vecgeom::Precision;
+  using Vector3D  = vecgeom::Vector3D<vecgeom::Precision>;
+
 public:
-  __host__ __device__ fieldPropagatorConstBz(float Bz) { BzValue = Bz; }
+  __host__ __device__ fieldPropagatorConstBz(Precision Bz) { BzValue = Bz; }
   __host__ __device__ ~fieldPropagatorConstBz() {}
 
-  __host__ __device__ void stepInField(double kinE, double mass, int charge, double step,
-                                       vecgeom::Vector3D<Precision> &position, vecgeom::Vector3D<Precision> &direction);
+  __host__ __device__ void stepInField(double kinE, double mass, int charge, Precision step, Vector3D &position,
+                                       Vector3D &direction);
 
   template <class Navigator = LoopNavigator>
-  __host__ __device__ double ComputeStepAndNextVolume(double kinE, double mass, int charge, double physicsStep,
-                                                      vecgeom::Vector3D<Precision> &position,
-                                                      vecgeom::Vector3D<Precision> &direction,
-                                                      vecgeom::NavStateIndex const &current_state,
-                                                      vecgeom::NavStateIndex &new_state,
-                                                      bool &propagated,
-                                                      double safety = 0.0,
-                                                      const int max_iteration = 100);
+  __host__ __device__ Precision ComputeStepAndNextVolume(double kinE, double mass, int charge, Precision physicsStep,
+                                                         Vector3D &position, Vector3D &direction,
+                                                         vecgeom::NavStateIndex const &current_state,
+                                                         vecgeom::NavStateIndex &new_state, bool &propagated,
+                                                         Precision safety = 0, const int max_iteration = 100);
 
 private:
-  float BzValue;
+  Precision BzValue;
 };
 
 // -----------------------------------------------------------------------------
 
-__host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double mass, int charge, double step,
+__host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double mass, int charge, Precision step,
                                                              vecgeom::Vector3D<vecgeom::Precision> &position,
                                                              vecgeom::Vector3D<vecgeom::Precision> &direction)
 {
-  using Precision = vecgeom::Precision;
   if (charge != 0) {
-    double momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
+    Precision momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
 
     // For now all particles ( e-, e+, gamma ) can be propagated using this
     //   for gammas  charge = 0 works, and ensures that it goes straight.
     ConstBzFieldStepper helixBz(BzValue);
 
-    vecgeom::Vector3D<Precision> endPosition  = position;
-    vecgeom::Vector3D<Precision> endDirection = direction;
-    helixBz.DoStep<vecgeom::Vector3D<Precision>,Precision,int>(position, direction, charge, momentumMag, step, endPosition, endDirection);
+    Vector3D endPosition  = position;
+    Vector3D endDirection = direction;
+    helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, step, endPosition, endDirection);
     position  = endPosition;
     direction = endDirection;
   } else {
@@ -66,38 +64,38 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 template <class Navigator>
-__host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
-    double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
+__host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
+    double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, const double /*safety*/, const int max_iterations)
+    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision /*safety*/, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
   #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
-  const Precision kPush = 0.;
+  const Precision kPush = 0;
 #endif
-  double momentumMag   = sqrt(kinE * (kinE + 2.0 * mass));
-  double momentumXYMag =
+  Precision momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
+  Precision momentumXYMag =
       momentumMag * sqrt((1. - direction[2]) * (1. + direction[2])); // only XY component matters for the curvature
 
-  double curv = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / (momentumXYMag + 1.0e-30); // norm for step
+  Precision curv = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / (momentumXYMag + 1.0e-30); // norm for step
 
-  constexpr double gEpsilonDeflect = 1.E-2 * copcore::units::cm;
+  constexpr Precision gEpsilonDeflect = 1.E-2 * copcore::units::cm;
 
   // acceptable lateral error from field ~ related to delta_chord sagital distance
 
-  // constexpr double invEpsD= 1.0 / gEpsilonDeflect;
+  // constexpr Precision invEpsD= 1.0 / gEpsilonDeflect;
 
-  double safeLength =
+  Precision safeLength =
       sqrt(2 * gEpsilonDeflect / curv); // max length along curve for deflectionn
                                         // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
 
   ConstBzFieldStepper helixBz(BzValue);
 
-  double stepDone           = 0.0;
-  double remains            = physicsStep;
-  const double epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
+  Precision stepDone           = 0;
+  Precision remains            = physicsStep;
+  const Precision epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
   int chordIters            = 0;
 
   if (charge == 0) {
@@ -109,18 +107,19 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     //  Locate the intersection of the curved trajectory and the boundaries of the current
     //    volume (including daughters).
     do {
-      vecgeom::Vector3D<Precision> endPosition  = position;
-      vecgeom::Vector3D<Precision> endDirection = direction;
-      double safeMove                        = min(remains, safeLength);
+      Vector3D endPosition  = position;
+      Vector3D endDirection = direction;
+      Precision safeMove    = min(remains, safeLength);
 
-      // fieldPropagatorConstBz( aTrack, BzValue, endPosition, endDirection ); -- Doesn't work
-      helixBz.DoStep<vecgeom::Vector3D<Precision>,Precision,int>(position, direction, charge, momentumMag, safeMove, endPosition, endDirection);
+      helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, safeMove, endPosition,
+                                               endDirection);
 
-      vecgeom::Vector3D<Precision> chordVec = endPosition - position;
-      double chordLen                    = chordVec.Length();
-      vecgeom::Vector3D<Precision> chordDir = (1.0 / chordLen) * chordVec;
+      Vector3D chordVec  = endPosition - position;
+      Precision chordLen = chordVec.Length();
+      Vector3D chordDir  = (1 / chordLen) * chordVec;
 
-      double move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
+      Precision move =
+          Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
 
       fullChord = (move == chordLen);
       if (fullChord) {
@@ -136,7 +135,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
         position = position + move * chordDir;
 
         // Primitive approximation of end direction and move to the crossing point ...
-        double fraction = chordLen > 0 ? move / chordLen : 0.0;
+        Precision fraction = chordLen > 0 ? move / chordLen : 0;
         direction       = direction * (1.0 - fraction) + endDirection * fraction;
         direction       = direction.Unit();
         // safeMove is how much the track would have been moved if not hitting the boundary
