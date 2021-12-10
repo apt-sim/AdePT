@@ -22,6 +22,8 @@
  *   ( not just along the z-axis-- for that there is ConstBzFieldHelixStepper )
  */
 class ConstFieldHelixStepper {
+  using Precision = vecgeom::Precision;
+
   template <typename T>
   using Vector3D = vecgeom::Vector3D<T>;
 
@@ -30,25 +32,26 @@ public:
   // ConstFieldHelixStepper(); // For default initialisation only
 
   VECCORE_ATT_HOST_DEVICE
-  ConstFieldHelixStepper(float Bx, float By, float Bz);
+  ConstFieldHelixStepper(Precision Bx, Precision By, Precision Bz);
 
   VECCORE_ATT_HOST_DEVICE
-  ConstFieldHelixStepper(float Bfield[3]);
+  ConstFieldHelixStepper(Precision Bfield[3]);
 
   VECCORE_ATT_HOST_DEVICE
-  ConstFieldHelixStepper(Vector3D<float> const &Bfield);
+  ConstFieldHelixStepper(Vector3D<Precision> const &Bfield);
 
-  void VECCORE_ATT_HOST_DEVICE SetB(float Bx, float By, float Bz)
+  void VECCORE_ATT_HOST_DEVICE SetB(Precision Bx, Precision By, Precision Bz)
   {
     // fB.Set(Bx, By, Bz);
-    Vector3D<float> Bfield(Bx, By, Bz);
+    Vector3D<Precision> Bfield(Bx, By, Bz);
     CalculateDerived(Bfield);
   }
 
   VECCORE_ATT_HOST_DEVICE
-  Vector3D<float> const GetFieldVec() const { return fBmag * fUnit; }
+  Vector3D<Precision> const GetFieldVec() const { return fBmag * fUnit; }
 
-  static constexpr double kB2C = -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
+  static constexpr Precision kB2C =
+      -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
 
   /*
   template<typename RT, typename Vector3D>
@@ -88,40 +91,40 @@ public:
                  vecgeom::Vector3D<Real_t> &endPosition, vecgeom::Vector3D<Real_t> &endDirection) const;
 
 protected:
-  inline VECCORE_ATT_HOST_DEVICE void CalculateDerived(Vector3D<float> Bvec);
+  inline VECCORE_ATT_HOST_DEVICE void CalculateDerived(Vector3D<Precision> Bvec);
 
   template <typename Real_t>
   inline VECCORE_ATT_HOST_DEVICE bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const;
 
 private:
   // Values below used for speed, code simplicity
-  Vector3D<float> fUnit = Vector3D<float>(1.0, 0.0, 0.0); // direction
-  float fBmag           = 0.0;                            // magnitude
+  Vector3D<Precision> fUnit{1, 0, 0}; // direction
+  Precision fBmag = 0;                // magnitude
 
 }; // end class declaration
 
 inline // __host__ __device__
     void
-    ConstFieldHelixStepper::CalculateDerived(Vector3D<float> Bvec)
+    ConstFieldHelixStepper::CalculateDerived(Vector3D<Precision> Bvec)
 {
   fBmag         = Bvec.Mag();
-  float bMagInv = (1.0 / fBmag);
-  fUnit         = Vector3D<float>(1.0, 0.0, 0.0);
-  if (fBmag > 0.0) fUnit = bMagInv * Bvec;
+  Precision bMagInv = (1 / fBmag);
+  fUnit             = {1, 0, 0};
+  if (fBmag > 0) fUnit = bMagInv * Bvec;
 }
 
-inline ConstFieldHelixStepper::ConstFieldHelixStepper(float Bx, float By, float Bz) // : fB(Bx, By, gBz)
+inline ConstFieldHelixStepper::ConstFieldHelixStepper(Precision Bx, Precision By, Precision Bz) // : fB(Bx, By, gBz)
 {
-  CalculateDerived(Vector3D<float>(Bx, By, Bz));
+  CalculateDerived({Bx, By, Bz});
 }
 
-inline ConstFieldHelixStepper::ConstFieldHelixStepper(float B[3]) // : fB(B[0], B[1], B[2])
+inline ConstFieldHelixStepper::ConstFieldHelixStepper(Precision B[3]) // : fB(B[0], B[1], B[2])
 {
-  CalculateDerived(Vector3D<float>(B[0], B[1], B[2]));
+  CalculateDerived({B[0], B[1], B[2]});
 }
 
 inline VECCORE_ATT_HOST_DEVICE ConstFieldHelixStepper::ConstFieldHelixStepper(
-    vecgeom::Vector3D<float> const &Bfield) // : fB(Bfield)
+    Vector3D<Precision> const &Bfield) // : fB(Bfield)
 {
   CalculateDerived(Bfield);
 }
@@ -220,7 +223,7 @@ inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vect
 template <typename Real_t>
 bool ConstFieldHelixStepper::CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const
 {
-  constexpr float perMillion = 1.0e-6;
+  constexpr Precision perMillion = 1.0e-6;
 
   Real_t modulusDir = newdirX_v * newdirX_v + newdirY_v * newdirY_v + newdirZ_v * newdirZ_v;
   typename vecCore::Mask<Real_t> goodDir;
