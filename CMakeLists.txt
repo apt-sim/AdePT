@@ -29,7 +29,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
     FORCE)
 endif()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
@@ -64,6 +64,8 @@ endif()
 find_package(Geant4 QUIET)
 if(Geant4_FOUND)
   message(STATUS "Using Geant4 version ${Geant4_VERSION} from ${Geant4_INCLUDE_DIRS}")
+  set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
+  set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
   check_cxx_source_compiles("
   #include \"G4VFastSimulationModel.hh\"
   class testflush_ : public G4VFastSimulationModel {
@@ -71,9 +73,9 @@ if(Geant4_FOUND)
     G4bool ModelTrigger(const G4FastTrack &) {return true;}
     void DoIt(const G4FastTrack&, G4FastStep&) {}
     void Flush() final override {}
-    public: testflush_() : G4VFastSimulationModel("") {}
+    public: testflush_() : G4VFastSimulationModel(\"\") {}
   };
-  //int main() { testflush_ model; return 0; }" Geant4_flush_FOUND)
+  int main() { testflush_ model; return 0; }" Geant4_flush_FOUND)
 else()
   message(STATUS "Did not find Geant4")
 endif()
