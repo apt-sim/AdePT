@@ -15,6 +15,7 @@ project(Adept
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(CMakeSettings)
 include(CTest)
+include(CheckCXXSourceCompiles)  
 
 # - Core/C++/CUDA build and dependency settings
 # For single-mode generators, default to Optimized with Debug if nothing is specified
@@ -63,6 +64,16 @@ endif()
 find_package(Geant4 QUIET)
 if(Geant4_FOUND)
   message(STATUS "Using Geant4 version ${Geant4_VERSION} from ${Geant4_INCLUDE_DIRS}")
+  check_cxx_source_compiles("
+  #include \"G4VFastSimulationModel.hh\"
+  class testflush_ : public G4VFastSimulationModel {
+    G4bool IsApplicable(const G4ParticleDefinition&) {return true;}
+    G4bool ModelTrigger(const G4FastTrack &) {return true;}
+    void DoIt(const G4FastTrack&, G4FastStep&) {}
+    void Flush() final override {}
+    public: testflush_() : G4VFastSimulationModel("") {}
+  };
+  //int main() { testflush_ model; return 0; }" Geant4_flush_FOUND)
 else()
   message(STATUS "Did not find Geant4")
 endif()
