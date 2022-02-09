@@ -294,7 +294,7 @@ public:
     VPlacedVolumePtr_t pvol = state.Top();
 
     state.Pop();
-    LocatePointIn(pvol, localpoint, state, false);
+    LocatePointIn(pvol, localpoint, state, false, state.GetLastExited());
 
     if (state.Top() != nullptr) {
       while (state.Top()->IsAssembly()) {
