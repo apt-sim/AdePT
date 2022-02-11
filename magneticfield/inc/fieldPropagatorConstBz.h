@@ -102,14 +102,16 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
     position += stepDone * direction;
   } else {
-    bool fullChord = false;
+    bool continueIteration = false;
+
+    Precision maxNextSafeMove = safeLength;
 
     //  Locate the intersection of the curved trajectory and the boundaries of the current
     //    volume (including daughters).
     do {
       Vector3D endPosition  = position;
       Vector3D endDirection = direction;
-      Precision safeMove    = min(remains, safeLength);
+      Precision safeMove    = min(remains, maxNextSafeMove);
 
       helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, safeMove, endPosition,
                                                endDirection);
@@ -121,11 +123,24 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
       Precision move =
           Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
 
-      fullChord = (move == chordLen);
-      if (fullChord) {
+      if (move == chordLen) {
         position  = endPosition;
         direction = endDirection;
         move      = safeMove;
+        // We want to try the maximum step in the next iteration.
+        maxNextSafeMove   = safeLength;
+        continueIteration = true;
+      } else if (move <= kPush + Navigator::kBoundaryPush && stepDone == 0) {
+        // FIXME: Even for zero steps, the Navigator will return kPush + possibly
+        // Navigator::kBoundaryPush instead of a real 0.
+        move = 0;
+
+        static constexpr Precision ReduceFactor = 0.5;
+        static constexpr Precision ReduceIters  = 5;
+        // Reduce the step attempted in the next iteration to navigate around
+        // boundaries where the chord step may end in a volume we just left.
+        maxNextSafeMove   = ReduceFactor * safeMove;
+        continueIteration = chordIters < ReduceIters;
       } else {
         // Accept the intersection point on the surface.  This means that
         //   the point at the boundary will be on the 'straight'-line chord,
@@ -141,13 +156,14 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         // safeMove is how much the track would have been moved if not hitting the boundary
         // We approximate the actual reduction along the curved trajectory to be the same
         // as the reduction of the full chord due to the boundary crossing.
-        move            = fraction * safeMove;
+        move              = fraction * safeMove;
+        continueIteration = false;
       }
       stepDone += move;
       remains -= move;
       chordIters++;
 
-    } while ((!next_state.IsOnBoundary()) && fullChord && (remains > epsilon_step) && (chordIters < max_iterations));
+    } while (continueIteration && (remains > epsilon_step) && (chordIters < max_iterations));
   }
 
   propagated = (chordIters < max_iterations);
