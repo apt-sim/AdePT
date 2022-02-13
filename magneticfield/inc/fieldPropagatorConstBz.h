@@ -75,21 +75,20 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
 #else
   const Precision kPush = 0;
 #endif
-  Precision momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
-  Precision momentumXYMag =
-      momentumMag * sqrt((1. - direction[2]) * (1. + direction[2])); // only XY component matters for the curvature
-
-  Precision curv = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / (momentumXYMag + 1.0e-30); // norm for step
-
+  // Maximum allowed error made by approximating step along helix with step along straight line
   constexpr Precision gEpsilonDeflect = 1.E-2 * copcore::units::cm;
 
-  // acceptable lateral error from field ~ related to delta_chord sagital distance
+  Precision momentumMag = sqrt(kinE * (kinE + 2 * mass));
+  // Direction projection in plane perpendicular to field vector
+  Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
 
-  // constexpr Precision invEpsD= 1.0 / gEpsilonDeflect;
+  Precision bend = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / momentumMag;
 
-  Precision safeLength =
-      sqrt(2 * gEpsilonDeflect / curv); // max length along curve for deflectionn
-                                        // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
+  // R = helix radius, curv = 1./R = curvature in plane perpendicular to the field
+  //Precision curv = bend / (dirxy + 1.e-30);
+
+  // Distance along the track direction to reach the maximum allowed error
+  Precision safeLength = sqrt(2 * gEpsilonDeflect / (bend * dirxy + 1.e-30));
 
   ConstBzFieldStepper helixBz(BzValue);
 
