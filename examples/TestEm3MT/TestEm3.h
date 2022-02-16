@@ -20,7 +20,6 @@ struct GlobalScoring {
   unsigned long long numGammas;
   unsigned long long numElectrons;
   unsigned long long numPositrons;
-  unsigned long long killedInPropagation;
 };
 
 struct ScoringPerVolume {

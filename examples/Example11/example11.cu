@@ -328,8 +328,6 @@ void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, doubl
               << " energy deposition: " << std::setw(10) << stats->scoring.energyDeposit / copcore::units::GeV
               << " number of secondaries: " << std::setw(5) << stats->scoring.secondaries
               << " number of hits: " << std::setw(4) << stats->scoring.hits;
-    if (stats->scoring.killedInPropagation)
-      std::cout << " killed in propagation: " << std::setw(4) << stats->scoring.killedInPropagation;
     std::cout << std::endl;
 
     // Check if only charged particles are left that are looping.

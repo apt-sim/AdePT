@@ -185,18 +185,8 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
         currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state, propagated);
     currentTrack.total_length += geometryStepLength;
 
-    if (!propagated) {
-      // error condition from field propagator. Just kill the track here but in general
-      // we should propagate the error or account for it explicitly.
-      allTracks->ReleaseElement(i);
-      currentTrack.status = dead;
-      continue;
-    }
-
-    if (currentTrack.next_state.IsOnBoundary()) {
-      theTrack->SetGStepLength(geometryStepLength);
-      theTrack->SetOnBoundary(true);
-    }
+    theTrack->SetGStepLength(geometryStepLength);
+    theTrack->SetOnBoundary(currentTrack.next_state.IsOnBoundary());
 
     // Apply continuous effects.
     bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
@@ -231,6 +221,10 @@ __global__ void PerformStep(adept::BlockData<track> *allTracks, adept::MParray *
 
       // Move to the next boundary.
       currentTrack.SwapStates();
+      continue;
+    } else if (!propagated) {
+      // Did not yet reach the interaction point due to error in the magnetic
+      // field propagation. Try again next time.
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.

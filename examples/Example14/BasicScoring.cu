@@ -106,9 +106,3 @@ __device__ void BasicScoring::AccountProduced(int num_ele, int num_pos, int num_
   atomicAdd(&fGlobalScoring_dev->numPositrons, num_pos);
   atomicAdd(&fGlobalScoring_dev->numGammas, num_gam);
 }
-
-__device__ void BasicScoring::AccountKilled(vecgeom::NavStateIndex const & /*crt_state*/, int /*charge*/,
-                                            double /*energy*/)
-{
-  atomicAdd(&fGlobalScoring_dev->killedInPropagation, 1);
-}
