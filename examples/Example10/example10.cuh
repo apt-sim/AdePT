@@ -95,7 +95,6 @@ public:
 struct GlobalScoring {
   int hits;
   int secondaries;
-  int killedInPropagation;
   double energyDeposit;
 };
 

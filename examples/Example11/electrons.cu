@@ -80,17 +80,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
         currentTrack.navState, nextState, propagated);
 
-    if (!propagated) {
-        // error condition from field propagator. Just kill the track here and account for it explicitly.
-        atomicAdd(&scoring->killedInPropagation, 1);
-        // Particles are killed by not enqueuing them into the new activeQueue.
-        continue;
-    }
-
-    if (nextState.IsOnBoundary()) {
-      theTrack->SetGStepLength(geometryStepLength);
-      theTrack->SetOnBoundary(true);
-    }
+    theTrack->SetGStepLength(geometryStepLength);
+    theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
     // Apply continuous effects.
     bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
@@ -145,6 +136,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
         currentTrack.navState = nextState;
       }
+      continue;
+    } else if (!propagated) {
+      // Did not yet reach the interaction point due to error in the magnetic
+      // field propagation. Try again next time.
+      activeQueue->push_back(slot);
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.

@@ -91,7 +91,6 @@ struct Track {
 struct Scoring {
   adept::Atomic_t<int> hits;
   adept::Atomic_t<int> secondaries;
-  adept::Atomic_t<int> killedInPropagation;
   adept::Atomic_t<float> totalEnergyDeposit;
 };
 
@@ -289,17 +288,8 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
         currentTrack.energy, currentTrack.mass(), currentTrack.charge(), geometricalStepLengthFromPhysics,
         currentTrack.pos, currentTrack.dir, currentTrack.current_state, currentTrack.next_state, propagated);
 
-    if (!propagated) {
-      // Error condition from field propagator. Account for it explicitly.
-      scoring->killedInPropagation++;
-      // Particles are killed by not enqueuing them into the new activeQueue.
-      continue;
-    }
-
-    if (currentTrack.next_state.IsOnBoundary()) {
-      theTrack->SetGStepLength(geometryStepLength);
-      theTrack->SetOnBoundary(true);
-    }
+    theTrack->SetGStepLength(geometryStepLength);
+    theTrack->SetOnBoundary(currentTrack.next_state.IsOnBoundary());
 
     // Apply continuous effects.
     bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
@@ -334,6 +324,11 @@ __global__ void PerformStep(Track *allTracks, SlotManager *manager, const adept:
 
       // Move to the next boundary.
       currentTrack.SwapStates();
+      continue;
+    } else if (!propagated) {
+      // Did not yet reach the interaction point due to error in the magnetic
+      // field propagation. Try again next time.
+      activeQueue->push_back(slot);
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.

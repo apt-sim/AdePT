@@ -23,12 +23,11 @@ struct GlobalScoring {
   unsigned long long numGammas;
   unsigned long long numElectrons;
   unsigned long long numPositrons;
-  unsigned long long killedInPropagation;
 
   void Print()
   {
-    printf("Global scoring: stpChg=%llu stpNeu=%llu hits=%llu numGam=%llu numEle=%llu numPos=%llu numKilled=%llu\n",
-           chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, killedInPropagation);
+    printf("Global scoring: stpChg=%llu stpNeu=%llu hits=%llu numGam=%llu numEle=%llu numPos=%llu\n",
+           chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons);
   }
 };
 
@@ -78,9 +77,6 @@ struct BasicScoring {
 
   /// @brief Account for the number of produced secondaries
   __device__ void AccountProduced(int num_ele, int num_pos, int num_gam);
-
-  /// @brief Account for a killed track
-  __device__ void AccountKilled(vecgeom::NavStateIndex const &crt_state, int charge, double energy);
 
   /// @brief Initialize hit data structures on device
   BasicScoring *InitializeOnGPU();

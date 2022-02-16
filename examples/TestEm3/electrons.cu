@@ -110,13 +110,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
 
-    if (!propagated) {
-      // error condition from field propagator. Just kill the track here and account for it explicitly.
-      atomicAdd(&globalScoring->killedInPropagation, 1);
-      // Particles are killed by not enqueuing them into the new activeQueue.
-      continue;
-    }
-
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (currentTrack.navState = nextState only if relocated
     // in case of a boundary; see below)
@@ -225,6 +218,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         // Move to the next boundary.
         currentTrack.navState = nextState;
       }
+      continue;
+    } else if (!propagated) {
+      // Did not yet reach the interaction point due to error in the magnetic
+      // field propagation. Try again next time.
+      activeQueue->push_back(slot);
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
