@@ -195,6 +195,7 @@ void AdeptIntegration::Shower(int event)
   evAct->number_gammas    = evAct->number_gammas + fScoring->fGlobalScoring.numGammas;
   evAct->number_electrons = evAct->number_electrons + fScoring->fGlobalScoring.numElectrons;
   evAct->number_positrons = evAct->number_positrons + fScoring->fGlobalScoring.numPositrons;
+  evAct->number_killed    = evAct->number_killed + fScoring->fGlobalScoring.numKilled;
 
   fBuffer.Clear();
   fScoring->ClearGPU();

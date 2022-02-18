@@ -23,11 +23,13 @@ struct GlobalScoring {
   unsigned long long numGammas;
   unsigned long long numElectrons;
   unsigned long long numPositrons;
+  // Not used on the device, filled in by the host.
+  unsigned long long numKilled;
 
   void Print()
   {
-    printf("Global scoring: stpChg=%llu stpNeu=%llu hits=%llu numGam=%llu numEle=%llu numPos=%llu\n",
-           chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons);
+    printf("Global scoring: stpChg=%llu stpNeu=%llu hits=%llu numGam=%llu numEle=%llu numPos=%llu numKilled=%llu\n",
+           chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled);
   }
 };
 

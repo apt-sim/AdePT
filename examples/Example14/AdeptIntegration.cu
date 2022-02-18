@@ -493,4 +493,5 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
 
   // Transfer back scoring.
   fScoring->CopyHitsToHost();
+  fScoring->fGlobalScoring.numKilled = inFlight;
 }
