@@ -58,6 +58,7 @@ public:
   G4int number_electrons;
   G4int number_positrons;
   G4int number_gammas;
+  G4int number_killed;
 
 private:
   /// Verbosity

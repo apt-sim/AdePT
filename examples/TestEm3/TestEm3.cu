@@ -282,6 +282,8 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     std::cout << "... " << std::flush;
   }
 
+  unsigned long long killed = 0;
+
   for (int startEvent = 1; startEvent <= numParticles; startEvent += batch) {
     if (detailed) {
       std::cout << startEvent << " ... " << std::flush;
@@ -400,6 +402,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     } while (inFlight > 0 && loopingNo < 200);
 
     if (inFlight > 0) {
+      killed += inFlight;
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
         ParticleType &pType   = particles[i];
         int inFlightParticles = stats->inFlight[i];
@@ -419,6 +422,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
 
   // Transfer back scoring.
   COPCORE_CUDA_CHECK(cudaMemcpy(globalScoring_host, globalScoring, sizeof(GlobalScoring), cudaMemcpyDeviceToHost));
+  globalScoring_host->numKilled = killed;
 
   // Transfer back the scoring per volume (charged track length and energy deposit).
   COPCORE_CUDA_CHECK(cudaMemcpy(scoringPerVolume_host->chargedTrackLength, scoringPerVolume_devPtrs.chargedTrackLength,

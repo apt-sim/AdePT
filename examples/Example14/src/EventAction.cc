@@ -57,6 +57,7 @@ void EventAction::BeginOfEventAction(const G4Event *)
   number_electrons = 0;
   number_positrons = 0;
   number_gammas    = 0;
+  number_killed    = 0;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -89,6 +90,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << ": electrons " << number_electrons << G4endl;
     G4cout << "EndOfEventAction " << eventId << ": positrons " << number_positrons << G4endl;
     G4cout << "EndOfEventAction " << eventId << ": gammas    " << number_gammas << G4endl;
+    G4cout << "EndOfEventAction " << eventId << ": killed    " << number_killed << G4endl;
   }
 
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
