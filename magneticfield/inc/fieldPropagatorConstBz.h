@@ -67,7 +67,7 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision /*safety*/, const int max_iterations)
+    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision safety, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
   #ifdef VECGEOM_FLOAT_PRECISION
@@ -103,6 +103,11 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   } else {
     bool continueIteration = false;
 
+    Vector3D safetyOrigin = position;
+    // Prepare next_state in case we skip navigation inside the safety sphere.
+    current_state.CopyTo(&next_state);
+    next_state.SetBoundaryState(false);
+
     Precision maxNextSafeMove = safeLength;
 
     //  Locate the intersection of the curved trajectory and the boundaries of the current
@@ -119,8 +124,13 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
       Precision chordLen = chordVec.Length();
       Vector3D chordDir  = (1 / chordLen) * chordVec;
 
-      Precision move =
-          Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
+      Precision currentSafety = safety - (position - safetyOrigin).Length();
+      Precision move;
+      if (currentSafety > chordLen) {
+        move = chordLen;
+      } else {
+        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
+      }
 
       if (move == chordLen) {
         position  = endPosition;
