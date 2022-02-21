@@ -111,7 +111,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-          currentTrack.navState, nextState, propagated);
+          currentTrack.navState, nextState, propagated, safety);
     } else {
       geometryStepLength =
           BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
