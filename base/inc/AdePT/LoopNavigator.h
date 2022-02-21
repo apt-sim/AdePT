@@ -95,6 +95,13 @@ private:
                                                          vecgeom::NavStateIndex &out_state,
                                                          VPlacedVolumePtr_t &hitcandidate)
   {
+    if (step_limit <= 0) {
+      // We don't need to ask any solid, this step is not limited by geometry.
+      in_state.CopyTo(&out_state);
+      out_state.SetBoundaryState(false);
+      return 0;
+    }
+
     Precision step          = step_limit;
     VPlacedVolumePtr_t pvol = in_state.Top();
 
