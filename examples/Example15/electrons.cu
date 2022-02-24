@@ -5,6 +5,7 @@
 
 #include <AdePT/BVHNavigator.h>
 
+#define VERBOSE  1
 #define USE_RK 1
 
 #ifdef  USE_RK
@@ -42,6 +43,8 @@ __global__ void SetBzFieldPtr( float* pBzFieldValue_dev )
    gPtrBzFieldValue_dev = pBzFieldValue_dev; 
 }
 
+#define CHECK_RESULTS   1
+#ifdef  CHECK_RESULTS
 static __device__ __host__
 bool  CompareResponseVector3D(
    int id,
@@ -49,35 +52,37 @@ bool  CompareResponseVector3D(
    vecgeom::Vector3D<Precision> const & baselineVec,
    vecgeom::Vector3D<Precision> const & resultVec,   // Output of new method
    const char                   * vecName,    
-   Precision                      threshold    // fraction difference allowed
-
-   )   
+   Precision                      thresholdRel    // fraction difference allowed
+   )
+// Returns 'true' if values are 'bad'...
 {
-   bool outp= true; // Good ..
+   bool bad = false; // Good ..
    Precision magOrig= originalVec.Mag();
    vecgeom::Vector3D<Precision> diffBase = baselineVec-originalVec;
    vecgeom::Vector3D<Precision> diffRes  = resultVec-originalVec;
    Precision magDiffBase = diffBase.Mag();
    Precision magDiffRes  = diffRes.Mag();
 
-   if ( std::fabs( magDiffRes / magDiffBase) - 1.0 > threshold 
+   if ( std::fabs( magDiffRes / magDiffBase) - 1.0 > thresholdRel
+        || 
+        ( resultVec - baselineVec ).Mag() > thresholdRel * magDiffBase 
       ){
       // printf("Difference seen in vector %s : ", vecName );
-      printf(" id %3d - Diff in %s: df_Res/df_Base-1 = %7.3g | base-orig:  mag= %9.4g v3= %14.9f %14.9f %14.9f  || new-original: mag= %9.4g || newVec= %14.9g %14.9g %14.9g (mag= %14.9g) || origVec= %14.9f %14.9f %14.9f (mag=%14.9f) || base= %14.9f %14.9f %14.9f (mag=%9.4g) || d/newVec= %14.9f %14.9f %14.9f (mag = %14.9g)\n",
+      printf(" id %3d - Diff in %s: df_Res/df_Base-1 = %7.3g | base-orig:  mag= %9.4g v3= %14.9f %14.9f %14.9f  || new-original: mag= %9.4g || new-base= %14.9g %14.9g %14.9g (mag= %14.9g) || origVec= %14.9f %14.9f %14.9f (mag=%14.9f) || base= %14.9f %14.9f %14.9f (mag=%9.4g) || d/newVec= %14.9f %14.9f %14.9f (mag = %14.9g)\n",
              id, vecName,  (diffRes.Mag() / diffBase.Mag() - 1.0),
              diffBase.Mag(), diffBase[0], diffBase[1], diffBase[2],
 //      printf("   new-original: mag= %20.16g ,  new_vec= %14.9f , %14.9f , %14.9f \n",
              diffRes.Mag(), 
-             resultVec[0], resultVec[1], resultVec[2], resultVec.Mag(),
+             resultVec[0]-baselineVec[0], resultVec[1]-baselineVec[1], resultVec[2]-baselineVec[2], (resultVec-baselineVec).Mag(),
              originalVec[0], originalVec[1], originalVec[2], originalVec.Mag(),
-             baselineVec[0], baselineVec[1], baselineVec[2], baselineVec.Mag(),             
+             baselineVec[0], baselineVec[1], baselineVec[2], baselineVec.Mag(),     
              diffRes[0], diffRes[1], diffRes[2], diffRes.Mag() // );
          );      
-      outp= false;
+      bad= true;
    }
-   return outp;
+   return bad;
 };
-
+#endif
 
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
@@ -184,7 +189,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     
     float BzFieldValue= *gPtrBzFieldValue_dev;   // Use vecgeom::Precision ?
     if (BzFieldValue != 0.0) {
-      stepLengthFromPhysics= 0.1;
+      stepLengthFromPhysics= min( 0.25 * copcore::units::cm, stepLengthFromPhysics);  // For debugging only!!
        
 #ifdef USE_RK       
       UniformMagneticField magneticFieldB( vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue ) );
@@ -200,8 +205,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       constexpr int max_iterations= 100;
       
-#define CHECK_RESULTS   1
-#ifdef  CHECK_RESULTS      
+#ifdef  CHECK_RESULTS            
       // Store starting values
       const vecgeom::Vector3D<Precision> startPosition= currentTrack.pos;
       const vecgeom::Vector3D<Precision> startDirection= currentTrack.dir;
@@ -218,19 +222,30 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           positionHx, directionHx, currentTrack.navState, nextStateHx, propagatedHx);
       // End   Baseline reply
 #endif
+      int iterDone= -1;
       geometryStepLength =
          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, BVHNavigator>::ComputeStepAndNextVolume( 
             magneticFieldB,
             currentTrack.energy, Mass, Charge, stepLengthFromPhysics,
             currentTrack.pos, currentTrack.dir, currentTrack.navState, nextState,
-            propagated, /*lengthDone,*/ safety, max_iterations );
+            propagated, /*lengthDone,*/ safety, max_iterations, iterDone
+            );
 #ifdef CHECK_RESULTS
       constexpr Precision thesholdDiff=3.0e-5;
       if( std::fabs( helixStepLength - geometryStepLength ) > 1.0e-4 * helixStepLength ) {
         printf ("s: i= %3d phys-request= %8.4g  helix-did= %8.4g rk-did= %8.4g\n", i, stepLengthFromPhysics, helixStepLength, geometryStepLength);
       }
-      CompareResponseVector3D( i, startPosition, positionHx, currentTrack.pos, "Position", thesholdDiff );
-      CompareResponseVector3D( i, startDirection, directionHx, currentTrack.dir, "Direction", thesholdDiff );
+      bool badPosition = 
+        CompareResponseVector3D( i, startPosition, positionHx, currentTrack.pos, "Position", thesholdDiff );
+      bool badDirection =
+        CompareResponseVector3D( i, startDirection, directionHx, currentTrack.dir, "Direction", thesholdDiff );
+
+      const char* Outcome[2]={ "Good", " Bad" };
+      // if( badPosition || badDirection) {
+      printf("%4s track (id= %3d)  e_kin= %8.4g stepLen= %7.3g iters= %5d\n ", Outcome[badPosition||badDirection],
+             i, currentTrack.energy, stepLengthFromPhysics, iterDone);      
+      currentTrack.print(i, /* verbose= */ true );
+      // }
 #endif
       
 #else

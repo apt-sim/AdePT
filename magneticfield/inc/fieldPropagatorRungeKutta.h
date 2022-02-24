@@ -37,7 +37,9 @@ public:
       vecgeom::NavStateIndex &next_state,
       bool         &  propagated,
       const Real_t &  /*safety*/,
-      const int max_iterations);
+      const int max_iterations
+      , int & iterDone 
+     );
    // Move the track,
    //   updating 'position', 'direction', the next state and returning the length moved.
 protected:
@@ -255,7 +257,9 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
     vecgeom::NavStateIndex       & next_state,
     bool         & propagated,
     const Real_t & /*safety*/,  //  eventually In/Out ?
-    const int max_iterations )
+    const int max_iterations
+    , int & itersDone           //  useful for now - to monitor and report -- unclear if needed later
+   )
 {
   using copcore::units::MeV;
   
@@ -366,7 +370,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
     // } while ((!next_state.IsOnBoundary()) && fullChord && (remains > tiniest_step) && (chordIters < max_iterations));
   }
 
-  propagated = found_end; 
+  propagated = found_end;
+  itersDone = chordIters;
        //  = (chordIters < max_iterations);  // ---> Misses success on the last step!
   return stepDone;
 }
