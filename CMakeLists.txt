@@ -15,7 +15,7 @@ project(Adept
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(CMakeSettings)
 include(CTest)
-include(CheckCXXSourceCompiles)  
+include(CheckCXXSourceCompiles)
 
 # - Core/C++/CUDA build and dependency settings
 # For single-mode generators, default to Optimized with Debug if nothing is specified
@@ -58,6 +58,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VECGEOM_CXX_FLAGS}")
 # Make sure VecGeom::vgdml is enabled
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
+endif()
+get_property(_vecgeom_lib_type TARGET VecGeom::vecgeom
+  PROPERTY TYPE)
+if(NOT _vecgeom_lib_type STREQUAL "STATIC_LIBRARY")
+  message(SEND_ERROR "AdePT requires VecGeom to be built a static library, but "
+    "it is of type '${_vecgeom_lib_type}'")
 endif()
 
 # Find Geant4, optional for now
