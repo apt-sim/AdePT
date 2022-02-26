@@ -24,7 +24,9 @@ public:
                     int charge,
                     Real_t step,
                     vecgeom::Vector3D<Real_t> &position,
-                    vecgeom::Vector3D<Real_t> &direction);
+                    vecgeom::Vector3D<Real_t> &direction
+                    , int id // For debugging
+     );
 
   static   
   inline __host__ __device__
@@ -38,7 +40,8 @@ public:
       bool         &  propagated,
       const Real_t &  /*safety*/,
       const int max_iterations
-      , int & iterDone 
+      , int & iterDone
+      , int   threadId
      );
    // Move the track,
    //   updating 'position', 'direction', the next state and returning the length moved.
@@ -46,7 +49,10 @@ protected:
    static inline __host__ __device__
    void IntegrateTrackToEnd( Field_t const & magField,  // RkDriver_t &integrationDriverRK,
                              vecgeom::Vector3D<Real_t> & position,  vecgeom::Vector3D<Real_t> & momentumVec,
-                             int charge,  Real_t stepLength );
+                             int charge,  Real_t stepLength
+                             , int  id               // Temporary - for debugging
+                             , bool verbose = true   //    >>2
+      );
 
    static inline __host__ __device__
    bool IntegrateTrackForProgress( Field_t const & magField,  // RkDriver_t &integrationDriverRK,
@@ -79,7 +85,9 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>
                   int charge,
                   Real_t step,
                   vecgeom::Vector3D<Real_t> &position,
-                  vecgeom::Vector3D<Real_t> &direction )
+                  vecgeom::Vector3D<Real_t> &direction
+                  , int id // For debugging
+      )
 {
   Real_t momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
   Real_t invMomentumMag = 1.0 / momentumMag;
@@ -87,11 +95,13 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>
   // Only charged particles ( e-, e+, any .. ) can be propagated 
   vecgeom::Vector3D<Real_t> positionVec = position;
   vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
-  IntegrateTrackToEnd /*<Real_t,int>*/ ( magField,
-                                   positionVec,
-                                   momentumVec,
-                                   charge,
-                                   step );
+  IntegrateTrackToEnd( magField,
+                       positionVec,
+                       momentumVec,
+                       charge,
+                       step
+                       , id, true  // For debugging
+     );
   position  = positionVec;
   direction = invMomentumMag * momentumVec;
   // Deviation of magnitude of direction from unit indicates integration error
@@ -108,6 +118,8 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
       vecgeom::Vector3D<Real_t> & momentumVec,
       int charge,
       Real_t stepLength
+      , int  id
+      , bool verbose
    )
 {
   // Version 1.  Finish the integration of lanes ...
@@ -115,27 +127,88 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
    
   const unsigned int trialsPerCall = vecCore::Min( 30U, fMaxTrials / 2) ;  // Parameter that can be tuned
   unsigned int totalTrials=0;
+  static int callNum = 0; 
+  callNum ++;
   
   Real_t  lenRemains = stepLength;
 
   Real_t  hTry = stepLength;    // suggested 'good' length per integration step
   bool unfinished = true;
+
+  Real_t  totLen = 0.0;
+  // unsigned int loopCt=0;
   do {
     Real_t hAdvanced = 0;     //  length integrated this iteration (of do-while)
     Real_t  dydx_end[Nvar];
+
+    const vecgeom::Vector3D<Real_t> posBegin= position;    // For print
+    const vecgeom::Vector3D<Real_t> momBegin= momentumVec; //   >>
     
     bool done=
        RkDriver_t::Advance( position, momentumVec, charge, lenRemains, magField, hTry, dydx_end,
-                            hAdvanced, totalTrials, trialsPerCall);
+                            hAdvanced, totalTrials,
+                            id,     // Temporary ?
+                            trialsPerCall);
     //   Runge-Kutta single call ( number of steps <= trialsPerCall )
     
     lenRemains -= hAdvanced;
-    unfinished = !done;  // (lenRemains > 0.0);
+    unfinished = lenRemains > 0.0; /// Was = !done  ... for debugging ????
 
+    totLen+= hAdvanced;
+    
+    // if( !done || (loopCt++>0) ){
+    if( id == 1 ) {
+       const vecgeom::Vector3D<Real_t> deltaPos= position - posBegin;
+       const vecgeom::Vector3D<Real_t> deltaMomentum= momentumVec - momBegin;
+       
+       printf(" id %3d call %4d iters %3d  hdid= %9.5g " //  totLen= %9.5g lenRemains= %9.5g "
+              " ret= %1d #=  pos = %9.6g %9.6g %9.6g   momemtumV= %14.9g %14.9g %14.9g  hTry= %7.4g  remains= %7.4g "
+              "  Delta-pos= %7.3g %7.3g %7.3g  (mag= %7.3g)  Delta-mom= %7.3g %7.3g %7.3g (mag= %7.3g) "
+              " \n",
+              id, callNum, totalTrials, hAdvanced, // totLen, lenRemains,
+              done,
+              position[0], position[1], position[2],
+              momentumVec[0], momentumVec[1], momentumVec[2],
+              hTry, lenRemains
+              , deltaPos[0], deltaPos[1], deltaPos[2], deltaPos.Mag()
+              , deltaMomentum[0], deltaMomentum[1], deltaMomentum[2], deltaMomentum.Mag()
+          );
+    }
     // sumAdvanced += hAdvanced;  // Gravy ..
 
   } while ( unfinished  && (totalTrials < fMaxTrials) );
 }
+
+#if 0
+template<class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
+inline __host__ __device__
+bool fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::IntegrateOneStep(
+      Field_t const & magField,
+      vecgeom::Vector3D<Real_t> & position,
+      vecgeom::Vector3D<Real_t> & momentumVec,
+      int       charge,
+      Real_t  & lenRemains,
+      Real_t  & hTry,          //  Trial step size
+      Real_t  & hAdvanced,     //  Length advanced
+      int     & totalTrials
+   )
+//  Return whether full length was completed
+{
+  Real_t  hTry = stepLength;    // suggested 'good' length per integration step
+  bool unfinished = true;
+
+  hAdvanced = 0;           //  length integrated this iteration
+  Real_t  dydx_end[Nvar];
+    
+  bool done=
+       RkDriver_t::Advance( position, momentumVec, charge, lenRemains, magField, hTry, dydx_end,
+                            hAdvanced, totalTrials, trialsPerCall);
+    //   Runge-Kutta single call ( number of steps <= trialsPerCall )
+    
+  lenRemains -= hAdvanced;
+  return done;
+}
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -259,6 +332,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
     const Real_t & /*safety*/,  //  eventually In/Out ?
     const int max_iterations
     , int & itersDone           //  useful for now - to monitor and report -- unclear if needed later
+    , int   threadId
    )
 {
   using copcore::units::MeV;
@@ -284,8 +358,6 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
 
   Real_t ratioOverFld = (bmag>0) ? momentumVec.Dot(B0fieldVec) / (bmag * bmag) : 0.0;
   vecgeom::Vector3D<Real_t> PtransB = momentumVec - ratioOverFld * B0fieldVec;
-
-  // Real_t curv = fabs(Track::kB2C * charge * bmag / ( PtransB.Mag() + tiny));
 
   // Calculate inverse curvature instead - save a division
   Real_t inv_curv = fabs(    PtransB.Mag() /
@@ -324,7 +396,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       vecgeom::Vector3D<Real_t> endMomentumVec = momentumVec; // momentumMag * direction;
       Real_t safeArc = min(remains, safeLength);
       
-      IntegrateTrackToEnd( magField, endPosition, endMomentumVec, charge, safeArc);
+      IntegrateTrackToEnd( magField, endPosition, endMomentumVec, charge, safeArc, threadId);
       //-----------------
       vecgeom::Vector3D<Real_t> chordVec     = endPosition - position;
       Real_t chordLen = chordVec.Length();      

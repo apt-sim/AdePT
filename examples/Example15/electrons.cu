@@ -228,7 +228,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
             magneticFieldB,
             currentTrack.energy, Mass, Charge, stepLengthFromPhysics,
             currentTrack.pos, currentTrack.dir, currentTrack.navState, nextState,
-            propagated, /*lengthDone,*/ safety, max_iterations, iterDone
+            propagated, /*lengthDone,*/ safety, max_iterations, iterDone, i
             );
 #ifdef CHECK_RESULTS
       constexpr Precision thesholdDiff=3.0e-5;
@@ -241,18 +241,18 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         CompareResponseVector3D( i, startDirection, directionHx, currentTrack.dir, "Direction", thesholdDiff );
 
       const char* Outcome[2]={ "Good", " Bad" };
-      // if( badPosition || badDirection) {
-      printf("%4s track (id= %3d)  e_kin= %8.4g stepLen= %7.3g iters= %5d\n ", Outcome[badPosition||badDirection],
-             i, currentTrack.energy, stepLengthFromPhysics, iterDone);      
-      currentTrack.print(i, /* verbose= */ true );
-      // }
+      if( badPosition || badDirection) {
+        printf("%4s track (id= %3d)  e_kin= %8.4g stepLen= %7.3g iters= %5d\n ", Outcome[badPosition||badDirection],
+               i, currentTrack.energy, stepLengthFromPhysics, iterDone);      
+        currentTrack.print(i, /* verbose= */ true );
+      }
 #endif
       
 #else
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);      
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, stepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-          currentTrack.navState, nextState, propagated);
+          currentTrack.navState, nextState, propagated, i);
 #endif      
     } else {
       geometryStepLength =

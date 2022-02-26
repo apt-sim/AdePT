@@ -492,7 +492,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
 
       // std::cout << " Tracks AFTER Swap \n";
       // std::cout << " Remaining:  e- " << numElectrons << " g " << numGammas << " e+ " << numPositrons << "\n";
-      printActiveTracks( electrons, positrons, gammas, verbTrk );
+      // printActiveTracks( electrons, positrons, gammas, verbTrk );
       
       if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
         loopingNo++;
