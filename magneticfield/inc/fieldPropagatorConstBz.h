@@ -72,8 +72,9 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precisio
   // Direction projection in plane perpendicular to field vector
   Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
 
-  Precision bend = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / momentumMag;
-
+  Precision bend = std::fabs(fieldConstants::kB2C * charge * BzValue) / momentumMag;
+  //                                                                  / (momentumXYMag + 1.0e-30); // norm for step
+  
   // R = helix radius, curv = 1./R = curvature in plane perpendicular to the field
   //Precision curv = bend / (dirxy + 1.e-30);
 
