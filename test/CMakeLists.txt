@@ -6,7 +6,8 @@ macro(build_tests TESTS)
   foreach(TEST ${TESTS})
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
-    target_link_libraries(${TARGET_NAME} AdePT VecCore::VecCore VecGeom::vecgeom)
+    set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+    target_link_libraries(${TARGET_NAME} AdePT VecCore::VecCore VecGeom::vecgeomcuda_static VecGeom::vecgeom)
    endforeach()
 endmacro()
 
@@ -42,6 +43,3 @@ target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
-
-# Specific options for test_sparsevector
-set_target_properties(test_sparsevector PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
