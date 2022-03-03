@@ -22,6 +22,7 @@
 #include <G4ProductionCuts.hh>
 #include <G4Region.hh>
 #include <G4ProductionCutsTable.hh>
+#include <G4TransportationManager.hh>
 
 #include <G4SystemOfUnits.hh>
 
@@ -71,6 +72,9 @@ static void InitGeant4()
   // --- Update the couple tables.
   G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
   theCoupleTable->UpdateCoupleTable(world);
+  //
+  // --- Set the world volume to fix initialization of G4SafetyHelper (used by G4UrbanMscModel)
+  G4TransportationManager::GetTransportationManager()->SetWorldForTracking(world);
 }
 
 int main(int argc, char *argv[])
