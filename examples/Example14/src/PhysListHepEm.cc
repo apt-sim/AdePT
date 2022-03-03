@@ -40,7 +40,7 @@ PhysListHepEm::PhysListHepEm(const G4String &name) : G4VPhysicsConstructor(name)
   param->SetVerbose(1);
 
   // Range factor: (can be set from the G4 macro)
-  param->SetMscRangeFactor(0.06);
+  param->SetMscRangeFactor(0.04);
   //
 
   SetPhysicsType(bElectromagnetic);

@@ -12,7 +12,7 @@
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
 #include <G4HepEmElectronInteractionIoni.hh>
-#include <G4HepEmElectronInteractionMSC.hh>
+#include <G4HepEmElectronInteractionUMSC.hh>
 #include <G4HepEmPositronInteractionAnnihilation.hh>
 // Pull in implementation.
 #include <G4HepEmRunUtils.icc>
@@ -20,7 +20,7 @@
 #include <G4HepEmElectronManager.icc>
 #include <G4HepEmElectronInteractionBrem.icc>
 #include <G4HepEmElectronInteractionIoni.icc>
-#include <G4HepEmElectronInteractionMSC.icc>
+#include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
 // Compute the physics and geometry step limit, transport the electrons while
@@ -54,6 +54,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
     mscData->fIsFirstStep        = currentTrack.initialRange < 0;
     mscData->fInitialRange       = currentTrack.initialRange;
+    mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
+    mscData->fTlimitMin          = currentTrack.tlimitMin;
 
     // Prepare a branched RNG state while threads are synchronized. Even if not
     // used, this provides a fresh round of random numbers and reduces thread
@@ -82,8 +84,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Call G4HepEm to compute the physics step limit.
     G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
-    // Remember value of initial range for the next step.
-    currentTrack.initialRange = mscData->fInitialRange;
+    // Remember MSC values for the next step(s).
+    currentTrack.initialRange       = mscData->fInitialRange;
+    currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
+    currentTrack.tlimitMin          = mscData->fTlimitMin;
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();

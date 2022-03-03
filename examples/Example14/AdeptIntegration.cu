@@ -80,7 +80,6 @@ static G4HepEmState *InitG4HepEm()
   dataOnDevice.fTheElectronData = state->fData->fTheElectronData_gpu;
   dataOnDevice.fThePositronData = state->fData->fThePositronData_gpu;
   dataOnDevice.fTheSBTableData  = state->fData->fTheSBTableData_gpu;
-  dataOnDevice.fTheGSTableData  = state->fData->fTheGSTableData_gpu;
   dataOnDevice.fTheGammaData    = state->fData->fTheGammaData_gpu;
   // The other pointers should never be used.
   dataOnDevice.fTheMatCutData_gpu   = nullptr;
@@ -89,7 +88,6 @@ static G4HepEmState *InitG4HepEm()
   dataOnDevice.fTheElectronData_gpu = nullptr;
   dataOnDevice.fThePositronData_gpu = nullptr;
   dataOnDevice.fTheSBTableData_gpu  = nullptr;
-  dataOnDevice.fTheGSTableData_gpu  = nullptr;
   dataOnDevice.fTheGammaData_gpu    = nullptr;
 
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
@@ -131,7 +129,10 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
-    track.initialRange = -1.0;
+
+    track.initialRange       = -1.0;
+    track.dynamicRangeFactor = -1.0;
+    track.tlimitMin          = -1.0;
 
     track.pos = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
     track.dir = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
