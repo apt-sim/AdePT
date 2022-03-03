@@ -10,6 +10,7 @@
 #include <G4MaterialCutsCouple.hh>
 #include <G4ProductionCutsTable.hh>
 #include <G4RegionStore.hh>
+#include <G4TransportationManager.hh>
 
 #include <G4Gamma.hh>
 #include <G4Electron.hh>
@@ -79,6 +80,9 @@ const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
   std::cout << "updating material-cut couples based on " << G4RegionStore::GetInstance()->size() << " regions ...\n";
   G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
   theCoupleTable->UpdateCoupleTable(world);
+
+  // --- Set the world volume to fix initialization of G4SafetyHelper (used by G4UrbanMscModel)
+  G4TransportationManager::GetTransportationManager()->SetWorldForTracking(world);
 
   // --- Set MSC range factor to match G4HepEm physics lists.
   G4EmParameters *param = G4EmParameters::Instance();

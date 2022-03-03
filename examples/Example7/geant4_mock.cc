@@ -21,6 +21,7 @@
 #include "G4ParticleTable.hh"
 #include "G4ProductionCuts.hh"
 #include "G4ProductionCutsTable.hh"
+#include "G4TransportationManager.hh"
 
 // This basically copies the TestEm3 example's way of constructing the test geometry
 // Yes, global, but fine for a dumb example where we just need a couple of constants common
@@ -149,6 +150,9 @@ G4PVPlacement* geant4_mock() {
   // --- Update the couple tables.
   G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
   theCoupleTable->UpdateCoupleTable(fPhysiWorld);
+  //
+  // --- Set the world volume to fix initialization of G4SafetyHelper (used by G4UrbanMscModel)
+  G4TransportationManager::GetTransportationManager()->SetWorldForTracking(fPhysiWorld);
 
   // Return geometry, ...
   return fPhysiWorld;
