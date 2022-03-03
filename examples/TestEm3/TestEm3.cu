@@ -70,7 +70,6 @@ static G4HepEmState *InitG4HepEm()
   dataOnDevice.fTheElectronData = state->data.fTheElectronData_gpu;
   dataOnDevice.fThePositronData = state->data.fThePositronData_gpu;
   dataOnDevice.fTheSBTableData  = state->data.fTheSBTableData_gpu;
-  dataOnDevice.fTheGSTableData  = state->data.fTheGSTableData_gpu;
   dataOnDevice.fTheGammaData    = state->data.fTheGammaData_gpu;
   // The other pointers should never be used.
   dataOnDevice.fTheMatCutData_gpu   = nullptr;
@@ -79,7 +78,6 @@ static G4HepEmState *InitG4HepEm()
   dataOnDevice.fTheElectronData_gpu = nullptr;
   dataOnDevice.fThePositronData_gpu = nullptr;
   dataOnDevice.fTheSBTableData_gpu  = nullptr;
-  dataOnDevice.fTheGSTableData_gpu  = nullptr;
   dataOnDevice.fTheGammaData_gpu    = nullptr;
 
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
@@ -142,7 +140,10 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
-    track.initialRange = -1.0;
+
+    track.initialRange       = -1.0;
+    track.dynamicRangeFactor = -1.0;
+    track.tlimitMin          = -1.0;
 
     track.pos = {vecgeom::Precision(startX), 0, 0};
     track.dir = {1.0, 0, 0};

@@ -27,7 +27,7 @@
 #include <G4HepEmElectronManager.icc>
 #include <G4HepEmElectronInteractionBrem.icc>
 #include <G4HepEmElectronInteractionIoni.icc>
-#include <G4HepEmElectronInteractionMSC.icc> // Needed to make a debug build succeed.
+#include <G4HepEmElectronInteractionUMSC.icc> // Needed to make a debug build succeed.
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
