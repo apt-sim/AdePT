@@ -33,6 +33,13 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun
   fRndmCmd->SetParameterName("rBeam", false);
   fRndmCmd->SetRange("rBeam>=0.&&rBeam<=1.");
   fRndmCmd->AvailableForStates(G4State_Idle);
+
+  fRndmDirCmd = new G4UIcmdWithADouble("/example14/gun/rndmDir", this);
+  fRndmDirCmd->SetGuidance("random angular extension on the beam");
+  fRndmDirCmd->SetParameterName("rBeamDir", false);
+  fRndmDirCmd->SetRange("rBeamDir>=0.&&rBeamDir<=1.");
+  fRndmDirCmd->AvailableForStates(G4State_Idle);
+
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -42,6 +49,7 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
   delete fDefaultCmd;
   delete fPrintCmd;
   delete fRndmCmd;
+  delete fRndmDirCmd;
   delete fGunDir;
 }
 
@@ -60,6 +68,11 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newVa
   if (command == fRndmCmd) {
     fAction->SetRndmBeam(fRndmCmd->GetNewDoubleValue(newValue));
   }
+
+  if (command == fRndmDirCmd) {
+    fAction->SetRndmDirection(fRndmDirCmd->GetNewDoubleValue(newValue));
+  }
+
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

@@ -52,6 +52,8 @@ public:
   void Print() const;
   void SetDefaultKinematic();
   void SetRndmBeam(G4double val) { fRndmBeam = val; }
+  void SetRndmDirection(G4double val) { fRndmDirection = val; }
+
   virtual void GeneratePrimaries(G4Event *) final;
 
 private:
@@ -59,6 +61,7 @@ private:
   G4ParticleGun *fParticleGun;
   DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
+  G4double fRndmDirection;
 
   PrimaryGeneratorMessenger *fGunMessenger;
 };
