@@ -40,12 +40,21 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
   G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
   // randomize direction if requested
   if(fRndmDirection > 0.) {
-   
-    G4double rdir            = 0.5 * fRndmDirection;
-    G4double dx = oldDirection.x() + (2 * G4UniformRand() - 1.) * rdir;
-    G4double dy = oldDirection.y() + (2 * G4UniformRand() - 1.) * rdir;
-    G4double dz = oldDirection.z();
-    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dx,dy,dz));
+
+    // calculate current phi and eta
+    double eta_old = atanh(oldDirection.z());
+    double phi_old = atan(oldDirection.y()/oldDirection.z());
+
+    // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
+    const double phi = phi_old + (2. * M_PI * G4UniformRand()) * fRndmDirection;
+    const double eta = eta_old + (- 5. + 10. * G4UniformRand()) * fRndmDirection;
+
+    // new direction
+    G4double dirx = cos(phi) / cosh(eta);
+    G4double diry = sin(phi) / cosh(eta);
+    G4double dirz = tanh(eta);
+
+    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx,diry,dirz));
   }
   // randomize the beam, if requested.
   if (fRndmBeam > 0.) {
