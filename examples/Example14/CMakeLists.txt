@@ -62,10 +62,13 @@ set_target_properties(example14 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RE
 # Install macros and geometry file
 
 set(TESTEM3_GDML ${CMAKE_BINARY_DIR}/testEm3.gdml)
+set(LHCB_GDML ${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml)
 configure_file("macros/testEm3.gdml" "${CMAKE_BINARY_DIR}/testEm3.gdml")
 configure_file("macros/testEm3.mac.in" "${CMAKE_BINARY_DIR}/testEm3.mac")
 configure_file("macros/testEm3G4.mac.in" "${CMAKE_BINARY_DIR}/testEm3G4.mac")
 configure_file("macros/example14.mac.in" "${CMAKE_BINARY_DIR}/example14.mac")
+configure_file("macros/LHCb_Upgrade_fullLHCb.gdml" "${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml")
+configure_file("macros/lhcb.mac.in" "${CMAKE_BINARY_DIR}/lhcb.mac")
 
 # Tests
 add_test(NAME example14-adept-em3

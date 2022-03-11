@@ -15,8 +15,7 @@
 /event/verbose 0
 
 ##
-#/example14/detector/filename @LHCB_GDML@
-/example14/detector/filename LHCb_Upgrade_fullLHCb.gdml
+/example14/detector/filename @LHCB_GDML@
 /example14/detector/regionname EcalRegion
 /example14/adept/verbose 0
 /example14/adept/threshold 50
