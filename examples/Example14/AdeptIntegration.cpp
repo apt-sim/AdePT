@@ -248,7 +248,7 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
 
     // Check if the logical volume is sensitive
     for (auto sensvol : (*sensitive_volume_index)) {
-      if (std::string(vol->GetName()).rfind(sensvol.first, 0) == 0) {
+      if (std::string(vol->GetName()).rfind(sensvol.first + "0x", 0) == 0) {
         if (auxData[vol->id()].fSensIndex < 0) nlogical_sens++;
         auxData[vol->id()].fSensIndex = sensvol.second;
         fScoringMap->insert(std::pair<const G4VPhysicalVolume *, int>(g4pvol, pvol->id()));
