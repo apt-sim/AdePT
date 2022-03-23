@@ -145,8 +145,14 @@ void DetectorConstruction::ConstructSDandField()
     G4cout << "Making " << name << " sensitive with index " << index << G4endl;
     caloSD->fSensitive_volume_index[name] = index;
     index++;
+    // iterate G4LogicalVolumeStore and set sensitive volumes
+    auto const &store = *G4LogicalVolumeStore::GetInstance();
+    for (auto lvol : store) {
+      if (lvol->GetName().rfind(name) == 0)
+        SetSensitiveDetector(lvol, caloSD);
+    }
 
-    SetSensitiveDetector(G4LogicalVolumeStore::GetInstance()->GetVolume(name), caloSD);
+    //SetSensitiveDetector(G4LogicalVolumeStore::GetInstance()->GetVolume(name), caloSD);
   }
 
   auto detectorRegion = G4RegionStore::GetInstance()->GetRegion(fRegion_name);
