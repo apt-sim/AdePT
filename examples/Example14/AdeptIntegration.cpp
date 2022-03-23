@@ -225,6 +225,28 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
     int nd           = g4vol->GetNoDaughters();
     auto daughters   = vol->GetDaughters();
     if (nd != daughters.size()) throw std::runtime_error("Mismatch in number of daughters");
+    // Check if transformations are matching
+    auto g4trans = g4pvol->GetTranslation();
+    auto g4rot = g4pvol->GetRotation();
+    G4RotationMatrix idrot;
+    auto vgtransformation = pvol->GetTransformation();
+    constexpr double epsil = 1.e-8;
+    for (int i = 0; i<3; ++i) {
+      if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
+        throw std::runtime_error(std::string("Mismatch between Geant4 translation for physical volume") + pvol->GetName());
+    }
+
+    // check if VecGeom and Geant4 (local) transformations are matching. Not optimized, this will re-check
+    // already checked placed volumes when re-visiting the same volumes in different branches
+    if (!g4rot) g4rot = &idrot;
+    for (int row = 0; row<3; ++row) {
+      for (int col = 0; col<3; ++col) {
+        int i = row + 3*col;
+        if (std::abs((*g4rot)(row,col) - vgtransformation->Rotation(i)) > epsil)
+          throw std::runtime_error(std::string("Mismatch between Geant4 rotation for physical volume") + pvol->GetName());
+      }
+    }
+
     // Check the couples
     if (g4vol->GetMaterialCutsCouple() == nullptr)
       throw std::runtime_error("G4LogicalVolume " + std::string(g4vol->GetName()) +
