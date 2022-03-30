@@ -12,7 +12,7 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
-    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fGunMessenger(0)
+    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.), fGunMessenger(0)
 {
   G4int n_particle = 1;
   fParticleGun     = new G4ParticleGun(n_particle);
@@ -36,6 +36,26 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
 {
   // this function is called at the begining of event
   //
+
+  G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
+  // randomize direction if requested
+  if(fRndmDirection > 0.) {
+
+    // calculate current phi and eta
+    double eta_old = atanh(oldDirection.z());
+    double phi_old = atan(oldDirection.y()/oldDirection.z());
+
+    // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
+    const double phi = phi_old + (2. * M_PI * G4UniformRand()) * fRndmDirection;
+    const double eta = eta_old + (- 5. + 10. * G4UniformRand()) * fRndmDirection;
+
+    // new direction
+    G4double dirx = cos(phi) / cosh(eta);
+    G4double diry = sin(phi) / cosh(eta);
+    G4double dirz = tanh(eta);
+
+    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx,diry,dirz));
+  }
   // randomize the beam, if requested.
   if (fRndmBeam > 0.) {
     G4ThreeVector oldPosition = fParticleGun->GetParticlePosition();
@@ -46,8 +66,10 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
     fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
     fParticleGun->GeneratePrimaryVertex(aEvent);
     fParticleGun->SetParticlePosition(oldPosition);
-  } else
+  } else {
     fParticleGun->GeneratePrimaryVertex(aEvent);
+  }
+  fParticleGun->SetParticleMomentumDirection(oldDirection);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

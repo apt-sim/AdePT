@@ -119,8 +119,6 @@ G4bool SensitiveDetector::ProcessHits(const G4FastHit *aHit, const G4FastTrack *
       hit->SetTime(aTrack->GetPrimaryTrack()->GetGlobalTime());
     }
   */
-  // Set hit type to fast simulation
-  hit->SetType(1);
 
   return true;
 }

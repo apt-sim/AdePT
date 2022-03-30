@@ -35,6 +35,7 @@ private:
   G4UIcmdWithoutParameter *fDefaultCmd;
   G4UIcmdWithoutParameter *fPrintCmd;
   G4UIcmdWithADouble *fRndmCmd;
+  G4UIcmdWithADouble *fRndmDirCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
