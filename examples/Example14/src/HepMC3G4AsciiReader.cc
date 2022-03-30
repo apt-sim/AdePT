@@ -1,5 +1,3 @@
-// SPDX-FileCopyrightText: 2022 CERN
-// SPDX-License-Identifier: Apache-2.0
 //
 // ********************************************************************
 // * License and Disclaimer                                           *
@@ -25,49 +23,46 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef PRIMARYGENERATORACTION_HH
-#define PRIMARYGENERATORACTION_HH
+/// \file eventgenerator/HepMC3/HepMCEx01/src/HepMC3G4AsciiReader.cc
+/// \brief Implementation of the HepMC3G4AsciiReader class
+//
+//
 
-#include "G4VUserPrimaryGeneratorAction.hh"
-#include "G4ParticleGun.hh"
-#include "globals.hh"
+#include "HepMC3G4AsciiReader.hh"
+#include "HepMC3G4AsciiReaderMessenger.hh"
 
-class G4Event;
-class DetectorConstruction;
-class PrimaryGeneratorMessenger;
+#include <iostream>
+#include <fstream>
 
-/**
- * @brief Generator of particles
- *
- * Creates single particle events using a particle gun. Particle gun can be
- * configured using UI commands /gun/.
- *
- */
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+HepMC3G4AsciiReader::HepMC3G4AsciiReader()
+  :  filename("xxx.dat"), verbose(0)
+{
+  messenger= new HepMC3G4AsciiReaderMessenger(this);
+}
 
-class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction {
-public:
-  PrimaryGeneratorAction(DetectorConstruction *);
-  virtual ~PrimaryGeneratorAction();
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+HepMC3G4AsciiReader::~HepMC3G4AsciiReader()
+{
+  delete asciiInput;
+  delete messenger;
+}
 
-  void Print() const;
-  void SetDefaultKinematic();
-  void SetRndmBeam(G4double val) { fRndmBeam = val; }
-  void SetRndmDirection(G4double val) { fRndmDirection = val; }
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+void HepMC3G4AsciiReader::Initialize()
+{
+  asciiInput= new HepMC3::ReaderAscii(filename.c_str());
+}
 
-  virtual void GeneratePrimaries(G4Event *) final;
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+HepMC3::GenEvent* HepMC3G4AsciiReader::GenerateHepMCEvent()
+{
+  HepMC3::GenEvent* evt= new HepMC3::GenEvent();
+  asciiInput-> read_event(*evt);
+  if (asciiInput->failed() ) { delete evt; return nullptr;}
+  
 
-private:
-  /// Particle gun
-  G4ParticleGun *fParticleGun;
-  DetectorConstruction *fDetector;
-  G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
-  G4double fRndmDirection;
+  if(verbose>0) HepMC3::Print::content(*evt);
 
-  // HepMC3 reader
-  G4VPrimaryGenerator* fHepmcAscii;
-  G4bool fUseHepMC = false;
-
-  PrimaryGeneratorMessenger *fGunMessenger;
-};
-
-#endif /* PRIMARYGENERATORACTION_HH */
+  return evt;
+}

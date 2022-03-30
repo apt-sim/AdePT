@@ -9,6 +9,10 @@
 #include "G4SystemOfUnits.hh"
 #include "Randomize.hh"
 
+#ifdef HEPMC3_FOUND
+#include "HepMC3G4AsciiReader.hh"
+#endif
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
@@ -20,6 +24,13 @@ PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
 
   // create a messenger for this class
   fGunMessenger = new PrimaryGeneratorMessenger(this);
+
+  // if HepMC3, create the reader
+
+  #ifdef HEPMC3_FOUND
+  fUseHepMC = true;
+  fHepmcAscii = new HepMC3G4AsciiReader();
+  #endif
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -37,6 +48,12 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
   // this function is called at the begining of event
   //
 
+if(fUseHepMC && fHepmcAscii)
+  {
+    fHepmcAscii->GeneratePrimaryVertex(aEvent);
+  }
+  else
+  {
   G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
   // randomize direction if requested
   if(fRndmDirection > 0.) {
@@ -70,6 +87,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
     fParticleGun->GeneratePrimaryVertex(aEvent);
   }
   fParticleGun->SetParticleMomentumDirection(oldDirection);
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

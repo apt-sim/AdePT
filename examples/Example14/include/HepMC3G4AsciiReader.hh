@@ -1,5 +1,3 @@
-// SPDX-FileCopyrightText: 2022 CERN
-// SPDX-License-Identifier: Apache-2.0
 //
 // ********************************************************************
 // * License and Disclaimer                                           *
@@ -25,49 +23,67 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef PRIMARYGENERATORACTION_HH
-#define PRIMARYGENERATORACTION_HH
+/// \file eventgenerator/HepMC3/HepMCEx01/include/HepMC3G4AsciiReader.hh
+/// \brief Definition of the HepMC3G4AsciiReader class
+//
+//
 
-#include "G4VUserPrimaryGeneratorAction.hh"
-#include "G4ParticleGun.hh"
-#include "globals.hh"
+#ifndef HEPMC3_G4_ASCII_READER_H
+#define HEPMC3_G4_ASCII_READER_H
 
-class G4Event;
-class DetectorConstruction;
-class PrimaryGeneratorMessenger;
+#include "HepMC3G4Interface.hh"
+#include "HepMC3/ReaderAscii.h"
+#include "HepMC3/Print.h"
 
-/**
- * @brief Generator of particles
- *
- * Creates single particle events using a particle gun. Particle gun can be
- * configured using UI commands /gun/.
- *
- */
+class HepMC3G4AsciiReaderMessenger;
 
-class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction {
+class HepMC3G4AsciiReader : public HepMC3G4Interface {
+protected:
+  G4String filename;
+  HepMC3::ReaderAscii* asciiInput;
+
+  G4int verbose;
+  HepMC3G4AsciiReaderMessenger* messenger;
+
+  virtual HepMC3::GenEvent* GenerateHepMCEvent();
+
 public:
-  PrimaryGeneratorAction(DetectorConstruction *);
-  virtual ~PrimaryGeneratorAction();
+  HepMC3G4AsciiReader();
+  ~HepMC3G4AsciiReader();
 
-  void Print() const;
-  void SetDefaultKinematic();
-  void SetRndmBeam(G4double val) { fRndmBeam = val; }
-  void SetRndmDirection(G4double val) { fRndmDirection = val; }
+  // set/get methods
+  void SetFileName(G4String name);
+  G4String GetFileName() const;
 
-  virtual void GeneratePrimaries(G4Event *) final;
+  void SetVerboseLevel(G4int i);
+  G4int GetVerboseLevel() const; 
 
-private:
-  /// Particle gun
-  G4ParticleGun *fParticleGun;
-  DetectorConstruction *fDetector;
-  G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
-  G4double fRndmDirection;
-
-  // HepMC3 reader
-  G4VPrimaryGenerator* fHepmcAscii;
-  G4bool fUseHepMC = false;
-
-  PrimaryGeneratorMessenger *fGunMessenger;
+  // methods...
+  void Initialize();
 };
 
-#endif /* PRIMARYGENERATORACTION_HH */
+// ====================================================================
+// inline functions
+// ====================================================================
+
+inline void HepMC3G4AsciiReader::SetFileName(G4String name)
+{
+  filename= name;
+}
+
+inline G4String HepMC3G4AsciiReader::GetFileName() const
+{
+  return filename;
+}
+
+inline void HepMC3G4AsciiReader::SetVerboseLevel(G4int i)
+{
+  verbose= i;
+}
+
+inline G4int HepMC3G4AsciiReader::GetVerboseLevel() const
+{
+  return verbose;
+}
+
+#endif
