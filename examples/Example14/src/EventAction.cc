@@ -99,7 +99,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
     const char *vol_name = vecgeom::GeoManager::Instance().FindPlacedVolume(iHit)->GetLogicalVolume()->GetName();
     const char *type     = (hit->GetType() == 1) ? "AdePT" : "G4";
-    if (hitEn && fVerbosity > 1)
+    if (hitEn > 1 && fVerbosity > 1)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;
 
