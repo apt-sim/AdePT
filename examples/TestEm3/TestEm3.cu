@@ -310,7 +310,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     stats->inFlight[ParticleType::Gamma]    = 0;
 
     constexpr int MaxBlocks        = 1024;
-    constexpr int TransportThreads = 32;
+    constexpr int TransportThreads = 256;
     int transportBlocks;
 
     int inFlight;
