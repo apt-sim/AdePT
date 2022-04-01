@@ -50,6 +50,7 @@ public:
   virtual ~PrimaryGeneratorAction();
 
   void Print() const;
+  void SetHepMC() {fUseHepMC = true;}
   void SetDefaultKinematic();
   void SetRndmBeam(G4double val) { fRndmBeam = val; }
   void SetRndmDirection(G4double val) { fRndmDirection = val; }
@@ -65,7 +66,7 @@ private:
 
   // HepMC3 reader
   G4VPrimaryGenerator* fHepmcAscii;
-  G4bool fUseHepMC = false;
+  G4bool fUseHepMC;
 
   PrimaryGeneratorMessenger *fGunMessenger;
 };

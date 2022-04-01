@@ -48,7 +48,8 @@
 ## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
 /example14/event/verbose 2
 
-#/generator/hepmcAscii/open example.hepmc3
+#/example14/gun/hepmc
+#/generator/hepmcAscii/open ppminbias.hepmc3
 #/generator/hepmcAscii/verbose 1
 
 /example14/gun/setDefault
@@ -58,7 +59,7 @@
 /gun/position 0 0 0
 /gun/direction 0.085 0.085 0.99
 /example14/gun/rndmDir 0.0
-/example14/gun/print
+#/example14/gun/print
 
 ##
 ## -----------------------------------------------------------------------------
@@ -70,10 +71,8 @@
 # run events with parametrised simulation
 # by default all created models are active
 /param/ActivateModel AdePT
-#/analysis/setFileName example14_fastsim_100events.root
 /run/beamOn 1
 
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
-#/analysis/setFileName example14_fullsim_100events.root
 /run/beamOn 1

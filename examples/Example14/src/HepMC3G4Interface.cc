@@ -76,8 +76,6 @@ void HepMC3G4Interface::HepMC2G4(const HepMC3::GenEvent* hepmcevt,
       G4LorentzVector p(pos.px(), pos.py(), pos.pz(), pos.e());
       G4PrimaryParticle* g4prim=
         new G4PrimaryParticle(pdgcode, p.x()*GeV, p.y()*GeV, p.z()*GeV);
-        std::cout << "setting primary " << pdgcode << " " << p.z()*GeV << std::endl;
-
       g4vtx-> SetPrimary(g4prim);
     }
     g4event-> AddPrimaryVertex(g4vtx);

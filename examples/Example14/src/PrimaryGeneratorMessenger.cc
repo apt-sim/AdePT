@@ -20,6 +20,11 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun
   fGunDir = new G4UIdirectory("/example14/gun/");
   fGunDir->SetGuidance("gun control");
 
+  fHepmcCmd = new G4UIcmdWithoutParameter("/example14/gun/hepmc", this);
+  fHepmcCmd->SetGuidance("select hepmc input");
+  fHepmcCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+
   fDefaultCmd = new G4UIcmdWithoutParameter("/example14/gun/setDefault", this);
   fDefaultCmd->SetGuidance("set/reset kinematic defined in PrimaryGenerator");
   fDefaultCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
@@ -46,6 +51,7 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun
 
 PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
 {
+  delete fHepmcCmd;
   delete fDefaultCmd;
   delete fPrintCmd;
   delete fRndmCmd;
@@ -57,6 +63,11 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
 
 void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newValue)
 {
+
+  if (command == fHepmcCmd) {
+    fAction->SetHepMC();
+  }
+
   if (command == fDefaultCmd) {
     fAction->SetDefaultKinematic();
   }
