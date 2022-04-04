@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-find_package(HepMC3 REQUIRED)
+find_package(HepMC3 QUIET)
 
 if(HepMC3_FOUND)
   message(STATUS "HepMC3 found") 
@@ -52,7 +52,8 @@ set(sources_g4
 # example14
 add_executable(example14 example14.cpp AdeptIntegration.cpp AdeptIntegration.cu BasicScoring.cu ${sources_g4})
 
-target_include_directories(example14 PRIVATE ${PROJECT_SOURCE_DIR}/examples/Example14/include ${PROJECT_SOURCE_DIR}/examples/Example14)
+target_include_directories(example14 PRIVATE ${PROJECT_SOURCE_DIR}/examples/Example14/include 
+                          ${PROJECT_SOURCE_DIR}/examples/Example14 ${HEPMC3_INCLUDE_DIR})
 
 target_link_libraries(example14
   PRIVATE
