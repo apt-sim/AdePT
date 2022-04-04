@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 CERN
+// SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 #include "example15.cuh"
@@ -23,7 +23,7 @@
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
 #include <G4HepEmElectronInteractionIoni.hh>
-#include <G4HepEmElectronInteractionMSC.hh>
+#include <G4HepEmElectronInteractionUMSC.hh>
 #include <G4HepEmPositronInteractionAnnihilation.hh>
 // Pull in implementation.
 #include <G4HepEmRunUtils.icc>
@@ -31,7 +31,7 @@
 #include <G4HepEmElectronManager.icc>
 #include <G4HepEmElectronInteractionBrem.icc>
 #include <G4HepEmElectronInteractionIoni.icc>
-#include <G4HepEmElectronInteractionMSC.icc>
+#include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
 __device__ float *gPtrBzFieldValue_dev = nullptr;
@@ -98,7 +98,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #else
   const Precision kPush = 0.;
 #endif
-  constexpr int Charge = IsElectron ? -1 : 1;
+  constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
 #if USE_RK
   constexpr int Nvar   = 6;
@@ -135,6 +135,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
     mscData->fIsFirstStep        = currentTrack.initialRange < 0;
     mscData->fInitialRange       = currentTrack.initialRange;
+    mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
+    mscData->fTlimitMin          = currentTrack.tlimitMin;
 
     // Initial value of magnetic field
     // Equation_t::EvaluateDerivativesReturnB(magField, currentTrack.pos,
@@ -147,7 +149,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
 
     // Compute safety, needed for MSC step limit.
-    vecgeom::Precision safety = 0.0;
+    double safety = 0;
     if (!currentTrack.navState.IsOnBoundary()) {
       safety = BVHNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
     }
@@ -168,11 +170,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Call G4HepEm to compute the physics step limit.
     G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
-    // Remember value of initial range for the next step.
-    currentTrack.initialRange = mscData->fInitialRange;
+    // Remember MSC values for the next step(s).
+    currentTrack.initialRange       = mscData->fInitialRange;
+    currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
+    currentTrack.tlimitMin          = mscData->fTlimitMin;
+
 
     // Get result into variables.
-    double stepLengthFromPhysics = theTrack->GetGStepLength();
+    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
     // The phyiscal step length is the amount that the particle experiences
     // which might be longer than the geometrical step length due to MSC. As
     // long as we call PerformContinuous in the same kernel we don't need to
@@ -251,21 +256,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #else
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);      
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          currentTrack.energy, Mass, Charge, stepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-          currentTrack.navState, nextState, propagated, i);
-#endif      
+          currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
+          currentTrack.navState, nextState, propagated, safety);
     } else {
       geometryStepLength =
-          BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, stepLengthFromPhysics,
+          BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
                                                  currentTrack.navState, nextState, kPush);
       currentTrack.pos += geometryStepLength * currentTrack.dir;
-    }
-
-    if (!propagated) {
-      // error condition from field propagator. Just kill the track here and account for it explicitly.
-      atomicAdd(&globalScoring->killedInPropagation, 1);
-      // Particles are killed by not enqueuing them into the new activeQueue.
-      continue;
     }
 
     // Set boundary state in navState so the next step and secondaries get the
@@ -376,6 +373,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         // Move to the next boundary.
         currentTrack.navState = nextState;
       }
+      continue;
+    } else if (!propagated) {
+      // Did not yet reach the interaction point due to error in the magnetic
+      // field propagation. Try again next time.
+      activeQueue->push_back(slot);
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
