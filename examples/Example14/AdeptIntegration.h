@@ -32,7 +32,7 @@ class AdeptIntegration {
 public:
   static constexpr int kMaxThreads = 256;
   // Track capacity
-  static constexpr int kCapacity = 1024 * 1024;
+  static int kCapacity;
 
   using TrackBuffer = adeptint::TrackBuffer;
   using VolAuxData  = adeptint::VolAuxData;
@@ -92,6 +92,8 @@ public:
 
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz);
+  /// @brief Set track capacity on GPU
+  static void SetTrackCapacity(size_t capacity) { kCapacity = capacity; }
   /// @brief Set maximum batch size
   void SetMaxBatch(int npart) { fMaxBatch = npart; }
   /// @brief Set buffer threshold

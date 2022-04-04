@@ -55,7 +55,8 @@ private:
   G4UIcmdWithAnInteger *fVerbosityCmd = nullptr;
   /// Buffer threshold for injecting into AdePT
   G4UIcmdWithAnInteger *fBufferThresholdCmd = nullptr;
-  //
+  /// Total number of track slots for the gpu
+  G4UIcmdWithAnInteger *fTrackSlotsCmd = nullptr;
 };
 
 #endif

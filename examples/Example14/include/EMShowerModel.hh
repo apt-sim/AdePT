@@ -87,6 +87,8 @@ public:
 
   void SetScoringMap(std::unordered_map<const G4VPhysicalVolume *, int> *sm) { fScoringMap = sm; }
 
+  // Set total number of track slots on GPU
+  void SetTrackSlots(int value) { fTrackSlotsGPU = value; }
 private:
   /// Messenger for configuration
   EMShowerMessenger *fMessenger;
@@ -106,6 +108,7 @@ private:
   G4double ProductionCut = 0.7 * copcore::units::mm;
 
   int MCIndex[100];
+  int fTrackSlotsGPU{8};     ///< Total number of track slots allocated on GPU (in millions)
   std::unordered_map<std::string, int> *sensitive_volume_index;
   std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap;
 };

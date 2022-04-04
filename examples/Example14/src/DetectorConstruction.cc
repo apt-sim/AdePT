@@ -162,7 +162,8 @@ void DetectorConstruction::ConstructSDandField()
   fShowerModel->SetScoringMap(&gScoringMap);
   fShowerModel->SetVerbosity(fVerbosity);
   fShowerModel->SetBufferThreshold(fBufferThreshold);
-
+  fShowerModel->SetTrackSlots(fTrackSlotsGPU);
+  
   try {
     fShowerModel->Initialize(fActivate_AdePT);
   } catch (const std::runtime_error &ex) {

@@ -46,6 +46,7 @@ __constant__ __device__ int Zero = 0;
 
 G4HepEmState *AdeptIntegration::fg4hepem_state{nullptr};
 SlotManager *slotManagerInit_dev = nullptr;
+int AdeptIntegration::kCapacity = 1024 * 1024;
 
 void AdeptIntegration::VolAuxArray::InitializeOnGPU()
 {
@@ -254,7 +255,7 @@ void AdeptIntegration::InitializeGPU()
   //  * objects to manage slots inside the memory,
   //  * queues of slots to remember active particle and those needing relocation,
   //  * a stream and an event for synchronization of kernels.
-  constexpr size_t TracksSize  = sizeof(Track) * kCapacity;
+  size_t TracksSize            = sizeof(Track) * kCapacity;
   constexpr size_t ManagerSize = sizeof(SlotManager);
   const size_t QueueSize       = adept::MParray::SizeOfInstance(kCapacity);
   // Create a stream to synchronize kernels of all particle types.
