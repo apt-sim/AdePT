@@ -45,7 +45,7 @@ target_include_directories(RaytraceBenchmark PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml raytracercu CopCore::CopCore)
+target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml raytracercu CopCore::CopCore)
 target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-fmad=false>")
 set_target_properties(RaytraceBenchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
