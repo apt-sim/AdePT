@@ -50,6 +50,7 @@ public:
   virtual ~PrimaryGeneratorAction();
 
   void Print() const;
+  void SetHepMC() {fUseHepMC = true;}
   void SetDefaultKinematic();
   void SetRndmBeam(G4double val) { fRndmBeam = val; }
   void SetRndmDirection(G4double val) { fRndmDirection = val; }
@@ -62,6 +63,10 @@ private:
   DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
   G4double fRndmDirection;
+
+  // HepMC3 reader
+  G4VPrimaryGenerator* fHepmcAscii;
+  G4bool fUseHepMC;
 
   PrimaryGeneratorMessenger *fGunMessenger;
 };

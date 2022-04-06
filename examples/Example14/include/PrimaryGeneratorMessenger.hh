@@ -32,6 +32,7 @@ private:
   PrimaryGeneratorAction *fAction;
 
   G4UIdirectory *fGunDir;
+  G4UIcmdWithoutParameter *fHepmcCmd;
   G4UIcmdWithoutParameter *fDefaultCmd;
   G4UIcmdWithoutParameter *fPrintCmd;
   G4UIcmdWithADouble *fRndmCmd;
