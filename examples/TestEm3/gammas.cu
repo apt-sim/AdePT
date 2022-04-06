@@ -104,7 +104,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
     // Perform the discrete interaction.
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
+    RanluxppDoubleAdaptor rnge{currentTrack.rngState};
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
