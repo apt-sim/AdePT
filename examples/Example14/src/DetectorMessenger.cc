@@ -45,6 +45,9 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImess
   fBufferThresholdCmd = new G4UIcmdWithAnInteger("/example14/adept/threshold", this);
   fBufferThresholdCmd->SetGuidance("Threshold for starting AdePT transport");
 
+  fTrackSlotsCmd = new G4UIcmdWithAnInteger("/example14/adept/milliontrackslots", this);
+  fTrackSlotsCmd->SetGuidance("Total number of allocated track slots per GPU");
+
   fFieldCmd = new G4UIcmdWith3VectorAndUnit("/example14/detector/setField", this);
   fFieldCmd->SetGuidance("Set the constant magenetic field vector.");
   fFieldCmd->SetUnitCategory("Magnetic flux density");
@@ -67,6 +70,7 @@ DetectorMessenger::~DetectorMessenger()
   delete fActivationCmd;
   delete fVerbosityCmd;
   delete fBufferThresholdCmd;
+  delete fTrackSlotsCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -89,5 +93,7 @@ void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
     fDetector->SetVerbosity(fVerbosityCmd->GetNewIntValue(aNewValue));
   } else if (aCommand == fBufferThresholdCmd) {
     fDetector->SetBufferThreshold(fBufferThresholdCmd->GetNewIntValue(aNewValue));
+  } else if (aCommand == fTrackSlotsCmd) {
+    fDetector->SetTrackSlots(fTrackSlotsCmd->GetNewIntValue(aNewValue));
   }
 }

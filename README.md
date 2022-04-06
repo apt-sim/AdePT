@@ -15,7 +15,7 @@ The following packages are a required to build and run:
 - C/C++ Compiler with C++14 support
 - CUDA Toolkit (tested 10.1, min version TBD)
 - VecCore [library](https://github.com/root-project/veccore) 0.7.0 (recommended, but older versions >= 0.5.0 also work)
-- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 1.1.17
+- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 1.1.20
 
 To configure and build VecCore, simply run:
 ```console

@@ -7,7 +7,7 @@
 ## Geant4 macro for modelling simplified sampling calorimeters
 ## =============================================================================
 ##
-/run/numberOfThreads 1
+/run/numberOfThreads 8
 /control/verbose 0
 /run/verbose 0
 /process/verbose 0
@@ -16,7 +16,10 @@
 /example14/detector/filename @CMS2018_GDML@
 /example14/detector/regionname EcalRegion
 /example14/adept/verbose 0
-/example14/adept/threshold 50
+## Threshold for buffering tracks before sending to GPU
+/example14/adept/threshold 200
+## Total number of GPU track slots (not per thread)
+/example14/adept/milliontrackslots 8
 
 /example14/detector/addsensitivevolume EAPD_01
 /example14/detector/addsensitivevolume EAPD_02
@@ -101,7 +104,7 @@
 /example14/gun/setDefault
 /gun/particle e-
 /gun/energy 10 GeV
-/gun/number 100
+/gun/number 200
 /gun/position 0 0 0
 #/example14/gun/print
 
@@ -116,9 +119,9 @@
 # by default all created models are active
 /param/ActivateModel AdePT
 #/analysis/setFileName example14_fastsim_100events.root
-/run/beamOn 1
+/run/beamOn 8
 
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
 #/analysis/setFileName example14_fullsim_100events.root
-/run/beamOn 1
+/run/beamOn 8

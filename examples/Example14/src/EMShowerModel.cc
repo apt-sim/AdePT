@@ -120,7 +120,10 @@ void EMShowerModel::Initialize(bool adept)
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
     // This is supposed to set the max batching for Adept to allocate properly the memory
-    fAdept->Initialize(true /*common_data*/);
+     int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
+     int capacity = 1024 * 1024 * fTrackSlotsGPU / num_threads;
+     AdeptIntegration::SetTrackCapacity(capacity);
+     fAdept->Initialize(true /*common_data*/);
     if (sequential && adept) fAdept->Initialize();
   } else {
     if (adept) fAdept->Initialize();

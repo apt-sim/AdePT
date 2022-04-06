@@ -50,7 +50,7 @@ find_package(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 message(STATUS "Using VecCore version ${VecCore_VERSION}")
 
 # Find VecGeom geometry headers library
-set(VecGeom_VERSION 1.1.17)
+set(VecGeom_VERSION 1.1.20)
 find_package(VecGeom ${VecGeom_VERSION} REQUIRED)
 message(STATUS "Using VecGeom version ${VecGeom_VERSION}")
 # make sure we import VecGeom architecture flags - is this needed?
