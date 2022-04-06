@@ -4,7 +4,7 @@
 find_package(HepMC3 QUIET)
 
 if(HepMC3_FOUND)
-  message(STATUS "HepMC3 found") 
+  message(STATUS "HepMC3 found ${HEPMC3_INCLUDE_DIR}") 
   add_definitions(-DHEPMC3_FOUND)
 endif()
 
@@ -44,13 +44,19 @@ set(sources_g4
   src/PhysListHepEm.cc
   src/TrackingAction.cc
   src/FTFP_BERT_HepEm.cc
-  src/HepMC3G4AsciiReader.cc
-  src/HepMC3G4AsciiReaderMessenger.cc
-  src/HepMC3G4Interface.cc
 )
 
+if(HepMC3_FOUND)
+  set(sources_hepmc3
+      src/HepMC3G4AsciiReader.cc
+      src/HepMC3G4AsciiReaderMessenger.cc
+      src/HepMC3G4Interface.cc
+     )
+endif()
+
 # example14
-add_executable(example14 example14.cpp AdeptIntegration.cpp AdeptIntegration.cu BasicScoring.cu ${sources_g4})
+add_executable(example14 example14.cpp AdeptIntegration.cpp AdeptIntegration.cu BasicScoring.cu 
+               ${sources_g4} ${sources_hepmc3})
 
 target_include_directories(example14 PRIVATE ${PROJECT_SOURCE_DIR}/examples/Example14/include 
                           ${PROJECT_SOURCE_DIR}/examples/Example14 ${HEPMC3_INCLUDE_DIR})
