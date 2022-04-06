@@ -39,6 +39,7 @@ struct G4HepEmState {
   G4HepEmParameters parameters;
 };
 
+
 static G4HepEmState *InitG4HepEm()
 {
   G4HepEmState *state = new G4HepEmState;
@@ -125,12 +126,12 @@ __global__ void TransportParticle()
       }
     }
 
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, theElTrack, nullptr);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, theElTrack, static_cast<G4HepEmRandomEngine*>(nullptr));
     printf("sampled process: %d, particle travels %fmm\n", theTrack->GetWinnerProcessIndex(),
            theTrack->GetGStepLength());
 
     const int iDProc = theTrack->GetWinnerProcessIndex();
-    bool stopped     = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, theElTrack, nullptr);
+    bool stopped     = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, theElTrack, static_cast<G4HepEmRandomEngine*>(nullptr));
     printf("energy after continuous process: %fMeV\n", theTrack->GetEKin());
     if (stopped) {
       // call annihilation for e+ !!!

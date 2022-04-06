@@ -61,7 +61,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
+    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, static_cast<G4HepEmRandomEngine*>(nullptr));
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -85,7 +85,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
     // Apply continuous effects.
-    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, nullptr);
+    bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, static_cast<G4HepEmRandomEngine*>(nullptr));
     // Collect the changes.
     currentTrack.energy = theTrack->GetEKin();
     atomicAdd(&scoring->energyDeposit, theTrack->GetEnergyDeposit());
