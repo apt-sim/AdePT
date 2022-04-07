@@ -21,6 +21,7 @@
 #include <G4HepEmParametersInit.hh>
 
 #define NOMSC
+#define NOFLUCTUATION
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>

@@ -8,6 +8,7 @@
 #include <CopCore/PhysicalConstants.h>
 
 #define NOMSC
+#define NOFLUCTUATION
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
