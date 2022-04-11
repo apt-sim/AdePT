@@ -28,6 +28,9 @@
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 #endif
 
+__device__ char g_nextInteractionForEl[8'000'000];
+__device__ char g_nextInteractionForPos[8'000'000];
+
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
@@ -49,6 +52,10 @@ void TransportElectrons(Track *electrons, const adept::MParray *active,
     auto volume         = currentTrack.navState.Top();
     int volumeID        = volume->id();
     int theMCIndex      = MCIndex[volumeID];
+    // Ensure that this track doesn't undergo an interaction unless we overwrite this:
+    assert(i < 8'000'000);
+    if constexpr (IsElectron) g_nextInteractionForEl[i] = -1;
+    else g_nextInteractionForPos[i] = -1;
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
@@ -258,11 +265,83 @@ void TransportElectrons(Track *electrons, const adept::MParray *active,
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
 
+    if constexpr (IsElectron) g_nextInteractionForEl[i] = winnerProcessIndex;
+    else g_nextInteractionForPos[i] = winnerProcessIndex;
+    assert(i < (IsElectron ?
+        sizeof(g_nextInteractionForEl)/sizeof(g_nextInteractionForEl[0])
+      : sizeof(g_nextInteractionForPos)/sizeof(g_nextInteractionForPos[0]) ));
+  }
+}
+
+
+// Instantiate kernels for electrons and positrons.
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                        adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                        ScoringPerVolume *scoringPerVolume)
+{
+  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, globalScoring, scoringPerVolume);
+}
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
+                        adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                        ScoringPerVolume *scoringPerVolume)
+{
+  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, globalScoring,
+                                           scoringPerVolume);
+}
+
+template<bool IsElectron, int ProcessIndex>
+__global__
+void ComputeInteraction(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                        adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                        ScoringPerVolume *scoringPerVolume)
+{
+  constexpr unsigned int sharedSize = 12250;
+  __shared__ int candidates[sharedSize];
+  __shared__ unsigned int counter;
+  __shared__ unsigned int noopCounter;
+  counter = 0;
+  noopCounter = 0;
+
+  for (int i = threadIdx.x; i < sharedSize; i += blockDim.x) {
+    candidates[i] = -1;
+  }
+  __syncthreads();
+
+  const int activeSize = active->size();
+  assert(activeSize < sizeof(g_nextInteractionForEl)/sizeof(g_nextInteractionForEl[0]));
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const auto winnerProcess = IsElectron ? g_nextInteractionForEl[i] : g_nextInteractionForPos[i];
+
+    if (winnerProcess == ProcessIndex) {
+      const auto destination = atomicInc(&counter, (unsigned int)-1);
+      candidates[destination % sharedSize] = i;
+    } else atomicInc(&noopCounter, (unsigned int)-1);
+  }
+
+  __syncthreads();
+  assert(counter < sharedSize);
+  if (threadIdx.x == 0 && counter >= sharedSize) {
+    printf("Error: Shared queue for %d exhausted to %d in %s:%d\n", ProcessIndex, counter, __FILE__, __LINE__);
+    asm("trap;");
+  }
+
+  for (int i = threadIdx.x; i < counter; i += blockDim.x) {
+    const int slot = (*active)[candidates[i]];
+    Track &currentTrack = electrons[slot];
+    auto volume         = currentTrack.navState.Top();
+    int volumeID        = volume->id();
+    int theMCIndex      = MCIndex[volumeID];
+
     const double energy   = currentTrack.energy;
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
 
-    switch (winnerProcessIndex) {
-    case 0: {
+    RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
+
+    RanluxppDoubleEngine rnge(&currentTrack.rngState);
+
+    if constexpr (ProcessIndex == 0) {
       // Invoke ionization (for e-/e+):
       double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
                                       : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
@@ -283,16 +362,14 @@ void TransportElectrons(Track *electrons, const adept::MParray *active,
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       // The current track continues to live.
       activeQueue->push_back(slot);
-      break;
-    }
-    case 1: {
+    } else if constexpr (ProcessIndex == 1) {
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
       double logEnergy = std::log(energy);
       double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
-                                                                                 theMCIndex, &rnge, IsElectron)
-                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
-                                                                                 theMCIndex, &rnge, IsElectron);
+                            ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
+                                                                                theMCIndex, &rnge, IsElectron)
+                            : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
+                                                                                theMCIndex, &rnge, IsElectron);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];
@@ -310,9 +387,7 @@ void TransportElectrons(Track *electrons, const adept::MParray *active,
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       // The current track continues to live.
       activeQueue->push_back(slot);
-      break;
-    }
-    case 2: {
+    } else if constexpr (ProcessIndex == 2) {
       // Invoke annihilation (in-flight) for e+
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double theGamma1Ekin, theGamma2Ekin;
@@ -336,25 +411,34 @@ void TransportElectrons(Track *electrons, const adept::MParray *active,
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
     }
   }
 }
 
-// Instantiate kernels for electrons and positrons.
+template
 __global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
-void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+void ComputeInteraction<true, 0>(Track *electrons, const adept::MParray *active, Secondaries secondaries,
                         adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                        ScoringPerVolume *scoringPerVolume)
-{
-  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, globalScoring, scoringPerVolume);
-}
+                        ScoringPerVolume *scoringPerVolume);
+template
 __global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
-void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
+void ComputeInteraction<true, 1>(Track *electrons, const adept::MParray *active, Secondaries secondaries,
                         adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                        ScoringPerVolume *scoringPerVolume)
-{
-  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, globalScoring,
-                                           scoringPerVolume);
-}
+                        ScoringPerVolume *scoringPerVolume);
+// Electrons don't do annihilation (Process == 2)
+
+template
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void ComputeInteraction<false, 0>(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                        adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                        ScoringPerVolume *scoringPerVolume);
+template
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void ComputeInteraction<false, 1>(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                        adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                        ScoringPerVolume *scoringPerVolume);
+template
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void ComputeInteraction<false, 2>(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                        adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                        ScoringPerVolume *scoringPerVolume);

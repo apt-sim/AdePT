@@ -149,6 +149,12 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
                                 ScoringPerVolume *scoringPerVolume);
 
+template<bool IsElectron, int ProcessIndex>
+__global__
+void ComputeInteraction(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                        adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                        ScoringPerVolume *scoringPerVolume);
+
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)
 extern __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
