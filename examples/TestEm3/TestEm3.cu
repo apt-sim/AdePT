@@ -8,6 +8,8 @@
 #include <AdePT/BVHNavigator.h>
 #include <AdePT/MParray.h>
 
+#include <AdePT/NVTX.h>
+
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>
 #include <CopCore/Ranluxpp.h>

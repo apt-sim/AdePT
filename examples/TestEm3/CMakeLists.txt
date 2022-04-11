@@ -10,5 +10,8 @@ endif()
 add_executable(TestEm3 TestEm3.cpp TestEm3.cu electrons.cu gammas.cu)
 target_link_libraries(TestEm3 PRIVATE AdePT CopCore::CopCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml ${Geant4_LIBRARIES} G4HepEm::g4HepEmData G4HepEm::g4HepEmInit G4HepEm::g4HepEmRun)
 set_target_properties(TestEm3 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+target_compile_options(TestEm3 PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--ptxas-options=-v>
+)
 
 add_test(NAME TestEm3 COMMAND TestEm3)
