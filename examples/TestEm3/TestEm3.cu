@@ -251,6 +251,9 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   cudaStream_t stream;
   COPCORE_CUDA_CHECK(cudaStreamCreate(&stream));
 
+  cudaStream_t interactionStreams[3];
+  for (auto i = 0; i < 3; ++i) COPCORE_CUDA_CHECK(cudaStreamCreate(&interactionStreams[i]));
+
   // Allocate memory to score charged track length and energy deposit per volume.
   double *chargedTrackLength = nullptr;
   COPCORE_CUDA_CHECK(cudaMalloc(&chargedTrackLength, sizeof(double) * numVolumes));
@@ -452,6 +455,8 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   COPCORE_CUDA_CHECK(cudaFree(slotManagerInit_dev));
 
   COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
+
+  for (auto i = 0; i < 3; ++i) COPCORE_CUDA_CHECK(cudaStreamDestroy(interactionStreams[i]));
 
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     COPCORE_CUDA_CHECK(cudaFree(particles[i].tracks));
