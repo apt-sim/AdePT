@@ -30,6 +30,7 @@ struct Track {
   double initialRange;
   double dynamicRangeFactor;
   double tlimitMin;
+  double fPEmxSec;
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
@@ -154,6 +155,12 @@ __global__
 void ComputeInteraction(Track *electrons, const adept::MParray *active, Secondaries secondaries,
                         adept::MParray *activeQueue, GlobalScoring *globalScoring,
                         ScoringPerVolume *scoringPerVolume);
+
+template<int ProcessIndex>
+__global__
+void ComputeGammaInteractions(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                              adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                              ScoringPerVolume *scoringPerVolume);
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)

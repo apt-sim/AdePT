@@ -19,6 +19,8 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
+__device__ char g_nextInteractionForGamma[8'000'000];
+
 __global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
 void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                      adept::MParray *activeQueue, GlobalScoring *globalScoring,
@@ -31,6 +33,9 @@ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries se
     auto volume         = currentTrack.navState.Top();
     int volumeID        = volume->id();
     int theMCIndex      = MCIndex[volumeID];
+    // Ensure that this track doesn't undergo an interaction unless we overwrite this:
+    assert(i < sizeof(g_nextInteractionForGamma)/sizeof(g_nextInteractionForGamma[0]));
+    g_nextInteractionForGamma[i] = -1;
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
@@ -104,15 +109,57 @@ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries se
     // (Will be resampled in the next iteration.)
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
-    // Perform the discrete interaction.
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
-    // We might need one branched RNG state, prepare while threads are synchronized.
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+    g_nextInteractionForGamma[i] = winnerProcessIndex;
+    currentTrack.fPEmxSec = gammaTrack.GetPEmxSec();
+  }
+}
 
-    const double energy = currentTrack.energy;
 
-    switch (winnerProcessIndex) {
-    case 0: {
+template<int ProcessIndex>
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void ComputeGammaInteractions(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                              adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                              ScoringPerVolume *scoringPerVolume)
+{
+  constexpr int sharedSize = 12250;
+  __shared__ int candidates[sharedSize];
+  __shared__ unsigned int counter;
+  __shared__ unsigned int noopCounter;
+  counter = 0;
+  noopCounter = 0;
+
+  const int activeSize = active->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const auto winnerProcess = g_nextInteractionForGamma[i];
+
+    if (winnerProcess == ProcessIndex) {
+      const auto destination = atomicInc(&counter, (unsigned int)-1);
+      candidates[destination % sharedSize] = i;
+    } else atomicInc(&noopCounter, (unsigned int)-1);
+  }
+
+  __syncthreads();
+  assert(counter < sharedSize);
+  if (threadIdx.x == 0 && counter >= sharedSize) {
+    printf("Error: Shared queue for %d exhausted to %d in %s:%d\n", ProcessIndex, counter, __FILE__, __LINE__);
+    __threadfence();
+    asm("trap;");
+  }
+
+
+  for (int i = threadIdx.x; i < counter; i += blockDim.x) {
+    const int slot = (*active)[candidates[i]];
+    Track &currentTrack = gammas[slot];
+    const auto volume         = currentTrack.navState.Top();
+    const int volumeID        = volume->id();
+    const int theMCIndex      = MCIndex[volumeID];
+    const double energy       = currentTrack.energy;
+
+    RanluxppDouble newRNG{currentTrack.rngState.Branch()};
+    RanluxppDoubleEngine rnge{&currentTrack.rngState};
+
+
+    if constexpr (ProcessIndex == 0) {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (energy < 2 * copcore::units::kElectronMassC2) {
         activeQueue->push_back(slot);
@@ -122,7 +169,7 @@ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries se
       double logEnergy = std::log(energy);
       double elKinEnergy, posKinEnergy;
       G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy,
-                                                           posKinEnergy, &rnge);
+                                                          posKinEnergy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondaryEl[3], dirSecondaryPos[3];
@@ -146,9 +193,7 @@ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries se
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
-    case 1: {
+    } else if constexpr (ProcessIndex == 1) {
       // Invoke Compton scattering of gamma.
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (energy < LowEnergyThreshold) {
@@ -189,14 +234,12 @@ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries se
         atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
       }
-      break;
-    }
-    case 2: {
+    } else if constexpr (ProcessIndex == 2) {
       // Invoke photoelectric process.
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, theMCIndex, gammaTrack.GetPEmxSec(), energy, &rnge);
+          &g4HepEmData, theMCIndex, currentTrack.fPEmxSec, energy, &rnge);
 
       double edep             = bindingEnergy;
       const double photoElecE = energy - edep;
@@ -219,8 +262,23 @@ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries se
       atomicAdd(&globalScoring->energyDeposit, edep);
       atomicAdd(&scoringPerVolume->energyDeposit[volumeID], edep);
       // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
     }
   }
 }
+
+
+template
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void ComputeGammaInteractions<0>(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume);
+template
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void ComputeGammaInteractions<1>(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume);
+template
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void ComputeGammaInteractions<2>(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume);

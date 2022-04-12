@@ -403,6 +403,28 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
+
+        for (auto i = 0; i < 3; ++i) {
+          COPCORE_CUDA_CHECK(cudaStreamWaitEvent(interactionStreams[i], gammas.event, 0));
+        }
+        // About 2% of all gammas:
+        ComputeGammaInteractions<0><<<16, ThreadsPerBlock, 0, gammas.stream>>>(
+            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, globalScoring,
+            scoringPerVolume);
+        // About 10% of all gammas:
+        ComputeGammaInteractions<1><<<64, ThreadsPerBlock, 0, interactionStreams[1]>>>(
+            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, globalScoring,
+            scoringPerVolume);
+        // About 15% of all gammas:
+        ComputeGammaInteractions<2><<<64, ThreadsPerBlock, 0, interactionStreams[2]>>>(
+            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, globalScoring,
+            scoringPerVolume);
+        for (auto i = 0; i < 3; ++i) {
+          COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, interactionStreams[i]));
+          COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
+        }
+        COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
       }
 
       // *** END OF TRANSPORT ***
