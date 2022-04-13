@@ -104,10 +104,7 @@ struct TrackManager {
   Track *fBuffer{nullptr};                ///< Storage for the circular buffer of tracks (device pointer)
 
   /// @brief Construction done on host but holding device pointers.
-  __host__ __device__ TrackManager(size_t capacity) : fCapacity(capacity)
-  {
-    fNextFree.store(0);
-  }
+  __host__ __device__ TrackManager(size_t capacity) : fCapacity(capacity) { fNextFree.store(0); }
 
   /// Construct a device instance and attach it to this instance on host
   TrackManager<Track> *ConstructOnDevice()
@@ -141,14 +138,16 @@ struct TrackManager {
     int used     = fStats.GetNused();
     int inFlight = fStats.fInFlight;
     assert(used >= 0 && used < fCapacity);
+    // Cannot compress any more if the destination region overlaps the used one
+    bool can_compress = (used + inFlight) < fCapacity;
+    if (!can_compress)
+      std::cout << "TrackManager::SwapAndCompact  ALERT: not enough space left to compress " << inFlight
+                << " tracks from " << used << " used slots. Consider increasing TrackManager capacity.\n";
+
     // Estimate maximum space needed if we DON'T compress now
     int needed = used + 2 * inFlight;
-    if (needed < compact_threshold * fCapacity || needed > fCapacity) {
+    if (needed < compact_threshold * fCapacity || !can_compress) {
       device_impl_trackmgr::swap_active<Track><<<1, 1, 0, stream>>>(fInstance_d);
-      if (needed > fCapacity) {
-        std::cout << "TrackManager::SwapAndCompact  ALERT: not enough space left to compress " << used
-                  << " used slots. Consider increasing TrackManager capacity.\n";
-      }
       return false;
     }
 
