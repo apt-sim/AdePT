@@ -7,6 +7,7 @@
 #include "example13.h"
 
 #include <AdePT/MParray.h>
+#include <AdePT/TrackManager.cuh>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 
@@ -86,63 +87,21 @@ public:
   }
 };
 
-// A data structure to manage slots in the track storage.
-class SlotManager {
-  adept::Atomic_t<int> fNextSlot;
-  const int fMaxSlot;
-
-public:
-  __host__ __device__ SlotManager(int maxSlot) : fMaxSlot(maxSlot) { fNextSlot = 0; }
-
-  __host__ __device__ int NextSlot()
-  {
-    int next = fNextSlot.fetch_add(1);
-    if (next >= fMaxSlot) return -1;
-    return next;
-  }
-};
-
-// A bundle of pointers to generate particles of an implicit type.
-class ParticleGenerator {
-  Track *fTracks;
-  SlotManager *fSlotManager;
-  adept::MParray *fActiveQueue;
-
-public:
-  __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue)
-      : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue)
-  {
-  }
-
-  __host__ __device__ Track &NextTrack()
-  {
-    int slot = fSlotManager->NextSlot();
-    if (slot == -1) {
-      COPCORE_EXCEPTION("No slot available in ParticleGenerator::NextTrack");
-    }
-    fActiveQueue->push_back(slot);
-    return fTracks[slot];
-  }
-};
-
 // A bundle of generators for the three particle types.
 struct Secondaries {
-  ParticleGenerator electrons;
-  ParticleGenerator positrons;
-  ParticleGenerator gammas;
+  adept::TrackManager<Track> *electrons;
+  adept::TrackManager<Track> *positrons;
+  adept::TrackManager<Track> *gammas;
 };
 
 // Kernels in different TUs.
-__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume);
-__global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume);
+__global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
+                                   GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
+__global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
+                                   GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
 
-__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                ScoringPerVolume *scoringPerVolume);
+__global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries,
+                                GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)

@@ -67,19 +67,8 @@ void InitG4HepEmGPU(G4HepEmState *state)
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
 }
 
-// A bundle of queues per particle type:
-//  * Two for active particles, one for the current iteration and the second for the next.
-struct ParticleQueues {
-  adept::MParray *currentlyActive;
-  adept::MParray *nextActive;
-
-  void SwapActive() { std::swap(currentlyActive, nextActive); }
-};
-
 struct ParticleType {
-  Track *tracks;
-  SlotManager *slotManager;
-  ParticleQueues queues;
+  adept::TrackManager<Track> *trackmgr;
   cudaStream_t stream;
   cudaEvent_t event;
 
@@ -92,24 +81,17 @@ struct ParticleType {
   };
 };
 
-// A bundle of queues for the three particle types.
-struct AllParticleQueues {
-  ParticleQueues queues[ParticleType::NumParticleTypes];
+// Track managers for the three particle types.
+struct AllTrackManagers {
+  adept::TrackManager<Track> *trackmgr[ParticleType::NumParticleTypes];
 };
 
-// Kernel to initialize the set of queues per particle type.
-__global__ void InitParticleQueues(ParticleQueues queues, size_t Capacity)
-{
-  adept::MParray::MakeInstanceAt(Capacity, queues.currentlyActive);
-  adept::MParray::MakeInstanceAt(Capacity, queues.nextActive);
-}
-
 // Kernel function to initialize a set of primary particles.
-__global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int numEvents, double energy,
+__global__ void InitPrimaries(adept::TrackManager<Track> *trackmgr, int startEvent, int numEvents, double energy,
                               const vecgeom::VPlacedVolume *world, GlobalScoring *globalScoring, bool rotatingParticleGun)
 {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < numEvents; i += blockDim.x * gridDim.x) {
-    Track &track = generator.NextTrack();
+    Track &track = trackmgr->NextTrack();
 
     track.rngState.SetSeed(startEvent + i);
     track.energy       = energy;
@@ -141,15 +123,15 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
 
 // A data structure to transfer statistics after each iteration.
 struct Stats {
-  int inFlight[ParticleType::NumParticleTypes];
+  adept::TrackManager<Track>::Stats mgr_stats[ParticleType::NumParticleTypes];
 };
 
-// Finish iteration: clear queues and fill statistics.
-__global__ void FinishIteration(AllParticleQueues all, Stats *stats)
+// Finish iteration: refresh track managers and fill statistics.
+__global__ void FinishIteration(AllTrackManagers all, Stats *stats)
 {
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    all.queues[i].currentlyActive->clear();
-    stats->inFlight[i] = all.queues[i].nextActive->size();
+    all.trackmgr[i]->refresh_stats();
+    stats->mgr_stats[i] = all.trackmgr[i]->fStats;
   }
 }
 
@@ -173,7 +155,7 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(MCIndex, &MCIndex_dev, sizeof(int *)));
 
   // Capacity of the different containers aka the maximum number of particles.
-  constexpr int Capacity = 256 * 1024;
+  constexpr int Capacity = 1024 * 1024;
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
   if (batch == -1) {
@@ -189,29 +171,19 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
     std::cout << "INFO: running with magnetic field OFF" << std::endl;
   }
 
-  // Allocate structures to manage tracks of an implicit type:
-  //  * memory to hold the actual Track elements,
-  //  * objects to manage slots inside the memory,
-  //  * queues of slots to remember active particle and those needing relocation,
-  //  * a stream and an event for synchronization of kernels.
-  constexpr size_t TracksSize  = sizeof(Track) * Capacity;
-  constexpr size_t ManagerSize = sizeof(SlotManager);
-  const size_t QueueSize       = adept::MParray::SizeOfInstance(Capacity);
-
+  // Allocate track managers, streams and synchronizaion events.
+  AllTrackManagers allmgr_h, allmgr_d;
   ParticleType particles[ParticleType::NumParticleTypes];
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].tracks, TracksSize));
-
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].slotManager, ManagerSize));
-
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.currentlyActive, QueueSize));
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.nextActive, QueueSize));
-    InitParticleQueues<<<1, 1>>>(particles[i].queues, Capacity);
+    allmgr_h.trackmgr[i]  = new adept::TrackManager<Track>(Capacity);
+    allmgr_d.trackmgr[i]  = allmgr_h.trackmgr[i]->ConstructOnDevice();
+    particles[i].trackmgr = allmgr_d.trackmgr[i];
 
     COPCORE_CUDA_CHECK(cudaStreamCreate(&particles[i].stream));
     COPCORE_CUDA_CHECK(cudaEventCreate(&particles[i].event));
   }
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+  Secondaries secondaries{allmgr_d.trackmgr[0], allmgr_d.trackmgr[1], allmgr_d.trackmgr[2]};
 
   ParticleType &electrons = particles[ParticleType::Electron];
   ParticleType &positrons = particles[ParticleType::Positron];
@@ -247,12 +219,6 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
   Stats *stats = nullptr;
   COPCORE_CUDA_CHECK(cudaMallocHost(&stats, sizeof(Stats)));
 
-  // Allocate memory to hold a "vanilla" SlotManager to initialize for each batch.
-  SlotManager slotManagerInit(Capacity);
-  SlotManager *slotManagerInit_dev = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&slotManagerInit_dev, sizeof(SlotManager)));
-  COPCORE_CUDA_CHECK(cudaMemcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
-
   vecgeom::Stopwatch timer;
   timer.Start();
   tracer.setTag("sim");
@@ -264,6 +230,7 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
   }
 
   unsigned long long killed = 0;
+  int num_compact           = 0;
 
   for (int startEvent = 1; startEvent <= numParticles; startEvent += batch) {
     if (detailed) {
@@ -272,23 +239,18 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
     int left  = numParticles - startEvent + 1;
     int chunk = std::min(left, batch);
 
-    for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-      COPCORE_CUDA_CHECK(cudaMemcpyAsync(particles[i].slotManager, slotManagerInit_dev, ManagerSize,
-                                         cudaMemcpyDeviceToDevice, stream));
-    }
-
     // Initialize primary particles.
-    constexpr int InitThreads = 32;
-    int initBlocks            = (chunk + InitThreads - 1) / InitThreads;
-    ParticleGenerator electronGenerator(electrons.tracks, electrons.slotManager, electrons.queues.currentlyActive);
+    constexpr float compactThreshold = 0.9;
+    constexpr int InitThreads        = 32;
+    int initBlocks                   = (chunk + InitThreads - 1) / InitThreads;
     auto world_dev = vecgeom::cxx::CudaManager::Instance().world_gpu();
-    InitPrimaries<<<initBlocks, InitThreads, 0, stream>>>(electronGenerator, startEvent, chunk, energy, world_dev,
+    InitPrimaries<<<initBlocks, InitThreads, 0, stream>>>(electrons.trackmgr, startEvent, chunk, energy, world_dev,
                                                           globalScoring, rotatingParticleGun);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    stats->inFlight[ParticleType::Electron] = chunk;
-    stats->inFlight[ParticleType::Positron] = 0;
-    stats->inFlight[ParticleType::Gamma]    = 0;
+    allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight = chunk;
+    allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight = 0;
+    allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight    = 0;
 
     constexpr int MaxBlocks        = 1024;
     constexpr int TransportThreads = 32;
@@ -303,49 +265,40 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
 #endif
 
     do {
-      Secondaries secondaries = {
-          .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
-          .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
-          .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
-      };
-
       // *** ELECTRONS ***
-      int numElectrons = stats->inFlight[ParticleType::Electron];
+      int numElectrons = allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
       if (numElectrons > 0) {
         transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
         transportBlocks = std::min(transportBlocks, MaxBlocks);
 
-        TransportElectrons<<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive, globalScoring,
-            scoringPerVolume);
+        TransportElectrons<<<transportBlocks, TransportThreads, 0, electrons.stream>>>(electrons.trackmgr, secondaries,
+                                                                                       globalScoring, scoringPerVolume);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
       }
 
       // *** POSITRONS ***
-      int numPositrons = stats->inFlight[ParticleType::Positron];
+      int numPositrons = allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
       if (numPositrons > 0) {
         transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
         transportBlocks = std::min(transportBlocks, MaxBlocks);
 
-        TransportPositrons<<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive, globalScoring,
-            scoringPerVolume);
+        TransportPositrons<<<transportBlocks, TransportThreads, 0, positrons.stream>>>(positrons.trackmgr, secondaries,
+                                                                                       globalScoring, scoringPerVolume);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
       }
 
       // *** GAMMAS ***
-      int numGammas = stats->inFlight[ParticleType::Gamma];
+      int numGammas = allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight;
       if (numGammas > 0) {
         transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
         transportBlocks = std::min(transportBlocks, MaxBlocks);
 
-        TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, globalScoring,
-            scoringPerVolume);
+        TransportGammas<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(gammas.trackmgr, secondaries,
+                                                                                 globalScoring, scoringPerVolume);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
@@ -355,8 +308,7 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
 
       // The events ensure synchronization before finishing this iteration and
       // copying the Stats back to the host.
-      AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
-      FinishIteration<<<1, 1, 0, stream>>>(queues, stats_dev);
+      FinishIteration<<<1, 1, 0, stream>>>(allmgr_d, stats_dev);
       COPCORE_CUDA_CHECK(cudaMemcpyAsync(stats, stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, stream));
 
       // Finally synchronize all kernels.
@@ -365,7 +317,11 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
       // Count the number of particles in flight.
       inFlight = 0;
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-        inFlight += stats->inFlight[i];
+        // Update stats for host track manager objects
+        allmgr_h.trackmgr[i]->fStats = stats->mgr_stats[i];
+        inFlight += stats->mgr_stats[i].fInFlight;
+        auto compacted = allmgr_h.trackmgr[i]->SwapAndCompact(compactThreshold, particles[i].stream);
+        if (compacted) num_compact++;
       }
 
 #ifdef USE_NVTX
@@ -380,15 +336,10 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
       localMinInFlight = std::min(inFlight, localMinInFlight);
 #endif
 
-      // Swap the queues for the next iteration.
-      electrons.queues.SwapActive();
-      positrons.queues.SwapActive();
-      gammas.queues.SwapActive();
-
       // Check if only charged particles are left that are looping.
-      numElectrons = stats->inFlight[ParticleType::Electron];
-      numPositrons = stats->inFlight[ParticleType::Positron];
-      numGammas    = stats->inFlight[ParticleType::Gamma];
+      numElectrons = allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
+      numPositrons = allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
+      numGammas    = allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight;
       if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
         loopingNo++;
       } else {
@@ -402,18 +353,17 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
     if (inFlight > 0) {
       killed += inFlight;
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-        ParticleType &pType   = particles[i];
-        int inFlightParticles = stats->inFlight[i];
+        int inFlightParticles = allmgr_h.trackmgr[i]->fStats.fInFlight;
         if (inFlightParticles == 0) {
           continue;
         }
 
-        ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);
+        allmgr_h.trackmgr[i]->Clear(particles[i].stream);
       }
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     }
   }
-  std::cout << "done!" << std::endl;
+  std::cout << "done!  Compacted track containers " << num_compact << " times.\n";
 
   auto time = timer.Stop();
   std::cout << "Run time: " << time << "\n";
@@ -437,16 +387,12 @@ void example13(int numParticles, double energy, int batch, const int *MCIndex_ho
   COPCORE_CUDA_CHECK(cudaFree(scoringPerVolume));
   COPCORE_CUDA_CHECK(cudaFree(stats_dev));
   COPCORE_CUDA_CHECK(cudaFreeHost(stats));
-  COPCORE_CUDA_CHECK(cudaFree(slotManagerInit_dev));
 
   COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
 
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].tracks));
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].slotManager));
-
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.currentlyActive));
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.nextActive));
+    allmgr_h.trackmgr[i]->FreeFromDevice();
+    delete allmgr_h.trackmgr[i];
 
     COPCORE_CUDA_CHECK(cudaStreamDestroy(particles[i].stream));
     COPCORE_CUDA_CHECK(cudaEventDestroy(particles[i].event));

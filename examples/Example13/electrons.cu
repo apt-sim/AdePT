@@ -29,9 +29,8 @@
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron>
-static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
-                                                          Secondaries &secondaries, adept::MParray *activeQueue,
-                                                          GlobalScoring *globalScoring,
+static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
+                                                          Secondaries &secondaries, GlobalScoring *globalScoring,
                                                           ScoringPerVolume *scoringPerVolume)
 {
 #ifdef VECGEOM_FLOAT_PRECISION
@@ -43,10 +42,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr double Mass = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
-  int activeSize = active->size();
+  int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    Track &currentTrack = electrons[slot];
+    const int slot      = (*electrons->fActiveTracks)[i];
+    Track &currentTrack = (*electrons)[slot];
     auto volume         = currentTrack.navState.Top();
     int volumeID        = volume->id();
     // the MCC vector is indexed by the logical volume id
@@ -97,7 +96,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     currentTrack.initialRange       = mscData->fInitialRange;
     currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
     currentTrack.tlimitMin          = mscData->fTlimitMin;
-
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -195,8 +193,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
-        Track &gamma1 = secondaries.gammas.NextTrack();
-        Track &gamma2 = secondaries.gammas.NextTrack();
+        Track &gamma1 = secondaries.gammas->NextTrack();
+        Track &gamma2 = secondaries.gammas->NextTrack();
         atomicAdd(&globalScoring->numGammas, 2);
 
         const double cost = 2 * currentTrack.Uniform() - 1;
@@ -227,7 +225,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(slot);
+        electrons->fNextTracks->push_back(slot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
@@ -237,11 +235,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     } else if (!propagated) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      activeQueue->push_back(slot);
+      electrons->fNextTracks->push_back(slot);
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(slot);
+      electrons->fNextTracks->push_back(slot);
       continue;
     }
 
@@ -252,7 +250,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if a delta interaction happens instead of the real discrete process.
     if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
       // A delta interaction happened, move on.
-      activeQueue->push_back(slot);
+      electrons->fNextTracks->push_back(slot);
       continue;
     }
 
@@ -276,7 +274,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       double dirSecondary[3];
       G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-      Track &secondary = secondaries.electrons.NextTrack();
+      Track &secondary = secondaries.electrons->NextTrack();
       atomicAdd(&globalScoring->numElectrons, 1);
 
       secondary.InitAsSecondary(/*parent=*/currentTrack);
@@ -287,7 +285,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       currentTrack.energy = energy - deltaEkin;
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       // The current track continues to live.
-      activeQueue->push_back(slot);
+      electrons->fNextTracks->push_back(slot);
       break;
     }
     case 1: {
@@ -303,7 +301,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       double dirSecondary[3];
       G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-      Track &gamma = secondaries.gammas.NextTrack();
+      Track &gamma = secondaries.gammas->NextTrack();
       atomicAdd(&globalScoring->numGammas, 1);
 
       gamma.InitAsSecondary(/*parent=*/currentTrack);
@@ -314,7 +312,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       currentTrack.energy = energy - deltaEkin;
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       // The current track continues to live.
-      activeQueue->push_back(slot);
+      electrons->fNextTracks->push_back(slot);
       break;
     }
     case 2: {
@@ -325,8 +323,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
           energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
-      Track &gamma1 = secondaries.gammas.NextTrack();
-      Track &gamma2 = secondaries.gammas.NextTrack();
+      Track &gamma1 = secondaries.gammas->NextTrack();
+      Track &gamma2 = secondaries.gammas->NextTrack();
       atomicAdd(&globalScoring->numGammas, 2);
 
       gamma1.InitAsSecondary(/*parent=*/currentTrack);
@@ -348,16 +346,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 }
 
 // Instantiate kernels for electrons and positrons.
-__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume)
+__global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
+                                   GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
 {
-  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, globalScoring, scoringPerVolume);
+  TransportElectrons</*IsElectron*/ true>(electrons, secondaries, globalScoring, scoringPerVolume);
 }
-__global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume)
+__global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
+                                   GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
 {
-  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, globalScoring,
-                                           scoringPerVolume);
+  TransportElectrons</*IsElectron*/ false>(positrons, secondaries, globalScoring, scoringPerVolume);
 }

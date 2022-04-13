@@ -19,19 +19,18 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
-__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                ScoringPerVolume *scoringPerVolume)
+__global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries,
+                                GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
 {
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
   const Precision kPush = 0.;
 #endif
-  int activeSize = active->size();
+int activeSize = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    Track &currentTrack = gammas[slot];
+    const int slot      = (*gammas->fActiveTracks)[i];
+    Track &currentTrack = (*gammas)[slot];
     auto volume         = currentTrack.navState.Top();
     int volumeID        = volume->id();
     // the MCC vector is indexed by the logical volume id
@@ -93,7 +92,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(slot);
+        gammas->fNextTracks->push_back(slot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
@@ -102,7 +101,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(slot);
+      gammas->fNextTracks->push_back(slot);
       continue;
     }
 
@@ -121,7 +120,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (energy < 2 * copcore::units::kElectronMassC2) {
-        activeQueue->push_back(slot);
+        gammas->fNextTracks->push_back(slot);
         continue;
       }
 
@@ -135,8 +134,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                           posKinEnergy, &rnge);
 
-      Track &electron = secondaries.electrons.NextTrack();
-      Track &positron = secondaries.positrons.NextTrack();
+      Track &electron = secondaries.electrons->NextTrack();
+      Track &positron = secondaries.positrons->NextTrack();
       atomicAdd(&globalScoring->numElectrons, 1);
       atomicAdd(&globalScoring->numPositrons, 1);
 
@@ -158,7 +157,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       // Invoke Compton scattering of gamma.
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (energy < LowEnergyThreshold) {
-        activeQueue->push_back(slot);
+        gammas->fNextTracks->push_back(slot);
         continue;
       }
       const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
@@ -170,7 +169,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       const double energyEl = energy - newEnergyGamma;
       if (energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
-        Track &electron = secondaries.electrons.NextTrack();
+        Track &electron = secondaries.electrons->NextTrack();
         atomicAdd(&globalScoring->numElectrons, 1);
 
         electron.InitAsSecondary(/*parent=*/currentTrack);
@@ -189,7 +188,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         currentTrack.dir    = newDirGamma;
 
         // The current track continues to live.
-        activeQueue->push_back(slot);
+        gammas->fNextTracks->push_back(slot);
       } else {
         atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
         atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);
@@ -208,7 +207,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       const double photoElecE = energy - edep;
       if (photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
-        Track &electron = secondaries.electrons.NextTrack();
+        Track &electron = secondaries.electrons->NextTrack();
         atomicAdd(&globalScoring->numElectrons, 1);
 
         double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
