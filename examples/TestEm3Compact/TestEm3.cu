@@ -91,20 +91,8 @@ static void FreeG4HepEm(G4HepEmState *state)
   delete state;
 }
 
-// A bundle of queues per particle type:
-//  * Two for active particles, one for the current iteration and the second for the next.
-struct ParticleQueues {
-  adept::MParray *currentlyActive;
-  adept::MParray *nextActive;
-
-  void SwapActive() { std::swap(currentlyActive, nextActive); }
-};
-
 struct ParticleType {
   adept::TrackManager<Track> *trackmgr;
-  // Track *tracks;
-  // SlotManager *slotManager;
-  // ParticleQueues queues;
   cudaStream_t stream;
   cudaEvent_t event;
 
@@ -117,7 +105,7 @@ struct ParticleType {
   };
 };
 
-// A bundle of queues for the three particle types.
+// Track managers for the three particle types.
 struct AllTrackManagers {
   adept::TrackManager<Track> *trackmgr[ParticleType::NumParticleTypes];
 };
@@ -153,7 +141,7 @@ struct Stats {
   adept::TrackManager<Track>::Stats mgr_stats[ParticleType::NumParticleTypes];
 };
 
-// Finish iteration: clear queues and fill statistics.
+// Finish iteration: refresh track managers and fill statistics.
 __global__ void FinishIteration(AllTrackManagers all, Stats *stats)
 {
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
@@ -199,13 +187,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     std::cout << "INFO: running with magnetic field OFF" << std::endl;
   }
 
-  // Allocate structures to manage tracks of an implicit type:
-  //  * memory to hold the actual Track elements,
-  //  * objects to manage slots inside the memory,
-  //  * queues of slots to remember active particle and those needing relocation,
-  //  * a stream and an event for synchronization of kernels.
-  const size_t QueueSize = adept::MParray::SizeOfInstance(Capacity);
-
+  // Allocate track managers, streams and synchronizaion events.
   AllTrackManagers allmgr_h, allmgr_d;
   ParticleType particles[ParticleType::NumParticleTypes];
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {

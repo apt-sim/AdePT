@@ -7,7 +7,7 @@
 #include "TestEm3.h"
 
 #include <AdePT/MParray.h>
-#include <AdePT/TrackManager.h>
+#include <AdePT/TrackManager.cuh>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 
@@ -84,45 +84,6 @@ public:
       FlatArrayWrapper(engine, 0, nullptr);
     }
 #endif
-  }
-};
-
-// A data structure to manage slots in the track storage.
-class SlotManager {
-  adept::Atomic_t<int> fNextSlot;
-  const int fMaxSlot;
-
-public:
-  __host__ __device__ SlotManager(int maxSlot) : fMaxSlot(maxSlot) { fNextSlot = 0; }
-
-  __host__ __device__ int NextSlot()
-  {
-    int next = fNextSlot.fetch_add(1);
-    if (next >= fMaxSlot) return -1;
-    return next;
-  }
-};
-
-// A bundle of pointers to generate particles of an implicit type.
-class ParticleGenerator {
-  Track *fTracks;
-  SlotManager *fSlotManager;
-  adept::MParray *fActiveQueue;
-
-public:
-  __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue)
-      : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue)
-  {
-  }
-
-  __host__ __device__ Track &NextTrack()
-  {
-    int slot = fSlotManager->NextSlot();
-    if (slot == -1) {
-      COPCORE_EXCEPTION("No slot available in ParticleGenerator::NextTrack");
-    }
-    fActiveQueue->push_back(slot);
-    return fTracks[slot];
   }
 };
 
