@@ -9,7 +9,7 @@
  *          slots for the current and next iteration.
  *
  *          The compression of the sparse active slots is triggered when the sum of the
- *          number of used slots and 3 times the number of inflight tracks becomes larger
+ *          number of used slots and two times the number of inflight tracks becomes larger
  *          than a user-defined fraction of the total buffer size. The tracks pointed by the
  *          next iteration array are copied cotiguously by a kernel just after the last used
  *          slot, before making this slot the start index and swapping the current/next index
@@ -30,7 +30,6 @@ namespace adept {
 template <typename Track>
 struct TrackManager;
 
-#ifdef COPCORE_CUDA_COMPILER
 namespace device_impl_trackmgr {
 
 template <typename Track>
@@ -64,7 +63,7 @@ __global__ void defragment_buffer(TrackManager<Track> *mgr, int nactive, int whe
 {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < nactive; i += blockDim.x * gridDim.x) {
     const int slot_src     = (*mgr->fNextTracks)[i];
-    const int slot_dst     = (where + i) & (mgr->fCapacity - 1);
+    const int slot_dst     = (where + i) % mgr->fCapacity;
     mgr->fBuffer[slot_dst] = mgr->fBuffer[slot_src];
     // fActiveTracks must be cleared before starting this kernel
     mgr->fActiveTracks->push_back(slot_dst);
@@ -80,12 +79,12 @@ __global__ void adjust_indices(TrackManager<Track> *mgr, int start_new, int next
 }
 
 } // End namespace device_impl_trackmgr
-#endif
 
 /// @brief A track manager working with a circular buffer.
 template <typename Track>
 struct TrackManager {
 
+  static_assert(std::is_copy_constructible<Track>::value, "TrackManager: The track type must be copy constructible");
   /// @brief Statistics of the track manager to be updated and copied to host between iterations
   struct Stats {
     int fStart{0};     ///< Index of first used track in the buffer
@@ -107,21 +106,12 @@ struct TrackManager {
   /// @brief Construction done on host but holding device pointers.
   __host__ __device__ TrackManager(size_t capacity) : fCapacity(capacity)
   {
-    // The Track type must be copy constructible
-    if (!std::is_copy_constructible<Track>::value)
-      COPCORE_EXCEPTION("TrackManager ctor: The track type must be copy constructible");
-    // The queue size must be a power of 2 (for fast access in the circular buffer)
-    bool pow_two = (capacity & (capacity - 1)) == 0;
-    if (!pow_two) COPCORE_EXCEPTION("TrackManager ctor: The buffer size has to be a power of 2");
     fNextFree.store(0);
   }
 
   /// Construct a device instance and attach it to this instance on host
   TrackManager<Track> *ConstructOnDevice()
   {
-#ifndef COPCORE_CUDA_COMPILER
-    return nullptr; // should never happen
-#else
     const size_t QueueSize  = adept::MParray::SizeOfInstance(fCapacity);
     const size_t TracksSize = sizeof(Track) * fCapacity;
     COPCORE_CUDA_CHECK(cudaMalloc(&fInstance_d, sizeof(TrackManager<Track>)));
@@ -132,17 +122,14 @@ struct TrackManager {
     device_impl_trackmgr::construct_trackmanager<Track>
         <<<1, 1>>>(fInstance_d, fCapacity, fActiveTracks, fNextTracks, fBuffer);
     return fInstance_d;
-#endif
   }
 
   void FreeFromDevice()
   {
-#ifdef COPCORE_CUDA_COMPILER
     COPCORE_CUDA_CHECK(cudaFree(fBuffer));
     COPCORE_CUDA_CHECK(cudaFree(fActiveTracks));
     COPCORE_CUDA_CHECK(cudaFree(fNextTracks));
     COPCORE_CUDA_CHECK(cudaFree(fInstance_d));
-#endif
   }
 
   /// @brief Swap active and next track slots. Compact if the fill percentage is higher than the threshold.
@@ -150,10 +137,6 @@ struct TrackManager {
   template <typename Stream>
   bool SwapAndCompact(float compact_threshold, Stream stream)
   {
-#ifndef COPCORE_CUDA_COMPILER
-    COPCORE_EXCEPTION("SwapAndCompact cannot be called in hos-only code");
-    return false;
-#else
     // check if the compacting threshold is hit
     int used     = fStats.GetNused();
     int inFlight = fStats.fInFlight;
@@ -175,17 +158,16 @@ struct TrackManager {
     int blocks = (inFlight + threads - 1) / threads;
     blocks     = min(blocks, maxBlocks);
 
-    fStats.fStart = fStats.fNextStart & (fCapacity - 1);
+    fStats.fStart = fStats.fNextStart % fCapacity;
     int next_free = fStats.fStart + inFlight;
 
     // printf("compacting %d / %d -> %d at slot: %d, next_free: %d\n", used, fCapacity, inFlight, fStats.fStart,
-    // next_free & (fCapacity - 1));
+    // next_free % fCapacity);
     device_impl_trackmgr::defragment_buffer<Track>
         <<<blocks, threads, 0, stream>>>(fInstance_d, inFlight, fStats.fStart);
     device_impl_trackmgr::adjust_indices<Track><<<1, 1, 0, stream>>>(fInstance_d, fStats.fStart, next_free);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     return true;
-#endif
   }
 
   /// @brief Host static call to clear the container.
@@ -195,9 +177,7 @@ struct TrackManager {
     fStats.fStart     = 0;
     fStats.fNextStart = 0;
     fStats.fInFlight  = 0;
-#ifdef COPCORE_CUDA_COMPILER
     device_impl_trackmgr::clear_trackmanager<Track><<<1, 1, 0, stream>>>(fInstance_d);
-#endif
   }
 
   /// @brief Device function to clear the container
@@ -241,7 +221,7 @@ struct TrackManager {
     int next = fNextFree.fetch_add(1);
     assert(next >= fStats.fStart);
     if ((next - fStats.fStart) >= fCapacity) return -1;
-    return next & (fCapacity - 1);
+    return next % fCapacity;
   }
 
   /// @brief Main interface to get the next unused track on device.
