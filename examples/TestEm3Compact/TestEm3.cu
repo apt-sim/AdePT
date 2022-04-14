@@ -361,7 +361,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     }
   }
-  std::cout << "done!  Compacted track containers " << num_compact << " times.\n";
+  std::cout << "done!\nCompacted track containers " << num_compact << " times.\n";
 
   auto time = timer.Stop();
   std::cout << "Run time: " << time << "\n";
