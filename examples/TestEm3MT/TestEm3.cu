@@ -422,7 +422,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(MCIndex, &MCIndex_dev, sizeof(int *)));
 
   // Capacity of the different containers aka the maximum number of particles.
-  constexpr int Capacity = 256 * 1024;
+  constexpr int Capacity = 1024 * 1024;
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
   if (batch == -1) {
