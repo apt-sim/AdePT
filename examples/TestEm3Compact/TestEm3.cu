@@ -175,8 +175,8 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
   if (batch == -1) {
-    // Rule of thumb: at most 1000 particles of one type per GeV primary.
-    batch = Capacity / ((int)energy / copcore::units::GeV) / 1000;
+    // Rule of thumb: at most 200 particles at a time of one type per GeV primary.
+    batch = Capacity / ((int)energy / copcore::units::GeV) / 200;
   } else if (batch < 1) {
     batch = 1;
   }
