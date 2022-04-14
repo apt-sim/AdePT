@@ -19,9 +19,10 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
-__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                ScoringPerVolume *scoringPerVolume)
+__global__ __launch_bounds__(ThreadsPerBlock, MinBlocksPerSM)
+void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                     adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                     ScoringPerVolume *scoringPerVolume)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {

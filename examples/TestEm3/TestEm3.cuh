@@ -17,6 +17,8 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 
+constexpr int MinBlocksPerSM = 1;
+constexpr int ThreadsPerBlock = 256;
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
