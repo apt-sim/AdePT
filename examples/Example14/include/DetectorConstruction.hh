@@ -67,7 +67,7 @@ public:
 private:
   int fVerbosity{0};        ///< Actually verbosity for AdePT integration
   int fBufferThreshold{20}; ///< Buffer threshold for AdePT transport
-  int fTrackSlotsGPU{8};    ///< Total number of track slots allocated on GPU (millions)
+  int fTrackSlotsGPU{1};    ///< Total number of track slots allocated on GPU (millions)
   G4String fGDML_file;
   G4String fRegion_name;
   std::vector<G4String> fSensitive_volumes;
