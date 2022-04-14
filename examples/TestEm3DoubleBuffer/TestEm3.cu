@@ -179,8 +179,12 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   COPCORE_CUDA_CHECK(cudaMemcpy(MCIndex_dev, MCIndex_host, sizeof(int) * numVolumes, cudaMemcpyHostToDevice));
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(MCIndex, &MCIndex_dev, sizeof(int *)));
 
+  cudaDeviceProp deviceProp;
+  cudaGetDeviceProperties(&deviceProp, 0);
+
   // Capacity of the different containers aka the maximum number of particles.
-  constexpr int Capacity = 1024 * 1024;
+  // Use 1/8 of GPU memory for each of e+/e-/gammas (twice due to double buffering), leaving 1/4 for the rest.
+  const auto Capacity = static_cast<ParticleCount>((deviceProp.totalGlobalMem / sizeof(Track)) / 8);
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
   if (batch == -1) {
@@ -201,7 +205,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   //  * objects to manage slots inside the memory,
   //  * queues of slots to remember active particle and those needing relocation,
   //  * a stream and an event for synchronization of kernels.
-  constexpr size_t TracksSize = sizeof(Track) * Capacity;
+  const size_t TracksSize = sizeof(Track) * Capacity;
 
   ParticleType particles[ParticleType::NumParticleTypes];
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
