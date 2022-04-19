@@ -408,7 +408,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   } while (inFlight > 0 && loopingNo < 200);
 
   if (fDebugLevel > 0) {
-    G4cout << inFlight << " in flight, " << numLeaked << " leaked\n";
+    G4cout << inFlight << " in flight, " << numLeaked << " leaked, " << num_compact << " compacted\n";
   }
   // Transfer back leaked tracks
   if (numLeaked) {
