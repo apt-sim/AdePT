@@ -1,0 +1,152 @@
+# SPDX-FileCopyrightText: 2022 CERN
+# SPDX-License-Identifier: Apache-2.0
+#  example17.in
+#
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters
+## =============================================================================
+##
+/run/numberOfThreads 1
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+##
+/example17/detector/filename @CMS2018_GDML@
+/example17/detector/regionname EcalRegion
+/example17/adept/verbose 0
+## Threshold for buffering tracks before sending to GPU
+/example17/adept/threshold 500
+## Total number of GPU track slots (not per thread)
+/example17/adept/milliontrackslots 4
+
+/example17/detector/addsensitivevolume EAPD_01
+/example17/detector/addsensitivevolume EAPD_02
+/example17/detector/addsensitivevolume EAPD_03
+/example17/detector/addsensitivevolume EAPD_04
+/example17/detector/addsensitivevolume EAPD_05
+/example17/detector/addsensitivevolume EAPD_06
+/example17/detector/addsensitivevolume EAPD_07
+/example17/detector/addsensitivevolume EAPD_08
+/example17/detector/addsensitivevolume EAPD_09
+/example17/detector/addsensitivevolume EAPD_10
+/example17/detector/addsensitivevolume EAPD_11
+/example17/detector/addsensitivevolume EAPD_12
+/example17/detector/addsensitivevolume EAPD_13
+/example17/detector/addsensitivevolume EAPD_14
+/example17/detector/addsensitivevolume EAPD_15
+/example17/detector/addsensitivevolume EAPD_16
+/example17/detector/addsensitivevolume EAPD_17
+
+/example17/detector/sensitivegroup EAPD
+
+/example17/detector/addsensitivevolume EBRY_01
+/example17/detector/addsensitivevolume EBRY_02
+/example17/detector/addsensitivevolume EBRY_03
+/example17/detector/addsensitivevolume EBRY_04
+/example17/detector/addsensitivevolume EBRY_05
+/example17/detector/addsensitivevolume EBRY_06
+/example17/detector/addsensitivevolume EBRY_07
+/example17/detector/addsensitivevolume EBRY_08
+/example17/detector/addsensitivevolume EBRY_09
+/example17/detector/addsensitivevolume EBRY_10
+/example17/detector/addsensitivevolume EBRY_11
+/example17/detector/addsensitivevolume EBRY_12
+/example17/detector/addsensitivevolume EBRY_13
+/example17/detector/addsensitivevolume EBRY_14
+/example17/detector/addsensitivevolume EBRY_15
+/example17/detector/addsensitivevolume EBRY_16
+/example17/detector/addsensitivevolume EBRY_17
+
+/example17/detector/sensitivegroup EBRY_01
+/example17/detector/sensitivegroup EBRY_02
+/example17/detector/sensitivegroup EBRY_03
+/example17/detector/sensitivegroup EBRY_04
+/example17/detector/sensitivegroup EBRY_05
+/example17/detector/sensitivegroup EBRY_06
+/example17/detector/sensitivegroup EBRY_07
+/example17/detector/sensitivegroup EBRY_08
+/example17/detector/sensitivegroup EBRY_09
+/example17/detector/sensitivegroup EBRY_10
+/example17/detector/sensitivegroup EBRY_11
+/example17/detector/sensitivegroup EBRY_12
+/example17/detector/sensitivegroup EBRY_13
+/example17/detector/sensitivegroup EBRY_14
+/example17/detector/sensitivegroup EBRY_15
+/example17/detector/sensitivegroup EBRY_16
+/example17/detector/sensitivegroup EBRY_17
+
+/example17/detector/addsensitivevolume EATJ_01
+/example17/detector/addsensitivevolume EATJ_02
+/example17/detector/addsensitivevolume EATJ_03
+/example17/detector/addsensitivevolume EATJ_04
+/example17/detector/addsensitivevolume EATJ_05
+/example17/detector/addsensitivevolume EATJ_06
+/example17/detector/addsensitivevolume EATJ_07
+/example17/detector/addsensitivevolume EATJ_08
+/example17/detector/addsensitivevolume EATJ_09
+/example17/detector/addsensitivevolume EATJ_10
+/example17/detector/addsensitivevolume EATJ_11
+/example17/detector/addsensitivevolume EATJ_12
+/example17/detector/addsensitivevolume EATJ_13
+/example17/detector/addsensitivevolume EATJ_14
+/example17/detector/addsensitivevolume EATJ_15
+/example17/detector/addsensitivevolume EATJ_16
+/example17/detector/addsensitivevolume EATJ_17
+
+/example17/detector/sensitivegroup EATJ
+
+/example17/detector/addsensitivevolume EFRY
+
+/example17/detector/sensitivegroup EFRY
+
+## -----------------------------------------------------------------------------
+## Optionally, set a constant magnetic filed:
+## -----------------------------------------------------------------------------
+/example17/detector/setField 0 0 0 tesla
+#/example17/detector/setField 0 0 3.8 tesla
+
+##
+## -----------------------------------------------------------------------------
+## Set the physics list (more exactly, the EM physics constructor):
+##   = 'HepEm'           : the G4HepEm EM physics c.t.r.
+##   =  'G4Em'           : the G4 EM physics c.t.r. that corresponds to G4HepEm
+##   = 'emstandard_opt0' : the original, G4 EM-Opt0 physics c.t.r.
+## -----------------------------------------------------------------------------
+##/testem/phys/addPhysics   HepEm
+##/testem/phys/addPhysics   G4Em
+##
+## -----------------------------------------------------------------------------
+## Set secondary production threshold, init. the run and set primary properties
+## -----------------------------------------------------------------------------
+/run/setCut 0.7 mm
+/run/initialize
+
+## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/example17/event/verbose 2
+
+/example17/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 1000
+/gun/position 0 0 0
+/gun/direction 0.8 0.5 0.1
+#/gun/direction 0.8 -0.5 0.1
+/example17/gun/print
+
+##
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+##/tracking/verbose 1
+##/process/list
+
+# run events with parametrised simulation
+# by default all created models are active
+/param/ActivateModel AdePT
+/run/beamOn 10
+
+# run events with full (detailed) simulation
+/param/InActivateModel AdePT
+/run/beamOn 10
