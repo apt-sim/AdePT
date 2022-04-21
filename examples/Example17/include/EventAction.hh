@@ -61,6 +61,8 @@ public:
   G4int number_killed;
 
 private:
+  /// Detector construction
+  DetectorConstruction *fDetector{nullptr};
   /// Verbosity
   G4int fVerbosity{0};
   /// ID of a hit collection to analyse

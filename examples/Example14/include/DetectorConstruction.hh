@@ -44,6 +44,7 @@ public:
   void SetGDMLFile(G4String &file) { fGDML_file = file; }
   void SetRegionName(G4String &reg) { fRegion_name = reg; }
   void AddSensitiveVolume(G4String volume) { fSensitive_volumes.push_back(volume); }
+  void AddSensitiveGroup(G4String group) { fSensitive_group.push_back(group); }
 
   // Set uniform magnetic field
   inline void SetMagField(const G4ThreeVector &fv) { fMagFieldVector = fv; }
@@ -64,6 +65,8 @@ public:
   // Set total number of track slots on GPU
   void SetTrackSlots(int value) { fTrackSlotsGPU = value; }
 
+  std::vector<G4String> &GetSensitiveGroups() { return fSensitive_group; }
+
 private:
   int fVerbosity{0};        ///< Actually verbosity for AdePT integration
   int fBufferThreshold{20}; ///< Buffer threshold for AdePT transport
@@ -71,6 +74,7 @@ private:
   G4String fGDML_file;
   G4String fRegion_name;
   std::vector<G4String> fSensitive_volumes;
+  std::vector<G4String> fSensitive_group;
   bool fActivate_AdePT{true};
 
   /// Messenger that allows to modify geometry

@@ -39,6 +39,8 @@
 /example17/detector/addsensitivevolume EAPD_16
 /example17/detector/addsensitivevolume EAPD_17
 
+/example17/detector/sensitivegroup EAPD
+
 /example17/detector/addsensitivevolume EBRY_01
 /example17/detector/addsensitivevolume EBRY_02
 /example17/detector/addsensitivevolume EBRY_03
@@ -56,6 +58,24 @@
 /example17/detector/addsensitivevolume EBRY_15
 /example17/detector/addsensitivevolume EBRY_16
 /example17/detector/addsensitivevolume EBRY_17
+
+/example17/detector/sensitivegroup EBRY_01
+/example17/detector/sensitivegroup EBRY_02
+/example17/detector/sensitivegroup EBRY_03
+/example17/detector/sensitivegroup EBRY_04
+/example17/detector/sensitivegroup EBRY_05
+/example17/detector/sensitivegroup EBRY_06
+/example17/detector/sensitivegroup EBRY_07
+/example17/detector/sensitivegroup EBRY_08
+/example17/detector/sensitivegroup EBRY_09
+/example17/detector/sensitivegroup EBRY_10
+/example17/detector/sensitivegroup EBRY_11
+/example17/detector/sensitivegroup EBRY_12
+/example17/detector/sensitivegroup EBRY_13
+/example17/detector/sensitivegroup EBRY_14
+/example17/detector/sensitivegroup EBRY_15
+/example17/detector/sensitivegroup EBRY_16
+/example17/detector/sensitivegroup EBRY_17
 
 /example17/detector/addsensitivevolume EATJ_01
 /example17/detector/addsensitivevolume EATJ_02
@@ -75,12 +95,17 @@
 /example17/detector/addsensitivevolume EATJ_16
 /example17/detector/addsensitivevolume EATJ_17
 
+/example17/detector/sensitivegroup EATJ
+
 /example17/detector/addsensitivevolume EFRY
+
+/example17/detector/sensitivegroup EFRY
 
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic filed:
 ## -----------------------------------------------------------------------------
-/example17/detector/setField 0 0 3.8 tesla
+/example17/detector/setField 0 0 0 tesla
+#/example17/detector/setField 0 0 3.8 tesla
 
 ##
 ## -----------------------------------------------------------------------------
@@ -99,7 +124,7 @@
 /run/initialize
 
 ## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
-/example17/event/verbose 0
+/example17/event/verbose 2
 
 /example17/gun/setDefault
 /gun/particle e-

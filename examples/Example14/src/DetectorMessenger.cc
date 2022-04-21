@@ -36,6 +36,9 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImess
   fSensVolNameCmd = new G4UIcmdWithAString("/example14/detector/addsensitivevolume", this);
   fSensVolNameCmd->SetGuidance("Add a sensitive volume to the list");
   //
+  fSensVolGroupCmd = new G4UIcmdWithAString("/example14/detector/sensitivegroup", this);
+  fSensVolGroupCmd->SetGuidance("Define a wildcard for a sensitive volumes group");
+  //
   fActivationCmd = new G4UIcmdWithABool("/example14/adept/activate", this);
   fActivationCmd->SetGuidance("(Activate AdePT");
   //
@@ -65,6 +68,7 @@ DetectorMessenger::~DetectorMessenger()
   delete fAdeptDir;
   delete fFieldCmd;
   delete fSensVolNameCmd;
+  delete fSensVolGroupCmd;
   delete fRegionNameCmd;
   delete fFileNameCmd;
   delete fActivationCmd;
@@ -87,6 +91,8 @@ void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
     fDetector->SetMagField(fFieldCmd->GetNew3VectorValue(aNewValue));
   } else if (aCommand == fSensVolNameCmd) {
     fDetector->AddSensitiveVolume(aNewValue);
+  } else if (aCommand == fSensVolGroupCmd) {
+    fDetector->AddSensitiveGroup(aNewValue);
   } else if (aCommand == fActivationCmd) {
     fDetector->SetActivateAdePT(fActivationCmd->GetNewBoolValue(aNewValue));
   } else if (aCommand == fVerbosityCmd) {
