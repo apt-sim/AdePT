@@ -47,6 +47,7 @@ private:
   G4UIcmdWithAString *fFileNameCmd    = nullptr;
   G4UIcmdWithAString *fRegionNameCmd  = nullptr;
   G4UIcmdWithAString *fSensVolNameCmd = nullptr;
+  G4UIcmdWithAString *fSensVolGroupCmd  = nullptr;
 
   G4UIcmdWith3VectorAndUnit *fFieldCmd = nullptr;
   /// Activation of AdePT

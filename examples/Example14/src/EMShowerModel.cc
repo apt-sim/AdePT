@@ -113,7 +113,6 @@ void EMShowerModel::Initialize(bool adept)
   bool sequential             = (rmType == G4RunManager::sequentialRM);
 
   fAdept->SetSensitiveVolumes(sensitive_volume_index);
-  printf("setting adept scoring map: %p\n", fScoringMap);
   fAdept->SetScoringMap(fScoringMap);
   fAdept->SetRegion(fRegion);
 

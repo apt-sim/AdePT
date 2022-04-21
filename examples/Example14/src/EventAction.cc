@@ -38,7 +38,7 @@
 #include "G4GlobalFastSimulationManager.hh"
 #include "AdeptIntegration.h"
 
-EventAction::EventAction(DetectorConstruction *aDetector) : G4UserEventAction(), fHitCollectionID(-1), fTimer()
+EventAction::EventAction(DetectorConstruction *aDetector) : G4UserEventAction(), fDetector(aDetector), fHitCollectionID(-1), fTimer()
 {
   fMessenger = new EventActionMessenger(this);
 }
@@ -93,22 +93,43 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << ": killed    " << number_killed << G4endl;
   }
 
+  auto &groups = fDetector->GetSensitiveGroups();
+  int ngroups = groups.size();
+  double *edep_groups = nullptr;
+  if (ngroups > 0) edep_groups = new double[ngroups];
+  for (auto i = 0; i< ngroups; ++i) edep_groups[i] = 0;
+
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
     hit   = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
     hitEn = hit->GetEdep();
+    totalEnergy += hitEn;
 
-    const char *vol_name = vecgeom::GeoManager::Instance().FindPlacedVolume(iHit)->GetLogicalVolume()->GetName();
+    G4String vol_name = vecgeom::GeoManager::Instance().FindPlacedVolume(iHit)->GetLogicalVolume()->GetName();
+    bool group_found = false;
+    for (int igroup = 0; igroup < ngroups; ++igroup) {
+      if (vol_name.rfind(groups[igroup], 0) == 0) {
+        edep_groups[igroup] += hitEn;
+        group_found = true;
+        break;
+      }
+    }
+    if (group_found) continue;
     const char *type     = (hit->GetType() == 1) ? "AdePT" : "G4";
     if (hitEn > 1 && fVerbosity > 1)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;
 
-    if (hitEn > 0) {
-      totalEnergy += hitEn;
+  }
+
+  if (fVerbosity > 1) {
+    for (int igroup = 0; igroup < ngroups; ++igroup) {
+      G4cout << "EndOfEventAction " << eventId << " : group " << std::setw(5) << groups[igroup] << "  edep " << std::setprecision(2)
+             << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " [MeV]\n";
     }
   }
 
   if (fVerbosity > 0) {
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
   }
+  delete [] edep_groups;
 }

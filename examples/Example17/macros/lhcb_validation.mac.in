@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: 2022 CERN
+# SPDX-License-Identifier: Apache-2.0
+#  lhcb.mac.in
+#
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters
+## =============================================================================
+##
+/run/numberOfThreads 1
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+/event/verbose 0
+
+##
+/example17/detector/filename @LHCB_GDML@
+/example17/detector/regionname EcalRegion
+/example17/adept/verbose 0
+## Threshold for buffering tracks before sending to GPU
+/example17/adept/threshold 500
+## Total number of GPU track slots (not per thread)
+/example17/adept/milliontrackslots 4
+
+/example17/detector/addsensitivevolume _dd_Geometry_DownstreamRegion_Ecal_Modules_InnCell
+/example17/detector/sensitivegroup _dd_Geometry_DownstreamRegion_Ecal_Modules_InnCell
+
+/example17/detector/addsensitivevolume _dd_Geometry_DownstreamRegion_Ecal_Modules_MidCell
+/example17/detector/sensitivegroup _dd_Geometry_DownstreamRegion_Ecal_Modules_MidCell
+
+/example17/detector/addsensitivevolume _dd_Geometry_DownstreamRegion_Ecal_Modules_OutCell
+/example17/detector/sensitivegroup _dd_Geometry_DownstreamRegion_Ecal_Modules_OutCell
+
+## -----------------------------------------------------------------------------
+## Optionally, set a constant magnetic filed:
+## -----------------------------------------------------------------------------
+/example17/detector/setField 0 0 0 tesla
+#/example17/detector/setField 0 0 1.0 tesla
+
+##
+## -----------------------------------------------------------------------------
+## Set the physics list (more exactly, the EM physics constructor):
+##   = 'HepEm'           : the G4HepEm EM physics c.t.r.
+##   =  'G4Em'           : the G4 EM physics c.t.r. that corresponds to G4HepEm
+##   = 'emstandard_opt0' : the original, G4 EM-Opt0 physics c.t.r.
+## -----------------------------------------------------------------------------
+##/testem/phys/addPhysics   HepEm
+##/testem/phys/addPhysics   G4Em
+##
+## -----------------------------------------------------------------------------
+## Set secondary production threshold, init. the run and set primary properties
+## -----------------------------------------------------------------------------
+/run/setCut 0.7 mm
+/run/initialize
+
+## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/example17/event/verbose 2
+
+#/example17/gun/hepmc
+#/generator/hepmcAscii/open ppminbias.hepmc3
+#/generator/hepmcAscii/verbose 1
+
+/example17/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 100
+/gun/position 0 0 0
+/gun/direction 0.085 0.085 0.99
+/example17/gun/rndmDir 0.0
+#/example17/gun/print
+
+##
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+##/tracking/verbose 1
+##/process/list
+
+# run events with parametrised simulation
+# by default all created models are active
+/param/ActivateModel AdePT
+/run/beamOn 10
+
+# run events with full (detailed) simulation
+/param/InActivateModel AdePT
+/run/beamOn 10

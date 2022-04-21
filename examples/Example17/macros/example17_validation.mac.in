@@ -17,9 +17,9 @@
 /example17/detector/regionname EcalRegion
 /example17/adept/verbose 0
 ## Threshold for buffering tracks before sending to GPU
-/example17/adept/threshold 200
+/example17/adept/threshold 500
 ## Total number of GPU track slots (not per thread)
-/example17/adept/milliontrackslots 1
+/example17/adept/milliontrackslots 4
 
 /example17/detector/addsensitivevolume EAPD_01
 /example17/detector/addsensitivevolume EAPD_02
@@ -129,9 +129,11 @@
 /example17/gun/setDefault
 /gun/particle e-
 /gun/energy 10 GeV
-/gun/number 200
+/gun/number 1000
 /gun/position 0 0 0
-#/example17/gun/print
+/gun/direction 0.8 0.5 0.1
+#/gun/direction 0.8 -0.5 0.1
+/example17/gun/print
 
 ##
 ## -----------------------------------------------------------------------------
@@ -143,10 +145,8 @@
 # run events with parametrised simulation
 # by default all created models are active
 /param/ActivateModel AdePT
-#/analysis/setFileName example17_fastsim_100events.root
-/run/beamOn 1
+/run/beamOn 10
 
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
-#/analysis/setFileName example17_fullsim_100events.root
-/run/beamOn 1
+/run/beamOn 10
