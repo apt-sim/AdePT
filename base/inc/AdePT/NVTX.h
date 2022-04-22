@@ -9,10 +9,11 @@
 #ifndef NVTX_H
 #define NVTX_H
 
-#if defined USE_NVTX && !defined __CUDACC__
+#if defined USE_NVTX
 
 #include "nvToolsExt.h"
 
+#include <numeric>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -22,6 +23,8 @@ class NVTXTracer {
                                                        0xff00ffff, 0xffff0000, 0xffffffff};
   std::string _name;
   nvtxRangeId_t _id;
+  std::array<unsigned long, 5> _lastOccups;
+  decltype(_lastOccups)::iterator _occupIt = _lastOccups.begin();
 
 public:
   NVTXTracer(const char *name) : _name(name)
@@ -34,10 +37,11 @@ public:
     eventAttrib.messageType           = NVTX_MESSAGE_TYPE_ASCII;
     eventAttrib.message.ascii         = name;
     _id                               = nvtxRangeStartEx(&eventAttrib);
+    _lastOccups.fill(0);
   }
   ~NVTXTracer() { nvtxRangeEnd(_id); }
 
-  __host__ void setTag(const char *name)
+  void setTag(const char *name)
   {
     if (_name == name) return;
 
@@ -54,6 +58,22 @@ public:
     _id                               = nvtxRangeStartEx(&eventAttrib);
   }
 
+  void setOccupancy(unsigned long occupancy)
+  {
+    *_occupIt = occupancy;
+    if (++_occupIt == _lastOccups.end()) _occupIt = _lastOccups.begin();
+
+    const auto meanOccup = double(std::accumulate(_lastOccups.begin(), _lastOccups.end(), 0)) / _lastOccups.size();
+    if (occupancy > meanOccup) {
+      setTag("occupancy rising");
+    } else if (occupancy < meanOccup) {
+      if (_name == "occupancy rising")
+        setTag("peak occupancy");
+      else
+        setTag("occupancy falling");
+    }
+  }
+
   static uint32_t nextColour()
   {
     static int colour = 0;
@@ -68,6 +88,7 @@ class NVTXTracer {
 public:
   NVTXTracer(const char *) {}
   void setTag(const char *) {}
+  void setOccupancy(unsigned long) {}
 };
 
 #endif
