@@ -30,11 +30,25 @@ struct TrackData {
   {
   }
 
-  inline double FullSort()
+  inline bool operator<(TrackData const &t)
   {
-    auto NonZero = [](double a) { return (a + 1.e-30); };
-    return pdg * energy * NonZero(position[0]) * NonZero(position[1]) * NonZero(position[2]) * 
-           NonZero(direction[0]) * NonZero(direction[1]) * NonZero(direction[2]);
+    if (pdg < t.pdg) return true;
+    if (pdg > t.pdg) return false;
+    if (energy < t.energy) return true;
+    if (energy > t.energy) return false;
+    if (position[0] < t.position[0]) return true;
+    if (position[0] > t.position[0]) return false;
+    if (position[1] < t.position[1]) return true;
+    if (position[1] > t.position[1]) return false;
+    if (position[2] < t.position[2]) return true;
+    if (position[2] > t.position[2]) return false;
+    if (direction[0] < t.direction[0]) return true;
+    if (direction[0] > t.direction[0]) return false;
+    if (direction[1] < t.direction[1]) return true;
+    if (direction[1] > t.direction[1]) return false;
+    if (direction[2] < t.direction[2]) return true;
+    if (direction[2] > t.direction[2]) return false;
+    return false;
   }
 };
 
