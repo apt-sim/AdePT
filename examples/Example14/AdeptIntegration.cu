@@ -494,7 +494,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
     fSorted.reserve(numLeaked);
     std::iota(fSorted.begin(), fSorted.begin() + numLeaked, 0); // Fill with 0, 1, ...
     std::sort(fSorted.begin(), fSorted.begin() + numLeaked,
-              [&](int i, int j) {return fBuffer.fromDevice[i].FullSort() > fBuffer.fromDevice[j].FullSort();});
+              [&](int i, int j) {return fBuffer.fromDevice[i] < fBuffer.fromDevice[j];});
     fBuffer.fromDevice_sorted.clear();
     fBuffer.fromDevice_sorted.reserve(numLeaked);
     for (auto i = 0; i < numLeaked; ++i)
