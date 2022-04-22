@@ -71,6 +71,7 @@ private:
   G4Region *fRegion{nullptr};          ///< Region to which applies
   std::unordered_map<std::string, int> *sensitive_volume_index;    ///< Map of sensitive volumes
   std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap; ///< Map used by G4 for scoring
+  std::vector<int> fSorted;            ///< Vector used to sort tracks coming from device
 
   VolAuxData *CreateVolAuxData(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world,
                                const G4HepEmState &hepEmState);

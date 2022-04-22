@@ -29,12 +29,18 @@ struct TrackData {
       : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}
   {
   }
+  
+  inline double FullSort()
+  {
+    return pdg * energy * position[0] * position[1] * position[2] * direction[0] * direction[1] * direction[2];
+  }
 };
 
 /// @brief Buffer holding input tracks to be transported on GPU and output tracks to be
 /// re-injected in the Geant4 stack
 struct TrackBuffer {
   std::vector<TrackData> toDevice; ///< Tracks to be transported on the device
+  std::vector<TrackData> fromDevice_sorted; ///< Tracks from device sorted by energy
   TrackData *fromDevice{nullptr};  ///< Tracks coming from device to be transported on the CPU
   int eventId{-1};                 ///< Index of current transported event
   int startTrack{0};               ///< Track counter for the current event
