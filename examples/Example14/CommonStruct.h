@@ -29,10 +29,12 @@ struct TrackData {
       : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}
   {
   }
-  
+
   inline double FullSort()
   {
-    return pdg * energy * position[0] * position[1] * position[2] * direction[0] * direction[1] * direction[2];
+    auto NonZero = [](double a) { return (a + 1.e-30); };
+    return pdg * energy * NonZero(position[0]) * NonZero(position[1]) * NonZero(position[2]) * 
+           NonZero(direction[0]) * NonZero(direction[1]) * NonZero(direction[2]);
   }
 };
 
