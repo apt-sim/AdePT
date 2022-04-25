@@ -32,22 +32,14 @@ struct TrackData {
 
   inline bool operator<(TrackData const &t)
   {
-    if (pdg < t.pdg) return true;
-    if (pdg > t.pdg) return false;
-    if (energy < t.energy) return true;
-    if (energy > t.energy) return false;
-    if (position[0] < t.position[0]) return true;
-    if (position[0] > t.position[0]) return false;
-    if (position[1] < t.position[1]) return true;
-    if (position[1] > t.position[1]) return false;
-    if (position[2] < t.position[2]) return true;
-    if (position[2] > t.position[2]) return false;
-    if (direction[0] < t.direction[0]) return true;
-    if (direction[0] > t.direction[0]) return false;
-    if (direction[1] < t.direction[1]) return true;
-    if (direction[1] > t.direction[1]) return false;
-    if (direction[2] < t.direction[2]) return true;
-    if (direction[2] > t.direction[2]) return false;
+    if (pdg != t.pdg) return pdg < t.pdg;
+    if (energy != t.energy) return energy < t.energy;
+    if (position[0] != t.position[0]) return position[0] < t.position[0];
+    if (position[1] != t.position[1]) return position[1] < t.position[1];
+    if (position[2] != t.position[2]) return position[2] < t.position[2];
+    if (direction[0] != t.direction[0]) return direction[0] < t.direction[0];
+    if (direction[1] != t.direction[1]) return direction[1] < t.direction[1];
+    if (direction[2] != t.direction[2]) return direction[2] < t.direction[2];
     return false;
   }
 };
