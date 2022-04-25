@@ -29,12 +29,26 @@ struct TrackData {
       : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}
   {
   }
+
+  inline bool operator<(TrackData const &t)
+  {
+    if (pdg != t.pdg) return pdg < t.pdg;
+    if (energy != t.energy) return energy < t.energy;
+    if (position[0] != t.position[0]) return position[0] < t.position[0];
+    if (position[1] != t.position[1]) return position[1] < t.position[1];
+    if (position[2] != t.position[2]) return position[2] < t.position[2];
+    if (direction[0] != t.direction[0]) return direction[0] < t.direction[0];
+    if (direction[1] != t.direction[1]) return direction[1] < t.direction[1];
+    if (direction[2] != t.direction[2]) return direction[2] < t.direction[2];
+    return false;
+  }
 };
 
 /// @brief Buffer holding input tracks to be transported on GPU and output tracks to be
 /// re-injected in the Geant4 stack
 struct TrackBuffer {
   std::vector<TrackData> toDevice; ///< Tracks to be transported on the device
+  std::vector<TrackData> fromDevice_sorted; ///< Tracks from device sorted by energy
   TrackData *fromDevice{nullptr};  ///< Tracks coming from device to be transported on the CPU
   int eventId{-1};                 ///< Index of current transported event
   int startTrack{0};               ///< Track counter for the current event

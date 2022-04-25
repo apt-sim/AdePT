@@ -32,6 +32,9 @@
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
+#include <vector>
+#include <numeric>
+#include <algorithm>
 
 #include "electrons.cuh"
 #include "gammas.cuh"
@@ -487,6 +490,15 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
         cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, gpuState.stream));
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fBuffer.fromDevice, gpuState.fromDevice_dev, numLeaked * sizeof(TrackData),
                                        cudaMemcpyDeviceToHost, gpuState.stream));
+    // Sort by energy the tracks coming from device to ensure reproducibility
+    fSorted.reserve(numLeaked);
+    std::iota(fSorted.begin(), fSorted.begin() + numLeaked, 0); // Fill with 0, 1, ...
+    std::sort(fSorted.begin(), fSorted.begin() + numLeaked,
+              [&](int i, int j) {return fBuffer.fromDevice[i] < fBuffer.fromDevice[j];});
+    fBuffer.fromDevice_sorted.clear();
+    fBuffer.fromDevice_sorted.reserve(numLeaked);
+    for (auto i = 0; i < numLeaked; ++i)
+      fBuffer.fromDevice_sorted.push_back(fBuffer.fromDevice[fSorted[i]]);
   }
 
   AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};

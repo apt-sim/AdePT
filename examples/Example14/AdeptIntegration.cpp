@@ -159,7 +159,7 @@ void AdeptIntegration::Shower(int event)
 
   // Build the secondaries and put them back on the Geant4 stack
   for (int i = 0; i < fBuffer.numFromDevice; ++i) {
-    const auto &track = fBuffer.fromDevice[i];
+    const auto &track = fBuffer.fromDevice_sorted[i];
     if (fDebugLevel > 1) {
       G4cout << "[" << tid << "] fromDevice[ " << i << "]: pdg " << track.pdg << " energy " << track.energy
              << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
