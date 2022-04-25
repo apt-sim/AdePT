@@ -17,12 +17,13 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 
+#include <curand_kernel.h>
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
   using Precision = vecgeom::Precision;
-  RanluxppDouble rngState;
+  curandState rngState;
   double energy;
   double numIALeft[3];
   double initialRange;
@@ -33,7 +34,7 @@ struct Track {
   vecgeom::Vector3D<Precision> dir;
   vecgeom::NavStateIndex navState;
 
-  __host__ __device__ double Uniform() { return rngState.Rndm(); }
+  __device__ double Uniform() { return curand_uniform(&rngState); }
 
   __host__ __device__ void InitAsSecondary(const Track &parent)
   {
@@ -70,6 +71,22 @@ struct RanluxppDoubleAdaptor : G4HepEmEngineBase<RanluxppDoubleAdaptor> {
 
 private:
   RanluxppDouble& ranlux;
+};
+
+struct CurandAdaptor : G4HepEmEngineBase<CurandAdaptor> {
+  G4HepEmHostDevice CurandAdaptor(curandState& state) : state(state) {}
+
+  __device__ double flat() { return curand_uniform_double(&state); }
+
+  __device__ void flatArray(const int size, double *vect)
+  {
+    for (int i = 0; i < size; i++) {
+      vect[i] = flat();
+    }
+  }
+
+private:
+  curandState& state;
 };
 
 

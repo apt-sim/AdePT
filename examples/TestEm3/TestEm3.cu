@@ -135,7 +135,8 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < numEvents; i += blockDim.x * gridDim.x) {
     Track &track = generator.NextTrack();
 
-    track.rngState.SetSeed(startEvent + i);
+//    track.rngState.SetSeed(startEvent + i);
+    curand_init(startEvent + i, 0, 0, &track.rngState);
     track.energy       = energy;
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;

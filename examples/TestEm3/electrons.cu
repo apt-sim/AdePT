@@ -62,7 +62,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Prepare a branched RNG state while threads are synchronized. Even if not
     // used, this provides a fresh round of random numbers and reduces thread
     // divergence because the RNG state doesn't need to be advanced later.
-    RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
+    curandState newRNG(currentTrack.rngState/*.BranchNoAdvance()*/);
 
     // Compute safety, needed for MSC step limit.
     double safety = 0;
@@ -71,7 +71,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
     theTrack->SetSafety(safety);
 
-    RanluxppDoubleAdaptor rnge{currentTrack.rngState};
+    CurandAdaptor rnge{currentTrack.rngState};
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -197,7 +197,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         sincos(phi, &sinPhi, &cosPhi);
 
         gamma1.InitAsSecondary(/*parent=*/currentTrack);
-        newRNG.Advance();
+        //newRNG.Advance();
         gamma1.rngState = newRNG;
         gamma1.energy = copcore::units::kElectronMassC2;
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
@@ -249,10 +249,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Perform the discrete interaction, make sure the branched RNG state is
     // ready to be used.
-    newRNG.Advance();
+    //newRNG.Advance();
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
-    currentTrack.rngState.Advance();
+    //currentTrack.rngState.Advance();
 
     const double energy   = currentTrack.energy;
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
