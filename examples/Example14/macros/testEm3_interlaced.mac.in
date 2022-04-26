@@ -1,0 +1,166 @@
+# SPDX-FileCopyrightText: 2022 CERN
+# SPDX-License-Identifier: Apache-2.0
+#  testEm3.mac
+#
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters with AdePT integration
+## =============================================================================
+##
+/run/numberOfThreads 1
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+##
+/example14/detector/filename @TESTEM3_INTERLACED_GDML@
+/example14/detector/regionname caloregion
+/example14/adept/activate true
+/example14/adept/verbose 0
+/example14/adept/threshold 100
+
+/example14/detector/addsensitivevolume G4_Pb1
+/example14/detector/addsensitivevolume G4_lAr1
+/example14/detector/addsensitivevolume G4_Pb2
+/example14/detector/addsensitivevolume G4_lAr2
+/example14/detector/addsensitivevolume G4_Pb3
+/example14/detector/addsensitivevolume G4_lAr3
+/example14/detector/addsensitivevolume G4_Pb4
+/example14/detector/addsensitivevolume G4_lAr4
+/example14/detector/addsensitivevolume G4_Pb5
+/example14/detector/addsensitivevolume G4_lAr5
+/example14/detector/addsensitivevolume G4_Pb6
+/example14/detector/addsensitivevolume G4_lAr6
+/example14/detector/addsensitivevolume G4_Pb7
+/example14/detector/addsensitivevolume G4_lAr7
+/example14/detector/addsensitivevolume G4_Pb8
+/example14/detector/addsensitivevolume G4_lAr8
+/example14/detector/addsensitivevolume G4_Pb9
+/example14/detector/addsensitivevolume G4_lAr9
+/example14/detector/addsensitivevolume G4_Pb10
+/example14/detector/addsensitivevolume G4_lAr10
+/example14/detector/addsensitivevolume G4_Pb11
+/example14/detector/addsensitivevolume G4_lAr11
+/example14/detector/addsensitivevolume G4_Pb12
+/example14/detector/addsensitivevolume G4_lAr12
+/example14/detector/addsensitivevolume G4_Pb13
+/example14/detector/addsensitivevolume G4_lAr13
+/example14/detector/addsensitivevolume G4_Pb14
+/example14/detector/addsensitivevolume G4_lAr14
+/example14/detector/addsensitivevolume G4_Pb15
+/example14/detector/addsensitivevolume G4_lAr15
+/example14/detector/addsensitivevolume G4_Pb16
+/example14/detector/addsensitivevolume G4_lAr16
+/example14/detector/addsensitivevolume G4_Pb17
+/example14/detector/addsensitivevolume G4_lAr17
+/example14/detector/addsensitivevolume G4_Pb18
+/example14/detector/addsensitivevolume G4_lAr18
+/example14/detector/addsensitivevolume G4_Pb19
+/example14/detector/addsensitivevolume G4_lAr19
+/example14/detector/addsensitivevolume G4_Pb20
+/example14/detector/addsensitivevolume G4_lAr20
+/example14/detector/addsensitivevolume G4_Pb21
+/example14/detector/addsensitivevolume G4_lAr21
+/example14/detector/addsensitivevolume G4_Pb22
+/example14/detector/addsensitivevolume G4_lAr22
+/example14/detector/addsensitivevolume G4_Pb23
+/example14/detector/addsensitivevolume G4_lAr23
+/example14/detector/addsensitivevolume G4_Pb24
+/example14/detector/addsensitivevolume G4_lAr24
+/example14/detector/addsensitivevolume G4_Pb25
+/example14/detector/addsensitivevolume G4_lAr25
+/example14/detector/addsensitivevolume G4_Pb26
+/example14/detector/addsensitivevolume G4_lAr26
+/example14/detector/addsensitivevolume G4_Pb27
+/example14/detector/addsensitivevolume G4_lAr27
+/example14/detector/addsensitivevolume G4_Pb28
+/example14/detector/addsensitivevolume G4_lAr28
+/example14/detector/addsensitivevolume G4_Pb29
+/example14/detector/addsensitivevolume G4_lAr29
+/example14/detector/addsensitivevolume G4_Pb30
+/example14/detector/addsensitivevolume G4_lAr30
+/example14/detector/addsensitivevolume G4_Pb31
+/example14/detector/addsensitivevolume G4_lAr31
+/example14/detector/addsensitivevolume G4_Pb32
+/example14/detector/addsensitivevolume G4_lAr32
+/example14/detector/addsensitivevolume G4_Pb33
+/example14/detector/addsensitivevolume G4_lAr33
+/example14/detector/addsensitivevolume G4_Pb34
+/example14/detector/addsensitivevolume G4_lAr34
+/example14/detector/addsensitivevolume G4_Pb35
+/example14/detector/addsensitivevolume G4_lAr35
+/example14/detector/addsensitivevolume G4_Pb36
+/example14/detector/addsensitivevolume G4_lAr36
+/example14/detector/addsensitivevolume G4_Pb37
+/example14/detector/addsensitivevolume G4_lAr37
+/example14/detector/addsensitivevolume G4_Pb38
+/example14/detector/addsensitivevolume G4_lAr38
+/example14/detector/addsensitivevolume G4_Pb39
+/example14/detector/addsensitivevolume G4_lAr39
+/example14/detector/addsensitivevolume G4_Pb40
+/example14/detector/addsensitivevolume G4_lAr40
+/example14/detector/addsensitivevolume G4_Pb41
+/example14/detector/addsensitivevolume G4_lAr41
+/example14/detector/addsensitivevolume G4_Pb42
+/example14/detector/addsensitivevolume G4_lAr42
+/example14/detector/addsensitivevolume G4_Pb43
+/example14/detector/addsensitivevolume G4_lAr43
+/example14/detector/addsensitivevolume G4_Pb44
+/example14/detector/addsensitivevolume G4_lAr44
+/example14/detector/addsensitivevolume G4_Pb45
+/example14/detector/addsensitivevolume G4_lAr45
+/example14/detector/addsensitivevolume G4_Pb46
+/example14/detector/addsensitivevolume G4_lAr46
+/example14/detector/addsensitivevolume G4_Pb47
+/example14/detector/addsensitivevolume G4_lAr47
+/example14/detector/addsensitivevolume G4_Pb48
+/example14/detector/addsensitivevolume G4_lAr48
+/example14/detector/addsensitivevolume G4_Pb49
+/example14/detector/addsensitivevolume G4_lAr49
+/example14/detector/addsensitivevolume G4_Pb50
+/example14/detector/addsensitivevolume G4_lAr50
+
+## -----------------------------------------------------------------------------
+## Optionally, set a constant magnetic filed:
+## -----------------------------------------------------------------------------
+#/example14/detector/setField 0 0 0.1 tesla
+/example14/detector/setField 0 0 0 tesla
+
+##
+## -----------------------------------------------------------------------------
+## Set the physics list (more exactly, the EM physics constructor):
+##   = 'HepEm'           : the G4HepEm EM physics c.t.r.
+##   =  'G4Em'           : the G4 EM physics c.t.r. that corresponds to G4HepEm
+##   = 'emstandard_opt0' : the original, G4 EM-Opt0 physics c.t.r.
+## -----------------------------------------------------------------------------
+##/testem/phys/addPhysics   HepEm
+##/testem/phys/addPhysics  emstandard_opt0 
+##
+## -----------------------------------------------------------------------------
+## Set secondary production threshold, init. the run and set primary properties
+## -----------------------------------------------------------------------------
+/run/setCut 0.7 mm
+/run/initialize
+
+## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/example14/event/verbose 2
+
+/example14/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 100
+/gun/position -220 0 0 mm
+/gun/direction 1 0 0
+#/example14/gun/print
+
+##
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+##/tracking/verbose 1
+##/process/list
+
+# run events with parametrised simulation
+# by default all created models are active
+/param/ActivateModel AdePT
+/run/beamOn 1

@@ -154,6 +154,17 @@ void DetectorConstruction::ConstructSDandField()
   }
 
   auto detectorRegion = G4RegionStore::GetInstance()->GetRegion(fRegion_name);
+  
+  auto rootLVItr = detectorRegion->GetRootLogicalVolumeIterator();
+  std::size_t nRootLV = detectorRegion->GetNumberOfRootVolumes();
+  std::cout << "Adding GPU region " << fRegion_name << " having " << nRootLV << " root logical volumes:\n";
+  for(std::size_t iLV=0; iLV<nRootLV; ++iLV) {
+    G4LogicalVolume* aLV = *rootLVItr;
+    std::cout << " " << aLV->GetName();
+    ++rootLVItr;
+  }
+  std::cout << "\n";
+
   fShowerModel        = new EMShowerModel("AdePT", detectorRegion);
 
   fShowerModel->SetSensitiveVolumes(&(caloSD->fSensitive_volume_index));
