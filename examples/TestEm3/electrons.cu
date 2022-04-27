@@ -24,6 +24,9 @@
 #include <G4HepEmElectronInteractionIoni.icc>
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
+#ifndef NOFLUCTUATION
+#include <G4HepEmElectronEnergyLossFluctuation.icc>
+#endif
 
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
