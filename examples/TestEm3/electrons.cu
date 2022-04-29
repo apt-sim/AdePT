@@ -258,9 +258,6 @@ void TransportElectrons(Track *electrons, const adept::MParray *active,
       continue;
     }
 
-    // Perform the discrete interaction, make sure the branched RNG state is
-    // ready to be used.
-    newRNG.Advance();
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
@@ -337,9 +334,8 @@ void ComputeInteraction(Track *electrons, const adept::MParray *active, Secondar
     const double energy   = currentTrack.energy;
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
 
-    RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
-
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
+    RanluxppDouble newRNG{currentTrack.rngState.Branch()};
+    RanluxppDoubleEngine rnge{&currentTrack.rngState};
 
     if constexpr (ProcessIndex == 0) {
       // Invoke ionization (for e-/e+):
