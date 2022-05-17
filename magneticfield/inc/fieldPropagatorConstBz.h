@@ -67,7 +67,7 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision safety, const int max_iterations)
+    vecgeom::NavStateIndex &next_state, bool &propagated, Precision safety, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
   #ifdef VECGEOM_FLOAT_PRECISION
