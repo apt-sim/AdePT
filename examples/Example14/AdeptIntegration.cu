@@ -475,8 +475,10 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
       gpuState.fNumFromDevice = numLeaked;
       delete[] fBuffer.fromDevice;
       fBuffer.fromDevice = new TrackData[numLeaked];
+      // From 11.6.2 we can start using the Async versions for malloc/free avoiding full device synchronization
       COPCORE_CUDA_CHECK(cudaFree(gpuState.fromDevice_dev));
       COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.fromDevice_dev, numLeaked * sizeof(TrackData)));
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
     }
     // Populate the buffer from sparse memory
     constexpr unsigned int block_size = 256;
@@ -488,6 +490,17 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
         cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, gpuState.stream));
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fBuffer.fromDevice, gpuState.fromDevice_dev, numLeaked * sizeof(TrackData),
                                        cudaMemcpyDeviceToHost, gpuState.stream));
+  }
+
+  AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
+  ClearAllQueues<<<1, 1, 0, gpuState.stream>>>(queues);
+
+  // Transfer back scoring.
+  fScoring->CopyHitsToHost(gpuState.stream);
+  fScoring->ClearGPU(gpuState.stream);
+  COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+
+  if (numLeaked) {
     // Sort by energy the tracks coming from device to ensure reproducibility
     fSorted.reserve(numLeaked);
     std::iota(fSorted.begin(), fSorted.begin() + numLeaked, 0); // Fill with 0, 1, ...
@@ -499,11 +512,5 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
       fBuffer.fromDevice_sorted.push_back(fBuffer.fromDevice[fSorted[i]]);
   }
 
-  AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
-  ClearAllQueues<<<1, 1, 0, gpuState.stream>>>(queues);
-  COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
-
-  // Transfer back scoring.
-  fScoring->CopyHitsToHost();
   fScoring->fGlobalScoring.numKilled = inFlight;
 }

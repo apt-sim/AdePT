@@ -17,7 +17,8 @@
 /example14/detector/regionname caloregion
 /example14/adept/activate true
 /example14/adept/verbose 0
-/example14/adept/threshold 100
+/example14/adept/milliontrackslots 4
+/example14/adept/threshold 200
 
 /example14/detector/addsensitivevolume G4_Pb1
 /example14/detector/addsensitivevolume G4_lAr1
@@ -148,7 +149,7 @@
 /example14/gun/setDefault
 /gun/particle e-
 /gun/energy 10 GeV
-/gun/number 100
+/gun/number 10000
 /gun/position -220 0 0 mm
 /gun/direction 1 0 0
 #/example14/gun/print
@@ -164,3 +165,5 @@
 # by default all created models are active
 /param/ActivateModel AdePT
 /run/beamOn 1
+#/param/InActivateModel AdePT
+#/run/beamOn 1

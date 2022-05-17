@@ -84,10 +84,33 @@ struct BasicScoring {
   BasicScoring *InitializeOnGPU();
 
   /// @brief Copy hits to host for a single event
-  void CopyHitsToHost();
+  template <typename Stream>
+  void CopyHitsToHost(Stream &stream)
+  {
+    // Transfer back scoring.
+    COPCORE_CUDA_CHECK(cudaMemcpyAsync(&fGlobalScoring, fGlobalScoring_dev, sizeof(GlobalScoring), cudaMemcpyDeviceToHost, stream));
+
+    // Transfer back the scoring per volume (charged track length and energy deposit).
+    COPCORE_CUDA_CHECK(cudaMemcpyAsync(fScoringPerVolume.chargedTrackLength, fChargedTrackLength_dev,
+                                sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost, stream));
+    COPCORE_CUDA_CHECK(cudaMemcpyAsync(fScoringPerVolume.energyDeposit, fEnergyDeposit_dev, sizeof(double) * fNumSensitive,
+                                cudaMemcpyDeviceToHost, stream));
+    // synchronization done by AdePT
+  }
 
   /// @brief Clear hits on device to reuse for next event
-  void ClearGPU();
+  template <typename Stream>
+  void ClearGPU(Stream &stream)
+  {
+    // Clear the device hits content
+    COPCORE_CUDA_CHECK(cudaMemsetAsync(fGlobalScoring_dev, 0, sizeof(GlobalScoring), stream));
+    COPCORE_CUDA_CHECK(cudaMemsetAsync(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive, stream));
+    COPCORE_CUDA_CHECK(cudaMemsetAsync(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive, stream));
+    // synchronization done by AdePT
+  }
+
+  /// @brief Calculate deposited energy
+  double DepositedEnergy() { return fGlobalScoring.energyDeposit; }
 
   /// @brief Free data structures allocated on GPU
   void FreeGPU();

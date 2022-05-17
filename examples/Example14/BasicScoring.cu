@@ -49,26 +49,6 @@ void BasicScoring::FreeGPU()
   COPCORE_CUDA_CHECK(cudaFree(fScoringPerVolume_dev));
 }
 
-void BasicScoring::ClearGPU()
-{
-  // Clear the device hits content
-  COPCORE_CUDA_CHECK(cudaMemset(fGlobalScoring_dev, 0, sizeof(GlobalScoring)));
-  COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
-  COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
-}
-
-void BasicScoring::CopyHitsToHost()
-{
-  // Transfer back scoring.
-  COPCORE_CUDA_CHECK(cudaMemcpy(&fGlobalScoring, fGlobalScoring_dev, sizeof(GlobalScoring), cudaMemcpyDeviceToHost));
-
-  // Transfer back the scoring per volume (charged track length and energy deposit).
-  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.chargedTrackLength, fChargedTrackLength_dev,
-                                sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
-  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.energyDeposit, fEnergyDeposit_dev, sizeof(double) * fNumSensitive,
-                                cudaMemcpyDeviceToHost));
-}
-
 __device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep)
 {
   assert(fGlobalScoring_dev && "Scoring not initialized on device");

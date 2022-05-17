@@ -112,7 +112,7 @@ void AdeptIntegration::Cleanup()
 
 void AdeptIntegration::Shower(int event)
 {
-  constexpr double tolerance = 10. * vecgeom::kTolerance;
+  constexpr double tolerance = 0.1 * vecgeom::kTolerance;
 
   int tid = G4Threading::G4GetThreadId();
   if (fDebugLevel > 0 && fBuffer.toDevice.size() == 0) {
@@ -197,7 +197,7 @@ void AdeptIntegration::Shower(int event)
   evAct->number_killed    = evAct->number_killed + fScoring->fGlobalScoring.numKilled;
 
   fBuffer.Clear();
-  fScoring->ClearGPU();
+  //fScoring->ClearGPU();
 }
 
 adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume *g4world,
