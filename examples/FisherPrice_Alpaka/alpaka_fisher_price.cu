@@ -18,12 +18,12 @@ struct processEvent {
 
     using namespace alpaka;
     // iTh is the thread number we use this throughout
-    uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
+    uint32_t iTh = getIdx<Grid, Threads>(acc)[0];
     // dummy sensitive, not used yet
     sensitive SD(400., 500.);
 
     // Create an alpaka random generator using a seed of 1984
-    auto generator = rand::generator::createDefault(acc, 1984, iTh);
+    auto generator = rand::engine::createDefault(acc, 1984, iTh);
 
     // Here we split threads that start immediatly, from threads that will have to wait until the shower is under way
     particleProcessor particleProcessor;
@@ -34,27 +34,26 @@ struct processEvent {
 
 int main()
 {
-
   using namespace alpaka; // alpaka functionality all lives in this namespace
 
-  using Dim = dim::DimInt<1>;
+  using Dim = DimInt<1>;
   using Idx = uint32_t;
 
   // Define the alpaka accelerator to be Nvidia GPU
-  using Acc = acc::AccGpuCudaRt<Dim, Idx>;
+  using Acc = AccGpuCudaRt<Dim, Idx>;
 
   // Get the first device available of type GPU (i.e should be our sole GPU)/device
-  auto const device = pltf::getDevByIdx<Acc>(0u);
+  auto const device = getDevByIdx<Acc>(0u);
   // Create a device for host for memory allocation, using the first CPU available
-  auto devHost = pltf::getDevByIdx<dev::DevCpu>(0u);
+  auto devHost = getDevByIdx<DevCpu>(0u);
 
   // Allocate memory on both the host and device for part objects and numbers of steps
   uint32_t NPART = 200;
-  vec::Vec<Dim, Idx> bufferExtent{NPART};
-  auto device_event = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  auto host_event   = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
-  auto device_steps = mem::buf::alloc<int, Idx>(device, bufferExtent);
-  auto host_steps   = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
+  Vec<Dim, Idx> bufferExtent{NPART};
+  auto device_event = allocBuf<particle, Idx>(device, bufferExtent);
+  auto host_event   = allocBuf<particle, Idx>(devHost, bufferExtent);
+  auto device_steps = allocBuf<int, Idx>(device, bufferExtent);
+  auto host_steps   = allocBuf<int, Idx>(devHost, bufferExtent);
 
   int size = NPART * sizeof(particle); // memory size to use
   std::cout << "memory allocated " << size << std::endl;
@@ -65,16 +64,16 @@ int main()
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
     vec3 pos                                = vec3(0., 0., (float)ii);
-    mem::view::getPtrNative(host_event)[ii] = particle(pos, mom, 22);
+    getPtrNative(host_event)[ii]            = particle(pos, mom, 22);
   }
 
   // Copy particles to the GPU
-  auto queue = queue::Queue<Acc, queue::Blocking>{device};
-  mem::view::copy(queue, device_event, host_event, bufferExtent);
+  auto queue = Queue<Acc, Blocking>{device};
+  memcpy(queue, device_event, host_event, bufferExtent);
 
   // Check that this makes sense on CPU
   for (int ii = 0; ii < NPART; ii++) {
-    std::cout << __CUDACC__ << "  " << ii << ", " << mem::view::getPtrNative(host_event)[ii].getPos().z() << std::endl;
+    std::cout << __CUDACC__ << "  " << ii << ", " << getPtrNative(host_event)[ii].getPos().z() << std::endl;
   }
 
   // Launch one thread per particle for NPART particles
@@ -82,20 +81,20 @@ int main()
   uint32_t threadsPerBlock   = 1;
   uint32_t elementsPerThread = 1;
 
-  auto workDiv = workdiv::WorkDivMembers<Dim, Idx>{blocksPerGrid, threadsPerBlock, elementsPerThread};
+  auto workDiv = WorkDivMembers<Dim, Idx>{blocksPerGrid, threadsPerBlock, elementsPerThread};
 
   // Create a task for processEvent, that we can run and then run it via a queue
   processEvent processEvent;
 
-  auto taskRunProcessEvent = kernel::createTaskKernel<Acc>(workDiv, processEvent, mem::view::getPtrNative(device_event),
-                                                           mem::view::getPtrNative(device_steps));
+  auto taskRunProcessEvent =
+      createTaskKernel<Acc>(workDiv, processEvent, getPtrNative(device_event), getPtrNative(device_steps));
 
-  queue::enqueue(queue, taskRunProcessEvent);
+  enqueue(queue, taskRunProcessEvent);
 
-  mem::view::copy(queue, host_steps, device_steps, bufferExtent);
+  memcpy(queue, host_steps, device_steps, bufferExtent);
   std::cout << "Thread, nsteps" << std::endl;
   for (int ii = 0; ii < NPART; ii++)
-    std::cout << ii << ", " << mem::view::getPtrNative(host_steps)[ii] << std::endl;
+    std::cout << ii << ", " << getPtrNative(host_steps)[ii] << std::endl;
 
   return 0;
 }

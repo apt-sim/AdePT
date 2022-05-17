@@ -35,7 +35,7 @@ public:
    * */
   template <typename Acc>
   ALPAKA_FN_ACC float energyLoss(Acc const &acc, particle &mypart,
-                                 alpaka::rand::generator::uniform_cuda_hip::Xor &generator);
+                                 alpaka::rand::engine::uniform_cuda_hip::Xor &generator);
 
   /**
    * @brief Takes a list of particles on a specific thread and processes them. Processing means that the particles moves
@@ -48,7 +48,7 @@ public:
    */
   template <typename Acc>
   ALPAKA_FN_ACC unsigned int processParticle(Acc const &acc, particle *partList, const int &iTh,
-                                             alpaka::rand::generator::uniform_cuda_hip::Xor &generator, sensitive &SD);
+                                             alpaka::rand::engine::uniform_cuda_hip::Xor &generator, sensitive &SD);
 
   /**
    * @brief throws a random number to determine whether to generate secondary particles. An electron will always
@@ -60,7 +60,7 @@ public:
    */
   template <typename Acc>
   ALPAKA_FN_ACC particle *splitParticle(Acc const &acc, particle &mypart,
-                                        alpaka::rand::generator::uniform_cuda_hip::Xor &generator);
+                                        alpaka::rand::engine::uniform_cuda_hip::Xor &generator);
 
   /**
    * @brief steps the particle 0.1 mm in the x-direction. Additionally determines how much energy it loses via @sa
@@ -72,7 +72,7 @@ public:
    */
   template <typename Acc>
   ALPAKA_FN_ACC particle *step(Acc const &acc, particle &processPart,
-                               alpaka::rand::generator::uniform_cuda_hip::Xor &generator, sensitive &SD);
+                               alpaka::rand::engine::uniform_cuda_hip::Xor &generator, sensitive &SD);
 
   /**
    * @brief If called this lowers the threshold used in @sa splitParticle from 0.99 to 0.5.
@@ -91,7 +91,7 @@ private:
 
 template <typename Acc>
 ALPAKA_FN_ACC float particleProcessor::energyLoss(Acc const &acc, particle &mypart,
-                                                  alpaka::rand::generator::uniform_cuda_hip::Xor &generator)
+                                                  alpaka::rand::engine::uniform_cuda_hip::Xor &generator)
 {
   // take off a random 0 to 0.2 MeV in the direction of momentum
   auto func(alpaka::rand::distribution::createUniformReal<float>(acc));
@@ -104,7 +104,7 @@ ALPAKA_FN_ACC float particleProcessor::energyLoss(Acc const &acc, particle &mypa
 
 template <typename Acc>
 ALPAKA_FN_ACC unsigned int particleProcessor::processParticle(Acc const &acc, particle *partList, const int &iTh,
-                                                              alpaka::rand::generator::uniform_cuda_hip::Xor &generator,
+                                                              alpaka::rand::engine::uniform_cuda_hip::Xor &generator,
                                                               sensitive &SD)
 {
   // Create a particleStack for this thread:
@@ -138,7 +138,7 @@ ALPAKA_FN_ACC unsigned int particleProcessor::processParticle(Acc const &acc, pa
 
 template <typename Acc>
 ALPAKA_FN_ACC particle *particleProcessor::splitParticle(Acc const &acc, particle &mypart,
-                                                         alpaka::rand::generator::uniform_cuda_hip::Xor &generator)
+                                                         alpaka::rand::engine::uniform_cuda_hip::Xor &generator)
 {
   // throw a random number if >0.99 do a splitting (e.g. a Brem or pair production)
   auto func(alpaka::rand::distribution::createUniformReal<float>(acc));
@@ -175,8 +175,7 @@ ALPAKA_FN_ACC particle *particleProcessor::splitParticle(Acc const &acc, particl
 
 template <typename Acc>
 ALPAKA_FN_ACC particle *particleProcessor::step(Acc const &acc, particle &processPart,
-                                                alpaka::rand::generator::uniform_cuda_hip::Xor &generator,
-                                                sensitive &SD)
+                                                alpaka::rand::engine::uniform_cuda_hip::Xor &generator, sensitive &SD)
 {
   // Move the particle by a deltaX=0.1mm in the momentum direction
   float deltaX = 0.1;
