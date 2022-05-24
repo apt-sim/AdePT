@@ -21,10 +21,12 @@ protected:
   G4String filename;
   HepMC3::ReaderAscii* asciiInput;
 
+  static std::vector<HepMC3::GenEvent*>* fEvents;
+
   G4int verbose;
   HepMC3G4AsciiReaderMessenger* messenger;
 
-  virtual HepMC3::GenEvent* GenerateHepMCEvent();
+  virtual HepMC3::GenEvent* GenerateHepMCEvent(int eventId);
 
 public:
   HepMC3G4AsciiReader();

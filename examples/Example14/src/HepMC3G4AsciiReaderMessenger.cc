@@ -13,6 +13,7 @@
 #include "HepMC3G4AsciiReaderMessenger.hh"
 #include "HepMC3G4AsciiReader.hh"
 
+#include "G4Threading.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 HepMC3G4AsciiReaderMessenger::HepMC3G4AsciiReaderMessenger
@@ -51,12 +52,9 @@ void HepMC3G4AsciiReaderMessenger::SetNewValue(G4UIcommand* command,
     gen-> SetVerboseLevel(level);
   } else if (command==open) {
     gen-> SetFileName(newValues);
-    G4cout << "HepMC Ascii inputfile: "
-           << gen-> GetFileName() << G4endl;
-    gen-> Initialize();
+    if (G4Threading::G4GetThreadId()==-1) gen->Initialize();
   }
 }
-
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 G4String HepMC3G4AsciiReaderMessenger::GetCurrentValue(G4UIcommand* command)

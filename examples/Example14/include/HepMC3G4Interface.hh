@@ -36,7 +36,7 @@ protected:
 
   // Implement this method in his/her own concrete class.
   // An empty event will be created in default.
-  virtual HepMC3::GenEvent* GenerateHepMCEvent();
+  virtual HepMC3::GenEvent* GenerateHepMCEvent(int);
 
 public:
   HepMC3G4Interface();
