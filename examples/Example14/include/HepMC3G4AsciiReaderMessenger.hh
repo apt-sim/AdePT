@@ -31,6 +31,8 @@ private:
 
   G4UIdirectory* dir;
   G4UIcmdWithAnInteger* verbose;
+  G4UIcmdWithAnInteger* maxevent;
+  G4UIcmdWithAnInteger* firstevent;
   G4UIcmdWithAString* open;
 
 };

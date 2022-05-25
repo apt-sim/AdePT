@@ -29,6 +29,16 @@ HepMC3G4AsciiReaderMessenger::HepMC3G4AsciiReaderMessenger
   verbose-> SetParameterName("verboseLevel", false, false);
   verbose-> SetRange("verboseLevel>=0 && verboseLevel<=1");
 
+  maxevent=
+    new G4UIcmdWithAnInteger("/generator/hepmcAscii/maxevents", this);
+  maxevent-> SetGuidance("Set maximum number of events to be read");
+  maxevent-> SetParameterName("maxEvents", true);
+
+  firstevent=
+    new G4UIcmdWithAnInteger("/generator/hepmcAscii/firstevent", this);
+  firstevent-> SetGuidance("Set first event from the file");
+  firstevent-> SetParameterName("firstEvent", true);
+
   open= new G4UIcmdWithAString("/generator/hepmcAscii/open", this);
   open-> SetGuidance("(re)open data file (HepMC Ascii format)");
   open-> SetParameterName("input ascii file", true, true);
@@ -38,6 +48,8 @@ HepMC3G4AsciiReaderMessenger::HepMC3G4AsciiReaderMessenger
 HepMC3G4AsciiReaderMessenger::~HepMC3G4AsciiReaderMessenger()
 {
   delete verbose;
+  delete firstevent;
+  delete maxevent;
   delete open;
 
   delete dir;
@@ -53,8 +65,15 @@ void HepMC3G4AsciiReaderMessenger::SetNewValue(G4UIcommand* command,
   } else if (command==open) {
     gen-> SetFileName(newValues);
     if (G4Threading::G4GetThreadId()==-1) gen->Initialize();
+  } else if (command==maxevent) {
+    int maxe= maxevent-> GetNewIntValue(newValues);
+    gen->SetMaxNumberOfEvents(maxe);
+  } else if (command==firstevent) {
+    int firste= firstevent-> GetNewIntValue(newValues);
+    gen->SetFirstEventNumber(firste);
   }
 }
+
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 G4String HepMC3G4AsciiReaderMessenger::GetCurrentValue(G4UIcommand* command)

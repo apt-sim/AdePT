@@ -39,8 +39,12 @@ void HepMC3G4AsciiReader::Initialize()
   fEvents = new std::vector<HepMC3::GenEvent*>();
   HepMC3::GenEvent* evt = nullptr;
   
+  int counter = 0;
+
+  if (firstEventNumber > 0) asciiInput->skip(firstEventNumber);
+  
   // read file 
-  while(!asciiInput->failed())
+  while(!asciiInput->failed() && counter < maxNumberOfEvents)
   {
     evt = new HepMC3::GenEvent();
     asciiInput->read_event(*evt);
@@ -48,6 +52,7 @@ void HepMC3G4AsciiReader::Initialize()
     if (asciiInput->failed()) break;
 
     fEvents->push_back(evt);
+    counter++;
   }
   G4cout << "Read " << filename << " file with " << fEvents->size() 
   << " events." << G4endl;
