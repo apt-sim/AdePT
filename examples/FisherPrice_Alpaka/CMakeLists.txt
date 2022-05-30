@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 #We must specify that we want to use alpaka
-find_package(alpaka QUIET)
+find_package(alpaka 0.9.0 QUIET)
 
 if(NOT alpaka_FOUND)
   message(STATUS "No alpaka install found, disabling build of FisherPrice_Alpaka")

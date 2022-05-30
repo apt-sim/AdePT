@@ -21,10 +21,10 @@ struct testEnergyLoss {
   {
 
     // iTh is the thread number we use this throughout
-    uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
+    uint32_t iTh = getIdx<Grid, Threads>(acc)[0];
 
     // Create an alpaka random generator using a seed of 1984
-    auto generator = rand::generator::createDefault(acc, 1984, iTh);
+    auto generator = rand::engine::createDefault(acc, 1984, iTh);
 
     // Create a particleProcessor class, from which we can test its member functions.
     particleProcessor particleProcessor;
@@ -43,10 +43,10 @@ struct testSplitParticle {
   {
 
     // iTh is the thread number we use this throughout
-    uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
+    uint32_t iTh = getIdx<Grid, Threads>(acc)[0];
 
     // Create an alpaka random generator using a seed of 1984
-    auto generator = rand::generator::createDefault(acc, 1984, iTh);
+    auto generator = rand::engine::createDefault(acc, 1984, iTh);
 
     // Create a particleProcessor class, from which we can test its member functions.
     particleProcessor particleProcessor;
@@ -69,10 +69,10 @@ struct testStep {
   {
 
     // iTh is the thread number we use this throughout
-    uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
+    uint32_t iTh = getIdx<Grid, Threads>(acc)[0];
 
     // Create an alpaka random generator using a seed of 1984
-    auto generator = rand::generator::createDefault(acc, 1984, iTh);
+    auto generator = rand::engine::createDefault(acc, 1984, iTh);
 
     // Create a particleProcessor class, from which we can test its member functions.
     particleProcessor particleProcessor;
@@ -99,12 +99,12 @@ struct testProcessParticle {
 
     using namespace alpaka;
     // iTh is the thread number we use this throughout
-    uint32_t iTh = idx::getIdx<Grid, Threads>(acc)[0];
+    uint32_t iTh = getIdx<Grid, Threads>(acc)[0];
     // dummy sensitive, not used yet
     sensitive SD(400., 500.);
 
     // Create an alpaka random generator using a seed of 1984
-    auto generator = rand::generator::createDefault(acc, 1984, iTh);
+    auto generator = rand::engine::createDefault(acc, 1984, iTh);
 
     // Here we split threads that start immediatly, from threads that will have to wait until the shower is under way
     particleProcessor particleProcessor;
@@ -115,21 +115,21 @@ struct testProcessParticle {
 
 int main()
 {
-  using Dim = dim::DimInt<1>;
+  using Dim = DimInt<1>;
   using Idx = uint32_t;
 
   // Define the alpaka accelerator to be Nvidia GPU
-  using Acc = acc::AccGpuCudaRt<Dim, Idx>;
+  using Acc = AccGpuCudaRt<Dim, Idx>;
 
   // Get the first device available of type GPU (i.e should be our sole GPU)/device
-  auto const device = pltf::getDevByIdx<Acc>(0u);
+  auto const device = getDevByIdx<Acc>(0u);
   // Create a device for host for memory allocation, using the first CPU available
-  auto devHost = pltf::getDevByIdx<dev::DevCpu>(0u);
+  auto devHost = getDevByIdx<DevCpu>(0u);
 
   // Allocate memory on both the host and device for part objects and numbers of steps
   uint32_t NPART = 200;
-  vec::Vec<Dim, Idx> bufferExtent{NPART};
-  auto host_event = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
+  Vec<Dim, Idx> bufferExtent{NPART};
+  auto host_event = allocBuf<particle, Idx>(devHost, bufferExtent);
 
   // All photons have momentum 20 GeV along z
   float initialMomentum = 20000.;
@@ -137,42 +137,42 @@ int main()
 
   // create NPART particles:
   for (int ii = 0; ii < NPART; ii++) {
-    vec3 pos                                = vec3(0., 0., (float)ii);
-    mem::view::getPtrNative(host_event)[ii] = particle(pos, mom, 22);
+    vec3 pos                     = vec3(0., 0., (float)ii);
+    getPtrNative(host_event)[ii] = particle(pos, mom, 22);
   }
 
   // Copy particles to the GPU
-  auto queue = queue::Queue<Acc, queue::Blocking>{device};
+  auto queue = Queue<Acc, Blocking>{device};
 
   // Launch one thread per particle for NPART particles
   uint32_t blocksPerGrid     = NPART;
   uint32_t threadsPerBlock   = 1;
   uint32_t elementsPerThread = 1;
 
-  auto workDiv = workdiv::WorkDivMembers<Dim, Idx>{blocksPerGrid, threadsPerBlock, elementsPerThread};
+  auto workDiv = WorkDivMembers<Dim, Idx>{blocksPerGrid, threadsPerBlock, elementsPerThread};
 
   // Create data for testing particleProcessor.energyLoss
-  auto device_ELoss      = mem::buf::alloc<float, Idx>(device, bufferExtent);
-  auto host_ELoss        = mem::buf::alloc<float, Idx>(devHost, bufferExtent);
-  auto device_eventELoss = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  mem::view::copy(queue, device_eventELoss, host_event, bufferExtent);
+  auto device_ELoss      = allocBuf<float, Idx>(device, bufferExtent);
+  auto host_ELoss        = allocBuf<float, Idx>(devHost, bufferExtent);
+  auto device_eventELoss = allocBuf<particle, Idx>(device, bufferExtent);
+  memcpy(queue, device_eventELoss, host_event, bufferExtent);
 
   // Create a task for testEnergyLoss, that we can run and then run it via a queue
 
   testEnergyLoss testEnergyLoss;
-  auto taskRunTestEnergyLoss = kernel::createTaskKernel<Acc>(
-      workDiv, testEnergyLoss, mem::view::getPtrNative(device_eventELoss), mem::view::getPtrNative(device_ELoss));
+  auto taskRunTestEnergyLoss =
+      createTaskKernel<Acc>(workDiv, testEnergyLoss, getPtrNative(device_eventELoss), getPtrNative(device_ELoss));
 
-  queue::enqueue(queue, taskRunTestEnergyLoss);
+  enqueue(queue, taskRunTestEnergyLoss);
   // copy the calculated energy losses back to the host.
-  mem::view::copy(queue, host_ELoss, device_ELoss, bufferExtent);
+  memcpy(queue, host_ELoss, device_ELoss, bufferExtent);
 
   // Then we test the output of energyLoss for each thread.
   // By construction the energy loss should not be more than 0.2 MeV.
   bool testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
 
-    float ELoss = mem::view::getPtrNative(host_ELoss)[counter];
+    float ELoss = getPtrNative(host_ELoss)[counter];
     if (ELoss > 0.2) testOK = false;
   }
 
@@ -180,45 +180,44 @@ int main()
   std::cout << "Status of testEnergyLoss is " << testOK << std::endl;
 
   // Create data for testing particleProcessor.splitParticle
-  auto device_newPartSplit = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  auto host_newPartSplit   = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
-  auto device_eventSplit   = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  mem::view::copy(queue, device_eventSplit, host_event, bufferExtent);
+  auto device_newPartSplit = allocBuf<particle, Idx>(device, bufferExtent);
+  auto host_newPartSplit   = allocBuf<particle, Idx>(devHost, bufferExtent);
+  auto device_eventSplit   = allocBuf<particle, Idx>(device, bufferExtent);
+  memcpy(queue, device_eventSplit, host_event, bufferExtent);
 
   // Create a task for testSplitParticle, that we can run and then run it via a queue
   testSplitParticle testSplitParticle;
-  auto taskRunTestSplitParticle =
-      kernel::createTaskKernel<Acc>(workDiv, testSplitParticle, mem::view::getPtrNative(device_eventSplit),
-                                    mem::view::getPtrNative(device_newPartSplit));
+  auto taskRunTestSplitParticle = createTaskKernel<Acc>(workDiv, testSplitParticle, getPtrNative(device_eventSplit),
+                                                        getPtrNative(device_newPartSplit));
 
-  queue::enqueue(queue, taskRunTestSplitParticle);
+  enqueue(queue, taskRunTestSplitParticle);
   // copy the part objects back to the host
-  mem::view::copy(queue, host_newPartSplit, device_newPartSplit, bufferExtent);
+  memcpy(queue, host_newPartSplit, device_newPartSplit, bufferExtent);
 
   // Then we test the output part for each thread.
   // By construction the particle momentum should not be more than the initial momentum.
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
-    particle newPart = mem::view::getPtrNative(host_newPartSplit)[counter];
+    particle newPart = getPtrNative(host_newPartSplit)[counter];
     if ((newPart.getMom().length()) > initialMomentum) testOK = false;
   }
 
   std::cout << "Status of testSplitParticle is " << testOK << std::endl;
 
   // Create data for testing particleProcessor.step
-  auto device_newPartStep = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  auto host_newPartStep   = mem::buf::alloc<particle, Idx>(devHost, bufferExtent);
-  auto device_eventStep   = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  mem::view::copy(queue, device_eventStep, host_event, bufferExtent);
+  auto device_newPartStep = allocBuf<particle, Idx>(device, bufferExtent);
+  auto host_newPartStep   = allocBuf<particle, Idx>(devHost, bufferExtent);
+  auto device_eventStep   = allocBuf<particle, Idx>(device, bufferExtent);
+  memcpy(queue, device_eventStep, host_event, bufferExtent);
 
   // Create a task for testStep, that we can run and then run it via a queue
   testStep testStep;
-  auto taskRunTestStep = kernel::createTaskKernel<Acc>(workDiv, testStep, mem::view::getPtrNative(device_eventStep),
-                                                       mem::view::getPtrNative(device_newPartStep));
+  auto taskRunTestStep =
+      createTaskKernel<Acc>(workDiv, testStep, getPtrNative(device_eventStep), getPtrNative(device_newPartStep));
 
-  queue::enqueue(queue, taskRunTestStep);
+  enqueue(queue, taskRunTestStep);
   // copy the new part objects back to the host
-  mem::view::copy(queue, host_newPartStep, device_newPartStep, bufferExtent);
+  memcpy(queue, host_newPartStep, device_newPartStep, bufferExtent);
 
   // Then we test the output part for each thread.
   // By construction the z-position should be the thread number + 0.1
@@ -226,7 +225,7 @@ int main()
   // should not be more than the initial momentum (because step calls splitParticle internally)
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
-    particle newPart = mem::view::getPtrNative(host_newPartStep)[counter];
+    particle newPart = getPtrNative(host_newPartStep)[counter];
     // skip cases where no splitting occurred, because then there is no particle to check.
     if (!newPart.getMom().length() > 0) continue;
     if ((newPart.getMom().length()) > initialMomentum) {
@@ -245,26 +244,25 @@ int main()
   std::cout << "Status of testStep is " << testOK << std::endl;
 
   // Create data for testing particleProcessor.processParticle
-  auto device_stepsProcess = mem::buf::alloc<int, Idx>(device, bufferExtent);
-  auto host_stepsProcess   = mem::buf::alloc<int, Idx>(devHost, bufferExtent);
-  auto device_eventProcess = mem::buf::alloc<particle, Idx>(device, bufferExtent);
-  mem::view::copy(queue, device_eventProcess, host_event, bufferExtent);
+  auto device_stepsProcess = allocBuf<int, Idx>(device, bufferExtent);
+  auto host_stepsProcess   = allocBuf<int, Idx>(devHost, bufferExtent);
+  auto device_eventProcess = allocBuf<particle, Idx>(device, bufferExtent);
+  memcpy(queue, device_eventProcess, host_event, bufferExtent);
 
   // Create a task for testProcessParticle, that we can run and then run it via a queue
   testProcessParticle testProcessParticle;
-  auto taskRunTestProcessParticle =
-      kernel::createTaskKernel<Acc>(workDiv, testProcessParticle, mem::view::getPtrNative(device_eventProcess),
-                                    mem::view::getPtrNative(device_stepsProcess));
+  auto taskRunTestProcessParticle = createTaskKernel<Acc>(
+      workDiv, testProcessParticle, getPtrNative(device_eventProcess), getPtrNative(device_stepsProcess));
 
-  queue::enqueue(queue, taskRunTestProcessParticle);
+  enqueue(queue, taskRunTestProcessParticle);
   // Copy steps back to the host
-  mem::view::copy(queue, host_stepsProcess, device_stepsProcess, bufferExtent);
+  memcpy(queue, host_stepsProcess, device_stepsProcess, bufferExtent);
 
   // Then we test the output - the number of steps should be at least 1, but there is no maximum value.
   // Thus we simply test that the nSteps incremented beyond the initial zero value.
   testOK = true;
   for (unsigned int counter = 0; counter < NPART; counter++) {
-    if (!(mem::view::getPtrNative(host_stepsProcess)[counter] > 0)) testOK = false;
+    if (!(getPtrNative(host_stepsProcess)[counter] > 0)) testOK = false;
   }
 
   std::cout << "Status of testProcessParticle is " << testOK << std::endl;
