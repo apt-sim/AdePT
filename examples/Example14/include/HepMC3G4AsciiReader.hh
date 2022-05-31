@@ -14,13 +14,15 @@
 #include "HepMC3/ReaderAscii.h"
 #include "HepMC3/Print.h"
 
+#include <climits>
+
 class HepMC3G4AsciiReaderMessenger;
 
 class HepMC3G4AsciiReader : public HepMC3G4Interface {
 protected:
   G4String filename;
   int firstEventNumber = 0;
-  int maxNumberOfEvents = __INT_MAX__;
+  int maxNumberOfEvents = INT_MAX;
   HepMC3::ReaderAscii* asciiInput;
 
   static std::vector<HepMC3::GenEvent*>* fEvents;
