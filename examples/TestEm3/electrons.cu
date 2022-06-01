@@ -40,11 +40,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    Track &currentTrack = electrons[slot];
-    auto volume         = currentTrack.navState.Top();
-    int volumeID        = volume->id();
-    int theMCIndex      = MCIndex[volumeID];
+    const int slot       = (*active)[i];
+    Track &currentTrack  = electrons[slot];
+    const int volumeID   = currentTrack.navState.Top()->id();
+    const int theMCIndex = MCIndex[volumeID];
+
+    auto survive = [&] {
+      activeQueue->push_back(slot);
+    };
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
@@ -218,21 +221,21 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(slot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
         currentTrack.navState = nextState;
+        survive();
       }
       continue;
     } else if (!propagated) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     }
 
@@ -243,7 +246,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if a delta interaction happens instead of the real discrete process.
     if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
       // A delta interaction happened, move on.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     }
 
@@ -277,8 +280,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       currentTrack.energy = energy - deltaEkin;
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      // The current track continues to live.
-      activeQueue->push_back(slot);
+      survive();
       break;
     }
     case 1: {
@@ -304,8 +306,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       currentTrack.energy = energy - deltaEkin;
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      // The current track continues to live.
-      activeQueue->push_back(slot);
+      survive();
       break;
     }
     case 2: {

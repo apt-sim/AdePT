@@ -24,11 +24,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 {
   int activeSize = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*gammas->fActiveTracks)[i];
-    Track &currentTrack = (*gammas)[slot];
-    auto volume         = currentTrack.navState.Top();
-    int volumeID        = volume->id();
-    int theMCIndex      = MCIndex[volumeID];
+    const int slot       = (*gammas->fActiveTracks)[i];
+    Track &currentTrack  = (*gammas)[slot];
+    const int volumeID   = currentTrack.navState.Top()->id();
+    const int theMCIndex = MCIndex[volumeID];
+
+    auto survive = [&] {
+      gammas->fNextTracks->push_back(slot);
+    };
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
@@ -85,16 +88,16 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        gammas->fNextTracks->push_back(slot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
         currentTrack.navState = nextState;
+        survive();
       }
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      gammas->fNextTracks->push_back(slot);
+      survive();
       continue;
     }
 
@@ -113,7 +116,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (energy < 2 * copcore::units::kElectronMassC2) {
-        gammas->fNextTracks->push_back(slot);
+        survive();
         continue;
       }
 
@@ -150,7 +153,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // Invoke Compton scattering of gamma.
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (energy < LowEnergyThreshold) {
-        gammas->fNextTracks->push_back(slot);
+        survive();
         continue;
       }
       const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
@@ -179,9 +182,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (newEnergyGamma > LowEnergyThreshold) {
         currentTrack.energy = newEnergyGamma;
         currentTrack.dir    = newDirGamma;
-
-        // The current track continues to live.
-        gammas->fNextTracks->push_back(slot);
+        survive();
       } else {
         atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
         atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);

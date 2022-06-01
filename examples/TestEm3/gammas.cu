@@ -25,11 +25,14 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    Track &currentTrack = gammas[slot];
-    auto volume         = currentTrack.navState.Top();
-    int volumeID        = volume->id();
-    int theMCIndex      = MCIndex[volumeID];
+    const int slot       = (*active)[i];
+    Track &currentTrack  = gammas[slot];
+    const int volumeID   = currentTrack.navState.Top()->id();
+    const int theMCIndex = MCIndex[volumeID];
+
+    auto survive = [&] {
+      activeQueue->push_back(slot);
+    };
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
@@ -86,16 +89,16 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(slot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
         currentTrack.navState = nextState;
+        survive();
       }
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     }
 
@@ -114,7 +117,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (energy < 2 * copcore::units::kElectronMassC2) {
-        activeQueue->push_back(slot);
+        survive();
         continue;
       }
 
@@ -151,7 +154,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       // Invoke Compton scattering of gamma.
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (energy < LowEnergyThreshold) {
-        activeQueue->push_back(slot);
+        survive();
         continue;
       }
       const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
@@ -180,9 +183,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       if (newEnergyGamma > LowEnergyThreshold) {
         currentTrack.energy = newEnergyGamma;
         currentTrack.dir    = newDirGamma;
-
-        // The current track continues to live.
-        activeQueue->push_back(slot);
+        survive();
       } else {
         atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
         atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);
