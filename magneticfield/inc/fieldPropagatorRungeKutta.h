@@ -147,7 +147,7 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
     bool done=
        RkDriver_t::Advance( position, momentumVec, charge, lenRemains, magField, hTry, dydx_end,
                             hAdvanced, totalTrials,
-                            id,     // Temporary ?
+                            // id,     // Temporary ?
                             trialsPerCall);
     //   Runge-Kutta single call ( number of steps <= trialsPerCall )
     

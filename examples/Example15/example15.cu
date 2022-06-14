@@ -32,8 +32,6 @@
 #include <iomanip>
 #include <stdio.h>
 
-// # #include "track.h"   // AdePT ... for Track
-
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
@@ -55,7 +53,6 @@ void InitG4HepEmGPU(G4HepEmState *state)
   dataOnDevice.fTheElectronData = state->fData->fTheElectronData_gpu;
   dataOnDevice.fThePositronData = state->fData->fThePositronData_gpu;
   dataOnDevice.fTheSBTableData  = state->fData->fTheSBTableData_gpu;
-  dataOnDevice.fTheGSTableData  = state->fData->fTheGSTableData_gpu;
   dataOnDevice.fTheGammaData    = state->fData->fTheGammaData_gpu;
   // The other pointers should never be used.
   dataOnDevice.fTheMatCutData_gpu   = nullptr;
@@ -64,7 +61,6 @@ void InitG4HepEmGPU(G4HepEmState *state)
   dataOnDevice.fTheElectronData_gpu = nullptr;
   dataOnDevice.fThePositronData_gpu = nullptr;
   dataOnDevice.fTheSBTableData_gpu  = nullptr;
-  dataOnDevice.fTheGSTableData_gpu  = nullptr;
   dataOnDevice.fTheGammaData_gpu    = nullptr;
 
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
@@ -119,17 +115,19 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
-    track.initialRange = -1.0;
+
+    track.initialRange       = -1.0;
+    track.dynamicRangeFactor = -1.0;
+    track.tlimitMin          = -1.0;
 
     track.pos = {0, 0, 0};
     if (rotatingParticleGun) {
       // Generate particles flat in phi and in eta between -5 and 5. We'll lose the far forwards ones, so no need to simulate.
       const double phi = 2. * M_PI * track.rngState.Rndm();
       const double eta = -5. + 10. * track.rngState.Rndm();
-      track.dir = {
-        cos(phi) / cosh(eta),
-        sin(phi) / cosh(eta),
-                   tanh(eta)};
+      track.dir.x()    = static_cast<vecgeom::Precision>(cos(phi) / cosh(eta));
+      track.dir.y()    = static_cast<vecgeom::Precision>(sin(phi) / cosh(eta));
+      track.dir.z()    = static_cast<vecgeom::Precision>(tanh(eta));
     } else {
       track.dir = {1.0, 0, 0};
     }
@@ -349,6 +347,8 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
     std::cout << "... " << std::flush;
   }
 
+  unsigned long long killed = 0;
+
   for (int startEvent = 1; startEvent <= numParticles; startEvent += batch) {
     if (detailed) {
       std::cout << startEvent << " ... " << std::flush;
@@ -517,6 +517,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
     std::cout << std::endl;
     
     if (inFlight > 0) {
+      killed += inFlight;
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
         ParticleType &pType   = particles[i];
         int inFlightParticles = stats->inFlight[i];
@@ -536,6 +537,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
 
   // Transfer back scoring.
   COPCORE_CUDA_CHECK(cudaMemcpy(globalScoring_host, globalScoring, sizeof(GlobalScoring), cudaMemcpyDeviceToHost));
+  globalScoring_host->numKilled = killed;
 
   // Transfer back the scoring per volume (charged track length and energy deposit).
   COPCORE_CUDA_CHECK(cudaMemcpy(scoringPerVolume_host->chargedTrackLength, scoringPerVolume_devPtrs.chargedTrackLength,

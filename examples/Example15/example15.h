@@ -17,7 +17,8 @@ struct GlobalScoring {
   unsigned long long numGammas;
   unsigned long long numElectrons;
   unsigned long long numPositrons;
-  unsigned long long killedInPropagation;
+  // Not used on the device, filled in by the host.
+  unsigned long long numKilled;
 };
 
 struct ScoringPerVolume {

@@ -194,7 +194,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     
     float BzFieldValue= *gPtrBzFieldValue_dev;   // Use vecgeom::Precision ?
     if (BzFieldValue != 0.0) {
-      stepLengthFromPhysics= min( 0.25 * copcore::units::cm, stepLengthFromPhysics);  // For debugging only!!
+      geometricalStepLengthFromPhysics= min( 0.25 * copcore::units::cm, geometricalStepLengthFromPhysics);  // For debugging only!!
        
 #ifdef USE_RK       
       UniformMagneticField magneticFieldB( vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue ) );
@@ -223,7 +223,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
       Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          currentTrack.energy, Mass, Charge, stepLengthFromPhysics,
+          currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics,
           positionHx, directionHx, currentTrack.navState, nextStateHx, propagatedHx);
       // End   Baseline reply
 #endif
@@ -231,14 +231,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       geometryStepLength =
          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, BVHNavigator>::ComputeStepAndNextVolume( 
             magneticFieldB,
-            currentTrack.energy, Mass, Charge, stepLengthFromPhysics,
+            currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics,
             currentTrack.pos, currentTrack.dir, currentTrack.navState, nextState,
             propagated, /*lengthDone,*/ safety, max_iterations, iterDone, i
             );
 #ifdef CHECK_RESULTS
       constexpr Precision thesholdDiff=3.0e-5;
       if( std::fabs( helixStepLength - geometryStepLength ) > 1.0e-4 * helixStepLength ) {
-        printf ("s: i= %3d phys-request= %8.4g  helix-did= %8.4g rk-did= %8.4g\n", i, stepLengthFromPhysics, helixStepLength, geometryStepLength);
+        printf ("s: i= %3d phys-request= %8.4g  helix-did= %8.4g rk-did= %8.4g\n", i, geometricalStepLengthFromPhysics, helixStepLength, geometryStepLength);
       }
       bool badPosition = 
         CompareResponseVector3D( i, startPosition, positionHx, currentTrack.pos, "Position", thesholdDiff );
@@ -248,7 +248,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       const char* Outcome[2]={ "Good", " Bad" };
       if( badPosition || badDirection) {
         printf("%4s track (id= %3d)  e_kin= %8.4g stepLen= %7.3g iters= %5d\n ", Outcome[badPosition||badDirection],
-               i, currentTrack.energy, stepLengthFromPhysics, iterDone);      
+               i, currentTrack.energy, geometricalStepLengthFromPhysics, iterDone);      
         currentTrack.print(i, /* verbose= */ true );
       }
 #endif
@@ -258,6 +258,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
           currentTrack.navState, nextState, propagated, safety);
+#endif      
     } else {
       geometryStepLength =
           BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
