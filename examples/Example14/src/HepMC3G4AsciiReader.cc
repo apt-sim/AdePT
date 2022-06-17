@@ -27,6 +27,9 @@ HepMC3G4AsciiReader::HepMC3G4AsciiReader()
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 HepMC3G4AsciiReader::~HepMC3G4AsciiReader()
 {
+  for (auto evt:*fEvents) delete evt;
+
+  delete fEvents;
   delete asciiInput;
   delete messenger;
 }
