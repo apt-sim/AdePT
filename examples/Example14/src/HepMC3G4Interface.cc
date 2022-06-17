@@ -92,9 +92,6 @@ HepMC3::GenEvent* HepMC3G4Interface::GenerateHepMCEvent(int i)
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 void HepMC3G4Interface::GeneratePrimaryVertex(G4Event* anEvent)
 {
-  // delete previous event object
-  delete hepmcEvent;
-
   // generate next event
   hepmcEvent= GenerateHepMCEvent(anEvent->GetEventID());
   if(! hepmcEvent) {
