@@ -26,6 +26,8 @@ public:
   __host__ __device__ void stepInField(double kinE, double mass, int charge, Precision step, Vector3D &position,
                                        Vector3D &direction);
 
+  __host__ __device__ Precision ComputeSafeLength(Precision momentumMag, int charge, const Vector3D &direction);
+
   template <class Navigator = LoopNavigator>
   __host__ __device__ Precision ComputeStepAndNextVolume(double kinE, double mass, int charge, Precision physicsStep,
                                                          Vector3D &position, Vector3D &direction,
@@ -61,6 +63,24 @@ __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double
   }
 }
 
+__host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precision momentumMag, int charge,
+                                                                        const Vector3D &direction)
+{
+  // Maximum allowed error made by approximating step along helix with step along straight line
+  constexpr Precision gEpsilonDeflect = 1.E-2 * copcore::units::cm;
+
+  // Direction projection in plane perpendicular to field vector
+  Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
+
+  Precision bend = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / momentumMag;
+
+  // R = helix radius, curv = 1./R = curvature in plane perpendicular to the field
+  //Precision curv = bend / (dirxy + 1.e-30);
+
+  // Distance along the track direction to reach the maximum allowed error
+  return sqrt(2 * gEpsilonDeflect / (bend * dirxy + 1.e-30));
+}
+
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 template <class Navigator>
@@ -75,20 +95,11 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
 #else
   const Precision kPush = 0;
 #endif
-  // Maximum allowed error made by approximating step along helix with step along straight line
-  constexpr Precision gEpsilonDeflect = 1.E-2 * copcore::units::cm;
 
   Precision momentumMag = sqrt(kinE * (kinE + 2 * mass));
-  // Direction projection in plane perpendicular to field vector
-  Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
-
-  Precision bend = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / momentumMag;
-
-  // R = helix radius, curv = 1./R = curvature in plane perpendicular to the field
-  //Precision curv = bend / (dirxy + 1.e-30);
 
   // Distance along the track direction to reach the maximum allowed error
-  Precision safeLength = sqrt(2 * gEpsilonDeflect / (bend * dirxy + 1.e-30));
+  Precision safeLength = ComputeSafeLength(momentumMag, charge, direction);
 
   ConstBzFieldStepper helixBz(BzValue);
 
