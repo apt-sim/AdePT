@@ -35,8 +35,7 @@ protected:
   void HepMC2G4(const HepMC3::GenEvent* hepmcevt, G4Event* g4event);
 
   // Implement this method in his/her own concrete class.
-  // An empty event will be created in default.
-  virtual HepMC3::GenEvent* GenerateHepMCEvent(int);
+  virtual HepMC3::GenEvent* GenerateHepMCEvent(int) = 0;
 
 public:
   HepMC3G4Interface();
