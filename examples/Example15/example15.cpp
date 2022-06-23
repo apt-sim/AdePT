@@ -82,6 +82,9 @@ const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
   G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
   theCoupleTable->UpdateCoupleTable(world);
 
+  // --- Set the world volume to fix initialization of G4SafetyHelper (used by G4UrbanMscModel)
+  G4TransportationManager::GetTransportationManager()->SetWorldForTracking(world);
+
   // --- Set MSC range factor to match G4HepEm physics lists.
   G4EmParameters *param = G4EmParameters::Instance();
   param->SetDefaults();
