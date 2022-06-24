@@ -47,18 +47,30 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
-    auto volume         = currentTrack.navState.Top();
-    int volumeID        = volume->id();
+    auto energy         = currentTrack.energy;
+    auto pos            = currentTrack.pos;
+    auto dir            = currentTrack.dir;
+    auto navState       = currentTrack.navState;
+    const auto volume   = navState.Top();
+    const int volumeID  = volume->id();
     // the MCC vector is indexed by the logical volume id
-    int lvolID     = volume->GetLogicalVolume()->id();
-    int theMCIndex = MCIndex[lvolID];
+    const int lvolID     = volume->GetLogicalVolume()->id();
+    const int theMCIndex = MCIndex[lvolID];
+
+    auto survive = [&] {
+      currentTrack.energy   = energy;
+      currentTrack.pos      = pos;
+      currentTrack.dir      = dir;
+      currentTrack.navState = navState;
+      activeQueue->push_back(slot);
+    };
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
     G4HepEmTrack *theTrack = elTrack.GetTrack();
-    theTrack->SetEKin(currentTrack.energy);
+    theTrack->SetEKin(energy);
     theTrack->SetMCIndex(theMCIndex);
-    theTrack->SetOnBoundary(currentTrack.navState.IsOnBoundary());
+    theTrack->SetOnBoundary(navState.IsOnBoundary());
     theTrack->SetCharge(Charge);
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
     mscData->fIsFirstStep        = currentTrack.initialRange < 0;
@@ -73,8 +85,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Compute safety, needed for MSC step limit.
     double safety = 0;
-    if (!currentTrack.navState.IsOnBoundary()) {
-      safety = BVHNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
+    if (!navState.IsOnBoundary()) {
+      safety = BVHNavigator::ComputeSafety(pos, navState);
     }
     theTrack->SetSafety(safety);
 
@@ -95,9 +107,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     bool restrictedPhysicalStepLength = false;
     if (BzFieldValue != 0) {
-      const double momentumMag = sqrt(currentTrack.energy * (currentTrack.energy + 2.0 * Mass));
+      const double momentumMag = sqrt(energy * (energy + 2.0 * Mass));
       // Distance along the track direction to reach the maximum allowed error
-      const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, currentTrack.dir);
+      const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
 
       constexpr int MaxSafeLength = 10;
       double limit                = MaxSafeLength * safeLength;
@@ -138,22 +150,20 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     vecgeom::NavStateIndex nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
-          currentTrack.navState, nextState, propagated, safety);
+          energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety);
     } else {
-      geometryStepLength =
-          BVHNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics,
-                                                 currentTrack.navState, nextState, kPush);
-      currentTrack.pos += geometryStepLength * currentTrack.dir;
+      geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
+                                                                  nextState, kPush);
+      pos += geometryStepLength * dir;
     }
 
     // Set boundary state in navState so the next step and secondaries get the
-    // correct information (currentTrack.navState = nextState only if relocated
+    // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
-    currentTrack.navState.SetBoundaryState(nextState.IsOnBoundary());
+    navState.SetBoundaryState(nextState.IsOnBoundary());
 
     // Propagate information from geometrical step to MSC.
-    theTrack->SetDirection(currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z());
+    theTrack->SetDirection(dir.x(), dir.y(), dir.z());
     theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
@@ -162,7 +172,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Collect the direction change and displacement by MSC.
     const double *direction = theTrack->GetDirection();
-    currentTrack.dir.Set(direction[0], direction[1], direction[2]);
+    dir.Set(direction[0], direction[1], direction[2]);
     if (!nextState.IsOnBoundary()) {
       const double *mscDisplacement = mscData->GetDisplacement();
       vecgeom::Vector3D<Precision> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
@@ -179,18 +189,18 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         // Apply displacement, depending on how close we are to a boundary.
         // 1a. Far away from geometry boundary:
         if (reducedSafety > 0.0 && dispR <= reducedSafety) {
-          currentTrack.pos += displacement;
+          pos += displacement;
         } else {
           // Recompute safety.
-          safety        = BVHNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
+          safety        = BVHNavigator::ComputeSafety(pos, navState);
           reducedSafety = sFact * safety;
 
           // 1b. Far away from geometry boundary:
           if (reducedSafety > 0.0 && dispR <= reducedSafety) {
-            currentTrack.pos += displacement;
+            pos += displacement;
             // 2. Push to boundary:
           } else if (reducedSafety > kGeomMinLength) {
-            currentTrack.pos += displacement * (reducedSafety / dispR);
+            pos += displacement * (reducedSafety / dispR);
           }
           // 3. Very small safety: do nothing.
         }
@@ -202,7 +212,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     atomicAdd(&scoringPerVolume->chargedTrackLength[volumeID], elTrack.GetPStepLength());
 
     // Collect the changes in energy and deposit.
-    currentTrack.energy  = theTrack->GetEKin();
+    energy               = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
     atomicAdd(&globalScoring->energyDeposit, energyDeposit);
     atomicAdd(&scoringPerVolume->energyDeposit[volumeID], energyDeposit);
@@ -227,13 +237,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         double sinPhi, cosPhi;
         sincos(phi, &sinPhi, &cosPhi);
 
-        gamma1.InitAsSecondary(/*parent=*/currentTrack);
+        gamma1.InitAsSecondary(pos, navState);
         newRNG.Advance();
         gamma1.rngState = newRNG;
         gamma1.energy   = copcore::units::kElectronMassC2;
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
-        gamma2.InitAsSecondary(/*parent=*/currentTrack);
+        gamma2.InitAsSecondary(pos, navState);
         // Reuse the RNG state of the dying track.
         gamma2.rngState = currentTrack.rngState;
         gamma2.energy   = copcore::units::kElectronMassC2;
@@ -249,21 +259,21 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(slot);
-        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
+        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
-        currentTrack.navState = nextState;
+        navState = nextState;
+        survive();
       }
       continue;
     } else if (!propagated || restrictedPhysicalStepLength) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     }
 
@@ -274,7 +284,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if a delta interaction happens instead of the real discrete process.
     if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
       // A delta interaction happened, move on.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     }
 
@@ -285,7 +295,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
 
-    const double energy   = currentTrack.energy;
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
 
     switch (winnerProcessIndex) {
@@ -294,22 +303,21 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
                                       : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
 
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondary[3];
       G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &secondary = secondaries.electrons.NextTrack();
       atomicAdd(&globalScoring->numElectrons, 1);
 
-      secondary.InitAsSecondary(/*parent=*/currentTrack);
+      secondary.InitAsSecondary(pos, navState);
       secondary.rngState = newRNG;
       secondary.energy   = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      currentTrack.energy = energy - deltaEkin;
-      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      // The current track continues to live.
-      activeQueue->push_back(slot);
+      energy -= deltaEkin;
+      dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+      survive();
       break;
     }
     case 1: {
@@ -321,27 +329,26 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                              : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
                                                                                  theMCIndex, &rnge, IsElectron);
 
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondary[3];
       G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &gamma = secondaries.gammas.NextTrack();
       atomicAdd(&globalScoring->numGammas, 1);
 
-      gamma.InitAsSecondary(/*parent=*/currentTrack);
+      gamma.InitAsSecondary(pos, navState);
       gamma.rngState = newRNG;
       gamma.energy   = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      currentTrack.energy = energy - deltaEkin;
-      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      // The current track continues to live.
-      activeQueue->push_back(slot);
+      energy -= deltaEkin;
+      dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+      survive();
       break;
     }
     case 2: {
       // Invoke annihilation (in-flight) for e+
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double theGamma1Ekin, theGamma2Ekin;
       double theGamma1Dir[3], theGamma2Dir[3];
       G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
@@ -351,12 +358,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       Track &gamma2 = secondaries.gammas.NextTrack();
       atomicAdd(&globalScoring->numGammas, 2);
 
-      gamma1.InitAsSecondary(/*parent=*/currentTrack);
+      gamma1.InitAsSecondary(pos, navState);
       gamma1.rngState = newRNG;
       gamma1.energy   = theGamma1Ekin;
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
-      gamma2.InitAsSecondary(/*parent=*/currentTrack);
+      gamma2.InitAsSecondary(pos, navState);
       // Reuse the RNG state of the dying track.
       gamma2.rngState = currentTrack.rngState;
       gamma2.energy   = theGamma2Ekin;

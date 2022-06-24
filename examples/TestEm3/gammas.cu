@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 CERN
+// SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 #include "TestEm3.cuh"
@@ -27,25 +27,32 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot       = (*active)[i];
     Track &currentTrack  = gammas[slot];
-    const int volumeID   = currentTrack.navState.Top()->id();
+    auto energy          = currentTrack.energy;
+    auto pos             = currentTrack.pos;
+    auto dir             = currentTrack.dir;
+    auto navState        = currentTrack.navState;
+    const int volumeID   = navState.Top()->id();
     const int theMCIndex = MCIndex[volumeID];
 
     auto survive = [&] {
+      currentTrack.energy   = energy;
+      currentTrack.pos      = pos;
+      currentTrack.dir      = dir;
+      currentTrack.navState = navState;
       activeQueue->push_back(slot);
     };
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
     G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(currentTrack.energy);
+    theTrack->SetEKin(energy);
     theTrack->SetMCIndex(theMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 3; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
-        numIALeft                  = -std::log(currentTrack.Uniform());
-        currentTrack.numIALeft[ip] = numIALeft;
+        numIALeft = -std::log(currentTrack.Uniform());
       }
       theTrack->SetNumIALeft(numIALeft, ip);
     }
@@ -61,15 +68,15 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     // Check if there's a volume boundary in between.
     vecgeom::NavStateIndex nextState;
-    double geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(
-        currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState);
-    currentTrack.pos += geometryStepLength * currentTrack.dir;
+    double geometryStepLength =
+        BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
+    pos += geometryStepLength * dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
     // Set boundary state in navState so the next step and secondaries get the
-    // correct information (currentTrack.navState = nextState only if relocated
+    // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
-    currentTrack.navState.SetBoundaryState(nextState.IsOnBoundary());
+    navState.SetBoundaryState(nextState.IsOnBoundary());
 
     // Propagate information from geometrical step to G4HepEm.
     theTrack->SetGStepLength(geometryStepLength);
@@ -89,10 +96,10 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
+        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
-        currentTrack.navState = nextState;
+        navState = nextState;
         survive();
       }
       continue;
@@ -111,8 +118,6 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-    const double energy = currentTrack.energy;
-
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
@@ -126,7 +131,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy,
                                                            posKinEnergy, &rnge);
 
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondaryEl[3], dirSecondaryPos[3];
       G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                           posKinEnergy, &rnge);
@@ -136,15 +141,15 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       atomicAdd(&globalScoring->numElectrons, 1);
       atomicAdd(&globalScoring->numPositrons, 1);
 
-      electron.InitAsSecondary(/*parent=*/currentTrack);
+      electron.InitAsSecondary(pos, navState);
       electron.rngState = newRNG;
-      electron.energy = elKinEnergy;
+      electron.energy   = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
-      positron.InitAsSecondary(/*parent=*/currentTrack);
+      positron.InitAsSecondary(pos, navState);
       // Reuse the RNG state of the dying track.
       positron.rngState = currentTrack.rngState;
-      positron.energy = posKinEnergy;
+      positron.energy   = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
@@ -157,7 +162,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         survive();
         continue;
       }
-      const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirPrimary[3];
       const double newEnergyGamma =
           G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
@@ -169,10 +174,10 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         Track &electron = secondaries.electrons.NextTrack();
         atomicAdd(&globalScoring->numElectrons, 1);
 
-        electron.InitAsSecondary(/*parent=*/currentTrack);
+        electron.InitAsSecondary(pos, navState);
         electron.rngState = newRNG;
-        electron.energy = energyEl;
-        electron.dir    = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
+        electron.energy   = energyEl;
+        electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
         atomicAdd(&globalScoring->energyDeposit, energyEl);
@@ -181,8 +186,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Check the new gamma energy and deposit if below threshold.
       if (newEnergyGamma > LowEnergyThreshold) {
-        currentTrack.energy = newEnergyGamma;
-        currentTrack.dir    = newDirGamma;
+        energy = newEnergyGamma;
+        dir    = newDirGamma;
         survive();
       } else {
         atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
@@ -205,11 +210,11 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         Track &electron = secondaries.electrons.NextTrack();
         atomicAdd(&globalScoring->numElectrons, 1);
 
-        double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+        double dirGamma[] = {dir.x(), dir.y(), dir.z()};
         double dirPhotoElec[3];
         G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-        electron.InitAsSecondary(/*parent=*/currentTrack);
+        electron.InitAsSecondary(pos, navState);
         electron.rngState = newRNG;
         electron.energy   = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);

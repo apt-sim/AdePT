@@ -34,16 +34,31 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*gammas->fActiveTracks)[i];
     Track &currentTrack = (*gammas)[slot];
-    auto volume         = currentTrack.navState.Top();
+    auto energy         = currentTrack.energy;
+    auto pos            = currentTrack.pos;
+    auto dir            = currentTrack.dir;
+    auto navState       = currentTrack.navState;
+    const auto volume   = navState.Top();
     // the MCC vector is indexed by the logical volume id
     int lvolID                = volume->GetLogicalVolume()->id();
     VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
 
+    auto survive = [&](bool leak = false) {
+      currentTrack.energy   = energy;
+      currentTrack.pos      = pos;
+      currentTrack.dir      = dir;
+      currentTrack.navState = navState;
+      if (leak)
+        leakedQueue->push_back(slot);
+      else
+        gammas->fNextTracks->push_back(slot);
+    };
+
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
     G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(currentTrack.energy);
+    theTrack->SetEKin(energy);
     theTrack->SetMCIndex(auxData.fMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
@@ -66,15 +81,15 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     // Check if there's a volume boundary in between.
     vecgeom::NavStateIndex nextState;
-    double geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(
-        currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState, kPush);
-    currentTrack.pos += geometryStepLength * currentTrack.dir;
+    double geometryStepLength =
+        BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
+    pos += geometryStepLength * dir;
     userScoring->AccountChargedStep(0);
 
     // Set boundary state in navState so the next step and secondaries get the
-    // correct information (currentTrack.navState = nextState only if relocated
+    // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
-    currentTrack.navState.SetBoundaryState(nextState.IsOnBoundary());
+    navState.SetBoundaryState(nextState.IsOnBoundary());
 
     // Propagate information from geometrical step to G4HepEm.
     theTrack->SetGStepLength(geometryStepLength);
@@ -94,27 +109,27 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
+        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
-        currentTrack.navState = nextState;
+        navState = nextState;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        auto nextvolume               = currentTrack.navState.Top();
-        int nextlvolID                = nextvolume->GetLogicalVolume()->id();
+        const auto nextvolume         = navState.Top();
+        const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
         VolAuxData const &nextauxData = userScoring->GetAuxData_dev(nextlvolID);
         if (nextauxData.fGPUregion > 0)
-          gammas->fNextTracks->push_back(slot);
+          survive();
         else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
-          currentTrack.pos += kPushOutRegion * currentTrack.dir;
-          leakedQueue->push_back(slot);
+          pos += kPushOutRegion * dir;
+          survive(/*leak*/ true);
         }
       }
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      gammas->fNextTracks->push_back(slot);
+      survive();
       continue;
     }
 
@@ -127,13 +142,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-    const double energy = currentTrack.energy;
-
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (energy < 2 * copcore::units::kElectronMassC2) {
-        gammas->fNextTracks->push_back(slot);
+        survive();
         continue;
       }
 
@@ -142,7 +155,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
                                                            elKinEnergy, posKinEnergy, &rnge);
 
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondaryEl[3], dirSecondaryPos[3];
       G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                           posKinEnergy, &rnge);
@@ -152,12 +165,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
-      electron.InitAsSecondary(/*parent=*/currentTrack);
+      electron.InitAsSecondary(pos, navState);
       electron.rngState = newRNG;
       electron.energy   = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
-      positron.InitAsSecondary(/*parent=*/currentTrack);
+      positron.InitAsSecondary(pos, navState);
       // Reuse the RNG state of the dying track.
       positron.rngState = currentTrack.rngState;
       positron.energy   = posKinEnergy;
@@ -170,10 +183,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // Invoke Compton scattering of gamma.
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (energy < LowEnergyThreshold) {
-        gammas->fNextTracks->push_back(slot);
+        survive();
         continue;
       }
-      const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirPrimary[3];
       const double newEnergyGamma =
           G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
@@ -185,24 +198,22 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         Track &electron = secondaries.electrons->NextTrack();
         userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
-        electron.InitAsSecondary(/*parent=*/currentTrack);
+        electron.InitAsSecondary(pos, navState);
         electron.rngState = newRNG;
         electron.energy   = energyEl;
-        electron.dir      = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
+        electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
-        if (auxData.fSensIndex >= 0) userScoring->Score(currentTrack.navState, 0, geometryStepLength, energyEl);
+        if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, energyEl);
       }
 
       // Check the new gamma energy and deposit if below threshold.
       if (newEnergyGamma > LowEnergyThreshold) {
-        currentTrack.energy = newEnergyGamma;
-        currentTrack.dir    = newDirGamma;
-
-        // The current track continues to live.
-        gammas->fNextTracks->push_back(slot);
+        energy = newEnergyGamma;
+        dir    = newDirGamma;
+        survive();
       } else {
-        if (auxData.fSensIndex >= 0) userScoring->Score(currentTrack.navState, 0, geometryStepLength, newEnergyGamma);
+        if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
       }
       break;
@@ -221,18 +232,18 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         Track &electron = secondaries.electrons->NextTrack();
         userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
-        double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+        double dirGamma[] = {dir.x(), dir.y(), dir.z()};
         double dirPhotoElec[3];
         G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-        electron.InitAsSecondary(/*parent=*/currentTrack);
+        electron.InitAsSecondary(pos, navState);
         electron.rngState = newRNG;
         electron.energy   = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
       } else {
         edep = energy;
       }
-      if (auxData.fSensIndex >= 0) userScoring->Score(currentTrack.navState, 0, geometryStepLength, edep);
+      if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, edep);
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }
