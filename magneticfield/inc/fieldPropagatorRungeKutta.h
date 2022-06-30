@@ -136,7 +136,7 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
   bool unfinished = true;
 
   Real_t  totLen = 0.0;
-  // unsigned int loopCt=0;
+  unsigned int loopCt=0;
   do {
     Real_t hAdvanced = 0;     //  length integrated this iteration (of do-while)
     Real_t  dydx_end[Nvar];
@@ -161,11 +161,11 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
        const vecgeom::Vector3D<Real_t> deltaPos= position - posBegin;
        const vecgeom::Vector3D<Real_t> deltaMomentum= momentumVec - momBegin;
        
-       printf(" id %3d call %4d iters %3d  hdid= %9.5g " //  totLen= %9.5g lenRemains= %9.5g "
+       printf(" id %3d call %4d lpCt %2d sum-iters %3d  hdid= %9.5g " //  totLen= %9.5g lenRemains= %9.5g "
               " ret= %1d #=  pos = %9.6g %9.6g %9.6g   momemtumV= %14.9g %14.9g %14.9g  hTry= %7.4g  remains= %7.4g "
-              "  Delta-pos= %7.3g %7.3g %7.3g  (mag= %7.3g)  Delta-mom= %7.3g %7.3g %7.3g (mag= %7.3g) "
+              "  Delta-pos= %9.6g %9.6g %9.6g  (mag= %8.6g)  Delta-mom= %9.6g %9.6g %9.6g (mag= %8.6g) "
               " \n",
-              id, callNum, totalTrials, hAdvanced, // totLen, lenRemains,
+              id, callNum, loopCt, totalTrials, hAdvanced, // totLen, lenRemains,
               done,
               position[0], position[1], position[2],
               momentumVec[0], momentumVec[1], momentumVec[2],
@@ -319,6 +319,58 @@ inverseCurvature(
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 
+#define CHECK_STEP  1
+
+#ifdef CHECK_STEP
+//  Extra check at each integration that the result agrees with Helix/Bz
+#include "ConstBzFieldStepper.h"
+
+static __device__ __host__
+bool  CompareResponseVector3D_perStep(
+   int id,
+   vecgeom::Vector3D<Precision> const & originalVec,
+   vecgeom::Vector3D<Precision> const & baselineVec,
+   vecgeom::Vector3D<Precision> const & resultVec,   // Output of new method
+   const char                   * vecName,    
+   Precision                      thresholdRel    // fraction difference allowed
+   )
+// Returns 'true' if values are 'bad'...
+
+// Copy of method in Example15/electrons.cu  2022.06.27
+   
+{
+   bool bad = false; // Good ..
+   Precision magOrig= originalVec.Mag();
+   vecgeom::Vector3D<Precision> moveBase = baselineVec-originalVec;
+   vecgeom::Vector3D<Precision> moveRes  = resultVec-originalVec;
+   Precision magMoveBase = moveBase.Mag();
+   Precision magDiffRes  = moveRes.Mag();
+
+   if ( std::fabs( magDiffRes / magMoveBase) - 1.0 > thresholdRel
+        || 
+        ( resultVec - baselineVec ).Mag() > thresholdRel * magMoveBase 
+      ){
+      // printf("Difference seen in vector %s : ", vecName );
+      printf(" id %3d - Diff in %s: "
+             " new-base= %14.9g %14.9g %14.9g (mag= %14.9g) "
+             " mv_Res/mv_Base-1 = %7.3g | mv/base:  mag= %9.4g v3= %14.9f %14.9f %14.9f  || mv-new: mag= %9.4g | "
+             " || origVec= %14.9f %14.9f %14.9f (mag=%14.9f) || base= %14.9f %14.9f %14.9f (mag=%9.4g) || mv/new:3= %14.9f %14.9f %14.9f (mag = %14.9g)\n",
+             id, vecName,
+             resultVec[0]-baselineVec[0], resultVec[1]-baselineVec[1], resultVec[2]-baselineVec[2], (resultVec-baselineVec).Mag(),             
+             (moveRes.Mag() / moveBase.Mag() - 1.0),
+             moveBase.Mag(), moveBase[0], moveBase[1], moveBase[2],
+//      printf("   new-original: mag= %20.16g ,  new_vec= %14.9f , %14.9f , %14.9f \n",
+             moveRes.Mag(), 
+             originalVec[0], originalVec[1], originalVec[2], originalVec.Mag(),
+             baselineVec[0], baselineVec[1], baselineVec[2], baselineVec.Mag(),     
+             moveRes[0], moveRes[1], moveRes[2], moveRes.Mag() // );
+         );      
+      bad= true;
+   }
+   return bad;
+};
+#endif
+
 template<class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
 inline __host__ __device__ Real_t
 fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeStepAndNextVolume(
@@ -332,14 +384,14 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
     const Real_t & /*safety*/,  //  eventually In/Out ?
     const int max_iterations
     , int & itersDone           //  useful for now - to monitor and report -- unclear if needed later
-    , int   threadId
+    , int   indx
    )
 {
   using copcore::units::MeV;
   
   const Real_t momentumMag   = sqrt(kinE * (kinE + 2.0 * mass));
   vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
-  /** printf( " momentum Mag = %9.3g MeV/c , from kinE = %9.4g MeV , mass = %5.3g MeV - check E^2-p^2-m0^2= %7.3g MeV^2\n",
+  /** Printf( " momentum Mag = %9.3g MeV/c , from kinE = %9.4g MeV , mass = %5.3g MeV - check E^2-p^2-m0^2= %7.3g MeV^2\n",
           momentumMag / MeV, kinE / MeV, mass / MeV,
           ( 2 * mass * kinE + kinE * kinE - momentumMag * momentumMag ) / (MeV * MeV) );  **/
 
@@ -394,15 +446,40 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
     do {
       vecgeom::Vector3D<Real_t> endPosition    = position;
       vecgeom::Vector3D<Real_t> endMomentumVec = momentumVec; // momentumMag * direction;
-      Real_t safeArc = min(remains, safeLength);
+      const Real_t safeArc = min(remains, safeLength);
       
-      IntegrateTrackToEnd( magField, endPosition, endMomentumVec, charge, safeArc, threadId);
+      IntegrateTrackToEnd( magField, endPosition, endMomentumVec, charge, safeArc, indx);
       //-----------------
       vecgeom::Vector3D<Real_t> chordVec     = endPosition - position;
       Real_t chordLen = chordVec.Length();      
       vecgeom::Vector3D<Real_t> endDirection = inv_momentumMag * endMomentumVec;      
 
       chordVec *= (1.0 / chordLen);  // It's not the direction
+
+#ifdef CHECK_STEP
+      // Check vs Helix solution -- temporary 2022.06.27      
+      vecgeom::Vector3D<Real_t> endPositionHelix  = position;
+      vecgeom::Vector3D<Real_t> endDirectionHelix = direction; // momentumMag * direction;      
+
+      // ConstFieldStepper helixBz(B0fieldVec);
+      ConstBzFieldStepper helixBz(B0fieldVec[2]); // Bz component -- Assumes that Bx= By = 0 and Bz = const. 
+      helixBz.DoStep<vecgeom::Vector3D<Real_t>, Real_t, int>(position, direction, charge, momentumMag, safeArc,
+                                                        endPositionHelix, endDirectionHelix);
+
+      constexpr Precision thesholdDiff=3.0e-5;
+      bool badPosition = 
+        CompareResponseVector3D( indx, position, endPositionHelix, endPosition, "Position-perStep", thesholdDiff );
+      bool badDirection =
+        CompareResponseVector3D( indx, direction, endDirectionHelix, endMomentumVec.Unit(), "Direction-perStep", thesholdDiff );
+
+      const char* Outcome[2]={ "Good", " Bad" };
+      printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %7.3g chord-iter= %5d\n ", Outcome[badPosition||badDirection],
+               indx, kinE, safeArc, chordIters);
+      if( badPosition || badDirection) {        
+        // currentTrack.print(indx, /* verbose= */ true );
+      }
+#endif
+      // Check Intersection
       
       Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordLen, current_state, next_state, kPush);
       Real_t curvedStep;
@@ -431,6 +508,11 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
         // as the reduction of the full chord due to the boundary crossing.
         curvedStep = fraction * safeArc;
       }
+
+      // if( idx == 1 ) {
+      //    printf(" 2end: dir-dir0 = %8.5g %8.5g %8.5g\n", direction -   ); 
+      // }
+      
       stepDone += curvedStep;
       remains -= curvedStep;
       chordIters++;
