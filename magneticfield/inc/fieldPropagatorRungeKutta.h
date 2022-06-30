@@ -325,50 +325,7 @@ inverseCurvature(
 //  Extra check at each integration that the result agrees with Helix/Bz
 #include "ConstBzFieldStepper.h"
 
-static __device__ __host__
-bool  CompareResponseVector3D_perStep(
-   int id,
-   vecgeom::Vector3D<Precision> const & originalVec,
-   vecgeom::Vector3D<Precision> const & baselineVec,
-   vecgeom::Vector3D<Precision> const & resultVec,   // Output of new method
-   const char                   * vecName,    
-   Precision                      thresholdRel    // fraction difference allowed
-   )
-// Returns 'true' if values are 'bad'...
-
-// Copy of method in Example15/electrons.cu  2022.06.27
-   
-{
-   bool bad = false; // Good ..
-   Precision magOrig= originalVec.Mag();
-   vecgeom::Vector3D<Precision> moveBase = baselineVec-originalVec;
-   vecgeom::Vector3D<Precision> moveRes  = resultVec-originalVec;
-   Precision magMoveBase = moveBase.Mag();
-   Precision magDiffRes  = moveRes.Mag();
-
-   if ( std::fabs( magDiffRes / magMoveBase) - 1.0 > thresholdRel
-        || 
-        ( resultVec - baselineVec ).Mag() > thresholdRel * magMoveBase 
-      ){
-      // printf("Difference seen in vector %s : ", vecName );
-      printf(" id %3d - Diff in %s: "
-             " new-base= %14.9g %14.9g %14.9g (mag= %14.9g) "
-             " mv_Res/mv_Base-1 = %7.3g | mv/base:  mag= %9.4g v3= %14.9f %14.9f %14.9f  || mv-new: mag= %9.4g | "
-             " || origVec= %14.9f %14.9f %14.9f (mag=%14.9f) || base= %14.9f %14.9f %14.9f (mag=%9.4g) || mv/new:3= %14.9f %14.9f %14.9f (mag = %14.9g)\n",
-             id, vecName,
-             resultVec[0]-baselineVec[0], resultVec[1]-baselineVec[1], resultVec[2]-baselineVec[2], (resultVec-baselineVec).Mag(),             
-             (moveRes.Mag() / moveBase.Mag() - 1.0),
-             moveBase.Mag(), moveBase[0], moveBase[1], moveBase[2],
-//      printf("   new-original: mag= %20.16g ,  new_vec= %14.9f , %14.9f , %14.9f \n",
-             moveRes.Mag(), 
-             originalVec[0], originalVec[1], originalVec[2], originalVec.Mag(),
-             baselineVec[0], baselineVec[1], baselineVec[2], baselineVec.Mag(),     
-             moveRes[0], moveRes[1], moveRes[2], moveRes.Mag() // );
-         );      
-      bad= true;
-   }
-   return bad;
-};
+#include "CompareResponses.h" 
 #endif
 
 template<class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
@@ -470,13 +427,16 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       bool badPosition = 
         CompareResponseVector3D( indx, position, endPositionHelix, endPosition, "Position-perStep", thesholdDiff );
       bool badDirection =
-        CompareResponseVector3D( indx, direction, endDirectionHelix, endMomentumVec.Unit(), "Direction-perStep", thesholdDiff );
+        CompareResponseVector3D( indx, direction, endDirectionHelix, endDirection, "Direction-perStep", thesholdDiff );
 
       const char* Outcome[2]={ "Good", " Bad" };
-      printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %7.3g chord-iter= %5d\n ", Outcome[badPosition||badDirection],
+      printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g chord-iter= %5d\n ", Outcome[badPosition||badDirection],
                indx, kinE, safeArc, chordIters);
       if( badPosition || badDirection) {        
         // currentTrack.print(indx, /* verbose= */ true );
+      } else {
+         ReportSameMoveVector3D( indx, position, endPosition, "Position-perStep" );
+         ReportSameMoveVector3D( indx, direction, endDirection, "Direction-perStep" );
       }
 #endif
       // Check Intersection

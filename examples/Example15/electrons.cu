@@ -8,8 +8,6 @@
 #define VERBOSE  1
 #define USE_RK 1
 
-
-
 #ifdef  USE_RK
 // Classes for Runge-Kutta integration 
 #include "MagneticFieldEquation.h"
@@ -36,6 +34,13 @@
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
+#define CHECK_RESULTS   1
+
+#ifdef  CHECK_RESULTS
+#include "CompareResponses.h"
+#endif
+
+
 __device__ float *gPtrBzFieldValue_dev = nullptr;
 
 // Transfer pointer to memory address of BzFieldValue_dev to device ...
@@ -44,51 +49,6 @@ __global__ void SetBzFieldPtr( float* pBzFieldValue_dev )
 {
    gPtrBzFieldValue_dev = pBzFieldValue_dev; 
 }
-
-#define CHECK_RESULTS   1
-#ifdef  CHECK_RESULTS
-static __device__ __host__
-bool  CompareResponseVector3D(
-   int id,
-   vecgeom::Vector3D<Precision> const & originalVec,
-   vecgeom::Vector3D<Precision> const & baselineVec,
-   vecgeom::Vector3D<Precision> const & resultVec,   // Output of new method
-   const char                   * vecName,    
-   Precision                      thresholdRel    // fraction difference allowed
-   )
-// Returns 'true' if values are 'bad'...
-{
-   bool bad = false; // Good ..
-   Precision magOrig= originalVec.Mag();
-   vecgeom::Vector3D<Precision> moveBase = baselineVec-originalVec;
-   vecgeom::Vector3D<Precision> moveRes  = resultVec-originalVec;
-   Precision magMoveBase = moveBase.Mag();
-   Precision magDiffRes  = moveRes.Mag();
-
-   if ( std::fabs( magDiffRes / magMoveBase) - 1.0 > thresholdRel
-        || 
-        ( resultVec - baselineVec ).Mag() > thresholdRel * magMoveBase 
-      ){
-      // printf("Difference seen in vector %s : ", vecName );
-      printf(" id %3d - Diff in %s: "
-             " new-base= %14.9g %14.9g %14.9g (mag= %14.9g) "
-             " mv_Res/mv_Base-1 = %7.3g | mv/base: 3v= %14.9f %14.9f %14.9f (mag= %9.4g)"
-             " | mv-new: 3v= %14.9f %14.9f %14.9f (mag = %14.9g)"
-             " || origVec= %14.9f %14.9f %14.9f (mag=%14.9f) | base= %14.9f %14.9f %14.9f (mag=%9.4g) \n",
-             id, vecName,
-             resultVec[0]-baselineVec[0], resultVec[1]-baselineVec[1], resultVec[2]-baselineVec[2], (resultVec-baselineVec).Mag(),             
-             (moveRes.Mag() / moveBase.Mag() - 1.0),
-             moveBase[0], moveBase[1], moveBase[2], moveBase.Mag(),
-//      printf("   new-original: mag= %20.16g ,  new_vec= %14.9f , %14.9f , %14.9f \n",
-             moveRes[0], moveRes[1], moveRes[2], moveRes.Mag(),
-             originalVec[0], originalVec[1], originalVec[2], originalVec.Mag(),
-             baselineVec[0], baselineVec[1], baselineVec[2], baselineVec.Mag()     
-         );      
-      bad= true;
-   }
-   return bad;
-};
-#endif
 
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
