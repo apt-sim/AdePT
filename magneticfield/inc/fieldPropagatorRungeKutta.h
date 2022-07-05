@@ -157,15 +157,15 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
     totLen+= hAdvanced;
     
     // if( !done || (loopCt++>0) ){
-    if( id == 1 ) {
+    if( id == 0 ) {
        const vecgeom::Vector3D<Real_t> deltaPos= position - posBegin;
        const vecgeom::Vector3D<Real_t> deltaMomentum= momentumVec - momBegin;
        
-       printf(" id %3d call %4d lpCt %2d sum-iters %3d  hdid= %9.5g " //  totLen= %9.5g lenRemains= %9.5g "
+       printf(" id %3d call %4d lpCt %2d sum-iters %3d  hdid= %9.5g totLen= %9.5g lenRemains= %9.5g "
               " ret= %1d #=  pos = %9.6g %9.6g %9.6g   momemtumV= %14.9g %14.9g %14.9g  hTry= %7.4g  remains= %7.4g "
               "  Delta-pos= %9.6g %9.6g %9.6g  (mag= %8.6g)  Delta-mom= %9.6g %9.6g %9.6g (mag= %8.6g) "
               " \n",
-              id, callNum, loopCt, totalTrials, hAdvanced, // totLen, lenRemains,
+              id, callNum, loopCt, totalTrials, hAdvanced, totLen, lenRemains,
               done,
               position[0], position[1], position[2],
               momentumVec[0], momentumVec[1], momentumVec[2],
@@ -437,15 +437,17 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       if( badPosition || badDirection) {        
         // currentTrack.print(indx, /* verbose= */ true );
       } else {
-         ReportSameMoveVector3D( indx, position, endPosition, "Position-perStep" );
-         ReportSameMoveVector3D( indx, direction, endDirection, "Direction-perStep" );
+         // ReportSameMoveVector3D( indx, position, endPosition, "Position-perStep" );
+         // ReportSameMoveVector3D( indx, direction, endDirection, "Direction-perStep" );
       }
+
 #endif
       // Check Intersection
       
       Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordLen, current_state, next_state, kPush);
       Real_t curvedStep;
 
+      
       fullChord = (linearStep == chordLen);
       if (fullChord) {
         position    = endPosition;
@@ -461,17 +463,23 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
         //     of the (potential) true point on the intersection of the curve and the boundary.
         // ( This involves a bias -- typically important only for muons in trackers.
         //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
-        position = position + linearStep * chordVec;
-
-        // Primitive approximation of end direction and linearStep to the crossing point ...
         Real_t fraction = chordLen > 0 ? linearStep / chordLen : 0.0;
+        curvedStep = fraction * safeArc;        
+#if 0
+        // Primitive approximation of end direction and linearStep to the crossing point ...        
+        position = position + linearStep * chordVec;        
         direction       = direction * (1.0 - fraction) + endDirection * fraction;
         direction       = direction.Unit();
         momentumVec     = momentumMag * direction;
         // safeArc is how much the track would have been moved if not hitting the boundary
         // We approximate the actual reduction along the curved trajectory to be the same
         // as the reduction of the full chord due to the boundary crossing.
-        curvedStep = fraction * safeArc;
+#else
+        // Alternative approximation of end position & direction -- calling RK again
+        //  Better accuracy (e.g. for comparing with Helix) -- but the point will not be on the surface !!
+        IntegrateTrackToEnd( magField, position, momentumVec, charge, curvedStep, indx);
+        direction = inv_momentumMag * momentumVec;   // momentumVec.Unit();
+#endif        
       }
 
       // if( idx == 1 ) {
@@ -483,14 +491,28 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       chordIters++;
 
       found_end = next_state.IsOnBoundary() || (remains <= tiniest_step);
-      
+
+      if( ! badPosition && ! badDirection)
+      {
+         printf(" Good - id %3d call %4d lpCt %2d sum-iters %3d "               //  5 int args
+                " hdid= %9.5g hkept= %9.5g totLen= %9.5g lenRemains= %9.5g "    //  4 float args
+                "  endPos = %9.6g %9.6g %9.6g  "
+                "  endDirection= %14.9g %14.9g %14.9g  "
+                "  endMomemtumV= %14.9g %14.9g %14.9g  \n",
+                indx, itersDone, chordIters-1, itersDone+chordIters, 
+                safeArc, curvedStep, stepDone, remains,
+                endPosition[0], endPosition[1], endPosition[2],                
+                endDirection[0], endDirection[1], endDirection[2],                 
+                endMomentumVec[0], endMomentumVec[1], endMomentumVec[2] );
+      }
+
     } while ( !found_end && (chordIters < max_iterations) );
 
     // } while ((!next_state.IsOnBoundary()) && fullChord && (remains > tiniest_step) && (chordIters < max_iterations));
   }
 
   propagated = found_end;
-  itersDone = chordIters;
+  itersDone += chordIters;
        //  = (chordIters < max_iterations);  // ---> Misses success on the last step!
   return stepDone;
 }
