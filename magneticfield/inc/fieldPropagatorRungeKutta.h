@@ -324,6 +324,7 @@ inverseCurvature(
 #ifdef CHECK_STEP
 //  Extra check at each integration that the result agrees with Helix/Bz
 #include "ConstBzFieldStepper.h"
+#include "ConstFieldHelixStepper.h"
 
 #include "CompareResponses.h" 
 #endif
@@ -418,9 +419,10 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       vecgeom::Vector3D<Real_t> endPositionHelix  = position;
       vecgeom::Vector3D<Real_t> endDirectionHelix = direction; // momentumMag * direction;      
 
-      // ConstFieldStepper helixBz(B0fieldVec);
-      ConstBzFieldStepper helixBz(B0fieldVec[2]); // Bz component -- Assumes that Bx= By = 0 and Bz = const. 
-      helixBz.DoStep<vecgeom::Vector3D<Real_t>, Real_t, int>(position, direction, charge, momentumMag, safeArc,
+      ConstFieldHelixStepper   helix(B0fieldVec);
+      // ConstBzFieldStepper helix(B0fieldVec[2]); // Bz component -- Assumes that Bx= By = 0 and Bz = const. 
+      helix.DoStep // <vecgeom::Vector3D<Real_t>, Real_t, int>
+         (position, direction, charge, momentumMag, safeArc,
                                                         endPositionHelix, endDirectionHelix);
 
       constexpr Precision thesholdDiff=3.0e-5;
@@ -430,8 +432,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
         CompareResponseVector3D( indx, direction, endDirectionHelix, endDirection, "Direction-perStep", thesholdDiff );
 
       const char* Outcome[2]={ "Good", " Bad" };
-      printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g chord-iter= %5d\n ", Outcome[badPosition||badDirection],
-               indx, kinE, safeArc, chordIters);
+      printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g chord-iter= %5d\n ",
+             Outcome[badPosition||badDirection], indx, kinE, safeArc, chordIters);
       if( badPosition || badDirection) {        
         // currentTrack.print(indx, /* verbose= */ true );
       } else {
@@ -446,7 +448,9 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
 
       fullChord = (linearStep == chordLen);
       if (fullChord) {
-        position   = endPosition;
+        position    = endPosition;
+        momentumVec = endMomentumVec;
+        
         direction  = endDirection;
         curvedStep = safeArc;
       } else {
@@ -463,6 +467,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
         Real_t fraction = chordLen > 0 ? linearStep / chordLen : 0.0;
         direction       = direction * (1.0 - fraction) + endDirection * fraction;
         direction       = direction.Unit();
+        momentumVec     = momentumMag * direction;
         // safeArc is how much the track would have been moved if not hitting the boundary
         // We approximate the actual reduction along the curved trajectory to be the same
         // as the reduction of the full chord due to the boundary crossing.
