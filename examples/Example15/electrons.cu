@@ -34,7 +34,7 @@
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
-#define CHECK_RESULTS   1
+// #define CHECK_RESULTS   1
 
 #ifdef  CHECK_RESULTS
 #include "CompareResponses.h"
@@ -202,19 +202,21 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
             propagated, /*lengthDone,*/ safety, max_iterations, iterDone, i
             );
 #ifdef CHECK_RESULTS
-      constexpr Precision thesholdDiff=3.0e-5;
+      constexpr Precision thresholdDiff=3.0e-4;
       if( std::fabs( helixStepLength - geometryStepLength ) > 1.0e-4 * helixStepLength ) {
-        printf ("s-len diff: i= %3d phys-request= %8.4g  helix-did= %8.4g rk-did= %8.4g\n", i, geometricalStepLengthFromPhysics, helixStepLength, geometryStepLength);
+         printf ("s-len diff: id= %3d phys-request= %11.6g  helix-did= %11.6g rk-did= %11.6g (l-diff= %7.4g)\n", i, geometricalStepLengthFromPhysics, helixStepLength, geometryStepLength, geometryStepLength-helixStepLength);
       }
       bool badPosition = 
-        CompareResponseVector3D( i, startPosition, positionHx, currentTrack.pos, "Position", thesholdDiff );
+        CompareResponseVector3D( i, startPosition, positionHx, currentTrack.pos, "Position", thresholdDiff );
       bool badDirection =
-        CompareResponseVector3D( i, startDirection, directionHx, currentTrack.dir, "Direction", thesholdDiff );
+        CompareResponseVector3D( i, startDirection, directionHx, currentTrack.dir, "Direction", thresholdDiff );
 
       const char* Outcome[2]={ "Good", " Bad" };
       if( badPosition || badDirection) {
-        printf("%4s track (id= %3d)  e_kin= %8.4g stepLen= %7.3g iters= %5d\n ", Outcome[badPosition||badDirection],
-               i, currentTrack.energy, geometricalStepLengthFromPhysics, iterDone);      
+        printf("%4s track (id= %3d)  e_kin= %8.4g stepReq= %9.5g (did: RK= %9.5g vs hlx= %9.5g , diff= %9.5g) iters= %5d\n ",
+               Outcome[badPosition||badDirection],
+               i, currentTrack.energy, geometricalStepLengthFromPhysics, geometryStepLength, helixStepLength,
+               geometryStepLength - helixStepLength, iterDone);
         currentTrack.print(i, /* verbose= */ true );
       }
 #endif

@@ -319,7 +319,7 @@ inverseCurvature(
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 
-#define CHECK_STEP  1
+// #define CHECK_STEP  1
 
 #ifdef CHECK_STEP
 //  Extra check at each integration that the result agrees with Helix/Bz
@@ -492,6 +492,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
 
       found_end = next_state.IsOnBoundary() || (remains <= tiniest_step);
 
+#ifdef CHECK_STEP
       if( ! badPosition && ! badDirection)
       {
          printf(" Good - id %3d call %4d lpCt %2d sum-iters %3d "               //  5 int args
@@ -505,7 +506,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
                 endDirection[0], endDirection[1], endDirection[2],                 
                 endMomentumVec[0], endMomentumVec[1], endMomentumVec[2] );
       }
-
+#endif
+   
     } while ( !found_end && (chordIters < max_iterations) );
 
     // } while ((!next_state.IsOnBoundary()) && fullChord && (remains > tiniest_step) && (chordIters < max_iterations));

@@ -28,8 +28,8 @@ bool  CompareResponseVector3D(
       // printf("Difference seen in vector %s : ", vecName );
       printf(" id %3d - Diff in %s: "
              " new-base= %14.9g %14.9g %14.9g (mag= %14.9g) "
-             " mv_Res/mv_Base-1 = %7.3g | mv/base: 3v= %14.9f %14.9f %14.9f (mag= %9.4g)"
-             " | mv-new: 3v= %14.9f %14.9f %14.9f (mag = %14.9g)"
+             " mv_Res/mv_Base-1 = %7.3g | mv/base: 3v= %14.9g %14.9g %14.9g (mag= %9.4g)"
+             " | mv/new: 3v= %14.9g %14.9g %14.9g (mag = %14.9g)"
              " || origVec= %14.9f %14.9f %14.9f (mag=%14.9f) | base= %14.9f %14.9f %14.9f (mag=%9.4g) \n",
              id, vecName,
              resultVec[0]-baselineVec[0], resultVec[1]-baselineVec[1], resultVec[2]-baselineVec[2], (resultVec-baselineVec).Mag(),
