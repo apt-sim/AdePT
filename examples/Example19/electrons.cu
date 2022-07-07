@@ -87,8 +87,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     for (int ip = 0; ip < 3; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
-        numIALeft                  = -std::log(currentTrack.Uniform());
-        currentTrack.numIALeft[ip] = numIALeft;
+        numIALeft = -std::log(currentTrack.Uniform());
       }
       theTrack->SetNumIALeft(numIALeft, ip);
     }
@@ -308,8 +307,8 @@ __device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaD
                                     GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
 {
   Track &currentTrack = particles[globalSlot];
-  auto volume          = currentTrack.navState.Top();
-  const int volumeID         = volume->id();
+  auto volume         = currentTrack.navState.Top();
+  const int volumeID  = volume->id();
   // the MCC vector is indexed by the logical volume id
   const int lvolID     = volume->GetLogicalVolume()->id();
   const int theMCIndex = MCIndex[lvolID];
