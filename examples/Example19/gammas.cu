@@ -32,13 +32,19 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];
-    const auto volume   = currentTrack.navState.Top();
+    const auto energy   = currentTrack.energy;
+    auto pos            = currentTrack.pos;
+    const auto dir      = currentTrack.dir;
+    auto navState       = currentTrack.navState;
+    const auto volume   = navState.Top();
     const int volumeID  = volume->id();
     // the MCC vector is indexed by the logical volume id
     const int lvolID     = volume->GetLogicalVolume()->id();
     const int theMCIndex = MCIndex[lvolID];
 
     auto survive = [&](bool push = true) {
+      currentTrack.pos      = pos;
+      currentTrack.navState = navState;
       if (push) activeQueue->push_back(slot);
     };
 
@@ -48,7 +54,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
     G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(currentTrack.energy);
+    theTrack->SetEKin(energy);
     theTrack->SetMCIndex(theMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
@@ -71,15 +77,15 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     // Check if there's a volume boundary in between.
     vecgeom::NavStateIndex nextState;
-    double geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(
-        currentTrack.pos, currentTrack.dir, geometricalStepLengthFromPhysics, currentTrack.navState, nextState, kPush);
-    currentTrack.pos += geometryStepLength * currentTrack.dir;
+    double geometryStepLength =
+        BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
+    pos += geometryStepLength * dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
     // Set boundary state in navState so the next step and secondaries get the
-    // correct information (currentTrack.navState = nextState only if relocated
+    // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
-    currentTrack.navState.SetBoundaryState(nextState.IsOnBoundary());
+    navState.SetBoundaryState(nextState.IsOnBoundary());
 
     // Propagate information from geometrical step to G4HepEm.
     theTrack->SetGStepLength(geometryStepLength);
@@ -99,10 +105,10 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
+        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
-        currentTrack.navState = nextState;
+        navState = nextState;
         survive();
       }
       continue;
@@ -128,12 +134,15 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
                                  ScoringPerVolume *scoringPerVolume)
 {
   Track &currentTrack = particles[globalSlot];
-  const auto volume   = currentTrack.navState.Top();
+  const auto energy   = currentTrack.energy;
+  const auto pos      = currentTrack.pos;
+  const auto dir      = currentTrack.dir;
+  const auto navState = currentTrack.navState;
+  const auto volume   = navState.Top();
   const int volumeID  = volume->id();
   // the MCC vector is indexed by the logical volume id
   const int lvolID     = volume->GetLogicalVolume()->id();
   const int theMCIndex = MCIndex[lvolID];
-  const auto energy    = currentTrack.energy;
 
   auto survive = [&] { activeQueue->push_back(globalSlot); };
 
@@ -152,7 +161,7 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
     G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy,
                                                          posKinEnergy, &rnge);
 
-    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
     double dirSecondaryEl[3], dirSecondaryPos[3];
     G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                         posKinEnergy, &rnge);
@@ -162,12 +171,12 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
     atomicAdd(&globalScoring->numElectrons, 1);
     atomicAdd(&globalScoring->numPositrons, 1);
 
-    electron.InitAsSecondary(/*parent=*/currentTrack);
+    electron.InitAsSecondary(pos, navState);
     electron.rngState = newRNG;
     electron.energy   = elKinEnergy;
     electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
-    positron.InitAsSecondary(/*parent=*/currentTrack);
+    positron.InitAsSecondary(pos, navState);
     // Reuse the RNG state of the dying track.
     positron.rngState = currentTrack.rngState;
     positron.energy   = posKinEnergy;
@@ -181,7 +190,7 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
       survive();
       return;
     }
-    const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
     double dirPrimary[3];
     const double newEnergyGamma =
         G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
@@ -193,10 +202,10 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
       Track &electron = secondaries.electrons.NextTrack();
       atomicAdd(&globalScoring->numElectrons, 1);
 
-      electron.InitAsSecondary(/*parent=*/currentTrack);
+      electron.InitAsSecondary(pos, navState);
       electron.rngState = newRNG;
       electron.energy   = energyEl;
-      electron.dir      = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
+      electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
       electron.dir.Normalize();
     } else {
       atomicAdd(&globalScoring->energyDeposit, energyEl);
@@ -227,11 +236,11 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
       Track &electron = secondaries.electrons.NextTrack();
       atomicAdd(&globalScoring->numElectrons, 1);
 
-      double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirGamma[] = {dir.x(), dir.y(), dir.z()};
       double dirPhotoElec[3];
       G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-      electron.InitAsSecondary(/*parent=*/currentTrack);
+      electron.InitAsSecondary(pos, navState);
       electron.rngState = newRNG;
       electron.energy   = photoElecE;
       electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
