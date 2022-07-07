@@ -43,6 +43,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr double Mass = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
+  // The shared memory handles the access pattern to the RNG better than global memory. And we don't have enough
+  // registers to keep it local. This is a byte array, because RanluxppDouble has a ctor that we do not want to run.
+  __shared__ std::byte rngSM[ThreadsPerBlock * sizeof(RanluxppDouble)];
+
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int globalSlot = (*active)[i];
@@ -53,7 +57,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     const int lvolID     = volume->GetLogicalVolume()->id();
     const int theMCIndex = MCIndex[lvolID];
 
+    auto &rngState = reinterpret_cast<RanluxppDouble *>(rngSM)[threadIdx.x];
+    rngState       = currentTrack.rngState;
+
     auto survive = [&](bool push = true) {
+      currentTrack.rngState = rngState;
       if (push) activeQueue->push_back(globalSlot);
     };
 
@@ -76,7 +84,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Prepare a branched RNG state while threads are synchronized. Even if not
     // used, this provides a fresh round of random numbers and reduces thread
     // divergence because the RNG state doesn't need to be advanced later.
-    RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
+    RanluxppDouble newRNG(rngState.BranchNoAdvance());
 
     // Compute safety, needed for MSC step limit.
     double safety = 0;
@@ -85,13 +93,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
     theTrack->SetSafety(safety);
 
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 3; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
+        numIALeft = -std::log(rngState.Rndm());
       }
       theTrack->SetNumIALeft(numIALeft, ip);
     }
@@ -228,9 +236,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         Track &gamma2 = secondaries.gammas.NextTrack();
         atomicAdd(&globalScoring->numGammas, 2);
 
-        const double cost = 2 * currentTrack.Uniform() - 1;
+        const double cost = 2 * rngState.Rndm() - 1;
         const double sint = sqrt(1 - cost * cost);
-        const double phi  = k2Pi * currentTrack.Uniform();
+        const double phi  = k2Pi * rngState.Rndm();
         double sinPhi, cosPhi;
         sincos(phi, &sinPhi, &cosPhi);
 
@@ -242,7 +250,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
         gamma2.InitAsSecondary(/*parent=*/currentTrack);
         // Reuse the RNG state of the dying track.
-        gamma2.rngState = currentTrack.rngState;
+        gamma2.rngState = rngState;
         gamma2.energy   = copcore::units::kElectronMassC2;
         gamma2.dir      = -gamma1.dir;
       }
@@ -279,7 +287,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
     // Check if a delta interaction happens instead of the real discrete process.
-    if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
+    if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, rngState.Rndm())) {
       // A delta interaction happened, move on.
       survive();
       continue;
