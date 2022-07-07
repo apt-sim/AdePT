@@ -52,6 +52,11 @@ struct Track {
   }
 };
 
+// Struct for communication between kernels
+struct SOAData {
+  char *nextInteraction;
+};
+
 // Defined in example18.cu
 extern __constant__ __device__ int Zero;
 
@@ -143,6 +148,73 @@ __global__ void TransportPositrons(Track *positrons, const adept::MParray *activ
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
                                 ScoringPerVolume *scoringPerVolume);
+
+/// Run an interaction on the particles in soaData whose `nextInteraction` matches the ProcessIndex.
+/// The specific interaction that's run is defined by `interactionFunction`.
+template <int ProcessIndex, typename Func, typename... Args>
+__device__ void InteractionLoop(Func interactionFunction, adept::MParray const *active, SOAData const soaData,
+                                Args &&...args)
+{
+  constexpr unsigned int sharedSize = 8192;
+  __shared__ int candidates[sharedSize];
+  __shared__ unsigned int counter;
+  __shared__ int threadsRunning;
+  counter        = 0;
+  threadsRunning = 0;
+
+#ifndef NDEBUG
+  __shared__ unsigned int todoCounter;
+  __shared__ unsigned int particlesDone;
+  todoCounter   = 0;
+  particlesDone = 0;
+  __syncthreads();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < active->size(); i += blockDim.x * gridDim.x) {
+    const auto winnerProcess = soaData.nextInteraction[i];
+    if (winnerProcess == ProcessIndex) atomicAdd(&todoCounter, 1);
+  }
+#endif
+
+  __syncthreads();
+
+  const auto activeSize = active->size();
+  int i                 = blockIdx.x * blockDim.x + threadIdx.x;
+  bool done             = false;
+  do {
+    while (i < activeSize && counter < sharedSize - blockDim.x) {
+      if (soaData.nextInteraction[i] == ProcessIndex) {
+        const auto destination  = atomicAdd(&counter, 1);
+        candidates[destination] = i;
+      }
+      i += blockDim.x * gridDim.x;
+    }
+
+    if (i < activeSize) {
+      atomicExch(&threadsRunning, 1);
+    }
+
+    __syncthreads();
+    done = !threadsRunning;
+
+#ifndef NDEBUG
+    if (threadIdx.x == 0) {
+      atomicAdd(&particlesDone, counter);
+    }
+    assert(counter < sharedSize);
+    __syncthreads();
+#endif
+
+    for (int j = threadIdx.x; j < counter; j += blockDim.x) {
+      interactionFunction((*active)[candidates[j]], soaData, j, std::forward<Args>(args)...);
+    }
+
+    __syncthreads();
+    counter        = 0;
+    threadsRunning = 0;
+    __syncthreads();
+  } while (!done);
+
+  assert(particlesDone == todoCounter);
+}
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)
