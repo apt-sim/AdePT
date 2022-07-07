@@ -49,7 +49,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
     auto volume         = currentTrack.navState.Top();
-    int volumeID        = volume->id();
     // the MCC vector is indexed by the logical volume id
     int lvolID                = volume->GetLogicalVolume()->id();
     VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
