@@ -17,6 +17,8 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 
+constexpr int ThreadsPerBlock = 256;
+
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
@@ -54,7 +56,8 @@ struct Track {
 
 // Struct for communication between kernels
 struct SOAData {
-  char *nextInteraction;
+  char *nextInteraction = nullptr;
+  double *gamma_PEmxSec = nullptr;
 };
 
 // Defined in example18.cu
@@ -140,14 +143,14 @@ struct Secondaries {
 // Kernels in different TUs.
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume);
+                                   ScoringPerVolume *scoringPerVolume, SOAData const soaData);
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume);
+                                   ScoringPerVolume *scoringPerVolume, SOAData const soaData);
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                ScoringPerVolume *scoringPerVolume);
+                                ScoringPerVolume *scoringPerVolume, SOAData const soaData);
 
 /// Run an interaction on the particles in soaData whose `nextInteraction` matches the ProcessIndex.
 /// The specific interaction that's run is defined by `interactionFunction`.
@@ -215,6 +218,33 @@ __device__ void InteractionLoop(Func interactionFunction, adept::MParray const *
 
   assert(particlesDone == todoCounter);
 }
+
+__global__ void IonizationEl(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                             adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                             ScoringPerVolume *scoringPerVolume, SOAData const soaData);
+__global__ void BremsstrahlungEl(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                 ScoringPerVolume *scoringPerVolume, SOAData const soaData);
+
+__global__ void IonizationPos(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                              adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                              ScoringPerVolume *scoringPerVolume, SOAData const soaData);
+__global__ void BremsstrahlungPos(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                  adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                  ScoringPerVolume *scoringPerVolume, SOAData const soaData);
+__global__ void AnnihilationPos(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume, SOAData const soaData);
+
+__global__ void PairCreation(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                             adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                             ScoringPerVolume *scoringPerVolume, SOAData const soaData);
+__global__ void ComptonScattering(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                  adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                  ScoringPerVolume *scoringPerVolume, SOAData const soaData);
+__global__ void PhotoelectricEffect(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                    adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                    ScoringPerVolume *scoringPerVolume, SOAData const soaData);
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)

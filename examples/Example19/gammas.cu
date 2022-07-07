@@ -21,7 +21,7 @@
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                ScoringPerVolume *scoringPerVolume)
+                                ScoringPerVolume *scoringPerVolume, SOAData const soaData)
 {
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
@@ -37,6 +37,9 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // the MCC vector is indexed by the logical volume id
     int lvolID     = volume->GetLogicalVolume()->id();
     int theMCIndex = MCIndex[lvolID];
+
+    // Signal that this slot doesn't undergo an interaction (yet)
+    soaData.nextInteraction[i] = -1;
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
@@ -110,122 +113,150 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // (Will be resampled in the next iteration.)
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
-    // Perform the discrete interaction.
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
-    // We might need one branched RNG state, prepare while threads are synchronized.
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+    soaData.nextInteraction[i] = winnerProcessIndex;
+    soaData.gamma_PEmxSec[i] = gammaTrack.GetPEmxSec();
+  }
+}
 
-    const double energy = currentTrack.energy;
+template <int ProcessIndex>
+__device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, int const soaSlot, Track *particles,
+                                 Secondaries secondaries, adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                 ScoringPerVolume *scoringPerVolume)
+{
+  Track &currentTrack  = particles[globalSlot];
+  auto volume         = currentTrack.navState.Top();
+  const int volumeID        = volume->id();
+  // the MCC vector is indexed by the logical volume id
+  const int lvolID     = volume->GetLogicalVolume()->id();
+  const int theMCIndex = MCIndex[lvolID];
+  const auto energy = currentTrack.energy;
 
-    switch (winnerProcessIndex) {
-    case 0: {
-      // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
-      if (energy < 2 * copcore::units::kElectronMassC2) {
-        activeQueue->push_back(slot);
-        continue;
-      }
+  RanluxppDouble newRNG{currentTrack.rngState.Branch()};
+  RanluxppDoubleEngine rnge{&currentTrack.rngState};
 
-      double logEnergy = std::log(energy);
-      double elKinEnergy, posKinEnergy;
-      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy,
-                                                           posKinEnergy, &rnge);
+  if constexpr (ProcessIndex == 0) {
+    // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
+    if (energy < 2 * copcore::units::kElectronMassC2) {
+      activeQueue->push_back(globalSlot);
+      return;
+    }
 
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-      double dirSecondaryEl[3], dirSecondaryPos[3];
-      G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
-                                                          posKinEnergy, &rnge);
+    double logEnergy = std::log(energy);
+    double elKinEnergy, posKinEnergy;
+    G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy,
+                                                         posKinEnergy, &rnge);
 
+    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirSecondaryEl[3], dirSecondaryPos[3];
+    G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
+                                                        posKinEnergy, &rnge);
+
+    Track &electron = secondaries.electrons.NextTrack();
+    Track &positron = secondaries.positrons.NextTrack();
+    atomicAdd(&globalScoring->numElectrons, 1);
+    atomicAdd(&globalScoring->numPositrons, 1);
+
+    electron.InitAsSecondary(/*parent=*/currentTrack);
+    electron.rngState = newRNG;
+    electron.energy   = elKinEnergy;
+    electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
+
+    positron.InitAsSecondary(/*parent=*/currentTrack);
+    // Reuse the RNG state of the dying track.
+    positron.rngState = currentTrack.rngState;
+    positron.energy   = posKinEnergy;
+    positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
+
+    // The current track is killed by not enqueuing into the next activeQueue.
+  } else if constexpr (ProcessIndex == 1) {
+    // Invoke Compton scattering of gamma.
+    constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
+    if (energy < LowEnergyThreshold) {
+      activeQueue->push_back(globalSlot);
+      return;
+    }
+    const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirPrimary[3];
+    const double newEnergyGamma =
+        G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
+    vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+
+    const double energyEl = energy - newEnergyGamma;
+    if (energyEl > LowEnergyThreshold) {
+      // Create a secondary electron and sample/compute directions.
       Track &electron = secondaries.electrons.NextTrack();
-      Track &positron = secondaries.positrons.NextTrack();
       atomicAdd(&globalScoring->numElectrons, 1);
-      atomicAdd(&globalScoring->numPositrons, 1);
 
       electron.InitAsSecondary(/*parent=*/currentTrack);
       electron.rngState = newRNG;
-      electron.energy   = elKinEnergy;
-      electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
+      electron.energy   = energyEl;
+      electron.dir      = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
+      electron.dir.Normalize();
+    } else {
+      atomicAdd(&globalScoring->energyDeposit, energyEl);
+      atomicAdd(&scoringPerVolume->energyDeposit[volumeID], energyEl);
+    }
 
-      positron.InitAsSecondary(/*parent=*/currentTrack);
-      // Reuse the RNG state of the dying track.
-      positron.rngState = currentTrack.rngState;
-      positron.energy   = posKinEnergy;
-      positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
+    // Check the new gamma energy and deposit if below threshold.
+    if (newEnergyGamma > LowEnergyThreshold) {
+      currentTrack.energy = newEnergyGamma;
+      currentTrack.dir    = newDirGamma;
 
+      // The current track continues to live.
+      activeQueue->push_back(globalSlot);
+    } else {
+      atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
+      atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);
       // The current track is killed by not enqueuing into the next activeQueue.
-      break;
     }
-    case 1: {
-      // Invoke Compton scattering of gamma.
-      constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
-      if (energy < LowEnergyThreshold) {
-        activeQueue->push_back(slot);
-        continue;
-      }
-      const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-      double dirPrimary[3];
-      const double newEnergyGamma =
-          G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
-      vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+  } else if constexpr (ProcessIndex == 2) {
+    // Invoke photoelectric process.
+    const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
-      const double energyEl = energy - newEnergyGamma;
-      if (energyEl > LowEnergyThreshold) {
-        // Create a secondary electron and sample/compute directions.
-        Track &electron = secondaries.electrons.NextTrack();
-        atomicAdd(&globalScoring->numElectrons, 1);
+    const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
+        &g4HepEmData, theMCIndex, soaData.gamma_PEmxSec[soaSlot], energy, &rnge);
 
-        electron.InitAsSecondary(/*parent=*/currentTrack);
-        electron.rngState = newRNG;
-        electron.energy   = energyEl;
-        electron.dir      = energy * currentTrack.dir - newEnergyGamma * newDirGamma;
-        electron.dir.Normalize();
-      } else {
-        atomicAdd(&globalScoring->energyDeposit, energyEl);
-        atomicAdd(&scoringPerVolume->energyDeposit[volumeID], energyEl);
-      }
+    double edep             = bindingEnergy;
+    const double photoElecE = energy - edep;
+    if (photoElecE > theLowEnergyThreshold) {
+      // Create a secondary electron and sample directions.
+      Track &electron = secondaries.electrons.NextTrack();
+      atomicAdd(&globalScoring->numElectrons, 1);
 
-      // Check the new gamma energy and deposit if below threshold.
-      if (newEnergyGamma > LowEnergyThreshold) {
-        currentTrack.energy = newEnergyGamma;
-        currentTrack.dir    = newDirGamma;
+      double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirPhotoElec[3];
+      G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-        // The current track continues to live.
-        activeQueue->push_back(slot);
-      } else {
-        atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
-        atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);
-        // The current track is killed by not enqueuing into the next activeQueue.
-      }
-      break;
+      electron.InitAsSecondary(/*parent=*/currentTrack);
+      electron.rngState = newRNG;
+      electron.energy   = photoElecE;
+      electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
+    } else {
+      edep = energy;
     }
-    case 2: {
-      // Invoke photoelectric process.
-      const double theLowEnergyThreshold = 1 * copcore::units::eV;
-
-      const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, theMCIndex, gammaTrack.GetPEmxSec(), energy, &rnge);
-
-      double edep             = bindingEnergy;
-      const double photoElecE = energy - edep;
-      if (photoElecE > theLowEnergyThreshold) {
-        // Create a secondary electron and sample directions.
-        Track &electron = secondaries.electrons.NextTrack();
-        atomicAdd(&globalScoring->numElectrons, 1);
-
-        double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-        double dirPhotoElec[3];
-        G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
-
-        electron.InitAsSecondary(/*parent=*/currentTrack);
-        electron.rngState = newRNG;
-        electron.energy   = photoElecE;
-        electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
-      } else {
-        edep = energy;
-      }
-      atomicAdd(&globalScoring->energyDeposit, edep);
-      // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
-    }
+    atomicAdd(&globalScoring->energyDeposit, edep);
+    // The current track is killed by not enqueuing into the next activeQueue.
   }
+}
+
+__global__ void PairCreation(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                             adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                             ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<0>(&GammaInteraction<0>, active, soaData, particles, secondaries, activeQueue, globalScoring,
+                     scoringPerVolume);
+}
+__global__ void ComptonScattering(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                  adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                  ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<1>(&GammaInteraction<1>, active, soaData, particles, secondaries, activeQueue, globalScoring,
+                     scoringPerVolume);
+}
+__global__ void PhotoelectricEffect(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                              adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                              ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<2>(&GammaInteraction<2>, active, soaData, particles, secondaries, activeQueue, globalScoring,
+                     scoringPerVolume);
 }

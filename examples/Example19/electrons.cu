@@ -32,7 +32,7 @@ template <bool IsElectron>
 static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
                                                           GlobalScoring *globalScoring,
-                                                          ScoringPerVolume *scoringPerVolume)
+                                                          ScoringPerVolume *scoringPerVolume, SOAData soaData)
 {
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
@@ -45,13 +45,16 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    Track &currentTrack = electrons[slot];
-    auto volume         = currentTrack.navState.Top();
-    int volumeID        = volume->id();
+    const int globalSlot = (*active)[i];
+    Track &currentTrack  = electrons[globalSlot];
+    auto volume          = currentTrack.navState.Top();
+    int volumeID         = volume->id();
     // the MCC vector is indexed by the logical volume id
     int lvolID     = volume->GetLogicalVolume()->id();
     int theMCIndex = MCIndex[lvolID];
+
+    // Signal that this globalSlot doesn't undergo an interaction (yet)
+    soaData.nextInteraction[i] = -1;
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
@@ -250,7 +253,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(slot);
+        activeQueue->push_back(globalSlot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
@@ -260,11 +263,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     } else if (!propagated || restrictedPhysicalStepLength) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      activeQueue->push_back(slot);
+      activeQueue->push_back(globalSlot);
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(slot);
+      activeQueue->push_back(globalSlot);
       continue;
     }
 
@@ -275,112 +278,158 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if a delta interaction happens instead of the real discrete process.
     if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
       // A delta interaction happened, move on.
-      activeQueue->push_back(slot);
+      activeQueue->push_back(globalSlot);
       continue;
     }
 
-    // Perform the discrete interaction, make sure the branched RNG state is
-    // ready to be used.
-    newRNG.Advance();
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
 
-    const double energy   = currentTrack.energy;
-    const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
-
-    switch (winnerProcessIndex) {
-    case 0: {
-      // Invoke ionization (for e-/e+):
-      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
-                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
-
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-      double dirSecondary[3];
-      G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
-      Track &secondary = secondaries.electrons.NextTrack();
-      atomicAdd(&globalScoring->numElectrons, 1);
-
-      secondary.InitAsSecondary(/*parent=*/currentTrack);
-      secondary.rngState = newRNG;
-      secondary.energy   = deltaEkin;
-      secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
-
-      currentTrack.energy = energy - deltaEkin;
-      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      // The current track continues to live.
-      activeQueue->push_back(slot);
-      break;
-    }
-    case 1: {
-      // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-      double logEnergy = std::log(energy);
-      double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
-                                                                                 theMCIndex, &rnge, IsElectron)
-                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
-                                                                                 theMCIndex, &rnge, IsElectron);
-
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-      double dirSecondary[3];
-      G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
-      Track &gamma = secondaries.gammas.NextTrack();
-      atomicAdd(&globalScoring->numGammas, 1);
-
-      gamma.InitAsSecondary(/*parent=*/currentTrack);
-      gamma.rngState = newRNG;
-      gamma.energy   = deltaEkin;
-      gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
-
-      currentTrack.energy = energy - deltaEkin;
-      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      // The current track continues to live.
-      activeQueue->push_back(slot);
-      break;
-    }
-    case 2: {
-      // Invoke annihilation (in-flight) for e+
-      double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-      double theGamma1Ekin, theGamma2Ekin;
-      double theGamma1Dir[3], theGamma2Dir[3];
-      G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
-          energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
-
-      Track &gamma1 = secondaries.gammas.NextTrack();
-      Track &gamma2 = secondaries.gammas.NextTrack();
-      atomicAdd(&globalScoring->numGammas, 2);
-
-      gamma1.InitAsSecondary(/*parent=*/currentTrack);
-      gamma1.rngState = newRNG;
-      gamma1.energy   = theGamma1Ekin;
-      gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
-
-      gamma2.InitAsSecondary(/*parent=*/currentTrack);
-      // Reuse the RNG state of the dying track.
-      gamma2.rngState = currentTrack.rngState;
-      gamma2.energy   = theGamma2Ekin;
-      gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
-
-      // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
-    }
+    soaData.nextInteraction[i] = winnerProcessIndex;
   }
 }
 
 // Instantiate kernels for electrons and positrons.
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume)
+                                   ScoringPerVolume *scoringPerVolume, SOAData soaData)
 {
-  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, globalScoring, scoringPerVolume);
+  TransportElectrons</*IsElectron*/ true>(electrons, active, secondaries, activeQueue, globalScoring, scoringPerVolume,
+                                          soaData);
 }
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                                   ScoringPerVolume *scoringPerVolume)
+                                   ScoringPerVolume *scoringPerVolume, SOAData soaData)
 {
-  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, globalScoring,
-                                           scoringPerVolume);
+  TransportElectrons</*IsElectron*/ false>(positrons, active, secondaries, activeQueue, globalScoring, scoringPerVolume,
+                                           soaData);
+}
+
+template <bool IsElectron, int ProcessIndex>
+__device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaData*/, int const /*soaSlot*/,
+                                    Track *particles, Secondaries secondaries, adept::MParray *activeQueue,
+                                    GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
+{
+  Track &currentTrack = particles[globalSlot];
+  auto volume          = currentTrack.navState.Top();
+  const int volumeID         = volume->id();
+  // the MCC vector is indexed by the logical volume id
+  const int lvolID     = volume->GetLogicalVolume()->id();
+  const int theMCIndex = MCIndex[lvolID];
+
+  const double energy   = currentTrack.energy;
+  const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
+
+  RanluxppDouble newRNG{currentTrack.rngState.Branch()};
+  RanluxppDoubleEngine rnge{&currentTrack.rngState};
+
+  if constexpr (ProcessIndex == 0) {
+    // Invoke ionization (for e-/e+):
+    double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
+                                    : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
+
+    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirSecondary[3];
+    G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
+    Track &secondary = secondaries.electrons.NextTrack();
+    atomicAdd(&globalScoring->numElectrons, 1);
+
+    secondary.InitAsSecondary(/*parent=*/currentTrack);
+    secondary.rngState = newRNG;
+    secondary.energy   = deltaEkin;
+    secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+
+    currentTrack.energy = energy - deltaEkin;
+    currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+    // The current track continues to live.
+    activeQueue->push_back(globalSlot);
+  } else if constexpr (ProcessIndex == 1) {
+    // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
+    double logEnergy = std::log(energy);
+    double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
+                           ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
+                                                                               theMCIndex, &rnge, IsElectron)
+                           : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
+                                                                               theMCIndex, &rnge, IsElectron);
+
+    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirSecondary[3];
+    G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
+    Track &gamma = secondaries.gammas.NextTrack();
+    atomicAdd(&globalScoring->numGammas, 1);
+
+    gamma.InitAsSecondary(/*parent=*/currentTrack);
+    gamma.rngState = newRNG;
+    gamma.energy   = deltaEkin;
+    gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+
+    currentTrack.energy = energy - deltaEkin;
+    currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+    // The current track continues to live.
+    activeQueue->push_back(globalSlot);
+  } else if constexpr (ProcessIndex == 2) {
+    // Invoke annihilation (in-flight) for e+
+    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double theGamma1Ekin, theGamma2Ekin;
+    double theGamma1Dir[3], theGamma2Dir[3];
+    G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
+        energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
+
+    Track &gamma1 = secondaries.gammas.NextTrack();
+    Track &gamma2 = secondaries.gammas.NextTrack();
+    atomicAdd(&globalScoring->numGammas, 2);
+
+    gamma1.InitAsSecondary(/*parent=*/currentTrack);
+    gamma1.rngState = newRNG;
+    gamma1.energy   = theGamma1Ekin;
+    gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
+
+    gamma2.InitAsSecondary(/*parent=*/currentTrack);
+    // Reuse the RNG state of the dying track.
+    gamma2.rngState = currentTrack.rngState;
+    gamma2.energy   = theGamma2Ekin;
+    gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
+
+    // The current track is killed by not enqueuing into the next activeQueue.
+  }
+}
+
+__global__ void IonizationEl(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                             adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                             ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<0>(&ElectronInteraction<true, 0>, active, soaData, particles, secondaries, activeQueue, globalScoring,
+                     scoringPerVolume);
+}
+__global__ void BremsstrahlungEl(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                 ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<1>(&ElectronInteraction<true, 1>, active, soaData, particles, secondaries, activeQueue, globalScoring,
+                     scoringPerVolume);
+}
+
+__global__ void IonizationPos(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                              adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                              ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<0>(&ElectronInteraction<false, 0>, active, soaData, particles, secondaries, activeQueue,
+                     globalScoring, scoringPerVolume);
+}
+__global__ void BremsstrahlungPos(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                  adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                  ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<1>(&ElectronInteraction<false, 1>, active, soaData, particles, secondaries, activeQueue,
+                     globalScoring, scoringPerVolume);
+}
+__global__ void AnnihilationPos(Track *particles, const adept::MParray *active, Secondaries secondaries,
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+{
+  InteractionLoop<2>(&ElectronInteraction<false, 2>, active, soaData, particles, secondaries, activeQueue,
+                     globalScoring, scoringPerVolume);
 }
