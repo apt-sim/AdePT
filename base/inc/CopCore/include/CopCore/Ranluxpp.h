@@ -53,7 +53,8 @@ public:
   RanluxppEngineImpl() = default;
 
   /// Produce next block of random bits
-  __host__ __device__ void Advance()
+  // bgruber: this call is expensive and requires a lot of registers. Avoiding inlining here makes the code faster.
+  __host__ __device__ __attribute__((noinline)) void Advance()
   {
     uint64_t lcg[9];
     to_lcg(fState, fCarry, lcg);

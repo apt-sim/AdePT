@@ -65,11 +65,11 @@ extern __constant__ __device__ int Zero;
 
 class RanluxppDoubleEngine : public G4HepEmRandomEngine {
   // Wrapper functions to call into RanluxppDouble.
-  static __host__ __device__ __attribute__((noinline)) double FlatWrapper(void *object)
+  static __host__ __device__ double FlatWrapper(void *object)
   {
     return ((RanluxppDouble *)object)->Rndm();
   }
-  static __host__ __device__ __attribute__((noinline)) void FlatArrayWrapper(void *object, const int size, double *vect)
+  static __host__ __device__ void FlatArrayWrapper(void *object, const int size, double *vect)
   {
     for (int i = 0; i < size; i++) {
       vect[i] = ((RanluxppDouble *)object)->Rndm();
