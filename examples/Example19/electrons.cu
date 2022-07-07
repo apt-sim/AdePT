@@ -308,7 +308,6 @@ __device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaD
 {
   Track &currentTrack = particles[globalSlot];
   auto volume         = currentTrack.navState.Top();
-  const int volumeID  = volume->id();
   // the MCC vector is indexed by the logical volume id
   const int lvolID     = volume->GetLogicalVolume()->id();
   const int theMCIndex = MCIndex[lvolID];
