@@ -51,8 +51,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     for (int ip = 0; ip < 3; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
-        numIALeft                  = -std::log(currentTrack.Uniform());
-        currentTrack.numIALeft[ip] = numIALeft;
+        numIALeft = -std::log(currentTrack.Uniform());
       }
       theTrack->SetNumIALeft(numIALeft, ip);
     }
@@ -123,13 +122,13 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
                                  Secondaries secondaries, adept::MParray *activeQueue, GlobalScoring *globalScoring,
                                  ScoringPerVolume *scoringPerVolume)
 {
-  Track &currentTrack  = particles[globalSlot];
+  Track &currentTrack = particles[globalSlot];
   auto volume         = currentTrack.navState.Top();
-  const int volumeID        = volume->id();
+  const int volumeID  = volume->id();
   // the MCC vector is indexed by the logical volume id
   const int lvolID     = volume->GetLogicalVolume()->id();
   const int theMCIndex = MCIndex[lvolID];
-  const auto energy = currentTrack.energy;
+  const auto energy    = currentTrack.energy;
 
   RanluxppDouble newRNG{currentTrack.rngState.Branch()};
   G4HepEmRandomEngine rnge{&currentTrack.rngState};
@@ -254,8 +253,8 @@ __global__ void ComptonScattering(Track *particles, const adept::MParray *active
                      scoringPerVolume);
 }
 __global__ void PhotoelectricEffect(Track *particles, const adept::MParray *active, Secondaries secondaries,
-                              adept::MParray *activeQueue, GlobalScoring *globalScoring,
-                              ScoringPerVolume *scoringPerVolume, SOAData const soaData)
+                                    adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                    ScoringPerVolume *scoringPerVolume, SOAData const soaData)
 {
   InteractionLoop<2>(&GammaInteraction<2>, active, soaData, particles, secondaries, activeQueue, globalScoring,
                      scoringPerVolume);
