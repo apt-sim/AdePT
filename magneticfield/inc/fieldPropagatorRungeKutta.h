@@ -124,12 +124,12 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
 {
   // Version 1.  Finish the integration of lanes ...
   // Future alternative (ToDo):  return unfinished intergration, in order to interleave loading of other 'lanes'
-   
+
   const unsigned int trialsPerCall = vecCore::Min( 30U, fMaxTrials / 2) ;  // Parameter that can be tuned
   unsigned int totalTrials=0;
   static int callNum = 0; 
   callNum ++;
-  
+
   Real_t  lenRemains = stepLength;
 
   Real_t  hTry = stepLength;    // suggested 'good' length per integration step
@@ -140,22 +140,28 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
   do {
     Real_t hAdvanced = 0;     //  length integrated this iteration (of do-while)
     Real_t  dydx_end[Nvar];
-
+    
+#if VERBOSE_STEP_IN_THREAD
     const vecgeom::Vector3D<Real_t> posBegin= position;    // For print
     const vecgeom::Vector3D<Real_t> momBegin= momentumVec; //   >>
-    
+#endif
+
     bool done=
        RkDriver_t::Advance( position, momentumVec, charge, lenRemains, magField, hTry, dydx_end,
                             hAdvanced, totalTrials,
                             // id,     // Temporary ?
                             trialsPerCall);
     //   Runge-Kutta single call ( number of steps <= trialsPerCall )
-    
+
     lenRemains -= hAdvanced;
     unfinished = lenRemains > 0.0; /// Was = !done  ... for debugging ????
 
     totLen+= hAdvanced;
+    loopCt++;
+
+// #define  VERBOSE_STEP_IN_THREAD  1
     
+#if VERBOSE_STEP_IN_THREAD
     // if( !done || (loopCt++>0) ){
     if( id == 0 ) {
        const vecgeom::Vector3D<Real_t> deltaPos= position - posBegin;
@@ -174,9 +180,14 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
               , deltaMomentum[0], deltaMomentum[1], deltaMomentum[2], deltaMomentum.Mag()
           );
     }
+#endif
     // sumAdvanced += hAdvanced;  // Gravy ..
 
   } while ( unfinished  && (totalTrials < fMaxTrials) );
+
+  
+  if( loopCt > 1 ) { printf( " fieldPropagatorRK: id %3d call %4d --- LoopCt reached %d ", id, callNum, loopCt );  }
+     
 }
 
 #if 0
@@ -447,7 +458,6 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordLen, current_state, next_state, kPush);
       Real_t curvedStep;
 
-      
       fullChord = (linearStep == chordLen);
       if (fullChord) {
         position    = endPosition;
@@ -465,7 +475,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
         //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
         Real_t fraction = chordLen > 0 ? linearStep / chordLen : 0.0;
         curvedStep = fraction * safeArc;        
-#if 0
+#ifndef ENDPOINT_ON_CURVE
         // Primitive approximation of end direction and linearStep to the crossing point ...        
         position = position + linearStep * chordVec;        
         direction       = direction * (1.0 - fraction) + endDirection * fraction;

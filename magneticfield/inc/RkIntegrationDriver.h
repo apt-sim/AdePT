@@ -53,16 +53,16 @@ public:
   // template <class Stepper_t, class Equation_t, class MagField_t>
   template <int Verbose = 1>
   static inline __host__ __device__ bool Advance(vecgeom::Vector3D<Real_t>  & position,
-                                                     vecgeom::Vector3D<Real_t>  & momentumVec,
-                                                     Int_t  const &charge,
-                                                     // Real_t const &momentum,
-                                                     Real_t const &step,
-                                                     MagField_t const &magField,
-                                                     Real_t        &htry,         // Suggested integration step -- from previous stages
-                                                     Real_t  dydx_next[],          // dy_ds[Nvar] at final point (return only !! )
-                                                     Real_t  &lengthDone,
-                                                     unsigned int &totalTrials,
-                                                     unsigned int maxTrials = 5
+                                                 vecgeom::Vector3D<Real_t>  & momentumVec,
+                                                 Int_t  const &charge,
+                                                 // Real_t const &momentum,
+                                                 Real_t const &step,
+                                                 MagField_t const &magField,
+                                                 Real_t        &htry,         // Suggested integration step -- from previous stages
+                                                 Real_t  dydx_next[],          // dy_ds[Nvar] at final point (return only !! )
+                                                 Real_t  &lengthDone,
+                                                 unsigned int &totalTrials,
+                                                 unsigned int maxTrials = 5
                                              ) ;                                                    
   //   2.  per variable version
   // template <class Stepper_t, class Equation_t, class MagField_t>
@@ -204,8 +204,9 @@ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>
      done =  (x >= length );     
      hgood= vecCore::Max( hnext, Real_t(fMinimumStep) );
 
+#ifdef RK_VERBOSE
      Real_t htryOld = htry;
-     
+#endif
      htry = hgood;
      if( goodStep && !done ) {
        for( int i=0; i< Nvar; i++ ) {
@@ -214,44 +215,21 @@ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>
        }
        htry = vecCore::Min( hgood , length - x );
      }
-     
-     ++numSteps;
-
-// #ifdef RK_VERBOSE
-#if 1
-     using std::setw;
-     if( Verbose > 0 ) {
-       // int prec= std::cout.precision(5);        
-       if( Verbose > 1 ) {        
-          // std::cout << " n = " << setw(4) << numSteps << " x = " << setw(10) << x << " ltot = " << setw(10) << lenAdvanced;
+#ifdef RK_VERBOSE
+     if( Verbose > 1 ) {        
          printf( " n = %4d  x = %10.5f ltot = %10.5f ", numSteps, x, lenAdvanced );
-         // std::cout.precision(7);     
-         // std::cout << " h:  " << " suggested (input try) =" << setw(10) << htryOld  //  << " did=" << setw(10) << hdid
-         //       << " good? " << ( goodStep ? "Y" : "N" )
-         //       << " next= "  << setw(10) << hnext << "\n"; // << " good = "  << setw(10) << hgood << std::endl;
          printf( " h:   suggested (input try) = %10.7f good? %1s next= %10.7f \n",  // did= %10.7f  good= %10.7f 
                  htryOld,  /* did, */ ( goodStep ? "Y" : "N" ), hnext  /* , good */ );
-       }
-       
-       // std::cout.precision(prec);
-       
-       // std::cout << " RK: " << (goodStep? "Y" : "N" ) << " "  
-       //           << setw(2) << numSteps << " s= " << setw(10) << (goodStep ? lenAdvanced : lenAdvanced + htry);
-       
-       // printf( " RK: %1s %2d s= %10.7f \n",
-       //      (goodStep? "Y" : "N" ) , numSteps, (goodStep ? lenAdvanced : lenAdvanced + htry) );
-       
-       // constexpr Real_t magFieldDummy[3] = { 303, 606, 909} ;
-       // PrintFieldVectors::PrintLineSixvecDyDx( yEnd, chargeInt, magFieldDummy, dydx_next );
-       // std::cout.precision(prec);        
      }
-#endif     
-     //  In case of failed last step, we must not use it's 'yEnd' values !!
-     
+#endif
+
+     ++numSteps;
+
   } while ( !done && numSteps < maxTrials );
 
   totalTrials += numSteps;
 
+  //  In case of failed last step, we must not use it's 'yEnd' values !!
   if( goodStep ) {
     // Real_t invM = 1.0 / (momentum+kSmall);
     position.Set(    yEnd[0], yEnd[1], yEnd[2] );
