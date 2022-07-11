@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
   OPTION_INT(particles, 100);
   OPTION_DOUBLE(energy, 10); // entered in GeV
   energy *= copcore::units::GeV;
-  OPTION_INT(batch, -1);
+  OPTION_INT(batch, 52);
   OPTION_BOOL(rotatingParticleGun, false);
 
   vecgeom::Stopwatch timer;
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
 
   tracer.setTag("GPU function");
   runGPU(particles, energy, batch, MCCindex, &scoringPerVolume, &globalScoring, NumVolumes, NumPlaced, &hepEmState,
-            rotatingParticleGun);
+         rotatingParticleGun);
 
   std::cout << std::endl;
   std::cout << std::endl;
