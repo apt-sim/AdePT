@@ -282,10 +282,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       continue;
     }
 
-    // Also advance the current RNG state to provide a fresh round of random
-    // numbers after MSC used up a fair share for sampling the displacement.
-    currentTrack.rngState.Advance();
-
     soaData.nextInteraction[i] = winnerProcessIndex;
   }
 }
