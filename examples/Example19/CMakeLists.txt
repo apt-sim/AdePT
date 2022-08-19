@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-set(TargetName SplitKernels)
+set(TargetName example19)
 
 if(NOT TARGET G4HepEm::g4HepEm)
   message(STATUS "Disabling ${TargetName} (needs G4HepEm)")

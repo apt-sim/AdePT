@@ -3,9 +3,9 @@ SPDX-FileCopyrightText: 2022 CERN
 SPDX-License-Identifier: CC-BY-4.0
 -->
 
-## Split kernels example
+## Example 19
 
-Example based on Example 18, but restricting the workflow is split in smaller kernels. This allows for more fine-granular measurements and optimisations.
+Example based on Example 18, but the workflow is split in smaller kernels. This allows for more fine-granular measurements and optimisations.
 
  * arbitrary geometry via gdml file (tested with cms2018.gdml from VecGeom persistency/gdml/gdmls folder) and optionally a magnetic field with constant Bz,
  * geometry read as Geant4 geometry, reading in regions and cuts, to initialize G4HepEm data
@@ -24,7 +24,7 @@ Additionally, the kernels score energy deposit and the charged track length per 
 ### Kernels
 
 This example uses one stream per particle type to launch kernels asynchronously.
-They are synchronized via a forth stream using CUDA events.
+They are synchronized via a fourth stream using CUDA events.
 
 #### `TransportElectrons<bool IsElectron>`
 
@@ -34,18 +34,21 @@ They are synchronized via a forth stream using CUDA events.
 4. Convert geometry to true step length according to MSC, apply net direction change and discplacement.
 5. Apply continuous effects; kill track if stopped.
 6. If the particle reaches a boundary, perform relocation.
-7. If not, and if there is a discrete process:
- 1. Sample the final state.
- 2. Update the primary and produce secondaries.
+7. If not, and if there is a discrete process, hand over to interaction kernel.
 
 #### `TransportGammas`
 
 1. Determine the physics step limit.
 2. Query VecGeom to get geometry step length (no magnetic field for neutral particles!).
 3. If the particle reaches a boundary, perform relocation.
-4. If not, and if there is a discrete process:
- 1. Sample the final state.
- 2. Update the primary and produce secondaries.
+4. If not, and if there is a discrete process, hand over to interaction kernel.
+
+#### Interaction kernels
+In electrons.cu and gammas.cu, there is dedicated kernels for all discrete processes. These were
+extracted from the main transport kernels in example18.
+1. Find which particles will undergo the interaction that the respective kernel will take care of.
+2. Sample the final state.
+3. Update the primary and produce secondaries.
 
 #### `FinishIteration`
 
@@ -55,7 +58,3 @@ This kernel runs after all secondary particles were produced.
 #### `InitPrimaries` and `InitParticleQueues`
 
 Used to initialize multiple primary particles with separate seeds.
-
-#### Various interaction kernels
-In electrons.cu and gammas.cu, there is dedicated kernels for all discrete processes. These were
-extracted from the main transport kernels in example18.
