@@ -307,7 +307,7 @@ void runGPU(int numParticles, double energy, int batch, const int *MCIndex_host,
     stats->inFlight[ParticleType::Positron] = 0;
     stats->inFlight[ParticleType::Gamma]    = 0;
 
-    constexpr int MaxBlocks = 1024;
+    constexpr int MaxBlocks = 8192;
     int transportBlocks;
 
     int inFlight;
