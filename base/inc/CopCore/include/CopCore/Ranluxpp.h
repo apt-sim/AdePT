@@ -53,7 +53,7 @@ public:
   RanluxppEngineImpl() = default;
 
   /// Produce next block of random bits
-  __host__ __device__ void Advance()
+  __host__ __device__ void __attribute__((noinline)) Advance()
   {
     uint64_t lcg[9];
     to_lcg(fState, fCarry, lcg);
