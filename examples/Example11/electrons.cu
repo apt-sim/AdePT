@@ -161,7 +161,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Perform the discrete interaction.
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&currentTrack.rngState);
     // We will need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 

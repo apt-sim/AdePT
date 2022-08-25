@@ -372,22 +372,20 @@ __global__ void RelocateToNextVolume(adept::BlockData<track> *allTracks, adept::
   }
 }
 
-class RanluxppDoubleEngine : public G4HepEmRandomEngine {
-  // Wrapper functions to call into CLHEP::HepRandomEngine.
-  static __host__ __device__ double flatWrapper(void *object) { return ((RanluxppDouble *)object)->Rndm(); }
-  static __host__ __device__ void flatArrayWrapper(void *object, const int size, double *vect)
-  {
-    for (int i = 0; i < size; i++) {
-      vect[i] = ((RanluxppDouble *)object)->Rndm();
-    }
-  }
+// Define inline implementations of the RNG methods for the device.
+// (nvcc ignores the __device__ attribute in definitions, so this is only to
+// communicate the intent.)
+inline __device__ double G4HepEmRandomEngine::flat()
+{
+  return ((RanluxppDouble *)fObject)->Rndm();
+}
 
-public:
-  __host__ __device__ RanluxppDoubleEngine(RanluxppDouble *engine)
-      : G4HepEmRandomEngine(/*object=*/engine, &flatWrapper, &flatArrayWrapper)
-  {
+inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *vect)
+{
+  for (int i = 0; i < size; i++) {
+    vect[i] = ((RanluxppDouble *)fObject)->Rndm();
   }
-};
+}
 
 __host__ __device__ void InitSecondary(track &secondary, const track &parent)
 {
@@ -459,7 +457,7 @@ __global__ void PerformDiscreteInteractions(adept::BlockData<track> *allTracks, 
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < queueSize; i += blockDim.x * gridDim.x) {
     int particleIndex   = (*discreteQueue)[i];
     track &currentTrack = (*allTracks)[particleIndex];
-    RanluxppDoubleEngine rnge(&currentTrack.rng_state);
+    G4HepEmRandomEngine rnge(&currentTrack.rng_state);
 
     // For now, just assume a single material.
     int theMCIndex             = 1;

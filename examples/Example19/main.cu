@@ -38,8 +38,6 @@ __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 __constant__ __device__ int *MCIndex = nullptr;
 
-__constant__ __device__ int Zero = 0;
-
 void InitG4HepEmGPU(G4HepEmState *state)
 {
   // Copy to GPU.
