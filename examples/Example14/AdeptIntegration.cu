@@ -45,8 +45,6 @@ __constant__ __device__ struct G4HepEmData g4HepEmData;
 __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 __constant__ __device__ double BzFieldValue               = 0;
 
-__constant__ __device__ int Zero = 0;
-
 G4HepEmState *AdeptIntegration::fg4hepem_state{nullptr};
 SlotManager *slotManagerInit_dev = nullptr;
 int AdeptIntegration::kCapacity = 1024 * 1024;

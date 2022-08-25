@@ -33,8 +33,6 @@
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
-__constant__ __device__ int Zero = 0;
-
 struct G4HepEmState {
   G4HepEmData data;
   G4HepEmParameters parameters;

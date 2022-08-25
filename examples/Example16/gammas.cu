@@ -110,7 +110,7 @@ int activeSize = gammas->fActiveTracks->size();
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
     // Perform the discrete interaction.
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&currentTrack.rngState);
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 

@@ -76,7 +76,7 @@ static __device__ __forceinline__ void TransportElectrons(const ParticleCount *e
     }
     theTrack->SetSafety(safety);
 
-    RanluxppDoubleEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 3; ++ip) {

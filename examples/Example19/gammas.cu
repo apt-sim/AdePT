@@ -132,7 +132,7 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
   const auto energy = currentTrack.energy;
 
   RanluxppDouble newRNG{currentTrack.rngState.Branch()};
-  RanluxppDoubleEngine rnge{&currentTrack.rngState};
+  G4HepEmRandomEngine rnge{&currentTrack.rngState};
 
   if constexpr (ProcessIndex == 0) {
     // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
