@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
+# Our example depends on types in alpaka's CUDA backend, so we must have it enabled
+set(alpaka_ACC_GPU_CUDA_ENABLE ON CACHE BOOL "Enable the CUDA GPU back-end" FORCE)
+
 #We must specify that we want to use alpaka
 find_package(alpaka 0.9.0 QUIET)
 
