@@ -207,7 +207,9 @@ __device__ void InteractionLoop(Func interactionFunction, adept::MParray const *
 #endif
 
     for (int j = threadIdx.x; j < counter; j += blockDim.x) {
-      interactionFunction((*active)[candidates[j]], soaData, j, std::forward<Args>(args)...);
+      const auto soaSlot    = candidates[j];
+      const auto globalSlot = (*active)[soaSlot];
+      interactionFunction(globalSlot, soaData, soaSlot, std::forward<Args>(args)...);
     }
 
     __syncthreads();
