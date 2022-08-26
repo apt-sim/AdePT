@@ -52,9 +52,9 @@ To configure AdePT, simply run:
 ```console
 $ cmake -S. -B./adept-build <otherargs>
 ```
-As <otherargs> one needs to provide the paths to the dependence libraries VecCore and VecGeom, and optionally the path to the Alpaka installation (in case you want to build FisherPrice_Alpaka)
+As <otherargs> one needs to provide the paths to the dependence libraries VecCore and VecGeom:
 ```console
-   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>;[<alpakaInstallDir>]" \
+   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>" \
    -DCMAKE_CUDA_ARCHITECTURES=<cuda_architecture> \
    -DCMAKE_BUILD_TYPE=Release
 ```
