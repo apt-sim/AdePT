@@ -75,6 +75,8 @@ protected:
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
 };
 
+#define VERBOSE_STEP_IN_THREAD 1    // 2022.09.05  14:00 -- look for failed RK integration hAdvanced = 0.0
+
 // ----------------------------------------------------------------------------
 template<class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
 inline __host__ __device__  // __host__ __device_
@@ -160,17 +162,16 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
     loopCt++;
 
 // #define  VERBOSE_STEP_IN_THREAD  1
-    
 #if VERBOSE_STEP_IN_THREAD
-    // if( !done || (loopCt++>0) ){
-    if( id == 0 ) {
+    if( hAdvanced == 0.0 ) {
        const vecgeom::Vector3D<Real_t> deltaPos= position - posBegin;
        const vecgeom::Vector3D<Real_t> deltaMomentum= momentumVec - momBegin;
        
-       printf(" id %3d call %4d lpCt %2d sum-iters %3d  hdid= %9.5g totLen= %9.5g lenRemains= %9.5g "
+       printf("-fpRK-loop %s, id %3d call %4d lpCt %2d sum-iters %3d  hdid= %9.5g totLen= %9.5g lenRemains= %9.5g "
               " ret= %1d #=  pos = %9.6g %9.6g %9.6g   momemtumV= %14.9g %14.9g %14.9g  hTry= %7.4g  remains= %7.4g "
               "  Delta-pos= %9.6g %9.6g %9.6g  (mag= %8.6g)  Delta-mom= %9.6g %9.6g %9.6g (mag= %8.6g) "
               " \n",
+              "hAdvanced = ZERO", //    Reflect if( .. ) condition above !!
               id, callNum, loopCt, totalTrials, hAdvanced, totLen, lenRemains,
               done,
               position[0], position[1], position[2],
@@ -272,22 +273,10 @@ ComputeIntersection
                           hAdvanced, totalTrials, trialsPerCall);
     // Runge-Kutta single call
     
-    std::cout << "Advanced returned:  done= " << ( done ? "Yes" : " No" )
-              << " hAdvanced = " << hAdvanced 
-              << " hNext = " << hTry
-              << std::endl;
-    
     Real_t yPosMom[Nvar] = { Position[0], Position[1], Position[2],
                              momentumVec[0], momentumVec[1], momentumVec[2] } ;    
     sumAdvanced += hAdvanced;
     
-    if( verbose ) 
-       std::cout << "- Trials:   max/call = " << trialsPerCall << "  total done = " << totalTrials
-                 <<  ( (totalTrials == trialsPerCall) ?  " MAXimum reached !! " :  " " )
-                 << std::endl;
-    else
-       std::cout << " t: " << setw(4) << totalTrials << " s= " << setw(9) << sumAdvanced << " ";
-
     Vector3D<float> magFieldEnd;
     Equation_t::EvaluateDerivativesReturnB(magField, yPosMom, charge, dy_ds, magFieldEnd);  
     Real_t magFieldEndArr[3] = { magFieldEnd[0],   magFieldEnd[1],   magFieldEnd[2] };
@@ -330,9 +319,9 @@ inverseCurvature(
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 
-// #define CHECK_STEP  1
+#define CHECK_EVERY_SUBSTEP  1
 
-#ifdef CHECK_STEP
+#ifdef CHECK_EVERY_SUBSTEP
 //  Extra check at each integration that the result agrees with Helix/Bz
 #include "ConstBzFieldStepper.h"
 #include "ConstFieldHelixStepper.h"
@@ -367,33 +356,18 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
   vecgeom::Vector3D<Real_t>  B0fieldVec = { 0.0, 0.0, 0.0 };  // Field value at starting point
   magField.Evaluate( position, B0fieldVec );
   
-#if 1
   Real_t inv_curv = inverseCurvature /*<Real_t>*/ ( momentumVec, B0fieldVec, charge );
-#else
-  Real_t bmag = B0fieldVec.Mag();
-  // Real_t curv = std::fabs(fieldConstants::kB2C * charge * BzValue) / (momentumXYMag + 1.0e-30); // norm for step
-
-  // constexpr Real_t toKilogauss = 1.0 / copcore::units::kilogauss; //  Is this needed ? JA 2021.12.08
-  Real_t curvaturePlus =  
-     fabs(fieldConstants::kB2C * Real_t(charge) * (bmag  /* * toKiloGauss*/ )) / (momentumMag + Real_t(1.0e-30));
-
-  Real_t ratioOverFld = (bmag>0) ? momentumVec.Dot(B0fieldVec) / (bmag * bmag) : 0.0;
-  vecgeom::Vector3D<Real_t> PtransB = momentumVec - ratioOverFld * B0fieldVec;
-
-  // Calculate inverse curvature instead - save a division
-  Real_t inv_curv = fabs(    PtransB.Mag() /
-                           ( Track::kB2C * charge * bmag + tiny)
-                        );
-#endif
   // printf( "   B-field = %9.3g (T)   momentum_P = %9.5g (MeV/c)  R = inv_curv = %9.5f (cm) \n",
   //         B0fieldVec.Mag(),   momentumVec.Mag() / copcore::units::MeV ,  inv_curv / copcore::units::millimeter );
   // constexpr Real_t invEpsD= 1.0 / gEpsilonDeflect;
   
   // acceptable lateral error from field ~ related to delta_chord sagital distance
-  Real_t safeLength =
+  const Real_t safeLength =
      sqrt( Real_t(2.0) * fieldConstants::gEpsilonDeflect * inv_curv); // max length along curve for deflectionn
                                         // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
 
+  Precision maxNextSafeMove = safeLength; // It can be reduced if, at the start, a boundary is encountered
+  
   Real_t stepDone           = 0.0;
   Real_t remains            = physicsStep;
   const Real_t tiniest_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
@@ -406,35 +380,46 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
     stepDone = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
     position += stepDone * direction;
   } else {
+    bool continueIteration = false;     
     bool fullChord = false;
     // vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
     const Real_t  inv_momentumMag = 1.0 / momentumMag;
- 
+
+    bool   lastWasZero = false;   // Debug only ?  JA 2022.09.05
+    
     //  Locate the intersection of the curved trajectory and the boundaries of the current
     //    volume (including daughters).
     do {
+      static constexpr Precision ReduceFactor = 0.5;
+      static constexpr int       ReduceIters  = 5;
+
       vecgeom::Vector3D<Real_t> endPosition    = position;
       vecgeom::Vector3D<Real_t> endMomentumVec = momentumVec; // momentumMag * direction;
-      const Real_t safeArc = min(remains, safeLength);
+      const Real_t safeArc = min(remains, maxNextSafeMove); // safeLength);
       
       IntegrateTrackToEnd( magField, endPosition, endMomentumVec, charge, safeArc, indx);
       //-----------------
+#ifdef CHECK_EVERY_SUBSTEP
+      if( safeArc < 1.0e-03 * physicsStep && !lastWasZero ) {
+         printf( "fpConstRK WARNING> very small safeMove = %10.5g  - vs physicsStep= %10.5g  \n", safeArc, physicsStep );
+         printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g (safeLen= %10.7g) chord-iter= %5d\n ",
+                "Short", indx, kinE, safeArc, safeLength, chordIters);
+      }
+#endif
       vecgeom::Vector3D<Real_t> chordVec     = endPosition - position;
-      Real_t chordLen = chordVec.Length();      
-      vecgeom::Vector3D<Real_t> endDirection = inv_momentumMag * endMomentumVec;      
+      Real_t chordDist = chordVec.Length();     
+      vecgeom::Vector3D<Real_t> endDirection = inv_momentumMag * endMomentumVec;
+      chordVec *= (1.0 / chordDist);  // Now the direction of the chord!
 
-      chordVec *= (1.0 / chordLen);  // It's not the direction
-
-#ifdef CHECK_STEP
+#ifdef CHECK_EVERY_SUBSTEP
       // Check vs Helix solution -- temporary 2022.06.27      
       vecgeom::Vector3D<Real_t> endPositionHelix  = position;
       vecgeom::Vector3D<Real_t> endDirectionHelix = direction; // momentumMag * direction;      
 
       ConstFieldHelixStepper   helix(B0fieldVec);
-      // ConstBzFieldStepper helix(B0fieldVec[2]); // Bz component -- Assumes that Bx= By = 0 and Bz = const. 
-      helix.DoStep // <vecgeom::Vector3D<Real_t>, Real_t, int>
-         (position, direction, charge, momentumMag, safeArc,
-                                                        endPositionHelix, endDirectionHelix);
+      // ConstBzFieldStepper helix(B0fieldVec[2]); // Bz component -- Assumes that Bx= By = 0 and Bz = const.
+      // helix.DoStep<vecgeom::Vector3D<Real_t>, Real_t, int>(...
+      helix.DoStep(position, direction, charge, momentumMag, safeArc, endPositionHelix, endDirectionHelix);
 
       constexpr Precision thesholdDiff=3.0e-5;
       bool badPosition = 
@@ -442,38 +427,53 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       bool badDirection =
         CompareResponseVector3D( indx, direction, endDirectionHelix, endDirection, "Direction-perStep", thesholdDiff );
 
-      const char* Outcome[2]={ "Good", " Bad" };
-      printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g chord-iter= %5d\n ",
-             Outcome[badPosition||badDirection], indx, kinE, safeArc, chordIters);
-      if( badPosition || badDirection) {        
-        // currentTrack.print(indx, /* verbose= */ true );
-      } else {
-         // ReportSameMoveVector3D( indx, position, endPosition, "Position-perStep" );
-         // ReportSameMoveVector3D( indx, direction, endDirection, "Direction-perStep" );
+      if( badPosition || badDirection) {  
+         printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g chord-iter= %5d\n ",
+             "Bad", indx, kinE, safeArc, chordIters);         
       }
-
 #endif
       // Check Intersection
-      
-      Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordLen, current_state, next_state, kPush);
+      //-- vecgeom::Vector3D<Real_t> ChordDir= (1.0/chordDist) * ChordVec;
+      Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordDist, current_state, next_state, kPush);
       Real_t curvedStep;
 
-      fullChord = (linearStep == chordLen);
+      if( lastWasZero && chordIters >= ReduceIters ) {          
+         // printf( "-fieldProp-RK: LastWasZero> stepDone= %10.5g  - vs chordDist= %10.5g  \n", linearStep, chordDist );
+         lastWasZero = false;         
+      }
+
+      fullChord = (linearStep == chordDist);
       if (fullChord) {
         position    = endPosition;
         momentumVec = endMomentumVec;
         
         direction  = endDirection;
         curvedStep = safeArc;
+
+        maxNextSafeMove   = safeArc;  // Reset it, once a step succeeds!!
+        continueIteration = true;        
+      } else if (linearStep <= kPush + Navigator_t::kBoundaryPush && stepDone == 0) {
+        // Cope with a track at a boundary that wants to bend back into the previous
+        //   volume in the first step (by reducing the attempted distance.)
+        // FIXME: Even for zero steps, the Navigator will return kPush + possibly
+        // Navigator::kBoundaryPush instead of a real 0.
+        curvedStep = 0;
+        lastWasZero = true;
+        
+        // Reduce the step attempted in the next iteration to navigate around
+        // boundaries where the chord step may end in a volume we just left.
+        maxNextSafeMove   = ReduceFactor * safeArc;
+        continueIteration = chordIters < ReduceIters;
+
       } else {
         assert( next_state.IsOnBoundary() );
-        // assert( linearStep == chordLen );
+        // assert( linearStep == chordDist );
         
         // USE the intersection point on the chord & surface as the 'solution', ie. instead
         //     of the (potential) true point on the intersection of the curve and the boundary.
         // ( This involves a bias -- typically important only for muons in trackers.
         //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
-        Real_t fraction = chordLen > 0 ? linearStep / chordLen : 0.0;
+        Real_t fraction = chordDist > 0 ? linearStep / chordDist : 0.0;
         curvedStep = fraction * safeArc;        
 #ifndef ENDPOINT_ON_CURVE
         // Primitive approximation of end direction and linearStep to the crossing point ...        
@@ -489,13 +489,10 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
         //  Better accuracy (e.g. for comparing with Helix) -- but the point will not be on the surface !!
         IntegrateTrackToEnd( magField, position, momentumVec, charge, curvedStep, indx);
         direction = inv_momentumMag * momentumVec;   // momentumVec.Unit();
-#endif        
+#endif
+        continueIteration = false;      
       }
 
-      // if( idx == 1 ) {
-      //    printf(" 2end: dir-dir0 = %8.5g %8.5g %8.5g\n", direction -   ); 
-      // }
-      
       stepDone += curvedStep;
       remains -= curvedStep;
       chordIters++;
@@ -503,25 +500,23 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       found_end = (  (curvedStep > 0) && next_state.IsOnBoundary() )      // Fix 2022.09.05 JA
                || (remains <= tiniest_step);
 
-#ifdef CHECK_STEP
-      if( ! badPosition && ! badDirection)
-      {
-         printf(" Good - id %3d call %4d lpCt %2d sum-iters %3d "               //  5 int args
-                " hdid= %9.5g hkept= %9.5g totLen= %9.5g lenRemains= %9.5g "    //  4 float args
-                "  endPos = %9.6g %9.6g %9.6g  "
-                "  endDirection= %14.9g %14.9g %14.9g  "
-                "  endMomemtumV= %14.9g %14.9g %14.9g  \n",
-                indx, itersDone, chordIters-1, itersDone+chordIters, 
-                safeArc, curvedStep, stepDone, remains,
+#ifdef CHECK_EVERY_SUBSTEP
+      // if( ! badPosition && ! badDirection)
+
+      if( stepDone < 1.0e-03 * physicsStep && !lastWasZero ) {
+         printf("--fpRK Small step done - id %3d call= %-2d lpCt= %2d "  // "sum %3d "               //  5 int args
+                " kinE= %8.6g  safeL= %-8.4g tried= %-8.4g kept= %8.4g totL= %8.5g remain= %6.3g "    //  4 float args
+                "  endPos = %-9.6g %9.6g %9.6g  "
+                "  endDir= %14.9g %14.9g %14.9g  "
+                "  endMom= %14.9g %14.9g %14.9g \n",
+                indx, itersDone+1, chordIters-1, // itersDone+chordIters, 
+                kinE, safeLength, safeArc, curvedStep, stepDone, remains,
                 endPosition[0], endPosition[1], endPosition[2],                
                 endDirection[0], endDirection[1], endDirection[2],                 
                 endMomentumVec[0], endMomentumVec[1], endMomentumVec[2] );
       }
 #endif
-   
-    } while ( !found_end && (chordIters < max_iterations) );
-
-    // } while ((!next_state.IsOnBoundary()) && fullChord && (remains > tiniest_step) && (chordIters < max_iterations));
+    } while ( !found_end && continueIteration && (chordIters < max_iterations) );
   }
 
   propagated = found_end;
