@@ -500,7 +500,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       remains -= curvedStep;
       chordIters++;
 
-      found_end = next_state.IsOnBoundary() || (remains <= tiniest_step);
+      found_end = (  (curvedStep > 0) && next_state.IsOnBoundary() )      // Fix 2022.09.05 JA
+               || (remains <= tiniest_step);
 
 #ifdef CHECK_STEP
       if( ! badPosition && ! badDirection)
