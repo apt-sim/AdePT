@@ -56,16 +56,11 @@ struct Track {
      using copcore::units::MeV;
      using copcore::units::mm;
      // static const char *particleName[3] = {"e-", "g", "e+"};
-     printf( " id= %3d Pos[mm]: ", id );
-     for( int i=0; i<3; i++) {
-       if( std::fabs( pos[i] / mm ) > 0.001 )
-          printf( "%9.4f", pos[i] / mm );
-       else
-          printf( "%9.4g", pos[i] / mm );
-       if( i < 3 ) printf(", "); 
-     }
-     printf( "  kE[MeV]= %10.5g  Dir: %9.6f %9.6f %9.6f "
-             " - intl= %6.3f %6.3f %6.3f r0= %10.5g",
+     printf( " id= %3d Pos[mm]: "
+             "%10.7g, %10.7g, %10.7g "
+             " kE[MeV]= %10.5g  Dir: %9.6f %9.6f %9.6f "
+             " - intl= %6.3f %6.3f %6.3f r0= %10.5g\n",
+             id, pos[0] / mm, pos[1] / mm, pos[2] / mm ,              
              energy / MeV, dir[0], dir[1], dir[2],
              numIALeft[0] , numIALeft[1], numIALeft[2],
              initialRange / mm );
@@ -74,11 +69,11 @@ struct Track {
      if (verbose) {
         auto currentLevel = navState.GetLevel();
         auto currentIndex = navState.GetNavIndex(currentLevel);
-        printf("  current: (lv= %3d  ind= %8u  bnd= %1d)  ", currentLevel, currentIndex,
+        printf("  id= %3d current: (lv= %3d  ind= %8u  bnd= %1d)  ", id, currentLevel, currentIndex,
                (int) navState.IsOnBoundary() );
+        printf("\n");        
      }
 #endif
-     printf("\n");
   }
 };
 

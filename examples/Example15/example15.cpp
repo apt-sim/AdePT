@@ -88,7 +88,7 @@ const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
   // --- Set MSC range factor to match G4HepEm physics lists.
   G4EmParameters *param = G4EmParameters::Instance();
   param->SetDefaults();
-  param->SetMscRangeFactor(0.06);
+  param->SetMscRangeFactor(0.04);
 
   return world;
 }

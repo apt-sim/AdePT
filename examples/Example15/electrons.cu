@@ -34,7 +34,7 @@
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
-// #define CHECK_RESULTS   1
+#define CHECK_RESULTS   1
 
 #ifdef  CHECK_RESULTS
 #include "CompareResponses.h"
@@ -66,6 +66,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #endif
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
+
+  static bool ReportOption = true;
 #if USE_RK
   constexpr int Nvar   = 6;
   using Field_t        = UniformMagneticField;        // ToDO:  Change to non-uniform type !!
@@ -75,8 +77,15 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
   Field_t  magField( vecgeom::Vector3D<float>(0.0, 0.0, *gPtrBzFieldValue_dev) );
                      // 2.0*copcore::units::tesla) ); // -> Obtain it from object ?
+  static const char* RunType= "Runge-Kutta field propagation";
+#else
+  static const char* RunType= "Helix for   field propagation";
 #endif
-
+  if( ReportOption && blockIdx.x == 0 && threadIdx.x == 0 ) {
+     printf( "-- Run type: %s .\n\n", RunType );
+     ReportOption= false;
+  }
+  
   // DoPri5Driver_t    
   //  Static method fieldPropagatorRungeKutta<DoPri5Driver_t, vecgeom::Precision>
   //     no object fieldPropagatorRK()
@@ -190,7 +199,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
       Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics,
-          positionHx, directionHx, currentTrack.navState, nextStateHx, propagatedHx);
+          positionHx, directionHx, currentTrack.navState, nextStateHx, propagatedHx, slot );
       // End   Baseline reply
 #endif
       int iterDone= -1;
@@ -199,30 +208,36 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
             magneticFieldB,
             currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics,
             currentTrack.pos, currentTrack.dir, currentTrack.navState, nextState,
-            propagated, /*lengthDone,*/ safety, max_iterations, iterDone, i
+            propagated, /*lengthDone,*/ safety, max_iterations, iterDone,  slot
             );
 #ifdef CHECK_RESULTS
-      constexpr Precision thresholdDiff=3.0e-4;
+      constexpr Precision thresholdDiff=3.0e-3;
+      bool diffLength = false, badPosition = false, badDirection = false;
       if( std::fabs( helixStepLength - geometryStepLength ) > 1.0e-4 * helixStepLength ) {
-         printf ("s-len diff: id= %3d phys-request= %11.6g  helix-did= %11.6g rk-did= %11.6g (l-diff= %7.4g)\n", i, geometricalStepLengthFromPhysics, helixStepLength, geometryStepLength, geometryStepLength-helixStepLength);
+         printf ("\ns-len diff: id= %3d kinE= %12.7g phys-request= %11.6g  helix-did= %11.6g rk-did= %11.6g (l-diff= %7.4g)\n", slot,
+                 currentTrack.energy,
+                 geometricalStepLengthFromPhysics, helixStepLength, geometryStepLength, geometryStepLength-helixStepLength);
+         diffLength = true;
+      } else {
+         badPosition = 
+            CompareResponseVector3D( slot, startPosition, positionHx, currentTrack.pos, "Position", thresholdDiff );
+         badDirection =
+            CompareResponseVector3D( slot, startDirection, directionHx, currentTrack.dir, "Direction", thresholdDiff );
       }
-      bool badPosition = 
-        CompareResponseVector3D( i, startPosition, positionHx, currentTrack.pos, "Position", thresholdDiff );
-      bool badDirection =
-        CompareResponseVector3D( i, startDirection, directionHx, currentTrack.dir, "Direction", thresholdDiff );
-
       const char* Outcome[2]={ "Good", " Bad" };
-      if( badPosition || badDirection) {
-        printf("%4s track (id= %3d)  e_kin= %8.4g stepReq= %9.5g (did: RK= %9.5g vs hlx= %9.5g , diff= %9.5g) iters= %5d\n ",
-               Outcome[badPosition||badDirection],
-               i, currentTrack.energy, geometricalStepLengthFromPhysics, geometryStepLength, helixStepLength,
-               geometryStepLength - helixStepLength, iterDone);
-        currentTrack.print(i, /* verbose= */ true );
+      bool problem = diffLength || badPosition || badDirection;
+      if( problem ) {
+         printf("%4s track (id= %3d)  e_kin= %8.4g stepReq= %9.5g (did: RK= %9.5g vs hlx= %9.5g , diff= %9.5g) iters= %5d\n ",
+                Outcome[problem],   // [diffLength||badPosition||badDirection],
+                slot, currentTrack.energy, geometricalStepLengthFromPhysics, geometryStepLength, helixStepLength,
+                geometryStepLength - helixStepLength, iterDone);
+         currentTrack.print(slot, /* verbose= */ true );
       }
+
 #endif
-      
+
 #else
-      fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);      
+      fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);     
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics, currentTrack.pos, currentTrack.dir,
           currentTrack.navState, nextState, propagated, safety);

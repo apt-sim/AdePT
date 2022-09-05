@@ -397,7 +397,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       };
 
       // printf("\n\n-- Top of loop ----------------------\n");
-      printf("\n\n-- Iteration %d \n", iteration);
+      // printf("\n\n-- Iteration %d \n", iteration);
       
       constexpr bool verbose = false;
       if( verbose )       
@@ -468,8 +468,8 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       // Count the number of particles in flight.
       inFlight = 0;
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-        inFlight += stats->inFlight[i];
-        // int npi= stats->inFlight[i];   inFlight += npi;    std::cout <<   [" << i << "]=" << npi << " ";
+         inFlight += stats->inFlight[i];
+         // int npi= stats->inFlight[i];   inFlight += npi;    std::cout <<  " [" << i << "]=" << npi << " ";
       }
 
 #if 0      
@@ -505,7 +505,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       if( verbose ) 
          std::cout << "End - iteration " << iteration << std::endl;
       else {
-         std::cout << " .. " << iteration;
+         // std::cout << " .. " << iteration;
          if( iteration % 5 == 0 ) { 
             if( iteration % 200 ) { std::cout << std::endl << " "; }
          }
@@ -518,14 +518,21 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
     
     if (inFlight > 0) {
       killed += inFlight;
+      
+      printf( "-- Tracks InFlight at the end (killed): \n");
+
+      const char* ParticleName[3]= { "Electron", "Positron", "Gamma" };
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
         ParticleType &pType   = particles[i];
         int inFlightParticles = stats->inFlight[i];
         if (inFlightParticles == 0) {
           continue;
         }
+        // printf("Type: %10s ", ParticleName[i] );
+        std::cout << " Type: " << ParticleName[i] << std::endl;
+        printTracks( pType.tracks,   pType.queues.currentlyActive, i, verbTrk, inFlightParticles );
 
-        ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);
+        ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);           
       }
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     }

@@ -33,7 +33,9 @@ public:
                                                          Vector3D &position, Vector3D &direction,
                                                          vecgeom::NavStateIndex const &current_state,
                                                          vecgeom::NavStateIndex &new_state, bool &propagated,
-                                                         Precision safety = 0, const int max_iteration = 100);
+                                                         int   slotIndex,   //   To identify slot / aid investigations
+                                                         Precision safety = 0.0,
+                                                         const int max_iteration = 100);
 
 private:
   Precision BzValue;
@@ -88,7 +90,8 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, Precision safety, const int max_iterations)
+    vecgeom::NavStateIndex &next_state, bool &propagated, int indx,   // Slot index (for printing to aid debugging/investigations)
+    const Precision safety,  const int max_iterations)
 {
   using Precision = vecgeom::Precision;
   #ifdef VECGEOM_FLOAT_PRECISION
@@ -122,6 +125,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
 
     Precision maxNextSafeMove = safeLength;
 
+    bool   lastWasZero = false;
     //  Locate the intersection of the curved trajectory and the boundaries of the current
     //    volume (including daughters).
     do {
@@ -154,6 +158,21 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         }
       }
 
+      static constexpr int ReduceIters  = 5;
+// #ifdef VERBOSE
+      if( safeLength < 1.0e-03 * physicsStep ) {
+         printf( "fpConstBz: very small safeMove = %10.5g  - vs physicsStep= %10.5g  \n", safeLength, physicsStep );
+         printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g chord-iter= %5d\n ",
+             "Short", indx, kinE, safeLength, chordIters);
+      }
+// #endif
+      if( lastWasZero && chordIters >= ReduceIters ) {
+// #ifdef VERBOSE
+         printf( "fpConstBz: LastWasZero> stepDone= %10.5g  - vs chordDist= %10.5g  \n", move, chordLen );
+// #endif
+         lastWasZero = false;
+      }
+      
       if (move == chordLen) {
         position  = endPosition;
         direction = endDirection;
@@ -165,13 +184,18 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         // FIXME: Even for zero steps, the Navigator will return kPush + possibly
         // Navigator::kBoundaryPush instead of a real 0.
         move = 0;
-
+        lastWasZero = true;
+    
         static constexpr Precision ReduceFactor = 0.5;
-        static constexpr Precision ReduceIters  = 5;
         // Reduce the step attempted in the next iteration to navigate around
         // boundaries where the chord step may end in a volume we just left.
         maxNextSafeMove   = ReduceFactor * safeMove;
         continueIteration = chordIters < ReduceIters;
+
+        if( continueIteration ){
+           printf("-fieldProp:Hx/Bz: Reducing safe-arc = %10.5g to %10.5g  E_k= %10.5g  iter=%3d  (indx=%2d)  dir= %7.6f %7.6f %7.6f (mag-1=%7.3g)\n",
+                  safeMove, maxNextSafeMove, kinE, chordIters, indx, chordDir[0], chordDir[1], chordDir[2], chordDir.Mag()-1.0 );           
+        }
       } else {
         // Accept the intersection point on the surface.  This means that
         //   the point at the boundary will be on the 'straight'-line chord,
