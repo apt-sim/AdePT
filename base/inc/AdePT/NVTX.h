@@ -58,7 +58,7 @@ public:
     if (rising) {
       setTag("occupancy rising");
     } else if (_name == "occupancy rising") {
-      setTag("peak occupancy");
+      setTag("peak occupancy (" + std::to_string(occupancy) + " in-flight)");
     } else {
       setTag("occupancy falling");
     }
