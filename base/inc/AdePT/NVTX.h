@@ -23,38 +23,28 @@ class NVTXTracer {
                                                        0xff00ffff, 0xffff0000, 0xffffffff};
   std::string _name;
   nvtxRangeId_t _id;
-  std::array<unsigned long, 10> _lastOccups;
+  std::array<unsigned long, 10> _lastOccups{};
   decltype(_lastOccups)::iterator _occupIt = _lastOccups.begin();
 
 public:
-  NVTXTracer(const char *name) : _name{name}
-  {
-    nvtxEventAttributes_t eventAttrib = {0};
-    eventAttrib.version               = NVTX_VERSION;
-    eventAttrib.size                  = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-    eventAttrib.colorType             = NVTX_COLOR_ARGB;
-    eventAttrib.color                 = nextColour();
-    eventAttrib.messageType           = NVTX_MESSAGE_TYPE_ASCII;
-    eventAttrib.message.ascii         = name;
-    _id                               = nvtxRangeStartEx(&eventAttrib);
-    _lastOccups.fill(0);
-  }
+  NVTXTracer(const std::string &name) { setTag(name, true); }
   ~NVTXTracer() { nvtxRangeEnd(_id); }
 
-  void setTag(const char *name)
+  void setTag(const std::string& name, bool first = false)
   {
     if (_name == name) return;
 
     _name = name;
 
-    nvtxRangeEnd(_id);
+    if (!first)
+      nvtxRangeEnd(_id);
     nvtxEventAttributes_t eventAttrib = {0};
     eventAttrib.version               = NVTX_VERSION;
     eventAttrib.size                  = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
     eventAttrib.colorType             = NVTX_COLOR_ARGB;
     eventAttrib.color                 = nextColour();
     eventAttrib.messageType           = NVTX_MESSAGE_TYPE_ASCII;
-    eventAttrib.message.ascii         = name;
+    eventAttrib.message.ascii         = _name.c_str();
     _id                               = nvtxRangeStartEx(&eventAttrib);
   }
 
