@@ -30,14 +30,13 @@ public:
   NVTXTracer(const std::string &name) { setTag(name, true); }
   ~NVTXTracer() { nvtxRangeEnd(_id); }
 
-  void setTag(const std::string& name, bool first = false)
+  void setTag(const std::string &name, bool first = false)
   {
     if (_name == name) return;
 
     _name = name;
 
-    if (!first)
-      nvtxRangeEnd(_id);
+    if (!first) nvtxRangeEnd(_id);
     nvtxEventAttributes_t eventAttrib = {0};
     eventAttrib.version               = NVTX_VERSION;
     eventAttrib.size                  = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
@@ -51,9 +50,9 @@ public:
   void setOccupancy(unsigned long occupancy)
   {
     // Require the occupancy to be larger than the majority of previous iterations to call it rising
-    const bool rising =
-        2 * std::count_if(_lastOccups.begin(), _lastOccups.end(), [occupancy](auto elm) { return occupancy > elm + 1; }) >
-        _lastOccups.size();
+    const bool rising = 2 * std::count_if(_lastOccups.begin(), _lastOccups.end(),
+                                          [occupancy](auto elm) { return occupancy > elm + 1; }) >
+                        _lastOccups.size();
 
     if (rising) {
       setTag("occupancy rising");
