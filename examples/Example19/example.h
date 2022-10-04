@@ -27,9 +27,9 @@ struct ScoringPerVolume {
 };
 
 struct GunConfig {
-  float position[3]  = {0., 0., 0.};
-  float direction[3] = {1., 0., 0.};
-  bool movingGun     = false;
+  float position[3];
+  float direction[3];
+  bool movingGun;
 };
 
 // Interface between C++ and CUDA.
