@@ -254,9 +254,18 @@ int main(int argc, char *argv[])
   scoringPerVolume.energyDeposit      = energyDeposit;
   GlobalScoring globalScoring;
 
+  const bool testEm3 = gdml_file.find("estEm3") != std::string::npos;
+  GunConfig gunConfig;
+  if (testEm3) {
+    gunConfig.position[0] = -220.;
+    gunConfig.position[1] = 0.;
+    gunConfig.position[2] = 0.;
+  }
+  gunConfig.movingGun = rotatingParticleGun;
+
   tracer.setTag("GPU function");
   runGPU(particles, energy, batch, MCCindex, &scoringPerVolume, &globalScoring, NumVolumes, NumPlaced, &hepEmState,
-         rotatingParticleGun);
+         gunConfig);
 
   std::cout << std::endl;
   std::cout << std::endl;
