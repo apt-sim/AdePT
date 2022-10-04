@@ -26,9 +26,14 @@ struct ScoringPerVolume {
   double *chargedTrackLength;
 };
 
+struct GunConfig {
+  float position[3];
+  float direction[3];
+  bool movingGun;
+};
+
 // Interface between C++ and CUDA.
 void runGPU(int numParticles, double energy, int batch, const int *MCCindex, ScoringPerVolume *scoringPerVolume,
-               GlobalScoring *globalScoring, int numVolumes, int numPlaced, G4HepEmState *state,
-               bool rotatingParticleGun);
+            GlobalScoring *globalScoring, int numVolumes, int numPlaced, G4HepEmState *state, GunConfig gunConfig);
 
 #endif

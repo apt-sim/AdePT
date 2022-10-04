@@ -105,8 +105,7 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t Capacity)
 
 // Kernel function to initialize a set of primary particles.
 __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int numEvents, double energy,
-                              const vecgeom::VPlacedVolume *world, GlobalScoring *globalScoring,
-                              bool rotatingParticleGun)
+                              const vecgeom::VPlacedVolume *world, GlobalScoring *globalScoring, const GunConfig gun)
 {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < numEvents; i += blockDim.x * gridDim.x) {
     Track &track = generator.NextTrack();
@@ -121,8 +120,8 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
     track.dynamicRangeFactor = -1.0;
     track.tlimitMin          = -1.0;
 
-    track.pos = {0, 0, 0};
-    if (rotatingParticleGun) {
+    track.pos = {gun.position[0], gun.position[1], gun.position[2]};
+    if (gun.movingGun) {
       // Generate particles flat in phi and in eta between -5 and 5. We'll lose the far forwards ones, so no need to
       // simulate.
       const double phi = 2. * M_PI * track.rngState.Rndm();
@@ -131,7 +130,7 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
       track.dir.y()    = static_cast<vecgeom::Precision>(sin(phi) / cosh(eta));
       track.dir.z()    = static_cast<vecgeom::Precision>(tanh(eta));
     } else {
-      track.dir = {1.0, 0, 0};
+      track.dir = {gun.direction[0], gun.direction[1], gun.direction[2]};
     }
     track.navState.Clear();
     BVHNavigator::LocatePointIn(world, track.pos, track.navState, true);
@@ -161,7 +160,7 @@ __global__ void ClearQueue(adept::MParray *queue)
 
 void runGPU(int numParticles, double energy, int batch, const int *MCIndex_host,
             ScoringPerVolume *scoringPerVolume_host, GlobalScoring *globalScoring_host, int numVolumes, int numPlaced,
-            G4HepEmState *state, bool rotatingParticleGun)
+            G4HepEmState *state, GunConfig gunConfig)
 {
   NVTXTracer tracer("InitG4HepEM");
   InitG4HepEmGPU(state);
@@ -298,7 +297,7 @@ void runGPU(int numParticles, double energy, int batch, const int *MCIndex_host,
     ParticleGenerator electronGenerator(electrons.tracks, electrons.slotManager, electrons.queues.currentlyActive);
     auto world_dev = vecgeom::cxx::CudaManager::Instance().world_gpu();
     InitPrimaries<<<initBlocks, InitThreads, 0, stream>>>(electronGenerator, startEvent, chunk, energy, world_dev,
-                                                          globalScoring, rotatingParticleGun);
+                                                          globalScoring, gunConfig);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
 
     stats->inFlight[ParticleType::Electron] = chunk;

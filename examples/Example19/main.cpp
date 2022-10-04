@@ -194,7 +194,15 @@ int main(int argc, char *argv[])
   OPTION_DOUBLE(energy, 10); // entered in GeV
   energy *= copcore::units::GeV;
   OPTION_INT(batch, 52);
+  OPTION_STRING(gunpos, "0,0,0");
+  OPTION_STRING(gundir, "1,0,0");
   OPTION_BOOL(rotatingParticleGun, false);
+
+  // parse gun config
+  GunConfig gunConfig{};
+  std::sscanf(gunpos.c_str(), "%f,%f,%f", &gunConfig.position[0], &gunConfig.position[1], &gunConfig.position[2]);
+  std::sscanf(gundir.c_str(), "%f,%f,%f", &gunConfig.direction[0], &gunConfig.direction[1], &gunConfig.direction[2]);
+  gunConfig.movingGun = rotatingParticleGun;
 
   vecgeom::Stopwatch timer;
   timer.Start();
@@ -256,7 +264,7 @@ int main(int argc, char *argv[])
 
   tracer.setTag("GPU function");
   runGPU(particles, energy, batch, MCCindex, &scoringPerVolume, &globalScoring, NumVolumes, NumPlaced, &hepEmState,
-         rotatingParticleGun);
+         gunConfig);
 
   std::cout << std::endl;
   std::cout << std::endl;

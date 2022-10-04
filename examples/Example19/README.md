@@ -13,6 +13,8 @@ Example based on Example 18, but the workflow is split in smaller kernels. This 
  * G4HepEm material-cuts couple indices mapped to VecGeom logical volume id's
  * physics processes for e-/e+ (including MSC) and gammas using G4HepEm.
  * scoring per placed volume, no sensitive detector feature
+ * configurable particle gun via command line arguments
+   * E.g., use `-gunpos -220,0,0 -gundir 1,0,0` for `testEm3.gdml`. For `cms2018.gdml`, the default gun is correct.
 
 Electrons, positrons, and gammas are stored in separate containers in device memory.
 Free positions in the storage are handed out with monotonic slot numbers, slots are not reused.
