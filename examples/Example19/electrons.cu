@@ -326,13 +326,21 @@ __device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaD
   const int lvolID     = volume->GetLogicalVolume()->id();
   const int theMCIndex = MCIndex[lvolID];
 
-  auto survive = [&] { activeQueue->push_back(globalSlot); };
+  __shared__ std::byte rngSM[ThreadsPerBlock * sizeof(RanluxppDouble)];
+
+  auto &rngState = reinterpret_cast<RanluxppDouble *>(rngSM)[threadIdx.x];
+  rngState       = currentTrack.rngState;
+
+  auto survive = [&] {
+    currentTrack.rngState = rngState;
+    activeQueue->push_back(globalSlot);
+  };
 
   const double energy   = currentTrack.energy;
   const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
 
-  RanluxppDouble newRNG{currentTrack.rngState.Branch()};
-  G4HepEmRandomEngine rnge{&currentTrack.rngState};
+  RanluxppDouble newRNG{rngState.Branch()};
+  G4HepEmRandomEngine rnge{&rngState};
 
   if constexpr (ProcessIndex == 0) {
     // Invoke ionization (for e-/e+):
@@ -397,7 +405,7 @@ __device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaD
 
     gamma2.InitAsSecondary(/*parent=*/currentTrack);
     // Reuse the RNG state of the dying track.
-    gamma2.rngState = currentTrack.rngState;
+    gamma2.rngState = rngState;
     gamma2.energy   = theGamma2Ekin;
     gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
