@@ -13,6 +13,7 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmRandomEngine.hh>
 
+#ifdef __CUDA_ARCH__
 // Define inline implementations of the RNG methods for the device.
 // (nvcc ignores the __device__ attribute in definitions, so this is only to
 // communicate the intent.)
@@ -27,6 +28,7 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
     vect[i] = ((RanluxppDouble *)fObject)->Rndm();
   }
 }
+#endif
 
 struct LeakedTracks {
   adept::TrackManager<Track> *trackmgr;

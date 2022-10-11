@@ -60,6 +60,7 @@ struct SOAData {
   double *gamma_PEmxSec = nullptr;
 };
 
+#ifdef __CUDA_ARCH__
 // Define inline implementations of the RNG methods for the device.
 // (nvcc ignores the __device__ attribute in definitions, so this is only to
 // communicate the intent.)
@@ -74,6 +75,7 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
     vect[i] = ((RanluxppDouble *)fObject)->Rndm();
   }
 }
+#endif
 
 // A data structure to manage slots in the track storage.
 class SlotManager {
