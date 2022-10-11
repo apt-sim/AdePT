@@ -84,6 +84,7 @@ static void FreeG4HepEm(G4HepEmState *state)
   delete state;
 }
 
+#ifdef __CUDA_ARCH__
 // Define inline implementations of the RNG methods for the device.
 // (nvcc ignores the __device__ attribute in definitions, so this is only to
 // communicate the intent.)
@@ -98,6 +99,7 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
     vect[i] = ((RanluxppDouble *)fObject)->Rndm();
   }
 }
+#endif
 
 __global__ void TransportParticle()
 {
