@@ -32,11 +32,15 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];
-    auto volume         = currentTrack.navState.Top();
-    int volumeID        = volume->id();
+    const auto volume   = currentTrack.navState.Top();
+    const int volumeID  = volume->id();
     // the MCC vector is indexed by the logical volume id
-    int lvolID     = volume->GetLogicalVolume()->id();
-    int theMCIndex = MCIndex[lvolID];
+    const int lvolID     = volume->GetLogicalVolume()->id();
+    const int theMCIndex = MCIndex[lvolID];
+
+    auto survive = [&](bool push = true) {
+      if (push) activeQueue->push_back(slot);
+    };
 
     // Signal that this slot doesn't undergo an interaction (yet)
     soaData.nextInteraction[i] = -1;
@@ -95,16 +99,16 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(slot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
         currentTrack.navState = nextState;
+        survive();
       }
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(slot);
+      survive();
       continue;
     }
 
@@ -114,6 +118,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     soaData.nextInteraction[i] = winnerProcessIndex;
     soaData.gamma_PEmxSec[i] = gammaTrack.GetPEmxSec();
+    survive(false);
   }
 }
 
@@ -123,12 +128,14 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
                                  ScoringPerVolume *scoringPerVolume)
 {
   Track &currentTrack = particles[globalSlot];
-  auto volume         = currentTrack.navState.Top();
+  const auto volume   = currentTrack.navState.Top();
   const int volumeID  = volume->id();
   // the MCC vector is indexed by the logical volume id
   const int lvolID     = volume->GetLogicalVolume()->id();
   const int theMCIndex = MCIndex[lvolID];
   const auto energy    = currentTrack.energy;
+
+  auto survive = [&] { activeQueue->push_back(globalSlot); };
 
   RanluxppDouble newRNG{currentTrack.rngState.Branch()};
   G4HepEmRandomEngine rnge{&currentTrack.rngState};
@@ -136,7 +143,7 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
   if constexpr (ProcessIndex == 0) {
     // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
     if (energy < 2 * copcore::units::kElectronMassC2) {
-      activeQueue->push_back(globalSlot);
+      survive();
       return;
     }
 
@@ -171,7 +178,7 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
     // Invoke Compton scattering of gamma.
     constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
     if (energy < LowEnergyThreshold) {
-      activeQueue->push_back(globalSlot);
+      survive();
       return;
     }
     const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
@@ -200,9 +207,7 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
     if (newEnergyGamma > LowEnergyThreshold) {
       currentTrack.energy = newEnergyGamma;
       currentTrack.dir    = newDirGamma;
-
-      // The current track continues to live.
-      activeQueue->push_back(globalSlot);
+      survive();
     } else {
       atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
       atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);

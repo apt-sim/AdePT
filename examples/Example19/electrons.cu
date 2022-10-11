@@ -47,11 +47,15 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int globalSlot = (*active)[i];
     Track &currentTrack  = electrons[globalSlot];
-    auto volume          = currentTrack.navState.Top();
-    int volumeID         = volume->id();
+    const auto volume    = currentTrack.navState.Top();
+    const int volumeID   = volume->id();
     // the MCC vector is indexed by the logical volume id
-    int lvolID     = volume->GetLogicalVolume()->id();
-    int theMCIndex = MCIndex[lvolID];
+    const int lvolID     = volume->GetLogicalVolume()->id();
+    const int theMCIndex = MCIndex[lvolID];
+
+    auto survive = [&](bool push = true) {
+      if (push) activeQueue->push_back(globalSlot);
+    };
 
     // Signal that this globalSlot doesn't undergo an interaction (yet)
     soaData.nextInteraction[i] = -1;
@@ -252,21 +256,21 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        activeQueue->push_back(globalSlot);
         BVHNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, nextState);
 
         // Move to the next boundary.
         currentTrack.navState = nextState;
+        survive();
       }
       continue;
     } else if (!propagated || restrictedPhysicalStepLength) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      activeQueue->push_back(globalSlot);
+      survive();
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      activeQueue->push_back(globalSlot);
+      survive();
       continue;
     }
 
@@ -277,11 +281,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if a delta interaction happens instead of the real discrete process.
     if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
       // A delta interaction happened, move on.
-      activeQueue->push_back(globalSlot);
+      survive();
       continue;
     }
 
     soaData.nextInteraction[i] = winnerProcessIndex;
+
+    survive(false);
   }
 }
 
@@ -307,10 +313,12 @@ __device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaD
                                     GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume)
 {
   Track &currentTrack = particles[globalSlot];
-  auto volume         = currentTrack.navState.Top();
+  const auto volume   = currentTrack.navState.Top();
   // the MCC vector is indexed by the logical volume id
   const int lvolID     = volume->GetLogicalVolume()->id();
   const int theMCIndex = MCIndex[lvolID];
+
+  auto survive = [&] { activeQueue->push_back(globalSlot); };
 
   const double energy   = currentTrack.energy;
   const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fSecElProdCutE;
@@ -337,8 +345,7 @@ __device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaD
 
     currentTrack.energy = energy - deltaEkin;
     currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-    // The current track continues to live.
-    activeQueue->push_back(globalSlot);
+    survive();
   } else if constexpr (ProcessIndex == 1) {
     // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
     double logEnergy = std::log(energy);
@@ -362,8 +369,7 @@ __device__ void ElectronInteraction(int const globalSlot, SOAData const & /*soaD
 
     currentTrack.energy = energy - deltaEkin;
     currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-    // The current track continues to live.
-    activeQueue->push_back(globalSlot);
+    survive();
   } else if constexpr (ProcessIndex == 2) {
     // Invoke annihilation (in-flight) for e+
     double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
