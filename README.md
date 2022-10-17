@@ -23,6 +23,12 @@ $ cmake -S. -B./veccore-build -DCMAKE_INSTALL_PREFIX="<path_to_veccore_installat
 $ cmake --build ./veccore-build --target install
 ```
 
+Add your CUDA installation to the PATH and LD_LIBRARY_PATH environment variables, as in:
+```console
+$ export PATH=${PATH}:/usr/local/cuda/bin
+$ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
+```
+
 Find the CUDA architecture for the target GPU. If you installed the CUDA demo suite, the fastest way is to use the deviceQuery executable from `extras/demo_suite`. This lists the CUDA capability for all installed GPUs, remember the value for your target:
 ```console
 $ /usr/local/cuda/extras/demo_suite/deviceQuery
@@ -38,11 +44,11 @@ To configure and build VecGeom, use the configuration options below, using as <c
 $ cmake -S. -B./vecgeom-build \
   -DCMAKE_INSTALL_PREFIX="<path_to_vecgeom_installation>" \
   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>" \
-  -DCUDA=ON \
-  -DGDML=ON \
+  -DVECGEOM_ENABLE_CUDA=ON \
+  -DVECGEOM_GDML=ON \
   -DBACKEND=Scalar \
-  -DCUDA_ARCH=<cuda_architecture> \
-  -DUSE_NAVINDEX=ON \
+  -DCMAKE_CUDA_ARCHITECTURES=<cuda_architecture> \
+  -DVECGEOM_USE_NAVINDEX=ON \
   -DCMAKE_BUILD_TYPE=Release
 $ cmake --build ./vecgeom-build --target install -- -j6 ### build using 6 threads and install
 ```
