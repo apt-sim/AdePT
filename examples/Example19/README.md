@@ -33,7 +33,7 @@ They are synchronized via a fourth stream using CUDA events.
 1. Obtain safety unless the track is currently on a boundary.
 2. Determine physics step limit, including conversion to geometric step length according to MSC.
 3. Query geometry (or optionally magnetic field) to get geometry step length.
-4. Convert geometry to true step length according to MSC, apply net direction change and discplacement.
+4. Convert geometry to true step length according to MSC, apply net direction change and displacement.
 5. Apply continuous effects; kill track if stopped.
 6. If the particle reaches a boundary, perform relocation.
 7. If not, and if there is a discrete process, hand over to interaction kernel.
