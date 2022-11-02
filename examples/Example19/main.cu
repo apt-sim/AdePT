@@ -218,8 +218,6 @@ void runGPU(int numParticles, double energy, int batch, const int *MCIndex_host,
     COPCORE_CUDA_CHECK(
         cudaMalloc(&particles[i].soaData.nextInteraction, sizeof(SOAData::nextInteraction[0]) * Capacity));
   }
-  COPCORE_CUDA_CHECK(
-      cudaMalloc(&particles[ParticleType::Gamma].soaData.gamma_PEmxSec, sizeof(SOAData::gamma_PEmxSec[0]) * Capacity));
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   ParticleType &electrons = particles[ParticleType::Electron];
@@ -506,6 +504,5 @@ void runGPU(int numParticles, double energy, int batch, const int *MCIndex_host,
     COPCORE_CUDA_CHECK(cudaEventDestroy(particles[i].event));
 
     COPCORE_CUDA_CHECK(cudaFree(particles[i].soaData.nextInteraction));
-    if (particles[i].soaData.gamma_PEmxSec) COPCORE_CUDA_CHECK(cudaFree(particles[i].soaData.gamma_PEmxSec));
   }
 }

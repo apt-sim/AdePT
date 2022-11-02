@@ -57,7 +57,6 @@ struct Track {
 // Struct for communication between kernels
 struct SOAData {
   char *nextInteraction = nullptr;
-  double *gamma_PEmxSec = nullptr;
 };
 
 #ifdef __CUDA_ARCH__
