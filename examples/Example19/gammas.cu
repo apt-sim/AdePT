@@ -134,10 +134,18 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
   const int theMCIndex = MCIndex[lvolID];
   const auto energy    = currentTrack.energy;
 
-  auto survive = [&] { activeQueue->push_back(globalSlot); };
+  __shared__ std::byte rngSM[ThreadsPerBlock * sizeof(RanluxppDouble)];
 
-  RanluxppDouble newRNG{currentTrack.rngState.Branch()};
-  G4HepEmRandomEngine rnge{&currentTrack.rngState};
+  auto &rngState = reinterpret_cast<RanluxppDouble *>(rngSM)[threadIdx.x];
+  rngState       = currentTrack.rngState;
+
+  auto survive = [&] {
+    currentTrack.rngState = rngState;
+    activeQueue->push_back(globalSlot);
+  };
+
+  RanluxppDouble newRNG{rngState.Branch()};
+  G4HepEmRandomEngine rnge{&rngState};
 
   if constexpr (ProcessIndex == 0) {
     // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
@@ -168,7 +176,7 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
 
     positron.InitAsSecondary(/*parent=*/currentTrack);
     // Reuse the RNG state of the dying track.
-    positron.rngState = currentTrack.rngState;
+    positron.rngState = rngState;
     positron.energy   = posKinEnergy;
     positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 

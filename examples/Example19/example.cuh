@@ -140,7 +140,7 @@ template <int ProcessIndex, typename Func, typename... Args>
 __device__ void InteractionLoop(Func interactionFunction, adept::MParray const *active, SOAData const soaData,
                                 Args &&...args)
 {
-  constexpr unsigned int sharedSize = 8192;
+  constexpr unsigned int sharedSize = 7166;
   __shared__ int candidates[sharedSize];
   __shared__ unsigned int counter;
   __shared__ int threadsRunning;
