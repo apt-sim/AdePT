@@ -117,7 +117,6 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
     soaData.nextInteraction[i] = winnerProcessIndex;
-    soaData.gamma_PEmxSec[i] = gammaTrack.GetPEmxSec();
     survive(false);
   }
 }
@@ -217,8 +216,12 @@ __device__ void GammaInteraction(int const globalSlot, SOAData const &soaData, i
     // Invoke photoelectric process.
     const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
+    // (Re)compute total macroscopic cross section
+    const int theMatIndx = g4HepEmData.fTheMatCutData->fMatCutData[theMCIndex].fHepEmMatIndex;
+    double mxsec = G4HepEmGammaManager::GetMacXSecPE(&g4HepEmData, theMatIndx, energy);
+
     const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-        &g4HepEmData, theMCIndex, soaData.gamma_PEmxSec[soaSlot], energy, &rnge);
+        &g4HepEmData, theMCIndex, mxsec, energy, &rnge);
 
     double edep             = bindingEnergy;
     const double photoElecE = energy - edep;
