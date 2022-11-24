@@ -26,7 +26,7 @@ bool  CompareResponseVector3D(
         ( resultVec - baselineVec ).Mag() > thresholdRel * magMoveBase 
       ){
       // printf("Difference seen in vector %s : ", vecName );
-      printf(" id %3d - Diff in %s: "
+      printf("\n id %3d - Diff in %s: "
              " new-base= %14.9g %14.9g %14.9g (mag= %14.9g) "
              " mv_Res/mv_Base-1 = %7.3g | mv/base: 3v= %14.9g %14.9g %14.9g (mag= %9.4g)"
              " | mv/new: 3v= %14.9g %14.9g %14.9g (mag = %14.9g)"

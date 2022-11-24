@@ -237,6 +237,9 @@ void printActiveTracks( ParticleType& electrons, ParticleType& positrons, Partic
   std::cout << std::endl;
 }
 
+// #define VERBOSE_REPORT  1
+//    To obtain information both intermediately in an iteration and at the end
+
 void example15(int numParticles, double energy, int batch, const int *MCIndex_host,
                ScoringPerVolume *scoringPerVolume_host, GlobalScoring *globalScoring_host, int numVolumes,
                int numPlaced, G4HepEmState *state, bool rotatingParticleGun)
@@ -253,6 +256,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
   constexpr int Capacity = 256 * 1024;
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
+  std::cout << "INFO: number of particles = " << numParticles << std::endl;
   if (batch == -1) {
     // Rule of thumb: at most 2000 particles of one type per GeV primary.
     batch = Capacity / ((int)energy / copcore::units::GeV) / 2000;
@@ -265,6 +269,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
   } else {
     std::cout << "INFO: running with magnetic field OFF" << std::endl;
   }
+  std::cout<<std::flush;
 
   // Allocate structures to manage tracks of an implicit type:
   //  * memory to hold the actual Track elements,
@@ -341,8 +346,10 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
   vecgeom::Stopwatch timer;
   timer.Start();
 
+  std::cout << "Entering loop to simulate " << numParticles << " particles. " << std::flush;
+  
   std::cout << std::endl << "Simulating particles ";
-  const bool detailed = (numParticles / batch) < 50;
+  const bool detailed = true; //  (numParticles / batch) < 50;
   if (!detailed) {
     std::cout << "... " << std::flush;
   }
@@ -387,9 +394,11 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
 
     int iteration= 0;
 
+#ifdef VERBOSE_REPORT
     bool verbTrk = true;
     // printf("\n-- Initial tracks ----------------------\n");
     // printActiveTracks( electrons, positrons, gammas, verbTrk );
+#endif
 
     do {
       Secondaries secondaries = {
@@ -482,11 +491,11 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
          // int npi= stats->inFlight[i];   inFlight += npi;    std::cout <<  " [" << i << "]=" << npi << " ";
       }
 
-#if 0      
+#ifdef VERBOSE_REPORT
       std::cout << "-- Tracks BEFORE Swap - next tracks, i.e. those moved aside last turn? \n";
-      printTracks( electrons.tracks, electrons.queues.nextActive, Electron, verbTrk, numElectrons );
-      printTracks( positrons.tracks, positrons.queues.nextActive, Positron, verbTrk, numPositrons );
-      printTracks( gammas.tracks,  gammas.queues.nextActive, Gamma, verbTrk, numGammas );
+      printTracks( electrons.tracks, electrons.queues.nextActive, ParticleType::Electron, verbTrk, numElectrons );
+      printTracks( positrons.tracks, positrons.queues.nextActive, ParticleType::Positron, verbTrk, numPositrons );
+      printTracks( gammas.tracks,  gammas.queues.nextActive, ParticleType::Gamma, verbTrk, numGammas );
       std::cout << std::endl;
 #endif
 
@@ -500,10 +509,12 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       numPositrons = stats->inFlight[ParticleType::Positron];
       numGammas    = stats->inFlight[ParticleType::Gamma];
 
-      // std::cout << " Tracks AFTER Swap \n";
-      // std::cout << " Remaining:  e- " << numElectrons << " g " << numGammas << " e+ " << numPositrons << "\n";
-      // printActiveTracks( electrons, positrons, gammas, verbTrk );
-      
+#ifdef VERBOSE_REPORT
+      std::cout << " Tracks AFTER Swap \n";
+      std::cout << " Remaining:  e- " << numElectrons << " g " << numGammas << " e+ " << numPositrons << "\n";
+      printActiveTracks( electrons, positrons, gammas, verbTrk );
+#endif
+
       if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
         loopingNo++;
       } else {
@@ -519,8 +530,8 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
          // if( iteration % 500 == 0 ) { std::cout << std::endl << " "; }
       }
       iteration++;
-
-      if( printStats && ( iteration % 50 == 0 ) ) {
+      const int  iterModPrint = 25;  // Every how many to print info
+      if( printStats && ( iteration % iterModPrint == 0 ) ) {
          printf("Iteration = %6d   event = %4d   inflight= %4d   iter looping=%3d \n" , iteration, startEvent, inFlight, loopingNo );
       } 
       
@@ -532,11 +543,8 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
        printf( "-- Tracks:  %5d InFlight at the end (killed).  Iterations needed = %4d \n", inFlight, iteration );
     }
 
-// #define VERBOSE_REPORT  1
-    
     if (inFlight > 0) {
       killed += inFlight;
-      const char* ParticleName[3]= { "Electron", "Positron", "Gamma" };
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
         ParticleType &pType   = particles[i];
         int inFlightParticles = stats->inFlight[i];
@@ -544,6 +552,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
           continue;
         }
 #ifdef VERBOSE_REPORT
+        const char* ParticleName[3]= { "Electron", "Positron", "Gamma" };
         printf("Type: %10s ", ParticleName[i] );
         // std::cout << " Type: " << ParticleName[i] << std::endl;
         printTracks( pType.tracks,   pType.queues.currentlyActive, i, verbTrk, inFlightParticles );
