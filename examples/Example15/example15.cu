@@ -355,7 +355,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
   }
   
   bool printStats= false;
-  constexpr bool verbose = false;
 
   unsigned long long killed = 0;
 
@@ -394,12 +393,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
 
     int iteration= 0;
 
-#ifdef VERBOSE_REPORT
-    bool verbTrk = true;
-    // printf("\n-- Initial tracks ----------------------\n");
-    // printActiveTracks( electrons, positrons, gammas, verbTrk );
-#endif
-
     do {
       Secondaries secondaries = {
           .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
@@ -410,9 +403,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       // printf("\n\n-- Top of loop ----------------------\n");
       // printf("\n\n-- Iteration %d \n", iteration);
 
-      if( verbose )
-         std::cout << " Dispatching electrons ... \n";
-      
       // *** ELECTRONS ***
       int numElectrons = stats->inFlight[ParticleType::Electron];
       if (numElectrons > 0) {
@@ -430,9 +420,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       // Extra sync for debugging !!? JA 2022.09.19
       // COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
       
-      if( verbose )
-         std::cout << " Dispatching positrons ... \n";
-
       // *** POSITRONS ***
       int numPositrons = stats->inFlight[ParticleType::Positron];
       if (numPositrons > 0) {
@@ -450,9 +437,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       // Extra sync for debugging !!? JA 2022.09.19
       // COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
       
-      if( verbose )
-         std::cout << " Dispatching gammas   ... \n";
-
       // *** GAMMAS ***
       int numGammas = stats->inFlight[ParticleType::Gamma];
       if (numGammas > 0) {
@@ -472,9 +456,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       // Extra sync for debugging !!? JA 2022.09.19
       // COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
       
-      if( verbose )
-         std::cout << " End of transport - waiting for transport to finish." ;
-       
       // The events ensure synchronization before finishing this iteration and
       // copying the Stats back to the host.
       AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
@@ -491,14 +472,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
          // int npi= stats->inFlight[i];   inFlight += npi;    std::cout <<  " [" << i << "]=" << npi << " ";
       }
 
-#ifdef VERBOSE_REPORT
-      std::cout << "-- Tracks BEFORE Swap - next tracks, i.e. those moved aside last turn? \n";
-      printTracks( electrons.tracks, electrons.queues.nextActive, ParticleType::Electron, verbTrk, numElectrons );
-      printTracks( positrons.tracks, positrons.queues.nextActive, ParticleType::Positron, verbTrk, numPositrons );
-      printTracks( gammas.tracks,  gammas.queues.nextActive, ParticleType::Gamma, verbTrk, numGammas );
-      std::cout << std::endl;
-#endif
-
       // Swap the queues for the next iteration.
       electrons.queues.SwapActive();
       positrons.queues.SwapActive();
@@ -508,12 +481,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       numElectrons = stats->inFlight[ParticleType::Electron];
       numPositrons = stats->inFlight[ParticleType::Positron];
       numGammas    = stats->inFlight[ParticleType::Gamma];
-
-#ifdef VERBOSE_REPORT
-      std::cout << " Tracks AFTER Swap \n";
-      std::cout << " Remaining:  e- " << numElectrons << " g " << numGammas << " e+ " << numPositrons << "\n";
-      printActiveTracks( electrons, positrons, gammas, verbTrk );
-#endif
 
       if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
         loopingNo++;
@@ -551,12 +518,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
         if (inFlightParticles == 0) {
           continue;
         }
-#ifdef VERBOSE_REPORT
-        const char* ParticleName[3]= { "Electron", "Positron", "Gamma" };
-        printf("Type: %10s ", ParticleName[i] );
-        // std::cout << " Type: " << ParticleName[i] << std::endl;
-        printTracks( pType.tracks,   pType.queues.currentlyActive, i, verbTrk, inFlightParticles );
-#endif
         ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);           
       }
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
