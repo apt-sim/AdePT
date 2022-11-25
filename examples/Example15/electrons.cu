@@ -202,8 +202,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
       Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           currentTrack.energy, Mass, Charge, geometricalStepLengthFromPhysics,
-          positionHx, directionHx, currentTrack.navState, nextStateHx, propagatedHx, slot, safety,
-          max_iterations );
+          positionHx, directionHx, currentTrack.navState, nextStateHx, propagatedHx, safety, 
+          slot, max_iterations );
          // activeSize < 100 ? max_iterations : max_iters_tail );
       // End   Baseline reply
 #endif

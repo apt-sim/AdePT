@@ -33,8 +33,8 @@ public:
                                                          Vector3D &position, Vector3D &direction,
                                                          vecgeom::NavStateIndex const &current_state,
                                                          vecgeom::NavStateIndex &new_state, bool &propagated,
-                                                         int   slotIndex,   //   To identify slot / aid investigations
                                                          Precision safety = 0.0,
+                                                         int   slotIndex = -1,  //   To identify slot / aid investigations
                                                          const int max_iteration = 100);
 
 private:
