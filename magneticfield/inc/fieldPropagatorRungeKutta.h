@@ -143,11 +143,6 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
     Real_t hAdvanced = 0;     //  length integrated this iteration (of do-while)
     Real_t  dydx_end[Nvar];
     
-#if VERBOSE_STEP_IN_THREAD
-    const vecgeom::Vector3D<Real_t> posBegin= position;    // For print
-    const vecgeom::Vector3D<Real_t> momBegin= momentumVec; //   >>
-#endif
-
     bool done=
        RkDriver_t::Advance( position, momentumVec, charge, lenRemains, magField, hTry, dydx_end,
                             hAdvanced, totalTrials,
@@ -161,27 +156,6 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
     totLen+= hAdvanced;
     loopCt++;
 
-// #define  VERBOSE_STEP_IN_THREAD  1
-#if VERBOSE_STEP_IN_THREAD
-    if( hAdvanced == 0.0 ) {
-       const vecgeom::Vector3D<Real_t> deltaPos= position - posBegin;
-       const vecgeom::Vector3D<Real_t> deltaMomentum= momentumVec - momBegin;
-       
-       printf("-fpRK-loop %s, id %3d call %4d lpCt %2d sum-iters %3d  hdid= %9.5g totLen= %9.5g lenRemains= %9.5g "
-              " ret= %1d #=  pos = %9.6g %9.6g %9.6g   momemtumV= %14.9g %14.9g %14.9g  hTry= %7.4g  remains= %7.4g "
-              "  Delta-pos= %9.6g %9.6g %9.6g  (mag= %8.6g)  Delta-mom= %9.6g %9.6g %9.6g (mag= %8.6g) "
-              " \n",
-              "hAdvanced = ZERO", //    Reflect if( .. ) condition above !!
-              id, callNum, loopCt, totalTrials, hAdvanced, totLen, lenRemains,
-              done,
-              position[0], position[1], position[2],
-              momentumVec[0], momentumVec[1], momentumVec[2],
-              hTry, lenRemains
-              , deltaPos[0], deltaPos[1], deltaPos[2], deltaPos.Mag()
-              , deltaMomentum[0], deltaMomentum[1], deltaMomentum[2], deltaMomentum.Mag()
-          );
-    }
-#endif
     // sumAdvanced += hAdvanced;  // Gravy ..
 
   } while ( unfinished  && (totalTrials < fMaxTrials) );
@@ -190,37 +164,6 @@ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
   if( loopCt > 1 && verbose ) { printf( " fieldPropagatorRK: id %3d call %4d --- LoopCt reached %d ", id, callNum, loopCt );  }
      
 }
-
-#if 0
-template<class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
-inline __host__ __device__
-bool fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::IntegrateOneStep(
-      Field_t const & magField,
-      vecgeom::Vector3D<Real_t> & position,
-      vecgeom::Vector3D<Real_t> & momentumVec,
-      int       charge,
-      Real_t  & lenRemains,
-      Real_t  & hTry,          //  Trial step size
-      Real_t  & hAdvanced,     //  Length advanced
-      int     & totalTrials
-   )
-//  Return whether full length was completed
-{
-  Real_t  hTry = stepLength;    // suggested 'good' length per integration step
-  bool unfinished = true;
-
-  hAdvanced = 0;           //  length integrated this iteration
-  Real_t  dydx_end[Nvar];
-    
-  bool done=
-       RkDriver_t::Advance( position, momentumVec, charge, lenRemains, magField, hTry, dydx_end,
-                            hAdvanced, totalTrials, trialsPerCall);
-    //   Runge-Kutta single call ( number of steps <= trialsPerCall )
-    
-  lenRemains -= hAdvanced;
-  return done;
-}
-#endif
 
 // ----------------------------------------------------------------------------
 
@@ -243,7 +186,6 @@ bool fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
 
   Real_t  hTry = stepLength;    // suggested 'good' length per integration step
   bool    done= false;
-  // bool unfinished = true;
 
   int     totalTrials= 0;
   Real_t  hAdvanced = 0;     //  length integrated this iteration (of do-while)  
@@ -262,36 +204,6 @@ bool fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::Integr
 
   return done; 
 }
-
-
-/********************
-ComputeIntersection
-{
-  done =     
-     Driver_t::Advance( Position, momentumVec, charge, hLength,
-                          magField, hTry, dydx_end,
-                          hAdvanced, totalTrials, trialsPerCall);
-    // Runge-Kutta single call
-    
-    Real_t yPosMom[Nvar] = { Position[0], Position[1], Position[2],
-                             momentumVec[0], momentumVec[1], momentumVec[2] } ;    
-    sumAdvanced += hAdvanced;
-    
-    Vector3D<float> magFieldEnd;
-    Equation_t::EvaluateDerivativesReturnB(magField, yPosMom, charge, dy_ds, magFieldEnd);  
-    Real_t magFieldEndArr[3] = { magFieldEnd[0],   magFieldEnd[1],   magFieldEnd[2] };
-
-    //--- PrintFieldVectors::PrintSixvecAndDyDx(
-    PrintFieldVectors::PrintLineSixvecDyDx( yPosMom, charge, magFieldEndArr, // dydx_end );
-                                            dy_ds);
-    
-    hLength -= hAdvanced;
-    done = (hLength <= 0.0);
-
-  } while ( ! done );
-   
-}
-**********/
 
 template<typename Real_t>
 inline __host__ __device__ Real_t
@@ -319,16 +231,6 @@ inverseCurvature(
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 
-// #define CHECK_EVERY_SUBSTEP  1
-
-#ifdef CHECK_EVERY_SUBSTEP
-//  Extra check at each integration that the result agrees with Helix/Bz
-#include "ConstBzFieldStepper.h"
-#include "ConstFieldHelixStepper.h"
-
-#include "CompareResponses.h" 
-#endif
-
 template<class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
 inline __host__ __device__ Real_t
 fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeStepAndNextVolume(
@@ -345,30 +247,20 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
     , int   indx
    )
 {
-  using copcore::units::MeV;
+   // using copcore::units::MeV;
   
   const Real_t momentumMag   = sqrt(kinE * (kinE + 2.0 * mass));
   vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
-  /** Printf( " momentum Mag = %9.3g MeV/c , from kinE = %9.4g MeV , mass = %5.3g MeV - check E^2-p^2-m0^2= %7.3g MeV^2\n",
-          momentumMag / MeV, kinE / MeV, mass / MeV,
-          ( 2 * mass * kinE + kinE * kinE - momentumMag * momentumMag ) / (MeV * MeV) );  **/
 
   vecgeom::Vector3D<Real_t>  B0fieldVec = { 0.0, 0.0, 0.0 };  // Field value at starting point
   magField.Evaluate( position, B0fieldVec );
   
   Real_t inv_curv = inverseCurvature /*<Real_t>*/ ( momentumVec, B0fieldVec, charge );
-  // printf( "   B-field = %9.3g (T)   momentum_P = %9.5g (MeV/c)  R = inv_curv = %9.5f (cm) \n",
-  //         B0fieldVec.Mag(),   momentumVec.Mag() / copcore::units::MeV ,  inv_curv / copcore::units::millimeter );
-  // constexpr Real_t invEpsD= 1.0 / gEpsilonDeflect;
   
   // acceptable lateral error from field ~ related to delta_chord sagital distance
   const Real_t safeLength =
      sqrt( Real_t(2.0) * fieldConstants::gEpsilonDeflect * inv_curv); // max length along curve for deflectionn
                                         // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
-
-  const bool verbose= false;
-  if( verbose )
-     printf("-fP/RK:  %d  1/R_curv = %12.8g  safeLength= %10.7g \n", indx, inv_curv, safeLength);
 
   Precision maxNextSafeMove = safeLength; // It can be reduced if, at the start, a boundary is encountered
   
@@ -403,48 +295,17 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       
       IntegrateTrackToEnd( magField, endPosition, endMomentumVec, charge, safeArc, indx);
       //-----------------
-#ifdef CHECK_EVERY_SUBSTEP
-      if( safeArc < 1.0e-03 * physicsStep && !lastWasZero ) {
-         printf( "fpConstRK WARNING> very small safeMove = %10.5g  - vs physicsStep= %10.5g  (id = %3d) \n", safeArc, physicsStep, indx );
-         printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g (safeLen= %10.7g) chord-iter= %5d\n ",
-                "Short", indx, kinE, safeArc, safeLength, chordIters);
-      }
-#endif
       vecgeom::Vector3D<Real_t> chordVec     = endPosition - position;
       Real_t chordDist = chordVec.Length();     
       vecgeom::Vector3D<Real_t> endDirection = inv_momentumMag * endMomentumVec;
       chordVec *= (1.0 / chordDist);  // Now the direction of the chord!
 
-#ifdef CHECK_EVERY_SUBSTEP
-      // Check vs Helix solution -- temporary 2022.06.27      
-      vecgeom::Vector3D<Real_t> endPositionHelix  = position;
-      vecgeom::Vector3D<Real_t> endDirectionHelix = direction; // momentumMag * direction;      
-
-      // ConstFieldHelixStepper   helix(B0fieldVec);
-      ConstBzFieldStepper helix(B0fieldVec[2]); // Bz component -- Assumes that Bx= By = 0 and Bz = const.
-      // helix.DoStep<vecgeom::Vector3D<Real_t>, Real_t, int>(...
-      helix.DoStep(position, direction, charge, momentumMag, safeArc, endPositionHelix, endDirectionHelix);
-
-      constexpr Precision thresholdDiff=3.0e-5;
-      bool badPosition = 
-        CompareResponseVector3D( indx, position, endPositionHelix, endPosition, "Position-perStep", thresholdDiff );
-      bool badDirection =
-        CompareResponseVector3D( indx, direction, endDirectionHelix, endDirection, "Direction-perStep", thresholdDiff );
-      bool badMomentum =
-        CompareResponseVector3D( indx, momentumMag*direction, momentumMag*endDirectionHelix, endMomentumVec, "Momentum-perStep", thresholdDiff );
-      
-      if( badPosition || badDirection || badMomentum ) {  
-         printf("%4s oneStep-Check track (id= %3d)  e_kin= %8.4g stepLen= %12.9g chord-iter= %5d\n ",
-             "Bad", indx, kinE, safeArc, chordIters);         
-      }
-#endif
       // Check Intersection
       //-- vecgeom::Vector3D<Real_t> ChordDir= (1.0/chordDist) * ChordVec;
       Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordDist, current_state, next_state, kPush);
       Real_t curvedStep;
 
       if( lastWasZero && chordIters >= ReduceIters ) {          
-         // printf( "-fieldProp-RK: LastWasZero> stepDone= %10.5g  - vs chordDist= %10.5g  \n", linearStep, chordDist );
          lastWasZero = false;         
       }
 
@@ -471,30 +332,10 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
         maxNextSafeMove   = ReduceFactor * safeArc;
         continueIteration = chordIters < ReduceIters;
 
-        if( continueIteration ) {
-           if( verbose ) {
-              if( chordIters == 0 ) 
-                 printf("-fieldProp-RK: (id=%2d)  pos= %10.5f %10.5f %10.5f  dir= %10.7f %10.7f %10.7f  e_kin= %14.6g  p_mag= %14.6g\n",
-                        indx, position[0], position[1], position[2], direction[0], direction[1], direction[2], kinE, momentumMag
-                    );
-              printf("-fieldProp-RK: (id=%2d) Reducing safe-arc= %10.5g to %10.5g  E_k=%10.5g  iter=%3d "
-                     "chord-dir= %10.8f %10.8f %7.6f (mag-1= %10.4g)  1-dot(ch,p)= %10.4g \n",
-                     indx, safeArc, maxNextSafeMove, kinE, chordIters, 
-                     chordVec[0], chordVec[1], chordVec[2], chordVec.Mag()-1.0, 1.0-chordVec.Dot(direction)  );
-           }
-        } else {
+        if( ! continueIteration ) {
            // Let's move to the other side of this boundary -- this side we cannot progress !!
            curvedStep = Navigator_t::kBoundaryPush;
-           if( verbose ){           
-              printf("-fieldProp-RK:   Boundary-Push id=%4d   pushing by %10.4g "
-                     " from nav-state: (lev %3d idx %5u %10s ) to nav-state: (lev %3d idx %5u %10s )\n",
-                     indx, curvedStep,
-                     current_state.GetLevel(),  current_state.GetNavIndex(), ( current_state.IsOnBoundary() ? "AtBoundary" : "InVolume" ),
-                     next_state.GetLevel(),  next_state.GetNavIndex(), ( next_state.IsOnBoundary() ? "AtBoundary" : "InVolume" )
-              );
-           }
         }
-        
       }
       else
       {
@@ -532,22 +373,6 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t> ::ComputeSte
       found_end = (  (curvedStep > 0) && next_state.IsOnBoundary() )      // Fix 2022.09.05 JA
                || (remains <= tiniest_step);
 
-#ifdef CHECK_EVERY_SUBSTEP
-      // if( ! badPosition && ! badDirection)
-
-      if( stepDone < 1.0e-03 * physicsStep && !lastWasZero ) {
-         printf("--fpRK Small step done - id %3d call= %-2d lpCt= %2d "  // "sum %3d "               //  5 int args
-                " kinE= %8.6g  safeL= %-8.4g tried= %-8.4g kept= %8.4g totL= %8.5g remain= %6.3g "    //  4 float args
-                "  endPos = %-9.6g %9.6g %9.6g  "
-                "  endDir= %14.9g %14.9g %14.9g  "
-                "  endMom= %14.9g %14.9g %14.9g \n",
-                indx, itersDone+1, chordIters-1, // itersDone+chordIters, 
-                kinE, safeLength, safeArc, curvedStep, stepDone, remains,
-                endPosition[0], endPosition[1], endPosition[2],                
-                endDirection[0], endDirection[1], endDirection[2],                 
-                endMomentumVec[0], endMomentumVec[1], endMomentumVec[2] );
-      }
-#endif
     } while ( !found_end && continueIteration && (chordIters < max_iterations) );
   }
 
