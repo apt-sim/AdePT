@@ -37,8 +37,6 @@ __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 __constant__ __device__ int *MCIndex = nullptr;
 
-__constant__ __device__ int Zero = 0;
-
 void InitG4HepEmGPU(G4HepEmState *state)
 {
   // Copy to GPU.
@@ -140,7 +138,7 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
 
 // A data structure to transfer statistics after each iteration.
 struct Stats {
-  int       inFlight[ParticleType::NumParticleTypes];
+  int inFlight[ParticleType::NumParticleTypes];
 };
 
 // Finish iteration: clear queues and fill statistics.
@@ -253,7 +251,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(MCIndex, &MCIndex_dev, sizeof(int *)));
 
   // Capacity of the different containers aka the maximum number of particles.
-  constexpr int Capacity = 256 * 1024;
+  constexpr int Capacity = 1024 * 1024;
 
   std::cout << "INFO: capacity of containers set to " << Capacity << std::endl;
   std::cout << "INFO: number of particles = " << numParticles << std::endl;
@@ -490,14 +488,8 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
         loopingNo         = 0;
       }
 
-      if( verbose )
-         std::cout << "End - iteration " << iteration << std::endl;
-      else {
-         // if( iteration % 10  == 0 ) std::cout << " .. " << iteration;
-         // if( iteration % 500 == 0 ) { std::cout << std::endl << " "; }
-      }
       iteration++;
-      const int  iterModPrint = 25;  // Every how many to print info
+      const int  iterModPrint = 100;  // Every how many to print info
       if( printStats && ( iteration % iterModPrint == 0 ) ) {
          printf("Iteration = %6d   event = %4d   inflight= %4d   iter looping=%3d \n" , iteration, startEvent, inFlight, loopingNo );
       } 
@@ -518,7 +510,8 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
         if (inFlightParticles == 0) {
           continue;
         }
-        ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);           
+
+        ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);
       }
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     }

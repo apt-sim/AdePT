@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
   energy *= copcore::units::GeV;
   OPTION_INT(batch, -1);
   OPTION_BOOL(rotatingParticleGun, false);
-  
+
   OPTION_DOUBLE(bzValue, -1.00); // entered in tesla
   BzFieldValue_host = bzValue * copcore::units::tesla;
 
