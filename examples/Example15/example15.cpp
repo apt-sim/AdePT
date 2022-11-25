@@ -189,9 +189,9 @@ int main(int argc, char *argv[])
 {
   // Only outputs are the data file(s)
   // Separate for now, but will want to unify
-  OPTION_STRING(gdml_file, "trackML.gdml"); //  "cms2018.gdml");
+  OPTION_STRING(gdml_file, "cms2018.gdml"); //  "trackML.gdml"); //  "cms2018.gdml");
   OPTION_INT(cache_depth, 0); // 0 = full depth
-  OPTION_INT(particles, 1); // 00);
+  OPTION_INT(particles, 100);
   OPTION_DOUBLE(energy, 10); // entered in GeV
   energy *= copcore::units::GeV;
   OPTION_INT(batch, -1);
