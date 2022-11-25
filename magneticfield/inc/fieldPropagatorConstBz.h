@@ -36,7 +36,6 @@ public:
                                                          Precision safety = 0.0,
                                                          int   slotIndex = -1,  //   To identify slot / aid investigations
                                                          const int max_iteration = 100);
-
 private:
   Precision BzValue;
 };
@@ -105,9 +104,6 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   // Distance along the track direction to reach the maximum allowed error
   Precision safeLength = ComputeSafeLength(momentumMag, charge, direction);
 
-  const bool verbose= false;
-  if( verbose ) printf("-fP/Bz: id= %4d  1/R_curv = %12.8g  safeLength= %10.7g \n", indx, 1.0/bend, safeLength);
-  
   ConstBzFieldStepper helixBz(BzValue);
 
   Precision stepDone           = 0;
@@ -187,24 +183,11 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         continueIteration = chordIters < ReduceIters;
 
         if( continueIteration ) {
-           if( verbose ){
-              printf("-fieldProp:Hx/Bz:  Reducing safeLen = %10.5g to %10.5g  E_k= %10.5g  iter=%3d  (indx=%2d)  "
-                     "chord-dir= %10.8f %10.8f %7.6f (mag-1= %10.4g)  1-dot(ch,p)= %10.4g \n",
-                     safeMove, maxNextSafeMove, kinE, chordIters, indx,
-                     chordDir[0], chordDir[1], chordDir[2], chordDir.Mag()-1.0, 1.0-chordDir.Dot(direction) );
-           }
+           ;
         } else {
            // Let's move to the other side of this boundary -- this side we cannot progress !!
            move = Navigator::kBoundaryPush;
            // printf("fieldProp-ConstBz: pushing by %10.4g \n ", move );
-           if( verbose ){
-              printf("-fieldProp:Hx/Bz: id=%4d Boundary-Push  pushing by %10.4g "
-                     " from nav-state: (lev %3d idx %5u %10s ) to nav-state: (lev %3d idx %5u %10s )\n",
-                     indx, move,
-                     current_state.GetLevel(),  current_state.GetNavIndex(), ( current_state.IsOnBoundary() ? "AtBoundary" : "InVolume" ),
-                     next_state.GetLevel(),  next_state.GetNavIndex(), ( next_state.IsOnBoundary() ? "AtBoundary" : "InVolume" )
-                 );
-           }
         }
       } else {
         // Accept the intersection point on the surface.  This means that
