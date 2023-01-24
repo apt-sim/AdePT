@@ -166,11 +166,11 @@ __global__ void FillFromDeviceBuffer(int numLeaked, AllLeaked all, adeptint::Tra
   if (i < numElectrons) {
     int trackIndex    = (*all.leakedElectrons.fLeakedQueue)[i];
     track             = &all.leakedElectrons.fTracks[trackIndex];
-    fromDevice[i].pdg = -11;
+    fromDevice[i].pdg = 11;
   } else if (i < numElectrons + numPositrons) {
     int trackIndex    = (*all.leakedPositrons.fLeakedQueue)[i - numElectrons];
     track             = &all.leakedPositrons.fTracks[trackIndex];
-    fromDevice[i].pdg = 11;
+    fromDevice[i].pdg = -11;
   } else {
     int trackIndex    = (*all.leakedGammas.fLeakedQueue)[i - numElectrons - numPositrons];
     track             = &all.leakedGammas.fTracks[trackIndex];
