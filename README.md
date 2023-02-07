@@ -17,7 +17,25 @@ The following packages are a required to build and run:
 - VecCore [library](https://github.com/root-project/veccore) 0.7.0 (recommended, but older versions >= 0.5.0 also work)
 - VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 1.1.20
 
-To configure and build VecCore, simply run:
+A suitable environment may be set up either from CVMFS (requires the sft.cern.ch and projects.cern.ch repos
+to be available on the local system):
+```console
+$ source /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-centos7-gcc11-opt/setup.sh
+```
+
+or from the supplied [spack](https://spack.io) environment file:
+```console
+$ spack env create adept-spack ./scripts/spack.yaml
+$ spack -e adept-spack concretize -f
+$ spack -e adept-spack install
+...
+$ spack env activate -p adept-spack
+```
+
+Note that the above assumes your spack configuration defaults to use a suitable C++ compiler and has
+`cuda_arch` set appropriately for the hardware you will be running on.
+
+You can also build the packages manually as follows. To configure and build VecCore, simply run:
 ```console
 $ cmake -S. -B./veccore-build -DCMAKE_INSTALL_PREFIX="<path_to_veccore_installation>"
 $ cmake --build ./veccore-build --target install
