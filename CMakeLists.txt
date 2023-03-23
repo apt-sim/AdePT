@@ -49,6 +49,8 @@ set(VecCore_BACKEND CUDA)
 find_package(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 message(STATUS "Using VecCore version ${VecCore_VERSION}")
 
+option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
+
 # Find VecGeom geometry headers library
 set(VecGeom_VERSION 1.1.20)
 find_package(VecGeom ${VecGeom_VERSION} REQUIRED)
@@ -58,6 +60,16 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VECGEOM_CXX_FLAGS}")
 # Make sure VecGeom::vgdml is enabled
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
+endif()
+# Check for surface model support in VecGeom
+if (ADEPT_USE_SURF)
+if (VecGeom_SURF_FOUND)
+  message(STATUS "Surface model in VecGeom is enabled")
+  add_compile_definitions(ADEPT_USE_SURF)
+else()
+  message(STATUS "Forcing ADEPT_USE_SURF to OFF (surface support not found in VecGeom)")
+  set(ADEPT_USE_SURF OFF CACHE BOOL "Disable using the surface model" FORCE)
+endif()
 endif()
 
 # Find Geant4, optional for now
