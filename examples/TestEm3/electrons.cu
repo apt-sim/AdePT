@@ -4,6 +4,10 @@
 #include "TestEm3.cuh"
 
 #include <AdePT/BVHNavigator.h>
+#include <AdePT/LoopNavigator.h>
+#ifdef ADEPT_USE_SURF
+#include <AdePT/SurfNavigator.h>
+#endif
 #include <fieldPropagatorConstBz.h>
 
 #include <CopCore/PhysicalConstants.h>
@@ -34,6 +38,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           GlobalScoring *globalScoring,
                                                           ScoringPerVolume *scoringPerVolume)
 {
+#ifdef ADEPT_USE_SURF
+  using Navigator = SurfNavigator;
+#else
+  using Navigator = BVHNavigator;
+#endif
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
@@ -78,7 +87,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Compute safety, needed for MSC step limit.
     double safety = 0;
     if (!navState.IsOnBoundary()) {
-      safety = BVHNavigator::ComputeSafety(pos, navState);
+      safety = Navigator::ComputeSafety(pos, navState);
     }
     theTrack->SetSafety(safety);
 
@@ -117,11 +126,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     double geometryStepLength;
     vecgeom::NavStateIndex nextState;
     if (BzFieldValue != 0) {
-      geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
+      geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<Navigator>(
           energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety);
     } else {
       geometryStepLength =
-          BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
+          Navigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
       pos += geometryStepLength * dir;
     }
 
@@ -160,7 +169,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           pos += displacement;
         } else {
           // Recompute safety.
-          safety        = BVHNavigator::ComputeSafety(pos, navState);
+          safety        = Navigator::ComputeSafety(pos, navState);
           reducedSafety = sFact * safety;
 
           // 1b. Far away from geometry boundary:
@@ -227,7 +236,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+        Navigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
         navState = nextState;

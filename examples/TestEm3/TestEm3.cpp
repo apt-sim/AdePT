@@ -35,6 +35,11 @@
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/volumes/UnplacedBox.h>
 
+#ifdef ADEPT_USE_SURF
+#include <VecGeom/surfaces/Model.h>
+#include <VecGeom/surfaces/BrepHelper.h>
+#endif
+
 #include <iostream>
 
 const char *WorldMaterial    = "G4_Galactic";
@@ -208,6 +213,11 @@ int main(int argc, char *argv[])
 #ifdef VERBOSE
   std::cout << "World (ID " << world->id() << ")" << std::endl;
   PrintDaughters(world);
+#endif
+
+#ifdef ADEPT_USE_SURF
+  if (!vgbrep::BrepHelper<double>::Instance().Convert()) return 1;
+  vgbrep::BrepHelper<double>::Instance().PrintSurfData();
 #endif
 
   // Map VecGeom volume IDs to Geant4 material-cuts couples.
