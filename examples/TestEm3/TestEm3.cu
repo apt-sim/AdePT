@@ -17,6 +17,10 @@
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
+#ifdef ADEPT_USE_SURF
+#include <VecGeom/surfaces/Model.h>
+#include <VecGeom/surfaces/BrepCudaManager.h>
+#endif
 
 #include <G4HepEmData.hh>
 #include <G4HepEmElectronInit.hh>
@@ -182,6 +186,11 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
 
   InitBVH();
+
+  #ifdef ADEPT_USE_SURF
+  auto &surfdata = vgbrep::SurfData<double>::Instance();
+  vgbrep::BrepCudaManager<double>::Instance().TransferSurfData(surfdata);
+  #endif
 
   G4HepEmState *state = InitG4HepEm();
 

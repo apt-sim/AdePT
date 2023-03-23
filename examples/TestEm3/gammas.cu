@@ -4,6 +4,10 @@
 #include "TestEm3.cuh"
 
 #include <AdePT/BVHNavigator.h>
+#include <AdePT/LoopNavigator.h>
+#ifdef ADEPT_USE_SURF
+#include <AdePT/SurfNavigator.h>
+#endif
 
 #include <CopCore/PhysicalConstants.h>
 
@@ -23,6 +27,11 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
                                 ScoringPerVolume *scoringPerVolume)
 {
+#ifdef ADEPT_USE_SURF
+  using Navigator = SurfNavigator;
+#else
+  using Navigator = BVHNavigator;
+#endif
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot       = (*active)[i];
@@ -69,7 +78,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Check if there's a volume boundary in between.
     vecgeom::NavStateIndex nextState;
     double geometryStepLength =
-        BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
+        Navigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
     pos += geometryStepLength * dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
@@ -96,7 +105,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+        Navigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
         navState = nextState;
