@@ -1,0 +1,102 @@
+diff --git a/source/event/src/G4EventManager.cc b/source/event/src/G4EventManager.cc
+index 27aaf7b9ac..34925a3961 100644
+--- a/source/event/src/G4EventManager.cc
++++ b/source/event/src/G4EventManager.cc
+@@ -44,6 +44,7 @@
+ #include "Randomize.hh"
+ #include "G4Profiler.hh"
+ #include "G4TiMemory.hh"
++#include "G4GlobalFastSimulationManager.hh"
+ 
+ #include <unordered_set>
+ 
+@@ -279,7 +280,11 @@ void G4EventManager::DoProcessing(G4Event* anEvent)
+     }
+     trackingManagersToFlush.clear();
+ 
+-    // Check if flushing one of the tracking managers stacked new secondaries.
++    // flush any fast simulation models
++    G4GlobalFastSimulationManager::GetGlobalFastSimulationManager()->Flush();
++
++    // Check if flushing one of the tracking managers or a fast simulation model
++    // stacked new secondaries.
+   } while (trackContainer->GetNUrgentTrack() > 0);
+ 
+ #ifdef G4VERBOSE
+diff --git a/source/processes/parameterisation/include/G4FastSimulationManager.hh b/source/processes/parameterisation/include/G4FastSimulationManager.hh
+index 52ad3fea04..8694190db6 100644
+--- a/source/processes/parameterisation/include/G4FastSimulationManager.hh
++++ b/source/processes/parameterisation/include/G4FastSimulationManager.hh
+@@ -140,6 +140,7 @@ public:  // without description
+   const std::vector<G4VFastSimulationModel*>& GetFastSimulationModelList() const
+   {return ModelList;}
+ 
++  void FlushModels();
+ 
+   //----------------------------------------------
+   // Interface methods for the 
+diff --git a/source/processes/parameterisation/include/G4GlobalFastSimulationManager.hh b/source/processes/parameterisation/include/G4GlobalFastSimulationManager.hh
+index 96f1021d21..a24f21ec0d 100644
+--- a/source/processes/parameterisation/include/G4GlobalFastSimulationManager.hh
++++ b/source/processes/parameterisation/include/G4GlobalFastSimulationManager.hh
+@@ -146,7 +146,7 @@ public: // Without description
+   void   ActivateFastSimulationModel(const G4String&);
+   void InActivateFastSimulationModel(const G4String&);
+ 
+-
++  void Flush();
+ 
+ private:
+   // Private construtor insures singleton class
+diff --git a/source/processes/parameterisation/include/G4VFastSimulationModel.hh b/source/processes/parameterisation/include/G4VFastSimulationModel.hh
+index 735c749eb2..13d7c6d159 100644
+--- a/source/processes/parameterisation/include/G4VFastSimulationModel.hh
++++ b/source/processes/parameterisation/include/G4VFastSimulationModel.hh
+@@ -130,6 +130,10 @@ public: // With description
+   // described has "requests" the tracking will apply after your 
+   // parameterisation has been invoked.
+   
++
++  virtual
++  void Flush(){}
++  
+ public: // Without description
+ 
+   // Useful public methods :
+diff --git a/source/processes/parameterisation/src/G4FastSimulationManager.cc b/source/processes/parameterisation/src/G4FastSimulationManager.cc
+index 494d9c6aaf..5b96d8da16 100644
+--- a/source/processes/parameterisation/src/G4FastSimulationManager.cc
++++ b/source/processes/parameterisation/src/G4FastSimulationManager.cc
+@@ -155,6 +155,15 @@ G4FastSimulationManager::GetFastSimulationModel(const G4String& modelName,
+   return model;
+ }
+ 
++void G4FastSimulationManager::FlushModels()
++{
++  for (size_t iModel=0; iModel<ModelList.size(); iModel++)
++  {
++    ModelList[iModel]->Flush();
++  }  
++}
++
++
+ 
+ //------------------------------------------------------------------
+ // Interface trigger method for the G4ParameterisationManagerProcess
+diff --git a/source/processes/parameterisation/src/G4GlobalFastSimulationManager.cc b/source/processes/parameterisation/src/G4GlobalFastSimulationManager.cc
+index 6724cddb50..336f24f4a1 100644
+--- a/source/processes/parameterisation/src/G4GlobalFastSimulationManager.cc
++++ b/source/processes/parameterisation/src/G4GlobalFastSimulationManager.cc
+@@ -147,6 +147,12 @@ void G4GlobalFastSimulationManager::InActivateFastSimulationModel(const G4String
+   G4cout << G4endl;
+ }
+ 
++void G4GlobalFastSimulationManager::Flush()
++{
++  // loop over all models (that need flushing?) and flush
++  for (size_t ifsm=0; ifsm<ManagedManagers.size(); ifsm++)
++    ManagedManagers[ifsm]->FlushModels();
++}
+ 
+ // ---------------------------------
+ // -- display fast simulation setup:
