@@ -7,6 +7,7 @@
 #include "AdeptIntegration.h"
 
 #include "Track.cuh"
+#include "SlotManager.cuh"
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
@@ -29,22 +30,6 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
 }
 #endif
 
-// A data structure to manage slots in the track storage.
-class SlotManager {
-  adept::Atomic_t<int> fNextSlot;
-  const int fMaxSlot;
-
-public:
-  __host__ __device__ SlotManager(int maxSlot) : fMaxSlot(maxSlot) { fNextSlot = 0; }
-
-  __host__ __device__ int NextSlot()
-  {
-    int next = fNextSlot.fetch_add(1);
-    if (next >= fMaxSlot) return -1;
-    return next;
-  }
-};
-
 // A bundle of pointers to generate particles of an implicit type.
 class ParticleGenerator {
   Track *fTracks;
@@ -57,7 +42,7 @@ public:
   {
   }
 
-  __host__ __device__ Track &NextTrack()
+  __device__ Track &NextTrack()
   {
     int slot = fSlotManager->NextSlot();
     if (slot == -1) {
@@ -100,6 +85,7 @@ struct ParticleQueues {
 
 struct ParticleType {
   Track *tracks;
+  SlotManager slotManager_host{0, 0};
   SlotManager *slotManager;
   ParticleQueues queues;
   cudaStream_t stream;
