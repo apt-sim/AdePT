@@ -32,7 +32,7 @@ class AdeptIntegration {
 public:
   static constexpr int kMaxThreads = 256;
   // Track capacity
-  static int kCapacity;
+  inline static std::size_t kTrackCapacity = 1024 * 1024;
 
   using TrackBuffer = adeptint::TrackBuffer;
   using VolAuxData  = adeptint::VolAuxData;
@@ -80,7 +80,7 @@ private:
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
   void InitializeGPU();
-  void ShowerGPU(int event, TrackBuffer &buffer); // const &buffer);
+  void ShowerGPU(int event, TrackBuffer &buffer);
   void FreeGPU();
 
 public:
@@ -94,7 +94,7 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz);
   /// @brief Set track capacity on GPU
-  static void SetTrackCapacity(size_t capacity) { kCapacity = capacity; }
+  static void SetTrackCapacity(size_t capacity) { kTrackCapacity = capacity; }
   /// @brief Set maximum batch size
   void SetMaxBatch(int npart) { fMaxBatch = npart; }
   /// @brief Set buffer threshold

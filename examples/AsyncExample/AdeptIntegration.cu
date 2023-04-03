@@ -47,7 +47,6 @@ __constant__ __device__ double BzFieldValue               = 0;
 
 G4HepEmState *AdeptIntegration::fg4hepem_state{nullptr};
 SlotManager *slotManagerInit_dev = nullptr;
-int AdeptIntegration::kCapacity = 1024 * 1024;
 
 void AdeptIntegration::VolAuxArray::InitializeOnGPU()
 {
@@ -235,7 +234,7 @@ bool AdeptIntegration::InitializePhysics()
     bz              = field_vect[2];
   }
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(BzFieldValue, &bz, sizeof(double)));
-  SlotManager slotManagerInit(kCapacity);
+  SlotManager slotManagerInit(kTrackCapacity);
   COPCORE_CUDA_CHECK(cudaMalloc(&slotManagerInit_dev, sizeof(SlotManager)));
   COPCORE_CUDA_CHECK(cudaMemcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
 
@@ -256,24 +255,27 @@ void AdeptIntegration::InitializeGPU()
   //  * objects to manage slots inside the memory,
   //  * queues of slots to remember active particle and those needing relocation,
   //  * a stream and an event for synchronization of kernels.
-  size_t TracksSize            = sizeof(Track) * kCapacity;
+  size_t TracksSize            = sizeof(Track) * kTrackCapacity;
   constexpr size_t ManagerSize = sizeof(SlotManager);
-  const size_t QueueSize       = adept::MParray::SizeOfInstance(kCapacity);
+  const size_t QueueSize       = adept::MParray::SizeOfInstance(kTrackCapacity);
+
   // Create a stream to synchronize kernels of all particle types.
   COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+    ParticleType &particleType = gpuState.particles[i];
+
     // Share hepem state between threads
-    COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.particles[i].tracks, TracksSize));
+    COPCORE_CUDA_CHECK(cudaMalloc(&particleType.tracks, TracksSize));
 
     COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.particles[i].slotManager, ManagerSize));
 
-    COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.particles[i].queues.currentlyActive, QueueSize));
-    COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.particles[i].queues.nextActive, QueueSize));
-    COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.particles[i].queues.leakedTracks, QueueSize));
-    InitParticleQueues<<<1, 1>>>(gpuState.particles[i].queues, kCapacity);
+    COPCORE_CUDA_CHECK(cudaMalloc(&particleType.queues.currentlyActive, QueueSize));
+    COPCORE_CUDA_CHECK(cudaMalloc(&particleType.queues.nextActive, QueueSize));
+    COPCORE_CUDA_CHECK(cudaMalloc(&particleType.queues.leakedTracks, QueueSize));
+    InitParticleQueues<<<1, 1>>>(particleType.queues, kTrackCapacity);
 
-    COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.particles[i].stream));
-    COPCORE_CUDA_CHECK(cudaEventCreate(&gpuState.particles[i].event));
+    COPCORE_CUDA_CHECK(cudaStreamCreate(&particleType.stream));
+    COPCORE_CUDA_CHECK(cudaEventCreate(&particleType.event));
   }
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -291,7 +293,7 @@ void AdeptIntegration::InitializeGPU()
 void AdeptIntegration::FreeGPU()
 {
   // Free resources.
-  GPUstate &gpuState = *static_cast<GPUstate *>(fGPUstate);
+  GPUstate &gpuState = const_cast<GPUstate&>(*fGPUstate);
   COPCORE_CUDA_CHECK(cudaFree(gpuState.stats_dev));
   COPCORE_CUDA_CHECK(cudaFreeHost(gpuState.stats));
   COPCORE_CUDA_CHECK(cudaFree(gpuState.toDevice_dev));
@@ -318,7 +320,7 @@ void AdeptIntegration::FreeGPU()
   AdeptIntegration::fg4hepem_state = nullptr;
 }
 
-void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
+void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer)
 {
   using TrackData = adeptint::TrackData;
   // Capacity of the different containers aka the maximum number of particles.
@@ -336,7 +338,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
                                      gpuState.stream));
 
   // initialize slot manager
-  SlotManager slotManagerInit(kCapacity);
+  SlotManager slotManagerInit(kTrackCapacity);
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.particles[i].slotManager, slotManagerInit_dev, sizeof(SlotManager),
                                        cudaMemcpyDeviceToDevice, gpuState.stream));
