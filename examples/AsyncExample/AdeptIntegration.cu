@@ -46,7 +46,6 @@ __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 __constant__ __device__ double BzFieldValue               = 0;
 
 G4HepEmState *AdeptIntegration::fg4hepem_state{nullptr};
-SlotManager *slotManagerInit_dev = nullptr;
 
 void AdeptIntegration::VolAuxArray::InitializeOnGPU()
 {
@@ -209,6 +208,13 @@ __global__ void ClearAllQueues(AllParticleQueues all)
   }
 }
 
+__global__ void InitSlotManagers(SlotManager* mgr, std::size_t N)
+{
+  for (int i = blockIdx.x; i < N; i += gridDim.x) {
+    mgr[i].Clear();
+  }
+}
+
 bool AdeptIntegration::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
   // Upload geometry to GPU.
@@ -234,9 +240,6 @@ bool AdeptIntegration::InitializePhysics()
     bz              = field_vect[2];
   }
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(BzFieldValue, &bz, sizeof(double)));
-  SlotManager slotManagerInit(kTrackCapacity);
-  COPCORE_CUDA_CHECK(cudaMalloc(&slotManagerInit_dev, sizeof(SlotManager)));
-  COPCORE_CUDA_CHECK(cudaMemcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
 
   return true;
 }
@@ -256,8 +259,11 @@ void AdeptIntegration::InitializeGPU()
   //  * queues of slots to remember active particle and those needing relocation,
   //  * a stream and an event for synchronization of kernels.
   size_t TracksSize            = sizeof(Track) * kTrackCapacity;
-  constexpr size_t ManagerSize = sizeof(SlotManager);
   const size_t QueueSize       = adept::MParray::SizeOfInstance(kTrackCapacity);
+
+  SlotManager *slotManagers_dev = nullptr;
+  COPCORE_CUDA_CHECK(cudaMalloc(&slotManagers_dev, sizeof(SlotManager)*ParticleType::NumParticleTypes));
+  #warning Enqueue for memory cleanup
 
   // Create a stream to synchronize kernels of all particle types.
   COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
@@ -267,7 +273,9 @@ void AdeptIntegration::InitializeGPU()
     // Share hepem state between threads
     COPCORE_CUDA_CHECK(cudaMalloc(&particleType.tracks, TracksSize));
 
-    COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.particles[i].slotManager, ManagerSize));
+    particleType.slotManager_host = SlotManager{static_cast<SlotManager::value_type>(kTrackCapacity), static_cast<SlotManager::value_type>(kTrackCapacity / 10)};
+    particleType.slotManager      = slotManagers_dev + i;
+    COPCORE_CUDA_CHECK(cudaMemcpy(particleType.slotManager, &particleType.slotManager_host, sizeof(SlotManager), cudaMemcpyDefault));
 
     COPCORE_CUDA_CHECK(cudaMalloc(&particleType.queues.currentlyActive, QueueSize));
     COPCORE_CUDA_CHECK(cudaMalloc(&particleType.queues.nextActive, QueueSize));
@@ -277,6 +285,7 @@ void AdeptIntegration::InitializeGPU()
     COPCORE_CUDA_CHECK(cudaStreamCreate(&particleType.stream));
     COPCORE_CUDA_CHECK(cudaEventCreate(&particleType.event));
   }
+  InitSlotManagers<<<ParticleType::NumParticleTypes, 512>>>(slotManagers_dev, ParticleType::NumParticleTypes);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // initialize statistics
@@ -302,7 +311,6 @@ void AdeptIntegration::FreeGPU()
 
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     COPCORE_CUDA_CHECK(cudaFree(gpuState.particles[i].tracks));
-    COPCORE_CUDA_CHECK(cudaFree(gpuState.particles[i].slotManager));
 
     COPCORE_CUDA_CHECK(cudaFree(gpuState.particles[i].queues.currentlyActive));
     COPCORE_CUDA_CHECK(cudaFree(gpuState.particles[i].queues.nextActive));
@@ -311,8 +319,6 @@ void AdeptIntegration::FreeGPU()
     COPCORE_CUDA_CHECK(cudaStreamDestroy(gpuState.particles[i].stream));
     COPCORE_CUDA_CHECK(cudaEventDestroy(gpuState.particles[i].event));
   }
-
-  COPCORE_CUDA_CHECK(cudaFree(slotManagerInit_dev));
 
   // Free G4HepEm data
   FreeG4HepEmData(AdeptIntegration::fg4hepem_state->fData);
@@ -337,12 +343,10 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer)
                                      buffer.toDevice.size() * sizeof(adeptint::TrackData), cudaMemcpyHostToDevice,
                                      gpuState.stream));
 
-  // initialize slot manager
-  SlotManager slotManagerInit(kTrackCapacity);
-  for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.particles[i].slotManager, slotManagerInit_dev, sizeof(SlotManager),
-                                       cudaMemcpyDeviceToDevice, gpuState.stream));
-  }
+  // initialize slot managers
+  #warning "Not necessary?"
+  InitSlotManagers<<<ParticleType::NumParticleTypes, 512, 0, gpuState.stream>>>(gpuState.particles[0].slotManager, ParticleType::NumParticleTypes);
+  COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
   if (fDebugLevel > 0) {
     G4cout << std::dec << G4endl << "GPU transporting event " << event << " for CPU thread "
@@ -380,7 +384,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer)
                             .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracks}};
 
   do {
-
+    #warning Free slots
     // *** ELECTRONS ***
     int numElectrons = gpuState.stats->inFlight[ParticleType::Electron];
     if (numElectrons > 0) {
