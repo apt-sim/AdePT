@@ -379,7 +379,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer)
   gpuState.stats->inFlight[ParticleType::Gamma]    = buffer.ngammas;
 
   constexpr int MaxBlocks        = 1024;
-  constexpr int TransportThreads = 32;
+  constexpr int TransportThreads = 256;
   int transportBlocks;
 
   int inFlight          = 0;
