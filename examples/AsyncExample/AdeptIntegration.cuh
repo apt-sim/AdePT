@@ -8,6 +8,7 @@
 
 #include "Track.cuh"
 #include "SlotManager.cuh"
+#include "ResourceManagement.h"
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
@@ -115,6 +116,7 @@ struct GPUstate {
   using TrackData = adeptint::TrackData;
 
   ParticleType particles[ParticleType::NumParticleTypes];
+  std::vector<adeptint::unique_ptr_cuda> allDevicePointers;
   // Create a stream to synchronize kernels of all particle types.
   cudaStream_t stream;                ///< all-particle sync stream
   int fNumFromDevice{0};              ///< number of tracks in the fromDevice buffer

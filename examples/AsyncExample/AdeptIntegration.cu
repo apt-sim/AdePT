@@ -261,9 +261,13 @@ void AdeptIntegration::InitializeGPU()
   size_t TracksSize            = sizeof(Track) * kTrackCapacity;
   const size_t QueueSize       = adept::MParray::SizeOfInstance(kTrackCapacity);
 
+  auto gpuMalloc = [&gpuState](auto & devPtr, std::size_t N) {
+    COPCORE_CUDA_CHECK(cudaMalloc(&devPtr, sizeof(*devPtr)*N));
+    gpuState.allDevicePointers.emplace_back(devPtr, adeptint::cudaDeleter);
+  };
+
   SlotManager *slotManagers_dev = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&slotManagers_dev, sizeof(SlotManager)*ParticleType::NumParticleTypes));
-  #warning Enqueue for memory cleanup
+  gpuMalloc(slotManagers_dev, ParticleType::NumParticleTypes);
 
   // Create a stream to synchronize kernels of all particle types.
   COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
@@ -275,7 +279,8 @@ void AdeptIntegration::InitializeGPU()
 
     particleType.slotManager_host = SlotManager{static_cast<SlotManager::value_type>(kTrackCapacity), static_cast<SlotManager::value_type>(kTrackCapacity / 10)};
     particleType.slotManager      = slotManagers_dev + i;
-    COPCORE_CUDA_CHECK(cudaMemcpy(particleType.slotManager, &particleType.slotManager_host, sizeof(SlotManager), cudaMemcpyDefault));
+    COPCORE_CUDA_CHECK(
+        cudaMemcpy(particleType.slotManager, &particleType.slotManager_host, sizeof(SlotManager), cudaMemcpyDefault));
 
     COPCORE_CUDA_CHECK(cudaMalloc(&particleType.queues.currentlyActive, QueueSize));
     COPCORE_CUDA_CHECK(cudaMalloc(&particleType.queues.nextActive, QueueSize));
@@ -319,6 +324,8 @@ void AdeptIntegration::FreeGPU()
     COPCORE_CUDA_CHECK(cudaStreamDestroy(gpuState.particles[i].stream));
     COPCORE_CUDA_CHECK(cudaEventDestroy(gpuState.particles[i].event));
   }
+
+  gpuState.allDevicePointers.clear();
 
   // Free G4HepEm data
   FreeG4HepEmData(AdeptIntegration::fg4hepem_state->fData);
