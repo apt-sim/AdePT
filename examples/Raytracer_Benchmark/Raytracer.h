@@ -170,8 +170,9 @@ struct RaytracerData_t {
   bool fReflection         = false;           ///< Reflection model
   bool fApproach           = false;           ///< approach solid to bbox before calculating distance
 
-  VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
-  vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
+  VPlacedVolumePtr_t fWorld = nullptr;     ///< World volume
+  vecgeom::NavStateIndex fVPstate;         ///< Navigation state corresponding to the viewpoint
+  MyMediumProp const *fMediaProp{nullptr}; ///< Array of media properties per volume
 
   Vector_t *sparse_rays         = nullptr; ///< pointer to the rays containers
   Vector_t_int *sparse_int      = nullptr; ///<

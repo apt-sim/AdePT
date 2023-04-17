@@ -32,8 +32,7 @@ void add_indices_cuda(Vector_t_int *sparse_vector, unsigned *sel_vector_d, unsig
 
 void print_vector_cuda(RaytracerData_t *rtdata, int no_generations);
 
-void initiliazeCudaWorld(RaytracerData_t *rtdata, const MyMediumProp *volume_container,
-                         std::vector<vecgeom::cxx::LogicalVolume *> logicalvolume);
+void initiliazeCudaWorld(RaytracerData_t *rtdata);
 
 void RenderTiledImage(RaytracerData_t *rtdata, NavIndex_t *output_buffer, int generation, int block_size);
 
@@ -42,14 +41,13 @@ bool check_used_cuda(RaytracerData_t *rtdata, int no_generations);
 void InitBVH(bool);
 
 template <copcore::BackendType backend>
-void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container, int no_generations,
-                std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes)
+void InitRTdata(RaytracerData_t *rtdata, int no_generations)
 {
   Vector_t *x;
   Vector_t_int *sparse_int_copy, *sparse_int;
 
   if (backend == copcore::BackendType::CUDA) {
-    initiliazeCudaWorld((RaytracerData_t *)rtdata, volume_container, logicalvolumes);
+    initiliazeCudaWorld((RaytracerData_t *)rtdata);
     COPCORE_CUDA_CHECK(cudaMalloc(&x, no_generations * sizeof(Vector_t)));
     COPCORE_CUDA_CHECK(cudaMalloc(&sparse_int_copy, no_generations * sizeof(Vector_t_int)));
     COPCORE_CUDA_CHECK(cudaMalloc(&sparse_int, no_generations * sizeof(Vector_t_int)));
@@ -143,8 +141,8 @@ bool check_used(RaytracerData_t *rtdata, int no_generations)
 }
 
 template <copcore::BackendType backend>
-int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
-                  std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[])
+int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
+                  char *argv[])
 {
   // image size in pixels
   OPTION_INT(px, 1840);
@@ -195,6 +193,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   rtdata->fBkgColor   = bkgcol;
   rtdata->fReflection = reflection;
   rtdata->fApproach   = approach;
+  rtdata->fMediaProp  = volume_container;
 
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
 
@@ -213,7 +212,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   // if (rtdata->fReflection) no_generations = 10;
   int rays_per_pixel = 10; // maximum number of rays per pixel
 
-  InitRTdata<backend>(rtdata, volume_container, no_generations, logicalvolumes);
+  InitRTdata<backend>(rtdata, no_generations);
 
   rtdata->Print();
 

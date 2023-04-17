@@ -33,22 +33,21 @@ void InitBVH(bool on_gpu)
 {
   vecgeom::cxx::BVHManager::Init();
 
-  if (on_gpu)
-    vecgeom::cxx::BVHManager::DeviceInit();
+  if (on_gpu) vecgeom::cxx::BVHManager::DeviceInit();
 }
 
 namespace cuda {
 struct MyMediumProp;
 } // namespace cuda
 
-int executePipelineGPU(const cuda::MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
-                       std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[]);
+int executePipelineGPU(const cuda::MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
+                       char *argv[]);
 
-int executePipelineCPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
-                       std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[])
+int executePipelineCPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc,
+                       char *argv[])
 {
 
-  int result = runSimulation<copcore::BackendType::CPU>(volume_container, world, logicalvolumes, argc, argv);
+  int result = runSimulation<copcore::BackendType::CPU>(volume_container, world, argc, argv);
   return result;
 }
 
@@ -93,9 +92,9 @@ int main(int argc, char *argv[])
 
   if (on_gpu) {
     auto volume_container_cuda = reinterpret_cast<cuda::MyMediumProp *>(volume_container);
-    ierr                       = executePipelineGPU(volume_container_cuda, world, logicalvolumes, argc, argv);
+    ierr                       = executePipelineGPU(volume_container_cuda, world, argc, argv);
   } else {
-    ierr = executePipelineCPU(volume_container, world, logicalvolumes, argc, argv);
+    ierr = executePipelineCPU(volume_container, world, argc, argv);
   }
   if (ierr) std::cout << "TestNavIndex FAILED\n";
 

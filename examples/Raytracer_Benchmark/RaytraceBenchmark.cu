@@ -145,13 +145,7 @@ void RenderTiledImage(cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer, 
   COPCORE_CUDA_CHECK(cudaGetLastError());
 }
 
-// Attach material structure to logical volume
-__global__ void AttachRegions(const MyMediumProp *volume_container, vecgeom::LogicalVolume *dev_lvol, int pos) {
-  dev_lvol->SetBasketManagerPtr((void *)&volume_container[pos]);
-}
-
-void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volume_container,
-                          std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes) {
+void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
   
   // Load and synchronize the geometry on the GPU
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
@@ -163,14 +157,6 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volu
   rtdata->fWorld = gpu_world;
 
   LocateViewpointKernel<<<1,1>>>(rtdata);
-
-  int i = 0;
-  for (auto lvol : logicalvolumes) {
-      // Get the device pointer to logical volume
-      auto dev_lvol = (vecgeom::cuda::LogicalVolume *) cudaManager.LookupLogical(lvol);
-      AttachRegions<<<1,1>>>(volume_container, dev_lvol, i);
-      i++;
-  }
 
   cudaDeviceSynchronize();
 }
@@ -274,9 +260,9 @@ void clear_sparse_vector_cuda(Vector_t_int *vector) {
 }
 
 int executePipelineGPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world,
-                       std::vector<vecgeom::cxx::LogicalVolume *> logicalvolumes, int argc, char *argv[])
+                       int argc, char *argv[])
 {
   int result;
-  result = runSimulation<copcore::BackendType::CUDA>(volume_container, world, logicalvolumes, argc, argv);
+  result = runSimulation<copcore::BackendType::CUDA>(volume_container, world, argc, argv);
   return result;
 }

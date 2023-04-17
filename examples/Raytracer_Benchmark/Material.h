@@ -18,11 +18,9 @@
 void SetMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::LogicalVolume *> logicalvolumes,
                        bool on_gpu)
 {
-
-  int i = 0;
-
+  // Loop all logical volumes and assign according to the volume name
   for (auto lvol : logicalvolumes) {
-    // lvol->Print();
+    int i = lvol->id();
     if (!strcmp(lvol->GetName(), "World")) {
       volume_container[i].material            = kRTtransparent;
       volume_container[i].fObjColor           = 0x0000FF80;
@@ -99,9 +97,8 @@ void SetMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::Logi
       volume_container[i].transparency_per_cm = 1.;
     }
 
-    if (!on_gpu) lvol->SetBasketManagerPtr(&volume_container[i]);
-
-    i++;
+    // Cannot attach any more stuff to volumes using special hooks
+    // if (!on_gpu) lvol->SetBasketManagerPtr(&volume_container[i]);
   }
 }
 

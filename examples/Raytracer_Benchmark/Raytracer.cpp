@@ -200,8 +200,8 @@ void ApplyRTmodel(Ray_t &ray, vecgeom::Precision step, RaytracerData_t const &rt
   auto nextvol = (Ray_t::VPlacedVolumePtr_t)ray.fNextState.Top();
 
   // Get material structure for last and next volumes
-  auto medium_prop_last = (MyMediumProp *)lastvol->GetLogicalVolume()->GetBasketManagerPtr();
-  auto medium_prop_next = (MyMediumProp *)nextvol->GetLogicalVolume()->GetBasketManagerPtr();
+  auto const *medium_prop_last = &rtdata.fMediaProp[lastvol->GetLogicalVolume()->id()];
+  auto const *medium_prop_next = &rtdata.fMediaProp[nextvol->GetLogicalVolume()->id()];
 
   bool exit_transparent        = medium_prop_last->material == kRTtransparent;
   bool transparent_transparent = medium_prop_next->material == kRTtransparent &&
