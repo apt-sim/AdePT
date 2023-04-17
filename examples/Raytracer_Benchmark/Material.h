@@ -18,9 +18,7 @@
 void SetMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::LogicalVolume *> logicalvolumes,
                        bool on_gpu)
 {
-
-  int i = 0;
-
+  // Loop all logical volumes and assign according to the volume name
   for (auto lvol : logicalvolumes) {
     int i = lvol->id();
     if (!strcmp(lvol->GetName(), "World")) {
