@@ -32,6 +32,8 @@
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
+#include <numeric>
+#include <algorithm>
 
 #include "electrons.cuh"
 #include "gammas.cuh"
@@ -140,38 +142,30 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
   }
 }
 
+// Kernel to initialize the set of leaked queues per particle type.
+__global__ void InitLeakedQueues(AllTrackManagers allMgr, size_t Capacity)
+{
+  for (int i = 0; i < ParticleType::NumParticleTypes; i++)
+    MParrayTracks::MakeInstanceAt(Capacity, allMgr.leakedTracks[i]);
+}
+
 // Copy particles leaked from the GPU region into a compact buffer
-__global__ void FillFromDeviceBuffer(int numLeaked, AllLeaked all, adeptint::TrackData *fromDevice)
+__global__ void FillFromDeviceBuffer(int numLeaked, LeakedTracks all, adeptint::TrackData *fromDevice)
 {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i >= numLeaked) return;
-  int numElectrons = all.leakedElectrons.fLeakedQueue->size();
-  int numPositrons = all.leakedPositrons.fLeakedQueue->size();
-  int numGammas    = all.leakedGammas.fLeakedQueue->size();
+  int numElectrons = all.leakedElectrons->size();
+  int numPositrons = all.leakedPositrons->size();
+  int numGammas    = all.leakedGammas->size();
   assert(numLeaked == numElectrons + numPositrons + numGammas);
 
-  const Track *track{nullptr};
   if (i < numElectrons) {
-    int trackIndex    = (*all.leakedElectrons.fLeakedQueue)[i];
-    track             = &(*all.leakedElectrons.trackmgr)[trackIndex];
-    fromDevice[i].pdg = -11;
+    fromDevice[i] = (*all.leakedElectrons)[i];
   } else if (i < numElectrons + numPositrons) {
-    int trackIndex    = (*all.leakedPositrons.fLeakedQueue)[i - numElectrons];
-    track             = &(*all.leakedPositrons.trackmgr)[trackIndex];
-    fromDevice[i].pdg = 11;
+    fromDevice[i] = (*all.leakedPositrons)[i - numElectrons];
   } else {
-    int trackIndex    = (*all.leakedGammas.fLeakedQueue)[i - numElectrons - numPositrons];
-    track             = &(*all.leakedGammas.trackmgr)[trackIndex];
-    fromDevice[i].pdg = 22;
+    fromDevice[i] = (*all.leakedGammas)[i - numElectrons - numPositrons];
   }
-
-  fromDevice[i].position[0]  = track->pos[0];
-  fromDevice[i].position[1]  = track->pos[1];
-  fromDevice[i].position[2]  = track->pos[2];
-  fromDevice[i].direction[0] = track->dir[0];
-  fromDevice[i].direction[1] = track->dir[1];
-  fromDevice[i].direction[2] = track->dir[2];
-  fromDevice[i].energy       = track->energy;
 }
 
 // Finish iteration: refresh track managers and fill statistics.
@@ -182,6 +176,14 @@ __global__ void FinishIteration(AllTrackManagers all, Stats *stats)
     stats->mgr_stats[i] = all.trackmgr[i]->fStats;
     stats->leakedTracks[i] = all.leakedTracks[i]->size();
   }
+}
+
+// Clear device leaked queues
+__global__ void ClearLeakedQueues(LeakedTracks all)
+{
+  all.leakedElectrons->clear();
+  all.leakedPositrons->clear();
+  all.leakedGammas->clear();
 }
 
 bool AdeptIntegration::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
@@ -213,6 +215,23 @@ bool AdeptIntegration::InitializePhysics()
   return true;
 }
 
+void AdeptIntegration::PrepareLeakedBuffers(int numLeaked)
+{
+  // Make sure the size of the allocated track array is large enough
+  using TrackData    = adeptint::TrackData;
+  GPUstate &gpuState = *static_cast<GPUstate *>(fGPUstate);
+  if (fBuffer.buffSize < numLeaked) {
+    if (fBuffer.buffSize) {
+      delete[] fBuffer.fromDeviceBuff;
+      COPCORE_CUDA_CHECK(cudaFree(gpuState.fromDevice_dev));
+    }
+    fBuffer.buffSize = numLeaked;
+    fBuffer.fromDevice.reserve(numLeaked);
+    fBuffer.fromDeviceBuff = new TrackData[numLeaked];
+    COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.fromDevice_dev, numLeaked * sizeof(TrackData)));
+  }
+}
+
 void AdeptIntegration::InitializeGPU()
 {
   using TrackData    = adeptint::TrackData;
@@ -223,7 +242,7 @@ void AdeptIntegration::InitializeGPU()
   G4cout << "INFO: batching " << fMaxBatch << " particles for transport on the GPU" << G4endl;
 
   // Allocate track managers, streams and synchronizaion events.
-  const size_t QueueSize = adept::MParray::SizeOfInstance(kCapacity);
+  const size_t QueueSize = MParrayTracks::SizeOfInstance(kCapacity);
   // Create a stream to synchronize kernels of all particle types.
   COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
 
@@ -237,6 +256,7 @@ void AdeptIntegration::InitializeGPU()
     COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.particles[i].stream));
     COPCORE_CUDA_CHECK(cudaEventCreate(&gpuState.particles[i].event));
   }
+  InitLeakedQueues<<<1, 1, 0, gpuState.stream>>>(gpuState.allmgr_d, QueueSize);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // initialize statistics
@@ -245,9 +265,7 @@ void AdeptIntegration::InitializeGPU()
 
   // initialize buffers of tracks on device
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.toDevice_dev, fMaxBatch * sizeof(TrackData)));
-  gpuState.fNumFromDevice = 1000;
-  COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.fromDevice_dev, gpuState.fNumFromDevice * sizeof(TrackData)));
-  fBuffer.fromDevice = new TrackData[1000];
+  PrepareLeakedBuffers(1000);
 }
 
 void AdeptIntegration::FreeGPU()
@@ -323,10 +341,26 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   int num_compact       = 0;
   int loopingNo         = 0;
   int previousElectrons = -1, previousPositrons = -1;
-  AllLeaked leakedTracks = {.leakedElectrons = {electrons.trackmgr, electrons.leakedTracks},
-                            .leakedPositrons = {positrons.trackmgr, positrons.leakedTracks},
-                            .leakedGammas    = {gammas.trackmgr, gammas.leakedTracks}};
+  LeakedTracks leakedTracks = {.leakedElectrons = electrons.leakedTracks,
+                            .leakedPositrons = positrons.leakedTracks,
+                            .leakedGammas    = gammas.leakedTracks};
 
+  auto copyLeakedTracksFromGPU = [&](int numLeaked)
+  {
+    PrepareLeakedBuffers(numLeaked);
+    // Populate the buffer from sparse memory
+    constexpr unsigned int block_size = 256;
+    unsigned int grid_size            = (numLeaked + block_size - 1) / block_size;
+    FillFromDeviceBuffer<<<grid_size, block_size, 0, gpuState.stream>>>(numLeaked, leakedTracks,
+                                                                        gpuState.fromDevice_dev);
+    // Copy the buffer from device to host
+    COPCORE_CUDA_CHECK(cudaMemcpyAsync(fBuffer.fromDeviceBuff, gpuState.fromDevice_dev, numLeaked * sizeof(TrackData),
+                                        cudaMemcpyDeviceToHost, gpuState.stream));
+    COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+    fBuffer.fromDevice.insert(fBuffer.fromDevice.end(), &fBuffer.fromDeviceBuff[0], &fBuffer.fromDeviceBuff[numLeaked]);
+  };
+  
+  int niter = 0;
   do {
 
     // *** ELECTRONS ***
@@ -387,6 +421,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
       gpuState.allmgr_h.trackmgr[i]->fStats = gpuState.stats->mgr_stats[i];
       inFlight += gpuState.stats->mgr_stats[i].fInFlight;
       numLeaked += gpuState.stats->leakedTracks[i];
+      // Compact the particle track buffer if needed
       auto compacted = gpuState.allmgr_h.trackmgr[i]->SwapAndCompact(compactThreshold, gpuState.particles[i].stream);
       if (compacted) num_compact++;
     }
@@ -395,6 +430,9 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
     numElectrons = gpuState.allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
     numPositrons = gpuState.allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
     numGammas    = gpuState.allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight;
+    if (fDebugLevel > 1) {
+      printf("iter %d: elec %d, pos %d, gam %d, leak %d\n", niter++, numElectrons, numPositrons, numGammas, numLeaked);
+    }
     if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
       loopingNo++;
     } else {
@@ -408,27 +446,12 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   if (fDebugLevel > 0) {
     G4cout << inFlight << " in flight, " << numLeaked << " leaked, " << num_compact << " compacted\n";
   }
-  // Transfer back leaked tracks
+
+  // Transfer the leaked tracks from GPU
   if (numLeaked) {
-    fBuffer.numFromDevice = numLeaked;
-    // Make sure the size of the allocated track array is large enough
-    if (gpuState.fNumFromDevice < numLeaked) {
-      gpuState.fNumFromDevice = numLeaked;
-      delete[] fBuffer.fromDevice;
-      fBuffer.fromDevice = new TrackData[numLeaked];
-      COPCORE_CUDA_CHECK(cudaFree(gpuState.fromDevice_dev));
-      COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.fromDevice_dev, numLeaked * sizeof(TrackData)));
-    }
-    // Populate the buffer from sparse memory
-    constexpr unsigned int block_size = 256;
-    unsigned int grid_size            = (numLeaked + block_size - 1) / block_size;
-    FillFromDeviceBuffer<<<grid_size, block_size, 0, gpuState.stream>>>(numLeaked, leakedTracks,
-                                                                        gpuState.fromDevice_dev);
-    // Copy the buffer from device to host
-    COPCORE_CUDA_CHECK(
-        cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, gpuState.stream));
-    COPCORE_CUDA_CHECK(cudaMemcpyAsync(fBuffer.fromDevice, gpuState.fromDevice_dev, numLeaked * sizeof(TrackData),
-                                       cudaMemcpyDeviceToHost, gpuState.stream));
+    copyLeakedTracksFromGPU(numLeaked);
+    // Sort by energy the tracks coming from device to ensure reproducibility
+    std::sort(fBuffer.fromDevice.begin(), fBuffer.fromDevice.end());
   }
 
   if (inFlight > 0) {
@@ -443,6 +466,9 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
     }
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
   }
+
+  ClearLeakedQueues<<<1, 1, 0, gpuState.stream>>>(leakedTracks);
+  COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
   // Transfer back scoring.
   fScoring->CopyHitsToHost();
