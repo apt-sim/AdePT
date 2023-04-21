@@ -16,8 +16,8 @@
 #endif
 
 #include <G4HepEmState.hh>
-//#include <G4HepEmData.hh>
-//#include <G4HepEmParameters.hh>
+// #include <G4HepEmData.hh>
+// #include <G4HepEmParameters.hh>
 
 // For the moment the scoring type will be determined by what we include here
 #include "CommonStruct.h"
@@ -84,7 +84,7 @@ private:
 
 public:
   int GetNtoDevice() const { return fBuffer.toDevice.size(); }
-  int GetNfromDevice() const { return fBuffer.numFromDevice; }
+  int GetNfromDevice() const { return fBuffer.fromDevice.size(); }
 
 public:
   AdeptIntegration() = default;
@@ -92,6 +92,9 @@ public:
 
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz);
+  /// @brief Prepare the buffers for copying leaked tracks
+  /// @param numLeaked Number of tracks to be copied
+  void PrepareLeakedBuffers(int numLeaked);
   /// @brief Set track capacity on GPU
   static void SetTrackCapacity(size_t capacity) { kCapacity = capacity; }
   /// @brief Set maximum batch size

@@ -30,7 +30,7 @@
 // generate secondaries.
 template <bool IsElectron, typename Scoring>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
-                                                          Secondaries &secondaries, adept::MParray *leakedQueue,
+                                                          Secondaries &secondaries, MParrayTracks *leakedQueue,
                                                           Scoring *userScoring)
 {
   using VolAuxData = AdeptIntegration::VolAuxData;
@@ -42,6 +42,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Charge               = IsElectron ? -1 : 1;
   constexpr double Mass              = copcore::units::kElectronMassC2;
+  constexpr int Pdg                  = IsElectron ? 11 : -11;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
   int activeSize = electrons->fActiveTracks->size();
@@ -53,6 +54,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     auto dir            = currentTrack.dir;
     auto navState       = currentTrack.navState;
     const auto volume   = navState.Top();
+    adeptint::TrackData trackdata;
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = volume->GetLogicalVolume()->id();
     VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
@@ -63,8 +65,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
       currentTrack.navState = navState;
+      currentTrack.CopyTo(trackdata, Pdg);
       if (leak)
-        leakedQueue->push_back(slot);
+        leakedQueue->push_back(trackdata);
       else
         electrons->fNextTracks->push_back(slot);
     };
@@ -369,13 +372,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 // Instantiate kernels for electrons and positrons.
 template <typename Scoring>
 __global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
-                                   adept::MParray *leakedQueue, Scoring *userScoring)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring)
 {
   TransportElectrons</*IsElectron*/ true, Scoring>(electrons, secondaries, leakedQueue, userScoring);
 }
 template <typename Scoring>
 __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
-                                   adept::MParray *leakedQueue, Scoring *userScoring)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring)
 {
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, secondaries, leakedQueue, userScoring);
 }

@@ -30,11 +30,6 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
 }
 #endif
 
-struct LeakedTracks {
-  adept::TrackManager<Track> *trackmgr;
-  adept::MParray *fLeakedQueue;
-};
-
 // A bundle of track managers for the three particle types.
 struct Secondaries {
   adept::TrackManager<Track> *electrons;
@@ -42,15 +37,15 @@ struct Secondaries {
   adept::TrackManager<Track> *gammas;
 };
 
-struct AllLeaked {
-  LeakedTracks leakedElectrons;
-  LeakedTracks leakedPositrons;
-  LeakedTracks leakedGammas;
+struct LeakedTracks {
+  MParrayTracks *leakedElectrons;
+  MParrayTracks *leakedPositrons;
+  MParrayTracks *leakedGammas;
 };
 
 struct ParticleType {
   adept::TrackManager<Track> *trackmgr;
-  adept::MParray *leakedTracks;
+  MParrayTracks *leakedTracks;
   cudaStream_t stream;
   cudaEvent_t event;
 
@@ -66,7 +61,7 @@ struct ParticleType {
 // Track managers for the three particle types.
 struct AllTrackManagers {
   adept::TrackManager<Track> *trackmgr[ParticleType::NumParticleTypes];
-  adept::MParray *leakedTracks[ParticleType::NumParticleTypes];
+  MParrayTracks *leakedTracks[ParticleType::NumParticleTypes];
 };
 
 // A data structure to transfer statistics after each iteration.
@@ -83,7 +78,6 @@ struct GPUstate {
   AllTrackManagers allmgr_d;          ///< Device pointers for track managers
   // Create a stream to synchronize kernels of all particle types.
   cudaStream_t stream;                ///< all-particle sync stream
-  int fNumFromDevice{0};              ///< number of tracks in the fromDevice buffer
   TrackData *toDevice_dev{nullptr};   ///< toDevice buffer of tracks
   TrackData *fromDevice_dev{nullptr}; ///< fromDevice buffer of tracks
   Stats *stats_dev{nullptr};          ///< statistics object pointer on device

@@ -20,19 +20,20 @@ class G4UIcmdWithAnInteger;
 
 class HepMC3G4AsciiReaderMessenger : public G4UImessenger {
 public:
-  HepMC3G4AsciiReaderMessenger(HepMC3G4AsciiReader* agen);
+  HepMC3G4AsciiReaderMessenger(HepMC3G4AsciiReader *agen);
   ~HepMC3G4AsciiReaderMessenger();
 
-  void SetNewValue(G4UIcommand* command, G4String newValues);
-  G4String GetCurrentValue(G4UIcommand* command);
+  void SetNewValue(G4UIcommand *command, G4String newValues);
+  G4String GetCurrentValue(G4UIcommand *command);
 
 private:
-  HepMC3G4AsciiReader* gen;
+  HepMC3G4AsciiReader *gen;
 
-  G4UIdirectory* dir;
-  G4UIcmdWithAnInteger* verbose;
-  G4UIcmdWithAString* open;
-
+  G4UIdirectory *dir;
+  G4UIcmdWithAnInteger *verbose;
+  G4UIcmdWithAnInteger *maxevent;
+  G4UIcmdWithAnInteger *firstevent;
+  G4UIcmdWithAString *open;
 };
 
 #endif

@@ -10,6 +10,7 @@ class DetectorConstruction;
 class G4UIdirectory;
 class G4UIcmdWithoutParameter;
 class G4UIcmdWithAnInteger;
+class G4UIcmdWithADouble;
 class G4UIcmdWithADoubleAndUnit;
 class G4UIcmdWithAString;
 class G4UIcmdWithABool;
@@ -44,10 +45,10 @@ private:
   /// Command printing current settings
   G4UIcmdWithoutParameter *fPrintCmd = nullptr;
 
-  G4UIcmdWithAString *fFileNameCmd    = nullptr;
-  G4UIcmdWithAString *fRegionNameCmd  = nullptr;
-  G4UIcmdWithAString *fSensVolNameCmd = nullptr;
-  G4UIcmdWithAString *fSensVolGroupCmd  = nullptr;
+  G4UIcmdWithAString *fFileNameCmd     = nullptr;
+  G4UIcmdWithAString *fRegionNameCmd   = nullptr;
+  G4UIcmdWithAString *fSensVolNameCmd  = nullptr;
+  G4UIcmdWithAString *fSensVolGroupCmd = nullptr;
 
   G4UIcmdWith3VectorAndUnit *fFieldCmd = nullptr;
   /// Activation of AdePT
@@ -57,7 +58,7 @@ private:
   /// Buffer threshold for injecting into AdePT
   G4UIcmdWithAnInteger *fBufferThresholdCmd = nullptr;
   /// Total number of track slots for the gpu
-  G4UIcmdWithAnInteger *fTrackSlotsCmd = nullptr;
+  G4UIcmdWithADouble *fTrackSlotsCmd = nullptr;
 };
 
 #endif

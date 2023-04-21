@@ -4,7 +4,7 @@
 #ifndef ADEPT_TRACK_CUH
 #define ADEPT_TRACK_CUH
 
-#include <AdePT/MParray.h>
+#include <TrackData.h>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 
@@ -44,6 +44,18 @@ struct Track {
     // to update the directions.
     this->pos      = parentPos;
     this->navState = parentNavState;
+  }
+
+  __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg) 
+  {
+    tdata.pdg = pdg;
+    tdata.position[0]  = pos[0];
+    tdata.position[1]  = pos[1];
+    tdata.position[2]  = pos[2];
+    tdata.direction[0] = dir[0];
+    tdata.direction[1] = dir[1];
+    tdata.direction[2] = dir[2];
+    tdata.energy       = energy;
   }
 };
 #endif

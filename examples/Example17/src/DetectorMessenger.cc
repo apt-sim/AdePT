@@ -7,6 +7,7 @@
 #include "G4UIcmdWithoutParameter.hh"
 #include "G4UIcmdWithAnInteger.hh"
 #include "G4UIcmdWithADoubleAndUnit.hh"
+#include "G4UIcmdWithADouble.hh"
 #include "G4UIcmdWithAString.hh"
 #include "G4UIcmdWithABool.hh"
 #include "G4UIcmdWith3VectorAndUnit.hh"
@@ -48,7 +49,7 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImess
   fBufferThresholdCmd = new G4UIcmdWithAnInteger("/example17/adept/threshold", this);
   fBufferThresholdCmd->SetGuidance("Threshold for starting AdePT transport");
 
-  fTrackSlotsCmd = new G4UIcmdWithAnInteger("/example17/adept/milliontrackslots", this);
+  fTrackSlotsCmd = new G4UIcmdWithADouble("/example17/adept/milliontrackslots", this);
   fTrackSlotsCmd->SetGuidance("Total number of allocated track slots per GPU");
 
   fFieldCmd = new G4UIcmdWith3VectorAndUnit("/example17/detector/setField", this);
@@ -100,6 +101,6 @@ void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
   } else if (aCommand == fBufferThresholdCmd) {
     fDetector->SetBufferThreshold(fBufferThresholdCmd->GetNewIntValue(aNewValue));
   } else if (aCommand == fTrackSlotsCmd) {
-    fDetector->SetTrackSlots(fTrackSlotsCmd->GetNewIntValue(aNewValue));
+    fDetector->SetTrackSlots(fTrackSlotsCmd->GetNewDoubleValue(aNewValue));
   }
 }

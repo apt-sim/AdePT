@@ -49,6 +49,8 @@
 /example17/event/verbose 2
 
 #/example17/gun/hepmc
+#/generator/hepmcAscii/maxevents 50
+#/generator/hepmcAscii/firstevent 10
 #/generator/hepmcAscii/open ppminbias.hepmc3
 #/generator/hepmcAscii/verbose 1
 

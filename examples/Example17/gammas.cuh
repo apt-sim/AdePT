@@ -21,7 +21,7 @@
 
 template <typename Scoring>
 __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries,
-                                adept::MParray *leakedQueue, Scoring *userScoring)
+                                MParrayTracks *leakedQueue, Scoring *userScoring)
 {
   using VolAuxData = AdeptIntegration::VolAuxData;
 #ifdef VECGEOM_FLOAT_PRECISION
@@ -30,6 +30,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
   const Precision kPush = 0.;
 #endif
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
+  constexpr int Pdg                  = 22;
   int activeSize                     = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*gammas->fActiveTracks)[i];
@@ -39,6 +40,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     auto dir            = currentTrack.dir;
     auto navState       = currentTrack.navState;
     const auto volume   = navState.Top();
+    adeptint::TrackData trackdata;
     // the MCC vector is indexed by the logical volume id
     int lvolID                = volume->GetLogicalVolume()->id();
     VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
@@ -49,8 +51,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
       currentTrack.navState = navState;
+      currentTrack.CopyTo(trackdata, Pdg);
       if (leak)
-        leakedQueue->push_back(slot);
+        leakedQueue->push_back(trackdata);
       else
         gammas->fNextTracks->push_back(slot);
     };

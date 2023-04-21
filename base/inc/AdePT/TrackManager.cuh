@@ -148,6 +148,7 @@ struct TrackManager {
     int needed = used + 2 * inFlight;
     if (needed < compact_threshold * fCapacity || !can_compress) {
       device_impl_trackmgr::swap_active<Track><<<1, 1, 0, stream>>>(fInstance_d);
+      COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
       return false;
     }
 
