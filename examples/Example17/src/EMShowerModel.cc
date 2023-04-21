@@ -27,8 +27,7 @@
 EMShowerModel::EMShowerModel(G4String aModelName, G4Region *aEnvelope)
     : G4VFastSimulationModel(aModelName, aEnvelope), fMessenger(new EMShowerMessenger(this))
 {
-  auto tid = G4Threading::G4GetThreadId();
-  fRegion  = aEnvelope;
+  fRegion = aEnvelope;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -36,7 +35,6 @@ EMShowerModel::EMShowerModel(G4String aModelName, G4Region *aEnvelope)
 EMShowerModel::EMShowerModel(G4String aModelName)
     : G4VFastSimulationModel(aModelName), fMessenger(new EMShowerMessenger(this))
 {
-  auto tid = G4Threading::G4GetThreadId();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
