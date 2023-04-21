@@ -44,6 +44,7 @@ ActionInitialisation::~ActionInitialisation() {}
 
 void ActionInitialisation::BuildForMaster() const
 {
+  new PrimaryGeneratorAction(fDetector);
   SetUserAction(new RunAction(fDetector));
 }
 
