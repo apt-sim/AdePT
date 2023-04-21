@@ -27,7 +27,8 @@
 EMShowerModel::EMShowerModel(G4String aModelName, G4Region *aEnvelope)
     : G4VFastSimulationModel(aModelName, aEnvelope), fMessenger(new EMShowerMessenger(this))
 {
-  fRegion = aEnvelope;
+  auto tid = G4Threading::G4GetThreadId();
+  fRegion  = aEnvelope;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -35,6 +36,7 @@ EMShowerModel::EMShowerModel(G4String aModelName, G4Region *aEnvelope)
 EMShowerModel::EMShowerModel(G4String aModelName)
     : G4VFastSimulationModel(aModelName), fMessenger(new EMShowerMessenger(this))
 {
+  auto tid = G4Threading::G4GetThreadId();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -119,10 +121,10 @@ void EMShowerModel::Initialize(bool adept)
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
     // This is supposed to set the max batching for Adept to allocate properly the memory
-     int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
-     int capacity = 1024 * 1024 * fTrackSlotsGPU / num_threads;
-     AdeptIntegration::SetTrackCapacity(capacity);
-     fAdept->Initialize(true /*common_data*/);
+    int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
+    int capacity    = 1024 * 1024 * fTrackSlotsGPU / num_threads;
+    AdeptIntegration::SetTrackCapacity(capacity);
+    fAdept->Initialize(true /*common_data*/);
     if (sequential && adept) fAdept->Initialize();
   } else {
     if (adept) fAdept->Initialize();

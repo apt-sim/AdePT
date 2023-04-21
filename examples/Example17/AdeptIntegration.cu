@@ -238,9 +238,6 @@ void AdeptIntegration::InitializeGPU()
   fGPUstate          = new GPUstate;
   GPUstate &gpuState = *fGPUstate;
 
-  // Capacity of the different containers aka the maximum number of particles.
-  G4cout << "INFO: batching " << fMaxBatch << " particles for transport on the GPU" << G4endl;
-
   // Allocate track managers, streams and synchronizaion events.
   const size_t QueueSize = MParrayTracks::SizeOfInstance(kCapacity);
   // Create a stream to synchronize kernels of all particle types.

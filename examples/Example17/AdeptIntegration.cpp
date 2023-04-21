@@ -83,6 +83,10 @@ void AdeptIntegration::Initialize(bool common_data)
     VolAuxArray::GetInstance().fNumVolumes = fNumVolumes;
     VolAuxArray::GetInstance().fAuxData    = auxData;
     VolAuxArray::GetInstance().InitializeOnGPU();
+
+    // Print some settings
+    G4cout << "=== AdeptIntegration: buffering " << fBufferThreshold << " particles for transport on the GPU" << G4endl;
+    G4cout << "=== AdeptIntegration: maximum number of GPU track slots per thread: " << kCapacity << G4endl;
     return;
   }
 
