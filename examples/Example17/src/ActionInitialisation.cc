@@ -30,6 +30,9 @@
 #include "EventAction.hh"
 #include "RunAction.hh"
 #include "TrackingAction.hh"
+#include "SteppingAction.hh"
+#include "BenchmarkManager.h"
+#include "DetectorConstruction.hh"
 
 ActionInitialisation::ActionInitialisation(DetectorConstruction *aDetector)
     : G4VUserActionInitialization(), fDetector(aDetector)
@@ -54,6 +57,13 @@ void ActionInitialisation::Build() const
 {
   SetUserAction(new PrimaryGeneratorAction(fDetector));
   SetUserAction(new EventAction(fDetector));
-  SetUserAction(new RunAction(fDetector));
-  SetUserAction(new TrackingAction);
+  RunAction *aRunAction = new RunAction(fDetector);
+  SetUserAction(aRunAction);
+  TrackingAction *aTrackingAction = new TrackingAction(fDetector);
+  SetUserAction(aTrackingAction);
+
+// Do not register this if benchmark manager is not active
+#if defined BENCHMARK
+  SetUserAction(new SteppingAction(fDetector, aRunAction, aTrackingAction));
+#endif
 }

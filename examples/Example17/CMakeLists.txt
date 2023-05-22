@@ -36,10 +36,12 @@ set(sources_g4
   src/EMShowerModel.cc
   src/EventAction.cc
   src/EventActionMessenger.cc
+  src/SteppingAction.cc
   src/SimpleHit.cc
   src/PrimaryGeneratorAction.cc
   src/PrimaryGeneratorMessenger.cc
   src/RunAction.cc
+  src/Run.cc
   src/SensitiveDetector.cc
   src/PhysListHepEm.cc
   src/TrackingAction.cc
@@ -59,7 +61,8 @@ add_executable(example17 example17.cpp AdeptIntegration.cpp AdeptIntegration.cu 
                ${sources_g4} ${sources_hepmc3})
 
 target_include_directories(example17 PRIVATE ${PROJECT_SOURCE_DIR}/examples/Example17/include 
-                          ${PROJECT_SOURCE_DIR}/examples/Example17 ${HEPMC3_INCLUDE_DIR})
+                          ${PROJECT_SOURCE_DIR}/examples/Example17 ${HEPMC3_INCLUDE_DIR}
+                          ${PROJECT_SOURCE_DIR}/base/inc/AdePT)
 
 target_link_libraries(example17
   PRIVATE

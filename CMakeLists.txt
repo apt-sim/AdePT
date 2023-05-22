@@ -138,6 +138,10 @@ if(NVTX)
   target_compile_definitions(NVTX INTERFACE -DUSE_NVTX)
 endif()
 
+if(BENCHMARK)
+  add_definitions(-DBENCHMARK)
+endif()
+
 add_subdirectory(tracking)
 add_subdirectory(test)
 add_subdirectory(examples)
