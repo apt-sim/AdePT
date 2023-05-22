@@ -67,6 +67,8 @@ public:
 
   std::vector<G4String> &GetSensitiveGroups() { return fSensitive_group; }
 
+  G4String &getRegionName() { return fRegion_name; }
+
 private:
   int fVerbosity{0};        ///< Actually verbosity for AdePT integration
   int fBufferThreshold{20}; ///< Buffer threshold for AdePT transport

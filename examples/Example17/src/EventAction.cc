@@ -34,9 +34,13 @@
 #include "G4HCofThisEvent.hh"
 #include "G4Event.hh"
 #include "G4EventManager.hh"
+#include "G4RunManager.hh"
 
 #include "G4GlobalFastSimulationManager.hh"
 #include "AdeptIntegration.h"
+
+#include "BenchmarkManager.h"
+#include "Run.hh"
 
 EventAction::EventAction(DetectorConstruction *aDetector)
     : G4UserEventAction(), fDetector(aDetector), fHitCollectionID(-1), fTimer()
@@ -52,7 +56,15 @@ EventAction::~EventAction() {}
 
 void EventAction::BeginOfEventAction(const G4Event *)
 {
+  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
+
   fTimer.Start();
+
+  #if defined BENCHMARK
+    //Get the Run object associated to this thread and start the timer for this event
+    Run* currentRun = static_cast< Run* > ( G4RunManager::GetRunManager()->GetNonConstCurrentRun() );
+    currentRun->getBenchmarkManager()->timerStart(Run::timers::EVENT);
+  #endif
 
   // zero the counters
   number_electrons = 0;
@@ -65,8 +77,32 @@ void EventAction::BeginOfEventAction(const G4Event *)
 
 void EventAction::EndOfEventAction(const G4Event *aEvent)
 {
+  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   fTimer.Stop();
+
+  #if defined BENCHMARK
+    //Get the Run object associated to this thread and stop the timer for this event
+    Run* currentRun = static_cast< Run* > ( G4RunManager::GetRunManager()->GetNonConstCurrentRun() );
+    auto aBenchmarkManager = currentRun->getBenchmarkManager();
+    aBenchmarkManager->timerStop(Run::timers::EVENT);
+
+    //Accumulate the timings
+    double eventTime = aBenchmarkManager->getDurationSeconds(Run::timers::EVENT);
+    double nonEMTime = aBenchmarkManager->getDurationSeconds(Run::timers::NONEM_EVT);
+    double ecalTime = eventTime - nonEMTime;
+    
+    aBenchmarkManager->addDurationSeconds(Run::timers::EVENT_SUM, eventTime);
+    aBenchmarkManager->addDurationSeconds(Run::timers::EVENT_SQ, pow(eventTime, 2));
+    aBenchmarkManager->addDurationSeconds(Run::timers::NONEM_SUM, nonEMTime);
+    aBenchmarkManager->addDurationSeconds(Run::timers::NONEM_SQ, pow(nonEMTime, 2));
+    aBenchmarkManager->addDurationSeconds(Run::timers::ECAL_SUM, ecalTime);
+    aBenchmarkManager->addDurationSeconds(Run::timers::ECAL_SQ, pow(ecalTime, 2));
+
+    //Reset the timers for the next event
+    aBenchmarkManager->removeTimer(Run::timers::EVENT);
+    aBenchmarkManager->removeTimer(Run::timers::NONEM_EVT);
+  #endif
 
   // Get hits collection ID (only once)
   if (fHitCollectionID == -1) {
@@ -84,9 +120,8 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   SimpleHit *hit       = nullptr;
   G4double hitEn       = 0;
   G4double totalEnergy = 0;
-  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
-
-  // print number of secondares std::setw(24) << std::fixed
+  
+  // print number of secondaries std::setw(24) << std::fixed
   if (fVerbosity > 0) {
     G4cout << "EndOfEventAction " << eventId << ": electrons " << number_electrons << G4endl;
     G4cout << "EndOfEventAction " << eventId << ": positrons " << number_positrons << G4endl;
