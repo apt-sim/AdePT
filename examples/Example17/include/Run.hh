@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 //
 // ********************************************************************
@@ -25,45 +25,62 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#include "ActionInitialisation.hh"
-#include "PrimaryGeneratorAction.hh"
-#include "EventAction.hh"
-#include "RunAction.hh"
-#include "TrackingAction.hh"
-#include "SteppingAction.hh"
-#include "BenchmarkManager.h"
-#include "DetectorConstruction.hh"
+#ifndef RUN_HH
+#define RUN_HH
 
-ActionInitialisation::ActionInitialisation(DetectorConstruction *aDetector)
-    : G4VUserActionInitialization(), fDetector(aDetector)
-{
-}
+#include "G4Run.hh"
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+#define TAG_TYPE int
 
-ActionInitialisation::~ActionInitialisation() {}
+template <class TTag>
+class BenchmarkManager;
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+/**
+ * @brief Run class for merging and displaying info collected by different worker threads
+ */
+class Run : public G4Run {
 
-void ActionInitialisation::BuildForMaster() const
-{
-  new PrimaryGeneratorAction(fDetector);
-  SetUserAction(new RunAction(fDetector));
-}
+public:
+  Run();
+  ~Run();
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+  /** @brief Merge the results of the worker threads */
+  void Merge(const G4Run *run) override;
 
-void ActionInitialisation::Build() const
-{
-  SetUserAction(new PrimaryGeneratorAction(fDetector));
-  SetUserAction(new EventAction(fDetector));
-  RunAction *aRunAction = new RunAction(fDetector);
-  SetUserAction(aRunAction);
-  TrackingAction *aTrackingAction = new TrackingAction(fDetector);
-  SetUserAction(aTrackingAction);
+  BenchmarkManager<TAG_TYPE> *getBenchmarkManager() const { return fBenchmarkManager; }
+  
+  /** @brief Compute and display collected metrics */
+  void EndOfRunSummary();
 
-// Do not register this if benchmark manager is not active
-#if defined BENCHMARK
-  SetUserAction(new SteppingAction(fDetector, aRunAction, aTrackingAction));
+  /**
+   * @brief Enum defining the timers that we can use for benchmarking
+   */
+  enum timers {
+    // Non electromagnetic timer (Track time outside of the GPU region)
+    NONEM,
+    // Event timer (Timer from start to end)
+    EVENT,
+    // Global execution timer
+    TOTAL
+  };
+
+  /**
+   * @brief Enum defining the accumulators that we can use for benchmarking
+   */
+  enum accumulators {
+    // Accumulator within an event (Sum of track times)
+    NONEM_EVT,
+    // Acummulators for the sum and squared sum of the timings across all events
+    NONEM_SUM,
+    NONEM_SQ,
+    ECAL_SUM,
+    ECAL_SQ,
+    EVENT_SUM,
+    EVENT_SQ
+  };
+
+private:
+  BenchmarkManager<TAG_TYPE> *fBenchmarkManager;
+};
+
 #endif
-}

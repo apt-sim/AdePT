@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 //
 // ********************************************************************
@@ -25,45 +25,30 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#include "ActionInitialisation.hh"
-#include "PrimaryGeneratorAction.hh"
-#include "EventAction.hh"
-#include "RunAction.hh"
-#include "TrackingAction.hh"
-#include "SteppingAction.hh"
-#include "BenchmarkManager.h"
-#include "DetectorConstruction.hh"
+#ifndef STEPPINGACTION_HH
+#define STEPPINGACTION_HH
 
-ActionInitialisation::ActionInitialisation(DetectorConstruction *aDetector)
-    : G4VUserActionInitialization(), fDetector(aDetector)
-{
-}
+#include "G4UserSteppingAction.hh"
+#include "G4RegionStore.hh"
+#include "G4Region.hh"
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+class DetectorConstruction;
+class RunAction;
+class TrackingAction;
 
-ActionInitialisation::~ActionInitialisation() {}
+class SteppingAction : public G4UserSteppingAction {
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+  // Method declaration:
+public:
+  SteppingAction(DetectorConstruction *aDetector, RunAction *aRunAction, TrackingAction *aTrackingAction);
+  ~SteppingAction() override;
+  void UserSteppingAction(const G4Step *step) override;
 
-void ActionInitialisation::BuildForMaster() const
-{
-  new PrimaryGeneratorAction(fDetector);
-  SetUserAction(new RunAction(fDetector));
-}
+  // Data member declarations:
+private:
+  DetectorConstruction *fDetector;
+  RunAction *fRunAction;
+  TrackingAction *fTrackingAction;
+};
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-void ActionInitialisation::Build() const
-{
-  SetUserAction(new PrimaryGeneratorAction(fDetector));
-  SetUserAction(new EventAction(fDetector));
-  RunAction *aRunAction = new RunAction(fDetector);
-  SetUserAction(aRunAction);
-  TrackingAction *aTrackingAction = new TrackingAction(fDetector);
-  SetUserAction(aTrackingAction);
-
-// Do not register this if benchmark manager is not active
-#if defined BENCHMARK
-  SetUserAction(new SteppingAction(fDetector, aRunAction, aTrackingAction));
 #endif
-}

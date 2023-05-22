@@ -71,6 +71,8 @@ void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
   auto particleDirection = g4track->GetMomentumDirection();
 
   aFastStep.KillPrimaryTrack();
+  //return;
+
   aFastStep.SetPrimaryTrackPathLength(0.0);
   G4double energy = aFastTrack.GetPrimaryTrack()->GetKineticEnergy();
   // No need to create any deposit, it will be handled by this model (and
