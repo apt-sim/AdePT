@@ -210,7 +210,7 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
   int nphysical_sens = 0;
   int ninregion      = 0;
 
-  int nvolumes        = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  const auto nvolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   VolAuxData *auxData = new VolAuxData[nvolumes];
 
   // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
@@ -221,7 +221,7 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
     const auto vol   = pvol->GetLogicalVolume();
     int nd           = g4vol->GetNoDaughters();
     auto daughters   = vol->GetDaughters();
-    if (nd != daughters.size())
+    if (static_cast<std::size_t>(nd) != daughters.size())
       throw std::runtime_error("Fatal: CreateVolAuxData: Mismatch in number of daughters");
     // Check if transformations are matching
     auto g4trans = g4pvol->GetTranslation();
