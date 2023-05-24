@@ -54,9 +54,6 @@ public:
   virtual void EndOfRunAction(const G4Run *) final;
 
 private:
-  /// Pointer to detector construction to retrieve the detector dimensions to
-  /// setup the histograms
-  DetectorConstruction *fDetector;
   vecgeom::Stopwatch fTimer;
 };
 

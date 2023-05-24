@@ -44,7 +44,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr double Mass              = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
-  int activeSize = active->size();
+  const int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];

@@ -73,8 +73,6 @@ void AdeptIntegration::Initialize(bool common_data)
 
     // Do the material-cut couple index mapping once
     // as well as set flags for sensitive volumes and region
-    int *sensitive_volumes = nullptr;
-
     VolAuxData *auxData = CreateVolAuxData(
         G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume(),
         vecgeom::GeoManager::Instance().GetWorld(), *fg4hepem_state);

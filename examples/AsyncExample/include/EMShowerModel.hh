@@ -105,9 +105,6 @@ private:
   /// AdePT buffer threshold
   int fBufferThreshold{20};
 
-  G4double ProductionCut = 0.7 * copcore::units::mm;
-
-  int MCIndex[100];
   int fTrackSlotsGPU{8};     ///< Total number of track slots allocated on GPU (in millions)
   std::unordered_map<std::string, int> *sensitive_volume_index;
   std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap;

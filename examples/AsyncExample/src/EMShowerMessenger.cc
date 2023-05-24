@@ -60,7 +60,7 @@ EMShowerMessenger::~EMShowerMessenger()
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void EMShowerMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValues)
+void EMShowerMessenger::SetNewValue(G4UIcommand *aCommand, G4String /*aNewValues*/)
 {
   if (aCommand == fPrintCmd) {
     fModel->Print();
