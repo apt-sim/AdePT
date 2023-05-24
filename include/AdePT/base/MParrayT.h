@@ -89,7 +89,7 @@ public:
   {
     // Operation may fail if the max size is exceeded. Has to be checked by the user.
     int index = fNbooked.fetch_add(1);
-    if (index >= fCapacity) return false;
+    if (static_cast<adept::MParrayT<T>::size_t>(index) >= fCapacity) return false;
     fData[index] = val;
     fNused++;
     return true;
