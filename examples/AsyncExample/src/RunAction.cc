@@ -31,7 +31,7 @@
 #include <mutex>
 #include "AdeptIntegration.h"
 
-RunAction::RunAction(DetectorConstruction *aDetector) : G4UserRunAction(), fDetector(aDetector) {}
+RunAction::RunAction(DetectorConstruction * /*aDetector*/) : G4UserRunAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

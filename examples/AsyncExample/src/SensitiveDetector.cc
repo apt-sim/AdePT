@@ -95,7 +95,8 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-G4bool SensitiveDetector::ProcessHits(const G4FastHit *aHit, const G4FastTrack *aTrack, G4TouchableHistory *aTouchable)
+G4bool SensitiveDetector::ProcessHits(const G4FastHit *aHit, const G4FastTrack * /*aTrack*/,
+                                      G4TouchableHistory * /*aTouchable*/)
 {
 
   G4double edep = aHit->GetEnergy();
@@ -145,7 +146,7 @@ G4bool SensitiveDetector::ProcessHits(int hitID, double energy)
 SimpleHit *SensitiveDetector::RetrieveAndSetupHit(G4TouchableHistory *aTouchable)
 {
   std::size_t hitID = (*fScoringMap)[aTouchable->GetHistory()->GetTopVolume()];
-  assert(hitID < fNumSensitive);
+  assert(hitID < static_cast<std::size_t>(fNumSensitive));
 
   if (hitID >= fHitsCollection->entries()) {
     G4Exception("SensitiveDetector::RetrieveAndSetupHit()", "InvalidSetup", FatalException,

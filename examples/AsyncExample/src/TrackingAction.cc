@@ -59,9 +59,6 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
   if (aTrack->GetParentID() == -99) return;
 
   // increase nb of processed tracks
-  // count nb of steps of this track
-  G4int nbSteps   = aTrack->GetCurrentStepNumber();
-  G4double Trleng = aTrack->GetTrackLength();
 
   if (aTrack->GetDefinition() == G4Gamma::Gamma()) {
     dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction())->number_gammas++;

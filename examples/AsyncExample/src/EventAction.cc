@@ -36,7 +36,6 @@
 #include "G4EventManager.hh"
 
 #include "G4GlobalFastSimulationManager.hh"
-#include "AdeptIntegration.h"
 
 EventAction::EventAction(DetectorConstruction *aDetector) : G4UserEventAction(), fDetector(aDetector), fHitCollectionID(-1), fTimer()
 {
@@ -114,7 +113,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
       }
     }
     if (group_found) continue;
-    const char *type     = (hit->GetType() == 1) ? "AdePT" : "G4";
+
     if (hitEn > 1 && fVerbosity > 1)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;
