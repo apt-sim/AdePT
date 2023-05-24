@@ -60,13 +60,12 @@ public:
 private:
   /// Particle gun
   G4ParticleGun *fParticleGun;
-  DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
   G4double fRndmDirection;
 
   // HepMC3 reader
   G4VPrimaryGenerator* fHepmcAscii;
-  G4bool fUseHepMC;
+  G4bool fUseHepMC{false};
 
   PrimaryGeneratorMessenger *fGunMessenger;
 };

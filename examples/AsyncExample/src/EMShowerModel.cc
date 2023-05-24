@@ -54,7 +54,7 @@ G4bool EMShowerModel::IsApplicable(const G4ParticleDefinition &aParticleType)
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-G4bool EMShowerModel::ModelTrigger(const G4FastTrack &aFastTrack)
+G4bool EMShowerModel::ModelTrigger(const G4FastTrack & /*aFastTrack*/)
 {
 
   // The model is invoked for e/e-/gamma, so this has to return true
@@ -78,8 +78,6 @@ void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
   aFastStep.SetTotalEnergyDeposited(0);
 
   auto pdg = aFastTrack.GetPrimaryTrack()->GetParticleDefinition()->GetPDGEncoding();
-
-  int tid = G4Threading::G4GetThreadId();
 
   fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
                    particleDirection[1], particleDirection[2]);
