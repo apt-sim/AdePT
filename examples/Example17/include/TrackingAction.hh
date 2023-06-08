@@ -35,19 +35,36 @@
 #define TRACKINGACTION_HH
 
 #include "G4UserTrackingAction.hh"
+#include "G4Region.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+class DetectorConstruction;
 
 class TrackingAction : public G4UserTrackingAction {
 
 public:
-  TrackingAction();
+  TrackingAction(DetectorConstruction* aDetector);
   ~TrackingAction(){};
 
   virtual void PreUserTrackingAction(const G4Track *);
   virtual void PostUserTrackingAction(const G4Track *);
 
+  void setInsideEcal(bool insideEcal){fInsideEcal = insideEcal;}
+  bool getInsideEcal(){return fInsideEcal;}
+
+  inline G4Region* getGPURegion(){return fGPURegion;}
+  inline G4Region* getCurrentRegion(){return fCurrentRegion;}
+  inline void setCurrentRegion(G4Region* aCurrentRegion){fCurrentRegion = aCurrentRegion;}
+  inline G4VPhysicalVolume* getCurrentVolume(){return fCurrentVolume;}
+  inline void setCurrentVolume(G4VPhysicalVolume* aCurrentVolume){fCurrentVolume = aCurrentVolume;}
+
 private:
+  DetectorConstruction* fDetector;
+  bool fInsideEcal;
+  G4Region* fCurrentRegion;
+  G4VPhysicalVolume* fCurrentVolume;
+  G4Region* fGPURegion;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

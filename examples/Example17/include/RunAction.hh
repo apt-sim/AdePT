@@ -31,6 +31,7 @@
 #include "G4UserRunAction.hh"
 #include <VecGeom/base/Stopwatch.h>
 class G4Run;
+class Run;
 class DetectorConstruction;
 
 /**
@@ -53,11 +54,14 @@ public:
   /// Write and close the file
   virtual void EndOfRunAction(const G4Run *) final;
 
+  G4Run* GenerateRun() override;
+
 private:
   /// Pointer to detector construction to retrieve the detector dimensions to
   /// setup the histograms
   DetectorConstruction *fDetector;
   vecgeom::Stopwatch fTimer;
+  Run* fRun;
 };
 
 #endif /* RUNACTION_HH */

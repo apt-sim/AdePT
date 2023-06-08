@@ -34,12 +34,11 @@
 
 template <class TTag> 
 class BenchmarkManager;
-class DetectorConstruction;
 
 class Run : public G4Run {
 
 public:
-  Run(DetectorConstruction* aDetector);
+  Run();
   ~Run();
 
   void Merge(const G4Run* run) override;
@@ -76,7 +75,6 @@ public:
 private:
   BenchmarkManager<TAG_TYPE>* fBenchmarkManager;
   BenchmarkManager<std::string>* fAuxBenchmarkManager;
-  DetectorConstruction* fDetector;
 };
 
 #endif

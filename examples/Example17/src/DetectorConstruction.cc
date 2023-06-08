@@ -153,6 +153,8 @@ void DetectorConstruction::ConstructSDandField()
     }
   }
 
+  //TODO : Check for this region at the end of the stepping action
+  
   auto detectorRegion = G4RegionStore::GetInstance()->GetRegion(fRegion_name);
   fShowerModel        = new EMShowerModel("AdePT", detectorRegion);
 

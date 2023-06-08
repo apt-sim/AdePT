@@ -26,6 +26,9 @@
 //
 #include "RunAction.hh"
 #include "DetectorConstruction.hh"
+#include "Run.hh"
+#include "G4Run.hh"
+#include "BenchmarkManager.h"
 
 #include <thread>
 #include <mutex>
@@ -42,6 +45,13 @@ RunAction::~RunAction() {}
 void RunAction::BeginOfRunAction(const G4Run *)
 {
   fTimer.Start();
+  auto tid  = G4Threading::G4GetThreadId();
+  if (tid < 0)
+  {
+    #if defined BENCHMARK
+      fRun->getBenchmarkManager()->timerStart(Run::timers::TOTAL);
+    #endif
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -54,14 +64,11 @@ void RunAction::EndOfRunAction(const G4Run *)
   // Just protect the printout to avoid interlacing text
   const std::lock_guard<std::mutex> lock(print_mutex);
   // Print timer just for the master thread since this is called when all workers are done
-<<<<<<< Updated upstream
-  if (tid < 0) G4cout << "Run time: " << time << "\n";
-=======
   if (tid < 0)
   {
     G4cout << "Run time: " << time << "\n";
     #if defined BENCHMARK
-      fRun->getBenchmarkManager()->timerEnd(Run::timers::TOTAL);
+      fRun->getBenchmarkManager()->timerStop(Run::timers::TOTAL);
       fRun->EndOfRunSummary();
     #endif
   }
@@ -69,7 +76,6 @@ void RunAction::EndOfRunAction(const G4Run *)
 
 G4Run* RunAction::GenerateRun()
 {
-  fRun = new Run(fDetector);
+  fRun = new Run();
   return fRun;
->>>>>>> Stashed changes
 }
