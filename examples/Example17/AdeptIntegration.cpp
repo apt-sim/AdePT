@@ -182,6 +182,8 @@ void AdeptIntegration::Shower(int event)
     G4Track *secondary = new G4Track(dynamique, 0, posi);
     secondary->SetParentID(-99);
 
+    //secondary->SetTrackStatus(G4TrackStatus::fStopAndKill);
+
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }
 

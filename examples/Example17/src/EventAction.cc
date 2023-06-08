@@ -122,13 +122,23 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;
   }
-
+  
   if (fVerbosity > 1) {
     for (int igroup = 0; igroup < ngroups; ++igroup) {
       G4cout << "EndOfEventAction " << eventId << " : group " << std::setw(5) << groups[igroup] << "  edep "
              << std::setprecision(2) << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " [MeV]\n";
     }
   }
+
+  auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
+  for (int igroup = 0; igroup < ngroups; ++igroup) {
+    aAuxBenchmarkManager->addDurationSeconds(groups[igroup], edep_groups[igroup] / MeV);
+  }
+  aAuxBenchmarkManager->exportCSV("example17_energy");
+  for (int igroup = 0; igroup < ngroups; ++igroup) {
+    aAuxBenchmarkManager->removeTimer(groups[igroup]);
+  }
+  
 
   if (fVerbosity > 0) {
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;

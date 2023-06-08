@@ -1,5 +1,6 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
+//
 // ********************************************************************
 // * License and Disclaimer                                           *
 // *                                                                  *
@@ -24,52 +25,58 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#include "RunAction.hh"
-#include "DetectorConstruction.hh"
+#ifndef RUN_HH
+#define RUN_HH
 
-#include <thread>
-#include <mutex>
-#include "AdeptIntegration.h"
+#include "G4Run.hh"
 
-RunAction::RunAction(DetectorConstruction *aDetector) : G4UserRunAction(), fDetector(aDetector) {}
+#define TAG_TYPE int
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+template <class TTag> 
+class BenchmarkManager;
+class DetectorConstruction;
 
-RunAction::~RunAction() {}
+class Run : public G4Run {
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+public:
+  Run(DetectorConstruction* aDetector);
+  ~Run();
 
-void RunAction::BeginOfRunAction(const G4Run *)
-{
-  fTimer.Start();
-}
+  void Merge(const G4Run* run) override;
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+  BenchmarkManager<TAG_TYPE>* getBenchmarkManager() const {return fBenchmarkManager;}
+  BenchmarkManager<std::string>* getAuxBenchmarkManager() const {return fAuxBenchmarkManager;}
 
-void RunAction::EndOfRunAction(const G4Run *)
-{
-  static std::mutex print_mutex;
-  auto time = fTimer.Stop();
-  auto tid  = G4Threading::G4GetThreadId();
-  // Just protect the printout to avoid interlacing text
-  const std::lock_guard<std::mutex> lock(print_mutex);
-  // Print timer just for the master thread since this is called when all workers are done
-<<<<<<< Updated upstream
-  if (tid < 0) G4cout << "Run time: " << time << "\n";
-=======
-  if (tid < 0)
+  void EndOfRunSummary();
+
+  enum timers
   {
-    G4cout << "Run time: " << time << "\n";
-    #if defined BENCHMARK
-      fRun->getBenchmarkManager()->timerEnd(Run::timers::TOTAL);
-      fRun->EndOfRunSummary();
-    #endif
-  }
-}
+    //Non electromagnetic timer (Track time outside of the GPU region)
+    NONEM,
+    //Accumulator within an event (Sum of track times)
+    NONEM_EVT,
+    //Acummulator for the sum and squared sum of the timings across all events
+    NONEM_SUM,
+    NONEM_SQ,
 
-G4Run* RunAction::GenerateRun()
-{
-  fRun = new Run(fDetector);
-  return fRun;
->>>>>>> Stashed changes
-}
+    //Acummulator for the sum and squared sum of the timings across all events
+    ECAL_SUM,
+    ECAL_SQ,
+
+    //Event timer (Timer from start to end)
+    EVENT,
+    //Acummulator for the sum and squared sum of the timings across all events
+    EVENT_SUM,
+    EVENT_SQ,
+
+    //Global execution timer
+    TOTAL
+  };
+
+private:
+  BenchmarkManager<TAG_TYPE>* fBenchmarkManager;
+  BenchmarkManager<std::string>* fAuxBenchmarkManager;
+  DetectorConstruction* fDetector;
+};
+
+#endif

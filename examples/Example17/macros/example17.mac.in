@@ -144,9 +144,9 @@
 # by default all created models are active
 /param/ActivateModel AdePT
 #/analysis/setFileName example17_fastsim_100events.root
-/run/beamOn 1
+/run/beamOn 5
 
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
 #/analysis/setFileName example17_fullsim_100events.root
-/run/beamOn 1
+/run/beamOn 5
