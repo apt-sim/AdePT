@@ -44,8 +44,10 @@ template <class TTag>
 class BenchmarkManager {
 
 private:
-  std::map<TTag, TimeInfo> fTimers;           ///< Maps a tag to a TimeInfo struct
-  const std::string fOutputDir = "benchmark"; ///< Output directory
+  std::map<TTag, TimeInfo> fTimers;     ///< Maps a tag to a TimeInfo struct
+  std::map<TTag, double> fAccumulators; ///< Maps a tag to a double accumulator
+  std::string fOutputDir;               ///< Output directory
+  std::string fOutputFilename;          ///< Output filename
 
 public:
   BenchmarkManager(){};
@@ -55,48 +57,44 @@ public:
   /** @brief Sets a timestamp associated to this timer tag */
   void timerStart(TTag tag)
   {
-    fTimers[tag].counting = true;
-    fTimers[tag].start    = CLOCK::now();
+    auto &tagtimer    = fTimers[tag]; // Avoid counting the overhead from map access
+    tagtimer.counting = true;
+    tagtimer.start    = CLOCK::now();
   }
 
   /** @brief Compares the current time with the start of the timer and adds to the accumulated duration */
   void timerStop(TTag tag)
   {
     if (fTimers[tag].counting) {
-      fTimers[tag].counting = false;
-      fTimers[tag].accumulatedDuration += (CLOCK::now() - fTimers[tag].start);
+      auto stopTimestamp = CLOCK::now(); // Avoid counting the overhead from map access
+      auto &tagtimer     = fTimers[tag];
+      tagtimer.counting  = false;
+      tagtimer.accumulatedDuration += stopTimestamp - tagtimer.start;
     }
   }
 
   /** @brief Returns the accumulated duration for the specified tag in seconds */
   double getDurationSeconds(TTag tag)
   {
-    return (float)(std::chrono::duration_cast<PRECISSION>(fTimers[tag].accumulatedDuration)).count() /
+    return (double)(std::chrono::duration_cast<PRECISSION>(fTimers[tag].accumulatedDuration)).count() /
            PRECISSION::period::den;
   }
 
-  /** @brief Sets the accumulated duration in seconds for the specified tag */
-  void setDurationSeconds(TTag tag, double duration)
-  {
-    if (fTimers.find(tag) == fTimers.end()) {
-      // Initialize if the timer didn't exist
-      fTimers[tag] = TimeInfo{
-          CLOCK::now(), std::chrono::duration_cast<CLOCK::duration>(std::chrono::duration<double>(duration)), false};
-    } else {
-      fTimers[tag].accumulatedDuration =
-          std::chrono::duration_cast<CLOCK::duration>(std::chrono::duration<double>(duration));
-    }
-  }
+  /** @brief Sets the accumulator value for the specified tag */
+  void setAccumulator(TTag tag, double value) { fAccumulators[tag] = value; }
 
-  /** @brief Adds to the accumulated duration for the specified tag */
-  void addDurationSeconds(TTag tag, double duration)
+  /** @brief Returns the accumulator value for the specified tag */
+  double getAccumulator(TTag tag) { return fAccumulators[tag]; }
+
+  /** @brief Adds to the accumulator for the specified tag */
+  void addToAccumulator(TTag tag, double value)
   {
-    if (fTimers.find(tag) == fTimers.end()) {
-      // Initialize if the timer didn't exist
-      fTimers[tag] = TimeInfo{CLOCK::now(), std::chrono::seconds(0), false};
+    if (fAccumulators.find(tag) == fAccumulators.end()) {
+      // Initialize if the accumulator didn't exist
+      fAccumulators[tag] = value;
+    } else {
+      fAccumulators[tag] += value;
     }
-    fTimers[tag].accumulatedDuration +=
-        std::chrono::duration_cast<CLOCK::duration>(std::chrono::duration<double>(duration));
   }
 
   /** @brief Empties the timer map */
@@ -108,14 +106,37 @@ public:
   /** @brief Checks if an timer is in the map */
   bool hasTimer(TTag tag) const { return fTimers.find(tag) != fTimers.end(); }
 
+  /** @brief Removes an accumulator from the map */
+  void removeAccumulator(TTag tag) { fAccumulators.erase(tag); }
+
+  /** @brief Checks if an accumulator is in the map */
+  bool hasAccumulator(TTag tag) const { return fAccumulators.find(tag) != fAccumulators.end(); }
+
+  /** @brief Sets the output directory variable */
+  void setOutputDirectory(std::string aOutputDir)
+  {
+    fOutputDir = aOutputDir;
+  }
+
+  /** @brief Sets the output filename variable */
+  void setOutputFilename(std::string aOutputFilename)
+  {
+    fOutputFilename = aOutputFilename;
+  }
+
   /** @brief Export a CSV file with the timer names as labels and the accumulated time for each */
   // If the file is not empty, write only the times
-  void exportCSV(std::string filename = "benchmark")
-  {
-    std::string path = fOutputDir + "/" + filename + ".csv";
+  void exportCSV()
+  { 
+    std::string aOutputDir;
+    std::string aOutputFilename;
+    fOutputDir.empty() ? aOutputDir = "benchmark" : aOutputDir = fOutputDir;
+    fOutputFilename.empty() ? aOutputFilename = "benchmark" : aOutputFilename = fOutputFilename;
+
+    std::string path = aOutputDir + "/" + aOutputFilename + ".csv";
 
     // Create the output directory if it doesn't exist.
-    std::filesystem::create_directory(fOutputDir);
+    std::filesystem::create_directory(aOutputDir);
 
     bool first_write = !std::filesystem::exists(path);
 
@@ -139,7 +160,7 @@ public:
     }
     output_file << std::endl;
 
-    std::cout << "BENCHMARK: Results saved to benchmark/" << filename << ".csv" << std::endl;
+    std::cout << "BENCHMARK: Results saved to: " << aOutputDir << "/" << aOutputFilename << ".csv" << std::endl;
   }
 };
 
@@ -153,11 +174,15 @@ public:
   void timerStart(TTag tag) {}
   void timerStop(TTag tag) {}
   double getDurationSeconds(TTag tag) { return 0; }
-  void addDurationSeconds(TTag tag, double duration) {}
+  void setAccumulator(TTag tag, double value) {}
+  double getAccumulator(TTag tag) { return 0; }
+  void addToAccumulator(TTag tag, double duration) {}
   void reset() {}
   void removeTimer(TTag tag) {}
   bool hasTimer(TTag tag) { return false; }
-  void exportCSV(TTag filename) {}
+  void setOutputDirectory(std::string aOutputDir) {}
+  void setOutputFilename(std::string aOutputFilename) {}
+  void exportCSV() {}
 };
 
 #endif

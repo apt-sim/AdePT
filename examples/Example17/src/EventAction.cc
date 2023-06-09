@@ -89,19 +89,19 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
     //Accumulate the timings
     double eventTime = aBenchmarkManager->getDurationSeconds(Run::timers::EVENT);
-    double nonEMTime = aBenchmarkManager->getDurationSeconds(Run::timers::NONEM_EVT);
+    double nonEMTime = aBenchmarkManager->getAccumulator(Run::accumulators::NONEM_EVT);
     double ecalTime = eventTime - nonEMTime;
     
-    aBenchmarkManager->addDurationSeconds(Run::timers::EVENT_SUM, eventTime);
-    aBenchmarkManager->addDurationSeconds(Run::timers::EVENT_SQ, pow(eventTime, 2));
-    aBenchmarkManager->addDurationSeconds(Run::timers::NONEM_SUM, nonEMTime);
-    aBenchmarkManager->addDurationSeconds(Run::timers::NONEM_SQ, pow(nonEMTime, 2));
-    aBenchmarkManager->addDurationSeconds(Run::timers::ECAL_SUM, ecalTime);
-    aBenchmarkManager->addDurationSeconds(Run::timers::ECAL_SQ, pow(ecalTime, 2));
+    aBenchmarkManager->addToAccumulator(Run::accumulators::EVENT_SUM, eventTime);
+    aBenchmarkManager->addToAccumulator(Run::accumulators::EVENT_SQ, eventTime*eventTime);
+    aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_SUM, nonEMTime);
+    aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_SQ, nonEMTime*nonEMTime);
+    aBenchmarkManager->addToAccumulator(Run::accumulators::ECAL_SUM, ecalTime);
+    aBenchmarkManager->addToAccumulator(Run::accumulators::ECAL_SQ, ecalTime*ecalTime);
 
     //Reset the timers for the next event
     aBenchmarkManager->removeTimer(Run::timers::EVENT);
-    aBenchmarkManager->removeTimer(Run::timers::NONEM_EVT);
+    aBenchmarkManager->removeAccumulator(Run::accumulators::NONEM_EVT);
   #endif
 
   // Get hits collection ID (only once)
@@ -167,11 +167,12 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
   for (int igroup = 0; igroup < ngroups; ++igroup) {
-    aAuxBenchmarkManager->addDurationSeconds(groups[igroup], edep_groups[igroup] / MeV);
+    aAuxBenchmarkManager->addToAccumulator(groups[igroup], edep_groups[igroup] / MeV);
   }
-  aAuxBenchmarkManager->exportCSV("example17_energy");
+  aAuxBenchmarkManager->setOutputFilename("example17_energy");
+  aAuxBenchmarkManager->exportCSV();
   for (int igroup = 0; igroup < ngroups; ++igroup) {
-    aAuxBenchmarkManager->removeTimer(groups[igroup]);
+    aAuxBenchmarkManager->removeAccumulator(groups[igroup]);
   }
   
 

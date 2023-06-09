@@ -50,14 +50,12 @@ SteppingAction::~SteppingAction() {}
 
 void SteppingAction::UserSteppingAction(const G4Step *theStep)
 {
-
-  // Check if we moved to a new volume
-  G4VPhysicalVolume *previousVolume = theStep->GetPreStepPoint()->GetTouchableHandle()->GetVolume();
   G4VPhysicalVolume *currentVolume  = theStep->GetPostStepPoint()->GetTouchableHandle()->GetVolume();
 
-  if (previousVolume != currentVolume) {
+  // Check if we moved to a new volume
+  if (theStep->GetPostStepPoint()->GetStepStatus() == G4StepStatus::fGeomBoundary) {
     if (!fTrackingAction->getInsideEcal()) {
-      // Check if the new volume is in the EM calorimeter region, if it is stop the track timer
+      // Check if the new volume is in the EM calorimeter region
       if (currentVolume->GetLogicalVolume()->GetRegion() == fTrackingAction->getGPURegion()) {
         // If it is, stop the timer for this track and store the result
         G4Track *aTrack = theStep->GetTrack();
@@ -74,7 +72,7 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
           auto aBenchmarkManager = currentRun->getBenchmarkManager();
 
           aBenchmarkManager->timerStop(Run::timers::NONEM);
-          aBenchmarkManager->addDurationSeconds(Run::timers::NONEM_EVT,
+          aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT,
                                                 aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
           aBenchmarkManager->removeTimer(Run::timers::NONEM);
         }
@@ -82,8 +80,6 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
     } else {
       // In case this track is exiting the EM calorimeter, start the timer
       if (currentVolume->GetLogicalVolume()->GetRegion() != fTrackingAction->getGPURegion()) {
-        //std::cout << "G4" << std::endl;
-
         G4Track *aTrack = theStep->GetTrack();
 
         fTrackingAction->setInsideEcal(false);

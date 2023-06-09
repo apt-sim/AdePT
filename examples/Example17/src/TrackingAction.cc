@@ -100,7 +100,7 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
       auto aBenchmarkManager = currentRun->getBenchmarkManager();
       
       aBenchmarkManager->timerStop(Run::timers::NONEM);
-      aBenchmarkManager->addDurationSeconds(Run::timers::NONEM_EVT, aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
+      aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT, aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
       aBenchmarkManager->removeTimer(Run::timers::NONEM);
     }
   #endif

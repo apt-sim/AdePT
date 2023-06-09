@@ -35,8 +35,6 @@
 #include <AdePT/NVTX.h>
 #include <AdePT/BenchmarkManager.h>
 
-#include <getopt.h>
-
 static constexpr double DefaultCut = 0.7 * mm;
 
 const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
@@ -198,6 +196,8 @@ int main(int argc, char *argv[])
   energy *= copcore::units::GeV;
   OPTION_INT(batch, -1);
   OPTION_BOOL(rotatingParticleGun, false);
+  OPTION_STRING(benchmark_directory, "benchmark");
+  OPTION_STRING(benchmark_filename, "benchmark");
 
   int opt;
   std::string benchmark_file;
@@ -220,17 +220,20 @@ int main(int argc, char *argv[])
   timer.Start();
 
   NVTXTracer tracer("InitG4");
-  BenchmarkManager<std::string> benchmark_manager;
-  benchmark_manager.timerStart("Total time");
-  benchmark_manager.timerStart("InitG4");
+  BenchmarkManager<std::string> aBenchmarkManager;
+  aBenchmarkManager.setOutputDirectory(benchmark_directory);
+  aBenchmarkManager.setOutputFilename(benchmark_filename);
+  
+  aBenchmarkManager.timerStart("Total time");
+  aBenchmarkManager.timerStart("InitG4");
 
   // Initialize Geant4
   auto g4world = InitGeant4(gdml_file);
   if (!g4world) return 3;
 
   tracer.setTag("InitVecGeom");
-  benchmark_manager.timerStop("InitG4");
-  benchmark_manager.timerStart("InitVecGeom");
+  aBenchmarkManager.timerStop("InitG4");
+  aBenchmarkManager.timerStart("InitVecGeom");
   // Initialize VecGeom
   std::cout << "reading " << gdml_file << " transiently on CPU for VecGeom ...\n";
   auto world = InitVecGeom(gdml_file, cache_depth);
@@ -238,8 +241,8 @@ int main(int argc, char *argv[])
 
   // Construct and initialize the G4HepEmState data/tables
   tracer.setTag("InitG4HepEM");
-  benchmark_manager.timerStop("InitVecGeom");
-  benchmark_manager.timerStart("InitG4HepEM");
+  aBenchmarkManager.timerStop("InitVecGeom");
+  aBenchmarkManager.timerStart("InitG4HepEM");
   std::cout << "initializing G4HepEm state ...\n";
   G4HepEmState hepEmState;
   InitG4HepEmState(&hepEmState);
@@ -247,8 +250,8 @@ int main(int argc, char *argv[])
   // Initialize G4HepEm material-cut couple array indexed by VecGeom volume id.
   // (In future we should connect the index directly to the VecGeom logical volume)
   tracer.setTag("InitMaterialCutCouple");
-  benchmark_manager.timerStop("InitG4HepEM");
-  benchmark_manager.timerStart("InitMaterialCutCouple");
+  aBenchmarkManager.timerStop("InitG4HepEM");
+  aBenchmarkManager.timerStart("InitMaterialCutCouple");
   std::cout << "initializing material-cut couple indices ...\n";
   int *MCCindex = nullptr;
 
@@ -261,18 +264,18 @@ int main(int argc, char *argv[])
 
   // Load and synchronize the geometry on the GPU
   tracer.setTag("SyncGeom");
-  benchmark_manager.timerStop("InitMaterialCutCouple");
-  benchmark_manager.timerStart("SyncGeom");
+  aBenchmarkManager.timerStop("InitMaterialCutCouple");
+  aBenchmarkManager.timerStart("SyncGeom");
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
 
   tracer.setTag("InitBVH");
-  benchmark_manager.timerStop("SyncGeom");
-  benchmark_manager.timerStart("InitBVH");
+  aBenchmarkManager.timerStop("SyncGeom");
+  aBenchmarkManager.timerStart("InitBVH");
   InitBVH();
-  benchmark_manager.timerStop("InitBVH");
+  aBenchmarkManager.timerStop("InitBVH");
 
   auto time_cpu = timer.Stop();
   std::cout << "Initialization took: " << time_cpu << " sec\n";
@@ -289,10 +292,10 @@ int main(int argc, char *argv[])
   GlobalScoring globalScoring;
 
   tracer.setTag("callExample13");
-  benchmark_manager.timerStart("GPU Transport");
+  aBenchmarkManager.timerStart("GPU Transport");
   example13(particles, energy, batch, MCCindex, &scoringPerVolume, &globalScoring, NumVolumes, NumPlaced, &hepEmState,
             rotatingParticleGun);
-  benchmark_manager.timerStop("GPU Transport");
+  aBenchmarkManager.timerStop("GPU Transport");
 
   std::cout << std::endl;
   std::cout << std::endl;
@@ -328,8 +331,8 @@ int main(int argc, char *argv[])
   delete[] chargedTrackLength;
   delete[] energyDeposit;
 
-  benchmark_manager.timerStop("Total time");
-  benchmark_manager.exportCSV(benchmark_file);
+  aBenchmarkManager.timerStop("Total time");
+  aBenchmarkManager.exportCSV();
 
   return 0;
 }

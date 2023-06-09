@@ -48,12 +48,12 @@ void Run::Merge(const G4Run *run)
 
   BenchmarkManager<TAG_TYPE> *aBenchmarkManager = localRun->getBenchmarkManager();
 
-  fBenchmarkManager->addDurationSeconds(timers::EVENT_SUM, aBenchmarkManager->getDurationSeconds(timers::EVENT_SUM));
-  fBenchmarkManager->addDurationSeconds(timers::EVENT_SQ, aBenchmarkManager->getDurationSeconds(timers::EVENT_SQ));
-  fBenchmarkManager->addDurationSeconds(timers::NONEM_SUM, aBenchmarkManager->getDurationSeconds(timers::NONEM_SUM));
-  fBenchmarkManager->addDurationSeconds(timers::NONEM_SQ, aBenchmarkManager->getDurationSeconds(timers::NONEM_SQ));
-  fBenchmarkManager->addDurationSeconds(timers::ECAL_SUM, aBenchmarkManager->getDurationSeconds(timers::ECAL_SUM));
-  fBenchmarkManager->addDurationSeconds(timers::ECAL_SQ, aBenchmarkManager->getDurationSeconds(timers::ECAL_SQ));
+  fBenchmarkManager->addToAccumulator(accumulators::EVENT_SUM, aBenchmarkManager->getAccumulator(accumulators::EVENT_SUM));
+  fBenchmarkManager->addToAccumulator(accumulators::EVENT_SQ, aBenchmarkManager->getAccumulator(accumulators::EVENT_SQ));
+  fBenchmarkManager->addToAccumulator(accumulators::NONEM_SUM, aBenchmarkManager->getAccumulator(accumulators::NONEM_SUM));
+  fBenchmarkManager->addToAccumulator(accumulators::NONEM_SQ, aBenchmarkManager->getAccumulator(accumulators::NONEM_SQ));
+  fBenchmarkManager->addToAccumulator(accumulators::ECAL_SUM, aBenchmarkManager->getAccumulator(accumulators::ECAL_SUM));
+  fBenchmarkManager->addToAccumulator(accumulators::ECAL_SQ, aBenchmarkManager->getAccumulator(accumulators::ECAL_SQ));
 
   G4Run::Merge(run);
 }
@@ -61,14 +61,14 @@ void Run::Merge(const G4Run *run)
 void Run::EndOfRunSummary()
 {
   double runTime    = fBenchmarkManager->getDurationSeconds(timers::TOTAL);
-  double eventMean  = fBenchmarkManager->getDurationSeconds(timers::EVENT_SUM) / GetNumberOfEvent();
-  double eventStdev = STDEV(GetNumberOfEvent(), eventMean, fBenchmarkManager->getDurationSeconds(timers::EVENT_SQ));
+  double eventMean  = fBenchmarkManager->getAccumulator(accumulators::EVENT_SUM) / GetNumberOfEvent();
+  double eventStdev = STDEV(GetNumberOfEvent(), eventMean, fBenchmarkManager->getAccumulator(accumulators::EVENT_SQ));
 
-  double nonEMMean  = fBenchmarkManager->getDurationSeconds(timers::NONEM_SUM) / GetNumberOfEvent();
-  double nonEMStdev = STDEV(GetNumberOfEvent(), nonEMMean, fBenchmarkManager->getDurationSeconds(timers::NONEM_SQ));
+  double nonEMMean  = fBenchmarkManager->getAccumulator(accumulators::NONEM_SUM) / GetNumberOfEvent();
+  double nonEMStdev = STDEV(GetNumberOfEvent(), nonEMMean, fBenchmarkManager->getAccumulator(accumulators::NONEM_SQ));
 
-  double ecalMean  = fBenchmarkManager->getDurationSeconds(timers::ECAL_SUM) / GetNumberOfEvent();
-  double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fBenchmarkManager->getDurationSeconds(timers::ECAL_SQ));
+  double ecalMean  = fBenchmarkManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
+  double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fBenchmarkManager->getAccumulator(accumulators::ECAL_SQ));
 
   G4cout << "------------------------------------------------------------"
          << "\n";
@@ -83,20 +83,19 @@ void Run::EndOfRunSummary()
   G4cout << "BENCHMARK: ECAL e-, e+ and gammas Standard Deviation: " << ecalStdev << "\n";
   G4cout << "BENCHMARK: Mean proportion of time spent simulating e-, e+ and gammas in ECAL: "
          << 100 * ecalMean / eventMean << "%\n";
-  G4cout << "------------------------------------------------------------"
-         << "\n";
 
   // Export the results
   BenchmarkManager<std::string> *aBenchmarkManager = new BenchmarkManager<std::string>();
-  aBenchmarkManager->addDurationSeconds("Number of Events", GetNumberOfEvent());
-  aBenchmarkManager->addDurationSeconds("Number of Threads", G4RunManager::GetRunManager()->GetNumberOfThreads());
-  aBenchmarkManager->addDurationSeconds("Run time", runTime);
-  aBenchmarkManager->addDurationSeconds("Event mean", eventMean);
-  aBenchmarkManager->addDurationSeconds("Event stdev", eventStdev);
-  aBenchmarkManager->addDurationSeconds("Non EM mean", nonEMMean);
-  aBenchmarkManager->addDurationSeconds("Non EM stdev", nonEMStdev);
-  aBenchmarkManager->addDurationSeconds("ECAL mean", ecalMean);
-  aBenchmarkManager->addDurationSeconds("ECAL stdev", ecalStdev);
+  aBenchmarkManager->setAccumulator("Number of Events", GetNumberOfEvent());
+  aBenchmarkManager->setAccumulator("Number of Threads", G4RunManager::GetRunManager()->GetNumberOfThreads());
+  aBenchmarkManager->setAccumulator("Run time", runTime);
+  aBenchmarkManager->setAccumulator("Event mean", eventMean);
+  aBenchmarkManager->setAccumulator("Event stdev", eventStdev);
+  aBenchmarkManager->setAccumulator("Non EM mean", nonEMMean);
+  aBenchmarkManager->setAccumulator("Non EM stdev", nonEMStdev);
+  aBenchmarkManager->setAccumulator("ECAL mean", ecalMean);
+  aBenchmarkManager->setAccumulator("ECAL stdev", ecalStdev);
 
-  aBenchmarkManager->exportCSV("example17");
+  aBenchmarkManager->setOutputFilename("example17");
+  aBenchmarkManager->exportCSV();
 }
