@@ -183,6 +183,7 @@ void AdeptIntegration::Shower(int event)
     secondary->SetParentID(-99);
 
     //secondary->SetTrackStatus(G4TrackStatus::fStopAndKill);
+    //std::cout << "ADEPT" << std::endl;
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }

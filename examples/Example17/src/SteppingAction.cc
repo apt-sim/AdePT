@@ -82,6 +82,8 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
     } else {
       // In case this track is exiting the EM calorimeter, start the timer
       if (currentVolume->GetLogicalVolume()->GetRegion() != fTrackingAction->getGPURegion()) {
+        //std::cout << "G4" << std::endl;
+
         G4Track *aTrack = theStep->GetTrack();
 
         fTrackingAction->setInsideEcal(false);
