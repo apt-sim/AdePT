@@ -145,18 +145,30 @@ public:
 
     // Write the header only the first time
     if (first_write) {
+      // Timers
       for (auto iter = fTimers.begin(); iter != fTimers.end(); ++iter) {
         output_file << iter->first;
-        if (std::next(iter) != fTimers.end()) output_file << ", ";
+        if (std::next(iter) != fTimers.end() || !fAccumulators.empty()) output_file << ", ";
+      }
+      // Accumulators
+      for (auto iter = fAccumulators.begin(); iter != fAccumulators.end(); ++iter) {
+        output_file << iter->first;
+        if (std::next(iter) != fAccumulators.end()) output_file << ", ";
       }
       output_file << std::endl;
     }
 
     // Print 6 decimal digits
     output_file << std::setprecision(6) << std::fixed;
+    // Timers
     for (auto iter = fTimers.begin(); iter != fTimers.end(); ++iter) {
       output_file << getDurationSeconds(iter->first);
-      if (std::next(iter) != fTimers.end()) output_file << ", ";
+      if (std::next(iter) != fTimers.end() || !fAccumulators.empty()) output_file << ", ";
+    }
+    // Accumulators
+    for (auto iter = fAccumulators.begin(); iter != fAccumulators.end(); ++iter) {
+      output_file << iter->second;
+      if (std::next(iter) != fAccumulators.end()) output_file << ", ";
     }
     output_file << std::endl;
 

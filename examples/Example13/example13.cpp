@@ -199,23 +199,6 @@ int main(int argc, char *argv[])
   OPTION_STRING(benchmark_directory, "benchmark");
   OPTION_STRING(benchmark_filename, "benchmark");
 
-  int opt;
-  std::string benchmark_file;
-
-  while ((opt = getopt(argc, argv, "b:")) != -1) {
-    switch (opt) {
-      //-b [benchmark output filename]
-      case 'b':
-        benchmark_file = optarg;
-        break;
-      default:
-        ;
-    }
-  }
-
-  std::string path(argv[0]);
-  if(benchmark_file.empty()) benchmark_file = path.substr(path.find_last_of("/\\") + 1);
-
   vecgeom::Stopwatch timer;
   timer.Start();
 
