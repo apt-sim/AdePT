@@ -12,6 +12,7 @@
 Run::Run()
 {
   fBenchmarkManager = new BenchmarkManager<TAG_TYPE>();
+  fAuxBenchmarkManager = new BenchmarkManager<std::string>();
 }
 
 Run::~Run() {}
