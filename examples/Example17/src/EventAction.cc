@@ -165,7 +165,19 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     }
   }
 
+  /*
   auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
+  aAuxBenchmarkManager->setOutputFilename("example17_ecal_out");
+  aAuxBenchmarkManager->exportCSV();
+  aAuxBenchmarkManager->removeAccumulator("Energy in");
+  aAuxBenchmarkManager->removeAccumulator("Energy out");
+  */
+  /*
+  aAuxBenchmarkManager->removeAccumulator("GAMMAS");
+  aAuxBenchmarkManager->removeAccumulator("ELECTRONS");
+  aAuxBenchmarkManager->removeAccumulator("POSITRONS");
+  */
+  /*
   for (int igroup = 0; igroup < ngroups; ++igroup) {
     aAuxBenchmarkManager->addToAccumulator(groups[igroup], edep_groups[igroup] / MeV);
   }
@@ -174,6 +186,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   for (int igroup = 0; igroup < ngroups; ++igroup) {
     aAuxBenchmarkManager->removeAccumulator(groups[igroup]);
   }
+  */
   
 
   if (fVerbosity > 0) {

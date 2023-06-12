@@ -9,6 +9,9 @@
 #include <G4RunManager.hh>
 #include <G4Threading.hh>
 #include <G4Proton.hh>
+#include <G4Gamma.hh>
+#include <G4Electron.hh>
+#include <G4Positron.hh>
 #include <G4Region.hh>
 #include <G4SDManager.hh>
 #include <G4VFastSimSensitiveDetector.hh>
@@ -24,6 +27,8 @@
 
 #include "SensitiveDetector.hh"
 #include "EventAction.hh"
+#include "Run.hh"
+#include "BenchmarkManager.h"
 
 AdeptIntegration::~AdeptIntegration()
 {
@@ -182,8 +187,17 @@ void AdeptIntegration::Shower(int event)
     G4Track *secondary = new G4Track(dynamique, 0, posi);
     secondary->SetParentID(-99);
 
-    //secondary->SetTrackStatus(G4TrackStatus::fStopAndKill);
-    //std::cout << "ADEPT" << std::endl;
+    Run* currentRun = static_cast< Run* > ( G4RunManager::GetRunManager()->GetNonConstCurrentRun() );
+    auto aBenchmarkManager = currentRun->getAuxBenchmarkManager();
+    //currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy out", secondary->GetTotalEnergy());
+    /*
+    if (secondary->GetDefinition() == G4Gamma::Gamma())
+      currentRun->getAuxBenchmarkManager()->addToAccumulator("GAMMAS", 1);
+    if (secondary->GetDefinition() == G4Electron::Electron())
+      currentRun->getAuxBenchmarkManager()->addToAccumulator("ELECTRONS", 1);
+    if (secondary->GetDefinition() == G4Positron::Positron())
+      currentRun->getAuxBenchmarkManager()->addToAccumulator("POSITRONS", 1);
+    */
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }

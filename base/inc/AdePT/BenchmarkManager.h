@@ -192,6 +192,8 @@ public:
   void reset() {}
   void removeTimer(TTag tag) {}
   bool hasTimer(TTag tag) { return false; }
+  void removeAccumulator(TTag tag) {}
+  bool hasAccumulator(TTag tag) { return 0; }
   void setOutputDirectory(std::string aOutputDir) {}
   void setOutputFilename(std::string aOutputFilename) {}
   void exportCSV() {}

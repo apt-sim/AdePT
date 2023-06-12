@@ -25,6 +25,12 @@ SteppingAction::~SteppingAction() {}
 
 void SteppingAction::UserSteppingAction(const G4Step *theStep)
 {
+  Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+  currentRun->getAuxBenchmarkManager()->setAccumulator("Step Length", theStep->GetStepLength());
+  currentRun->getAuxBenchmarkManager()->setOutputFilename("example17_ecal_out");
+  currentRun->getAuxBenchmarkManager()->exportCSV();
+  currentRun->getAuxBenchmarkManager()->removeAccumulator("Step Length");
+
   // Check if we moved to a new volume
   if (theStep->IsLastStepInVolume()) {
     G4VPhysicalVolume *nextVolume = theStep->GetTrack()->GetNextVolume();
@@ -42,8 +48,10 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
         if (aTrack->GetDefinition() == G4Gamma::Gamma() || aTrack->GetDefinition() == G4Electron::Electron() ||
             aTrack->GetDefinition() == G4Positron::Positron()) {
           // Get the Run object associated to this thread and end the timer for this track
-          Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+          //Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
           auto aBenchmarkManager = currentRun->getBenchmarkManager();
+
+          //currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy in", aTrack->GetTotalEnergy());
 
           aBenchmarkManager->timerStop(Run::timers::NONEM);
           aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT,
@@ -63,6 +71,15 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
           // Get the Run object associated to this thread and start the timer for this track
           Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
           currentRun->getBenchmarkManager()->timerStart(Run::timers::NONEM);
+          //currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy out", aTrack->GetTotalEnergy());
+          /*
+          if (aTrack->GetDefinition() == G4Gamma::Gamma())
+            currentRun->getAuxBenchmarkManager()->addToAccumulator("GAMMAS", 1);
+          if (aTrack->GetDefinition() == G4Electron::Electron())
+            currentRun->getAuxBenchmarkManager()->addToAccumulator("ELECTRONS", 1);
+          if (aTrack->GetDefinition() == G4Positron::Positron())
+            currentRun->getAuxBenchmarkManager()->addToAccumulator("POSITRONS", 1);
+          */
         }
       }
     }

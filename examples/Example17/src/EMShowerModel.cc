@@ -24,6 +24,9 @@
 #include <G4MaterialCutsCouple.hh>
 #include <G4ProductionCutsTable.hh>
 
+#include "BenchmarkManager.h"
+#include "Run.hh"
+
 EMShowerModel::EMShowerModel(G4String aModelName, G4Region *aEnvelope)
     : G4VFastSimulationModel(aModelName, aEnvelope), fMessenger(new EMShowerMessenger(this))
 {
@@ -71,7 +74,9 @@ void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
   auto particleDirection = g4track->GetMomentumDirection();
 
   aFastStep.KillPrimaryTrack();
-  //return;
+
+  //Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+  //currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy in", g4track->GetTotalEnergy());
 
   aFastStep.SetPrimaryTrackPathLength(0.0);
   G4double energy = aFastTrack.GetPrimaryTrack()->GetKineticEnergy();
