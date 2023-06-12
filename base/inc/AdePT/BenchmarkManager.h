@@ -31,8 +31,7 @@
 /**
  * @brief A type containing a timestamp, accumulated time, and whether the timer is running
  * @details The timestamp marks the start of the current measuring period, the accumulated duration
- * represents the total time measured under the same tag. It can also be set and added to manually
- * to function as an accumulator.
+ * represents the total time measured under the same tag.
  */
 struct TimeInfo {
   std::chrono::time_point<CLOCK> start;                                 ///< Start timestamp
@@ -192,6 +191,8 @@ public:
   void reset() {}
   void removeTimer(TTag tag) {}
   bool hasTimer(TTag tag) { return false; }
+  void removeAccumulator(TTag tag) {}
+  bool hasAccumulator(TTag tag) { return 0; }
   void setOutputDirectory(std::string aOutputDir) {}
   void setOutputFilename(std::string aOutputFilename) {}
   void exportCSV() {}
