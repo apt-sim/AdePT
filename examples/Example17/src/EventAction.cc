@@ -164,10 +164,35 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
              << std::setprecision(2) << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " [MeV]\n";
     }
   }
+
   auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
-  aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
-  aAuxBenchmarkManager->exportCSV();
+
+  
+  double total = 0;
+  double numvols = 0;
+
+  for (auto iter = aAuxBenchmarkManager->fAccumulators.begin(); iter != aAuxBenchmarkManager->fAccumulators.end(); ++iter) {
+    if(iter->first.find("numtracks") == -1)
+    {
+      G4cout << "-----" << G4endl;
+      G4cout << iter->second << G4endl;
+      G4cout << aAuxBenchmarkManager->getAccumulator(iter->first+"_numtracks") << G4endl;
+      total+=iter->second/aAuxBenchmarkManager->getAccumulator(iter->first+"_numtracks");
+      numvols++;
+    }
+  }
+
   aAuxBenchmarkManager->reset();
+  aAuxBenchmarkManager->addToAccumulator("Average track length per volume", total/numvols);
+  
+
+  aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
+  aAuxBenchmarkManager->exportCSV(true);
+  aAuxBenchmarkManager->reset();
+  
+  //aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
+  //aAuxBenchmarkManager->exportCSV(true);
+  //aAuxBenchmarkManager->reset();
 
   /*
   aAuxBenchmarkManager->setOutputFilename("example17_ecal_out");

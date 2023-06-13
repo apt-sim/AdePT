@@ -45,11 +45,13 @@ class BenchmarkManager {
 
 private:
   std::map<TTag, TimeInfo> fTimers;     ///< Maps a tag to a TimeInfo struct
-  std::map<TTag, double> fAccumulators; ///< Maps a tag to a double accumulator
+  //std::map<TTag, double> fAccumulators; ///< Maps a tag to a double accumulator
   std::string fOutputDir;               ///< Output directory
   std::string fOutputFilename;          ///< Output filename
 
 public:
+  std::map<TTag, double> fAccumulators; ///< Maps a tag to a double accumulator
+
   BenchmarkManager(){};
 
   ~BenchmarkManager(){};
@@ -126,7 +128,7 @@ public:
 
   /** @brief Export a CSV file with the timer names as labels and the accumulated time for each */
   // If the file is not empty, write only the times
-  void exportCSV()
+  void exportCSV( bool printHeaders=false )
   { 
     std::string aOutputDir;
     std::string aOutputFilename;
@@ -143,9 +145,25 @@ public:
     std::ofstream output_file;
     output_file.open(path, std::ofstream::app);
 
-    // Write the header only the first time
-    if (first_write) {
-      // Timers
+    if(!printHeaders)
+    {
+      // Write the header only the first time
+      if (first_write) {
+        // Timers
+        for (auto iter = fTimers.begin(); iter != fTimers.end(); ++iter) {
+          output_file << iter->first;
+          if (std::next(iter) != fTimers.end() || !fAccumulators.empty()) output_file << ", ";
+        }
+        // Accumulators
+        for (auto iter = fAccumulators.begin(); iter != fAccumulators.end(); ++iter) {
+          output_file << iter->first;
+          if (std::next(iter) != fAccumulators.end()) output_file << ", ";
+        }
+        output_file << std::endl;
+      }
+    }
+    else
+    {
       for (auto iter = fTimers.begin(); iter != fTimers.end(); ++iter) {
         output_file << iter->first;
         if (std::next(iter) != fTimers.end() || !fAccumulators.empty()) output_file << ", ";
@@ -196,7 +214,7 @@ public:
   bool hasAccumulator(TTag tag) { return 0; }
   void setOutputDirectory(std::string aOutputDir) {}
   void setOutputFilename(std::string aOutputFilename) {}
-  void exportCSV() {}
+  void exportCSV(bool printHeaders) {}
 };
 
 #endif

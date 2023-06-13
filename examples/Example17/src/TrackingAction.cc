@@ -109,11 +109,11 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
   // skip tracks coming from AdePT
   if (aTrack->GetParentID() == -99) return;
 
-  //if(aTrack->GetVolume()->GetLogicalVolume()->GetRegion() == fGPURegion)
-  //{
+  if(aTrack->GetVolume()->GetLogicalVolume()->GetRegion() == fGPURegion)
+  {
   //Add 1 to the counter
-  //currentRun->getAuxBenchmarkManager()->addToAccumulator(aTrack->GetVolume()->GetName() + "_numtracks", 1);
-  //}
+    currentRun->getAuxBenchmarkManager()->addToAccumulator(aTrack->GetVolume()->GetName() + "_numtracks", 1);
+  }
   
   // increase nb of processed tracks
   // count nb of steps of this track

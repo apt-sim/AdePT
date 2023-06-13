@@ -36,18 +36,20 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
 
   // G4cout << theStep->GetStepLength() << G4endl;
 
-  //if (fTrackingAction->getInsideEcal()) {
+  if (fTrackingAction->getInsideEcal()) {
     // Add track length to the accumulator if we are in ECAL
     //currentRun->getAuxBenchmarkManager()->addToAccumulator(std::to_string((long)theStep->GetTrack()->GetVolume()),
     currentRun->getAuxBenchmarkManager()->addToAccumulator(theStep->GetTrack()->GetVolume()->GetName(),
                                                            theStep->GetStepLength());
-  //}
+  }
 
   // Check if we moved to a new volume
   if (theStep->IsLastStepInVolume()) {
-    //Add to the counter for the volume
-    //currentRun->getAuxBenchmarkManager()->addToAccumulator(theStep->GetTrack()->GetVolume()->GetName()+"_numtracks", 1);
-
+    if (fTrackingAction->getInsideEcal()) {
+      //Add to the counter for the volume
+      currentRun->getAuxBenchmarkManager()->addToAccumulator(theStep->GetTrack()->GetVolume()->GetName()+"_numtracks", 1);
+    }
+    
     G4VPhysicalVolume *nextVolume = theStep->GetTrack()->GetNextVolume();
     if (!fTrackingAction->getInsideEcal()) {
       // Check if the new volume is in the EM calorimeter region
@@ -56,7 +58,7 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
         // If it is, stop the timer for this track and store the result
         G4Track *aTrack = theStep->GetTrack();
 
-        aTrack->SetTrackStatus(fStopAndKill);
+        //aTrack->SetTrackStatus(fStopAndKill);
 
         // Make sure this will only run on the first step when we enter the ECAL
         fTrackingAction->setInsideEcal(true);
@@ -89,6 +91,7 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
           // Get the Run object associated to this thread and start the timer for this track
           Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
           currentRun->getBenchmarkManager()->timerStart(Run::timers::NONEM);
+
           // currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy out", aTrack->GetTotalEnergy());
           /*
           if (aTrack->GetDefinition() == G4Gamma::Gamma())
