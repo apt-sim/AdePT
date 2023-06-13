@@ -145,6 +145,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
+    trackdata.length += theTrack->GetGStepLength();
+
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.

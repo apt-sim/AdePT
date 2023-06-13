@@ -164,9 +164,12 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
              << std::setprecision(2) << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " [MeV]\n";
     }
   }
+  auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
+  aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
+  aAuxBenchmarkManager->exportCSV();
+  aAuxBenchmarkManager->reset();
 
   /*
-  auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
   aAuxBenchmarkManager->setOutputFilename("example17_ecal_out");
   aAuxBenchmarkManager->exportCSV();
   aAuxBenchmarkManager->removeAccumulator("Energy in");
@@ -187,7 +190,6 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     aAuxBenchmarkManager->removeAccumulator(groups[igroup]);
   }
   */
-  
 
   if (fVerbosity > 0) {
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;

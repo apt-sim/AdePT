@@ -103,11 +103,18 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
       aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT, aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
       aBenchmarkManager->removeTimer(Run::timers::NONEM);
     }
+    
   #endif
 
   // skip tracks coming from AdePT
   if (aTrack->GetParentID() == -99) return;
 
+  //if(aTrack->GetVolume()->GetLogicalVolume()->GetRegion() == fGPURegion)
+  //{
+  //Add 1 to the counter
+  //currentRun->getAuxBenchmarkManager()->addToAccumulator(aTrack->GetVolume()->GetName() + "_numtracks", 1);
+  //}
+  
   // increase nb of processed tracks
   // count nb of steps of this track
   G4int nbSteps   = aTrack->GetCurrentStepNumber();

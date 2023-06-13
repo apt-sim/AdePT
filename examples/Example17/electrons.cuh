@@ -196,6 +196,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     userScoring->AccountChargedStep(Charge);
     if (auxData.fSensIndex >= 0) userScoring->Score(navState, Charge, elTrack.GetPStepLength(), energyDeposit);
+    //if (auxData.fSensIndex >= 0) userScoring->Score(navState, Charge, theTrack->GetGStepLength(), energyDeposit);
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -288,6 +289,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     currentTrack.rngState.Advance();
 
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+
+    //printf("%s%lf%s%lf\n", "Phys: ", elTrack.GetPStepLength(), ", Geom: ", theTrack->GetGStepLength());
+
+    trackdata.length += theTrack->GetGStepLength();
 
     switch (winnerProcessIndex) {
     case 0: {

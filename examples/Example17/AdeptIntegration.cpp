@@ -198,6 +198,7 @@ void AdeptIntegration::Shower(int event)
     if (secondary->GetDefinition() == G4Positron::Positron())
       currentRun->getAuxBenchmarkManager()->addToAccumulator("POSITRONS", 1);
     */
+    //Add track length to the accumulator and add 1 to the counter
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }

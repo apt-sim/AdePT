@@ -14,6 +14,7 @@ struct TrackData {
   double direction[3];
   double energy{0};
   int pdg{0};
+  double length{0};
 
   TrackData() = default;
   TrackData(int pdg_id, double ene, double x, double y, double z, double dirx, double diry, double dirz)
