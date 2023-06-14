@@ -86,10 +86,12 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   // print number of secondares std::setw(24) << std::fixed
   if (fVerbosity > 0) {
-    G4cout << "EndOfEventAction " << eventId << ": electrons " << number_electrons << G4endl;
-    G4cout << "EndOfEventAction " << eventId << ": positrons " << number_positrons << G4endl;
-    G4cout << "EndOfEventAction " << eventId << ": gammas    " << number_gammas << G4endl;
-    G4cout << "EndOfEventAction " << eventId << ": killed    " << number_killed << G4endl;
+    G4cout << "EndOfEventAction " << eventId << ": electrons " << std::setw(9) << std::right << number_electrons
+           << G4endl;
+    G4cout << "EndOfEventAction " << eventId << ": positrons " << std::setw(9) << std::right << number_positrons
+           << G4endl;
+    G4cout << "EndOfEventAction " << eventId << ": gammas    " << std::setw(9) << std::right << number_gammas << G4endl;
+    G4cout << "EndOfEventAction " << eventId << ": killed    " << std::setw(9) << std::right << number_killed << G4endl;
   }
 
   auto &groups = fDetector->GetSensitiveGroups();
@@ -128,7 +130,8 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   }
 
   if (fVerbosity > 0) {
-    G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
+    G4cout << "EndOfEventAction " << eventId << " : Total energy deposited: " << std::setw(9) << totalEnergy / GeV
+           << " GeV" << G4endl;
   }
   delete [] edep_groups;
 }
