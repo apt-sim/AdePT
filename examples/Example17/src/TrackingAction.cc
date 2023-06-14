@@ -111,7 +111,7 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
 
   if(aTrack->GetVolume()->GetLogicalVolume()->GetRegion() == fGPURegion)
   {
-  //Add 1 to the counter
+    //Add 1 to the counter
     currentRun->getAuxBenchmarkManager()->addToAccumulator(aTrack->GetVolume()->GetName() + "_numtracks", 1);
   }
   

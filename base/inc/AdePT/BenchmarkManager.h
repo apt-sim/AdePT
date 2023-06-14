@@ -99,6 +99,24 @@ public:
     }
   }
 
+  std::vector<TTag> getAccumulators() 
+  {
+    std::vector<TTag> keys;
+    for (auto iter = fAccumulators.begin(); iter != fAccumulators.end(); ++iter) {
+        keys.push_back(iter->first);
+    }
+    return keys; 
+  }
+
+  std::vector<TTag> getTimers() 
+  {
+    std::vector<TTag> keys;
+    for (auto iter = fTimers.begin(); iter != fTimers.end(); ++iter) {
+        keys.push_back(iter->first);
+    }
+    return keys; 
+  }
+
   /** @brief Empties the timers and accumulators maps */
   void reset() { fTimers.clear(); fAccumulators.clear(); }
 
@@ -207,6 +225,8 @@ public:
   void setAccumulator(TTag tag, double value) {}
   double getAccumulator(TTag tag) { return 0; }
   void addToAccumulator(TTag tag, double duration) {}
+  TTag** getAccumulators() { return nullptr; }
+  TTag** getTimers() { return nullptr; }
   void reset() {}
   void removeTimer(TTag tag) {}
   bool hasTimer(TTag tag) { return false; }

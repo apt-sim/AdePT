@@ -19,6 +19,8 @@ BasicScoring *BasicScoring::InitializeOnGPU()
   // Allocate memory to score charged track length and energy deposit per volume.
   COPCORE_CUDA_CHECK(cudaMalloc(&fChargedTrackLength_dev, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMalloc(&fTrackLength_dev, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMemset(fTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMalloc(&fEnergyDeposit_dev, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
 
@@ -28,6 +30,7 @@ BasicScoring *BasicScoring::InitializeOnGPU()
 
   ScoringPerVolume scoringPerVolume_devPtrs;
   scoringPerVolume_devPtrs.chargedTrackLength = fChargedTrackLength_dev;
+  scoringPerVolume_devPtrs.trackLength = fTrackLength_dev;
   scoringPerVolume_devPtrs.energyDeposit      = fEnergyDeposit_dev;
   COPCORE_CUDA_CHECK(cudaMalloc(&fScoringPerVolume_dev, sizeof(ScoringPerVolume)));
   COPCORE_CUDA_CHECK(
@@ -43,6 +46,7 @@ void BasicScoring::FreeGPU()
 {
   // Free resources.
   COPCORE_CUDA_CHECK(cudaFree(fChargedTrackLength_dev));
+  COPCORE_CUDA_CHECK(cudaFree(fTrackLength_dev));
   COPCORE_CUDA_CHECK(cudaFree(fEnergyDeposit_dev));
 
   COPCORE_CUDA_CHECK(cudaFree(fGlobalScoring_dev));
@@ -54,6 +58,7 @@ void BasicScoring::ClearGPU()
   // Clear the device hits content
   COPCORE_CUDA_CHECK(cudaMemset(fGlobalScoring_dev, 0, sizeof(GlobalScoring)));
   COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMemset(fTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
 }
 
@@ -64,6 +69,8 @@ void BasicScoring::CopyHitsToHost()
 
   // Transfer back the scoring per volume (charged track length and energy deposit).
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.chargedTrackLength, fChargedTrackLength_dev,
+                                sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
+  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.trackLength, fTrackLength_dev,
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.energyDeposit, fEnergyDeposit_dev, sizeof(double) * fNumSensitive,
                                 cudaMemcpyDeviceToHost));
@@ -80,6 +87,7 @@ __device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int
 
   // Add to charged track length, global energy deposit and deposit per volume
   atomicAdd(&fScoringPerVolume_dev->chargedTrackLength[volumeID], charged * geomStep);
+  atomicAdd(&fScoringPerVolume_dev->trackLength[volumeID], geomStep);
   atomicAdd(&fGlobalScoring_dev->energyDeposit, edep);
   atomicAdd(&fScoringPerVolume_dev->energyDeposit[volumeID], edep);
 }

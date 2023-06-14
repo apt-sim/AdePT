@@ -36,6 +36,7 @@ struct GlobalScoring {
 struct ScoringPerVolume {
   double *energyDeposit;
   double *chargedTrackLength;
+  double *trackLength;
 };
 
 struct BasicScoring {
@@ -44,10 +45,12 @@ struct BasicScoring {
   VolAuxData *fAuxData_dev{nullptr};
   double *fEnergyDeposit_dev{nullptr};
   double *fChargedTrackLength_dev{nullptr};
+  double *fTrackLength_dev{nullptr};
   ScoringPerVolume *fScoringPerVolume_dev{nullptr};
   GlobalScoring *fGlobalScoring_dev{nullptr};
 
   double *fChargedTrackLength{nullptr};
+  double *fTrackLength{nullptr};
   double *fEnergyDeposit{nullptr};
   ScoringPerVolume fScoringPerVolume;
   GlobalScoring fGlobalScoring;
@@ -56,8 +59,10 @@ struct BasicScoring {
   {
     fEnergyDeposit                       = new double[numSensitive];
     fChargedTrackLength                  = new double[numSensitive];
+    fTrackLength                         = new double[numSensitive];
     fScoringPerVolume.energyDeposit      = fEnergyDeposit;
     fScoringPerVolume.chargedTrackLength = fChargedTrackLength;
+    fScoringPerVolume.trackLength = fTrackLength;
   }
 
   ~BasicScoring()

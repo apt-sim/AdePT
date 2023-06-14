@@ -187,9 +187,9 @@ void AdeptIntegration::Shower(int event)
     G4Track *secondary = new G4Track(dynamique, 0, posi);
     secondary->SetParentID(-99);
 
-    Run* currentRun = static_cast< Run* > ( G4RunManager::GetRunManager()->GetNonConstCurrentRun() );
+    Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
     auto aBenchmarkManager = currentRun->getAuxBenchmarkManager();
-    //currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy out", secondary->GetTotalEnergy());
+    // currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy out", secondary->GetTotalEnergy());
     /*
     if (secondary->GetDefinition() == G4Gamma::Gamma())
       currentRun->getAuxBenchmarkManager()->addToAccumulator("GAMMAS", 1);
@@ -198,7 +198,7 @@ void AdeptIntegration::Shower(int event)
     if (secondary->GetDefinition() == G4Positron::Positron())
       currentRun->getAuxBenchmarkManager()->addToAccumulator("POSITRONS", 1);
     */
-    //Add track length to the accumulator and add 1 to the counter
+    // Add track length to the accumulator and add 1 to the counter
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }
@@ -207,9 +207,16 @@ void AdeptIntegration::Shower(int event)
   auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
   SensitiveDetector *fastSimSensitive = dynamic_cast<SensitiveDetector *>(sd);
 
+  Run *currentRun           = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+  auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
+
   for (auto id = 0; id != fNumSensitive; id++) {
     // here I add the energy deposition to the pre-existing Geant4 hit based on id
     fastSimSensitive->ProcessHits(id, fScoring->fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
+    //G4cout << "BENCHMARK: " << fScoring->fScoringPerVolume.trackLength[id] << G4endl;
+    aAuxBenchmarkManager->addToAccumulator(
+        vecgeom::GeoManager::Instance().FindPlacedVolume(id)->GetLogicalVolume()->GetName(),
+        fScoring->fScoringPerVolume.trackLength[id]);
   }
 
   EventAction *evAct      = dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());

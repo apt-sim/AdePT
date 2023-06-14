@@ -165,31 +165,55 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     }
   }
 
-  auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
-
   
+  auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
   double total = 0;
   double numvols = 0;
+    
+  for (int igroup = 0; igroup < ngroups; ++igroup) {
+    G4cout << groups[igroup] << G4endl;
+    G4cout << aAuxBenchmarkManager->getAccumulator(groups[igroup]) << G4endl;
+    G4cout << aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks") << G4endl;
+    //IGNORE IF NUMTRACKS IS 0
+    total+=aAuxBenchmarkManager->getAccumulator(groups[igroup])/aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks");
+    numvols++;
+  }
+  G4cout << total << G4endl;
+  G4cout << numvols << G4endl;
 
-  for (auto iter = aAuxBenchmarkManager->fAccumulators.begin(); iter != aAuxBenchmarkManager->fAccumulators.end(); ++iter) {
-    if(iter->first.find("numtracks") == -1)
+  aAuxBenchmarkManager->reset();
+  aAuxBenchmarkManager->addToAccumulator("Average track length per sensitive volume", total/numvols);
+  aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
+  aAuxBenchmarkManager->exportCSV();
+  aAuxBenchmarkManager->reset();
+  /*
+  double total = 0;
+  double numvols = 0;
+  auto accumulators = aAuxBenchmarkManager->getAccumulators();
+
+  for (auto iter : accumulators) {
+    if(iter.find("numtracks") == -1)
     {
       G4cout << "-----" << G4endl;
-      G4cout << iter->second << G4endl;
-      G4cout << aAuxBenchmarkManager->getAccumulator(iter->first+"_numtracks") << G4endl;
-      total+=iter->second/aAuxBenchmarkManager->getAccumulator(iter->first+"_numtracks");
+      G4cout << aAuxBenchmarkManager->getAccumulator(iter) << G4endl;
+      G4cout << aAuxBenchmarkManager->getAccumulator(iter+"_numtracks") << G4endl;
+      total+=aAuxBenchmarkManager->getAccumulator(iter)/aAuxBenchmarkManager->getAccumulator(iter+"_numtracks");
       numvols++;
     }
   }
+
+  G4cout << "BENCHMARK: " << numvols << G4endl;
 
   aAuxBenchmarkManager->reset();
   aAuxBenchmarkManager->addToAccumulator("Average track length per volume", total/numvols);
   
 
   aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
-  aAuxBenchmarkManager->exportCSV(true);
+  aAuxBenchmarkManager->exportCSV();
   aAuxBenchmarkManager->reset();
-  
+
+  */
+
   //aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
   //aAuxBenchmarkManager->exportCSV(true);
   //aAuxBenchmarkManager->reset();
