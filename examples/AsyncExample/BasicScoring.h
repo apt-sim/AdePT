@@ -28,8 +28,10 @@ struct GlobalScoring {
 
   void Print()
   {
-    printf("Global scoring: stpChg=%llu stpNeu=%llu hits=%llu numGam=%llu numEle=%llu numPos=%llu numKilled=%llu\n",
-           chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled);
+    printf(
+        "\nGlobal scoring:\n\tstpChg=%llu\n\tstpNeu=%llu\n\thits=%llu\n\tnumGam=%llu\n\tnumEle=%llu\n\tnumPos=%llu\n\t"
+        "numKilled=%llu\n",
+        chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled);
   }
 };
 
