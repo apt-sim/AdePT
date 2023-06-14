@@ -59,13 +59,14 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
   if (aTrack->GetParentID() == -99) return;
 
   // increase nb of processed tracks
+  auto eventAction = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
 
   if (aTrack->GetDefinition() == G4Gamma::Gamma()) {
-    dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction())->number_gammas++;
+    eventAction->number_gammas++;
   } else if (aTrack->GetDefinition() == G4Electron::Electron()) {
-    dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction())->number_electrons++;
+    eventAction->number_electrons++;
   } else if (aTrack->GetDefinition() == G4Positron::Positron()) {
-    dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction())->number_positrons++;
+    eventAction->number_positrons++;
   }
 }
 
