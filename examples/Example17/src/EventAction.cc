@@ -175,8 +175,11 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << aAuxBenchmarkManager->getAccumulator(groups[igroup]) << G4endl;
     G4cout << aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks") << G4endl;
     //IGNORE IF NUMTRACKS IS 0
-    total+=aAuxBenchmarkManager->getAccumulator(groups[igroup])/aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks");
-    numvols++;
+    if(aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks") > 0)
+    {
+      total+=aAuxBenchmarkManager->getAccumulator(groups[igroup])/aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks");
+      numvols++;
+    }
   }
   G4cout << total << G4endl;
   G4cout << numvols << G4endl;

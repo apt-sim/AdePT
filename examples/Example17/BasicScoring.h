@@ -37,6 +37,7 @@ struct ScoringPerVolume {
   double *energyDeposit;
   double *chargedTrackLength;
   double *trackLength;
+  double *numTracks;
 };
 
 struct BasicScoring {
@@ -46,11 +47,13 @@ struct BasicScoring {
   double *fEnergyDeposit_dev{nullptr};
   double *fChargedTrackLength_dev{nullptr};
   double *fTrackLength_dev{nullptr};
+  double *fNumTracks_dev{nullptr};
   ScoringPerVolume *fScoringPerVolume_dev{nullptr};
   GlobalScoring *fGlobalScoring_dev{nullptr};
 
   double *fChargedTrackLength{nullptr};
   double *fTrackLength{nullptr};
+  double *fNumTracks{nullptr};
   double *fEnergyDeposit{nullptr};
   ScoringPerVolume fScoringPerVolume;
   GlobalScoring fGlobalScoring;
@@ -60,9 +63,11 @@ struct BasicScoring {
     fEnergyDeposit                       = new double[numSensitive];
     fChargedTrackLength                  = new double[numSensitive];
     fTrackLength                         = new double[numSensitive];
+    fNumTracks                         = new double[numSensitive];
     fScoringPerVolume.energyDeposit      = fEnergyDeposit;
     fScoringPerVolume.chargedTrackLength = fChargedTrackLength;
     fScoringPerVolume.trackLength = fTrackLength;
+    fScoringPerVolume.numTracks = fNumTracks;
   }
 
   ~BasicScoring()
@@ -75,6 +80,8 @@ struct BasicScoring {
 
   /// @brief Simple step+edep scoring interface.
   __device__ void Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep);
+
+  __device__ void AccountTrack(vecgeom::NavStateIndex const &crt_state);
 
   /// @brief Account for a single hit
   __device__ void AccountHit();

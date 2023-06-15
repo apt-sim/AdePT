@@ -127,7 +127,6 @@ G4bool SensitiveDetector::ProcessHits(const G4FastHit *aHit, const G4FastTrack *
 
 G4bool SensitiveDetector::ProcessHits(int hitID, double energy)
 {
-
   if (energy == 0.) return true;
 
   auto hit = (*fHitsCollection)[hitID];

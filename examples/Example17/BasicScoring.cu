@@ -21,6 +21,8 @@ BasicScoring *BasicScoring::InitializeOnGPU()
   COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMalloc(&fTrackLength_dev, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fTrackLength_dev, 0, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMalloc(&fNumTracks_dev, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMemset(fNumTracks_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMalloc(&fEnergyDeposit_dev, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
 
@@ -31,6 +33,7 @@ BasicScoring *BasicScoring::InitializeOnGPU()
   ScoringPerVolume scoringPerVolume_devPtrs;
   scoringPerVolume_devPtrs.chargedTrackLength = fChargedTrackLength_dev;
   scoringPerVolume_devPtrs.trackLength = fTrackLength_dev;
+  scoringPerVolume_devPtrs.numTracks = fNumTracks_dev;
   scoringPerVolume_devPtrs.energyDeposit      = fEnergyDeposit_dev;
   COPCORE_CUDA_CHECK(cudaMalloc(&fScoringPerVolume_dev, sizeof(ScoringPerVolume)));
   COPCORE_CUDA_CHECK(
@@ -47,6 +50,7 @@ void BasicScoring::FreeGPU()
   // Free resources.
   COPCORE_CUDA_CHECK(cudaFree(fChargedTrackLength_dev));
   COPCORE_CUDA_CHECK(cudaFree(fTrackLength_dev));
+  COPCORE_CUDA_CHECK(cudaFree(fNumTracks_dev));
   COPCORE_CUDA_CHECK(cudaFree(fEnergyDeposit_dev));
 
   COPCORE_CUDA_CHECK(cudaFree(fGlobalScoring_dev));
@@ -59,6 +63,7 @@ void BasicScoring::ClearGPU()
   COPCORE_CUDA_CHECK(cudaMemset(fGlobalScoring_dev, 0, sizeof(GlobalScoring)));
   COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fTrackLength_dev, 0, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMemset(fNumTracks_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
 }
 
@@ -72,10 +77,13 @@ void BasicScoring::CopyHitsToHost()
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.trackLength, fTrackLength_dev,
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
+  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.trackLength, fNumTracks_dev,
+                                sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.energyDeposit, fEnergyDeposit_dev, sizeof(double) * fNumSensitive,
                                 cudaMemcpyDeviceToHost));
 }
 
+//MAKE A FUNCTION SPECIFIC FOR COUNTING TRACKS LENGTHS, AS SCORE IS NOT CALLED IN THE SAME PLACES IN BOTH KERNELS
 __device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep)
 {
   assert(fGlobalScoring_dev && "Scoring not initialized on device");
@@ -92,6 +100,14 @@ __device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int
   atomicAdd(&fScoringPerVolume_dev->energyDeposit[volumeID], edep);
 }
 
+__device__ void BasicScoring::AccountTrack(vecgeom::NavStateIndex const &crt_state)
+{
+  auto volume  = crt_state.Top();
+  int volumeID = volume->id();
+
+  // Increment counter
+  atomicAdd(&fScoringPerVolume_dev->trackLength[volumeID], 1);
+}
 __device__ void BasicScoring::AccountHit()
 {
   // Increment hit counter

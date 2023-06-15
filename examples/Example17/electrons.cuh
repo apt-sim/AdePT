@@ -243,6 +243,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (nextState.Top() != nullptr) {
         BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
+        if(navState.Top()->id() != nextState.Top()->id())
+        {
+          //Track left the volume, account for it
+          userScoring->AccountTrack(navState);
+        }
+
         // Move to the next boundary.
         navState = nextState;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
