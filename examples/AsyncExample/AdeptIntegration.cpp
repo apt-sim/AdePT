@@ -25,40 +25,87 @@
 #include "SensitiveDetector.hh"
 #include "EventAction.hh"
 
-AdeptIntegration::~AdeptIntegration()
-{
-  delete fScoring;
-}
+#include <iomanip>
 
-void AdeptIntegration::AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry,
-                                double dirz)
+namespace adeptint {
+TrackBuffer::TrackHandle adeptint::TrackBuffer::createToDeviceSlot()
 {
-  fBuffer.toDevice.emplace_back(pdg, energy, x, y, z, dirx, diry, dirz);
-  if (pdg == 11)
-    fBuffer.nelectrons++;
-  else if (pdg == -11)
-    fBuffer.npositrons++;
-  else if (pdg == 22)
-    fBuffer.ngammas++;
+  while (true) {
+    auto &toDevice = getActiveBuffer();
+    std::shared_lock lock{toDevice.mutex};
+    const auto slot = toDevice.nTrack.fetch_add(1, std::memory_order_relaxed);
 
-  if (fBuffer.toDevice.size() >= fBufferThreshold) {
-    if (fDebugLevel > 0)
-      G4cout << "Reached the threshold of " << fBufferThreshold << " triggering the shower" << G4endl;
-    this->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+    if (slot < toDevice.maxTracks)
+      return TrackHandle{toDevice.tracks[slot], std::move(lock)};
+    else {
+      std::cerr << __FILE__ << ':' << __LINE__ << " To-device buffer too small" << std::endl;
+      using namespace std::chrono_literals;
+      std::this_thread::sleep_for(1ms);
+    }
   }
 }
+} // namespace adeptint
 
-void AdeptIntegration::Initialize(bool common_data)
+namespace {
+template <typename T>
+std::size_t countTracks(int pdgToSelect, T const &container)
 {
-  if (fInit) return;
-  if (fMaxBatch <= 0) throw std::runtime_error("AdeptIntegration::Initialize: Maximum batch size not set.");
+  return std::count_if(container.begin(), container.end(),
+                       [pdgToSelect](adeptint::TrackData const &track) { return track.pdg == pdgToSelect; });
+}
 
+std::ostream &operator<<(std::ostream &stream, adeptint::TrackData const &track)
+{
+  const auto flags = stream.flags();
+  stream << std::setw(5) << track.pdg << std::scientific << std::setw(15) << std::setprecision(6) << track.energy
+         << " (" << std::setprecision(2) << std::setw(9) << track.position[0] << std::setw(9) << track.position[1]
+         << std::setw(9) << track.position[2] << ")";
+  stream.flags(flags);
+  return stream;
+}
+} // namespace
+
+void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned int trackId, int pdg, double energy, double x,
+                                double y, double z, double dirx, double diry, double dirz)
+{
+  if (pdg != 11 && pdg != -11 && pdg != 22) {
+    G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
+    return;
+  }
+
+  const EventState oldState = fEventStates[threadId].exchange(EventState::NewTracksForDevice);
+  if (oldState == EventState::LeakedTracksBackOnHost) {
+    std::cerr << __FILE__ << ':' << __LINE__ << ": Need to clear scoring / flush tracks for thread " << threadId
+              << " before adding new tracks." << std::endl;
+    exit(1);
+  }
+
+  adeptint::TrackData track{threadId, eventId, trackId, pdg, energy, x, y, z, dirx, diry, dirz};
+  if (fDebugLevel > 1) {
+    fGPUNetEnergy[threadId] += energy;
+    if (fDebugLevel > 2) {
+      G4cout << "-> [" << threadId << "," << eventId << "," << trackId << "]: " << track << "\tnet GPU energy "
+             << std::setprecision(6) << fGPUNetEnergy[threadId] << "\n";
+    }
+  }
+
+  // Lock buffer and emplace the track
+  {
+    auto trackHandle  = fBuffer->createToDeviceSlot();
+    trackHandle.track = std::move(track);
+  }
+
+  // Wake up transport thread if necessary
+  fBuffer->cv_newTracks.notify_one();
+}
+
+void AdeptIntegration::Initialize()
+{
   fNumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   // We set the number of sensitive volumes equal to the number of placed volumes. This is temporary
   fNumSensitive = vecgeom::GeoManager::Instance().GetPlacedVolumesCount();
   if (fNumVolumes == 0) throw std::runtime_error("AdeptIntegration::Initialize: Number of geometry volumes is zero.");
 
-  if (common_data) {
     G4cout << "=== AdeptIntegration: initializing geometry and physics\n";
     // Initialize geometry on device
     if (!vecgeom::GeoManager::Instance().IsClosed())
@@ -81,20 +128,18 @@ void AdeptIntegration::Initialize(bool common_data)
     VolAuxArray::GetInstance().fNumVolumes = fNumVolumes;
     VolAuxArray::GetInstance().fAuxData    = auxData;
     VolAuxArray::GetInstance().InitializeOnGPU();
-    return;
-  }
 
-  G4cout << "=== AdeptIntegration: initializing transport engine for thread: " << G4Threading::G4GetThreadId()
-         << G4endl;
+    G4cout << "=== AdeptIntegration: initializing transport engine for thread: " << G4Threading::G4GetThreadId()
+           << G4endl;
 
-  // Initialize user scoring data
-  fScoring     = new AdeptScoring(fNumSensitive);
-  fScoring_dev = fScoring->InitializeOnGPU();
+    // Initialize user scoring data
+    fScoring.reset(new AdeptScoring(fNumSensitive));
+    fScoring_dev = fScoring->InitializeOnGPU();
 
-  // Initialize the transport engine for the current thread
-  InitializeGPU();
+    // Initialize the transport engine for the current thread
+    InitializeGPU();
 
-  fInit = true;
+    fGPUWorker = std::thread{&AdeptIntegration::TransportLoop, this};
 }
 void AdeptIntegration::InitBVH()
 {
@@ -102,100 +147,94 @@ void AdeptIntegration::InitBVH()
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 
-void AdeptIntegration::Cleanup()
+void AdeptIntegration::Flush(G4int threadId, G4int eventId)
 {
-  if (!fInit) return;
-  AdeptIntegration::FreeGPU();
-}
+  fBuffer->flushRequested.store(true, std::memory_order_release);
+  if (fDebugLevel > 0) {
+      G4cout << "Flushing AdePT for thread " << threadId << "\n";
+  }
 
-void AdeptIntegration::Shower(int event)
-{
+  std::vector<adeptint::TrackData> tracks;
+  assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
+  {
+      std::unique_lock lock{fBuffer->fromDeviceMutex};
+      fBuffer->cv_fromDevice.wait(lock, [this, threadId]() {
+        const auto state = fEventStates[threadId].load(std::memory_order_acquire);
+        return state == EventState::LeakedTracksBackOnHost || state == EventState::ScoringRetrieved;
+      });
+      tracks = std::move(fBuffer->fromDeviceBuffers[threadId]);
+  }
+  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
+
+  // TODO: Sort tracks on device?
+  assert(std::all_of(tracks.begin(), tracks.end(),
+                     [threadId](adeptint::TrackData const &a) { return a.threadId == threadId; }));
+  // Sort by pdg id and energy to ensure reproducible random numbers
+  std::sort(tracks.begin(), tracks.end(), [](adeptint::TrackData const &a, adeptint::TrackData const &b) {
+    return a.pdg > b.pdg || (a.pdg == b.pdg && a < b);
+  });
+
   constexpr double tolerance = 10. * vecgeom::kTolerance;
-
-  int tid = G4Threading::G4GetThreadId();
-  if (fDebugLevel > 0 && fBuffer.toDevice.size() == 0) {
-    G4cout << "[" << tid << "] AdeptIntegration::Shower: No more particles in buffer. Exiting.\n";
-    return;
-  }
-
-  if (event != fBuffer.eventId) {
-    fBuffer.eventId    = event;
-    fBuffer.startTrack = 0;
-  } else {
-    fBuffer.startTrack += fBuffer.toDevice.size();
-  }
-
-  int itr   = 0;
-  int nelec = 0, nposi = 0, ngamma = 0;
-  if (fDebugLevel > 0) {
-    G4cout << "[" << tid << "] toDevice: " << fBuffer.nelectrons << " elec, " << fBuffer.npositrons << " posi, "
-           << fBuffer.ngammas << " gamma\n";
-  }
-  if (fDebugLevel > 1) {
-    for (auto &track : fBuffer.toDevice) {
-      G4cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " energy " << track.energy
-             << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << G4endl;
-    }
-  }
-
-  AdeptIntegration::ShowerGPU(event, fBuffer);
-
-  if (fDebugLevel > 1) fScoring->Print();
-  for (int i = 0; i < fBuffer.numFromDevice; ++i) {
-    const auto &track = fBuffer.fromDevice[i];
-    if (track.pdg == 11)
-      nelec++;
-    else if (track.pdg == -11)
-      nposi++;
-    else if (track.pdg == 22)
-      ngamma++;
-  }
-  if (fDebugLevel > 0) {
-    G4cout << "[" << tid << "] fromDevice: " << nelec << " elec, " << nposi << " posi, " << ngamma << " gamma\n";
-  }
+  const auto tid             = G4Threading::G4GetThreadId();
 
   // Build the secondaries and put them back on the Geant4 stack
-  for (int i = 0; i < fBuffer.numFromDevice; ++i) {
-    const auto &track = fBuffer.fromDevice_sorted[i];
-    if (fDebugLevel > 1) {
-      G4cout << "[" << tid << "] fromDevice[ " << i << "]: pdg " << track.pdg << " energy " << track.energy
-             << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << G4endl;
-    }
-    G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
+  const auto oldEnergyTransferred = fGPUNetEnergy[threadId];
+  for (const auto &track : tracks) {
+      if (fDebugLevel > 2) {
+        G4cout << "<- [" << tid << "," << track.eventId << "," << track.trackId << "]: " << track << "\tGPU net energy "
+               << std::setprecision(6) << fGPUNetEnergy[threadId] << "\n";
+        fGPUNetEnergy[threadId] -= track.energy;
+      }
+      G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
 
-    G4DynamicParticle *dynamique =
-        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.energy);
+      G4DynamicParticle *dynamique =
+          new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.energy);
 
-    G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
-    // The returned track will be located by Geant4. For now we need to
-    // push it to make sure it is not relocated again in the GPU region
-    posi += tolerance * direction;
+      G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
+      // The returned track will be located by Geant4. For now we need to
+      // push it to make sure it is not relocated again in the GPU region
+      posi += tolerance * direction;
 
-    G4Track *secondary = new G4Track(dynamique, 0, posi);
-    secondary->SetParentID(-99);
+      G4Track *secondary = new G4Track(dynamique, 0, posi);
+      secondary->SetParentID(-99);
 
-    G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
+      G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }
+
+  if (fDebugLevel > 1) {
+      std::stringstream str;
+      str << "[" << tid << "] Pushed " << tracks.size() << " tracks to G4, stack has "
+          << G4EventManager::GetEventManager()->GetStackManager()->GetNTotalTrack();
+      if (fDebugLevel > 1) {
+        str << "\tEnergy back to G4: " << std::setprecision(6)
+            << (oldEnergyTransferred - fGPUNetEnergy[threadId]) / CLHEP::GeV << "\tGPU net energy "
+            << std::setprecision(6) << fGPUNetEnergy[threadId] / CLHEP::GeV << " GeV";
+        str << "\t(" << countTracks(11, tracks) << ", " << countTracks(-11, tracks) << ", " << countTracks(22, tracks)
+            << ")";
+      }
+      G4cout << str.str() << G4endl;
+  }
+
+#warning Blow up scoring for each thread and move to end of event
+  fScoring->CopyHitsToHost();
+  fScoring->ClearGPU();
+  fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
+  if (fDebugLevel > 1) fScoring->Print();
 
   // Create energy deposit in the detector
   auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
-  SensitiveDetector *fastSimSensitive = dynamic_cast<SensitiveDetector *>(sd);
+  SensitiveDetector *fastSimSensitive = static_cast<SensitiveDetector *>(sd);
 
   for (auto id = 0; id != fNumSensitive; id++) {
     // here I add the energy deposition to the pre-existing Geant4 hit based on id
     fastSimSensitive->ProcessHits(id, fScoring->fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
   }
 
-  EventAction *evAct      = dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
-  evAct->number_gammas    = evAct->number_gammas + fScoring->fGlobalScoring.numGammas;
-  evAct->number_electrons = evAct->number_electrons + fScoring->fGlobalScoring.numElectrons;
-  evAct->number_positrons = evAct->number_positrons + fScoring->fGlobalScoring.numPositrons;
-  evAct->number_killed    = evAct->number_killed + fScoring->fGlobalScoring.numKilled;
-
-  fBuffer.Clear();
-  fScoring->ClearGPU();
+  EventAction *evAct = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
+  evAct->number_gammas += fScoring->fGlobalScoring.numGammas;
+  evAct->number_electrons += fScoring->fGlobalScoring.numElectrons;
+  evAct->number_positrons += fScoring->fGlobalScoring.numPositrons;
+  evAct->number_killed += fScoring->fGlobalScoring.numKilled;
 }
 
 adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume *g4world,
@@ -269,7 +308,7 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
 
     // Check if the logical volume is sensitive
     bool sens = false;
-    for (auto sensvol : (*sensitive_volume_index)) {
+    for (auto sensvol : sensitive_volume_index) {
       if (vol->GetName() == sensvol.first ||
           std::string(vol->GetName()).rfind(sensvol.first + "0x", 0) == 0) {
         sens = true;
@@ -278,7 +317,7 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
                                    " not sensitive while VecGeom one " + std::string(vol->GetName()) + " is.");
         if (auxData[vol->id()].fSensIndex < 0) nlogical_sens++;
         auxData[vol->id()].fSensIndex = sensvol.second;
-        fScoringMap->insert(std::pair<const G4VPhysicalVolume *, int>(g4pvol, pvol->id()));
+        fScoringMap.insert(std::pair<const G4VPhysicalVolume *, int>(g4pvol, pvol->id()));
         nphysical_sens++;
         break;
       }

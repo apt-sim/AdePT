@@ -24,10 +24,9 @@
 #include <G4MaterialCutsCouple.hh>
 #include <G4ProductionCutsTable.hh>
 
-EMShowerModel::EMShowerModel(G4String aModelName, G4Region *aEnvelope)
-    : G4VFastSimulationModel(aModelName, aEnvelope), fMessenger(new EMShowerMessenger(this))
+EMShowerModel::EMShowerModel(G4String aModelName, G4Region *aEnvelope, std::shared_ptr<AdeptIntegration> adept)
+    : G4VFastSimulationModel{aModelName, aEnvelope}, fMessenger{new EMShowerMessenger(this)}, fAdept{adept}
 {
-  fRegion = aEnvelope;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -39,10 +38,7 @@ EMShowerModel::EMShowerModel(G4String aModelName)
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-EMShowerModel::~EMShowerModel()
-{
-  fAdept->Cleanup();
-}
+EMShowerModel::~EMShowerModel() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -78,51 +74,30 @@ void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
   aFastStep.SetTotalEnergyDeposited(0);
 
   auto pdg = aFastTrack.GetPrimaryTrack()->GetParticleDefinition()->GetPDGEncoding();
+  const auto thread = G4Threading::G4GetThreadId();
+  const auto event  = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
+  if (event != fLastEventId) {
+    fLastEventId  = event;
+    fTrackCounter = 0;
+  }
 
-  fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
-                   particleDirection[1], particleDirection[2]);
+  fAdept->AddTrack(thread, event, fTrackCounter++, pdg, energy, particlePosition[0], particlePosition[1],
+                   particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2]);
 }
 
 void EMShowerModel::Flush()
 {
+  const auto threadId = G4Threading::G4GetThreadId();
+  const auto event    = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
   if (fVerbosity > 0)
-    G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer with "
-           << fAdept->GetNtoDevice() << " particles left." << G4endl;
+    G4cout << "Waiting for AdePT to finish the transport for thread " << threadId << " event " << event << G4endl;
 
-  fAdept->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+  fAdept->Flush(threadId, event);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void EMShowerModel::Print() const
 {
-  G4cout << "EMShowerModel: " << G4endl;
-}
-
-void EMShowerModel::Initialize(bool adept)
-{
-
-  fAdept = new AdeptIntegration;
-  fAdept->SetDebugLevel(fVerbosity);
-  fAdept->SetBufferThreshold(fBufferThreshold);
-  fAdept->SetMaxBatch(2 * fBufferThreshold);
-
-  G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
-  bool sequential             = (rmType == G4RunManager::sequentialRM);
-
-  fAdept->SetSensitiveVolumes(sensitive_volume_index);
-  fAdept->SetScoringMap(fScoringMap);
-  fAdept->SetRegion(fRegion);
-
-  auto tid = G4Threading::G4GetThreadId();
-  if (tid < 0) {
-    // This is supposed to set the max batching for Adept to allocate properly the memory
-     int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
-     int capacity = 1024 * 1024 * fTrackSlotsGPU / num_threads;
-     AdeptIntegration::SetTrackCapacity(capacity);
-     fAdept->Initialize(true /*common_data*/);
-    if (sequential && adept) fAdept->Initialize();
-  } else {
-    if (adept) fAdept->Initialize();
-  }
+  G4cout << "EMShowerModel (AdePT)=" << fAdept << G4endl;
 }
