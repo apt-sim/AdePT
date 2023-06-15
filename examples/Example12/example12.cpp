@@ -37,7 +37,7 @@ static constexpr double DefaultCut = 0.7 * mm;
 const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
 {
   auto defaultRegion = new G4Region("DefaultRegionForTheWorld"); // deleted by store
-  auto pcuts = G4ProductionCutsTable::GetProductionCutsTable()->GetDefaultProductionCuts();
+  auto pcuts         = G4ProductionCutsTable::GetProductionCutsTable()->GetDefaultProductionCuts();
   pcuts->SetProductionCut(DefaultCut, "gamma");
   pcuts->SetProductionCut(DefaultCut, "e-");
   pcuts->SetProductionCut(DefaultCut, "e+");
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
   OPTION_STRING(gdml_file, "cms2018.gdml");
   OPTION_INT(cache_depth, 0); // 0 = full depth
   OPTION_INT(particles, 100);
-  OPTION_DOUBLE(energy, 10); // entered in GeV
+  OPTION_DOUBLE(energy, 10);  // entered in GeV
   energy *= copcore::units::GeV;
   OPTION_INT(batch, -1);
 
@@ -219,6 +219,8 @@ int main(int argc, char *argv[])
 
   // Load and synchronize the geometry on the GPU
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
+  // Adjust stack size to avoid lane user stack overflow
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
