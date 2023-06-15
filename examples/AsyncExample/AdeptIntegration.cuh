@@ -32,7 +32,7 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
 #endif
 
 // A bundle of pointers to generate particles of an implicit type.
-class ParticleGenerator {
+struct ParticleGenerator {
   Track *fTracks;
   SlotManager *fSlotManager;
   adept::MParray *fActiveQueue;
@@ -59,6 +59,7 @@ public:
 struct LeakedTracks {
   Track *fTracks;
   adept::MParray *fLeakedQueue;
+  SlotManager *fSlotManager;
 };
 
 // A bundle of generators for the three particle types.
@@ -102,8 +103,9 @@ struct ParticleType {
 };
 
 // Pointers to track storage for each particle type
-struct AllTracks {
+struct TracksAndSlots {
   Track *const tracks[ParticleType::NumParticleTypes];
+  SlotManager *const slotManagers[ParticleType::NumParticleTypes];
 };
 
 // A bundle of queues for the three particle types.
