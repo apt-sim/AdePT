@@ -43,6 +43,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     int lvolID                = volume->GetLogicalVolume()->id();
     VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
+    auto &slotManager = *secondaries.gammas.fSlotManager;
 
     auto survive = [&](bool leak = false) {
       currentTrack.energy   = energy;
@@ -125,6 +126,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
           pos += kPushOutRegion * dir;
           survive(/*leak*/ true);
         }
+      } else {
+        slotManager.MarkSlotForFreeing(slot);
       }
       continue;
     } else if (winnerProcessIndex < 0) {
@@ -177,6 +180,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
+      slotManager.MarkSlotForFreeing(slot);
       break;
     }
     case 1: {
@@ -215,6 +219,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       } else {
         if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
+        slotManager.MarkSlotForFreeing(slot);
       }
       break;
     }
@@ -245,6 +250,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       }
       if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, edep);
       // The current track is killed by not enqueuing into the next activeQueue.
+      slotManager.MarkSlotForFreeing(slot);
       break;
     }
     }

@@ -183,21 +183,29 @@ __global__ void FillFromDeviceBuffer(int numLeaked, AllLeaked all, adeptint::Tra
   assert(numLeaked == numElectrons + numPositrons + numGammas);
 
   for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x; i < numLeaked; i += blockDim.x * gridDim.x) {
-    const Track *track{nullptr};
-    if (i < numElectrons) {
-      int trackIndex    = (*all.leakedElectrons.fLeakedQueue)[i];
-      track             = &all.leakedElectrons.fTracks[trackIndex];
-      fromDevice[i].pdg = 11;
-    } else if (i < numElectrons + numPositrons) {
-      int trackIndex    = (*all.leakedPositrons.fLeakedQueue)[i - numElectrons];
-      track             = &all.leakedPositrons.fTracks[trackIndex];
-      fromDevice[i].pdg = -11;
+    Track const *trackCollection = nullptr;
+    unsigned int trackSlot       = 0;
+    SlotManager *slotManager     = nullptr;
+    int pdg                      = 0;
+
+    if (i < numGammas) {
+      trackCollection = all.leakedGammas.fTracks;
+      trackSlot       = (*all.leakedGammas.fLeakedQueue)[i];
+      slotManager     = all.leakedGammas.fSlotManager;
+      pdg             = 22;
+    } else if (i < numGammas + numElectrons) {
+      trackCollection = all.leakedElectrons.fTracks;
+      trackSlot       = (*all.leakedElectrons.fLeakedQueue)[i - numGammas];
+      slotManager     = all.leakedElectrons.fSlotManager;
+      pdg             = 11;
     } else {
-      int trackIndex    = (*all.leakedGammas.fLeakedQueue)[i - numElectrons - numPositrons];
-      track             = &all.leakedGammas.fTracks[trackIndex];
-      fromDevice[i].pdg = 22;
+      trackCollection = all.leakedPositrons.fTracks;
+      trackSlot       = (*all.leakedPositrons.fLeakedQueue)[i - numGammas - numElectrons];
+      slotManager     = all.leakedPositrons.fSlotManager;
+      pdg             = -11;
     }
 
+    Track const *const track   = trackCollection + trackSlot;
     fromDevice[i].position[0]  = track->pos[0];
     fromDevice[i].position[1]  = track->pos[1];
     fromDevice[i].position[2]  = track->pos[2];
@@ -205,21 +213,30 @@ __global__ void FillFromDeviceBuffer(int numLeaked, AllLeaked all, adeptint::Tra
     fromDevice[i].direction[1] = track->dir[1];
     fromDevice[i].direction[2] = track->dir[2];
     fromDevice[i].energy       = track->energy;
+    fromDevice[i].pdg          = pdg;
+    fromDevice[i].threadId     = track->threadId;
+    fromDevice[i].eventId      = track->eventId;
+    slotManager->MarkSlotForFreeing(trackSlot);
   }
 }
 
 // Finish iteration: clear queues and fill statistics.
-// TODO: Use shared mem counters
-// TODO: Distribute better among blocks
-__global__ void FinishIteration(AllParticleQueues all, Stats *stats, AllTracks allTracks)
+// TODO: Use shared mem counters ?
+// TODO: Distribute work better among blocks
+__global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
 {
   for (unsigned int particleType = 0; particleType < ParticleType::NumParticleTypes; ++particleType) {
     const auto &queue   = *all.queues[particleType].nextActive;
     const auto end      = queue.size();
-    Track const *tracks = allTracks.tracks[particleType];
+    Track const *tracks = tracksAndSlots.tracks[particleType];
     for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x; i < end; i += blockDim.x * gridDim.x) {
       atomicAdd(stats->occupancy + tracks[i].threadId, 1u);
     }
+  }
+
+  constexpr auto nSlotMgrs = sizeof(tracksAndSlots.slotManagers) / sizeof(tracksAndSlots.slotManagers[0]);
+  for (unsigned int i = blockIdx.x; i < nSlotMgrs; i += gridDim.x) {
+    tracksAndSlots.slotManagers[i]->FreeMarkedSlots();
   }
 
   if (blockIdx.x == 0) {
@@ -443,9 +460,10 @@ void AdeptIntegration::TransportLoop()
     int numLeaked         = 0;
     int loopingNo         = 0;
     int previousElectrons = -1, previousPositrons = -1;
-    AllLeaked leakedTracks = {.leakedElectrons = {electrons.tracks, electrons.queues.leakedTracks},
-                              .leakedPositrons = {positrons.tracks, positrons.queues.leakedTracks},
-                              .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracks}};
+    AllLeaked leakedTracks = {
+        .leakedElectrons = {electrons.tracks, electrons.queues.leakedTracks, electrons.slotManager},
+        .leakedPositrons = {positrons.tracks, positrons.queues.leakedTracks, positrons.slotManager},
+        .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracks, gammas.slotManager}};
 
     for (unsigned int iteration = 0;
          (inFlight > 0 && loopingNo < 200) || numLeaked > 0 || (fBuffer->getActiveBuffer().nTrack > 0) ||
@@ -461,11 +479,14 @@ void AdeptIntegration::TransportLoop()
       positrons.queues.SwapActive();
       gammas.queues.SwapActive();
 
-      Secondaries secondaries = {
+      const Secondaries secondaries = {
           .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
           .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
           .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
       };
+      const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues}};
+      const TracksAndSlots tracksAndSlots       = {{electrons.tracks, positrons.tracks, gammas.tracks},
+                                                   {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
 
       // *** Inject new particles ***
       if (auto &toDevice = fBuffer->getActiveBuffer();
@@ -502,8 +523,6 @@ void AdeptIntegration::TransportLoop()
         // Can only release the buffer once the copy operation completed:
         COPCORE_CUDA_CHECK(cudaEventSynchronize(cudaEvent));
       }
-
-#warning Properly free slots
 
       // *** ELECTRONS ***
       const auto numElectrons = gpuState.stats->inFlight[ParticleType::Electron];
@@ -550,7 +569,8 @@ void AdeptIntegration::TransportLoop()
       // The events ensure synchronization before finishing this iteration and
       // copying the Stats back to the host.
       AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
-      AllTracks tracks         = {{electrons.tracks, positrons.tracks, gammas.tracks}};
+      TracksAndSlots tracks    = {{electrons.tracks, positrons.tracks, gammas.tracks},
+                                  {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
       // TODO: Better grid size?
       FinishIteration<<<80, 128, 0, gpuState.stream>>>(queues, gpuState.stats_dev, tracks);
       COPCORE_CUDA_CHECK(
