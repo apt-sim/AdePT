@@ -154,21 +154,21 @@ void DetectorConstruction::ConstructSDandField()
   }
 
   auto detectorRegion = G4RegionStore::GetInstance()->GetRegion(fRegion_name);
-  fShowerModel        = new EMShowerModel("AdePT", detectorRegion);
 
-  fShowerModel->SetSensitiveVolumes(&(caloSD->fSensitive_volume_index));
-  fShowerModel->SetScoringMap(&gScoringMap);
-  fShowerModel->SetVerbosity(fVerbosity);
-  fShowerModel->SetBufferThreshold(fBufferThreshold);
-  fShowerModel->SetTrackSlots(fTrackSlotsGPU);
-  
-  try {
-    fShowerModel->Initialize(fActivate_AdePT);
-  } catch (const std::runtime_error &ex) {
-    std::cerr << ex.what() << "\n";
-    exit (EXIT_FAILURE);
-    return;
+  if (!fAdept && fActivate_AdePT) {
+    try {
+      const auto nThread = G4RunManager::GetRunManager()->GetNumberOfThreads();
+      fAdept = std::make_shared<AdeptIntegration>(nThread, fTrackSlotsGPU * 1024 * 1024, fBufferThreshold, fVerbosity,
+                                                  detectorRegion, caloSD->fSensitive_volume_index, gScoringMap);
+    } catch (const std::runtime_error &ex) {
+      std::cerr << ex.what() << "\n";
+      exit(EXIT_FAILURE);
+      return;
+    }
   }
+
+  fShowerModel = new EMShowerModel("AdePT", detectorRegion, fAdept);
+
   if (fActivate_AdePT)
     G4cout << "Assigning AdePT transport to region: " << fRegion_name << G4endl;
   else
