@@ -86,6 +86,7 @@ private:
 
   // Pointer to parameterized shower model (owned)
   EMShowerModel *fShowerModel{nullptr};
+  std::shared_ptr<AdeptIntegration> fAdept;
 };
 
 #endif /* DETECTORCONSTRUCTION_H */

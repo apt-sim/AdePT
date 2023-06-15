@@ -25,6 +25,8 @@ struct Track {
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
   vecgeom::NavStateIndex navState;
+  unsigned int eventId;
+  unsigned short threadId{65535};
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 

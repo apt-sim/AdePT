@@ -101,6 +101,11 @@ struct ParticleType {
   };
 };
 
+// Pointers to track storage for each particle type
+struct AllTracks {
+  Track *const tracks[ParticleType::NumParticleTypes];
+};
+
 // A bundle of queues for the three particle types.
 struct AllParticleQueues {
   ParticleQueues queues[ParticleType::NumParticleTypes];
@@ -110,20 +115,27 @@ struct AllParticleQueues {
 struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
+  unsigned int occupancy[AdeptIntegration::kMaxThreads];
 };
 
 struct GPUstate {
   using TrackData = adeptint::TrackData;
 
   ParticleType particles[ParticleType::NumParticleTypes];
-  std::vector<adeptint::unique_ptr_cuda> allDevicePointers;
+  std::vector<adeptint::unique_ptr_cuda<void>> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
   cudaStream_t stream;                ///< all-particle sync stream
-  int fNumFromDevice{0};              ///< number of tracks in the fromDevice buffer
-  TrackData *toDevice_dev{nullptr};   ///< toDevice buffer of tracks
-  TrackData *fromDevice_dev{nullptr}; ///< fromDevice buffer of tracks
+  unsigned int fNumToDevice{1024};    ///< number of slots in the toDevice buffer
+  unsigned int fNumFromDevice{1024};  ///< number of slots in the fromDevice buffer
+  adeptint::unique_ptr_cuda<TrackData> toDevice_host{nullptr,
+                                                     adeptint::cudaDeleter}; ///< Tracks to be transported to the device
+  adeptint::unique_ptr_cuda<TrackData> toDevice_dev{nullptr, adeptint::cudaDeleter};    ///< toDevice buffer of tracks
+  adeptint::unique_ptr_cuda<TrackData> fromDevice_host{nullptr, adeptint::cudaDeleter}; ///< Tracks from device
+  adeptint::unique_ptr_cuda<TrackData> fromDevice_dev{nullptr, adeptint::cudaDeleter};  ///< fromDevice buffer of tracks
   Stats *stats_dev{nullptr};          ///< statistics object pointer on device
   Stats *stats{nullptr};              ///< statistics object pointer on host
+
+  std::atomic_bool runTransport{true}; ///< Keep transport thread running
 };
 
 // Constant data structures from G4HepEm accessed by the kernels.

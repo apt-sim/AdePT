@@ -28,9 +28,7 @@
 #ifndef EMSHOWERMODEL_HH
 #define EMSHOWERMODEL_HH
 
-#include <unordered_map>
 #include "G4VFastSimulationModel.hh"
-//#include <AdePT/ArgParser.h>
 #include <CopCore/SystemOfUnits.h>
 #include "AdeptIntegration.h"
 
@@ -38,6 +36,9 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmState.hh>
 #include <G4HepEmStateInit.hh>
+
+#include <memory>
+#include <unordered_map>
 
 class EMShowerMessenger;
 class G4FastSimHitMaker;
@@ -55,7 +56,7 @@ class G4VPhysicalVolume;
 
 class EMShowerModel : public G4VFastSimulationModel {
 public:
-  EMShowerModel(G4String, G4Region *);
+  EMShowerModel(G4String, G4Region *, std::shared_ptr<AdeptIntegration>);
   EMShowerModel(G4String);
   ~EMShowerModel();
 
@@ -76,37 +77,19 @@ public:
   /// Set verbosity for integration
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
-  /// Set buffer threshold for AdePT
-  void SetBufferThreshold(int value) { fBufferThreshold = value; }
-
-  /// Initialized VecGeom, etc.
-
-  void Initialize(bool adept = true);
-
-  void SetSensitiveVolumes(std::unordered_map<std::string, int> *sv) { sensitive_volume_index = sv; }
-
-  void SetScoringMap(std::unordered_map<const G4VPhysicalVolume *, int> *sm) { fScoringMap = sm; }
-
-  // Set total number of track slots on GPU
-  void SetTrackSlots(int value) { fTrackSlotsGPU = value; }
 private:
   /// Messenger for configuration
-  EMShowerMessenger *fMessenger;
+  std::unique_ptr<EMShowerMessenger> fMessenger;
 
-  /// Region where it applies
-  G4Region *fRegion{nullptr};
-
-  /// AdePT integration
-  AdeptIntegration *fAdept;
+  /// AdePT integration (shared with all workers)
+  std::shared_ptr<AdeptIntegration> fAdept;
 
   /// Verbosity
   int fVerbosity{0};
 
-  /// AdePT buffer threshold
-  int fBufferThreshold{20};
-
-  int fTrackSlotsGPU{8};     ///< Total number of track slots allocated on GPU (in millions)
-  std::unordered_map<std::string, int> *sensitive_volume_index;
-  std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap;
+  /// @brief Counts number of tracks passed to AdePT
+  unsigned int fTrackCounter{0};
+  /// @brief Save last event ID to determine when new event starts
+  int fLastEventId{-1};
 };
 #endif /* EMSHOWERMODEL_HH */
