@@ -4,6 +4,14 @@
 #ifndef ADEPT_INTEGRATION_COMMONSTRUCT_H
 #define ADEPT_INTEGRATION_COMMONSTRUCT_H
 
+#include "ResourceManagement.h"
+
+#include <atomic>
+#include <array>
+#include <condition_variable>
+#include <mutex>
+#include <shared_mutex>
+#include <new>
 #include <vector>
 
 // Common data structures used by the integration with Geant4
@@ -23,15 +31,21 @@ struct TrackData {
   double direction[3];
   double energy{0};
   int pdg{0};
+  int threadId{-1};
+  int eventId{-1};
+  unsigned int trackId{0};
 
   TrackData() = default;
-  TrackData(int pdg_id, double ene, double x, double y, double z, double dirx, double diry, double dirz)
-      : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}
+  TrackData(int aThreadId, int aEventId, unsigned int aTrackId, int pdg_id, double ene, double x, double y, double z,
+            double dirx, double diry, double dirz)
+      : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}, threadId{aThreadId},
+        eventId{aEventId}, trackId{aTrackId}
   {
   }
 
-  inline bool operator<(TrackData const &t)
+  inline bool operator<(TrackData const &t) const
   {
+    if (threadId != t.threadId) return threadId < t.threadId;
     if (pdg != t.pdg) return pdg < t.pdg;
     if (energy != t.energy) return energy < t.energy;
     if (position[0] != t.position[0]) return position[0] < t.position[0];
@@ -47,21 +61,61 @@ struct TrackData {
 /// @brief Buffer holding input tracks to be transported on GPU and output tracks to be
 /// re-injected in the Geant4 stack
 struct TrackBuffer {
-  std::vector<TrackData> toDevice; ///< Tracks to be transported on the device
-  std::vector<TrackData> fromDevice_sorted; ///< Tracks from device sorted by energy
-  TrackData *fromDevice{nullptr};  ///< Tracks coming from device to be transported on the CPU
-  int eventId{-1};                 ///< Index of current transported event
-  int startTrack{0};               ///< Track counter for the current event
-  int numFromDevice{0};            ///< Number of tracks coming from device for the current transported buffer
-  int nelectrons{0};               ///< Number of electrons in the input buffer
-  int npositrons{0};               ///< Number of positrons in the input buffer
-  int ngammas{0};                  ///< Number of gammas in the input buffer
+#ifdef __cpp_lib_hardware_interference_size
+  using std::hardware_destructive_interference_size;
+#else
+  static constexpr size_t hardware_destructive_interference_size = 64;
+#endif
+  struct alignas(hardware_destructive_interference_size) ToDeviceBuffer {
+    TrackData *tracks;
+    unsigned int maxTracks;
+    std::atomic_uint nTrack;
+    std::shared_mutex mutex;
+  };
+  std::array<ToDeviceBuffer, 2> toDeviceBuffer;
+  std::atomic_short toDeviceIndex{0};
+  std::atomic_bool flushRequested{false};
 
-  void Clear()
+  std::vector<std::vector<TrackData>> fromDeviceBuffers;
+  std::mutex fromDeviceMutex;
+
+  std::condition_variable_any cv_newTracks;
+  std::condition_variable cv_fromDevice;
+
+  TrackBuffer(TrackData *toDevice1, unsigned int maxTracks1, TrackData *toDevice2, unsigned int maxTracks2,
+              unsigned short nThread)
+      : toDeviceBuffer{{{toDevice1, maxTracks1, 0, {}}, {toDevice2, maxTracks2, 0, {}}}}, fromDeviceBuffers(nThread)
   {
-    toDevice.clear();
-    numFromDevice = 0;
-    nelectrons = npositrons = ngammas = 0;
+  }
+
+  ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex]; }
+  void swapToDeviceBuffers()
+  {
+    toDeviceIndex = (toDeviceIndex + 1) % 2;
+    flushRequested.store(false, std::memory_order_release);
+  }
+
+  /// A handle to access TrackData vectors while holding a lock
+  struct TrackHandle {
+    TrackData &track;
+    std::shared_lock<std::shared_mutex> lock;
+  };
+
+  /// @brief Create a handle with lock for tracks that go to the device.
+  /// Create a shared_lock and a reference to a track
+  /// @return TrackHandle with lock and reference to track slot.
+  TrackHandle createToDeviceSlot();
+
+  struct FromDeviceHandle {
+    std::vector<TrackData> &tracks;
+    std::scoped_lock<std::mutex> lock;
+  };
+
+  /// @brief Create a handle with lock for tracks that return from the device.
+  /// @return BufferHandle with lock and reference to track vector.
+  FromDeviceHandle getTracksFromDevice(int threadId)
+  {
+    return {fromDeviceBuffers[threadId], std::scoped_lock{fromDeviceMutex}};
   }
 };
 
