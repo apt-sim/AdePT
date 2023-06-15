@@ -9,20 +9,20 @@
 #ifndef ADEPT_INTEGRATION_H
 #define ADEPT_INTEGRATION_H
 
-#include <unordered_map>
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
 #endif
 
 #include <G4HepEmState.hh>
-//#include <G4HepEmData.hh>
-//#include <G4HepEmParameters.hh>
 
 // For the moment the scoring type will be determined by what we include here
 #include "CommonStruct.h"
 #include "BasicScoring.h"
 #include "G4FastSimHitMaker.hh"
+
+#include <memory>
+#include <unordered_map>
 
 class G4Region;
 struct GPUstate;
@@ -31,10 +31,6 @@ class G4VPhysicalVolume;
 class AdeptIntegration {
 public:
   static constexpr int kMaxThreads = 256;
-  // Track capacity
-  inline static std::size_t kTrackCapacity = 1024 * 1024;
-
-  using TrackBuffer = adeptint::TrackBuffer;
   using VolAuxData  = adeptint::VolAuxData;
 
   /// @brief Structure holding the arrays of auxiliary volume data on host and device
@@ -56,22 +52,32 @@ public:
   };
 
 private:
-  bool fInit{false};                   ///< Service initialized flag
-  int fNthreads{0};                    ///< Number of cpu threads
-  int fMaxBatch{0};                    ///< Max batch size for allocating GPU memory
+  unsigned short fNThread{0};          ///< Number of G4 workers
+  unsigned int fTrackCapacity;         ///< Number of track slots to allocate on device
   int fNumVolumes{0};                  ///< Total number of active logical volumes
   int fNumSensitive{0};                ///< Total number of sensitive volumes
-  int fBufferThreshold{20};            ///< Buffer threshold for flushing AdePT transport buffer
+  unsigned int fBufferThreshold{20};   ///< Buffer threshold for starting a copy to the GPU
   int fDebugLevel{1};                  ///< Debug level
-  GPUstate *fGPUstate{nullptr};        ///< CUDA state placeholder
-  AdeptScoring *fScoring{nullptr};     ///< User scoring object
-  AdeptScoring *fScoring_dev{nullptr}; ///< Device ptr for scoring data
+  std::unique_ptr<GPUstate> fGPUstate; ///< CUDA state placeholder
+  std::unique_ptr<AdeptScoring> fScoring{nullptr};         ///< User scoring object
+  std::unique_ptr<adeptint::TrackBuffer> fBuffer{nullptr}; ///< Buffers for transferring tracks between host and device
+  AdeptScoring *fScoring_dev{nullptr};                     ///< Device ptr for scoring data
   static G4HepEmState *fg4hepem_state; ///< The HepEm state singleton
-  TrackBuffer fBuffer;                 ///< Vector of buffers of tracks to/from device (per thread)
-  G4Region *fRegion{nullptr};          ///< Region to which applies
-  std::unordered_map<std::string, int> *sensitive_volume_index;    ///< Map of sensitive volumes
-  std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap; ///< Map used by G4 for scoring
-  std::vector<int> fSorted;            ///< Vector used to sort tracks coming from device
+  G4Region const *fRegion{nullptr};    ///< Region to which applies
+  std::unordered_map<std::string, int> const &sensitive_volume_index; ///< Map of sensitive volumes
+  std::unordered_map<const G4VPhysicalVolume *, int> &fScoringMap;    ///< Map used by G4 for scoring
+  std::thread fGPUWorker;                                             ///< Thread to manage GPU
+  enum class EventState : unsigned char {
+    Ready,
+    NewTracksForDevice,
+    Transporting,
+    TransportFinished,
+    LeakedTracksBackOnHost,
+    LeakedTracksRetrieved,
+    ScoringRetrieved
+  };
+  std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
+  std::vector<double> fGPUNetEnergy;
 
   VolAuxData *CreateVolAuxData(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world,
                                const G4HepEmState &hepEmState);
@@ -80,42 +86,32 @@ private:
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
   void InitializeGPU();
-  void ShowerGPU(int event, TrackBuffer &buffer);
   void FreeGPU();
+  /// @brief Asynchronous loop for transporting particles on GPU.
+  void TransportLoop();
 
 public:
-  int GetNtoDevice() const { return fBuffer.toDevice.size(); }
-  int GetNfromDevice() const { return fBuffer.numFromDevice; }
-
-public:
-  AdeptIntegration() = default;
+  AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int bufferThreshold, int debugLevel,
+                   G4Region *region, std::unordered_map<std::string, int> &sensVolIndex,
+                   std::unordered_map<const G4VPhysicalVolume *, int> &scoringMap);
+  AdeptIntegration(const AdeptIntegration &other) = delete;
   ~AdeptIntegration();
 
   /// @brief Adds a track to the buffer
-  void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz);
+  void AddTrack(G4int threadId, G4int eventId, unsigned int trackIndex, int pdg, double energy, double x, double y,
+                double z, double dirx, double diry, double dirz);
   /// @brief Set track capacity on GPU
-  static void SetTrackCapacity(size_t capacity) { kTrackCapacity = capacity; }
-  /// @brief Set maximum batch size
-  void SetMaxBatch(int npart) { fMaxBatch = npart; }
+  void SetTrackCapacity(size_t capacity) { fTrackCapacity = capacity; }
   /// @brief Set buffer threshold
   void SetBufferThreshold(int limit) { fBufferThreshold = limit; }
   /// @brief Set debug level for transport
   void SetDebugLevel(int level) { fDebugLevel = level; }
   /// @brief Set Geant4 region to which it applies
   void SetRegion(G4Region *region) { fRegion = region; }
-  /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
-  void Initialize(bool common_data = false);
-  /// @brief Final cleanup
-  void Cleanup();
-  /// @brief Interface for transporting a buffer of tracks in AdePT.
-  void Shower(int event);
-
-  /// Helper class for creation of hits within the sensitive detector
-  // std::unique_ptr<G4FastSimHitMaker> fHitMaker;
-
-  void SetSensitiveVolumes(std::unordered_map<std::string, int> *sv) { sensitive_volume_index = sv; }
-  void SetScoringMap(std::unordered_map<const G4VPhysicalVolume *, int> *sm) { fScoringMap = sm; }
+  void Initialize();
+  /// @brief Finish GPU transport, bring hits and tracks to host
+  void Flush(G4int threadId, G4int eventId);
 };
 
 #endif
