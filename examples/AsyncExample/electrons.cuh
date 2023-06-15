@@ -57,6 +57,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     const int lvolID          = volume->GetLogicalVolume()->id();
     VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
+    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     auto survive = [&](bool leak = false) {
       currentTrack.energy   = energy;
@@ -228,6 +229,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         gamma2.dir      = -gamma1.dir;
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
+      slotManager.MarkSlotForFreeing(slot);
       continue;
     }
 
@@ -253,6 +255,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           pos += kPushOutRegion * dir;
           survive(/*leak*/ true);
         }
+      } else {
+        slotManager.MarkSlotForFreeing(slot);
       }
       continue;
     } else if (!propagated) {
@@ -360,6 +364,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
+      slotManager.MarkSlotForFreeing(slot);
       break;
     }
     }
