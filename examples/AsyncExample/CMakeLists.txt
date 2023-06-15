@@ -82,6 +82,11 @@ target_compile_options(AsyncExample PRIVATE -Wall -Wextra)
 get_target_property(G4HepIncs g4HepEmRun INTERFACE_INCLUDE_DIRECTORIES)
 target_include_directories(g4HepEmRun SYSTEM INTERFACE ${G4HepIncs})
 
+target_compile_options(example21 PRIVATE -Wall -Wextra)
+# g4HepEm headers generate warnings, so declare them as system headers:
+get_target_property(G4HepIncs g4HepEmRun INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(g4HepEmRun SYSTEM INTERFACE ${G4HepIncs})
+
 # Install macros and geometry file
 
 configure_file("macros/AsyncExample.mac.in" "${CMAKE_BINARY_DIR}/AsyncExample.mac")
