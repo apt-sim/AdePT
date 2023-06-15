@@ -81,6 +81,8 @@ struct BasicScoring {
   /// @brief Simple step+edep scoring interface.
   __device__ void Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep);
 
+  __device__ void AccountTrackLength(vecgeom::NavStateIndex const &crt_state, double geomStep);
+  
   __device__ void AccountTrack(vecgeom::NavStateIndex const &crt_state);
 
   /// @brief Account for a single hit

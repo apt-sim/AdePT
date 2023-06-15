@@ -196,6 +196,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     userScoring->AccountChargedStep(Charge);
     if (auxData.fSensIndex >= 0) userScoring->Score(navState, Charge, elTrack.GetPStepLength(), energyDeposit);
+
+    if (auxData.fSensIndex >= 0) userScoring->AccountTrackLength(navState, elTrack.GetPStepLength());
+    
     //if (auxData.fSensIndex >= 0) userScoring->Score(navState, Charge, theTrack->GetGStepLength(), energyDeposit);
 
     // Save the `number-of-interaction-left` in our track.
@@ -232,6 +235,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         gamma2.dir      = -gamma1.dir;
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
+      if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       continue;
     }
 
@@ -263,6 +267,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           pos += kPushOutRegion * dir;
           survive(/*leak*/ true);
         }
+      }
+      else
+      {
+        //Track left the world, account for it
+        if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       }
       continue;
     } else if (!propagated) {
@@ -374,6 +383,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
+      if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       break;
     }
     }

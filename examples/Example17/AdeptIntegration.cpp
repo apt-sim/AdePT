@@ -212,23 +212,15 @@ void AdeptIntegration::Shower(int event)
   // auto &groups        = fDetector->GetSensitiveGroups();
 
   for (auto id = 0; id != fNumSensitive; id++) {
-    if (fScoring->fScoringPerVolume.trackLength[id] > 0) {
-      /*
-      auto pos = vecgeom::GeoManager::Instance().FindPlacedVolume(id)->GetLogicalVolume()->GetLabel().find("0x");
-      auto aVolumeName = vecgeom::GeoManager::Instance().FindPlacedVolume(id)->GetLogicalVolume()->GetLabel().substr(0,
-      pos); G4cout << "BENCHMARK: " << aVolumeName << G4endl; G4cout << "BENCHMARK: " <<
-      fScoring->fScoringPerVolume.trackLength[id] << G4endl;
-      */
-    }
-    // G4cout << "BENCHMARK: " << fScoring->fScoringPerVolume.trackLength[id] << G4endl;
-    // G4cout << "BENCHMARK: " << fScoring->fScoringPerVolume.energyDeposit[id] << G4endl;
     // here I add the energy deposition to the pre-existing Geant4 hit based on id
     fastSimSensitive->ProcessHits(id, fScoring->fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
 
+    //Add to the track number and track length counters
     auto pos = vecgeom::GeoManager::Instance().FindPlacedVolume(id)->GetLogicalVolume()->GetLabel().find("0x");
     auto aVolumeName =
         vecgeom::GeoManager::Instance().FindPlacedVolume(id)->GetLogicalVolume()->GetLabel().substr(0, pos);
     aAuxBenchmarkManager->addToAccumulator(aVolumeName, fScoring->fScoringPerVolume.trackLength[id]);
+    aAuxBenchmarkManager->addToAccumulator(aVolumeName+"_numtracks", fScoring->fScoringPerVolume.numTracks[id]);
   }
 
   EventAction *evAct      = dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());

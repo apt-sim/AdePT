@@ -77,13 +77,12 @@ void BasicScoring::CopyHitsToHost()
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.trackLength, fTrackLength_dev,
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
-  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.trackLength, fNumTracks_dev,
+  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.numTracks, fNumTracks_dev,
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.energyDeposit, fEnergyDeposit_dev, sizeof(double) * fNumSensitive,
                                 cudaMemcpyDeviceToHost));
 }
 
-//MAKE A FUNCTION SPECIFIC FOR COUNTING TRACKS LENGTHS, AS SCORE IS NOT CALLED IN THE SAME PLACES IN BOTH KERNELS
 __device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep)
 {
   assert(fGlobalScoring_dev && "Scoring not initialized on device");
@@ -95,7 +94,6 @@ __device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int
 
   // Add to charged track length, global energy deposit and deposit per volume
   atomicAdd(&fScoringPerVolume_dev->chargedTrackLength[volumeID], charged * geomStep);
-  atomicAdd(&fScoringPerVolume_dev->trackLength[volumeID], geomStep);
   atomicAdd(&fGlobalScoring_dev->energyDeposit, edep);
   atomicAdd(&fScoringPerVolume_dev->energyDeposit[volumeID], edep);
 }
@@ -106,8 +104,19 @@ __device__ void BasicScoring::AccountTrack(vecgeom::NavStateIndex const &crt_sta
   int volumeID = volume->id();
 
   // Increment counter
-  atomicAdd(&fScoringPerVolume_dev->trackLength[volumeID], 1);
+  atomicAdd(&fScoringPerVolume_dev->numTracks[volumeID], 1);
 }
+
+//MAKE A FUNCTION SPECIFIC FOR COUNTING TRACKS LENGTHS, AS SCORE IS NOT CALLED IN THE SAME PLACES IN BOTH KERNEL
+__device__ void BasicScoring::AccountTrackLength(vecgeom::NavStateIndex const &crt_state, double geomStep)
+{
+  auto volume  = crt_state.Top();
+  int volumeID = volume->id();
+
+  // Add to track length
+  atomicAdd(&fScoringPerVolume_dev->trackLength[volumeID], geomStep);
+}
+
 __device__ void BasicScoring::AccountHit()
 {
   // Increment hit counter

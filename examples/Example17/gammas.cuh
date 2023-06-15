@@ -98,6 +98,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
+    if (auxData.fSensIndex >= 0) userScoring->AccountTrackLength(navState, theTrack->GetGStepLength());
+
     G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
     // Save the `number-of-interaction-left` in our track.
@@ -114,6 +116,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (nextState.Top() != nullptr) {
         BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
+        if(navState.Top()->id() != nextState.Top()->id())
+        {
+          //Track left the volume, account for it
+          userScoring->AccountTrack(navState);
+        }
+
         // Move to the next boundary.
         navState = nextState;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
@@ -128,6 +136,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           pos += kPushOutRegion * dir;
           survive(/*leak*/ true);
         }
+      }
+      else
+      {
+        if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       }
       continue;
     } else if (winnerProcessIndex < 0) {
@@ -182,6 +194,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
+      userScoring->AccountTrack(navState);
       break;
     }
     case 1: {
@@ -220,6 +233,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       } else {
         if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
+        userScoring->AccountTrack(navState);
       }
       break;
     }
@@ -250,6 +264,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       }
       if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, edep);
       // The current track is killed by not enqueuing into the next activeQueue.
+      userScoring->AccountTrack(navState);
       break;
     }
     }

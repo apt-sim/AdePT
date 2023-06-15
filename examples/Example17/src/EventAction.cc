@@ -169,6 +169,8 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   auto aAuxBenchmarkManager = currentRun->getAuxBenchmarkManager();
   double total = 0;
   double numvols = 0;
+
+  BenchmarkManager<std::string>* aTempBenchmarkManager = new BenchmarkManager<std::string>();
     
   for (int igroup = 0; igroup < ngroups; ++igroup) {
     G4cout << groups[igroup] << G4endl;
@@ -179,16 +181,39 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     {
       total+=aAuxBenchmarkManager->getAccumulator(groups[igroup])/aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks");
       numvols++;
+
+      aTempBenchmarkManager->setAccumulator(groups[igroup], (aAuxBenchmarkManager->getAccumulator(groups[igroup])));
+      aTempBenchmarkManager->setAccumulator(groups[igroup]+"_numtracks", (aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks")));
     }
   }
+  aTempBenchmarkManager->setOutputFilename("example17_tracklengths");
+  aTempBenchmarkManager->exportCSV();
+  aTempBenchmarkManager->reset();
+
+  for (int igroup = 0; igroup < ngroups; ++igroup) {
+    if(aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks") > 0)
+    {
+      aTempBenchmarkManager->setAccumulator(groups[igroup], aAuxBenchmarkManager->getAccumulator(groups[igroup])/aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks"));
+    }
+  }
+
+  aTempBenchmarkManager->setOutputFilename("example17_average_tracklengths");
+  aTempBenchmarkManager->exportCSV();
+  aTempBenchmarkManager->reset();
+
+  aAuxBenchmarkManager->reset();
+
+  /*
   G4cout << total << G4endl;
   G4cout << numvols << G4endl;
 
   aAuxBenchmarkManager->reset();
   aAuxBenchmarkManager->addToAccumulator("Average track length per sensitive volume", total/numvols);
-  aAuxBenchmarkManager->setOutputFilename("example17_tracklengths");
+  aAuxBenchmarkManager->setOutputFilename("example17_average_tracklengths");
   aAuxBenchmarkManager->exportCSV();
   aAuxBenchmarkManager->reset();
+  */
+
   /*
   double total = 0;
   double numvols = 0;
