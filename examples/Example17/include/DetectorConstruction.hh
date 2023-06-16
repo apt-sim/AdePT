@@ -43,7 +43,13 @@ public:
 
   void SetGDMLFile(G4String &file) { fGDML_file = file; }
   void SetRegionName(G4String &reg) { fRegion_name = reg; }
-  void AddSensitiveVolume(G4String volume) { fSensitive_volumes.push_back(volume); }
+  void AddSensitiveVolume(G4String volume)
+  {
+    if (volume == "*")
+      fAllInRegionSensitive = true;
+    else
+      fSensitive_volumes.push_back(volume);
+  }
   void AddSensitiveGroup(G4String group) { fSensitive_group.push_back(group); }
 
   // Set uniform magnetic field
@@ -77,6 +83,7 @@ private:
   G4String fRegion_name;
   std::vector<G4String> fSensitive_volumes;
   std::vector<G4String> fSensitive_group;
+  bool fAllInRegionSensitive{false};
   bool fActivate_AdePT{true};
 
   /// Messenger that allows to modify geometry

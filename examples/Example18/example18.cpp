@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
   OPTION_STRING(gdml_file, "cms2018.gdml");
   OPTION_INT(cache_depth, 0); // 0 = full depth
   OPTION_INT(particles, 100);
-  OPTION_DOUBLE(energy, 10); // entered in GeV
+  OPTION_DOUBLE(energy, 10);  // entered in GeV
   energy *= copcore::units::GeV;
   OPTION_INT(batch, -1);
   OPTION_BOOL(rotatingParticleGun, false);
@@ -234,6 +234,8 @@ int main(int argc, char *argv[])
   tracer.setTag("SyncGeom");
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+  // Adjust stack size to avoid lane user stack overflow
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
 

@@ -26,7 +26,7 @@ namespace copcore {
 enum BackendType { CPU = 0, CUDA, HIP };
 
 /** @brief CUDA error checking */
-#ifndef COPCORE_CUDA_COMPILER
+#ifndef __CUDA_RUNTIME_H__
 static inline void error_check(int, const char *, int) {}
 #else
 static inline void error_check(cudaError_t err, const char *file, int line)
@@ -55,7 +55,10 @@ static inline void error_check(cudaError_t err, const char *file, int line)
 
 /** @brief Get number of SMs on the current device */
 #ifndef COPCORE_CUDA_COMPILER
-static inline int get_num_SMs() { return 0; }
+static inline int get_num_SMs()
+{
+  return 0;
+}
 #else
 static inline int get_num_SMs()
 {
