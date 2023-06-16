@@ -103,7 +103,6 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
       aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT, aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
       aBenchmarkManager->removeTimer(Run::timers::NONEM);
     }
-    
   #endif
 
   // skip tracks coming from AdePT
