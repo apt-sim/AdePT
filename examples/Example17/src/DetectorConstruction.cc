@@ -138,35 +138,44 @@ void DetectorConstruction::ConstructSDandField()
   SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector", numSensitive);
   caloSD->fScoringMap       = &gScoringMap;
   G4SDManager::GetSDMpointer()->AddNewDetector(caloSD);
+  auto detectorRegion = G4RegionStore::GetInstance()->GetRegion(fRegion_name);
 
   // attaching sensitive detector to the volumes on sentitive_volumes list
+  auto const &store = *G4LogicalVolumeStore::GetInstance();
+  if (fAllInRegionSensitive) {
+    fSensitive_volumes.clear();
+    fSensitive_group.clear();
+    for (auto lvol : store) {
+      if (lvol->GetRegion() == detectorRegion) {
+        fSensitive_volumes.push_back(lvol->GetName());
+        fSensitive_group.push_back(lvol->GetName());
+      }
+    }
+  }
   int index = 1;
   for (auto name : fSensitive_volumes) {
     G4cout << "Making " << name << " sensitive with index " << index << G4endl;
     caloSD->fSensitive_volume_index[name] = index;
     index++;
     // iterate G4LogicalVolumeStore and set sensitive volumes
-    auto const &store = *G4LogicalVolumeStore::GetInstance();
     for (auto lvol : store) {
-      if (lvol->GetName() == name || lvol->GetName().rfind(name + "0x") == 0)
-        SetSensitiveDetector(lvol, caloSD);
+      if (lvol->GetName() == name || lvol->GetName().rfind(name + "0x") == 0) SetSensitiveDetector(lvol, caloSD);
     }
   }
 
-  auto detectorRegion = G4RegionStore::GetInstance()->GetRegion(fRegion_name);
-  fShowerModel        = new EMShowerModel("AdePT", detectorRegion);
+  fShowerModel = new EMShowerModel("AdePT", detectorRegion);
 
   fShowerModel->SetSensitiveVolumes(&(caloSD->fSensitive_volume_index));
   fShowerModel->SetScoringMap(&gScoringMap);
   fShowerModel->SetVerbosity(fVerbosity);
   fShowerModel->SetBufferThreshold(fBufferThreshold);
   fShowerModel->SetTrackSlots(fTrackSlotsGPU);
-  
+
   try {
     fShowerModel->Initialize(fActivate_AdePT);
   } catch (const std::runtime_error &ex) {
     std::cerr << ex.what() << "\n";
-    exit (EXIT_FAILURE);
+    exit(EXIT_FAILURE);
     return;
   }
   if (fActivate_AdePT)
