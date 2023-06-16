@@ -173,20 +173,23 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   BenchmarkManager<std::string>* aTempBenchmarkManager = new BenchmarkManager<std::string>();
     
   for (int igroup = 0; igroup < ngroups; ++igroup) {
-    G4cout << groups[igroup] << G4endl;
-    G4cout << aAuxBenchmarkManager->getAccumulator(groups[igroup]) << G4endl;
-    G4cout << aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks") << G4endl;
-    //IGNORE IF NUMTRACKS IS 0
-    if(aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks") > 0)
-    {
-      total+=aAuxBenchmarkManager->getAccumulator(groups[igroup])/aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks");
-      numvols++;
-
-      aTempBenchmarkManager->setAccumulator(groups[igroup], (aAuxBenchmarkManager->getAccumulator(groups[igroup])));
-      aTempBenchmarkManager->setAccumulator(groups[igroup]+"_numtracks", (aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks")));
-    }
+    aTempBenchmarkManager->setAccumulator(groups[igroup], (aAuxBenchmarkManager->getAccumulator(groups[igroup])));
   }
   aTempBenchmarkManager->setOutputFilename("example17_tracklengths");
+  aTempBenchmarkManager->exportCSV();
+  aTempBenchmarkManager->reset();
+
+  for (int igroup = 0; igroup < ngroups; ++igroup) {
+    aTempBenchmarkManager->setAccumulator(groups[igroup]+"_numtracks", (aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks")));
+  }
+  aTempBenchmarkManager->setOutputFilename("example17_numtracks");
+  aTempBenchmarkManager->exportCSV();
+  aTempBenchmarkManager->reset();
+
+  for (int igroup = 0; igroup < ngroups; ++igroup) {
+    aTempBenchmarkManager->setAccumulator(groups[igroup]+"_input_numtracks", (aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_input_numtracks")));
+  }
+  aTempBenchmarkManager->setOutputFilename("example17_input_numtracks");
   aTempBenchmarkManager->exportCSV();
   aTempBenchmarkManager->reset();
 

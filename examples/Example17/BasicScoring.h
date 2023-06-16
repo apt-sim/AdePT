@@ -38,6 +38,7 @@ struct ScoringPerVolume {
   double *chargedTrackLength;
   double *trackLength;
   double *numTracks;
+  double *inputNumTracks;
 };
 
 struct BasicScoring {
@@ -48,12 +49,14 @@ struct BasicScoring {
   double *fChargedTrackLength_dev{nullptr};
   double *fTrackLength_dev{nullptr};
   double *fNumTracks_dev{nullptr};
+  double *fInputNumTracks_dev{nullptr};
   ScoringPerVolume *fScoringPerVolume_dev{nullptr};
   GlobalScoring *fGlobalScoring_dev{nullptr};
 
   double *fChargedTrackLength{nullptr};
   double *fTrackLength{nullptr};
   double *fNumTracks{nullptr};
+  double *fInputNumTracks{nullptr};
   double *fEnergyDeposit{nullptr};
   ScoringPerVolume fScoringPerVolume;
   GlobalScoring fGlobalScoring;
@@ -63,11 +66,13 @@ struct BasicScoring {
     fEnergyDeposit                       = new double[numSensitive];
     fChargedTrackLength                  = new double[numSensitive];
     fTrackLength                         = new double[numSensitive];
-    fNumTracks                         = new double[numSensitive];
+    fNumTracks                           = new double[numSensitive];
+    fInputNumTracks                      = new double[numSensitive];
     fScoringPerVolume.energyDeposit      = fEnergyDeposit;
     fScoringPerVolume.chargedTrackLength = fChargedTrackLength;
-    fScoringPerVolume.trackLength = fTrackLength;
-    fScoringPerVolume.numTracks = fNumTracks;
+    fScoringPerVolume.trackLength        = fTrackLength;
+    fScoringPerVolume.numTracks          = fNumTracks;
+    fScoringPerVolume.inputNumTracks          = fInputNumTracks;
   }
 
   ~BasicScoring()
@@ -82,8 +87,10 @@ struct BasicScoring {
   __device__ void Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep);
 
   __device__ void AccountTrackLength(vecgeom::NavStateIndex const &crt_state, double geomStep);
-  
+
   __device__ void AccountTrack(vecgeom::NavStateIndex const &crt_state);
+
+  __device__ void AccountInputTrack(vecgeom::NavStateIndex const &crt_state);
 
   /// @brief Account for a single hit
   __device__ void AccountHit();

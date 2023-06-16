@@ -356,7 +356,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
     fBuffer.fromDevice.insert(fBuffer.fromDevice.end(), &fBuffer.fromDeviceBuff[0], &fBuffer.fromDeviceBuff[numLeaked]);
   };
-  
+
   int niter = 0;
   do {
 

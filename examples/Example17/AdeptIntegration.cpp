@@ -221,6 +221,7 @@ void AdeptIntegration::Shower(int event)
         vecgeom::GeoManager::Instance().FindPlacedVolume(id)->GetLogicalVolume()->GetLabel().substr(0, pos);
     aAuxBenchmarkManager->addToAccumulator(aVolumeName, fScoring->fScoringPerVolume.trackLength[id]);
     aAuxBenchmarkManager->addToAccumulator(aVolumeName+"_numtracks", fScoring->fScoringPerVolume.numTracks[id]);
+    aAuxBenchmarkManager->addToAccumulator(aVolumeName+"_input_numtracks", fScoring->fScoringPerVolume.inputNumTracks[id]);
   }
 
   EventAction *evAct      = dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());

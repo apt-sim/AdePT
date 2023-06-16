@@ -23,6 +23,8 @@ BasicScoring *BasicScoring::InitializeOnGPU()
   COPCORE_CUDA_CHECK(cudaMemset(fTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMalloc(&fNumTracks_dev, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fNumTracks_dev, 0, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMalloc(&fInputNumTracks_dev, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMemset(fInputNumTracks_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMalloc(&fEnergyDeposit_dev, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
 
@@ -34,6 +36,7 @@ BasicScoring *BasicScoring::InitializeOnGPU()
   scoringPerVolume_devPtrs.chargedTrackLength = fChargedTrackLength_dev;
   scoringPerVolume_devPtrs.trackLength = fTrackLength_dev;
   scoringPerVolume_devPtrs.numTracks = fNumTracks_dev;
+  scoringPerVolume_devPtrs.inputNumTracks = fInputNumTracks_dev;
   scoringPerVolume_devPtrs.energyDeposit      = fEnergyDeposit_dev;
   COPCORE_CUDA_CHECK(cudaMalloc(&fScoringPerVolume_dev, sizeof(ScoringPerVolume)));
   COPCORE_CUDA_CHECK(
@@ -51,6 +54,7 @@ void BasicScoring::FreeGPU()
   COPCORE_CUDA_CHECK(cudaFree(fChargedTrackLength_dev));
   COPCORE_CUDA_CHECK(cudaFree(fTrackLength_dev));
   COPCORE_CUDA_CHECK(cudaFree(fNumTracks_dev));
+  COPCORE_CUDA_CHECK(cudaFree(fInputNumTracks_dev));
   COPCORE_CUDA_CHECK(cudaFree(fEnergyDeposit_dev));
 
   COPCORE_CUDA_CHECK(cudaFree(fGlobalScoring_dev));
@@ -64,6 +68,7 @@ void BasicScoring::ClearGPU()
   COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fNumTracks_dev, 0, sizeof(double) * fNumSensitive));
+  COPCORE_CUDA_CHECK(cudaMemset(fInputNumTracks_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
 }
 
@@ -78,6 +83,8 @@ void BasicScoring::CopyHitsToHost()
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.trackLength, fTrackLength_dev,
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.numTracks, fNumTracks_dev,
+                                sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
+  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.inputNumTracks, fInputNumTracks_dev,
                                 sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
   COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.energyDeposit, fEnergyDeposit_dev, sizeof(double) * fNumSensitive,
                                 cudaMemcpyDeviceToHost));
@@ -98,6 +105,15 @@ __device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int
   atomicAdd(&fScoringPerVolume_dev->energyDeposit[volumeID], edep);
 }
 
+__device__ void BasicScoring::AccountInputTrack(vecgeom::NavStateIndex const &crt_state)
+{
+  auto volume  = crt_state.Top();
+  int volumeID = volume->id();
+
+  // Increment counter
+  atomicAdd(&fScoringPerVolume_dev->inputNumTracks[volumeID], 1);
+}
+
 __device__ void BasicScoring::AccountTrack(vecgeom::NavStateIndex const &crt_state)
 {
   auto volume  = crt_state.Top();
@@ -107,14 +123,13 @@ __device__ void BasicScoring::AccountTrack(vecgeom::NavStateIndex const &crt_sta
   atomicAdd(&fScoringPerVolume_dev->numTracks[volumeID], 1);
 }
 
-//MAKE A FUNCTION SPECIFIC FOR COUNTING TRACKS LENGTHS, AS SCORE IS NOT CALLED IN THE SAME PLACES IN BOTH KERNEL
-__device__ void BasicScoring::AccountTrackLength(vecgeom::NavStateIndex const &crt_state, double geomStep)
+__device__ void BasicScoring::AccountTrackLength(vecgeom::NavStateIndex const &crt_state, double physStep)
 {
   auto volume  = crt_state.Top();
   int volumeID = volume->id();
 
   // Add to track length
-  atomicAdd(&fScoringPerVolume_dev->trackLength[volumeID], geomStep);
+  atomicAdd(&fScoringPerVolume_dev->trackLength[volumeID], physStep);
 }
 
 __device__ void BasicScoring::AccountHit()

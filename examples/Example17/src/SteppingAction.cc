@@ -43,6 +43,10 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
                                                            theStep->GetStepLength());
   }
 
+  if (theStep->IsFirstStepInVolume()) {
+    currentRun->getAuxBenchmarkManager()->addToAccumulator(theStep->GetTrack()->GetVolume()->GetName()+"_input_numtracks", 1);
+  }
+
   // Check if we moved to a new volume
   if (theStep->IsLastStepInVolume()) {
     if (fTrackingAction->getInsideEcal()) {

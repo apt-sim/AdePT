@@ -251,6 +251,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         {
           //Track left the volume, account for it
           userScoring->AccountTrack(navState);
+          //Account for the input in the next volume
+          userScoring->AccountInputTrack(nextState);
         }
 
         // Move to the next boundary.
