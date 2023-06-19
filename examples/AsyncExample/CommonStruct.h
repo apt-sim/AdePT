@@ -70,16 +70,14 @@ struct TrackBuffer {
     TrackData *tracks;
     unsigned int maxTracks;
     std::atomic_uint nTrack;
-    std::shared_mutex mutex;
+    mutable std::shared_mutex mutex;
   };
   std::array<ToDeviceBuffer, 2> toDeviceBuffer;
   std::atomic_short toDeviceIndex{0};
-  std::atomic_bool flushRequested{false};
 
   std::vector<std::vector<TrackData>> fromDeviceBuffers;
   std::mutex fromDeviceMutex;
 
-  std::condition_variable_any cv_newTracks;
   std::condition_variable cv_fromDevice;
 
   TrackBuffer(TrackData *toDevice1, unsigned int maxTracks1, TrackData *toDevice2, unsigned int maxTracks2,
@@ -89,11 +87,7 @@ struct TrackBuffer {
   }
 
   ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex]; }
-  void swapToDeviceBuffers()
-  {
-    toDeviceIndex = (toDeviceIndex + 1) % 2;
-    flushRequested.store(false, std::memory_order_release);
-  }
+  void swapToDeviceBuffers() { toDeviceIndex = (toDeviceIndex + 1) % 2; }
 
   /// A handle to access TrackData vectors while holding a lock
   struct TrackHandle {
@@ -105,6 +99,20 @@ struct TrackBuffer {
   /// Create a shared_lock and a reference to a track
   /// @return TrackHandle with lock and reference to track slot.
   TrackHandle createToDeviceSlot();
+
+  /// @brief Check if there are tracks enqueued for a specific thread.
+  /// Note that this function can give false positives if threads are inserting
+  /// while the test is conducted.
+  /// @param threadIdToTest Thread id for which to find tracks.
+  /// @return True if there is a track in the buffer with the corresponding id.
+  bool tracksLeftForSlot(unsigned int threadIdToTest)
+  {
+    auto const &toDevice = getActiveBuffer();
+    auto const size      = std::min(static_cast<unsigned int>(toDevice.nTrack), toDevice.maxTracks);
+    return std::any_of(toDevice.tracks, toDevice.tracks + size, [threadIdToTest](TrackData const &track) {
+      return static_cast<unsigned int>(track.threadId) == threadIdToTest;
+    });
+  }
 
   struct FromDeviceHandle {
     std::vector<TrackData> &tracks;
