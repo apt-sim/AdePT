@@ -51,13 +51,17 @@ G4HepEmState *AdeptIntegration::fg4hepem_state{nullptr};
 AdeptIntegration::AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int bufferThreshold,
                                    int debugLevel, G4Region *region, std::unordered_map<std::string, int> &sensVolIndex,
                                    std::unordered_map<const G4VPhysicalVolume *, int> &scoringMap)
-    : fNThread{nThread}, fTrackCapacity{trackCapacity}, fBufferThreshold{bufferThreshold},
-      fDebugLevel{debugLevel}, fRegion{region}, sensitive_volume_index{sensVolIndex}, fScoringMap{scoringMap}
+    : fNThread{nThread}, fTrackCapacity{trackCapacity}, fBufferThreshold{bufferThreshold}, fDebugLevel{debugLevel},
+      fRegion{region}, sensitive_volume_index{sensVolIndex}, fScoringMap{scoringMap}, fEventStates(nThread),
+      fGPUNetEnergy(nThread, 0.)
 {
   if (nThread > kMaxThreads)
     throw std::invalid_argument("AdeptIntegration limited to " + std::to_string(kMaxThreads) + " threads");
-  fEventStates = std::vector<decltype(fEventStates)::value_type>(nThread);
-  fGPUNetEnergy.resize(nThread);
+
+  for (auto &eventState : fEventStates) {
+    std::atomic_init(&eventState, EventState::ScoringRetrieved);
+  }
+
   AdeptIntegration::Initialize();
 }
 
@@ -393,7 +397,6 @@ void AdeptIntegration::InitializeGPU()
 void AdeptIntegration::FreeGPU()
 {
   fGPUstate->runTransport = false;
-  fBuffer->cv_newTracks.notify_one();
   fGPUWorker.join();
 
   // Free resources.
@@ -444,16 +447,6 @@ void AdeptIntegration::TransportLoop()
   SlotManager *const slotMgrArray = gpuState.particles[0].slotManager;
   while (gpuState.runTransport) {
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(slotMgrArray, ParticleType::NumParticleTypes);
-    {
-      // Wait for arrival of particles
-      auto &activeBuffer = fBuffer->getActiveBuffer();
-      std::unique_lock lock{activeBuffer.mutex};
-      fBuffer->cv_newTracks.wait(lock, [&]() { return activeBuffer.nTrack > 0 || !gpuState.runTransport; });
-    }
-
-    if (fDebugLevel > 2) {
-      G4cout << "GPU transport starting" << std::endl;
-    }
 
     int inFlight          = 0;
     int numLeaked         = 0;
@@ -464,12 +457,21 @@ void AdeptIntegration::TransportLoop()
         .leakedPositrons = {positrons.tracks, positrons.queues.leakedTracks, positrons.slotManager},
         .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracks, gammas.slotManager}};
 
-    for (unsigned int iteration = 0;
-         (inFlight > 0 && loopingNo < 200) || numLeaked > 0 || (fBuffer->getActiveBuffer().nTrack > 0) ||
-         std::any_of(fEventStates.begin(), fEventStates.end(),
-                     [](EventState state) {
-                       return EventState::NewTracksForDevice <= state && state < EventState::LeakedTracksBackOnHost;
-                     });
+    auto needTransport = [](std::atomic<EventState> const &state) {
+      return state.load(std::memory_order_acquire) < EventState::LeakedTracksRetrieved;
+    };
+    // Wait for work from G4 workers:
+    while (gpuState.runTransport && std::none_of(fEventStates.begin(), fEventStates.end(), needTransport)) {
+      using namespace std::chrono_literals;
+      std::this_thread::sleep_for(10ms);
+    }
+
+    if (fDebugLevel > 2) {
+      G4cout << "GPU transport starting" << std::endl;
+    }
+
+    for (unsigned int iteration = 0; inFlight > 0 || numLeaked > 0 || (fBuffer->getActiveBuffer().nTrack > 0) ||
+                                     std::any_of(fEventStates.begin(), fEventStates.end(), needTransport);
          ++iteration) {
       COPCORE_CUDA_CHECK(cudaMemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
 
@@ -488,8 +490,17 @@ void AdeptIntegration::TransportLoop()
                                                    {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
 
       // *** Inject new particles ***
+      bool injectionRequested = false;
+      for (unsigned short slot = 0; slot < fNThread && !injectionRequested; ++slot) {
+        auto const &injectBuffer = fBuffer->getActiveBuffer();
+        if (fEventStates[slot].load(std::memory_order_acquire) == EventState::FlushRequested &&
+            fBuffer->tracksLeftForSlot(slot)) {
+          injectionRequested = true;
+          break;
+        }
+      }
       if (auto &toDevice = fBuffer->getActiveBuffer();
-          fBuffer->flushRequested || toDevice.nTrack > static_cast<unsigned int>(fBufferThreshold)) {
+          injectionRequested || toDevice.nTrack > static_cast<unsigned int>(fBufferThreshold)) {
         fBuffer->swapToDeviceBuffers();
         std::scoped_lock lock{toDevice.mutex};
         const auto nInject = std::min(toDevice.nTrack.load(), toDevice.maxTracks);
@@ -502,7 +513,7 @@ void AdeptIntegration::TransportLoop()
         COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, gpuState.stream));
 
         // Inject AdePT tracks using the track buffer
-        const int injectThreads = nInject < 64 ? 32 : 128;
+        const auto injectThreads = std::min(nInject, 32u);
         const auto injectBlocks = (nInject + injectThreads - 1) / injectThreads;
         InjectTracks<<<injectBlocks, injectThreads, 0, gpuState.stream>>>(gpuState.toDevice_dev.get(), nInject,
                                                                           secondaries, world_dev, fScoring_dev);
@@ -515,7 +526,9 @@ void AdeptIntegration::TransportLoop()
         std::sort(eventsInjected.begin(), eventsInjected.end());
         const auto newEnd = std::unique(eventsInjected.begin(), eventsInjected.end());
         for (auto it = eventsInjected.begin(); it < newEnd; ++it) {
-          fEventStates[*it].store(EventState::Transporting, std::memory_order_release);
+          EventState expected = EventState::NewTracksForDevice;
+          fEventStates[*it].compare_exchange_strong(expected, EventState::Transporting, std::memory_order_relaxed,
+                                                    std::memory_order_relaxed);
         }
 
         toDevice.nTrack = 0;
@@ -600,27 +613,6 @@ void AdeptIntegration::TransportLoop()
         inFlight += gpuState.stats->inFlight[i];
         numLeaked += gpuState.stats->leakedTracks[i];
       }
-      assert(fEventStates.size() == fNThread);
-      for (unsigned int i = 0; i < fNThread; ++i) {
-        if (gpuState.stats->occupancy[i] == 0) {
-          EventState expected = EventState::Transporting;
-          fEventStates[i].compare_exchange_strong(expected, EventState::TransportFinished);
-        } else {
-          assert(EventState::NewTracksForDevice <= fEventStates[i] && fEventStates[i] <= EventState::Transporting);
-        }
-      }
-
-      // TODO: Write this per thread
-      // Check if only charged particles are left that are looping.
-      if (gpuState.stats->inFlight[ParticleType::Electron] == previousElectrons &&
-          gpuState.stats->inFlight[ParticleType::Positron] == previousPositrons &&
-          gpuState.stats->inFlight[ParticleType::Gamma] == 0) {
-        loopingNo++;
-      } else {
-        previousElectrons = gpuState.stats->inFlight[ParticleType::Electron];
-        previousPositrons = gpuState.stats->inFlight[ParticleType::Positron];
-        loopingNo         = 0;
-      }
 
       if (fDebugLevel > 3) {
         std::cerr << inFlight << " in flight ";
@@ -634,6 +626,18 @@ void AdeptIntegration::TransportLoop()
           std::cerr << i << ": " << gpuState.stats->occupancy[i] << "\t";
         }
         std::cerr << std::endl;
+      }
+
+      // TODO: Write this per thread
+      // Check if only charged particles are left that are looping.
+      if (gpuState.stats->inFlight[ParticleType::Electron] == previousElectrons &&
+          gpuState.stats->inFlight[ParticleType::Positron] == previousPositrons &&
+          gpuState.stats->inFlight[ParticleType::Gamma] == 0) {
+        loopingNo++;
+      } else {
+        previousElectrons = gpuState.stats->inFlight[ParticleType::Electron];
+        previousPositrons = gpuState.stats->inFlight[ParticleType::Positron];
+        loopingNo         = 0;
       }
 
       // Transfer leaked tracks back to per-worker queues
@@ -666,13 +670,15 @@ void AdeptIntegration::TransportLoop()
       }
 
       if (numLeaked == 0) {
-        bool eventCompleted = false;
-        for (auto &state : fEventStates) {
-          EventState expected = EventState::TransportFinished;
-          eventCompleted |= state.compare_exchange_strong(expected, EventState::LeakedTracksBackOnHost,
-                                                          std::memory_order_release, std::memory_order_relaxed);
+        bool canNotify = false;
+        for (unsigned short threadId = 0; threadId < fNThread; ++threadId) {
+          if (gpuState.stats->occupancy[threadId] == 0 && !fBuffer->tracksLeftForSlot(threadId)) {
+            EventState expected = EventState::FlushRequested;
+            canNotify |= fEventStates[threadId].compare_exchange_strong(
+                expected, EventState::DeviceFlushed, std::memory_order_release, std::memory_order_relaxed);
+          }
         }
-        if (eventCompleted) {
+        if (canNotify) {
           // Notify G4 workers of event completion:
           fBuffer->cv_fromDevice.notify_all();
         }
