@@ -91,7 +91,7 @@ public:
 __host__ __device__ void SlotManager::Clear()
 {
 #ifdef __CUDA_ARCH__
-  for (unsigned int i = threadIdx.x; i < fSlotListSize; i += blockDim.x) {
+  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x; i < fSlotListSize; i += blockDim.x * gridDim.x) {
     fSlotList[i] = i;
   }
   if (threadIdx.x == 0) {

@@ -274,7 +274,7 @@ __global__ void ClearAllQueues(AllParticleQueues all)
 
 __global__ void InitSlotManagers(SlotManager *mgr, std::size_t N)
 {
-  for (int i = blockIdx.x; i < N; i += gridDim.x) {
+  for (int i = 0; i < N; ++i) {
     mgr[i].Clear();
   }
 }
@@ -443,8 +443,7 @@ void AdeptIntegration::TransportLoop()
 
   SlotManager *const slotMgrArray = gpuState.particles[0].slotManager;
   while (gpuState.runTransport) {
-    InitSlotManagers<<<ParticleType::NumParticleTypes, 512, 0, gpuState.stream>>>(slotMgrArray,
-                                                                                  ParticleType::NumParticleTypes);
+    InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(slotMgrArray, ParticleType::NumParticleTypes);
     {
       // Wait for arrival of particles
       auto &activeBuffer = fBuffer->getActiveBuffer();
