@@ -73,13 +73,6 @@ void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned int trac
     return;
   }
 
-  const EventState oldState = fEventStates[threadId].exchange(EventState::NewTracksForDevice);
-  if (oldState == EventState::LeakedTracksBackOnHost) {
-    std::cerr << __FILE__ << ':' << __LINE__ << ": Need to clear scoring / flush tracks for thread " << threadId
-              << " before adding new tracks." << std::endl;
-    exit(1);
-  }
-
   adeptint::TrackData track{threadId, eventId, trackId, pdg, energy, x, y, z, dirx, diry, dirz};
   if (fDebugLevel > 1) {
     fGPUNetEnergy[threadId] += energy;
@@ -94,9 +87,7 @@ void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned int trac
     auto trackHandle  = fBuffer->createToDeviceSlot();
     trackHandle.track = std::move(track);
   }
-
-  // Wake up transport thread if necessary
-  fBuffer->cv_newTracks.notify_one();
+  fEventStates[threadId].store(EventState::NewTracksForDevice, std::memory_order_release);
 }
 
 void AdeptIntegration::Initialize()
@@ -149,9 +140,9 @@ void AdeptIntegration::InitBVH()
 
 void AdeptIntegration::Flush(G4int threadId, G4int eventId)
 {
-  fBuffer->flushRequested.store(true, std::memory_order_release);
+  fEventStates[threadId].store(EventState::FlushRequested, std::memory_order_release);
   if (fDebugLevel > 0) {
-      G4cout << "Flushing AdePT for thread " << threadId << "\n";
+      G4cout << "Flushing AdePT for thread " << threadId << " event " << eventId << "\n";
   }
 
   std::vector<adeptint::TrackData> tracks;
@@ -159,12 +150,11 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
   {
       std::unique_lock lock{fBuffer->fromDeviceMutex};
       fBuffer->cv_fromDevice.wait(lock, [this, threadId]() {
-        const auto state = fEventStates[threadId].load(std::memory_order_acquire);
-        return state == EventState::LeakedTracksBackOnHost || state == EventState::ScoringRetrieved;
+        return fEventStates[threadId].load(std::memory_order_acquire) == EventState::DeviceFlushed;
       });
       tracks = std::move(fBuffer->fromDeviceBuffers[threadId]);
+      fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
   }
-  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
 
   // TODO: Sort tracks on device?
   assert(std::all_of(tracks.begin(), tracks.end(),
@@ -215,26 +205,30 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
       G4cout << str.str() << G4endl;
   }
 
-#warning Blow up scoring for each thread and move to end of event
-  fScoring->CopyHitsToHost();
-  fScoring->ClearGPU();
-  fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
-  if (fDebugLevel > 1) fScoring->Print();
+#warning Blow up scoring for each thread
+  if (tracks.empty()) {
+      fScoring->CopyHitsToHost();
+      fScoring->ClearGPU();
 
-  // Create energy deposit in the detector
-  auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
-  SensitiveDetector *fastSimSensitive = static_cast<SensitiveDetector *>(sd);
+      if (fDebugLevel > 1) fScoring->Print();
 
-  for (auto id = 0; id != fNumSensitive; id++) {
-    // here I add the energy deposition to the pre-existing Geant4 hit based on id
-    fastSimSensitive->ProcessHits(id, fScoring->fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
+      // Create energy deposit in the detector
+      auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
+      SensitiveDetector *fastSimSensitive = static_cast<SensitiveDetector *>(sd);
+
+      for (auto id = 0; id != fNumSensitive; id++) {
+        // here I add the energy deposition to the pre-existing Geant4 hit based on id
+        fastSimSensitive->ProcessHits(id, fScoring->fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
+      }
+
+      EventAction *evAct = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
+      evAct->number_gammas += fScoring->fGlobalScoring.numGammas;
+      evAct->number_electrons += fScoring->fGlobalScoring.numElectrons;
+      evAct->number_positrons += fScoring->fGlobalScoring.numPositrons;
+      evAct->number_killed += fScoring->fGlobalScoring.numKilled;
+
+      fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
   }
-
-  EventAction *evAct = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
-  evAct->number_gammas += fScoring->fGlobalScoring.numGammas;
-  evAct->number_electrons += fScoring->fGlobalScoring.numElectrons;
-  evAct->number_positrons += fScoring->fGlobalScoring.numPositrons;
-  evAct->number_killed += fScoring->fGlobalScoring.numKilled;
 }
 
 adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume *g4world,

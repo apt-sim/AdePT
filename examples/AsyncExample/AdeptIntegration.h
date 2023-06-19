@@ -68,11 +68,10 @@ private:
   std::unordered_map<const G4VPhysicalVolume *, int> &fScoringMap;    ///< Map used by G4 for scoring
   std::thread fGPUWorker;                                             ///< Thread to manage GPU
   enum class EventState : unsigned char {
-    Ready,
     NewTracksForDevice,
     Transporting,
-    TransportFinished,
-    LeakedTracksBackOnHost,
+    FlushRequested,
+    DeviceFlushed,
     LeakedTracksRetrieved,
     ScoringRetrieved
   };
