@@ -13,18 +13,15 @@
 #include <iomanip>
 #include <stdio.h>
 
-BasicScoring *BasicScoring::InitializeOnGPU()
+void BasicScoring::InitializeOnGPU(BasicScoring *const BasicScoring_dev)
 {
   fAuxData_dev = AdeptIntegration::VolAuxArray::GetInstance().fAuxData_dev;
   // Allocate memory to score charged track length and energy deposit per volume.
   COPCORE_CUDA_CHECK(cudaMalloc(&fChargedTrackLength_dev, sizeof(double) * fNumSensitive));
-  COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
   COPCORE_CUDA_CHECK(cudaMalloc(&fEnergyDeposit_dev, sizeof(double) * fNumSensitive));
-  COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
 
   // Allocate and initialize scoring and statistics.
   COPCORE_CUDA_CHECK(cudaMalloc(&fGlobalScoring_dev, sizeof(GlobalScoring)));
-  COPCORE_CUDA_CHECK(cudaMemset(fGlobalScoring_dev, 0, sizeof(GlobalScoring)));
 
   ScoringPerVolume scoringPerVolume_devPtrs;
   scoringPerVolume_devPtrs.chargedTrackLength = fChargedTrackLength_dev;
@@ -32,11 +29,56 @@ BasicScoring *BasicScoring::InitializeOnGPU()
   COPCORE_CUDA_CHECK(cudaMalloc(&fScoringPerVolume_dev, sizeof(ScoringPerVolume)));
   COPCORE_CUDA_CHECK(
       cudaMemcpy(fScoringPerVolume_dev, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume), cudaMemcpyHostToDevice));
-  // Now allocate space for the BasicScoring placeholder on device and only copy the device pointers of components
-  BasicScoring *BasicScoring_dev = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&BasicScoring_dev, sizeof(BasicScoring)));
+
+  // Now copy host instance to device
   COPCORE_CUDA_CHECK(cudaMemcpy(BasicScoring_dev, this, sizeof(BasicScoring), cudaMemcpyHostToDevice));
-  return BasicScoring_dev;
+
+  ClearGPU();
+}
+
+BasicScoring::BasicScoring(int numSensitive)
+    : fNumSensitive{numSensitive}, fChargedTrackLength{new double[numSensitive]},
+      fEnergyDeposit{new double[numSensitive]}, fScoringPerVolume{fEnergyDeposit, fChargedTrackLength}
+{
+}
+
+/// @brief Copy the host side of the scoring. The device side will remain uninitialised.
+BasicScoring::BasicScoring(const BasicScoring &other)
+    : fNumSensitive{other.fNumSensitive}, fChargedTrackLength{new double[fNumSensitive]},
+      fEnergyDeposit{new double[fNumSensitive]}, fScoringPerVolume{fEnergyDeposit, fChargedTrackLength},
+      fGlobalScoring{other.fGlobalScoring}
+{
+  std::copy(other.fChargedTrackLength, other.fChargedTrackLength + fNumSensitive, fChargedTrackLength);
+  std::copy(other.fEnergyDeposit, other.fEnergyDeposit + fNumSensitive, fEnergyDeposit);
+  // Only one instance can own the device pointers:
+  fEnergyDeposit_dev      = nullptr;
+  fChargedTrackLength_dev = nullptr;
+  fScoringPerVolume_dev   = nullptr;
+  fGlobalScoring_dev      = nullptr;
+}
+
+/// @brief Move the scoring. The moved-to instance will own the device pointers.
+BasicScoring::BasicScoring(BasicScoring &&other)
+    : fNumSensitive{other.fNumSensitive}, fAuxData_dev{other.fAuxData_dev},
+      fEnergyDeposit_dev{other.fEnergyDeposit_dev}, fChargedTrackLength_dev{other.fChargedTrackLength_dev},
+      fScoringPerVolume_dev{other.fScoringPerVolume_dev}, fGlobalScoring_dev{other.fGlobalScoring_dev},
+      fChargedTrackLength{std::move(other.fChargedTrackLength)}, fEnergyDeposit{std::move(other.fEnergyDeposit)},
+      fScoringPerVolume{std::move(other.fScoringPerVolume)}, fGlobalScoring{std::move(other.fGlobalScoring)}
+{
+  // Only one instance can own the device pointers:
+  other.fEnergyDeposit_dev      = nullptr;
+  other.fChargedTrackLength_dev = nullptr;
+  other.fScoringPerVolume_dev   = nullptr;
+  other.fGlobalScoring_dev      = nullptr;
+  other.fChargedTrackLength     = nullptr;
+  other.fEnergyDeposit          = nullptr;
+}
+
+BasicScoring::~BasicScoring()
+{
+  FreeGPU();
+  delete[] fChargedTrackLength;
+  delete[] fEnergyDeposit;
 }
 
 void BasicScoring::FreeGPU()
