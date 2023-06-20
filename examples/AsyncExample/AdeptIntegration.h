@@ -59,9 +59,9 @@ private:
   unsigned int fBufferThreshold{20};   ///< Buffer threshold for starting a copy to the GPU
   int fDebugLevel{1};                  ///< Debug level
   std::unique_ptr<GPUstate> fGPUstate; ///< CUDA state placeholder
-  std::unique_ptr<AdeptScoring> fScoring{nullptr};         ///< User scoring object
+  std::vector<AdeptScoring> fScoring;  ///< User scoring objects per G4 worker
   std::unique_ptr<adeptint::TrackBuffer> fBuffer{nullptr}; ///< Buffers for transferring tracks between host and device
-  AdeptScoring *fScoring_dev{nullptr};                     ///< Device ptr for scoring data
+  AdeptScoring *fScoring_dev{nullptr};                     ///< Device array for per-worker scoring data
   static G4HepEmState *fg4hepem_state; ///< The HepEm state singleton
   G4Region const *fRegion{nullptr};    ///< Region to which applies
   std::unordered_map<std::string, int> const &sensitive_volume_index; ///< Map of sensitive volumes
@@ -81,7 +81,6 @@ private:
   VolAuxData *CreateVolAuxData(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world,
                                const G4HepEmState &hepEmState);
   void InitBVH();
-  void InitializeUserData() { fScoring->InitializeOnGPU(); }
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
   void InitializeGPU();

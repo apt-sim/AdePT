@@ -41,7 +41,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     const auto volume   = navState.Top();
     // the MCC vector is indexed by the logical volume id
     int lvolID                = volume->GetLogicalVolume()->id();
-    VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
+    VolAuxData const &auxData = userScoring[currentTrack.threadId].GetAuxData_dev(lvolID);
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     auto &slotManager = *secondaries.gammas.fSlotManager;
 
@@ -85,7 +85,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
-    userScoring->AccountChargedStep(0);
+    userScoring[currentTrack.threadId].AccountChargedStep(0);
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -106,7 +106,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
-      userScoring->AccountHit();
+      userScoring[currentTrack.threadId].AccountHit();
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
@@ -117,7 +117,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
-        VolAuxData const &nextauxData = userScoring->GetAuxData_dev(nextlvolID);
+        VolAuxData const &nextauxData = userScoring[currentTrack.threadId].GetAuxData_dev(nextlvolID);
         if (nextauxData.fGPUregion > 0)
           survive();
         else {
@@ -166,7 +166,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       Track &electron = secondaries.electrons.NextTrack();
       Track &positron = secondaries.positrons.NextTrack();
 
-      userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
+      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
       electron.InitAsSecondary(pos, navState);
       electron.rngState = newRNG;
@@ -200,7 +200,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       if (energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons.NextTrack();
-        userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
         electron.InitAsSecondary(pos, navState);
         electron.rngState = newRNG;
@@ -208,7 +208,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
-        if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, energyEl);
+        if (auxData.fSensIndex >= 0)
+          userScoring[currentTrack.threadId].Score(navState, 0, geometryStepLength, energyEl);
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -217,7 +218,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         dir    = newDirGamma;
         survive();
       } else {
-        if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, newEnergyGamma);
+        if (auxData.fSensIndex >= 0)
+          userScoring[currentTrack.threadId].Score(navState, 0, geometryStepLength, newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
         slotManager.MarkSlotForFreeing(slot);
       }
@@ -235,7 +237,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       if (photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
         Track &electron = secondaries.electrons.NextTrack();
-        userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
         double dirGamma[] = {dir.x(), dir.y(), dir.z()};
         double dirPhotoElec[3];
@@ -248,7 +250,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       } else {
         edep = energy;
       }
-      if (auxData.fSensIndex >= 0) userScoring->Score(navState, 0, geometryStepLength, edep);
+      if (auxData.fSensIndex >= 0) userScoring[currentTrack.threadId].Score(navState, 0, geometryStepLength, edep);
       // The current track is killed by not enqueuing into the next activeQueue.
       slotManager.MarkSlotForFreeing(slot);
       break;

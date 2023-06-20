@@ -49,24 +49,16 @@ struct BasicScoring {
   ScoringPerVolume *fScoringPerVolume_dev{nullptr};
   GlobalScoring *fGlobalScoring_dev{nullptr};
 
-  double *fChargedTrackLength{nullptr};
-  double *fEnergyDeposit{nullptr};
+  double *fChargedTrackLength{nullptr}; ///< Array[fNumSensitive] for host
+  double *fEnergyDeposit{nullptr};      ///< Array[fNumSensitive] for host
   ScoringPerVolume fScoringPerVolume;
   GlobalScoring fGlobalScoring;
 
-  BasicScoring(int numSensitive) : fNumSensitive(numSensitive)
-  {
-    fEnergyDeposit                       = new double[numSensitive];
-    fChargedTrackLength                  = new double[numSensitive];
-    fScoringPerVolume.energyDeposit      = fEnergyDeposit;
-    fScoringPerVolume.chargedTrackLength = fChargedTrackLength;
-  }
+  BasicScoring(int numSensitive);
+  BasicScoring(const BasicScoring &);
+  BasicScoring(BasicScoring &&);
 
-  ~BasicScoring()
-  {
-    delete[] fEnergyDeposit;
-    delete[] fChargedTrackLength;
-  }
+  ~BasicScoring();
 
   __device__ __forceinline__ VolAuxData const &GetAuxData_dev(int volId) const { return fAuxData_dev[volId]; }
 
@@ -82,8 +74,9 @@ struct BasicScoring {
   /// @brief Account for the number of produced secondaries
   __device__ void AccountProduced(int num_ele, int num_pos, int num_gam);
 
-  /// @brief Initialize hit data structures on device
-  BasicScoring *InitializeOnGPU();
+  /// @brief Initialize hit data structures on device at given location
+  /// @param BasicScoring_dev Device location where to construct the scoring
+  void InitializeOnGPU(BasicScoring *const BasicScoring_dev);
 
   /// @brief Copy hits to host for a single event
   void CopyHitsToHost();
