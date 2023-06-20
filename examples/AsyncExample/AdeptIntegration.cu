@@ -173,7 +173,7 @@ __global__ void InjectTracks(adeptint::TrackData *trackinfo, int ntracks, Second
     // nextState is initialized as needed.
     auto volume                         = track.navState.Top();
     int lvolID                          = volume->GetLogicalVolume()->id();
-    adeptint::VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
+    adeptint::VolAuxData const &auxData = userScoring[trackInfo.threadId].GetAuxData_dev(lvolID);
     assert(auxData.fGPUregion);
   }
 }
@@ -385,6 +385,12 @@ void AdeptIntegration::InitializeGPU()
   // initialize statistics
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.stats_dev, sizeof(Stats)));
   COPCORE_CUDA_CHECK(cudaMallocHost(&gpuState.stats, sizeof(Stats)));
+
+  // init scoring on device
+  gpuMalloc(fScoring_dev, fScoring.size());
+  for (unsigned int i = 0; i < fNThread; ++i) {
+    fScoring[i].InitializeOnGPU(fScoring_dev + i);
+  }
 
   // initialize buffers for track transfer on host and device
   allocToDeviceTrackData(gpuState, gpuState.fNumToDevice);
@@ -691,7 +697,8 @@ void AdeptIntegration::TransportLoop()
     ClearAllQueues<<<1, 1, 0, gpuState.stream>>>(queues);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
-    fScoring->fGlobalScoring.numKilled += inFlight;
+#warning FIXME
+    fScoring[0].fGlobalScoring.numKilled += inFlight;
 
     if (fDebugLevel > 2) std::cout << "End transport loop.\n";
   }

@@ -124,8 +124,7 @@ void AdeptIntegration::Initialize()
            << G4endl;
 
     // Initialize user scoring data
-    fScoring.reset(new AdeptScoring(fNumSensitive));
-    fScoring_dev = fScoring->InitializeOnGPU();
+    fScoring = std::vector<AdeptScoring>(fNThread, fNumSensitive);
 
     // Initialize the transport engine for the current thread
     InitializeGPU();
@@ -205,12 +204,11 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
       G4cout << str.str() << G4endl;
   }
 
-#warning Blow up scoring for each thread
   if (tracks.empty()) {
-      fScoring->CopyHitsToHost();
-      fScoring->ClearGPU();
+      fScoring[threadId].CopyHitsToHost();
+      fScoring[threadId].ClearGPU();
 
-      if (fDebugLevel > 1) fScoring->Print();
+      if (fDebugLevel > 1) fScoring[threadId].Print();
 
       // Create energy deposit in the detector
       auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
@@ -218,14 +216,14 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
 
       for (auto id = 0; id != fNumSensitive; id++) {
         // here I add the energy deposition to the pre-existing Geant4 hit based on id
-        fastSimSensitive->ProcessHits(id, fScoring->fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
+        fastSimSensitive->ProcessHits(id, fScoring[threadId].fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
       }
 
       EventAction *evAct = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
-      evAct->number_gammas += fScoring->fGlobalScoring.numGammas;
-      evAct->number_electrons += fScoring->fGlobalScoring.numElectrons;
-      evAct->number_positrons += fScoring->fGlobalScoring.numPositrons;
-      evAct->number_killed += fScoring->fGlobalScoring.numKilled;
+      evAct->number_gammas += fScoring[threadId].fGlobalScoring.numGammas;
+      evAct->number_electrons += fScoring[threadId].fGlobalScoring.numElectrons;
+      evAct->number_positrons += fScoring[threadId].fGlobalScoring.numPositrons;
+      evAct->number_killed += fScoring[threadId].fGlobalScoring.numKilled;
 
       fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
   }

@@ -55,7 +55,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     const auto volume   = navState.Top();
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = volume->GetLogicalVolume()->id();
-    VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
+    VolAuxData const &auxData = userScoring[currentTrack.threadId].GetAuxData_dev(lvolID);
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
@@ -192,8 +192,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     energy               = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
 
-    userScoring->AccountChargedStep(Charge);
-    if (auxData.fSensIndex >= 0) userScoring->Score(navState, Charge, elTrack.GetPStepLength(), energyDeposit);
+    userScoring[currentTrack.threadId].AccountChargedStep(Charge);
+    if (auxData.fSensIndex >= 0)
+      userScoring[currentTrack.threadId].Score(navState, Charge, elTrack.GetPStepLength(), energyDeposit);
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -208,7 +209,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         Track &gamma1 = secondaries.gammas.NextTrack();
         Track &gamma2 = secondaries.gammas.NextTrack();
 
-        userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
         const double cost = 2 * currentTrack.Uniform() - 1;
         const double sint = sqrt(1 - cost * cost);
@@ -235,7 +236,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
-      userScoring->AccountHit();
+      userScoring[currentTrack.threadId].AccountHit();
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
@@ -246,7 +247,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
-        VolAuxData const &nextauxData = userScoring->GetAuxData_dev(nextlvolID);
+        VolAuxData const &nextauxData = userScoring[currentTrack.threadId].GetAuxData_dev(nextlvolID);
         if (nextauxData.fGPUregion > 0)
           survive();
         else {
@@ -302,7 +303,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       Track &secondary = secondaries.electrons.NextTrack();
 
-      userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
       secondary.InitAsSecondary(pos, navState);
       secondary.rngState = newRNG;
@@ -328,7 +329,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &gamma = secondaries.gammas.NextTrack();
-      userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
+      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
       gamma.InitAsSecondary(pos, navState);
       gamma.rngState = newRNG;
@@ -350,7 +351,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       Track &gamma1 = secondaries.gammas.NextTrack();
       Track &gamma2 = secondaries.gammas.NextTrack();
-      userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
       gamma1.InitAsSecondary(pos, navState);
       gamma1.rngState = newRNG;
