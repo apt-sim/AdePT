@@ -1,14 +1,6 @@
 # SPDX-FileCopyrightText: 2022 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-find_package(HepMC3 QUIET)
-
-if(HepMC3_FOUND)
-  message(STATUS "HepMC3 found ${HEPMC3_INCLUDE_DIR}") 
-  add_definitions(-DHEPMC3_FOUND)
-endif()
-
-
 if(NOT TARGET G4HepEm::g4HepEm)
   message(STATUS "Disabling example14 (needs G4HepEm)")
   return()
