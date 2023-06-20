@@ -92,6 +92,14 @@ else()
   message(STATUS "Did not find Geant4")
 endif()
 
+# Find HepMC3, used by integration examples to load realistic events
+find_package(HepMC3 QUIET)
+
+if(HepMC3_FOUND)
+  message(STATUS "HepMC3 found ${HEPMC3_INCLUDE_DIR}")
+  add_compile_definitions(HEPMC3_FOUND)
+endif()
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
