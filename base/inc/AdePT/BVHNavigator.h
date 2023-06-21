@@ -97,8 +97,12 @@ private:
     Precision step          = step_limit;
     VPlacedVolumePtr_t pvol = in_state.Top();
 
+    //printf("AdePT BVH: Stepping in volume: %d\n", pvol->id());
+
     // need to calc DistanceToOut first
     step = pvol->DistanceToOut(localpoint, localdir, step_limit);
+
+    //printf("AdePT BVH: Computed distance to out: %lf\n", step);
 
     if (step < 0) step = 0;
 
@@ -260,6 +264,7 @@ public:
                                                                 vecgeom::NavStateIndex const &in_state,
                                                                 vecgeom::NavStateIndex &out_state, Precision push = 0)
   {
+    //printf("AdePT BVH: Step limit: %lf\n", step_limit);
     // If we are on the boundary, push a bit more.
     if (in_state.IsOnBoundary()) {
       push += kBoundaryPush;
@@ -286,6 +291,10 @@ public:
 
     VPlacedVolumePtr_t hitcandidate = nullptr;
     Precision step = ComputeStepAndHit(localpoint, localdir, step_limit, in_state, out_state, hitcandidate);
+
+    //printf("AdePT BVH: Computed step: %lf\n", step);
+    //printf("AdePT BVH: Push: %lf\n", push);
+
     step += push;
 
     if (out_state.IsOnBoundary()) {

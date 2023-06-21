@@ -182,6 +182,59 @@ void DetectorConstruction::ConstructSDandField()
     G4cout << "Assigning AdePT transport to region: " << fRegion_name << G4endl;
   else
     G4cout << "Deactivating AdePT, running with Geant4 only!" << G4endl;
+
+
+  G4cout << "GEANT4 NVOLS: " << G4PhysicalVolumeStore::GetInstance()->size() << G4endl;
+  int numESPM = 0;
+  for(auto vol : *G4PhysicalVolumeStore::GetInstance())
+  {
+    if(vol->GetName() == "ESPM")
+    {
+      numESPM++;
+    }
+  }
+  G4cout << "GEANT4 NVOLS ESPM: " << numESPM << G4endl;
+
+  G4cout << "ADEPT NVOLS MAP: " << vecgeom::GeoManager::Instance().GetPlacedVolumesCount() << G4endl;
+  std::vector<vecgeom::VPlacedVolume*> vecgeomVols = std::vector<vecgeom::VPlacedVolume*>();
+  vecgeom::GeoManager::Instance().getAllPlacedVolumes(vecgeomVols);
+  G4cout << "ADEPT NVOLS TREE: " << vecgeomVols.size() << G4endl;
+  numESPM = 0;
+  for(auto vol : vecgeomVols)
+  {
+    auto pos = vol->GetLabel().find("0x");
+    auto aVolumeName = vol->GetLabel().substr(0, pos);
+    if(aVolumeName == "ESPM")
+    {
+      numESPM++;
+    }
+  }
+  G4cout << "ADEPT NVOLS ESPM: " << numESPM << G4endl;
+
+  /*
+  for(int igroup = 0; igroup < fSensitive_group.size(); ++igroup)
+  {
+    int nG4 = 0;
+    int nAdePT = 0;
+    auto label = fSensitive_group[igroup];
+
+    for(auto vol : *G4PhysicalVolumeStore::GetInstance()){
+      if(vol->GetName() == label){
+        nG4++;
+      }
+    }
+
+    for(auto vol : vecgeomVols){
+      auto pos = vol->GetLabel().find("0x");
+      auto aVolumeName = vol->GetLabel().substr(0, pos);
+      if(aVolumeName == label){
+        nAdePT++;
+      }
+    }
+
+    G4cout << "VOLUME: " << label << ": " << nG4 << ", " << nAdePT << G4endl;
+  }
+  */
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

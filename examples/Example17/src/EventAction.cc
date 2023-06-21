@@ -198,6 +198,11 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     {
       aTempBenchmarkManager->setAccumulator(groups[igroup], aAuxBenchmarkManager->getAccumulator(groups[igroup])/aAuxBenchmarkManager->getAccumulator(groups[igroup]+"_numtracks"));
     }
+    else
+    {
+      //Assuming no volume is getting energy deposition with no tracks going through it
+      aTempBenchmarkManager->setAccumulator(groups[igroup], 0);
+    }
   }
 
   aTempBenchmarkManager->setOutputFilename("example17_average_tracklengths");

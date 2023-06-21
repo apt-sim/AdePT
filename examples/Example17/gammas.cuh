@@ -87,6 +87,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
+    
     userScoring->AccountChargedStep(0);
 
     // Set boundary state in navState so the next step and secondaries get the
@@ -122,6 +123,15 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           userScoring->AccountTrack(navState);
           //Account for the input in the next volume
           userScoring->AccountInputTrack(nextState);
+
+          printf("AdePT: Track position: x: %f, y: %f, z: %f, id: %d\n", currentTrack.pos[0], 
+                                                  currentTrack.pos[1], 
+                                                  currentTrack.pos[2],
+                                                  navState.Top()->id());
+          printf("AdePT: Step length: %f\n", geometryStepLength);
+          //printf("AdePT: Track position after step: x: %f, y: %f, z: %f\n", pos[0], pos[1], pos[2]);
+
+          //printf("----------------------------------------------\n");
         }
 
         // Move to the next boundary.
@@ -130,17 +140,23 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
         VolAuxData const &nextauxData = userScoring->GetAuxData_dev(nextlvolID);
+
+        //survive();
+
         if (nextauxData.fGPUregion > 0)
           survive();
         else {
+          printf("AdePT: Track out of the GPU region\n");
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
           pos += kPushOutRegion * dir;
-          survive(/*leak*/ true);
+          survive(true);
         }
+
       }
       else
       {
+        printf("AdePT: Track out of the world\n");
         if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       }
       continue;

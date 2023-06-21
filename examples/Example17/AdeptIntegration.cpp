@@ -200,6 +200,11 @@ void AdeptIntegration::Shower(int event)
     */
     // Add track length to the accumulator and add 1 to the counter
 
+    G4cout << "Leaked track at position: " << " x: " << secondary->GetPosition()[0] 
+                                            << " y: " << secondary->GetPosition()[1]
+                                            << " z: " << secondary->GetPosition()[2] 
+                                            << G4endl;
+
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }
 

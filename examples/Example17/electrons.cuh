@@ -207,15 +207,17 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.numIALeft[ip] = numIALeft;
     }
 
+    /*
     if (stopped) {
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
         Track &gamma1 = secondaries.gammas->NextTrack();
         Track &gamma2 = secondaries.gammas->NextTrack();
-
-        userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
-
+    */
+    //    userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+      
+     /*
         const double cost = 2 * currentTrack.Uniform() - 1;
         const double sint = sqrt(1 - cost * cost);
         const double phi  = k2Pi * currentTrack.Uniform();
@@ -238,6 +240,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       continue;
     }
+    */
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
@@ -253,6 +256,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           userScoring->AccountTrack(navState);
           //Account for the input in the next volume
           userScoring->AccountInputTrack(nextState);
+
+          printf("AdePT: Track position: x: %f, y: %f, z: %f, id: %d\n", currentTrack.pos[0], 
+                                                  currentTrack.pos[1], 
+                                                  currentTrack.pos[2],
+                                                  navState.Top()->id());
+          printf("AdePT: Step length: %f\n", geometryStepLength);
         }
 
         // Move to the next boundary.
@@ -261,17 +270,23 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
         VolAuxData const &nextauxData = userScoring->GetAuxData_dev(nextlvolID);
+
+        //survive();
+
         if (nextauxData.fGPUregion > 0)
           survive();
         else {
+          printf("AdePT: Track out of the GPU region\n");
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
           pos += kPushOutRegion * dir;
-          survive(/*leak*/ true);
+          survive(true);
         }
+        
       }
       else
       {
+        printf("AdePT: Track out of the world\n");
         //Track left the world, account for it
         if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       }
