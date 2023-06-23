@@ -13,6 +13,7 @@
 #include "G4EmParameters.hh"
 #include "G4FastSimulationPhysics.hh"
 #include "G4VisExecutive.hh"
+#include "G4VisManager.hh"
 #include "G4UIExecutive.hh"
 #include <sstream>
 
@@ -69,6 +70,11 @@ int main(int argc, char **argv)
   //-------------------------------
   runManager->SetUserInitialization(new ActionInitialisation(detector));
 
+  // Visualization
+  G4VisManager* visManager = new G4VisExecutive;
+  visManager->Initialize();
+  //visManager->RegisterGraphicsSystem(new G4OpenGLImmediateQt);
+
   G4UImanager *UImanager = G4UImanager::GetUIpointer();
   G4String command       = "/control/execute ";
   G4int err              = UImanager->ApplyCommand(command + batchMacroName);
@@ -77,7 +83,7 @@ int main(int argc, char **argv)
   //                 owned and deleted by the run manager, so they should not
   //                 be deleted in the main() program !
 
-  // delete visManager;
+  delete visManager;
   delete runManager;
 
   return err;

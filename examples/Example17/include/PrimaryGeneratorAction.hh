@@ -30,6 +30,7 @@
 
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "G4ParticleGun.hh"
+#include "G4GeneralParticleSource.hh"
 #include "globals.hh"
 
 class G4Event;
@@ -59,6 +60,7 @@ public:
 
 private:
   /// Particle gun
+  G4GeneralParticleSource *fGeneralParticleSource;
   G4ParticleGun *fParticleGun;
   DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
