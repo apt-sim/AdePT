@@ -18,6 +18,9 @@ class PrimaryGeneratorAction;
 class G4UIdirectory;
 class G4UIcmdWithoutParameter;
 class G4UIcmdWithADouble;
+class G4UIcmdWithADoubleAndUnit;
+class G4UIcmdWithABool;
+class G4UIcmdWithAString;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -37,6 +40,12 @@ private:
   G4UIcmdWithoutParameter *fPrintCmd;
   G4UIcmdWithADouble *fRndmCmd;
   G4UIcmdWithADouble *fRndmDirCmd;
+  G4UIcmdWithABool *fRandomizeGunCmd;
+  G4UIcmdWithAString *fAddParticleCmd;
+  G4UIcmdWithADoubleAndUnit *fMinPhiCmd;
+  G4UIcmdWithADoubleAndUnit *fMaxPhiCmd;
+  G4UIcmdWithADoubleAndUnit *fMinThetaCmd;
+  G4UIcmdWithADoubleAndUnit *fMaxThetaCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

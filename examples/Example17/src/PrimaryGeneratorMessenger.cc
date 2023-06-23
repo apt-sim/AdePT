@@ -11,6 +11,10 @@
 #include "G4UIdirectory.hh"
 #include "G4UIcmdWithoutParameter.hh"
 #include "G4UIcmdWithADouble.hh"
+#include "G4UIcmdWithADoubleAndUnit.hh"
+#include "G4UIcmdWithABool.hh"
+#include "G4UIcmdWithAString.hh"
+#include "G4ParticleTable.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -23,7 +27,6 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun
   fHepmcCmd = new G4UIcmdWithoutParameter("/example17/gun/hepmc", this);
   fHepmcCmd->SetGuidance("select hepmc input");
   fHepmcCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
-
 
   fDefaultCmd = new G4UIcmdWithoutParameter("/example17/gun/setDefault", this);
   fDefaultCmd->SetGuidance("set/reset kinematic defined in PrimaryGenerator");
@@ -45,6 +48,43 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun
   fRndmDirCmd->SetRange("rBeamDir>=0.&&rBeamDir<=1.");
   fRndmDirCmd->AvailableForStates(G4State_Idle);
 
+  fRandomizeGunCmd = new G4UIcmdWithABool("/example17/gun/randomizeGun", this);
+  fRandomizeGunCmd->SetGuidance("Shoot particles in random directions within defined Phi and Theta ranges, the "
+                                "particle type is also selected at random from the selected options");
+  fRandomizeGunCmd->AvailableForStates(G4State_Idle);
+
+  fAddParticleCmd = new G4UIcmdWithAString("/example17/gun/addParticle", this);
+  fAddParticleCmd->SetGuidance("When using randomization, add a particle to the list of possibilities");
+  fAddParticleCmd->SetParameterName("rParticleName", false);
+  fAddParticleCmd->SetDefaultValue("geantino");
+
+  fMinPhiCmd = new G4UIcmdWithADoubleAndUnit("/example17/gun/minPhi", this);
+  fMinPhiCmd->SetGuidance("Minimum phi angle when using randomization, units deg or rad");
+  fMinPhiCmd->SetParameterName("rMinPhi", false);
+  fMinPhiCmd->SetRange("rMinPhi>=0.&&rMinPhi<=360.");
+  fMinPhiCmd->SetDefaultUnit("rad");
+  fMinPhiCmd->AvailableForStates(G4State_Idle);
+
+  fMaxPhiCmd = new G4UIcmdWithADoubleAndUnit("/example17/gun/maxPhi", this);
+  fMaxPhiCmd->SetGuidance("Maximum phi angle when using randomization, units deg or rad");
+  fMaxPhiCmd->SetParameterName("rMaxPhi", false);
+  fMaxPhiCmd->SetRange("rMaxPhi>=0.&&rMaxPhi<=360.");
+  fMaxPhiCmd->SetDefaultUnit("rad");
+  fMaxPhiCmd->AvailableForStates(G4State_Idle);
+
+  fMinThetaCmd = new G4UIcmdWithADoubleAndUnit("/example17/gun/minTheta", this);
+  fMinThetaCmd->SetGuidance("Minimum Theta angle when using randomization, units deg or rad");
+  fMinThetaCmd->SetParameterName("rMinTheta", false);
+  fMinThetaCmd->SetRange("rMinTheta>=0.&&rMinTheta<=180.");
+  fMinThetaCmd->SetDefaultUnit("rad");
+  fMinThetaCmd->AvailableForStates(G4State_Idle);
+
+  fMaxThetaCmd = new G4UIcmdWithADoubleAndUnit("/example17/gun/maxTheta", this);
+  fMaxThetaCmd->SetGuidance("Maximum Theta angle when using randomization, units deg or rad");
+  fMaxThetaCmd->SetParameterName("rMaxTheta", false);
+  fMaxThetaCmd->SetRange("rMaxTheta>=0.&&rMaxTheta<=180.");
+  fMaxThetaCmd->SetDefaultUnit("rad");
+  fMaxThetaCmd->AvailableForStates(G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -56,6 +96,12 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
   delete fPrintCmd;
   delete fRndmCmd;
   delete fRndmDirCmd;
+  delete fRandomizeGunCmd;
+  delete fAddParticleCmd;
+  delete fMinPhiCmd;
+  delete fMaxPhiCmd;
+  delete fMinThetaCmd;
+  delete fMaxThetaCmd;
   delete fGunDir;
 }
 
@@ -84,6 +130,30 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newVa
     fAction->SetRndmDirection(fRndmDirCmd->GetNewDoubleValue(newValue));
   }
 
+  if (command == fRandomizeGunCmd) {
+    fAction->SetRandomizeGun(fRandomizeGunCmd->GetNewBoolValue(newValue));
+  }
+
+  if (command == fAddParticleCmd) {
+    G4ParticleDefinition* pd = G4ParticleTable::GetParticleTable()->FindParticle(newValue);;
+    fAction->AddParticle(pd);
+  }
+
+  if (command == fMinPhiCmd) {
+    fAction->SetMinPhi(fMinPhiCmd->GetNewDoubleValue(newValue));
+  }
+
+  if (command == fMaxPhiCmd) {
+    fAction->SetMaxPhi(fMaxPhiCmd->GetNewDoubleValue(newValue));
+  }
+
+  if (command == fMinThetaCmd) {
+    fAction->SetMinTheta(fMinThetaCmd->GetNewDoubleValue(newValue));
+  }
+
+  if (command == fMaxThetaCmd) {
+    fAction->SetMaxTheta(fMaxThetaCmd->GetNewDoubleValue(newValue));
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

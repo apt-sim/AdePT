@@ -131,7 +131,19 @@
 /gun/energy 10 GeV
 /gun/number 200
 /gun/position 0 0 0
-#/example17/gun/print
+#If false, the following parameters are ignored
+/example17/gun/randomizeGun false
+/example17/gun/addParticle e-
+/example17/gun/addParticle e+
+/example17/gun/addParticle gamma
+/example17/gun/addParticle proton
+/example17/gun/addParticle neutron
+/example17/gun/minPhi 0 deg
+/example17/gun/maxPhi 360 deg
+/example17/gun/minTheta 10 deg
+/example17/gun/maxTheta 170 deg
+
+/example17/gun/print
 
 ##
 ## -----------------------------------------------------------------------------

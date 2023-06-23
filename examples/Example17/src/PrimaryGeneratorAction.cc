@@ -4,7 +4,7 @@
 #include "PrimaryGeneratorMessenger.hh"
 #include "DetectorConstruction.hh"
 
-#include "G4ParticleGun.hh"
+#include "ParticleGun.hh"
 #include "G4ParticleTable.hh"
 #include "G4SystemOfUnits.hh"
 #include "Randomize.hh"
@@ -16,20 +16,22 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
-    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.), fGunMessenger(0),
-    fUseHepMC(false)
+    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.),
+      fGunMessenger(0), fUseHepMC(false), fRandomizeGun(false)
 {
   G4int n_particle = 1;
-  fParticleGun     = new G4ParticleGun(n_particle);
+  fParticleGun     = new ParticleGun();
   SetDefaultKinematic();
 
   // create a messenger for this class
   fGunMessenger = new PrimaryGeneratorMessenger(this);
 
-  // if HepMC3, create the reader
-  #ifdef HEPMC3_FOUND
+// if HepMC3, create the reader
+#ifdef HEPMC3_FOUND
   fHepmcAscii = new HepMC3G4AsciiReader();
-  #endif
+#endif
+
+  fParticleList = new std::vector<G4ParticleDefinition *>();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -38,6 +40,7 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 {
   delete fParticleGun;
   delete fGunMessenger;
+  delete fParticleList;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -47,45 +50,49 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
   // this function is called at the begining of event
   //
 
-  if(fUseHepMC && fHepmcAscii)
+  if (fUseHepMC && fHepmcAscii) 
   {
     fHepmcAscii->GeneratePrimaryVertex(aEvent);
   }
-  else
+  else 
   {
-  G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
-  // randomize direction if requested
-  if(fRndmDirection > 0.) {
+    G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
+    // randomize direction if requested
+    if (fRndmDirection > 0.) {
 
-    // calculate current phi and eta
-    double eta_old = atanh(oldDirection.z());
-    double phi_old = atan(oldDirection.y()/oldDirection.z());
+      // calculate current phi and eta
+      double eta_old = atanh(oldDirection.z());
+      double phi_old = atan(oldDirection.y() / oldDirection.z());
 
-    // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
-    const double phi = phi_old + (2. * M_PI * G4UniformRand()) * fRndmDirection;
-    const double eta = eta_old + (- 5. + 10. * G4UniformRand()) * fRndmDirection;
+      // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
+      const double phi = phi_old + (2. * M_PI * G4UniformRand()) * fRndmDirection;
+      const double eta = eta_old + (-5. + 10. * G4UniformRand()) * fRndmDirection;
 
-    // new direction
-    G4double dirx = cos(phi) / cosh(eta);
-    G4double diry = sin(phi) / cosh(eta);
-    G4double dirz = tanh(eta);
+      // new direction
+      G4double dirx = cos(phi) / cosh(eta);
+      G4double diry = sin(phi) / cosh(eta);
+      G4double dirz = tanh(eta);
 
-    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx,diry,dirz));
-  }
-  // randomize the beam, if requested.
-  if (fRndmBeam > 0.) {
-    G4ThreeVector oldPosition = fParticleGun->GetParticlePosition();
-    G4double rbeam            = 0.5 * fRndmBeam;
-    G4double x0               = oldPosition.x();
-    G4double y0               = oldPosition.y() + (2 * G4UniformRand() - 1.) * rbeam;
-    G4double z0               = oldPosition.z() + (2 * G4UniformRand() - 1.) * rbeam;
-    fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
-    fParticleGun->GeneratePrimaryVertex(aEvent);
-    fParticleGun->SetParticlePosition(oldPosition);
-  } else {
-    fParticleGun->GeneratePrimaryVertex(aEvent);
-  }
-  fParticleGun->SetParticleMomentumDirection(oldDirection);
+      fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx, diry, dirz));
+    }
+    // randomize the beam, if requested.
+    if (fRndmBeam > 0.) {
+      G4ThreeVector oldPosition = fParticleGun->GetParticlePosition();
+      G4double rbeam            = 0.5 * fRndmBeam;
+      G4double x0               = oldPosition.x();
+      G4double y0               = oldPosition.y() + (2 * G4UniformRand() - 1.) * rbeam;
+      G4double z0               = oldPosition.z() + (2 * G4UniformRand() - 1.) * rbeam;
+      fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
+      fParticleGun->GeneratePrimaryVertex(aEvent);
+      fParticleGun->SetParticlePosition(oldPosition);
+    } else {
+      if (fRandomizeGun) {
+        fParticleGun->GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, fParticleList);
+      } else {
+        fParticleGun->GeneratePrimaryVertex(aEvent);
+      }
+    }
+    fParticleGun->SetParticleMomentumDirection(oldDirection);
   }
 }
 
