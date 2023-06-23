@@ -82,7 +82,9 @@ DetectorMessenger::~DetectorMessenger()
 
 void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
 {
-  if (aCommand == fPrintCmd) {
+  if (aCommand == fSetSeed) {
+    CLHEP::HepRandom::setTheSeed(abs(fSetSeed->GetNewIntValue(aNewValue)));
+  } else if (aCommand == fPrintCmd) {
     fDetector->Print();
   } else if (aCommand == fFileNameCmd) {
     fDetector->SetGDMLFile(aNewValue);
