@@ -176,7 +176,7 @@
 /run/beamOn 1
 
 # run events with full (detailed) simulation
-#/param/InActivateModel AdePT
+/param/InActivateModel AdePT
 #/analysis/setFileName example17_fullsim_100events.root
-#/run/beamOn 1
+/run/beamOn 1
 
