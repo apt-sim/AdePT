@@ -124,12 +124,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           //Account for the input in the next volume
           userScoring->AccountInputTrack(nextState);
 
+          /*
           printf("AdePT: Track position: x: %f, y: %f, z: %f, id: %d\n", currentTrack.pos[0], 
                                                   currentTrack.pos[1], 
                                                   currentTrack.pos[2],
                                                   navState.Top()->id());
           printf("AdePT: Step length: %f\n", geometryStepLength);
           //printf("AdePT: Track position after step: x: %f, y: %f, z: %f\n", pos[0], pos[1], pos[2]);
+          */
 
           //printf("----------------------------------------------\n");
         }
@@ -146,7 +148,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         if (nextauxData.fGPUregion > 0)
           survive();
         else {
-          printf("AdePT: Track out of the GPU region\n");
+          //printf("AdePT: Track out of the GPU region\n");
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
           pos += kPushOutRegion * dir;
@@ -156,7 +158,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       }
       else
       {
-        printf("AdePT: Track out of the world\n");
+        //printf("AdePT: Track out of the world\n");
         if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       }
       continue;

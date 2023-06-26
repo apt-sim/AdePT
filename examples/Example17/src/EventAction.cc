@@ -204,12 +204,18 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
       aTempBenchmarkManager->setAccumulator(groups[igroup], 0);
     }
   }
-
   aTempBenchmarkManager->setOutputFilename("example17_average_tracklengths");
   aTempBenchmarkManager->exportCSV();
   aTempBenchmarkManager->reset();
 
-  aAuxBenchmarkManager->reset();
+  for (int igroup = 0; igroup < ngroups; ++igroup) {
+    aTempBenchmarkManager->addToAccumulator(groups[igroup], edep_groups[igroup] / MeV);
+  }
+  aTempBenchmarkManager->setOutputFilename("example17_energy");
+  aTempBenchmarkManager->exportCSV();
+  aTempBenchmarkManager->reset();
+
+  aTempBenchmarkManager->reset();
 
   /*
   G4cout << total << G4endl;

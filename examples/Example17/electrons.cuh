@@ -256,12 +256,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           userScoring->AccountTrack(navState);
           //Account for the input in the next volume
           userScoring->AccountInputTrack(nextState);
-
+          /*
           printf("AdePT: Track position: x: %f, y: %f, z: %f, id: %d\n", currentTrack.pos[0], 
                                                   currentTrack.pos[1], 
                                                   currentTrack.pos[2],
                                                   navState.Top()->id());
           printf("AdePT: Step length: %f\n", geometryStepLength);
+          */
         }
 
         // Move to the next boundary.
@@ -276,7 +277,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         if (nextauxData.fGPUregion > 0)
           survive();
         else {
-          printf("AdePT: Track out of the GPU region\n");
+          //printf("AdePT: Track out of the GPU region\n");
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
           pos += kPushOutRegion * dir;
@@ -286,7 +287,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
       else
       {
-        printf("AdePT: Track out of the world\n");
+        //printf("AdePT: Track out of the world\n");
         //Track left the world, account for it
         if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       }

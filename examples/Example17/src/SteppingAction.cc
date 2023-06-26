@@ -61,12 +61,14 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
     if (fTrackingAction->getInsideEcal()) {
       //Add to the counter for the volume
       currentRun->getAuxBenchmarkManager()->addToAccumulator(theStep->GetTrack()->GetVolume()->GetName()+"_numtracks", 1);
+      /*
       printf("Geant4: Track position: x: %f, y: %f, z: %f, vol: ", 
                                         theStep->GetPreStepPoint()->GetPosition()[0], 
                                         theStep->GetPreStepPoint()->GetPosition()[1], 
                                         theStep->GetPreStepPoint()->GetPosition()[2]);
       std::cout << theStep->GetPreStepPoint()->GetPhysicalVolume()->GetName() << std::endl;
       printf("Geant4: Step length: %lf\n", theStep->GetStepLength());
+      */
     }
     
     G4VPhysicalVolume *nextVolume = theStep->GetTrack()->GetNextVolume();

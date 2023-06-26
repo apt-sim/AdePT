@@ -48,8 +48,8 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
 {
   fGeneralParticleSource->GeneratePrimaryVertex(aEvent);
-  G4cout << "Registered vertices: " << aEvent->GetNumberOfPrimaryVertex() << G4endl;
-  G4cout << "Registered primaries: " << aEvent->GetPrimaryVertex()->GetNumberOfParticle() << G4endl;
+  //G4cout << "Registered vertices: " << aEvent->GetNumberOfPrimaryVertex() << G4endl;
+  //G4cout << "Registered primaries: " << aEvent->GetPrimaryVertex()->GetNumberOfParticle() << G4endl;
   for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
     std::cout << aEvent->GetPrimaryVertex()->GetPrimary(i)->GetMomentumDirection() << std::endl;
   }
