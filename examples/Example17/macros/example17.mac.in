@@ -131,13 +131,41 @@
 ## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
 /example17/event/verbose 2
 
-/example17/gun/setDefault
-/gun/particle e+
-/gun/energy 0.1 GeV
-/gun/number 1
-/gun/position 0 0 0
-/gun/direction 0.8 0.5 0.1
-/example17/gun/print
+#/example17/gun/setDefault
+#/gun/particle e-
+#/gun/energy 10 GeV
+#/gun/number 200
+#/gun/position 0 0 0
+#/gun/direction 0 0 1
+#/example17/gun/print
+
+
+/gps/verbose 0
+/gps/particle e-
+/gps/energy 10 GeV
+/gps/number 200
+/gps/pos/centre 0 0 0
+/gps/pos/type Point
+/gps/ang/type iso
+#Avoid shooting close to the beamline, since those particles don't reach the calorimeters
+/gps/ang/mintheta 20 deg
+/gps/ang/maxtheta 160 deg
+#Phi range is the complete circumference
+/gps/ang/minphi 0 deg
+/gps/ang/maxphi 0 deg
+
+
+#/gps/ang/type cos
+#/gps/ene/type Lin
+#/gps/ene/min 2 MeV
+#/gps/ene/max 10 MeV
+#/gps/ene/gradient 1
+#/gps/ene/intercept 1
+
+#/gps/particle e-
+#/gps/energy 10 GeV
+#/gps/position 0 0 0
+#/gps/number 200
 
 ##
 ## -----------------------------------------------------------------------------
@@ -157,3 +185,4 @@
 /param/InActivateModel AdePT
 #/analysis/setFileName example17_fullsim_100events.root
 /run/beamOn 1
+

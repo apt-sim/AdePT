@@ -70,74 +70,45 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
     }
     
     G4VPhysicalVolume *nextVolume = theStep->GetTrack()->GetNextVolume();
-    if(nextVolume != nullptr)
-    {
-            if (!fTrackingAction->getInsideEcal()) {
-              // Check if the new volume is in the EM calorimeter region
-              if (nextVolume->GetLogicalVolume()->GetRegion() == fTrackingAction->getGPURegion()) {
+    if (nextVolume != nullptr) {
+      if (!fTrackingAction->getInsideEcal()) {
+        // Check if the new volume is in the EM calorimeter region
+        if (nextVolume->GetLogicalVolume()->GetRegion() == fTrackingAction->getGPURegion()) {
+          // If it is, stop the timer for this track and store the result
+          G4Track *aTrack = theStep->GetTrack();
 
-                // If it is, stop the timer for this track and store the result
-                G4Track *aTrack = theStep->GetTrack();
+          // Make sure this will only run on the first step when we enter the ECAL
+          fTrackingAction->setInsideEcal(true);
 
-                //aTrack->SetTrackStatus(fStopAndKill);
+          // We are only interested in the processing of e-, e+ and gammas in the EM calorimeter, for other
+          // particles the time keeps running
+          if (aTrack->GetDefinition() == G4Gamma::Gamma() || aTrack->GetDefinition() == G4Electron::Electron() ||
+              aTrack->GetDefinition() == G4Positron::Positron()) {
+            // Get the Run object associated to this thread and end the timer for this track
+            Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+            auto aBenchmarkManager = currentRun->getBenchmarkManager();
 
-                // Make sure this will only run on the first step when we enter the ECAL
-                fTrackingAction->setInsideEcal(true);
+            aBenchmarkManager->timerStop(Run::timers::NONEM);
+            aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT,
+                                                aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
+            aBenchmarkManager->removeTimer(Run::timers::NONEM);
+          }
+        }
+      } else {
+        // In case this track is exiting the EM calorimeter, start the timer
+        if (nextVolume->GetLogicalVolume()->GetRegion() != fTrackingAction->getGPURegion()) {
+          G4Track *aTrack = theStep->GetTrack();
 
-                // We are only interested in the processing of e-, e+ and gammas in the EM calorimeter, for other
-                // particles the time keeps running
-                if (aTrack->GetDefinition() == G4Gamma::Gamma() || aTrack->GetDefinition() == G4Electron::Electron() ||
-                    aTrack->GetDefinition() == G4Positron::Positron()) {
-                  // Get the Run object associated to this thread and end the timer for this track
-                  Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-                  auto aBenchmarkManager = currentRun->getBenchmarkManager();
+          fTrackingAction->setInsideEcal(false);
 
-                  // currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy in", aTrack->GetTotalEnergy());
-
-                  aBenchmarkManager->timerStop(Run::timers::NONEM);
-                  aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT,
-                                                      aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
-                  aBenchmarkManager->removeTimer(Run::timers::NONEM);
-                }
-              }
-            } else {
-              // In case this track is exiting the EM calorimeter, start the timer
-              if (nextVolume->GetLogicalVolume()->GetRegion() != fTrackingAction->getGPURegion()) {
-                G4Track *aTrack = theStep->GetTrack();
-
-                fTrackingAction->setInsideEcal(false);
-
-                if (aTrack->GetDefinition() == G4Gamma::Gamma() || aTrack->GetDefinition() == G4Electron::Electron() ||
-                    aTrack->GetDefinition() == G4Positron::Positron()) {
-                  // Get the Run object associated to this thread and start the timer for this track
-                  Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-                  currentRun->getBenchmarkManager()->timerStart(Run::timers::NONEM);
-
-                  // currentRun->getAuxBenchmarkManager()->addToAccumulator("Energy out", aTrack->GetTotalEnergy());
-                  /*
-                  if (aTrack->GetDefinition() == G4Gamma::Gamma())
-                    currentRun->getAuxBenchmarkManager()->addToAccumulator("GAMMAS", 1);
-                  if (aTrack->GetDefinition() == G4Electron::Electron())
-                    currentRun->getAuxBenchmarkManager()->addToAccumulator("ELECTRONS", 1);
-                  if (aTrack->GetDefinition() == G4Positron::Positron())
-                    currentRun->getAuxBenchmarkManager()->addToAccumulator("POSITRONS", 1);
-                  */
-                }
-              }
-            }
-
-            /*
-            //If this is the first step in the volume and we are inside the ECAL
-            if(theStep->IsFirstStepInVolume())
-            {
-              if(fTrackingAction->getInsideEcal())
-              {
-                printf("x: %f, y: %f, z: %f\n", theStep->GetPreStepPoint()->GetPosition()[0], 
-                                      theStep->GetPreStepPoint()->GetPosition()[1], 
-                                      theStep->GetPreStepPoint()->GetPosition()[2]);
-              }
-            }
-            */
+          if (aTrack->GetDefinition() == G4Gamma::Gamma() || aTrack->GetDefinition() == G4Electron::Electron() ||
+              aTrack->GetDefinition() == G4Positron::Positron()) {
+            // Get the Run object associated to this thread and start the timer for this track
+            Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+            currentRun->getBenchmarkManager()->timerStart(Run::timers::NONEM);
+          }
+        }
+      }
     }
   }
 }
