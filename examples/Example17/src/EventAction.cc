@@ -217,6 +217,8 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   aTempBenchmarkManager->reset();
 
+  aAuxBenchmarkManager->reset();
+  
   /*
   G4cout << total << G4endl;
   G4cout << numvols << G4endl;

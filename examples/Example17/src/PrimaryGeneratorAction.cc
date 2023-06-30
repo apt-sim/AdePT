@@ -47,13 +47,8 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 
 void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
 {
-  fGeneralParticleSource->GeneratePrimaryVertex(aEvent);
-  //G4cout << "Registered vertices: " << aEvent->GetNumberOfPrimaryVertex() << G4endl;
-  //G4cout << "Registered primaries: " << aEvent->GetPrimaryVertex()->GetNumberOfParticle() << G4endl;
-  for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
-    std::cout << aEvent->GetPrimaryVertex()->GetPrimary(i)->GetMomentumDirection() << std::endl;
-  }
-  /*
+  //fGeneralParticleSource->GeneratePrimaryVertex(aEvent);
+  
   // this function is called at the begining of event
   //
   if (fUseHepMC && fHepmcAscii) {
@@ -93,29 +88,32 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
     }
     fParticleGun->SetParticleMomentumDirection(oldDirection);
 
-    G4cout << "Registered vertices: " << aEvent->GetNumberOfPrimaryVertex() << G4endl;
-    G4cout << "Registered primaries: " << aEvent->GetPrimaryVertex()->GetNumberOfParticle() << G4endl;
-    for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
-      G4cout << "Primary: "
-             << "Type: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetParticleDefinition()->GetParticleName()
-             << G4endl;
-      G4cout << "Primary: "
-             << "Position: " << fParticleGun->GetParticlePosition() << G4endl;
-      G4cout << "Primary: "
-             << "Total Momentum: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetTotalMomentum() << G4endl;
-      G4cout << "Primary: "
-             << "Momentum: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMomentum() << G4endl;
-      G4cout << "Primary: "
-             << "Momentum Direction: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMomentumDirection() << G4endl;
-      G4cout << "Primary: "
-             << "Mass: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMass() << G4endl;
-      G4cout << "Primary: "
-             << "Total energy: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetTotalEnergy() << G4endl;
-      G4cout << "Primary: "
-             << "Kinetic energy: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetKineticEnergy() << G4endl;
+    
+  }
 
-      G4cout << "-------------------------------------------" << G4endl;
-    }
+  /*
+  G4cout << "Registered vertices: " << aEvent->GetNumberOfPrimaryVertex() << G4endl;
+  G4cout << "Registered primaries: " << aEvent->GetPrimaryVertex()->GetNumberOfParticle() << G4endl;
+  for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
+    G4cout << "Primary: "
+            << "Type: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetParticleDefinition()->GetParticleName()
+            << G4endl;
+    G4cout << "Primary: "
+            << "Position: " << fParticleGun->GetParticlePosition() << G4endl;
+    G4cout << "Primary: "
+            << "Total Momentum: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetTotalMomentum() << G4endl;
+    G4cout << "Primary: "
+            << "Momentum: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMomentum() << G4endl;
+    G4cout << "Primary: "
+            << "Momentum Direction: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMomentumDirection() << G4endl;
+    G4cout << "Primary: "
+            << "Mass: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMass() << G4endl;
+    G4cout << "Primary: "
+            << "Total energy: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetTotalEnergy() << G4endl;
+    G4cout << "Primary: "
+            << "Kinetic energy: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetKineticEnergy() << G4endl;
+
+    G4cout << "-------------------------------------------" << G4endl;
   }
   */
 }

@@ -207,17 +207,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.numIALeft[ip] = numIALeft;
     }
 
-    /*
     if (stopped) {
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
         Track &gamma1 = secondaries.gammas->NextTrack();
         Track &gamma2 = secondaries.gammas->NextTrack();
-    */
     //    userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
-      
-     /*
         const double cost = 2 * currentTrack.Uniform() - 1;
         const double sint = sqrt(1 - cost * cost);
         const double phi  = k2Pi * currentTrack.Uniform();
@@ -240,7 +236,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (auxData.fSensIndex >= 0) userScoring->AccountTrack(navState);
       continue;
     }
-    */
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
