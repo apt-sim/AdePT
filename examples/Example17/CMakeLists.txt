@@ -38,6 +38,7 @@ set(sources_g4
   src/PhysListHepEm.cc
   src/TrackingAction.cc
   src/FTFP_BERT_HepEm.cc
+  src/ParticleGun.cc
 )
 
 if(HepMC3_FOUND)

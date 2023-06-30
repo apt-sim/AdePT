@@ -136,36 +136,19 @@
 /gun/energy 10 GeV
 /gun/number 200
 /gun/position 0 0 0
-/gun/direction 0.8 0.5 0.1
+#If false, the following parameters are ignored
+/example17/gun/randomizeGun false
+/example17/gun/addParticle e-
+/example17/gun/addParticle e+
+/example17/gun/addParticle gamma
+/example17/gun/addParticle proton
+/example17/gun/addParticle neutron
+/example17/gun/minPhi 0 deg
+/example17/gun/maxPhi 360 deg
+/example17/gun/minTheta 10 deg
+/example17/gun/maxTheta 170 deg
+
 /example17/gun/print
-
-
-#/gps/verbose 0
-#/gps/particle e-
-#/gps/energy 10 GeV
-#/gps/number 200
-#/gps/pos/centre 0 0 0
-#/gps/pos/type Point
-#/gps/ang/type iso
-#Avoid shooting close to the beamline, since those particles don't reach the calorimeters
-#/gps/ang/mintheta 70 deg
-#/gps/ang/maxtheta 110 deg
-#Phi range is the complete circumference
-#/gps/ang/minphi 0 deg
-#/gps/ang/maxphi 40 deg
-
-
-#/gps/ang/type cos
-#/gps/ene/type Lin
-#/gps/ene/min 2 MeV
-#/gps/ene/max 10 MeV
-#/gps/ene/gradient 1
-#/gps/ene/intercept 1
-
-#/gps/particle e-
-#/gps/energy 10 GeV
-#/gps/position 0 0 0
-#/gps/number 1000
 
 ##
 ## -----------------------------------------------------------------------------
@@ -183,5 +166,4 @@
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
 #/analysis/setFileName example17_fullsim_100events.root
-/run/beamOn 10
-
+/run/beamOn 110

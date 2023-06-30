@@ -30,7 +30,7 @@
 
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "G4ParticleGun.hh"
-#include "G4GeneralParticleSource.hh"
+#include "ParticleGun.hh"
 #include "globals.hh"
 
 class G4Event;
@@ -55,13 +55,18 @@ public:
   void SetDefaultKinematic();
   void SetRndmBeam(G4double val) { fRndmBeam = val; }
   void SetRndmDirection(G4double val) { fRndmDirection = val; }
+  void SetRandomizeGun(G4bool val) { fRandomizeGun = val; }
+  void AddParticle(G4ParticleDefinition* val) { fParticleList->push_back(val); }
+  void SetMinPhi(G4double val) { fMinPhi = val; }
+  void SetMaxPhi(G4double val) { fMaxPhi = val; }
+  void SetMinTheta(G4double val) { fMinTheta = val; }
+  void SetMaxTheta(G4double val) { fMaxTheta = val; }
 
   virtual void GeneratePrimaries(G4Event *) final;
 
 private:
   /// Particle gun
-  G4GeneralParticleSource *fGeneralParticleSource;
-  G4ParticleGun *fParticleGun;
+  ParticleGun *fParticleGun;
   DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
   G4double fRndmDirection;
@@ -69,6 +74,14 @@ private:
   // HepMC3 reader
   G4VPrimaryGenerator* fHepmcAscii;
   G4bool fUseHepMC;
+
+  //Gun randomization
+  bool fRandomizeGun;
+  std::vector<G4ParticleDefinition*> *fParticleList;
+  G4double fMinPhi;
+  G4double fMaxPhi;
+  G4double fMinTheta;
+  G4double fMaxTheta;
 
   PrimaryGeneratorMessenger *fGunMessenger;
 };

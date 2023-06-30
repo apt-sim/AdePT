@@ -4,7 +4,7 @@
 #include "PrimaryGeneratorMessenger.hh"
 #include "DetectorConstruction.hh"
 
-#include "G4ParticleGun.hh"
+#include "ParticleGun.hh"
 #include "G4ParticleTable.hh"
 #include "G4SystemOfUnits.hh"
 #include "Randomize.hh"
@@ -17,12 +17,11 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
-    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fGeneralParticleSource(0), fDetector(det), fRndmBeam(0.),
-      fRndmDirection(0.), fGunMessenger(0), fUseHepMC(false)
+    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.),
+      fGunMessenger(0), fUseHepMC(false), fRandomizeGun(false)
 {
-  G4int n_particle       = 1;
-  fGeneralParticleSource = new G4GeneralParticleSource();
-  fParticleGun           = new G4ParticleGun();
+  G4int n_particle = 1;
+  fParticleGun     = new ParticleGun();
   SetDefaultKinematic();
 
   // create a messenger for this class
@@ -32,15 +31,17 @@ PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
 #ifdef HEPMC3_FOUND
   fHepmcAscii = new HepMC3G4AsciiReader();
 #endif
+
+  fParticleList = new std::vector<G4ParticleDefinition *>();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::~PrimaryGeneratorAction()
 {
-  delete fGeneralParticleSource;
   delete fParticleGun;
   delete fGunMessenger;
+  delete fParticleList;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -51,9 +52,13 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
   
   // this function is called at the begining of event
   //
-  if (fUseHepMC && fHepmcAscii) {
+
+  if (fUseHepMC && fHepmcAscii) 
+  {
     fHepmcAscii->GeneratePrimaryVertex(aEvent);
-  } else {
+  }
+  else 
+  {
     G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
     // randomize direction if requested
     if (fRndmDirection > 0.) {
@@ -84,38 +89,14 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
       fParticleGun->GeneratePrimaryVertex(aEvent);
       fParticleGun->SetParticlePosition(oldPosition);
     } else {
-      fParticleGun->GeneratePrimaryVertex(aEvent);
+      if (fRandomizeGun) {
+        fParticleGun->GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, fParticleList);
+      } else {
+        fParticleGun->GeneratePrimaryVertex(aEvent);
+      }
     }
     fParticleGun->SetParticleMomentumDirection(oldDirection);
-
-    
   }
-
-  /*
-  G4cout << "Registered vertices: " << aEvent->GetNumberOfPrimaryVertex() << G4endl;
-  G4cout << "Registered primaries: " << aEvent->GetPrimaryVertex()->GetNumberOfParticle() << G4endl;
-  for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
-    G4cout << "Primary: "
-            << "Type: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetParticleDefinition()->GetParticleName()
-            << G4endl;
-    G4cout << "Primary: "
-            << "Position: " << fParticleGun->GetParticlePosition() << G4endl;
-    G4cout << "Primary: "
-            << "Total Momentum: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetTotalMomentum() << G4endl;
-    G4cout << "Primary: "
-            << "Momentum: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMomentum() << G4endl;
-    G4cout << "Primary: "
-            << "Momentum Direction: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMomentumDirection() << G4endl;
-    G4cout << "Primary: "
-            << "Mass: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetMass() << G4endl;
-    G4cout << "Primary: "
-            << "Total energy: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetTotalEnergy() << G4endl;
-    G4cout << "Primary: "
-            << "Kinetic energy: " << aEvent->GetPrimaryVertex()->GetPrimary()->GetKineticEnergy() << G4endl;
-
-    G4cout << "-------------------------------------------" << G4endl;
-  }
-  */
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

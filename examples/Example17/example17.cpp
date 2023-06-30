@@ -83,7 +83,6 @@ int main(int argc, char **argv)
   //                 owned and deleted by the run manager, so they should not
   //                 be deleted in the main() program !
 
-  delete visManager;
   delete runManager;
 
   return err;
