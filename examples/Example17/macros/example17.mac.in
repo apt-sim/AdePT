@@ -134,7 +134,7 @@
 /example17/gun/setDefault
 /gun/particle e-
 /gun/energy 10 GeV
-/gun/number 10000
+/gun/number 500
 /gun/position 0 0 0
 #If false, the following parameters are ignored
 /example17/gun/randomizeGun true
@@ -145,8 +145,8 @@
 #/example17/gun/addParticle neutron
 /example17/gun/minPhi 0 deg
 /example17/gun/maxPhi 360 deg
-/example17/gun/minTheta 10 deg
-/example17/gun/maxTheta 170 deg
+/example17/gun/minTheta 70 deg
+/example17/gun/maxTheta 110 deg
 
 /example17/gun/print
 
@@ -161,9 +161,9 @@
 # by default all created models are active
 /param/ActivateModel AdePT
 #/analysis/setFileName example17_fastsim_100events.root
-/run/beamOn 30
+/run/beamOn 1
 
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
 #/analysis/setFileName example17_fullsim_100events.root
-/run/beamOn 30
+/run/beamOn 1

@@ -27,7 +27,7 @@ void ParticleGun::GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi,
     auto *particle = new G4PrimaryParticle(particle_definition);
 
     G4double phi                = (aMaxPhi - aMinPhi) * G4UniformRand() + aMinPhi;
-    G4double theta              = (aMaxTheta - aMinTheta) * G4UniformRand() + aMinTheta;
+    G4double theta              = acos((cos(aMaxTheta) - cos(aMinTheta)) * G4UniformRand() + cos(aMinTheta));
     G4double x                  = cos(phi) * sin(theta);
     G4double y                  = sin(phi) * sin(theta);
     G4double z                  = cos(theta);

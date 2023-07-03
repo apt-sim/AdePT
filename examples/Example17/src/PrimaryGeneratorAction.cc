@@ -86,7 +86,14 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
       G4double y0               = oldPosition.y() + (2 * G4UniformRand() - 1.) * rbeam;
       G4double z0               = oldPosition.z() + (2 * G4UniformRand() - 1.) * rbeam;
       fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
-      fParticleGun->GeneratePrimaryVertex(aEvent);
+
+      if (fRandomizeGun) {
+        fParticleGun->GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, fParticleList);
+      }
+      else{
+        fParticleGun->GeneratePrimaryVertex(aEvent);
+      }
+      
       fParticleGun->SetParticlePosition(oldPosition);
     } else {
       if (fRandomizeGun) {
@@ -96,6 +103,10 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
       }
     }
     fParticleGun->SetParticleMomentumDirection(oldDirection);
+  }
+
+  for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
+    std::cout << aEvent->GetPrimaryVertex()->GetPrimary(i)->GetMomentumDirection() << std::endl;
   }
 }
 
