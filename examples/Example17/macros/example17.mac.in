@@ -13,6 +13,8 @@
 /process/verbose 0
 /tracking/verbose 0
 ##
+/example17/setSeed 1
+
 /example17/detector/filename @CMS2018_GDML@
 /example17/detector/regionname EcalRegion
 /example17/adept/verbose 0
