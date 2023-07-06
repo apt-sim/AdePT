@@ -12,6 +12,8 @@
 #include "G4UIcmdWithABool.hh"
 #include "G4UIcmdWith3VectorAndUnit.hh"
 
+#include "Randomize.hh"
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImessenger(), fDetector(aDetector)
@@ -24,6 +26,9 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImess
 
   fAdeptDir = new G4UIdirectory("/example17/adept/");
   fDetectorDir->SetGuidance("AdePT integration UI commands");
+
+  fSetSeed = new G4UIcmdWithAnInteger("/example17/setSeed", this);
+  fSetSeed->SetGuidance("Set the seed for the random number generator");
 
   fPrintCmd = new G4UIcmdWithoutParameter("/example17/detector/print", this);
   fPrintCmd->SetGuidance("Print current settings.");
@@ -63,6 +68,7 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImess
 
 DetectorMessenger::~DetectorMessenger()
 {
+  delete fSetSeed;
   delete fPrintCmd;
   delete fDetectorDir;
   delete fExampleDir;
@@ -82,7 +88,9 @@ DetectorMessenger::~DetectorMessenger()
 
 void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
 {
-  if (aCommand == fPrintCmd) {
+  if (aCommand == fSetSeed) {
+    CLHEP::HepRandom::setTheSeed(abs(fSetSeed->GetNewIntValue(aNewValue)));
+  } else if (aCommand == fPrintCmd) {
     fDetector->Print();
   } else if (aCommand == fFileNameCmd) {
     fDetector->SetGDMLFile(aNewValue);

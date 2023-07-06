@@ -30,6 +30,7 @@
 
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "G4ParticleGun.hh"
+#include "ParticleGun.hh"
 #include "globals.hh"
 
 class G4Event;
@@ -54,19 +55,43 @@ public:
   void SetDefaultKinematic();
   void SetRndmBeam(G4double val) { fRndmBeam = val; }
   void SetRndmDirection(G4double val) { fRndmDirection = val; }
+  void SetRandomizeGun(G4bool val) { fRandomizeGun = val; }
+  void AddParticle(G4ParticleDefinition* val, float weight=-1) { fParticleList->push_back(val);
+                                                              fParticleWeights->push_back(weight); }
+  void SetMinPhi(G4double val) { fMinPhi = val; }
+  void SetMaxPhi(G4double val) { fMaxPhi = val; }
+  void SetMinTheta(G4double val) { fMinTheta = val; }
+  void SetMaxTheta(G4double val) { fMaxTheta = val; }
+  /** @brief Checks that the user-provided weights sum to 1 or less, distributes the remaining weight
+   * among the particles with undefined weight.
+   */
+  void ReWeight();
+
+  void SetPrintGun(G4double val) { fPrintGun = val; }
 
   virtual void GeneratePrimaries(G4Event *) final;
 
 private:
   /// Particle gun
-  G4ParticleGun *fParticleGun;
+  ParticleGun *fParticleGun;
   DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
   G4double fRndmDirection;
+  G4double fPrintGun;
 
   // HepMC3 reader
   G4VPrimaryGenerator* fHepmcAscii;
   G4bool fUseHepMC;
+
+  //Gun randomization
+  bool fRandomizeGun;
+  std::vector<G4ParticleDefinition*> *fParticleList;
+  std::vector<float> *fParticleWeights;
+  bool fReWeightingDone;
+  G4double fMinPhi;
+  G4double fMaxPhi;
+  G4double fMinTheta;
+  G4double fMaxTheta;
 
   PrimaryGeneratorMessenger *fGunMessenger;
 };

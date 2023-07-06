@@ -42,6 +42,8 @@ private:
   G4UIdirectory *fDetectorDir = nullptr;
   /// Command to set the directory for AdePT integration settings /example17/adept
   G4UIdirectory *fAdeptDir = nullptr;
+  // Command to set the seed for the random number generator
+  G4UIcmdWithAnInteger *fSetSeed = nullptr;
   /// Command printing current settings
   G4UIcmdWithoutParameter *fPrintCmd = nullptr;
 

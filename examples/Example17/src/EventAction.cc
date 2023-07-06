@@ -130,6 +130,10 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << ": real time " << fTimer.GetRealElapsed() << G4endl;
   }
 
+  // Store the original IO precission and width
+  auto aOriginalPrecission = std::cout.precision();
+  auto aOriginalWidth = std::cout.width();
+
   auto &groups        = fDetector->GetSensitiveGroups();
   int ngroups         = groups.size();
   double *edep_groups = nullptr;
@@ -169,4 +173,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
   }
   delete[] edep_groups;
+
+  // Restore the original IO precission
+  G4cout << std::setprecision(aOriginalPrecission) << std::setw(aOriginalWidth) << std::defaultfloat;
 }

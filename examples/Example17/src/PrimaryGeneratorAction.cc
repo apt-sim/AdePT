@@ -4,7 +4,7 @@
 #include "PrimaryGeneratorMessenger.hh"
 #include "DetectorConstruction.hh"
 
-#include "G4ParticleGun.hh"
+#include "ParticleGun.hh"
 #include "G4ParticleTable.hh"
 #include "G4SystemOfUnits.hh"
 #include "Randomize.hh"
@@ -16,20 +16,23 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
-    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.), fGunMessenger(0),
-    fUseHepMC(false)
+    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.),
+      fGunMessenger(0), fUseHepMC(false), fRandomizeGun(false), fReWeightingDone(false), fPrintGun(false)
 {
   G4int n_particle = 1;
-  fParticleGun     = new G4ParticleGun(n_particle);
+  fParticleGun     = new ParticleGun();
   SetDefaultKinematic();
 
   // create a messenger for this class
   fGunMessenger = new PrimaryGeneratorMessenger(this);
 
-  // if HepMC3, create the reader
-  #ifdef HEPMC3_FOUND
+// if HepMC3, create the reader
+#ifdef HEPMC3_FOUND
   fHepmcAscii = new HepMC3G4AsciiReader();
-  #endif
+#endif
+
+  fParticleList    = new std::vector<G4ParticleDefinition *>();
+  fParticleWeights = new std::vector<float>();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -38,6 +41,7 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 {
   delete fParticleGun;
   delete fGunMessenger;
+  delete fParticleList;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -47,46 +51,63 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
   // this function is called at the begining of event
   //
 
-  if(fUseHepMC && fHepmcAscii)
-  {
+  if (fRandomizeGun) {
+    if (!fReWeightingDone) {
+      fReWeightingDone = true;
+      ReWeight();
+    }
+  }
+
+  if (fUseHepMC && fHepmcAscii) {
     fHepmcAscii->GeneratePrimaryVertex(aEvent);
-  }
-  else
-  {
-  G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
-  // randomize direction if requested
-  if(fRndmDirection > 0.) {
-
-    // calculate current phi and eta
-    double eta_old = atanh(oldDirection.z());
-    double phi_old = atan(oldDirection.y()/oldDirection.z());
-
-    // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
-    const double phi = phi_old + (2. * M_PI * G4UniformRand()) * fRndmDirection;
-    const double eta = eta_old + (- 5. + 10. * G4UniformRand()) * fRndmDirection;
-
-    // new direction
-    G4double dirx = cos(phi) / cosh(eta);
-    G4double diry = sin(phi) / cosh(eta);
-    G4double dirz = tanh(eta);
-
-    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx,diry,dirz));
-  }
-  // randomize the beam, if requested.
-  if (fRndmBeam > 0.) {
-    G4ThreeVector oldPosition = fParticleGun->GetParticlePosition();
-    G4double rbeam            = 0.5 * fRndmBeam;
-    G4double x0               = oldPosition.x();
-    G4double y0               = oldPosition.y() + (2 * G4UniformRand() - 1.) * rbeam;
-    G4double z0               = oldPosition.z() + (2 * G4UniformRand() - 1.) * rbeam;
-    fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
-    fParticleGun->GeneratePrimaryVertex(aEvent);
-    fParticleGun->SetParticlePosition(oldPosition);
   } else {
-    fParticleGun->GeneratePrimaryVertex(aEvent);
+    G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
+    // randomize direction if requested
+    if (fRndmDirection > 0.) {
+
+      // calculate current phi and eta
+      double eta_old = atanh(oldDirection.z());
+      double phi_old = atan(oldDirection.y() / oldDirection.z());
+
+      // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
+      const double phi = phi_old + (2. * M_PI * G4UniformRand()) * fRndmDirection;
+      const double eta = eta_old + (-5. + 10. * G4UniformRand()) * fRndmDirection;
+
+      // new direction
+      G4double dirx = cos(phi) / cosh(eta);
+      G4double diry = sin(phi) / cosh(eta);
+      G4double dirz = tanh(eta);
+
+      fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx, diry, dirz));
+    }
+    // randomize the beam, if requested.
+    if (fRndmBeam > 0.) {
+      G4ThreeVector oldPosition = fParticleGun->GetParticlePosition();
+      G4double rbeam            = 0.5 * fRndmBeam;
+      G4double x0               = oldPosition.x();
+      G4double y0               = oldPosition.y() + (2 * G4UniformRand() - 1.) * rbeam;
+      G4double z0               = oldPosition.z() + (2 * G4UniformRand() - 1.) * rbeam;
+      fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
+      if (fRandomizeGun) {
+        fParticleGun->GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, fParticleList,
+                                                  fParticleWeights);
+      } else {
+        fParticleGun->GeneratePrimaryVertex(aEvent);
+      }
+      fParticleGun->SetParticlePosition(oldPosition);
+    } else {
+      if (fRandomizeGun) {
+        fParticleGun->GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, fParticleList,
+                                                  fParticleWeights);
+      } else {
+        fParticleGun->GeneratePrimaryVertex(aEvent);
+      }
+    }
+    fParticleGun->SetParticleMomentumDirection(oldDirection);
   }
-  fParticleGun->SetParticleMomentumDirection(oldDirection);
-  }
+
+  // Print the particle gun info if requested
+  if (fPrintGun) Print();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -103,10 +124,68 @@ void PrimaryGeneratorAction::SetDefaultKinematic()
   fParticleGun->SetParticlePosition(G4ThreeVector(position, 0. * cm, 0. * cm));
 }
 
+void PrimaryGeneratorAction::ReWeight()
+{
+  double userDefinedSum = 0;
+  double numNotDefined  = 0;
+  for (float i : *fParticleWeights)
+    i > 0 ? userDefinedSum += i : numNotDefined += 1;
+
+  if(userDefinedSum < 1 && numNotDefined == 0)
+  {
+    // If the user-provided weights do not sum up to 1 and there are no particles left to 
+    // distribute the remaining weight, re-balance their weights
+    for (int i = 0; i < fParticleWeights->size(); i++) {
+      (*fParticleWeights)[i] = (*fParticleWeights)[i] / userDefinedSum;
+      G4Exception("PrimaryGeneratorAction::ReWeight()", "Notification", JustWarning,
+                      ("Sum of user-defined weights is <1, new weight for " + (*fParticleList)[i]->GetParticleName() +
+                      " = " + std::to_string((*fParticleWeights)[i]))
+                          .c_str());
+    }
+  }
+  else
+  {
+    for (int i = 0; i < fParticleWeights->size(); i++) {
+      double originalWeight = (*fParticleWeights)[i];
+      if (originalWeight >= 0) {
+        // For particles with user-defined weight, re-balance only if the sum is higher than 1
+        if (userDefinedSum <= 1) {
+          (*fParticleWeights)[i] = originalWeight;
+        } else {
+          (*fParticleWeights)[i] = originalWeight / userDefinedSum;
+          G4Exception("PrimaryGeneratorAction::ReWeight()", "Notification", JustWarning,
+                      ("Sum of user-defined weights is >1, new weight for " + (*fParticleList)[i]->GetParticleName() +
+                      " = " + std::to_string((*fParticleWeights)[i]))
+                          .c_str());
+        }
+      } else if (userDefinedSum < 1) {
+        // For particles with no user-defined weight, distribute the remaining weight
+        (*fParticleWeights)[i] = (1 - userDefinedSum) / numNotDefined;
+      } else {
+        // If the sum of user-defined weights is greater or equal to 1 there's nothing left to distribute,
+        // the probability for the remaining particles will be 0
+        (*fParticleWeights)[i] = 0;
+      }
+    }
+  }
+}
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 void PrimaryGeneratorAction::Print() const
 {
-  G4cout << "=== Gun shooting " << fParticleGun->GetParticleDefinition()->GetParticleName() << " with energy "
-         << fParticleGun->GetParticleEnergy() / GeV << "[GeV] from: " << fParticleGun->GetParticlePosition() / mm
-         << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << "\n";
+  if (!fRandomizeGun) {
+    G4cout << "=== Gun shooting " << fParticleGun->GetParticleDefinition()->GetParticleName() << " with energy "
+           << fParticleGun->GetParticleEnergy() / GeV << "[GeV] from: " << fParticleGun->GetParticlePosition() / mm
+           << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << "\n";
+  } else {
+    for (int i = 0; i < fParticleList->size(); i++) {
+      G4cout << "=== Gun shooting " << (*fParticleList)[i]->GetParticleName() << " with probability "
+             << (*fParticleWeights)[i] * 100 << "%" << G4endl;
+    }
+    G4cout << "=== Gun shooting with energy " << fParticleGun->GetParticleEnergy() / GeV
+           << "[GeV] from: " << fParticleGun->GetParticlePosition() / mm << " [mm]" << G4endl;
+    G4cout << "=== Gun shooting in ranges: " << G4endl;
+    G4cout << "Phi: [" << fMinPhi << ", " << fMaxPhi << "] (rad)" << G4endl;
+    G4cout << "Theta: [" << fMinTheta << ", " << fMaxTheta << "] (rad)" << G4endl;
+  }
 }
