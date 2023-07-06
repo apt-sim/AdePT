@@ -20,6 +20,10 @@ int main(int argc, char **argv)
 {
   // Macro name from arguments
   G4String batchMacroName;
+  G4String outputDirectory  = "";
+  G4String outputFilename   = "";
+  bool doBenchmark          = false;
+  bool doValidation         = false;
   G4bool useInteractiveMode = true;
   G4String helpMsg("Usage: " + G4String(argv[0]) +
                    " [option(s)] \n No additional arguments triggers an interactive mode "
@@ -34,11 +38,35 @@ int main(int argc, char **argv)
       batchMacroName     = G4String(argv[i + 1]);
       useInteractiveMode = false;
       ++i;
+    } else if (argument == "--output_dir") {
+      outputDirectory = G4String(argv[i + 1]);
+      ++i;
+    } else if (argument == "--output_file") {
+      outputFilename = G4String(argv[i + 1]);
+      ++i;
+    } else if (argument == "--do_benchmark") {
+      doBenchmark = true;
+    } else if (argument == "--do_validation") {
+      doValidation = true;
     } else {
       G4Exception("main", "Unknown argument", FatalErrorInArgument,
                   ("Unknown argument passed to " + G4String(argv[0]) + " : " + argument + "\n" + helpMsg).c_str());
     }
   }
+
+#if defined TEST
+  if (doBenchmark && doValidation) {
+    G4Exception(
+        "main()", "Notification", JustWarning,
+        "The options --do_benchmark and --do_validation are mutually exclusive! --do_benchmark will be ignored");
+  }
+#else
+  if (doBenchmark || doValidation) {
+    G4Exception(
+        "main()", "Notification", JustWarning,
+        "The application must be compiled with -DTEST in order to use the options --do_benchmark and --do_validation");
+  }
+#endif  
 
   // Initialization of default Run manager
   auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);
@@ -67,7 +95,8 @@ int main(int argc, char **argv)
   //-------------------------------
   // UserAction classes
   //-------------------------------
-  runManager->SetUserInitialization(new ActionInitialisation(detector));
+  runManager->SetUserInitialization(
+      new ActionInitialisation(detector, outputDirectory, outputFilename, doBenchmark, doValidation));
 
   G4UImanager *UImanager = G4UImanager::GetUIpointer();
   G4String command       = "/control/execute ";

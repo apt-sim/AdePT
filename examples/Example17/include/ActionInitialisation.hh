@@ -29,6 +29,7 @@
 #define ACTIONINITIALISATION_HH
 
 #include "G4VUserActionInitialization.hh"
+#include "G4String.hh"
 
 class DetectorConstruction;
 
@@ -42,7 +43,8 @@ class DetectorConstruction;
 
 class ActionInitialisation : public G4VUserActionInitialization {
 public:
-  ActionInitialisation(DetectorConstruction *aDetector);
+  ActionInitialisation(DetectorConstruction *aDetector, G4String aOutputDirectory, G4String aOutputFilename,
+            bool aDoBenchmark, bool aDoValidation);
   ~ActionInitialisation();
   /// Create all user actions.
   virtual void Build() const final;
@@ -53,6 +55,10 @@ private:
   /// Pointer to detector to be passed to event and run actions in order to
   /// retrieve detector dimensions
   DetectorConstruction *fDetector;
+  G4String fOutputDirectory;
+  G4String fOutputFilename;
+  bool fDoBenchmark;
+  bool fDoValidation;
 };
 
 #endif /* ACTIONINITIALISATION_HH */

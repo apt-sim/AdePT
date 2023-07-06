@@ -31,11 +31,14 @@
 #include "RunAction.hh"
 #include "TrackingAction.hh"
 #include "SteppingAction.hh"
-#include "BenchmarkManager.h"
+#include "TestManager.h"
 #include "DetectorConstruction.hh"
 
-ActionInitialisation::ActionInitialisation(DetectorConstruction *aDetector)
-    : G4VUserActionInitialization(), fDetector(aDetector)
+ActionInitialisation::ActionInitialisation(DetectorConstruction *aDetector, G4String aOutputDirectory,
+                                           G4String aOutputFilename,
+                                            bool aDoBenchmark, bool aDoValidation)
+    : G4VUserActionInitialization(), fDetector(aDetector), fOutputDirectory(aOutputDirectory),
+      fOutputFilename(aOutputFilename), fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation)
 {
 }
 
@@ -48,7 +51,7 @@ ActionInitialisation::~ActionInitialisation() {}
 void ActionInitialisation::BuildForMaster() const
 {
   new PrimaryGeneratorAction(fDetector);
-  SetUserAction(new RunAction(fDetector));
+  SetUserAction(new RunAction(fDetector, fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation));
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -57,13 +60,16 @@ void ActionInitialisation::Build() const
 {
   SetUserAction(new PrimaryGeneratorAction(fDetector));
   SetUserAction(new EventAction(fDetector));
-  RunAction *aRunAction = new RunAction(fDetector);
+  RunAction *aRunAction = new RunAction(fDetector, fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation);
   SetUserAction(aRunAction);
   TrackingAction *aTrackingAction = new TrackingAction(fDetector);
   SetUserAction(aTrackingAction);
 
-// Do not register this if benchmark manager is not active
-#if defined BENCHMARK
-  SetUserAction(new SteppingAction(fDetector, aRunAction, aTrackingAction));
+// Do not register this if the TestManager is not active or if benchmark is not selected
+#if defined TEST
+  if(fDoBenchmark)
+  {
+    SetUserAction(new SteppingAction(fDetector, aRunAction, aTrackingAction));
+  }
 #endif
 }

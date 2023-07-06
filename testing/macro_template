@@ -7,21 +7,19 @@
 ## Geant4 macro for modelling simplified sampling calorimeters
 ## =============================================================================
 ##
-/run/numberOfThreads 1
+/run/numberOfThreads $num_threads
 /control/verbose 0
 /run/verbose 0
 /process/verbose 0
 /tracking/verbose 0
 ##
-/example17/setSeed 1
-
-/example17/detector/filename @CMS2018_GDML@
+/example17/detector/filename $gdml_file
 /example17/detector/regionname EcalRegion
 /example17/adept/verbose 0
 ## Threshold for buffering tracks before sending to GPU
-/example17/adept/threshold 200
+/example17/adept/threshold $adept_threshold
 ## Total number of GPU track slots (not per thread)
-/example17/adept/milliontrackslots 1
+/example17/adept/milliontrackslots $adept_million_track_slots
 
 /example17/detector/addsensitivevolume EAPD_01
 /example17/detector/addsensitivevolume EAPD_02
@@ -106,7 +104,7 @@
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic filed:
 ## -----------------------------------------------------------------------------
-/example17/detector/setField 0 0 0 tesla
+/example17/detector/setField $magnetic_field
 #/example17/detector/setField 0 0 3.8 tesla
 
 ##
@@ -129,26 +127,14 @@
 /example17/event/verbose 2
 
 /example17/gun/setDefault
-/gun/particle e-
-/gun/energy 10 GeV
-/gun/number 200
+/gun/particle $particle_type
+/gun/energy $gun_energy
+/gun/number $num_particles
 /gun/position 0 0 0
 /example17/gun/print true
 
-#If false, the following parameters are ignored
-/example17/gun/randomizeGun true
-#Usage: /example17/gun/addParticle type ["weight" weight] ["energy" energy unit]
-/example17/gun/addParticle e- weight 0
-/example17/gun/addParticle proton
-#/example17/gun/addParticle e- energy 15 GeV
-#/example17/gun/addParticle e+ weight 0.5
-#/example17/gun/addParticle gamma weight 0.2 energy 5 GeV
-#/example17/gun/addParticle proton energy 3 GeV weight 0.1
-#/example17/gun/addParticle neutron
-/example17/gun/minPhi 0 deg
-/example17/gun/maxPhi 360 deg
-/example17/gun/minTheta 10 deg
-/example17/gun/maxTheta 170 deg
+/example17/gun/randomizeGun $randomize_gun
+$random_gun_configuration
 
 ##
 ## -----------------------------------------------------------------------------
@@ -160,14 +146,6 @@
 /example17/setSeed 1
 
 # run events with parametrised simulation
-# by default all created models are active
-/param/ActivateModel AdePT
-#/analysis/setFileName example17_fastsim_100events.root
-/run/beamOn 1
-
-/example17/setSeed 1
-
-# run events with full (detailed) simulation
-/param/InActivateModel AdePT
-#/analysis/setFileName example17_fullsim_100events.root
-/run/beamOn 1
+#/param/InActivateModel AdePT
+$use_adept
+/run/beamOn $num_events

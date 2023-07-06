@@ -15,7 +15,7 @@
 #include "G4Electron.hh"
 #include "G4Positron.hh"
 #include "Run.hh"
-#include "BenchmarkManager.h"
+#include "TestManager.h"
 
 SteppingAction::SteppingAction(DetectorConstruction *aDetector, RunAction *aRunAction, TrackingAction *aTrackingAction)
     : G4UserSteppingAction(), fDetector(aDetector), fRunAction(aRunAction), fTrackingAction(aTrackingAction)
@@ -45,12 +45,12 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
               aTrack->GetDefinition() == G4Positron::Positron()) {
             // Get the Run object associated to this thread and end the timer for this track
             Run *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-            auto aBenchmarkManager = currentRun->getBenchmarkManager();
+            auto aTestManager = currentRun->GetTestManager();
 
-            aBenchmarkManager->timerStop(Run::timers::NONEM);
-            aBenchmarkManager->addToAccumulator(Run::accumulators::NONEM_EVT,
-                                                aBenchmarkManager->getDurationSeconds(Run::timers::NONEM));
-            aBenchmarkManager->removeTimer(Run::timers::NONEM);
+            aTestManager->timerStop(Run::timers::NONEM);
+            aTestManager->addToAccumulator(Run::accumulators::NONEM_EVT,
+                                                aTestManager->getDurationSeconds(Run::timers::NONEM));
+            aTestManager->removeTimer(Run::timers::NONEM);
           }
         }
       } else {
@@ -64,7 +64,7 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
               aTrack->GetDefinition() == G4Positron::Positron()) {
             // Get the Run object associated to this thread and start the timer for this track
             Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-            currentRun->getBenchmarkManager()->timerStart(Run::timers::NONEM);
+            currentRun->GetTestManager()->timerStart(Run::timers::NONEM);
           }
         }
       }

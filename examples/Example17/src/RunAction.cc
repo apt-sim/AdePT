@@ -28,13 +28,25 @@
 #include "DetectorConstruction.hh"
 #include "Run.hh"
 #include "G4Run.hh"
-#include "BenchmarkManager.h"
+#include "TestManager.h"
 
 #include <thread>
 #include <mutex>
 #include "AdeptIntegration.h"
 
-RunAction::RunAction(DetectorConstruction *aDetector) : G4UserRunAction(), fDetector(aDetector) {}
+RunAction::RunAction(DetectorConstruction *aDetector)
+    : G4UserRunAction(), fDetector(aDetector), fOutputDirectory(""),
+      fOutputFilename("")
+{
+}
+
+RunAction::RunAction(DetectorConstruction *aDetector, G4String aOutputDirectory,
+                                           G4String aOutputFilename,
+                                            bool aDoBenchmark, bool aDoValidation)
+    : G4UserRunAction(), fDetector(aDetector), fOutputDirectory(aOutputDirectory),
+      fOutputFilename(aOutputFilename), fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation)
+{
+}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -45,12 +57,14 @@ RunAction::~RunAction() {}
 void RunAction::BeginOfRunAction(const G4Run *)
 {
   fTimer.Start();
-  auto tid  = G4Threading::G4GetThreadId();
-  if (tid < 0)
-  {
-    #if defined BENCHMARK
-      fRun->getBenchmarkManager()->timerStart(Run::timers::TOTAL);
-    #endif
+  auto tid = G4Threading::G4GetThreadId();
+  if (tid < 0) {
+#if defined TEST
+    if(fDoBenchmark)
+    {
+      fRun->GetTestManager()->timerStart(Run::timers::TOTAL);
+    }
+#endif
   }
 }
 
@@ -64,18 +78,25 @@ void RunAction::EndOfRunAction(const G4Run *)
   // Just protect the printout to avoid interlacing text
   const std::lock_guard<std::mutex> lock(print_mutex);
   // Print timer just for the master thread since this is called when all workers are done
-  if (tid < 0)
-  {
+  if (tid < 0) {
     G4cout << "Run time: " << time << "\n";
-    #if defined BENCHMARK
-      fRun->getBenchmarkManager()->timerStop(Run::timers::TOTAL);
-      fRun->EndOfRunSummary();
-    #endif
+#if defined TEST
+    if(fDoBenchmark)
+    {
+      fRun->GetTestManager()->timerStop(Run::timers::TOTAL);
+    }
+    if(fDoBenchmark || fDoValidation)
+    {
+      fRun->EndOfRunSummary(fOutputDirectory, fOutputFilename, fDetector);
+    }
+#endif
   }
 }
 
-G4Run* RunAction::GenerateRun()
+G4Run *RunAction::GenerateRun()
 {
   fRun = new Run();
+  fRun->SetDoBenchmark(fDoBenchmark);
+  fRun->SetDoValidation(fDoValidation);
   return fRun;
 }

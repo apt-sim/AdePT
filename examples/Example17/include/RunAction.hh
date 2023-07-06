@@ -30,6 +30,8 @@
 
 #include "G4UserRunAction.hh"
 #include <VecGeom/base/Stopwatch.h>
+#include "G4String.hh"
+
 class G4Run;
 class Run;
 class DetectorConstruction;
@@ -47,6 +49,8 @@ class RunAction : public G4UserRunAction {
 public:
   /// Constructor. Defines the histograms.
   RunAction(DetectorConstruction *aDetector);
+  RunAction(DetectorConstruction *aDetector, G4String aOutputDirectory, G4String aOutputFilename,
+            bool aDoBenchmark, bool aDoValidation);
   virtual ~RunAction();
 
   /// Open the file for the analysis
@@ -60,6 +64,10 @@ private:
   /// Pointer to detector construction to retrieve the detector dimensions to
   /// setup the histograms
   DetectorConstruction *fDetector;
+  G4String fOutputDirectory;
+  G4String fOutputFilename;
+  bool fDoBenchmark;
+  bool fDoValidation;
   vecgeom::Stopwatch fTimer;
   Run* fRun;
 };
