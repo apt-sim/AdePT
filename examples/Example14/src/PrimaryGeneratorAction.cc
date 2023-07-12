@@ -108,5 +108,5 @@ void PrimaryGeneratorAction::Print() const
 {
   G4cout << "=== Gun shooting " << fParticleGun->GetParticleDefinition()->GetParticleName() << " with energy "
          << fParticleGun->GetParticleEnergy() / GeV << "[GeV] from: " << fParticleGun->GetParticlePosition() / mm
-         << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << "\n";
+         << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << G4endl;
 }
