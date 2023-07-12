@@ -176,7 +176,7 @@ void PrimaryGeneratorAction::Print() const
   if (!fRandomizeGun) {
     G4cout << "=== Gun shooting " << fParticleGun->GetParticleDefinition()->GetParticleName() << " with energy "
            << fParticleGun->GetParticleEnergy() / GeV << "[GeV] from: " << fParticleGun->GetParticlePosition() / mm
-           << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << "\n";
+           << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << G4endl;
   } else {
     for (int i = 0; i < fParticleList->size(); i++) {
       G4cout << "=== Gun shooting " << (*fParticleList)[i]->GetParticleName() << " with probability "
