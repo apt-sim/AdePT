@@ -7,7 +7,8 @@ project(Example3 LANGUAGES CXX CUDA)
 
 find_package(CUDAToolkit REQUIRED)
 
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+# IPO disabled due to change of policy, see: https://cmake.org/cmake/help/latest/policy/CMP0069.html
+#set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # Disable exceptions and RTTI for better performance and
 # to ensure we don't use these features during development
