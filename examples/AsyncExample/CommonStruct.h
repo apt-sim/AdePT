@@ -61,12 +61,7 @@ struct TrackData {
 /// @brief Buffer holding input tracks to be transported on GPU and output tracks to be
 /// re-injected in the Geant4 stack
 struct TrackBuffer {
-#ifdef __cpp_lib_hardware_interference_size
-  using std::hardware_destructive_interference_size;
-#else
-  static constexpr size_t hardware_destructive_interference_size = 64;
-#endif
-  struct alignas(hardware_destructive_interference_size) ToDeviceBuffer {
+  struct alignas(64) ToDeviceBuffer {
     TrackData *tracks;
     unsigned int maxTracks;
     std::atomic_uint nTrack;
