@@ -30,6 +30,7 @@
 namespace adeptint {
 TrackBuffer::TrackHandle adeptint::TrackBuffer::createToDeviceSlot()
 {
+  bool warningIssued = false;
   while (true) {
     auto &toDevice = getActiveBuffer();
     std::shared_lock lock{toDevice.mutex};
@@ -38,7 +39,10 @@ TrackBuffer::TrackHandle adeptint::TrackBuffer::createToDeviceSlot()
     if (slot < toDevice.maxTracks)
       return TrackHandle{toDevice.tracks[slot], std::move(lock)};
     else {
-      std::cerr << __FILE__ << ':' << __LINE__ << " To-device buffer too small" << std::endl;
+      if (!warningIssued) {
+        std::cerr << __FILE__ << ':' << __LINE__ << " Contention in to-device queue; thread sleeping" << std::endl;
+        warningIssued = true;
+      }
       using namespace std::chrono_literals;
       std::this_thread::sleep_for(1ms);
     }
@@ -78,7 +82,7 @@ void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned int trac
     fGPUNetEnergy[threadId] += energy;
     if (fDebugLevel > 2) {
       G4cout << "-> [" << threadId << "," << eventId << "," << trackId << "]: " << track << "\tnet GPU energy "
-             << std::setprecision(6) << fGPUNetEnergy[threadId] << "\n";
+             << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
     }
   }
 
@@ -140,8 +144,8 @@ void AdeptIntegration::InitBVH()
 void AdeptIntegration::Flush(G4int threadId, G4int eventId)
 {
   fEventStates[threadId].store(EventState::FlushRequested, std::memory_order_release);
-  if (fDebugLevel > 0) {
-      G4cout << "Flushing AdePT for thread " << threadId << " event " << eventId << "\n";
+  if (fDebugLevel > 1) {
+      G4cout << "Flushing AdePT for thread " << threadId << " event " << eventId << G4endl;
   }
 
   std::vector<adeptint::TrackData> tracks;
