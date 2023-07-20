@@ -321,7 +321,7 @@ void allocToDeviceTrackData(GPUstate &gpuState, unsigned int numToDevice)
   COPCORE_CUDA_CHECK(
       cudaMallocHost(&hostPtr, 2 * numToDevice * sizeof(TrackData))); // Double the size to switch between buffers
   COPCORE_CUDA_CHECK(cudaMalloc(&devPtr, numToDevice * sizeof(TrackData)));
-  gpuState.toDevice_host = {hostPtr, adeptint::cudaDeleter};
+  gpuState.toDevice_host = {hostPtr, adeptint::cudaHostDeleter};
   gpuState.toDevice_dev  = {devPtr, adeptint::cudaDeleter};
 }
 
@@ -332,7 +332,7 @@ void allocFromDeviceTrackData(GPUstate &gpuState, unsigned int numFromDevice)
   adeptint::TrackData *devPtr, *hostPtr;
   COPCORE_CUDA_CHECK(cudaMallocHost(&hostPtr, numFromDevice * sizeof(TrackData)));
   COPCORE_CUDA_CHECK(cudaMalloc(&devPtr, numFromDevice * sizeof(TrackData)));
-  gpuState.fromDevice_host = {hostPtr, adeptint::cudaDeleter};
+  gpuState.fromDevice_host = {hostPtr, adeptint::cudaHostDeleter};
   gpuState.fromDevice_dev  = {devPtr, adeptint::cudaDeleter};
 }
 } // namespace
@@ -650,8 +650,13 @@ void AdeptIntegration::TransportLoop()
       if (iteration % 5 == 4 && numLeaked > 0) {
         // Ensure proper size of the buffer
         if (static_cast<unsigned int>(numLeaked) > gpuState.fNumFromDevice) {
-          allocFromDeviceTrackData(gpuState, gpuState.fNumFromDevice * 2);
-          std::cerr << __FILE__ << ": Increased fromDevice buffer to " << gpuState.fNumFromDevice << "\n";
+          unsigned int newSize = gpuState.fNumFromDevice;
+          while (newSize < static_cast<unsigned int>(numLeaked))
+            newSize *= 2;
+
+          std::cerr << __FILE__ << ':' << __LINE__ << ": Increasing fromDevice buffer to " << newSize
+                    << " to accommodate " << numLeaked << "\n";
+          allocFromDeviceTrackData(gpuState, newSize);
         }
 
         // Populate the staging buffer, copy to host, and clear the queues of leaked tracks
