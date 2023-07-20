@@ -168,12 +168,12 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
-      electron.InitAsSecondary(pos, navState);
+      electron.InitAsSecondary(pos, navState, currentTrack);
       electron.rngState = newRNG;
       electron.energy   = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
-      positron.InitAsSecondary(pos, navState);
+      positron.InitAsSecondary(pos, navState, currentTrack);
       // Reuse the RNG state of the dying track.
       positron.rngState = currentTrack.rngState;
       positron.energy   = posKinEnergy;
@@ -202,7 +202,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         Track &electron = secondaries.electrons.NextTrack();
         userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
-        electron.InitAsSecondary(pos, navState);
+        electron.InitAsSecondary(pos, navState, currentTrack);
         electron.rngState = newRNG;
         electron.energy   = energyEl;
         electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
@@ -243,7 +243,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         double dirPhotoElec[3];
         G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-        electron.InitAsSecondary(pos, navState);
+        electron.InitAsSecondary(pos, navState, currentTrack);
         electron.rngState = newRNG;
         electron.energy   = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
