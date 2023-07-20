@@ -33,7 +33,7 @@
 #include <CopCore/SystemOfUnits.h>
 #include <AdePT/ArgParser.h>
 #include <AdePT/NVTX.h>
-#include <AdePT/BenchmarkManager.h>
+#include <AdePT/TestManager.h>
 
 static constexpr double DefaultCut = 0.7 * mm;
 
@@ -203,20 +203,20 @@ int main(int argc, char *argv[])
   timer.Start();
 
   NVTXTracer tracer("InitG4");
-  BenchmarkManager<std::string> aBenchmarkManager;
-  aBenchmarkManager.setOutputDirectory(benchmark_directory);
-  aBenchmarkManager.setOutputFilename(benchmark_filename);
+  TestManager<std::string> aTestManager;
+  aTestManager.setOutputDirectory(benchmark_directory);
+  aTestManager.setOutputFilename(benchmark_filename);
 
-  aBenchmarkManager.timerStart("Total time");
-  aBenchmarkManager.timerStart("InitG4");
+  aTestManager.timerStart("Total time");
+  aTestManager.timerStart("InitG4");
 
   // Initialize Geant4
   auto g4world = InitGeant4(gdml_file);
   if (!g4world) return 3;
 
   tracer.setTag("InitVecGeom");
-  aBenchmarkManager.timerStop("InitG4");
-  aBenchmarkManager.timerStart("InitVecGeom");
+  aTestManager.timerStop("InitG4");
+  aTestManager.timerStart("InitVecGeom");
   // Initialize VecGeom
   std::cout << "reading " << gdml_file << " transiently on CPU for VecGeom ...\n";
   auto world = InitVecGeom(gdml_file, cache_depth);
@@ -224,8 +224,8 @@ int main(int argc, char *argv[])
 
   // Construct and initialize the G4HepEmState data/tables
   tracer.setTag("InitG4HepEM");
-  aBenchmarkManager.timerStop("InitVecGeom");
-  aBenchmarkManager.timerStart("InitG4HepEM");
+  aTestManager.timerStop("InitVecGeom");
+  aTestManager.timerStart("InitG4HepEM");
   std::cout << "initializing G4HepEm state ...\n";
   G4HepEmState hepEmState;
   InitG4HepEmState(&hepEmState);
@@ -233,8 +233,8 @@ int main(int argc, char *argv[])
   // Initialize G4HepEm material-cut couple array indexed by VecGeom volume id.
   // (In future we should connect the index directly to the VecGeom logical volume)
   tracer.setTag("InitMaterialCutCouple");
-  aBenchmarkManager.timerStop("InitG4HepEM");
-  aBenchmarkManager.timerStart("InitMaterialCutCouple");
+  aTestManager.timerStop("InitG4HepEM");
+  aTestManager.timerStart("InitMaterialCutCouple");
   std::cout << "initializing material-cut couple indices ...\n";
   int *MCCindex = nullptr;
 
@@ -247,8 +247,8 @@ int main(int argc, char *argv[])
 
   // Load and synchronize the geometry on the GPU
   tracer.setTag("SyncGeom");
-  aBenchmarkManager.timerStop("InitMaterialCutCouple");
-  aBenchmarkManager.timerStart("SyncGeom");
+  aTestManager.timerStop("InitMaterialCutCouple");
+  aTestManager.timerStart("SyncGeom");
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   // Adjust stack size to avoid lane user stack overflow
@@ -257,10 +257,10 @@ int main(int argc, char *argv[])
   cudaManager.Synchronize();
 
   tracer.setTag("InitBVH");
-  aBenchmarkManager.timerStop("SyncGeom");
-  aBenchmarkManager.timerStart("InitBVH");
+  aTestManager.timerStop("SyncGeom");
+  aTestManager.timerStart("InitBVH");
   InitBVH();
-  aBenchmarkManager.timerStop("InitBVH");
+  aTestManager.timerStop("InitBVH");
 
   auto time_cpu = timer.Stop();
   std::cout << "Initialization took: " << time_cpu << " sec\n";
@@ -277,10 +277,10 @@ int main(int argc, char *argv[])
   GlobalScoring globalScoring;
 
   tracer.setTag("callExample13");
-  aBenchmarkManager.timerStart("GPU Transport");
+  aTestManager.timerStart("GPU Transport");
   example13(particles, energy, batch, MCCindex, &scoringPerVolume, &globalScoring, NumVolumes, NumPlaced, &hepEmState,
             rotatingParticleGun);
-  aBenchmarkManager.timerStop("GPU Transport");
+  aTestManager.timerStop("GPU Transport");
 
   std::cout << std::endl;
   std::cout << std::endl;
@@ -316,8 +316,8 @@ int main(int argc, char *argv[])
   delete[] chargedTrackLength;
   delete[] energyDeposit;
 
-  aBenchmarkManager.timerStop("Total time");
-  aBenchmarkManager.exportCSV();
+  aTestManager.timerStop("Total time");
+  aTestManager.exportCSV();
 
   return 0;
 }

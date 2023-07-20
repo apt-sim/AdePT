@@ -13,17 +13,18 @@
 
 void ParticleGun::GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi, G4double aMaxPhi, G4double aMinTheta,
                                               G4double aMaxTheta, std::vector<G4ParticleDefinition *> *aParticleList,
-                                              std::vector<float> *aParticleWeights)
+                                              std::vector<float> *aParticleWeights,
+                                              std::vector<float> *aParticleEnergies)
 {
   // Choose a particle from the list
   float choice = G4UniformRand();
   float weight = 0;
-  G4ParticleDefinition *aParticleDefinition;
 
   for (int i = 0; i < aParticleList->size(); i++) {
     weight += (*aParticleWeights)[i];
     if (weight > choice) {
       SetParticleDefinition((*aParticleList)[i]);
+      SetParticleEnergy((*aParticleEnergies)[i]);
       break;
     }
   }
@@ -60,6 +61,7 @@ void ParticleGun::GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi,
       weight += (*aParticleWeights)[i];
       if (weight > choice) {
         SetParticleDefinition((*aParticleList)[i]);
+        SetParticleEnergy((*aParticleEnergies)[i]);
         break;
       }
     }

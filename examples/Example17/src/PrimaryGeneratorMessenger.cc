@@ -16,6 +16,7 @@
 #include "G4UIcmdWithAString.hh"
 #include "G4ParticleTable.hh"
 #include "G4Tokenizer.hh"
+#include "G4UnitsTable.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -55,8 +56,11 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun
   fRandomizeGunCmd->AvailableForStates(G4State_Idle);
 
   fAddParticleCmd = new G4UIcmdWithAString("/example17/gun/addParticle", this);
-  fAddParticleCmd->SetGuidance("When using randomization, add a particle to the list of possibilities, with the option "
-                               "to provide a weight to indicate how often it should appear");
+  fAddParticleCmd->SetGuidance("When using randomization, add a particle to the list of possibilities\n\
+                                Usage: /example17/gun/addParticle type [\"weight\" weight] [\"energy\" energy unit]\n\
+                                type: particle name\n\
+                                weight: probability that the particle will appear, between 0 and 1\n\
+                                energy: energy and unit for this type of particle\n");
   fAddParticleCmd->SetParameterName("rParticleName", false);
   fAddParticleCmd->SetDefaultValue("geantino");
 
@@ -143,18 +147,32 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newVa
     while ((str = tkn()) != "") {
       token_vector->push_back(str);
     }
-    // User didn't provide a weight, use the default value
-    if (token_vector->size() == 1) {
-      G4ParticleDefinition *pd = G4ParticleTable::GetParticleTable()->FindParticle((*token_vector)[0]);
-      fAction->AddParticle(pd);
-    } else if (token_vector->size() == 2) {
-      G4ParticleDefinition *pd = G4ParticleTable::GetParticleTable()->FindParticle((*token_vector)[0]);
-      fAction->AddParticle(pd, stof((*token_vector)[1]));
-    } else {
-      G4Exception(
-          "PrimaryGeneratorMessenger::SetNewValue()", "Notification", JustWarning,
-          ("usage: addParticle particleName [weight], received too many arguments, ignoring: " + newValue).c_str());
+    //The particle type is mandatory and must be the first argument
+    G4ParticleDefinition *pd;
+    float weight = -1;
+    double energy = -1;
+    if (token_vector->size() >= 1) {
+      pd = G4ParticleTable::GetParticleTable()->FindParticle((*token_vector)[0]);
     }
+    else
+    {
+      G4Exception("PrimaryGeneratorMessenger::SetNewValue()", "Notification", JustWarning,
+                  "No arguments provided. Usage: addParticle type [\"weight\" weight] [\"energy\" energy unit]");
+    }
+
+    for(int i=1; i<token_vector->size(); i++)
+    {
+      if((*token_vector)[i] == "weight")
+      {
+        weight = stof((*token_vector)[++i]);
+      }
+      if((*token_vector)[i] == "energy")
+      {
+        energy = stof((*token_vector)[++i]) * G4UnitDefinition::GetValueOf((*token_vector)[++i]);
+      }
+    }
+
+    fAction->AddParticle(pd, weight, energy);
   }
 
   if (command == fMinPhiCmd) {

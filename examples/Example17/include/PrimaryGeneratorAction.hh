@@ -51,13 +51,13 @@ public:
   virtual ~PrimaryGeneratorAction();
 
   void Print() const;
+  void PrintPrimaries(G4Event* aEvent) const;
   void SetHepMC() {fUseHepMC = true;}
   void SetDefaultKinematic();
   void SetRndmBeam(G4double val) { fRndmBeam = val; }
   void SetRndmDirection(G4double val) { fRndmDirection = val; }
   void SetRandomizeGun(G4bool val) { fRandomizeGun = val; }
-  void AddParticle(G4ParticleDefinition* val, float weight=-1) { fParticleList->push_back(val);
-                                                              fParticleWeights->push_back(weight); }
+  void AddParticle(G4ParticleDefinition* val, float weight=-1, double energy=-1);
   void SetMinPhi(G4double val) { fMinPhi = val; }
   void SetMaxPhi(G4double val) { fMaxPhi = val; }
   void SetMinTheta(G4double val) { fMinTheta = val; }
@@ -87,7 +87,8 @@ private:
   bool fRandomizeGun;
   std::vector<G4ParticleDefinition*> *fParticleList;
   std::vector<float> *fParticleWeights;
-  bool fReWeightingDone;
+  std::vector<float> *fParticleEnergies;
+  bool fInitializationDone;
   G4double fMinPhi;
   G4double fMaxPhi;
   G4double fMinTheta;

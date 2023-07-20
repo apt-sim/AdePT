@@ -2,26 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @file BenchmarkManager.h
+ * @file TestManager.h
  * @brief Benchmarking utilities: Timers, accumulators and formatted output.
  */
 
-#ifndef BENCHMARK_H
-#define BENCHMARK_H
-
-#if defined BENCHMARK
-
-// Entry management
-#include <map>
-#include <string>
-// Timing
-#include <chrono>
-// Output
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-// Output files and directories
-#include <filesystem>
+#ifndef TEST_H
+#define TEST_H
 
 // The clock to use for measurements
 #define CLOCK std::chrono::system_clock
@@ -39,8 +25,22 @@ struct TimeInfo {
   bool counting;                                                        ///< Whether the timer is running
 };
 
+#if defined TEST
+
+// Entry management
+#include <map>
+#include <string>
+// Timing
+#include <chrono>
+// Output
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+// Output files and directories
+#include <filesystem>
+
 template <class TTag>
-class BenchmarkManager {
+class TestManager {
 
 private:
   std::map<TTag, TimeInfo> fTimers;     ///< Maps a tag to a TimeInfo struct
@@ -49,9 +49,9 @@ private:
   std::string fOutputFilename;          ///< Output filename
 
 public:
-  BenchmarkManager(){};
+  TestManager(){};
 
-  ~BenchmarkManager(){};
+  ~TestManager(){};
 
   /** @brief Sets a timestamp associated to this timer tag */
   void timerStart(TTag tag)
@@ -111,17 +111,35 @@ public:
   /** @brief Checks if an accumulator is in the map */
   bool hasAccumulator(TTag tag) const { return fAccumulators.find(tag) != fAccumulators.end(); }
 
+  /** @brief Returns the timer map */
+  std::map<TTag, TimeInfo>* getTimers() 
+  {
+    return &fTimers;
+  }
+  
+  /** @brief Returns the accumulator map */
+  std::map<TTag, double>* getAccumulators() 
+  {
+    return &fAccumulators;
+  }
+
   /** @brief Sets the output directory variable */
   void setOutputDirectory(std::string aOutputDir)
   {
     fOutputDir = aOutputDir;
   }
 
+  /** @brief Returns the output directory */
+  std::string getOutputDirectory(){ return fOutputDir; }
+
   /** @brief Sets the output filename variable */
   void setOutputFilename(std::string aOutputFilename)
   {
     fOutputFilename = aOutputFilename;
   }
+
+  /** @brief Returns the output filename */
+  std::string getOutputFilename(){ return fOutputFilename; }
 
   /** @brief Export a CSV file with the timer names as labels and the accumulated time for each */
   // If the file is not empty, write only the times
@@ -171,17 +189,17 @@ public:
     }
     output_file << std::endl;
 
-    std::cout << "BENCHMARK: Results saved to: " << aOutputDir << "/" << aOutputFilename << ".csv" << std::endl;
+    std::cout << "TEST: Results saved to: " << aOutputDir << "/" << aOutputFilename << ".csv" << std::endl;
   }
 };
 
 #else
 
 template <class TTag>
-class BenchmarkManager {
+class TestManager {
 public:
-  BenchmarkManager(){};
-  ~BenchmarkManager(){};
+  TestManager(){};
+  ~TestManager(){};
   void timerStart(TTag tag) {}
   void timerStop(TTag tag) {}
   double getDurationSeconds(TTag tag) { return 0; }
@@ -193,8 +211,12 @@ public:
   bool hasTimer(TTag tag) { return false; }
   void removeAccumulator(TTag tag) {}
   bool hasAccumulator(TTag tag) { return 0; }
+  std::map<TTag, TimeInfo>* getTimers() { return 0; }
+  std::map<TTag, double>* getAccumulators() { return 0;}
   void setOutputDirectory(std::string aOutputDir) {}
+  std::string getOutputDirectory(){ return ""; }
   void setOutputFilename(std::string aOutputFilename) {}
+  std::string getOutputFilename(){ return ""; }
   void exportCSV() {}
 };
 

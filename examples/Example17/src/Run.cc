@@ -5,72 +5,110 @@
 #include "G4Run.hh"
 #include "Run.hh"
 
-#include "BenchmarkManager.h"
+#include "TestManager.h"
+#include "TestManagerStore.h"
 #include <cmath>
 
 #define STDEV(N, MEAN, SUM_SQUARES) N > 1 ? sqrt((SUM_SQUARES - N * MEAN * MEAN) / N) : 0
 
 Run::Run()
 {
-  fBenchmarkManager = new BenchmarkManager<TAG_TYPE>();
+  fTestManager = new TestManager<TAG_TYPE>();
 }
 
 Run::~Run() {}
 
 void Run::Merge(const G4Run *run)
 {
-  const Run *localRun = static_cast<const Run *>(run);
+  if(fDoBenchmark)
+  {
+    const Run *localRun = static_cast<const Run *>(run);
 
-  BenchmarkManager<TAG_TYPE> *aBenchmarkManager = localRun->getBenchmarkManager();
+    TestManager<TAG_TYPE> *aTestManager = localRun->GetTestManager();
 
-  fBenchmarkManager->addToAccumulator(accumulators::EVENT_SUM, aBenchmarkManager->getAccumulator(accumulators::EVENT_SUM));
-  fBenchmarkManager->addToAccumulator(accumulators::EVENT_SQ, aBenchmarkManager->getAccumulator(accumulators::EVENT_SQ));
-  fBenchmarkManager->addToAccumulator(accumulators::NONEM_SUM, aBenchmarkManager->getAccumulator(accumulators::NONEM_SUM));
-  fBenchmarkManager->addToAccumulator(accumulators::NONEM_SQ, aBenchmarkManager->getAccumulator(accumulators::NONEM_SQ));
-  fBenchmarkManager->addToAccumulator(accumulators::ECAL_SUM, aBenchmarkManager->getAccumulator(accumulators::ECAL_SUM));
-  fBenchmarkManager->addToAccumulator(accumulators::ECAL_SQ, aBenchmarkManager->getAccumulator(accumulators::ECAL_SQ));
+    fTestManager->addToAccumulator(accumulators::EVENT_SUM,
+                                        aTestManager->getAccumulator(accumulators::EVENT_SUM));
+    fTestManager->addToAccumulator(accumulators::EVENT_SQ,
+                                        aTestManager->getAccumulator(accumulators::EVENT_SQ));
+    fTestManager->addToAccumulator(accumulators::NONEM_SUM,
+                                        aTestManager->getAccumulator(accumulators::NONEM_SUM));
+    fTestManager->addToAccumulator(accumulators::NONEM_SQ,
+                                        aTestManager->getAccumulator(accumulators::NONEM_SQ));
+    fTestManager->addToAccumulator(accumulators::ECAL_SUM,
+                                        aTestManager->getAccumulator(accumulators::ECAL_SUM));
+    fTestManager->addToAccumulator(accumulators::ECAL_SQ, aTestManager->getAccumulator(accumulators::ECAL_SQ));
+  }
 
   G4Run::Merge(run);
 }
 
-void Run::EndOfRunSummary()
+void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename,
+                          DetectorConstruction *aDetector)
 {
-  double runTime    = fBenchmarkManager->getDurationSeconds(timers::TOTAL);
-  double eventMean  = fBenchmarkManager->getAccumulator(accumulators::EVENT_SUM) / GetNumberOfEvent();
-  double eventStdev = STDEV(GetNumberOfEvent(), eventMean, fBenchmarkManager->getAccumulator(accumulators::EVENT_SQ));
+  if(fDoBenchmark && !fDoValidation)
+  {
+    // Printout of global statistics
+    double runTime    = fTestManager->getDurationSeconds(timers::TOTAL);
+    double eventMean  = fTestManager->getAccumulator(accumulators::EVENT_SUM) / GetNumberOfEvent();
+    double eventStdev = STDEV(GetNumberOfEvent(), eventMean, fTestManager->getAccumulator(accumulators::EVENT_SQ));
 
-  double nonEMMean  = fBenchmarkManager->getAccumulator(accumulators::NONEM_SUM) / GetNumberOfEvent();
-  double nonEMStdev = STDEV(GetNumberOfEvent(), nonEMMean, fBenchmarkManager->getAccumulator(accumulators::NONEM_SQ));
+    double nonEMMean  = fTestManager->getAccumulator(accumulators::NONEM_SUM) / GetNumberOfEvent();
+    double nonEMStdev = STDEV(GetNumberOfEvent(), nonEMMean, fTestManager->getAccumulator(accumulators::NONEM_SQ));
 
-  double ecalMean  = fBenchmarkManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
-  double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fBenchmarkManager->getAccumulator(accumulators::ECAL_SQ));
+    double ecalMean  = fTestManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
+    double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fTestManager->getAccumulator(accumulators::ECAL_SQ));
 
-  G4cout << "------------------------------------------------------------"
-         << "\n";
-  G4cout << "BENCHMARK: Run: " << GetRunID() << "\n";
-  G4cout << "BENCHMARK: Number of Events: " << GetNumberOfEvent() << "\n";
-  G4cout << "BENCHMARK: Run time: " << runTime << "\n";
-  G4cout << "BENCHMARK: Mean Event time: " << eventMean << "\n";
-  G4cout << "BENCHMARK: Event Standard Deviation: " << eventStdev << "\n";
-  G4cout << "BENCHMARK: Mean Non EM time: " << nonEMMean << "\n";
-  G4cout << "BENCHMARK: Non EM Standard Deviation: " << nonEMStdev << "\n";
-  G4cout << "BENCHMARK: Mean ECAL e-, e+ and gammas time: " << ecalMean << "\n";
-  G4cout << "BENCHMARK: ECAL e-, e+ and gammas Standard Deviation: " << ecalStdev << "\n";
-  G4cout << "BENCHMARK: Mean proportion of time spent simulating e-, e+ and gammas in ECAL: "
-         << 100 * ecalMean / eventMean << "%\n";
+    G4cout << "------------------------------------------------------------"
+          << "\n";
+    G4cout << "BENCHMARK: Run: " << GetRunID() << "\n";
+    G4cout << "BENCHMARK: Number of Events: " << GetNumberOfEvent() << "\n";
+    G4cout << "BENCHMARK: Run time: " << runTime << "\n";
+    G4cout << "BENCHMARK: Mean Event time: " << eventMean << "\n";
+    G4cout << "BENCHMARK: Event Standard Deviation: " << eventStdev << "\n";
+    G4cout << "BENCHMARK: Mean Non EM time: " << nonEMMean << "\n";
+    G4cout << "BENCHMARK: Non EM Standard Deviation: " << nonEMStdev << "\n";
+    G4cout << "BENCHMARK: Mean ECAL e-, e+ and gammas time: " << ecalMean << "\n";
+    G4cout << "BENCHMARK: ECAL e-, e+ and gammas Standard Deviation: " << ecalStdev << "\n";
+    G4cout << "BENCHMARK: Mean proportion of time spent simulating e-, e+ and gammas in ECAL: "
+          << 100 * ecalMean / eventMean << "%\n";
+  }
 
-  // Export the results
-  BenchmarkManager<std::string> *aBenchmarkManager = new BenchmarkManager<std::string>();
-  aBenchmarkManager->setAccumulator("Number of Events", GetNumberOfEvent());
-  aBenchmarkManager->setAccumulator("Number of Threads", G4RunManager::GetRunManager()->GetNumberOfThreads());
-  aBenchmarkManager->setAccumulator("Run time", runTime);
-  aBenchmarkManager->setAccumulator("Event mean", eventMean);
-  aBenchmarkManager->setAccumulator("Event stdev", eventStdev);
-  aBenchmarkManager->setAccumulator("Non EM mean", nonEMMean);
-  aBenchmarkManager->setAccumulator("Non EM stdev", nonEMStdev);
-  aBenchmarkManager->setAccumulator("ECAL mean", ecalMean);
-  aBenchmarkManager->setAccumulator("ECAL stdev", ecalStdev);
+  // Export the results per event
+  std::vector<std::map<int, double>> *aBenchmarkStates = TestManagerStore<int>::GetInstance()->GetStates();
+  TestManager<std::string> aOutputTestManager;
 
-  aBenchmarkManager->setOutputFilename("example17");
-  aBenchmarkManager->exportCSV();
+  for (int i = 0; i < aBenchmarkStates->size(); i++) {
+    if(fDoValidation)
+    {
+      // If we are taking validation data, export it to the specified file
+      auto &groups = aDetector->GetSensitiveGroups();
+      int ngroups  = groups.size();
+      for (int igroup = 0; igroup < ngroups; ++igroup) {
+        aOutputTestManager.setAccumulator(groups[igroup],
+                                              (*aBenchmarkStates)[i][igroup + Run::accumulators::NUM_ACCUMULATORS]);
+      }
+      aOutputTestManager.setOutputDirectory(aOutputDirectory);
+      aOutputTestManager.setOutputFilename(aOutputFilename);
+      aOutputTestManager.exportCSV();
+
+      aOutputTestManager.reset();
+    }
+    else if(fDoBenchmark)
+    {
+      // Recover the results from each event and output them to the specified file
+      double eventTime = (*aBenchmarkStates)[i][Run::timers::EVENT];
+      double nonEMTime = (*aBenchmarkStates)[i][Run::accumulators::NONEM_EVT];
+      double ecalTime  = eventTime - nonEMTime;
+      aOutputTestManager.setAccumulator("Event", eventTime);
+      aOutputTestManager.setAccumulator("Non EM", nonEMTime);
+      aOutputTestManager.setAccumulator("ECAL", ecalTime);
+
+      aOutputTestManager.setOutputDirectory(aOutputDirectory);
+      aOutputTestManager.setOutputFilename(aOutputFilename);
+      aOutputTestManager.exportCSV();
+
+      aOutputTestManager.reset();
+    }
+  }
+  TestManagerStore<int>::GetInstance()->Reset();
 }
