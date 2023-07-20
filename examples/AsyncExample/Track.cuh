@@ -31,7 +31,7 @@ struct Track {
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
   __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
-                                           const vecgeom::NavStateIndex &parentNavState)
+                                           const vecgeom::NavStateIndex &parentNavState, const Track &parentTrack)
   {
     // The caller is responsible to branch a new RNG state and to set the energy.
     this->numIALeft[0] = -1.0;
@@ -46,6 +46,8 @@ struct Track {
     // to update the directions.
     this->pos      = parentPos;
     this->navState = parentNavState;
+    this->eventId  = parentTrack.eventId;
+    this->threadId = parentTrack.threadId;
   }
 };
 #endif
