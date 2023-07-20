@@ -217,13 +217,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         double sinPhi, cosPhi;
         sincos(phi, &sinPhi, &cosPhi);
 
-        gamma1.InitAsSecondary(pos, navState);
+        gamma1.InitAsSecondary(pos, navState, currentTrack);
         newRNG.Advance();
         gamma1.rngState = newRNG;
         gamma1.energy   = copcore::units::kElectronMassC2;
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
-        gamma2.InitAsSecondary(pos, navState);
+        gamma2.InitAsSecondary(pos, navState, currentTrack);
         // Reuse the RNG state of the dying track.
         gamma2.rngState = currentTrack.rngState;
         gamma2.energy   = copcore::units::kElectronMassC2;
@@ -305,7 +305,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
-      secondary.InitAsSecondary(pos, navState);
+      secondary.InitAsSecondary(pos, navState, currentTrack);
       secondary.rngState = newRNG;
       secondary.energy   = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
@@ -331,7 +331,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       Track &gamma = secondaries.gammas.NextTrack();
       userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
-      gamma.InitAsSecondary(pos, navState);
+      gamma.InitAsSecondary(pos, navState, currentTrack);
       gamma.rngState = newRNG;
       gamma.energy   = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
@@ -353,12 +353,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       Track &gamma2 = secondaries.gammas.NextTrack();
       userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
-      gamma1.InitAsSecondary(pos, navState);
+      gamma1.InitAsSecondary(pos, navState, currentTrack);
       gamma1.rngState = newRNG;
       gamma1.energy   = theGamma1Ekin;
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
-      gamma2.InitAsSecondary(pos, navState);
+      gamma2.InitAsSecondary(pos, navState, currentTrack);
       // Reuse the RNG state of the dying track.
       gamma2.rngState = currentTrack.rngState;
       gamma2.energy   = theGamma2Ekin;
