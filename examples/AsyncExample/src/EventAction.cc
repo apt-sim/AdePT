@@ -37,6 +37,8 @@
 
 #include "G4GlobalFastSimulationManager.hh"
 
+#include <vector>
+
 EventAction::EventAction(DetectorConstruction *aDetector) : G4UserEventAction(), fDetector(aDetector), fHitCollectionID(-1), fTimer()
 {
   fMessenger = new EventActionMessenger(this);
@@ -86,19 +88,17 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   // print number of secondares std::setw(24) << std::fixed
   if (fVerbosity > 0) {
-    G4cout << "EndOfEventAction " << eventId << ": electrons " << std::setw(9) << std::right << number_electrons
-           << G4endl;
+    G4cout << "\nEndOfEventAction " << eventId << ": electrons " << std::setw(9) << std::right << number_electrons
+           << "\n";
     G4cout << "EndOfEventAction " << eventId << ": positrons " << std::setw(9) << std::right << number_positrons
-           << G4endl;
-    G4cout << "EndOfEventAction " << eventId << ": gammas    " << std::setw(9) << std::right << number_gammas << G4endl;
-    G4cout << "EndOfEventAction " << eventId << ": killed    " << std::setw(9) << std::right << number_killed << G4endl;
+           << "\n";
+    G4cout << "EndOfEventAction " << eventId << ": gammas    " << std::setw(9) << std::right << number_gammas << "\n";
+    G4cout << "EndOfEventAction " << eventId << ": killed    " << std::setw(9) << std::right << number_killed << "\n";
   }
 
   auto &groups = fDetector->GetSensitiveGroups();
   int ngroups = groups.size();
-  double *edep_groups = nullptr;
-  if (ngroups > 0) edep_groups = new double[ngroups];
-  for (auto i = 0; i< ngroups; ++i) edep_groups[i] = 0;
+  std::vector<double> edep_groups(ngroups, 0.);
 
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
     hit   = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
@@ -118,8 +118,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
     if (hitEn > 1 && fVerbosity > 1)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
-             << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;
-
+             << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << "\n";
   }
 
   if (fVerbosity > 1) {
@@ -133,5 +132,4 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << " : Total energy deposited: " << std::setw(9) << totalEnergy / GeV
            << " GeV" << G4endl;
   }
-  delete [] edep_groups;
 }
