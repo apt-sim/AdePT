@@ -339,6 +339,8 @@ void allocFromDeviceTrackData(GPUstate &gpuState, unsigned int numFromDevice)
 
 void AdeptIntegration::InitializeGPU()
 {
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
+
   using TrackData    = adeptint::TrackData;
   fGPUstate          = std::make_unique<GPUstate>();
   GPUstate &gpuState = *fGPUstate;
