@@ -447,10 +447,17 @@ void AdeptIntegration::TransportLoop()
 
   cudaEvent_t cudaEvent;
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
-  adeptint::unique_ptr_cudaEvent cudaEventCleanup{&cudaEvent, &adeptint::cudaEventDeleter};
+  auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
+    constexpr int TransportThreads             = 256;
+    constexpr int LowOccupancyTransportThreads = 32;
 
-  constexpr int MaxBlocks        = 1024;
-  constexpr int TransportThreads = 256;
+    int transportBlocks = (nParticles + TransportThreads - 1) / TransportThreads;
+    if (transportBlocks < 10) {
+      transportBlocks = (nParticles + LowOccupancyTransportThreads - 1) / LowOccupancyTransportThreads;
+      return {LowOccupancyTransportThreads, transportBlocks};
+    }
+    return {TransportThreads, transportBlocks};
+  };
 
   SlotManager *const slotMgrArray = gpuState.particles[0].slotManager;
   while (gpuState.runTransport) {
@@ -547,10 +554,8 @@ void AdeptIntegration::TransportLoop()
       // *** ELECTRONS ***
       const auto numElectrons = gpuState.stats->inFlight[ParticleType::Electron];
       if (numElectrons > 0) {
-        int transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
-        transportBlocks     = std::min(transportBlocks, MaxBlocks);
-
-        TransportElectrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
+        const auto [threads, blocks] = computeThreadsAndBlocks(numElectrons);
+        TransportElectrons<AdeptScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
             electrons.queues.leakedTracks, fScoring_dev);
 
@@ -561,10 +566,8 @@ void AdeptIntegration::TransportLoop()
       // *** POSITRONS ***
       const auto numPositrons = gpuState.stats->inFlight[ParticleType::Positron];
       if (numPositrons > 0) {
-        int transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
-        transportBlocks     = std::min(transportBlocks, MaxBlocks);
-
-        TransportPositrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
+        const auto [threads, blocks] = computeThreadsAndBlocks(numPositrons);
+        TransportPositrons<AdeptScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
             positrons.queues.leakedTracks, fScoring_dev);
 
@@ -575,12 +578,10 @@ void AdeptIntegration::TransportLoop()
       // *** GAMMAS ***
       const auto numGammas = gpuState.stats->inFlight[ParticleType::Gamma];
       if (numGammas > 0) {
-        int transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
-        transportBlocks     = std::min(transportBlocks, MaxBlocks);
-
-        TransportGammas<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracks, fScoring_dev);
+        const auto [threads, blocks] = computeThreadsAndBlocks(numGammas);
+        TransportGammas<AdeptScoring>
+            <<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gammas.queues.currentlyActive, secondaries,
+                                                    gammas.queues.nextActive, gammas.queues.leakedTracks, fScoring_dev);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
