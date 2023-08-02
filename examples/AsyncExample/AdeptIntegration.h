@@ -68,9 +68,9 @@ private:
   std::unordered_map<const G4VPhysicalVolume *, int> &fScoringMap;    ///< Map used by G4 for scoring
   std::thread fGPUWorker;                                             ///< Thread to manage GPU
   enum class EventState : unsigned char {
-    NewTracksForDevice,
-    Transporting,
-    FlushRequested,
+    NewTracksFromG4,
+    InjectionRunning,
+    TracksInjected,
     DeviceFlushed,
     LeakedTracksRetrieved,
     ScoringRetrieved
@@ -96,8 +96,8 @@ public:
   ~AdeptIntegration();
 
   /// @brief Adds a track to the buffer
-  void AddTrack(G4int threadId, G4int eventId, unsigned int trackIndex, int pdg, double energy, double x, double y,
-                double z, double dirx, double diry, double dirz);
+  void AddTrack(G4int threadId, G4int eventId, unsigned short cycleNumber, unsigned int trackIndex, int pdg,
+                double energy, double x, double y, double z, double dirx, double diry, double dirz);
   /// @brief Set track capacity on GPU
   void SetTrackCapacity(size_t capacity) { fTrackCapacity = capacity; }
   /// @brief Set buffer threshold
@@ -109,7 +109,7 @@ public:
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize();
   /// @brief Finish GPU transport, bring hits and tracks to host
-  void Flush(G4int threadId, G4int eventId);
+  void Flush(G4int threadId, G4int eventId, unsigned short cycleNumber);
 };
 
 #endif

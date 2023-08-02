@@ -79,9 +79,10 @@ void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
   if (event != fLastEventId) {
     fLastEventId  = event;
     fTrackCounter = 0;
+    fCycleNumber  = 0;
   }
 
-  fAdept->AddTrack(thread, event, fTrackCounter++, pdg, energy, particlePosition[0], particlePosition[1],
+  fAdept->AddTrack(thread, event, fCycleNumber, fTrackCounter++, pdg, energy, particlePosition[0], particlePosition[1],
                    particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2]);
 }
 
@@ -90,9 +91,11 @@ void EMShowerModel::Flush()
   const auto threadId = G4Threading::G4GetThreadId();
   const auto event    = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
   if (fVerbosity > 0)
-    G4cout << "Waiting for AdePT to finish the transport for thread " << threadId << " event " << event << G4endl;
+    G4cout << "Waiting for AdePT to finish the transport for thread " << threadId << " event " << event << " cycle "
+           << fCycleNumber << G4endl;
 
-  fAdept->Flush(threadId, event);
+  fAdept->Flush(threadId, event, fCycleNumber);
+  fCycleNumber++;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

@@ -69,8 +69,9 @@ std::ostream &operator<<(std::ostream &stream, adeptint::TrackData const &track)
 }
 } // namespace
 
-void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned int trackId, int pdg, double energy, double x,
-                                double y, double z, double dirx, double diry, double dirz)
+void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned short cycleNumber, unsigned int trackId,
+                                int pdg, double energy, double x, double y, double z, double dirx, double diry,
+                                double dirz)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
@@ -78,10 +79,10 @@ void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned int trac
   }
 
   adeptint::TrackData track{threadId, eventId, trackId, pdg, energy, x, y, z, dirx, diry, dirz};
-  if (fDebugLevel > 1) {
+  if (fDebugLevel >= 2) {
     fGPUNetEnergy[threadId] += energy;
-    if (fDebugLevel > 2) {
-      G4cout << "-> [" << threadId << "," << eventId << "," << trackId << "]: " << track << "\tnet GPU energy "
+    if (fDebugLevel > 3) {
+      G4cout << "\n[_in," << eventId << "," << cycleNumber << "," << trackId << "]: " << track << "\tGPU net energy "
              << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
     }
   }
@@ -91,7 +92,8 @@ void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned int trac
     auto trackHandle  = fBuffer->createToDeviceSlot();
     trackHandle.track = std::move(track);
   }
-  fEventStates[threadId].store(EventState::NewTracksForDevice, std::memory_order_release);
+
+  fEventStates[threadId].store(EventState::NewTracksFromG4, std::memory_order_release);
 }
 
 void AdeptIntegration::Initialize()
@@ -141,43 +143,45 @@ void AdeptIntegration::InitBVH()
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 
-void AdeptIntegration::Flush(G4int threadId, G4int eventId)
+void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycleNumber)
 {
-  fEventStates[threadId].store(EventState::FlushRequested, std::memory_order_release);
-  if (fDebugLevel > 1) {
-      G4cout << "Flushing AdePT for thread " << threadId << " event " << eventId << G4endl;
+  if (fDebugLevel >= 3) {
+      G4cout << "\nFlushing AdePT for event " << eventId << " wave " << cycleNumber << G4endl;
   }
 
-  std::vector<adeptint::TrackData> tracks;
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
-  {
+
+  std::vector<adeptint::TrackData> tracks;
+  if (fEventStates[threadId].load(std::memory_order_acquire) < EventState::LeakedTracksRetrieved) {
       std::unique_lock lock{fBuffer->fromDeviceMutex};
       fBuffer->cv_fromDevice.wait(lock, [this, threadId]() {
         return fEventStates[threadId].load(std::memory_order_acquire) == EventState::DeviceFlushed;
       });
       tracks = std::move(fBuffer->fromDeviceBuffers[threadId]);
-      fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
   }
+  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
 
   // TODO: Sort tracks on device?
   assert(std::all_of(tracks.begin(), tracks.end(),
                      [threadId](adeptint::TrackData const &a) { return a.threadId == threadId; }));
-  // Sort by pdg id and energy to ensure reproducible random numbers
-  std::sort(tracks.begin(), tracks.end(), [](adeptint::TrackData const &a, adeptint::TrackData const &b) {
-    return a.pdg > b.pdg || (a.pdg == b.pdg && a < b);
-  });
+  std::sort(tracks.begin(), tracks.end());
 
   constexpr double tolerance = 10. * vecgeom::kTolerance;
-  const auto tid             = G4Threading::G4GetThreadId();
 
   // Build the secondaries and put them back on the Geant4 stack
   const auto oldEnergyTransferred = fGPUNetEnergy[threadId];
+  unsigned int trackId            = 0;
   for (const auto &track : tracks) {
-      if (fDebugLevel > 2) {
-        G4cout << "<- [" << tid << "," << track.eventId << "," << track.trackId << "]: " << track << "\tGPU net energy "
-               << std::setprecision(6) << fGPUNetEnergy[threadId] << "\n";
-        fGPUNetEnergy[threadId] -= track.energy;
+      assert(eventId == track.eventId);
+
+      if (fDebugLevel >= 2) {
+      fGPUNetEnergy[threadId] -= track.energy;
+      if (fDebugLevel > 3) {
+        G4cout << "\n[out," << track.eventId << "," << cycleNumber << "," << trackId++ << "]: " << track
+               << "\tGPU net energy " << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
       }
+      }
+
       G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
 
       G4DynamicParticle *dynamique =
@@ -194,25 +198,27 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
       G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }
 
-  if (fDebugLevel > 1) {
+  if (fDebugLevel >= 2) {
       std::stringstream str;
-      str << "[" << tid << "] Pushed " << tracks.size() << " tracks to G4, stack has "
-          << G4EventManager::GetEventManager()->GetStackManager()->GetNTotalTrack();
-      if (fDebugLevel > 1) {
-        str << "\tEnergy back to G4: " << std::setprecision(6)
-            << (oldEnergyTransferred - fGPUNetEnergy[threadId]) / CLHEP::GeV << "\tGPU net energy "
-            << std::setprecision(6) << fGPUNetEnergy[threadId] / CLHEP::GeV << " GeV";
-        str << "\t(" << countTracks(11, tracks) << ", " << countTracks(-11, tracks) << ", " << countTracks(22, tracks)
-            << ")";
-      }
+      str << "[" << eventId << "," << cycleNumber << "]: Pushed " << tracks.size() << " tracks to G4";
+      str << "\tEnergy back to G4: " << std::setprecision(6)
+          << (oldEnergyTransferred - fGPUNetEnergy[threadId]) / CLHEP::GeV << "\tGPU net energy "
+          << std::setprecision(6) << fGPUNetEnergy[threadId] / CLHEP::GeV << " GeV";
+      str << "\t(" << countTracks(11, tracks) << ", " << countTracks(-11, tracks) << ", " << countTracks(22, tracks)
+          << ")";
       G4cout << str.str() << G4endl;
   }
 
   if (tracks.empty()) {
-      fScoring[threadId].CopyHitsToHost();
-      fScoring[threadId].ClearGPU();
+      AdeptScoring &scoring = fScoring[threadId];
+      scoring.CopyHitsToHost();
+      scoring.ClearGPU();
+      fGPUNetEnergy[threadId] = 0.;
 
-      if (fDebugLevel > 1) fScoring[threadId].Print();
+      if (fDebugLevel >= 2) {
+      G4cout << "Scoring for event " << eventId << " cycle " << cycleNumber << G4endl;
+      scoring.Print();
+      }
 
       // Create energy deposit in the detector
       auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
@@ -220,14 +226,14 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
 
       for (auto id = 0; id != fNumSensitive; id++) {
         // here I add the energy deposition to the pre-existing Geant4 hit based on id
-        fastSimSensitive->ProcessHits(id, fScoring[threadId].fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
+      fastSimSensitive->ProcessHits(id, scoring.fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
       }
 
       EventAction *evAct = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
-      evAct->number_gammas += fScoring[threadId].fGlobalScoring.numGammas;
-      evAct->number_electrons += fScoring[threadId].fGlobalScoring.numElectrons;
-      evAct->number_positrons += fScoring[threadId].fGlobalScoring.numPositrons;
-      evAct->number_killed += fScoring[threadId].fGlobalScoring.numKilled;
+      evAct->number_gammas += scoring.fGlobalScoring.numGammas;
+      evAct->number_electrons += scoring.fGlobalScoring.numElectrons;
+      evAct->number_positrons += scoring.fGlobalScoring.numPositrons;
+      evAct->number_killed += scoring.fGlobalScoring.numKilled;
 
       fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
   }
