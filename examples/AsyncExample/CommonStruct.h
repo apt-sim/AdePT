@@ -46,8 +46,9 @@ struct TrackData {
   inline bool operator<(TrackData const &t) const
   {
     if (threadId != t.threadId) return threadId < t.threadId;
-    if (pdg != t.pdg) return pdg < t.pdg;
+    if (eventId != t.eventId) return eventId < t.eventId;
     if (energy != t.energy) return energy < t.energy;
+    if (pdg != t.pdg) return pdg < t.pdg;
     if (position[0] != t.position[0]) return position[0] < t.position[0];
     if (position[1] != t.position[1]) return position[1] < t.position[1];
     if (position[2] != t.position[2]) return position[2] < t.position[2];
