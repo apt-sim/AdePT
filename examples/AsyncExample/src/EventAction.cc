@@ -117,19 +117,22 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     if (group_found) continue;
 
     if (hitEn > 1 && fVerbosity > 1)
-      G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
+      G4cout << "EndOfEventAction " << eventId << ": id " << std::setw(5) << iHit << "  edep " << std::setprecision(3)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << "\n";
   }
 
   if (fVerbosity > 1) {
     for (int igroup = 0; igroup < ngroups; ++igroup) {
-      G4cout << "EndOfEventAction " << eventId << " : group " << std::setw(5) << groups[igroup] << "  edep " << std::setprecision(2)
-             << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " [MeV]\n";
+      std::stringstream str;
+      str << "group " << groups[igroup] << " edep ";
+      G4cout << "EndOfEventAction " << eventId << ": " << std::setw(25) << str.str() << std::setprecision(3)
+             << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " MeV\n";
     }
   }
 
   if (fVerbosity > 0) {
-    G4cout << "EndOfEventAction " << eventId << " : Total energy deposited: " << std::setw(9) << totalEnergy / GeV
-           << " GeV" << G4endl;
+    G4cout << "EndOfEventAction " << eventId << ": " << std::setw(25)
+           << "Total energy deposited: " << std::setprecision(3) << std::setw(12) << totalEnergy / GeV << " GeV"
+           << G4endl;
   }
 }
