@@ -45,10 +45,7 @@ public:
 
   __device__ Track &NextTrack()
   {
-    int slot = fSlotManager->NextSlot();
-    if (slot == -1) {
-      COPCORE_EXCEPTION("No slot available in ParticleGenerator::NextTrack");
-    }
+    const auto slot = fSlotManager->NextSlot();
     fActiveQueue->push_back(slot);
     return fTracks[slot];
   }
@@ -117,7 +114,14 @@ struct AllParticleQueues {
 struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
+  unsigned int usedSlots[ParticleType::NumParticleTypes];
+  unsigned int injectionQueue;
   unsigned int occupancy[AdeptIntegration::kMaxThreads];
+};
+
+struct QueueIndexPair {
+  unsigned int slot;
+  short queue;
 };
 
 struct GPUstate {
@@ -137,8 +141,11 @@ struct GPUstate {
   Stats *stats_dev{nullptr};          ///< statistics object pointer on device
   Stats *stats{nullptr};              ///< statistics object pointer on host
 
+  adeptint::unique_ptr_cuda<adept::MParrayT<QueueIndexPair>> injectionQueue{nullptr, adeptint::cudaDeleter};
   std::atomic_bool runTransport{true}; ///< Keep transport thread running
 };
+
+// Struct to keep track of particles to be enqueued for transport
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)

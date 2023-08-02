@@ -91,5 +91,7 @@ private:
   unsigned int fTrackCounter{0};
   /// @brief Save last event ID to determine when new event starts
   int fLastEventId{-1};
+  /// @brief Cycle number (injection/flush) for each event
+  unsigned short fCycleNumber{0};
 };
 #endif /* EMSHOWERMODEL_HH */
