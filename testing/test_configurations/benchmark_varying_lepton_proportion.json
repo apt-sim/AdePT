@@ -3,113 +3,13 @@
     "results_dir" : "benchmark_results/",
     "plotting_scripts_dir" : "plotting_scripts/",
     "plots_dir" : "benchmark_plots/",
-    
+    "postprocessing_scripts_dir" : "postprocessing_scripts/",
+    "postprocessing_dir" : "benchmark_postprocessing/",
+    "templates_dir" : "templates/",
+    "macro_template" : "basic_macro_template",
+
     "tests":
     [
-        {
-            "name" : "Example 17 AdePT-G4 basic comparison",
-            "type" : "benchmark",
-            
-            "plots" : 
-            [
-                {
-                    "output_file" : "example17_basic_comparison_histogram",
-                    "executable" : "plot_histogram.py"
-                },
-                {
-                    "output_file" : "example17_basic_comparison_ratio",
-                    "executable" : "plot_ratio.py"
-                },
-                {
-                    "output_file" : "example17_basic_comparison_points",
-                    "executable" : "plot_points.py"
-                }
-            ],
-
-            "runs":
-            [
-                {
-                    "name" : "Example17 AdePT",
-                    "executable" : "example17",
-                    "output_file" : "example17_adept",
-                    "ui_dir" : "example17",
-                    "use_adept" : true,
-
-                    "configuration" : 
-                    {
-                        "num_threads" : 1,
-                        "gdml_file" : "../adept-build/cms2018.gdml",
-                        "adept_threshold" : 2000,
-                        "adept_million_track_slots" : 10,
-                        "magnetic_field" : "0 0 0 tesla",
-                        "particle_type" : "e-",
-                        "gun_energy" : "10 GeV",
-                        "num_particles" : 200,
-                        "randomize_gun" : true,
-                        "num_events" : 5
-                    },
-                    
-                    "random_gun_configuration" :
-                    {
-                        "particles" :
-                        {
-                            "e-" : {"weight" : 0.4, "energy": "10 GeV"},
-                            "e+" : {"weight" : 0.2, "energy": "10 GeV"},
-                            "gamma" : {"energy": "10 GeV"},
-                            "proton" : {"energy": "10 GeV"},
-                            "neutron" : {"energy": "10 GeV"}
-                        },
-                        "angles" :
-                        {
-                            "minPhi" : 0,
-                            "maxPhi" : 360,
-                            "minTheta" : 10,
-                            "maxTheta" : 170
-                        }
-                    }
-                },
-                {
-                    "name" : "Example17 Geant4",
-                    "executable" : "example17",
-                    "output_file" : "example17_geant4",
-                    "ui_dir" : "example17",
-                    "use_adept" : false,
-
-                    "configuration" : 
-                    {
-                        "num_threads" : 1,
-                        "gdml_file" : "../adept-build/cms2018.gdml",
-                        "adept_threshold" : 200,
-                        "adept_million_track_slots" : 1,
-                        "magnetic_field" : "0 0 0 tesla",
-                        "particle_type" : "e-",
-                        "gun_energy" : "10 GeV",
-                        "num_particles" : 200,
-                        "randomize_gun" : true,
-                        "num_events" : 5
-                    },
-
-                    "random_gun_configuration" :
-                    {
-                        "particles" :
-                        {
-                            "e-" : {"weight" : 0.4, "energy": "10 GeV"},
-                            "e+" : {"weight" : 0.2, "energy": "10 GeV"},
-                            "gamma" : {"energy": "10 GeV"},
-                            "proton" : {"energy": "10 GeV"},
-                            "neutron" : {"energy": "10 GeV"}
-                        },
-                        "angles" :
-                        {
-                            "minPhi" : 0,
-                            "maxPhi" : 360,
-                            "minTheta" : 10,
-                            "maxTheta" : 170
-                        }
-                    }
-                }
-            ]
-        },
         {
             "name" : "Example 17 AdePT Varying lepton/hadron proportions",
             "type" : "benchmark",
@@ -117,8 +17,19 @@
             "plots" : 
             [
                 {
-                    "output_file" : "example17_adept_proportions",
-                    "executable" : "plot_histogram.py"
+                    "output_file" : "example17_adept_proportions_1000_10GeV_16t_32evt",
+                    "x_label" : "",
+                    "y_label" : "Time (s)",
+                    "executable" : "plot_bar_chart.py"
+                }
+            ],
+
+            "postprocessing" :
+            [
+                {
+                    "output_file" : "example17_adept_proportions_1000_10GeV_16t_32evt",
+                    "arguments" : "postprocessing_scripts/percentage_labels",
+                    "executable" : "transform_univariate_test_data.py"
                 }
             ],
 
@@ -127,13 +38,13 @@
                 {
                     "name" : "Example17 AdePT varying proportions 100% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_adept_100e",
+                    "output_file" : "example17_adept_100e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : true,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -142,7 +53,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -164,13 +76,13 @@
                 {
                     "name" : "Example17 AdePT varying proportions 80% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_adept_80e",
+                    "output_file" : "example17_adept_80e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : true,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -179,7 +91,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -201,13 +114,13 @@
                 {
                     "name" : "Example17 AdePT varying proportions 60% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_adept_60e",
+                    "output_file" : "example17_adept_60e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : true,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -216,7 +129,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -238,13 +152,13 @@
                 {
                     "name" : "Example17 AdePT varying proportions 40% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_adept_40e",
+                    "output_file" : "example17_adept_40e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : true,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -253,7 +167,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -275,13 +190,13 @@
                 {
                     "name" : "Example17 AdePT varying proportions 20% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_adept_20e",
+                    "output_file" : "example17_adept_20e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : true,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -290,7 +205,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -312,13 +228,13 @@
                 {
                     "name" : "Example17 AdePT varying proportions 0% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_adept_0e",
+                    "output_file" : "example17_adept_0e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : true,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -327,7 +243,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -355,8 +272,19 @@
             "plots" : 
             [
                 {
-                    "output_file" : "example17_geant4_proportions",
-                    "executable" : "plot_histogram.py"
+                    "output_file" : "example17_geant4_proportions_1000_10GeV_16t_32evt",
+                    "x_label" : "",
+                    "y_label" : "Time (s)",
+                    "executable" : "plot_bar_chart.py"
+                }
+            ],
+
+            "postprocessing" :
+            [
+                {
+                    "output_file" : "example17_geant4_proportions_1000_10GeV_16t_32evt",
+                    "arguments" : "postprocessing_scripts/percentage_labels",
+                    "executable" : "transform_univariate_test_data.py"
                 }
             ],
 
@@ -365,13 +293,13 @@
                 {
                     "name" : "Example17 Geant4 varying proportions 100% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_geant4_100e",
+                    "output_file" : "example17_geant4_100e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : false,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -380,7 +308,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -402,13 +331,13 @@
                 {
                     "name" : "Example17 Geant4 varying proportions 80% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_geant4_80e",
+                    "output_file" : "example17_geant4_80e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : false,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -417,7 +346,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -439,13 +369,13 @@
                 {
                     "name" : "Example17 Geant4 varying proportions 60% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_geant4_60e",
+                    "output_file" : "example17_geant4_60e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : false,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -454,7 +384,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -476,13 +407,13 @@
                 {
                     "name" : "Example17 Geant4 varying proportions 40% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_geant4_40e",
+                    "output_file" : "example17_geant4_40e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : false,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -491,7 +422,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -513,13 +445,13 @@
                 {
                     "name" : "Example17 Geant4 varying proportions 20% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_geant4_20e",
+                    "output_file" : "example17_geant4_20e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : false,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -528,7 +460,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :
@@ -550,13 +483,13 @@
                 {
                     "name" : "Example17 Geant4 varying proportions 0% e-",
                     "executable" : "example17",
-                    "output_file" : "example17_geant4_0e",
+                    "output_file" : "example17_geant4_0e_1000_16t_32evt",
                     "ui_dir" : "example17",
                     "use_adept" : false,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
@@ -565,7 +498,8 @@
                         "gun_energy" : "10 GeV",
                         "num_particles" : 1000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 32
                     },
                     
                     "random_gun_configuration" :

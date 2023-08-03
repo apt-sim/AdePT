@@ -143,7 +143,7 @@ $random_gun_configuration
 ##/tracking/verbose 1
 ##/process/list
 
-/example17/setSeed 1
+/example17/setSeed $random_seed
 
 # run events with parametrised simulation
 #/param/InActivateModel AdePT

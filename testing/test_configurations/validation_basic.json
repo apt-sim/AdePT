@@ -3,6 +3,10 @@
     "results_dir" : "validation_results/",
     "plotting_scripts_dir" : "plotting_scripts/",
     "plots_dir" : "validation_plots/",
+    "postprocessing_scripts_dir" : "postprocessing_scripts/",
+    "postprocessing_dir" : "benchmark_postprocessing/",
+    "templates_dir" : "templates/",
+    "macro_template" : "basic_macro_template",
     
     "tests":
     [
@@ -14,39 +18,49 @@
             [
                 {
                     "output_file" : "example17_basic_validation_histogram",
-                    "executable" : "plot_histogram.py"
+                    "executable" : "plot_bar_chart.py",
+                    "x_label" : "",
+                    "y_label" : "Energy (GeV)"
                 },
                 {
                     "output_file" : "example17_basic_validation_ratio",
-                    "executable" : "plot_ratio.py"
+                    "executable" : "plot_ratio.py",
+                    "x_label" : "",
+                    "y_label" : ""
                 },
                 {
                     "output_file" : "example17_basic_validation_points",
-                    "executable" : "plot_points.py"
+                    "executable" : "plot_points.py",
+                    "x_label" : "",
+                    "y_label" : "Energy (GeV)"
                 }
             ],
+
+            "postprocessing" : 
+            [],
 
             "runs":
             [
                 {
-                    "name" : "Example17 AdePT",
+                    "name" : "Example17 AdePT basic validation",
                     "executable" : "example17",
-                    "output_file" : "example17_adept",
+                    "output_file" : "example17_adept_basic_validation_5000_128evt",
                     "ui_dir" : "example17",
                     "use_adept" : true,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 2000,
                         "adept_million_track_slots" : 10,
                         "magnetic_field" : "0 0 0 tesla",
                         "particle_type" : "e-",
                         "gun_energy" : "10 GeV",
-                        "num_particles" : 2000,
+                        "num_particles" : 5000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 1,
+                        "num_events" : 128
                     },
                     
                     "random_gun_configuration" :
@@ -65,24 +79,25 @@
                     }
                 },
                 {
-                    "name" : "Example17 Geant4",
+                    "name" : "Example17 Geant4 basic validation",
                     "executable" : "example17",
-                    "output_file" : "example17_geant4",
+                    "output_file" : "example17_geant4_basic_validation_5000_128evt",
                     "ui_dir" : "example17",
                     "use_adept" : false,
 
                     "configuration" : 
                     {
-                        "num_threads" : 1,
+                        "num_threads" : 16,
                         "gdml_file" : "../adept-build/cms2018.gdml",
                         "adept_threshold" : 200,
                         "adept_million_track_slots" : 1,
                         "magnetic_field" : "0 0 0 tesla",
                         "particle_type" : "e-",
                         "gun_energy" : "10 GeV",
-                        "num_particles" : 2000,
+                        "num_particles" : 5000,
                         "randomize_gun" : true,
-                        "num_events" : 5
+                        "random_seed" : 999,
+                        "num_events" : 128
                     },
 
                     "random_gun_configuration" :

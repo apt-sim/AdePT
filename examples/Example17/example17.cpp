@@ -60,6 +60,14 @@ int main(int argc, char **argv)
         "main()", "Notification", JustWarning,
         "The options --do_benchmark and --do_validation are mutually exclusive! --do_benchmark will be ignored");
   }
+  if (!doBenchmark && !doValidation) {
+    G4Exception(
+        "main()", "Notification", JustWarning,
+        "Testing is enabled but no option has been selected, data will not be collected for this run.\n
+        Available options are:\n
+        --do_benchmark\n
+        --do_validation");
+  }
 #else
   if (doBenchmark || doValidation) {
     G4Exception(

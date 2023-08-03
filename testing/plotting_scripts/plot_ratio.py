@@ -7,12 +7,14 @@ import numpy as np
 import sys
 from cycler import cycler
 
-if len(sys.argv) < 3:
-	print("Usage: python3 plot_ratio.py output_file data.csv [data_2.csv data_3.csv ...]")
+if len(sys.argv) < 5:
+	print("Usage: python3 plot_ratio.py output_file x_label y_label data.csv [data_2.csv data_3.csv ...]")
 	exit()
 
 output_file = sys.argv[1]
-data_files = sys.argv[2:]
+x_label = sys.argv[2]
+y_label = sys.argv[3]
+data_files = sys.argv[4:]
 
 prop_cycle = plt.rcParams['axes.prop_cycle']
 colors = prop_cycle.by_key()['color']
@@ -40,7 +42,7 @@ plt.grid(True, axis='y', color='black', linestyle='dotted')
 #Plot the data in a bar chart
 plt.errorbar(x=x, y=ratio_mean, yerr=ratio_error, linewidth=0, marker="s", elinewidth=1, label="Ratio")
 plt.xticks(x, ratio.columns)
-plt.ylabel(f1[f1.rfind("/")+1:] + "/" + f2[f2.rfind("/")+1:] + " ratio")
+plt.ylabel(y_label)
 plt.legend()
 
 #plt.show()

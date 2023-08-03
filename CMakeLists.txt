@@ -148,6 +148,7 @@ endif()
 
 if(TEST)
   add_definitions(-DTEST)
+  message(STATUS "Testing enabled")
 endif()
 
 add_subdirectory(tracking)

@@ -7,12 +7,15 @@ import numpy as np
 import sys
 from cycler import cycler
 
-if len(sys.argv) < 3:
-	print("Usage: python3 plot_error_bars.py output_file data.csv [data_2.csv data_3.csv ...]")
+if len(sys.argv) < 5:
+	print("Usage: python3 plot_bar_chart.py output_file x_label y_label data.csv [data_2.csv data_3.csv ...]")
 	exit()
 
 output_file = sys.argv[1]
-data_files = sys.argv[2:]
+x_label = sys.argv[2]
+y_label = sys.argv[3]
+data_files = sys.argv[4:]
+
 
 prop_cycle = plt.rcParams['axes.prop_cycle']
 colors = prop_cycle.by_key()['color']
@@ -45,7 +48,7 @@ for i in range(len(data_files)):
 	#Plot the data in a bar chart
 	plt.bar(x=x+((i-len(data_files)//2)*width), height=means, yerr=errors, width=width, label=file)
 	plt.xticks(x, data.columns)
-	plt.ylabel("Time (s)")
+	plt.ylabel(y_label)
 	plt.legend()
 
 #plt.show()
