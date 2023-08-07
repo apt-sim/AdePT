@@ -63,8 +63,7 @@ void HepMC3G4AsciiReaderMessenger::SetNewValue(G4UIcommand* command,
     int level= verbose-> GetNewIntValue(newValues);
     gen-> SetVerboseLevel(level);
   } else if (command==open) {
-    gen-> SetFileName(newValues);
-    if (G4Threading::G4GetThreadId()==-1) gen->Initialize();
+    gen->SetFileName(newValues);
   } else if (command==maxevent) {
     int maxe= maxevent-> GetNewIntValue(newValues);
     gen->SetMaxNumberOfEvents(maxe);

@@ -13,15 +13,12 @@
 #include "G4SystemOfUnits.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-HepMC3G4Interface::HepMC3G4Interface()
-  : hepmcEvent(nullptr)
-{
-}
+HepMC3G4Interface::HepMC3G4Interface() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 HepMC3G4Interface::~HepMC3G4Interface()
 {
-  delete hepmcEvent;
+
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -47,8 +44,7 @@ void HepMC3G4Interface::HepMC2G4(const HepMC3::GenEvent* hepmcevt,
 
     // real vertex?
     G4bool qvtx=false;
-    for (auto 
-           pitr: vitr->particles_out()) {
+    for (auto pitr : vitr->particles_out()) {
 
       if (!pitr->end_vertex() && pitr->status()==1) {
         qvtx=true;
@@ -86,7 +82,7 @@ void HepMC3G4Interface::HepMC2G4(const HepMC3::GenEvent* hepmcevt,
 void HepMC3G4Interface::GeneratePrimaryVertex(G4Event* anEvent)
 {
   // generate next event
-  hepmcEvent= GenerateHepMCEvent(anEvent->GetEventID());
+  const HepMC3::GenEvent *hepmcEvent = GenerateHepMCEvent(anEvent->GetEventID());
   if(! hepmcEvent) {
     G4cout << "HepMCInterface: no generated particles. run terminated..."
            << G4endl;
