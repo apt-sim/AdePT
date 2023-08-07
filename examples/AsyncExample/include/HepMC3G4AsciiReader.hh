@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 //
@@ -15,6 +15,7 @@
 #include "HepMC3/Print.h"
 
 #include <climits>
+#include <memory>
 
 class HepMC3G4AsciiReaderMessenger;
 
@@ -23,12 +24,12 @@ protected:
   G4String filename;
   int firstEventNumber = 0;
   int maxNumberOfEvents = INT_MAX;
-  HepMC3::ReaderAscii* asciiInput;
+  int previousEventNumber = 0;
+  std::unique_ptr<HepMC3::ReaderAscii> asciiInput;
+  std::unique_ptr<HepMC3::GenEvent> event;
 
-  static std::vector<HepMC3::GenEvent*>* fEvents;
-
-  G4int verbose;
-  HepMC3G4AsciiReaderMessenger* messenger;
+  G4int verbose = 0;
+  std::unique_ptr<HepMC3G4AsciiReaderMessenger> messenger;
 
   virtual HepMC3::GenEvent* GenerateHepMCEvent(int eventId);
 
@@ -41,16 +42,13 @@ public:
   G4String GetFileName() const;
 
   void SetVerboseLevel(G4int i);
-  G4int GetVerboseLevel() const; 
+  G4int GetVerboseLevel() const;
 
   void SetMaxNumberOfEvents(G4int i);
   G4int GetMaxNumberOfEvents() const;
 
   void SetFirstEventNumber(G4int i);
-  G4int GetFirstEventNumber() const;   
-
-  // methods...
-  void Initialize();
+  G4int GetFirstEventNumber() const;
 };
 
 // ====================================================================
@@ -89,7 +87,7 @@ inline G4int HepMC3G4AsciiReader::GetMaxNumberOfEvents() const
 
 inline void HepMC3G4AsciiReader::SetFirstEventNumber(G4int i)
 {
-  firstEventNumber = i;
+  firstEventNumber = previousEventNumber = i;
 }
 
 inline G4int HepMC3G4AsciiReader::GetFirstEventNumber() const
