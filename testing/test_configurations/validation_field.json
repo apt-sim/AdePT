@@ -1,0 +1,121 @@
+{
+    "bin_dir" : "../adept-build/BuildProducts/bin/",
+    "results_dir" : "validation_results/",
+    "plotting_scripts_dir" : "plotting_scripts/",
+    "plots_dir" : "validation_plots/",
+    "postprocessing_scripts_dir" : "postprocessing_scripts/",
+    "postprocessing_dir" : "benchmark_postprocessing/",
+    "templates_dir" : "templates/",
+    "macro_template" : "basic_macro_template",
+
+    "tests":
+    [
+        {
+            "name" : "Example 17 AdePT-G4 field validation",
+            "type" : "validation",
+            
+            "plots" : 
+            [
+                {
+                    "output_file" : "example17_field_validation_histogram",
+                    "executable" : "plot_bar_chart.py",
+                    "x_label" : "",
+                    "y_label" : "Energy (GeV)"
+                },
+                {
+                    "output_file" : "example17_field_validation_ratio",
+                    "executable" : "plot_ratio.py",
+                    "x_label" : "",
+                    "y_label" : ""
+                },
+                {
+                    "output_file" : "example17_field_validation_points",
+                    "executable" : "plot_points.py",
+                    "x_label" : "",
+                    "y_label" : "Energy (GeV)"
+                }
+            ],
+
+            "postprocessing" :
+            [],
+
+            "runs":
+            [
+                {
+                    "name" : "Example17 AdePT field validation",
+                    "executable" : "example17",
+                    "output_file" : "example17_adept_field_validation_5000_128evt",
+                    "ui_dir" : "example17",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 16,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 5000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 128
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 Geant4 field validation",
+                    "executable" : "example17",
+                    "output_file" : "example17_geant4_field_validation_5000_128evt",
+                    "ui_dir" : "example17",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 16,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 200,
+                        "adept_million_track_slots" : 1,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 5000,
+                        "randomize_gun" : true,
+                        "random_seed" : 999,
+                        "num_events" : 128
+                    },
+
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

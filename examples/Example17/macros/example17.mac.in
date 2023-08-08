@@ -138,13 +138,8 @@
 #If false, the following parameters are ignored
 /example17/gun/randomizeGun true
 #Usage: /example17/gun/addParticle type ["weight" weight] ["energy" energy unit]
-/example17/gun/addParticle e- weight 0
-/example17/gun/addParticle proton
-#/example17/gun/addParticle e- energy 15 GeV
-#/example17/gun/addParticle e+ weight 0.5
-#/example17/gun/addParticle gamma weight 0.2 energy 5 GeV
-#/example17/gun/addParticle proton energy 3 GeV weight 0.1
-#/example17/gun/addParticle neutron
+/example17/gun/addParticle e- weight 1 energy 10 GeV
+/example17/gun/addParticle proton weight 0 energy 10 GeV
 /example17/gun/minPhi 0 deg
 /example17/gun/maxPhi 360 deg
 /example17/gun/minTheta 10 deg

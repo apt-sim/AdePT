@@ -1,0 +1,438 @@
+{
+    "bin_dir" : "../adept-build/BuildProducts/bin/",
+    "results_dir" : "benchmark_results/",
+    "plotting_scripts_dir" : "plotting_scripts/",
+    "plots_dir" : "benchmark_plots/",
+    "postprocessing_scripts_dir" : "postprocessing_scripts/",
+    "postprocessing_dir" : "benchmark_postprocessing/",
+    "templates_dir" : "templates/",
+    "macro_template" : "basic_macro_template",
+
+    "tests":
+    [
+        {
+            "name" : "Example 17 AdePT Varying threads",
+            "type" : "benchmark",
+            
+            "plots" : 
+            [
+                {
+                    "output_file" : "example17_adept_threads_1000_10GeV",
+                    "x_label" : "",
+                    "y_label" : "Time (s)",
+                    "executable" : "plot_bar_chart.py"
+                }
+            ],
+
+            "postprocessing" :
+            [
+                {
+                    "output_file" : "example17_adept_threads_1000_10GeV",
+                    "arguments" : "postprocessing_scripts/thread_labels",
+                    "executable" : "transform_univariate_test_data.py"
+                }
+            ],
+
+            "runs":
+            [
+                {
+                    "name" : "Example17 AdePT varying threads 1",
+                    "executable" : "example17",
+                    "output_file" : "example17_adept_100e_1000_1t",
+                    "ui_dir" : "example17",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 1,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 AdePT varying threads 2",
+                    "executable" : "example17",
+                    "output_file" : "example17_adept_80e_1000_2t",
+                    "ui_dir" : "example17",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 2,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 AdePT varying threads 4",
+                    "executable" : "example17",
+                    "output_file" : "example17_adept_60e_1000_4t",
+                    "ui_dir" : "example17",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 4,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 AdePT varying threads 8",
+                    "executable" : "example17",
+                    "output_file" : "example17_adept_40e_1000_8t",
+                    "ui_dir" : "example17",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 8,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 AdePT varying threads 16",
+                    "executable" : "example17",
+                    "output_file" : "example17_adept_20e_1000_16t",
+                    "ui_dir" : "example17",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 16,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name" : "Example 17 Geant4 Varying threads",
+            "type" : "benchmark",
+            
+            "plots" : 
+            [
+                {
+                    "output_file" : "example17_geant4_threads_1000_10GeV",
+                    "x_label" : "",
+                    "y_label" : "Time (s)",
+                    "executable" : "plot_bar_chart.py"
+                }
+            ],
+
+            "postprocessing" :
+            [
+                {
+                    "output_file" : "example17_geant4_threads_1000_10GeV",
+                    "arguments" : "postprocessing_scripts/thread_labels",
+                    "executable" : "transform_univariate_test_data.py"
+                }
+            ],
+
+            "runs":
+            [
+                {
+                    "name" : "Example17 Geant4 varying threads 1",
+                    "executable" : "example17",
+                    "output_file" : "example17_geant4_100e_1000_1t",
+                    "ui_dir" : "example17",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 1,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 Geant4 varying threads 2",
+                    "executable" : "example17",
+                    "output_file" : "example17_geant4_80e_1000_2t",
+                    "ui_dir" : "example17",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 2,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 Geant4 varying threads 4",
+                    "executable" : "example17",
+                    "output_file" : "example17_geant4_60e_1000_4t",
+                    "ui_dir" : "example17",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 4,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 Geant4 varying threads 8",
+                    "executable" : "example17",
+                    "output_file" : "example17_geant4_40e_1000_8t",
+                    "ui_dir" : "example17",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 8,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                },
+                {
+                    "name" : "Example17 Geant4 varying threads 16",
+                    "executable" : "example17",
+                    "output_file" : "example17_geant4_20e_1000_16t",
+                    "ui_dir" : "example17",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 16,
+                        "gdml_file" : "../adept-build/cms2018.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 10,
+                        "magnetic_field" : "0 0 0 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "10 GeV",
+                        "num_particles" : 1000,
+                        "randomize_gun" : true,
+                        "random_seed" : 1,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "10 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 360,
+                            "minTheta" : 10,
+                            "maxTheta" : 170
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
