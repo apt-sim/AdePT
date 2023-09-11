@@ -15,6 +15,8 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/BVHManager.h>
 #include <VecGeom/navigation/NavStateIndex.h>
+#include <VecGeom/volumes/LogicalVolume.h>
+#include <VecGeom/management/GeoManager.h>
 
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
@@ -31,6 +33,113 @@ public:
 
   static constexpr Precision kBoundaryPush = 10 * vecgeom::kTolerance;
 
+  /*
+  * @param[in] aLVIndex Global index of a LogicalVolume
+  * @param[in] index Index within the list of daughters of the specified LogicalVolume
+  * @returns The PlacedVolume defined by @p aLVIndex and @p index
+  */
+  __device__ static inline vecgeom::Daughter GetPlacedVolume(int aLVIndex, int index)
+  {
+#ifdef VECCORE_CUDA_DEVICE_COMPILATION
+    return vecgeom::globaldevicegeomdata::gDeviceLogicalVolumes[aLVIndex].GetDaughters()[index];
+#else
+    return vecgeom::GeoManager::Instance().GetLogicalVolume(aLVIndex)->GetDaughters()[index];
+#endif
+  }
+
+  /*
+  * @param[in] global_index Global index of a PlacedVolume
+  * @returns The PlacedVolume with global index @p global_index
+  */
+  __host__ __device__ static inline vecgeom::VPlacedVolume *GetPlacedVolume(int global_index)
+  {
+#ifdef VECCORE_CUDA_DEVICE_COMPILATION
+    return &vecgeom::globaldevicegeomdata::gCompactPlacedVolBuffer[global_index];
+#else
+    return vecgeom::GeoManager::Instance().GetPlacedVolume(global_index);
+#endif
+  }
+
+  /*
+  * @param[in] aLVIndex Global index of a LogicalVolume
+  * @param[in] index Index within the list of daughters of the specified LogicalVolume
+  * @param[in] localpoint Point in the local coordinates of the LV specified by @aLVIndex
+  * @returns The safety to in to the PlacedVolume defined by @p aLVIndex and @p index for the point @p localpoint
+  */
+  __device__ static Precision CandidateSafetyToIn(int aLVIndex, int index, Vector3D localpoint)
+  {
+    return GetPlacedVolume(aLVIndex, index)->SafetyToIn(localpoint);
+  };
+
+  /*
+  * @param[in] aLVIndex Global index of a LogicalVolume
+  * @param[in] index Index within the list of daughters of the specified LogicalVolume
+  * @param[in] localpoint Point in the local coordinates of the LV specified by @aLVIndex
+  * @param[in] localdir Direction in the local coordinates of the LV specified by @aLVIndex
+  * @param[in] step Maximum step length
+  * @returns The distance to in to the PlacedVolume defined by @p aLVIndex and @p index for the point @p localpoint 
+  * and direction @p localdir
+  */
+  __device__ static Precision CandidateDistanceToIn(int aLVIndex, int index, Vector3D localpoint, Vector3D localdir,
+                                                    Precision step)
+  {
+    vecgeom::Daughter vol = GetPlacedVolume(aLVIndex, index);
+    return vol->DistanceToIn(localpoint, localdir, step);
+  };
+
+  /*
+  * @param[in] aLVIndex Global index of a LogicalVolume
+  * @param[in] index Index within the list of daughters of the specified LogicalVolume
+  * @param[in] localpoint Point in the local coordinates of the LV specified by @aLVIndex
+  * @param[out] daughterlocalpoint Point in the local coordinates of the PlacedVolume defined by 
+  * @p aLVIndex and @p index
+  * @returns Whether @localpoint falls within the PlacedVolume defined by @p aLVIndex and @p index
+  */
+  __device__ static bool CandidateContains(int aLVIndex, int index, Vector3D const &localpoint,
+                                           Vector3D &daughterlocalpoint)
+  {
+    return GetPlacedVolume(aLVIndex, index)->Contains(localpoint, daughterlocalpoint);
+  };
+
+  /*
+  * @param[in] aLVIndex Global index of a LogicalVolume
+  * @param[in] index Index within the list of daughters of the specified LogicalVolume
+  * @param[in] localpoint Point in the local coordinates of the LV specified by @aLVIndex
+  * @param[in] localdir Direction in the local coordinates of the LV specified by @aLVIndex
+  * @returns The distance to in to the Bounding Box of the PlacedVolume defined by @p aLVIndex 
+  * and @p index for the point @p localpoint and direction @p localdir
+  */
+  __device__ static Precision CandidateApproachSolid(int aLVIndex, int index, Vector3D localpoint, Vector3D localdir)
+  {
+    auto vol                            = GetPlacedVolume(aLVIndex, index);
+    vecgeom::Transformation3D const *tr = vol->GetTransformation();
+    Vector3D pv_localpoint              = tr->Transform(localpoint);
+    Vector3D pv_localdir                = tr->TransformDirection(localdir);
+    Vector3D pv_invlocaldir(1.0 / vecgeom::NonZero(localdir[0]), 1.0 / vecgeom::NonZero(localdir[1]),
+                            1.0 / vecgeom::NonZero(localdir[2]));
+    return vol->GetUnplacedVolume()->ApproachSolid(pv_localpoint, pv_invlocaldir);
+  };
+
+  /*
+  * Used by the BVH to determine if it needs to skip checking a placed volume. The global index of the volume 
+  * defined by @p aLVIndex and @p index can only be accessed from the navigator
+  * @param[in] aLVIndex Global index of a LogicalVolume
+  * @param[in] index Index within the list of daughters of the specified LogicalVolume
+  * @param[in] global_id Global id of a PLacedVolume
+  * @returns Whether the global id of the PlacedVolume defined by @p aLVIndex and @p index is the same as @p global_id
+  */
+  __device__ static bool SkipItem(int aLVIndex, int index, long const global_id)
+  {
+    return (global_id == GetPlacedVolume(aLVIndex, index)->id());
+  }
+
+  /*
+  * @param[in] aLVIndex Global index of a LogicalVolume
+  * @param[in] index Index within the list of daughters of the specified LogicalVolume
+  * @returns The global id of the PlacedVolume defined by @p aLVIndex and @p index
+  */
+  __device__ static uint ItemId(int aLVIndex, int index) { return GetPlacedVolume(aLVIndex, index)->id(); }
+
   __host__ __device__ static VPlacedVolumePtr_t LocatePointIn(vecgeom::VPlacedVolume const *vol, Vector3D const &point,
                                                               vecgeom::NavStateIndex &path, bool top,
                                                               vecgeom::VPlacedVolume const *exclude = nullptr)
@@ -44,13 +153,23 @@ public:
 
     Vector3D currentpoint(point);
     Vector3D daughterlocalpoint;
+    long exclude_id = -1;
+    long vol_id     = -1;
 
     for (auto v = vol; v->GetDaughters().size() > 0;) {
       auto bvh = vecgeom::BVHManager::GetBVH(v->GetLogicalVolume()->id());
 
-      if (!bvh->LevelLocate(exclude, currentpoint, v, daughterlocalpoint)) break;
+      exclude_id = -1;
+      if (exclude != nullptr) {
+        exclude_id = exclude->id();
+      }
+      vol_id = -1;
+
+      if (!bvh->LevelLocate<BVHNavigator>(exclude_id, currentpoint, vol_id, daughterlocalpoint)) break;
 
       currentpoint = daughterlocalpoint;
+      // Update the current volume v
+      v = GetPlacedVolume(vol_id);
       path.Push(v);
       // Only exclude the placed volume once since we could enter it again via a
       // different volume history.
@@ -62,8 +181,8 @@ public:
 
   __host__ __device__ static VPlacedVolumePtr_t RelocatePoint(Vector3D const &localpoint, vecgeom::NavStateIndex &path)
   {
-    vecgeom::VPlacedVolume const *currentmother       = path.Top();
-    Vector3D transformed                              = localpoint;
+    vecgeom::VPlacedVolume const *currentmother = path.Top();
+    Vector3D transformed                        = localpoint;
     do {
       path.Pop();
       transformed   = currentmother->GetTransformation()->InverseTransform(transformed);
@@ -94,8 +213,11 @@ private:
       return 0;
     }
 
-    Precision step          = step_limit;
-    VPlacedVolumePtr_t pvol = in_state.Top();
+    Precision step                 = step_limit;
+    VPlacedVolumePtr_t pvol        = in_state.Top();
+    VPlacedVolumePtr_t last_exited = in_state.GetLastExited();
+    long hitcandidate_index        = -1;
+    long last_exited_id            = -1;
 
     // need to calc DistanceToOut first
     step = pvol->DistanceToOut(localpoint, localdir, step_limit);
@@ -104,7 +226,16 @@ private:
 
     if (pvol->GetDaughters().size() > 0) {
       auto bvh = vecgeom::BVHManager::GetBVH(pvol->GetLogicalVolume()->id());
-      bvh->CheckDaughterIntersections(localpoint, localdir, step, pvol, hitcandidate);
+
+      hitcandidate_index = -1;
+      // id is an uint, however we use a long in order to be able to fit the full uint range, and -1 in case there is no
+      // last exited volume in the navigation state.
+      last_exited_id = -1;
+      //if (last_exited != nullptr) last_exited_id = last_exited->id();
+
+      bvh->CheckDaughterIntersections<BVHNavigator>(localpoint, localdir, step, last_exited_id, hitcandidate_index);
+
+      if (hitcandidate_index >= 0) hitcandidate = pvol->GetLogicalVolume()->GetDaughters()[hitcandidate_index];
     }
 
     // now we have the candidates and we prepare the out_state
@@ -140,13 +271,19 @@ private:
   __host__ __device__ static Precision ApproachNextVolume(Vector3D const &localpoint, Vector3D const &localdir,
                                                           Precision step_limit, vecgeom::NavStateIndex const &in_state)
   {
-    Precision step          = step_limit;
-    VPlacedVolumePtr_t pvol = in_state.Top();
+    Precision step                 = step_limit;
+    VPlacedVolumePtr_t pvol        = in_state.Top();
+    VPlacedVolumePtr_t last_exited = in_state.GetLastExited();
 
     if (pvol->GetDaughters().size() > 0) {
       auto bvh = vecgeom::BVHManager::GetBVH(pvol->GetLogicalVolume()->id());
-      // bvh->CheckDaughterIntersections(localpoint, localdir, step, pvol, hitcandidate);
-      bvh->ApproachNextDaughter(localpoint, localdir, step, pvol);
+
+      // id is an uint, however we use a long in order to be able to fit the full uint range, and -1 in case there is no
+      // last exited volume in the navigation state.
+      long last_exited_id = -1;
+      //if (last_exited != nullptr) last_exited_id = last_exited->id();
+
+      bvh->ApproachNextDaughter<BVHNavigator>(localpoint, localdir, step, last_exited_id);
       // Make sure we don't "step" on next boundary
       step -= 10 * vecgeom::kTolerance;
     }
@@ -180,7 +317,7 @@ public:
 
     if (safety > 0 && pvol->GetDaughters().size() > 0) {
       auto bvh = vecgeom::BVHManager::GetBVH(pvol->GetLogicalVolume()->id());
-      safety   = bvh->ComputeSafety(localpoint, safety);
+      safety   = bvh->ComputeSafety<BVHNavigator>(localpoint, safety);
     }
 
     return safety;
@@ -290,8 +427,8 @@ public:
 
     if (out_state.IsOnBoundary()) {
       if (!hitcandidate) {
-        vecgeom::VPlacedVolume const *currentmother       = out_state.Top();
-        Vector3D transformed                              = localpoint;
+        vecgeom::VPlacedVolume const *currentmother = out_state.Top();
+        Vector3D transformed                        = localpoint;
         // Push the point inside the next volume.
         transformed += (step + kBoundaryPush) * localdir;
 

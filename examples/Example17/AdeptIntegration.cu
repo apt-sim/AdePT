@@ -188,6 +188,7 @@ __global__ void ClearLeakedQueues(LeakedTracks all)
 
 bool AdeptIntegration::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
   // Upload geometry to GPU.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
@@ -295,7 +296,6 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   using TrackData = adeptint::TrackData;
   // Capacity of the different containers aka the maximum number of particles.
   auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
-  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
   GPUstate &gpuState                            = *static_cast<GPUstate *>(fGPUstate);
 
