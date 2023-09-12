@@ -96,6 +96,7 @@ private:
 
     Precision step          = step_limit;
     VPlacedVolumePtr_t pvol = in_state.Top();
+    VPlacedVolumePtr_t last_exited = in_state.GetLastExited();
 
     // need to calc DistanceToOut first
     step = pvol->DistanceToOut(localpoint, localdir, step_limit);
@@ -104,7 +105,7 @@ private:
 
     if (pvol->GetDaughters().size() > 0) {
       auto bvh = vecgeom::BVHManager::GetBVH(pvol->GetLogicalVolume()->id());
-      bvh->CheckDaughterIntersections(localpoint, localdir, step, pvol, hitcandidate);
+      bvh->CheckDaughterIntersections(localpoint, localdir, step, last_exited, hitcandidate);
     }
 
     // now we have the candidates and we prepare the out_state
@@ -142,11 +143,12 @@ private:
   {
     Precision step          = step_limit;
     VPlacedVolumePtr_t pvol = in_state.Top();
+    VPlacedVolumePtr_t last_exited = in_state.GetLastExited();
 
     if (pvol->GetDaughters().size() > 0) {
       auto bvh = vecgeom::BVHManager::GetBVH(pvol->GetLogicalVolume()->id());
       // bvh->CheckDaughterIntersections(localpoint, localdir, step, pvol, hitcandidate);
-      bvh->ApproachNextDaughter(localpoint, localdir, step, pvol);
+      bvh->ApproachNextDaughter(localpoint, localdir, step, last_exited);
       // Make sure we don't "step" on next boundary
       step -= 10 * vecgeom::kTolerance;
     }
