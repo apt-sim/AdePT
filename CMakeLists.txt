@@ -54,6 +54,10 @@ option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 # Find VecGeom geometry headers library
 set(VecGeom_VERSION_REQ 2.0.0-dev.3)
 find_package(VecGeom REQUIRED)
+# Older versions did not provide VecGeom_VERSION_STRING, but only VecGeom_VERSION
+if (NOT VecGeom_VERSION_STRING)
+  set(VecGeom_VERSION_STRING ${VecGeom_VERSION})
+endif()
 if (VecGeom_VERSION_STRING STRLESS VecGeom_VERSION_REQ)
   message(FATAL_ERROR "AdePT requires at least VecGeom ${VecGeom_VERSION_REQ}, found ${VecGeom_VERSION_STRING}" )
 else()
