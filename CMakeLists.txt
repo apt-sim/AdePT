@@ -52,9 +52,13 @@ message(STATUS "Using VecCore version ${VecCore_VERSION}")
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 
 # Find VecGeom geometry headers library
-set(VecGeom_VERSION 1.1.20)
-find_package(VecGeom ${VecGeom_VERSION} REQUIRED)
-message(STATUS "Using VecGeom version ${VecGeom_VERSION}")
+set(VecGeom_VERSION_REQ 2.0.0-dev.3)
+find_package(VecGeom REQUIRED)
+if (VecGeom_VERSION_STRING STRLESS VecGeom_VERSION_REQ)
+  message(FATAL_ERROR "AdePT requires at least VecGeom ${VecGeom_VERSION_REQ}, found ${VecGeom_VERSION_STRING}" )
+else()
+  message(STATUS "Using VecGeom version ${VecGeom_VERSION_STRING}")
+endif()
 # make sure we import VecGeom architecture flags - is this needed?
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VECGEOM_CXX_FLAGS}")
 # Make sure VecGeom::vgdml is enabled
