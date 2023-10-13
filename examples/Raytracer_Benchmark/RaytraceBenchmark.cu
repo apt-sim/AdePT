@@ -148,6 +148,7 @@ void RenderTiledImage(cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer, 
 void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
   
   // Load and synchronize the geometry on the GPU
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry((vecgeom::cxx::VPlacedVolume *)rtdata->fWorld);
   cudaManager.Synchronize();
