@@ -212,6 +212,7 @@ __global__ void ClearAllQueues(AllParticleQueues all)
 
 bool AdeptIntegration::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
   // Upload geometry to GPU.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
