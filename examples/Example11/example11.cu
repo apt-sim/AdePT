@@ -161,6 +161,7 @@ __global__ void FinishIteration(AllParticleQueues all, const GlobalScoring *scor
 void example11(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double energy)
 {
   NVTXTracer tracer("Geometry");
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
