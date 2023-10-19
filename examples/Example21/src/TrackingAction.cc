@@ -52,8 +52,9 @@
 TrackingAction::TrackingAction(DetectorConstruction* aDetector) : G4UserTrackingAction(), 
                                                                   fDetector(aDetector), 
                                                                   fCurrentRegion(nullptr), 
-                                                                  fCurrentVolume(nullptr),
-                                                                  fGPURegion(G4RegionStore::GetInstance()->GetRegion(aDetector->getRegionName())){}
+                                                                  fCurrentVolume(nullptr)
+                                                                //, fGPURegion(G4RegionStore::GetInstance()->GetRegion(aDetector->getRegionName()))
+                                                                {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

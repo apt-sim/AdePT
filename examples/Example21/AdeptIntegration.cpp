@@ -272,6 +272,7 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
     nphysical++;
 
     // Check if the volume belongs to the interesting region
+    // I am commenting out this 'if' because (for the moment) we don't want any particles leaking out from AdePT
     //if (g4vol->GetRegion() == fRegion) {
       auxData[vol->id()].fGPUregion = 1;
       ninregion++;

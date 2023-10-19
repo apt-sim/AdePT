@@ -139,6 +139,12 @@ void DetectorConstruction::ConstructSDandField()
   SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector", numSensitive);
   caloSD->fScoringMap       = &gScoringMap;
   G4SDManager::GetSDMpointer()->AddNewDetector(caloSD);
+
+  auto const &store = *G4LogicalVolumeStore::GetInstance();
+
+  // maybe we can resurect this code later if we want to run AdePT only in a part of the detector
+  // for the moment, I removed also check for AdePT region inside AdePT code
+  /*
   auto detectorRegion = G4RegionStore::GetInstance()->GetRegion(fRegion_name);
 
   // attaching sensitive detector to the volumes on sentitive_volumes list
@@ -153,6 +159,8 @@ void DetectorConstruction::ConstructSDandField()
       }
     }
   }
+  */
+
   int index = 1;
   for (auto name : fSensitive_volumes) {
     G4cout << "Making " << name << " sensitive with index " << index << G4endl;
@@ -170,14 +178,6 @@ void DetectorConstruction::ConstructSDandField()
   adeptTrMgr->SetVerbosity(fVerbosity);
   adeptTrMgr->SetBufferThreshold(fBufferThreshold);
   adeptTrMgr->SetTrackSlots(fTrackSlotsGPU);
-
-  try {
-    adeptTrMgr->Initialize();
-  } catch (const std::runtime_error &ex) {
-    std::cerr << ex.what() << "\n";
-    exit(EXIT_FAILURE);
-    return;
-  }
   } 
 }
 

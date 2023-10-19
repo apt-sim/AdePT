@@ -25,44 +25,6 @@ AdePTTrackingManager::~AdePTTrackingManager() {
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part) {
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-void AdePTTrackingManager::PreparePhysicsTable(
-    const G4ParticleDefinition &part) {
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack) {
-
-  auto particlePosition  = aTrack->GetPosition();
-  auto particleDirection = aTrack->GetMomentumDirection();
-  G4double energy = aTrack->GetKineticEnergy();
-  auto pdg = aTrack->GetParticleDefinition()->GetPDGEncoding();
-
-  //int tid = G4Threading::G4GetThreadId();
-
-  fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
-                   particleDirection[1], particleDirection[2]);
-
-  aTrack->SetTrackStatus(fStopAndKill);
-  delete aTrack;
-}
-
-void AdePTTrackingManager::FlushEvent() {
-
-  if (fVerbosity > 0)
-    G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer with "
-           << fAdept->GetNtoDevice() << " particles left." << G4endl;
-
-  fAdept->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
-}
-
-void AdePTTrackingManager::Initialize()
-{
-
   fAdept = new AdeptIntegration;
 
   fAdept->SetDebugLevel(fVerbosity);
@@ -88,3 +50,35 @@ void AdePTTrackingManager::Initialize()
     fAdept->Initialize();
   }
 }
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void AdePTTrackingManager::PreparePhysicsTable(
+    const G4ParticleDefinition &part) {
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack) {
+
+  auto particlePosition  = aTrack->GetPosition();
+  auto particleDirection = aTrack->GetMomentumDirection();
+  G4double energy = aTrack->GetKineticEnergy();
+  auto pdg = aTrack->GetParticleDefinition()->GetPDGEncoding();
+
+  fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
+                   particleDirection[1], particleDirection[2]);
+
+  aTrack->SetTrackStatus(fStopAndKill);
+  delete aTrack;
+}
+
+void AdePTTrackingManager::FlushEvent() {
+
+  if (fVerbosity > 0)
+    G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer with "
+           << fAdept->GetNtoDevice() << " particles left." << G4endl;
+
+  fAdept->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+}
+

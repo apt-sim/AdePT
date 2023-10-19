@@ -27,10 +27,6 @@ public:
   /// Set buffer threshold for AdePT
   void SetBufferThreshold(int value) { fBufferThreshold = value; }
 
-  /// Initialized VecGeom, etc.
-
-  void Initialize();
-
   void SetSensitiveVolumes(std::unordered_map<std::string, int> *sv) { sensitive_volume_index = sv; }
 
   void SetScoringMap(std::unordered_map<const G4VPhysicalVolume *, int> *sm) { fScoringMap = sm; }
@@ -38,10 +34,10 @@ public:
   // Set total number of track slots on GPU
   void SetTrackSlots(double value) { fTrackSlotsGPU = value; }
 
-  /// AdePT integration
-  AdeptIntegration *fAdept;
 
 private:
+  /// AdePT integration
+  AdeptIntegration *fAdept;
 
 /// Region where it applies
 G4Region *fRegion{nullptr};
