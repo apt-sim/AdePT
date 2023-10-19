@@ -39,7 +39,7 @@ public:
   void SetTrackSlots(double value) { fTrackSlotsGPU = value; }
 
   /// AdePT integration
-AdeptIntegration *fAdept;
+  AdeptIntegration *fAdept;
 
 private:
 
@@ -59,7 +59,6 @@ double fTrackSlotsGPU{1}; ///< Total number of track slots allocated on GPU (in 
 std::unordered_map<std::string, int> *sensitive_volume_index;
 std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap;
 
-static AdePTTrackingManager *masterTrackingManager;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

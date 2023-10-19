@@ -164,7 +164,6 @@ void DetectorConstruction::ConstructSDandField()
     }
   }
 
-  std::cout << "adeptTrMgr " << adeptTrMgr << std::endl;
   if(adeptTrMgr){
   adeptTrMgr->SetSensitiveVolumes(&(caloSD->fSensitive_volume_index));
   adeptTrMgr->SetScoringMap(&gScoringMap);

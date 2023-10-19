@@ -44,8 +44,6 @@
 PhysListAdePT::PhysListAdePT(AdePTTrackingManager* trmgr, 
 const G4String &name) : G4VPhysicsConstructor(name), trackingManager(trmgr)
 {
-
-  std::cout<< "phys list constr " << trackingManager << std::endl;
   G4EmParameters *param = G4EmParameters::Instance();
   param->SetDefaults();
   param->SetVerbose(1);
@@ -82,14 +80,9 @@ void PhysListAdePT::ConstructProcess()
   // end of G4EmStandardPhysics
 
   // Register custom tracking manager for e-/e+ and gammas.
-  //auto* trackingManager = new AdePTTrackingManager;
-std::cout<< "phys list proces " << trackingManager << std::endl;
   G4Electron::Definition()->SetTrackingManager(trackingManager);
   G4Positron::Definition()->SetTrackingManager(trackingManager);
   G4Gamma::Definition()->SetTrackingManager(trackingManager);
-
-  std::cout << " from phys list " << (AdePTTrackingManager*)G4Electron::Definition()->GetTrackingManager()
-  << std::endl;
 
   // from G4EmStandardPhysics
 
