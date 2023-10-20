@@ -108,16 +108,6 @@
 /example21/detector/setField 0 0 0 tesla
 #/example21/detector/setField 0 0 3.8 tesla
 
-##
-## -----------------------------------------------------------------------------
-## Set the physics list (more exactly, the EM physics constructor):
-##   = 'HepEm'           : the G4HepEm EM physics c.t.r.
-##   =  'G4Em'           : the G4 EM physics c.t.r. that corresponds to G4HepEm
-##   = 'emstandard_opt0' : the original, G4 EM-Opt0 physics c.t.r.
-## -----------------------------------------------------------------------------
-##/testem/phys/addPhysics   HepEm
-##/testem/phys/addPhysics   G4Em
-##
 ## -----------------------------------------------------------------------------
 ## Set secondary production threshold, init. the run and set primary properties
 ## -----------------------------------------------------------------------------
@@ -144,7 +134,6 @@
 /example21/gun/minTheta 10 deg
 /example21/gun/maxTheta 170 deg
 
-##
 ## -----------------------------------------------------------------------------
 ## Run the simulation with the given number of events and print list of processes
 ## -----------------------------------------------------------------------------
@@ -157,7 +146,3 @@
 # by default all created models are active
 /run/beamOn 1
 
-/example21/setSeed 1
-
-# run events with full (detailed) simulation
-#/run/beamOn 1

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022 CERN
+# SPDX-FileCopyrightText: 2023 CERN
 # SPDX-License-Identifier: Apache-2.0
 #  testEm3.mac
 #
@@ -14,8 +14,6 @@
 /tracking/verbose 0
 ##
 /example21/detector/filename @TESTEM3_GDML@
-/example21/detector/regionname caloregion
-/example21/adept/activate true
 /example21/adept/verbose 0
 ## Threshold for buffering tracks before sending to GPU
 /example21/adept/threshold 100
@@ -31,16 +29,6 @@
 /example21/detector/setField 0 0 0.1 tesla
 #/example21/detector/setField 0 0 0 tesla
 
-##
-## -----------------------------------------------------------------------------
-## Set the physics list (more exactly, the EM physics constructor):
-##   = 'HepEm'           : the G4HepEm EM physics c.t.r.
-##   =  'G4Em'           : the G4 EM physics c.t.r. that corresponds to G4HepEm
-##   = 'emstandard_opt0' : the original, G4 EM-Opt0 physics c.t.r.
-## -----------------------------------------------------------------------------
-##/testem/phys/addPhysics   HepEm
-##/testem/phys/addPhysics  emstandard_opt0 
-##
 ## -----------------------------------------------------------------------------
 ## Set secondary production threshold, init. the run and set primary properties
 ## -----------------------------------------------------------------------------
@@ -65,7 +53,4 @@
 ##/tracking/verbose 1
 ##/process/list
 
-# run events with parametrised simulation
-# by default all created models are active
-/param/ActivateModel AdePT
 /run/beamOn 1
