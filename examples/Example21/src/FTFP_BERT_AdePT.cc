@@ -29,7 +29,7 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(AdePTTrackingManager* tm, G4int ver)
 {
   // default cut value  (1.0mm)
   // defaultCutValue = 1.0*CLHEP::mm;
-  G4cout << "<<< Geant4 Physics List simulation engine: FTFP_BERT_HepEm" << G4endl;
+  G4cout << "<<< Geant4 Physics List simulation engine: FTFP_BERT_AdePT" << G4endl;
   G4cout << G4endl;
   defaultCutValue = 0.7 * CLHEP::mm;
   SetVerboseLevel(ver);
