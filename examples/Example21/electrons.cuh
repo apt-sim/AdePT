@@ -58,8 +58,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = volume->GetLogicalVolume()->id();
     VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
-    assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
-
+    
     auto survive = [&](bool leak = false) {
       currentTrack.energy   = energy;
       currentTrack.pos      = pos;

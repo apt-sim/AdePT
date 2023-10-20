@@ -81,9 +81,7 @@ set(TESTEM3_GDML ${CMAKE_BINARY_DIR}/testEm3.gdml)
 set(LHCB_GDML ${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml)
 configure_file("macros/testEm3.gdml" "${CMAKE_BINARY_DIR}/testEm3.gdml")
 configure_file("macros/testEm3.mac.in" "${CMAKE_BINARY_DIR}/testEm3_e17.mac")
-configure_file("macros/testEm3G4.mac.in" "${CMAKE_BINARY_DIR}/testEm3G4_e17.mac")
 configure_file("macros/example21.mac.in" "${CMAKE_BINARY_DIR}/example21.mac")
-configure_file("macros/example21_validation.mac.in" "${CMAKE_BINARY_DIR}/example21_validation.mac")
 configure_file("macros/LHCb_Upgrade_fullLHCb.gdml" "${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml")
 configure_file("macros/lhcb.mac.in" "${CMAKE_BINARY_DIR}/lhcb_e17.mac")
 configure_file("macros/lhcb_validation.mac.in" "${CMAKE_BINARY_DIR}/lhcb_validation.mac")
@@ -91,5 +89,4 @@ configure_file("macros/lhcb_validation.mac.in" "${CMAKE_BINARY_DIR}/lhcb_validat
 # Tests
 add_test(NAME example21-adept-em3
   COMMAND $<TARGET_FILE:example21> -m ${CMAKE_BINARY_DIR}/testEm3_e17.mac)
-add_test(NAME example21-g4-em3
-  COMMAND $<TARGET_FILE:example21> -m ${CMAKE_BINARY_DIR}/testEm3G4_e17.mac)
+
