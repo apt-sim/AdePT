@@ -53,7 +53,7 @@ static std::unordered_map<const G4VPhysicalVolume *, int> gScoringMap;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-DetectorConstruction::DetectorConstruction(AdePTTrackingManager* tr) : G4VUserDetectorConstruction(), adeptTrMgr(tr)
+DetectorConstruction::DetectorConstruction(AdePTTrackingManager* tr) : G4VUserDetectorConstruction(), fAdeptTrMgr(tr)
 {
   fDetectorMessenger = new DetectorMessenger(this);
 }
@@ -172,12 +172,12 @@ void DetectorConstruction::ConstructSDandField()
     }
   }
 
-  if(adeptTrMgr){
-  adeptTrMgr->SetSensitiveVolumes(&(caloSD->fSensitive_volume_index));
-  adeptTrMgr->SetScoringMap(&gScoringMap);
-  adeptTrMgr->SetVerbosity(fVerbosity);
-  adeptTrMgr->SetBufferThreshold(fBufferThreshold);
-  adeptTrMgr->SetTrackSlots(fTrackSlotsGPU);
+  if(fAdeptTrMgr){
+  fAdeptTrMgr->SetSensitiveVolumes(&(caloSD->fSensitive_volume_index));
+  fAdeptTrMgr->SetScoringMap(&gScoringMap);
+  fAdeptTrMgr->SetVerbosity(fVerbosity);
+  fAdeptTrMgr->SetBufferThreshold(fBufferThreshold);
+  fAdeptTrMgr->SetTrackSlots(fTrackSlotsGPU);
   } 
 }
 

@@ -28,7 +28,6 @@ class DetectorMessenger;
  *
  * Sensitive detector SensitiveDetector is attached to the
  * Absorber volumes.
- * Region for the detector is created as an envelope of the fast simulation.
  *
  */
 
@@ -74,10 +73,10 @@ public:
 
   std::vector<G4String> &GetSensitiveGroups() { return fSensitive_group; }
 
-  G4String &getRegionName() { return fRegion_name; }
+  G4String &GetRegionName() { return fRegion_name; }
 
 private:
-  AdePTTrackingManager* adeptTrMgr;
+  AdePTTrackingManager* fAdeptTrMgr; /// custom tracking manager delegating the transport to AdePT
   int fVerbosity{0};        ///< Actually verbosity for AdePT integration
   int fBufferThreshold{20}; ///< Buffer threshold for AdePT transport
   double fTrackSlotsGPU{1}; ///< Total number of track slots allocated on GPU (millions)
