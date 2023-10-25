@@ -89,7 +89,7 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision safety,  int indx, // Slot index 
+    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision safetyIn,  int indx, // Slot index 
     const int max_iterations)
 {
   using Precision = vecgeom::Precision;
@@ -102,7 +102,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   Precision momentumMag = sqrt(kinE * (kinE + 2 * mass));
 
   // Distance along the track direction to reach the maximum allowed error
-  Precision safeLength = ComputeSafeLength(momentumMag, charge, direction);
+  const Precision safeLength = ComputeSafeLength(momentumMag, charge, direction);
 
   ConstBzFieldStepper helixBz(BzValue);
 
@@ -117,6 +117,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   } else {
     bool continueIteration = false;
 
+    Precision safety = safetyIn;
     Vector3D safetyOrigin = position;
     // Prepare next_state in case we skip navigation inside the safety sphere.
     current_state.CopyTo(&next_state);
