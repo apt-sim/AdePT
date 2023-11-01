@@ -7,11 +7,13 @@
 #include "G4VPhysicsConstructor.hh"
 #include "globals.hh"
 #include "AdePTTrackingManager.hh"
+#include "DetectorConstruction.hh"
 
 class PhysListAdePT : public G4VPhysicsConstructor {
 public:
-  PhysListAdePT(AdePTTrackingManager* trmgr, const G4String &name = "AdePT-physics-list");
+  PhysListAdePT(DetectorConstruction *aDetector, const G4String &name = "AdePT-physics-list");
   ~PhysListAdePT();
+  AdePTTrackingManager* GetTrackingManager(){return fTrackingManager;}
 
 public:
   // This method is dummy for physics: particles are constructed in PhysicsList
@@ -23,7 +25,8 @@ public:
   void ConstructProcess() override;
 
 private:
-  AdePTTrackingManager* trackingManager; 
+  AdePTTrackingManager* fTrackingManager; 
+  DetectorConstruction* fDetector;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

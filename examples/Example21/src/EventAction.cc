@@ -35,6 +35,7 @@
 #include "G4Event.hh"
 #include "G4EventManager.hh"
 #include "G4RunManager.hh"
+#include "G4PhysicalVolumeStore.hh"
 
 #include "G4GlobalFastSimulationManager.hh"
 #include "AdeptIntegration.h"
@@ -129,12 +130,14 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   for (auto i = 0; i < ngroups; ++i)
     edep_groups[i] = 0;
 
+  // Accumulate the energy deposited per group
+
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
     hit   = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
     hitEn = hit->GetEdep();
     totalEnergy += hitEn;
-
-    G4String vol_name = vecgeom::GeoManager::Instance().FindPlacedVolume(iHit)->GetLogicalVolume()->GetName();
+    G4String vol_name = hit->GetPhysicalVolumeName();
+    
     bool group_found  = false;
     for (int igroup = 0; igroup < ngroups; ++igroup) {
       if (vol_name.rfind(groups[igroup], 0) == 0) {
@@ -144,12 +147,11 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
       }
     }
     if (group_found) continue;
-    const char *type = (hit->GetType() == 1) ? "AdePT" : "G4";
     if (hitEn > 1 && fVerbosity > 1)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;
   }
-
+  
   if (fVerbosity > 1) {
     for (int igroup = 0; igroup < ngroups; ++igroup) {
       G4cout << "EndOfEventAction " << eventId << " : group " << std::setw(5) << groups[igroup] << "  edep "

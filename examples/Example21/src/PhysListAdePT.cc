@@ -38,11 +38,12 @@
 #include "G4hIonisation.hh"
 #include "G4ionIonisation.hh"
 #include "G4NuclearStopping.hh"
+#include "G4SDManager.hh"
 
+#include "DetectorConstruction.hh"
+#include "SensitiveDetector.hh"
 
-
-PhysListAdePT::PhysListAdePT(AdePTTrackingManager* trmgr, 
-const G4String &name) : G4VPhysicsConstructor(name), trackingManager(trmgr)
+PhysListAdePT::PhysListAdePT(DetectorConstruction *aDetector, const G4String &name) : fDetector(aDetector), G4VPhysicsConstructor(name)
 {
   G4EmParameters *param = G4EmParameters::Instance();
   param->SetDefaults();
@@ -59,7 +60,6 @@ PhysListAdePT::~PhysListAdePT() {}
 
 void PhysListAdePT::ConstructProcess()
 {
-
   G4PhysicsListHelper *ph = G4PhysicsListHelper::GetPhysicsListHelper();
 
   // from G4EmStandardPhysics
@@ -80,9 +80,19 @@ void PhysListAdePT::ConstructProcess()
   // end of G4EmStandardPhysics
 
   // Register custom tracking manager for e-/e+ and gammas.
-  G4Electron::Definition()->SetTrackingManager(trackingManager);
-  G4Positron::Definition()->SetTrackingManager(trackingManager);
-  G4Gamma::Definition()->SetTrackingManager(trackingManager);
+  fTrackingManager = new AdePTTrackingManager();
+  G4Electron::Definition()->SetTrackingManager(fTrackingManager);
+  G4Positron::Definition()->SetTrackingManager(fTrackingManager);
+  G4Gamma::Definition()->SetTrackingManager(fTrackingManager);
+
+  // Setup tracking manager
+
+  auto caloSD = dynamic_cast<SensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
+  fTrackingManager->SetSensitiveVolumes(&(caloSD->fSensitive_volume_index));
+  fTrackingManager->SetScoringMap(caloSD->fScoringMap);
+  fTrackingManager->SetVerbosity(0);
+  fTrackingManager->SetBufferThreshold(fDetector->GetBufferThreshold());
+  fTrackingManager->SetTrackSlots(fDetector->GetTrackSlots());
 
   // from G4EmStandardPhysics
 

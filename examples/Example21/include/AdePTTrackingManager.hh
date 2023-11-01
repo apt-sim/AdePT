@@ -29,7 +29,7 @@ public:
 
   void SetSensitiveVolumes(std::unordered_map<std::string, int> *sv) { sensitive_volume_index = sv; }
 
-  void SetScoringMap(std::unordered_map<const G4VPhysicalVolume *, int> *sm) { fScoringMap = sm; }
+  void SetScoringMap(std::unordered_map<size_t, size_t> *sm) { fScoringMap = sm; }
 
   // Set total number of track slots on GPU
   void SetTrackSlots(double value) { fTrackSlotsGPU = value; }
@@ -48,12 +48,14 @@ int fVerbosity{0};
 /// AdePT buffer threshold
 int fBufferThreshold{20};
 
+bool fInitDone{false};
+
 G4double ProductionCut = 0.7 * copcore::units::mm;
 
 int MCIndex[100];
 double fTrackSlotsGPU{1}; ///< Total number of track slots allocated on GPU (in millions)
 std::unordered_map<std::string, int> *sensitive_volume_index;
-std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap;
+std::unordered_map<size_t, size_t> *fScoringMap;
 
 };
 

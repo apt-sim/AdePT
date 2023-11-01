@@ -85,33 +85,33 @@ int main(int argc, char **argv)
   auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);
   //auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial);
 
+  // Detector geometry:
+  auto detector = new DetectorConstruction();
+  runManager->SetUserInitialization(detector);
+
  // Physics list
  //
- AdePTTrackingManager* trackingManager = nullptr;
+ G4VUserPhysicsList *physicsList;
 
  if(useAdePT){
-  trackingManager = new AdePTTrackingManager;
-  auto* physicsList = new FTFP_BERT_AdePT(trackingManager);
-  runManager->SetUserInitialization(physicsList);
+  physicsList = new FTFP_BERT_AdePT(detector);
  }
  else{
-  auto* physicsList = new FTFP_BERT_HepEm();
-  runManager->SetUserInitialization(physicsList);
+  physicsList = new FTFP_BERT_HepEm();
  }
+
+ runManager->SetUserInitialization(physicsList);
 
  // reduce verbosity of physics lists
  G4EmParameters::Instance()->SetVerbose(0);
  G4HadronicProcessStore::Instance()->SetVerbose(0);
 
-  // Detector geometry:
-  auto detector = new DetectorConstruction(trackingManager);
-  runManager->SetUserInitialization(detector);
-
   //-------------------------------
   // UserAction classes
   //-------------------------------
   runManager->SetUserInitialization(
-      new ActionInitialisation(detector, outputDirectory, outputFilename, doBenchmark, doValidation));
+    new ActionInitialisation(detector,outputDirectory, outputFilename, 
+                            doBenchmark, doValidation));
 
   G4UImanager *UImanager = G4UImanager::GetUIpointer();
   G4String command       = "/control/execute ";

@@ -25,6 +25,11 @@
 #include "SensitiveDetector.hh"
 #include "EventAction.hh"
 
+// Static members definition
+std::unordered_map<size_t, size_t> AdeptIntegration::fglobal_volume_to_hit_map;
+std::unordered_map<size_t, size_t> AdeptIntegration::fglobal_vecgeom_to_g4_map;
+int AdeptIntegration::fGlobalNumSensitive = 0;
+
 AdeptIntegration::~AdeptIntegration()
 {
   delete fScoring;
@@ -54,8 +59,7 @@ void AdeptIntegration::Initialize(bool common_data)
   if (fMaxBatch <= 0) throw std::runtime_error("AdeptIntegration::Initialize: Maximum batch size not set.");
 
   fNumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  // We set the number of sensitive volumes equal to the number of placed volumes. This is temporary
-  fNumSensitive = vecgeom::GeoManager::Instance().GetPlacedVolumesCount();
+  
   if (fNumVolumes == 0) throw std::runtime_error("AdeptIntegration::Initialize: Number of geometry volumes is zero.");
 
   if (common_data) {
@@ -73,6 +77,7 @@ void AdeptIntegration::Initialize(bool common_data)
 
     // Do the material-cut couple index mapping once
     // as well as set flags for sensitive volumes and region
+    // Also set the mappings from sensitive volumes to hits and VecGeom to G4 indices
     int *sensitive_volumes = nullptr;
 
     VolAuxData *auxData = CreateVolAuxData(
@@ -94,7 +99,7 @@ void AdeptIntegration::Initialize(bool common_data)
          << G4endl;
 
   // Initialize user scoring data
-  fScoring     = new AdeptScoring(fNumSensitive);
+  fScoring     = new AdeptScoring(fGlobalNumSensitive, &fglobal_volume_to_hit_map, vecgeom::GeoManager::Instance().GetPlacedVolumesCount());
   fScoring_dev = fScoring->InitializeOnGPU();
 
   // Initialize the transport engine for the current thread
@@ -189,9 +194,13 @@ void AdeptIntegration::Shower(int event)
   auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
   SensitiveDetector *fastSimSensitive = dynamic_cast<SensitiveDetector *>(sd);
 
-  for (auto id = 0; id != fNumSensitive; id++) {
-    // here I add the energy deposition to the pre-existing Geant4 hit based on id
-    fastSimSensitive->ProcessHits(id, fScoring->fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
+  // For each Vecgeom-G4 sensitive volume pair
+  for(auto pair: (fglobal_vecgeom_to_g4_map))
+  {
+    auto vecgeom_id = pair.first;
+    auto geant4_id = pair.second;
+    fastSimSensitive->ProcessHits(geant4_id, 
+                                  fScoring->fScoringPerVolume.energyDeposit[fScoring->fPvolToHit[vecgeom_id]] / copcore::units::MeV);
   }
 
   EventAction *evAct      = dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
@@ -222,23 +231,24 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
   // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
   // (we need to make sure we set the right MCC index to the right volume)
   typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
-  func_t visitAndSetMCindex = [&](G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume const *pvol) {
-    const auto g4vol = g4pvol->GetLogicalVolume();
-    const auto vol   = pvol->GetLogicalVolume();
-    int nd           = g4vol->GetNoDaughters();
-    auto daughters   = vol->GetDaughters();
+  func_t visitAndSetMCindex = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
+    const auto g4_lvol = g4_pvol->GetLogicalVolume();
+    const auto vg_lvol   = vg_pvol->GetLogicalVolume();
+    int nd           = g4_lvol->GetNoDaughters();
+    auto daughters   = vg_lvol->GetDaughters();
+
     if (nd != daughters.size()) throw std::runtime_error("Fatal: CreateVolAuxData: Mismatch in number of daughters");
     // Check if transformations are matching
-    auto g4trans = g4pvol->GetTranslation();
-    auto g4rot   = g4pvol->GetRotation();
+    auto g4trans = g4_pvol->GetTranslation();
+    auto g4rot   = g4_pvol->GetRotation();
     G4RotationMatrix idrot;
-    auto vgtransformation  = pvol->GetTransformation();
+    auto vgtransformation  = vg_pvol->GetTransformation();
     constexpr double epsil = 1.e-8;
     for (int i = 0; i < 3; ++i) {
       if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
         throw std::runtime_error(
             std::string("Fatal: CreateVolAuxData: Mismatch between Geant4 translation for physical volume") +
-            pvol->GetName());
+            vg_pvol->GetName());
     }
 
     // check if VecGeom and Geant4 (local) transformations are matching. Not optimized, this will re-check
@@ -250,57 +260,67 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
         if (std::abs((*g4rot)(row, col) - vgtransformation->Rotation(i)) > epsil)
           throw std::runtime_error(
               std::string("Fatal: CreateVolAuxData: Mismatch between Geant4 rotation for physical volume") +
-              pvol->GetName());
+              vg_pvol->GetName());
       }
     }
 
     // Check the couples
-    if (g4vol->GetMaterialCutsCouple() == nullptr)
-      throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4vol->GetName()) +
+    if (g4_lvol->GetMaterialCutsCouple() == nullptr)
+      throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
                                std::string(" has no material-cuts couple"));
-    int g4mcindex    = g4vol->GetMaterialCutsCouple()->GetIndex();
+    int g4mcindex    = g4_lvol->GetMaterialCutsCouple()->GetIndex();
     int hepemmcindex = g4tohepmcindex[g4mcindex];
     // Check consistency with G4HepEm data
     if (hepEmState.fData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
       throw std::runtime_error(
           "Fatal: CreateVolAuxData: Mismatch between Geant4 mcindex and corresponding G4HepEm index");
-    if (vol->id() >= nvolumes)
+    if (vg_lvol->id() >= nvolumes)
       throw std::runtime_error("Fatal: CreateVolAuxData: Volume id larger than number of volumes");
 
     // All OK, now fill the MCC index in the array
-    auxData[vol->id()].fMCIndex = hepemmcindex;
+    auxData[vg_lvol->id()].fMCIndex = hepemmcindex;
     nphysical++;
 
     // Check if the volume belongs to the interesting region
     // I am commenting out this 'if' because (for the moment) we don't want any particles leaking out from AdePT
-    //if (g4vol->GetRegion() == fRegion) {
-      auxData[vol->id()].fGPUregion = 1;
+    //if (g4_lvol->GetRegion() == fRegion) {
+      auxData[vg_lvol->id()].fGPUregion = 1;
       ninregion++;
     //}
+    
 
     // Check if the logical volume is sensitive
     bool sens = false;
     for (auto sensvol : (*sensitive_volume_index)) {
-      if (vol->GetName() == sensvol.first || std::string(vol->GetName()).rfind(sensvol.first + "0x", 0) == 0) {
+      if (vg_lvol->GetName() == sensvol.first || std::string(vg_lvol->GetName()).rfind(sensvol.first + "0x", 0) == 0) {
         sens = true;
-        if (g4vol->GetSensitiveDetector() == nullptr)
-          throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4vol->GetName()) +
-                                   " not sensitive while VecGeom one " + std::string(vol->GetName()) + " is.");
-        if (auxData[vol->id()].fSensIndex < 0) nlogical_sens++;
-        auxData[vol->id()].fSensIndex = sensvol.second;
-        fScoringMap->insert(std::pair<const G4VPhysicalVolume *, int>(g4pvol, pvol->id()));
+        if (g4_lvol->GetSensitiveDetector() == nullptr)
+          throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
+                                   " not sensitive while VecGeom one " + std::string(vg_lvol->GetName()) + " is.");
+        if (auxData[vg_lvol->id()].fSensIndex < 0) nlogical_sens++;
+        auxData[vg_lvol->id()].fSensIndex = sensvol.second;
         nphysical_sens++;
+
+        // Initialize mapping of Vecgeom sensitive PlacedVolume IDs to G4 PhysicalVolume IDs
+        bool new_pvol = fglobal_vecgeom_to_g4_map.insert(std::pair<int, int>(vg_pvol->id(), g4_pvol->GetInstanceID())).second;
+        if(new_pvol)
+        {
+          // If we found a new placed volume, map its ID to a hit
+          fglobal_volume_to_hit_map[vg_pvol->id()] = fGlobalNumSensitive;
+          fGlobalNumSensitive++;
+        }
+
         break;
       }
     }
 
-    if (!sens && g4vol->GetSensitiveDetector() != nullptr)
-      throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4vol->GetName()) +
-                               " sensitive while VecGeom one " + std::string(vol->GetName()) + " isn't.");
+    if (!sens && g4_lvol->GetSensitiveDetector() != nullptr)
+      throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
+                               " sensitive while VecGeom one " + std::string(vg_lvol->GetName()) + " isn't.");
 
     // Now do the daughters
     for (int id = 0; id < nd; ++id) {
-      auto g4pvol_d = g4vol->GetDaughter(id);
+      auto g4pvol_d = g4_lvol->GetDaughter(id);
       auto pvol_d   = daughters[id];
 
       // VecGeom does not strip pointers from logical volume names

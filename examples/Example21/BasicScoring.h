@@ -41,6 +41,7 @@ struct ScoringPerVolume {
 struct BasicScoring {
   using VolAuxData = adeptint::VolAuxData;
   int fNumSensitive{0};
+  int fNumPvol{0};
   VolAuxData *fAuxData_dev{nullptr};
   double *fEnergyDeposit_dev{nullptr};
   double *fChargedTrackLength_dev{nullptr};
@@ -49,11 +50,19 @@ struct BasicScoring {
 
   double *fChargedTrackLength{nullptr};
   double *fEnergyDeposit{nullptr};
+  int *fPvolToHit{nullptr};
+  int *fPvolToHit_dev{nullptr};
   ScoringPerVolume fScoringPerVolume;
   GlobalScoring fGlobalScoring;
 
-  BasicScoring(int numSensitive) : fNumSensitive(numSensitive)
+  BasicScoring(int numSensitive, std::unordered_map<size_t, size_t> *avolume_to_hit_map, int aNumPvol) : fNumSensitive(numSensitive)
   {
+    fPvolToHit                           = new int[aNumPvol];
+    for(auto pair: (*avolume_to_hit_map))
+    {
+      fPvolToHit[pair.first] = pair.second;
+    }
+    fNumPvol = aNumPvol;
     fEnergyDeposit                       = new double[numSensitive];
     fChargedTrackLength                  = new double[numSensitive];
     fScoringPerVolume.energyDeposit      = fEnergyDeposit;
