@@ -7,7 +7,7 @@
 ## Geant4 macro for modelling simplified sampling calorimeters
 ## =============================================================================
 ##
-/run/numberOfThreads 1
+/run/numberOfThreads 16
 /control/verbose 0
 /run/verbose 0
 /process/verbose 0
@@ -19,9 +19,9 @@
 /example17/detector/regionname EcalRegion
 /example17/adept/verbose 0
 ## Threshold for buffering tracks before sending to GPU
-/example17/adept/threshold 200
+/example17/adept/threshold 5000
 ## Total number of GPU track slots (not per thread)
-/example17/adept/milliontrackslots 1
+/example17/adept/milliontrackslots 15
 
 /example17/detector/addsensitivevolume EAPD_01
 /example17/detector/addsensitivevolume EAPD_02
@@ -128,22 +128,11 @@
 ## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
 /example17/event/verbose 2
 
-/example17/gun/setDefault
-/gun/particle e-
-/gun/energy 10 GeV
-/gun/number 200
-/gun/position 0 0 0
-/example17/gun/print true
-
-#If false, the following parameters are ignored
-/example17/gun/randomizeGun true
-#Usage: /example17/gun/addParticle type ["weight" weight] ["energy" energy unit]
-/example17/gun/addParticle e- weight 1 energy 10 GeV
-/example17/gun/addParticle proton weight 0 energy 10 GeV
-/example17/gun/minPhi 0 deg
-/example17/gun/maxPhi 360 deg
-/example17/gun/minTheta 10 deg
-/example17/gun/maxTheta 170 deg
+/example17/gun/hepmc
+/generator/hepmcAscii/maxevents 256
+#/generator/hepmcAscii/firstevent 0
+/generator/hepmcAscii/open ppttbar.hepmc3
+/generator/hepmcAscii/verbose 0
 
 ##
 ## -----------------------------------------------------------------------------
@@ -152,17 +141,17 @@
 ##/tracking/verbose 1
 ##/process/list
 
-/example17/setSeed 1
+#/example17/setSeed 1
 
 # run events with parametrised simulation
 # by default all created models are active
-/param/ActivateModel AdePT
+#/param/ActivateModel AdePT
 #/analysis/setFileName example17_fastsim_100events.root
-/run/beamOn 1
+#/run/beamOn 128
 
 /example17/setSeed 1
 
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
 #/analysis/setFileName example17_fullsim_100events.root
-/run/beamOn 1
+/run/beamOn 128

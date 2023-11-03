@@ -24,8 +24,9 @@
 
 #include "G4HadronPhysicsFTFP_BERT.hh"
 #include "FTFP_BERT_AdePT.hh"
+#include "DetectorConstruction.hh"
 
-FTFP_BERT_AdePT::FTFP_BERT_AdePT(AdePTTrackingManager* tm, G4int ver)
+FTFP_BERT_AdePT::FTFP_BERT_AdePT(DetectorConstruction *aDetector, G4int ver)
 {
   // default cut value  (1.0mm)
   // defaultCutValue = 1.0*CLHEP::mm;
@@ -35,7 +36,7 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(AdePTTrackingManager* tm, G4int ver)
   SetVerboseLevel(ver);
 
   // EM Physics
-  RegisterPhysics(new PhysListAdePT(tm));
+  RegisterPhysics(new PhysListAdePT(aDetector));
 
   // Synchroton Radiation & GN Physics
   // comenting out to remove gamma- and lepto-nuclear processes

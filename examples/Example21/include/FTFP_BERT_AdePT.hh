@@ -9,14 +9,20 @@
 #include "globals.hh"
 #include "G4VModularPhysicsList.hh"
 #include "AdePTTrackingManager.hh"
+#include "PhysListAdePT.hh"
 
 class FTFP_BERT_AdePT : public G4VModularPhysicsList {
 public:
-  FTFP_BERT_AdePT(AdePTTrackingManager* tm, G4int ver = 1);
+  FTFP_BERT_AdePT(DetectorConstruction *aDetector, G4int ver = 1);
   virtual ~FTFP_BERT_AdePT() = default;
 
   FTFP_BERT_AdePT(const FTFP_BERT_AdePT &) = delete;
   FTFP_BERT_AdePT &operator=(const FTFP_BERT_AdePT &) = delete;
+
+  PhysListAdePT *GetAdePTPhysicsList(){return fAdePTPhysicsList;}
+
+private:
+  PhysListAdePT *fAdePTPhysicsList{nullptr};
 };
 
 #endif

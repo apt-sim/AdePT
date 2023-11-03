@@ -296,11 +296,10 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   // Capacity of the different containers aka the maximum number of particles.
   auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
   COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
+  
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
   GPUstate &gpuState                            = *static_cast<GPUstate *>(fGPUstate);
-
   Secondaries secondaries{gpuState.allmgr_d.trackmgr[0], gpuState.allmgr_d.trackmgr[1], gpuState.allmgr_d.trackmgr[2]};
-
   ParticleType &electrons = gpuState.particles[ParticleType::Electron];
   ParticleType &positrons = gpuState.particles[ParticleType::Positron];
   ParticleType &gammas    = gpuState.particles[ParticleType::Gamma];
@@ -309,7 +308,6 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.toDevice_dev, buffer.toDevice.data(),
                                      buffer.toDevice.size() * sizeof(adeptint::TrackData), cudaMemcpyHostToDevice,
                                      gpuState.stream));
-
   if (fDebugLevel > 0) {
     G4cout << std::dec << G4endl << "GPU transporting event " << event << " for CPU thread "
            << G4Threading::G4GetThreadId() << ": " << std::flush;
