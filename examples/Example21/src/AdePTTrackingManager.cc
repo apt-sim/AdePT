@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #include "AdePTTrackingManager.hh"
 
 #include "G4Threading.hh"

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2023 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #ifndef AdePTTrackingManager_h
 #define AdePTTrackingManager_h 1
 
