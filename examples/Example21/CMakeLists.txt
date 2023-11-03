@@ -80,7 +80,7 @@ set_target_properties(example21 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RE
 set(TESTEM3_GDML ${CMAKE_BINARY_DIR}/testEm3.gdml)
 set(LHCB_GDML ${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml)
 configure_file("../data/testEm3.gdml" "${CMAKE_BINARY_DIR}/testEm3.gdml")
-configure_file("macros/testEm3.mac.in" "${CMAKE_BINARY_DIR}/testEm3_e17.mac")
+configure_file("macros/testEm3.mac.in" "${CMAKE_BINARY_DIR}/testEm3_e21.mac")
 configure_file("macros/example21.mac.in" "${CMAKE_BINARY_DIR}/example21.mac")
 configure_file("macros/example21_ttbar.mac.in" "${CMAKE_BINARY_DIR}/example21_ttbar.mac")
 configure_file("../data/LHCb_Upgrade_fullLHCb.gdml" "${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml")
@@ -89,5 +89,5 @@ configure_file("macros/lhcb_validation.mac.in" "${CMAKE_BINARY_DIR}/lhcb_validat
 
 # Tests
 add_test(NAME example21-adept-em3
-  COMMAND $<TARGET_FILE:example21> -m ${CMAKE_BINARY_DIR}/testEm3_e17.mac)
+  COMMAND $<TARGET_FILE:example21> -m ${CMAKE_BINARY_DIR}/testEm3_e21.mac)
 
