@@ -75,6 +75,7 @@ for config_filename in sys.argv[1:]:
 
             #Add the new lines to the configuration that will be sent to the macro
             run["configuration"]["random_gun_configuration"] = random_gun_configuration
+            run["configuration"]["ui_dir"] = ui_dir
 
             #Create a macro with the specified settings and save it to a file
             macro = macro_template
