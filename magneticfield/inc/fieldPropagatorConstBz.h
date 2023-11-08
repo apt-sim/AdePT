@@ -33,8 +33,7 @@ public:
                                                          Vector3D &position, Vector3D &direction,
                                                          vecgeom::NavStateIndex const &current_state,
                                                          vecgeom::NavStateIndex &new_state, bool &propagated,
-                                                         Precision safety = 0.0,
-                                                         int   slotIndex = -1,  //   To identify slot / aid investigations
+                                                         const Precision safety = 0.0,
                                                          const int max_iteration = 100);
 private:
   Precision BzValue;
@@ -74,8 +73,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precisio
   Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
 
   Precision bend = std::fabs(fieldConstants::kB2C * charge * BzValue) / momentumMag;
-  //                                                                  / (momentumXYMag + 1.0e-30); // norm for step
-  
+
   // R = helix radius, curv = 1./R = curvature in plane perpendicular to the field
   //Precision curv = bend / (dirxy + 1.e-30);
 
@@ -89,11 +87,10 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision safetyIn,  int indx, // Slot index 
-    const int max_iterations)
+    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision safetyIn, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
-#ifdef VECGEOM_FLOAT_PRECISION
+  #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
   const Precision kPush = 0;
@@ -183,9 +180,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         maxNextSafeMove   = ReduceFactor * safeMove;
         continueIteration = chordIters < ReduceIters;
 
-        if( continueIteration ) {
-           ;
-        } else {
+        if( ! continueIteration ) {
            // Let's move to the other side of this boundary -- this side we cannot progress !!
            move = Navigator::kBoundaryPush;
            // printf("fieldProp-ConstBz: pushing by %10.4g \n ", move );
