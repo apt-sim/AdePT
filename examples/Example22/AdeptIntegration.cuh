@@ -67,6 +67,7 @@ struct AllTrackManagers {
 // A data structure to transfer statistics after each iteration.
 struct Stats {
   adept::TrackManager<Track>::Stats mgr_stats[ParticleType::NumParticleTypes];
+  HostScoring::Stats hostscoring_stats;
   int leakedTracks[ParticleType::NumParticleTypes];
 };
 

@@ -108,7 +108,30 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+    G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
+
+    bool restrictedPhysicalStepLength = false;
+    if (BzFieldValue != 0) {
+      const double momentumMag = sqrt(energy * (energy + 2.0 * Mass));
+      // Distance along the track direction to reach the maximum allowed error
+      const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
+
+      constexpr int MaxSafeLength = 10;
+      double limit                = MaxSafeLength * safeLength;
+      limit                       = safety > limit ? safety : limit;
+
+      double physicalStepLength = elTrack.GetPStepLength();
+      if (physicalStepLength > limit) {
+        physicalStepLength           = limit;
+        restrictedPhysicalStepLength = true;
+        elTrack.SetPStepLength(physicalStepLength);
+        // Note: We are limiting the true step length, which is converted to
+        // a shorter geometry step length in HowFarToMSC. In that sense, the
+        // limit is an over-approximation, but that is fine for our purpose.
+      }
+    }
+
+    G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
     // Remember MSC values for the next step(s).
     currentTrack.initialRange       = mscData->fInitialRange;
@@ -257,7 +280,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         }
       }
       continue;
-    } else if (!propagated) {
+    } else if (!propagated || restrictedPhysicalStepLength) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
       survive();

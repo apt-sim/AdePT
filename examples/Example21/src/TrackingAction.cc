@@ -60,6 +60,8 @@ TrackingAction::TrackingAction(DetectorConstruction* aDetector) : G4UserTracking
 
 void TrackingAction::PreUserTrackingAction(const G4Track *aTrack) 
 {
+  // Reset step counter
+  fSteppingAction->SetNumSteps(0);
   #if defined TEST
     //For leptons, get the Run object associated to this thread and start the timer for this track, only if it is outside 
     //the GPU region
@@ -93,6 +95,8 @@ void TrackingAction::PreUserTrackingAction(const G4Track *aTrack)
 
 void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
 {
+  // Reset step counter
+  fSteppingAction->SetNumSteps(0);
   #if defined TEST
     //Get the Run object associated to this thread and end the timer for this track
     Run* currentRun = static_cast< Run* > ( G4RunManager::GetRunManager()->GetNonConstCurrentRun() );

@@ -36,7 +36,6 @@
 #include "G4LogicalVolumeStore.hh"
 #include "G4SolidStore.hh"
 
-#include <G4GDMLParser.hh>
 #include <G4EmParameters.hh>
 #include "G4Electron.hh"
 
@@ -68,9 +67,11 @@ G4VPhysicalVolume *DetectorConstruction::Construct()
 {
   // Read the geometry, regions and cuts from the GDML file
   G4cout << "Reading " << fGDML_file << " transiently on CPU for Geant4 ...\n";
-  G4GDMLParser parser;
-  parser.Read(fGDML_file, false); // turn off schema checker
-  G4VPhysicalVolume *world = parser.GetWorldVolume();
+  // G4GDMLParser parser;
+  // parser.Read(fGDML_file, false); // turn off schema checker
+  // G4VPhysicalVolume *world = parser.GetWorldVolume();
+  fParser.Read(fGDML_file, false); // turn off schema checker
+  G4VPhysicalVolume *world = fParser.GetWorldVolume();
 
   if (world == nullptr) {
     std::cerr << "Example17: World volume not set properly check your setup selection criteria or GDML input!\n";
@@ -147,26 +148,47 @@ void DetectorConstruction::ConstructSDandField()
   int numSensitiveTouchables = 0;
   int numTouchables = 0;
 
+  SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector", &fSensitivePhysicalVolumes);
+  G4SDManager::GetSDMpointer()->AddNewDetector(caloSD);
+  std::vector<G4LogicalVolume*> aSensitiveLogicalVolumes;
+
   std::function<void(G4VPhysicalVolume const *)> visitAndSetupScoring = [&](G4VPhysicalVolume const *pvol) {
     const auto lvol = pvol->GetLogicalVolume();
     int nd           = lvol->GetNoDaughters();
     numTouchables++;
 
     // Check if the LogicalVolume is sensitive
-    for( auto sensitive_name : fSensitive_volumes)
+    auto aAuxInfoList = fParser.GetVolumeAuxiliaryInformation(lvol);
+    for(auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++ )
     {
-      if (lvol->GetName() == sensitive_name || 
-          std::string(lvol->GetName()).rfind(sensitive_name + "0x", 0) == 0)
+      G4String str=iaux->type;
+      G4String val=iaux->value;
+      G4String unit=iaux->unit;
+
+      if(str == "SensDet")
+      {
+        // If it is, record the PV
+        if( fSensitivePhysicalVolumes.find(pvol) == fSensitivePhysicalVolumes.end() )
         {
-          // If it is, record the PV
-          if( fSensitivePhysicalVolumes.find(pvol) == fSensitivePhysicalVolumes.end() )
-          {
-            fSensitivePhysicalVolumes.insert(pvol);
-          }
-          numSensitiveTouchables++;
-          break;
+          fSensitivePhysicalVolumes.insert(pvol); 
         }
+        // If this is the first time we see this LV
+        if(std::find(caloSD->fSensitiveLogicalVolumes.begin(), 
+            caloSD->fSensitiveLogicalVolumes.end(), 
+            lvol) == caloSD->fSensitiveLogicalVolumes.end())
+        //if( caloSD->fSensitiveLogicalVolumes.find(lvol) == caloSD->fSensitiveLogicalVolumes.end() )
+        {
+          //G4cout << "Making " << lvol->GetName() << " sensitive" << G4endl;
+          // Make LogicalVolume sensitive by registering a SensitiveDetector for it
+          SetSensitiveDetector(lvol, caloSD);
+          // We keep a list of Logical sensitive volumes, used for initializing AdePTIntegration
+          caloSD->fSensitiveLogicalVolumes.push_back(lvol);
+        }
+        numSensitiveTouchables++;
+        break;
+      }
     }
+
     // Visit the daughters
     for (int id = 0; id < nd; ++id) {
       auto daughter = lvol->GetDaughter(id);
@@ -182,27 +204,6 @@ void DetectorConstruction::ConstructSDandField()
   G4cout << "Num touchables: " << numTouchables << G4endl;
   G4cout << "Num VecGeom placements: " << vecgeom::GeoManager::Instance().GetPlacedVolumesCount() << G4endl;
   G4cout << "Num sensitive PVs: " << fSensitivePhysicalVolumes.size() << G4endl;
-
-  // Make LogicalVolumes sensitive by registering a SensitiveDetector for them
-  
-  SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector", &fSensitivePhysicalVolumes);
-
-  G4SDManager::GetSDMpointer()->AddNewDetector(caloSD);
-  auto const &store = *G4LogicalVolumeStore::GetInstance();
-
-  int index = 1;
-  for (auto name : fSensitive_volumes) {
-    G4cout << "Making " << name << " sensitive with index " << index << G4endl;
-    caloSD->fSensitive_volume_index[name] = index;
-    index++;
-    // iterate G4LogicalVolumeStore and set sensitive volumes
-    for (auto lvol : store) {
-      if (lvol->GetName() == name || lvol->GetName().rfind(name + "0x") == 0)
-      {
-        SetSensitiveDetector(lvol, caloSD);
-      }
-    }
-  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

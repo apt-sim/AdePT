@@ -37,6 +37,14 @@ void Run::Merge(const G4Run *run)
     fTestManager->addToAccumulator(accumulators::ECAL_SUM,
                                         aTestManager->getAccumulator(accumulators::ECAL_SUM));
     fTestManager->addToAccumulator(accumulators::ECAL_SQ, aTestManager->getAccumulator(accumulators::ECAL_SQ));
+    fTestManager->addToAccumulator(accumulators::NUM_PARTICLES, 
+                                        aTestManager->getAccumulator(accumulators::NUM_PARTICLES));
+
+    // TEMP: DELETE THIS
+    fTestManager->addToAccumulator(accumulators::EVENT_HIT_COPY_SIZE, 
+                                        aTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE));
+    fTestManager->addToAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ, 
+                                        aTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ));
   }
 
   G4Run::Merge(run);
@@ -57,6 +65,10 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename,
 
     double ecalMean  = fTestManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
     double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fTestManager->getAccumulator(accumulators::ECAL_SQ));
+    
+    // TEMP: DELETE THIS
+    double sizeMean  = fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE) / GetNumberOfEvent();
+    double sizeStdev = STDEV(GetNumberOfEvent(), sizeMean, fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ));
 
     G4cout << "------------------------------------------------------------"
           << "\n";
@@ -65,12 +77,10 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename,
     G4cout << "BENCHMARK: Run time: " << runTime << "\n";
     G4cout << "BENCHMARK: Mean Event time: " << eventMean << "\n";
     G4cout << "BENCHMARK: Event Standard Deviation: " << eventStdev << "\n";
-    G4cout << "BENCHMARK: Mean Non EM time: " << nonEMMean << "\n";
-    G4cout << "BENCHMARK: Non EM Standard Deviation: " << nonEMStdev << "\n";
-    G4cout << "BENCHMARK: Mean ECAL e-, e+ and gammas time: " << ecalMean << "\n";
-    G4cout << "BENCHMARK: ECAL e-, e+ and gammas Standard Deviation: " << ecalStdev << "\n";
-    G4cout << "BENCHMARK: Mean proportion of time spent simulating e-, e+ and gammas in ECAL: "
-          << 100 * ecalMean / eventMean << "%\n";
+    
+    // TEMP: DELETE THIS
+    G4cout << "BENCHMARK: Mean size: " << sizeMean << "MB\n";
+    G4cout << "BENCHMARK: Size Standard Deviation: " << sizeStdev << "\n";
   }
 
   // Export the results per event
@@ -111,4 +121,13 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename,
     }
   }
   TestManagerStore<int>::GetInstance()->Reset();
+
+  // Export global results
+
+  aOutputTestManager.setAccumulator("Totaltime", fTestManager->getDurationSeconds(timers::TOTAL));
+  aOutputTestManager.setAccumulator("NumParticles", fTestManager->getAccumulator(accumulators::NUM_PARTICLES));
+
+  aOutputTestManager.setOutputDirectory(aOutputDirectory);
+  aOutputTestManager.setOutputFilename(aOutputFilename + "_global");
+  aOutputTestManager.exportCSV();
 }

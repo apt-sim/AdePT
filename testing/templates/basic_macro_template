@@ -20,6 +20,7 @@
 /$ui_dir/adept/threshold $adept_threshold
 ## Total number of GPU track slots (not per thread)
 /$ui_dir/adept/milliontrackslots $adept_million_track_slots
+/$ui_dir/adept/millionhitslots 2
 
 /$ui_dir/detector/addsensitivevolume EAPD_01
 /$ui_dir/detector/addsensitivevolume EAPD_02

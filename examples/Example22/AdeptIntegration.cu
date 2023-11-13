@@ -45,7 +45,8 @@ __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 __constant__ __device__ double BzFieldValue               = 0;
 
 G4HepEmState *AdeptIntegration::fg4hepem_state{nullptr};
-int AdeptIntegration::kCapacity = 1024 * 1024;
+int AdeptIntegration::kCapacity          = 1024 * 1024;
+int AdeptIntegration::kHitBufferCapacity = 1024 * 1024;
 
 void AdeptIntegration::VolAuxArray::InitializeOnGPU()
 {
@@ -97,7 +98,8 @@ static G4HepEmState *InitG4HepEm()
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
 __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int startTrack, int event,
-                           Secondaries secondaries, const vecgeom::VPlacedVolume *world, AdeptScoring *userScoring)
+                           Secondaries secondaries, const vecgeom::VPlacedVolume *world, AdeptScoring *userScoring,
+                           VolAuxData const *auxDataArray)
 {
   constexpr double tolerance = 10. * vecgeom::kTolerance;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < ntracks; i += blockDim.x * gridDim.x) {
@@ -135,10 +137,12 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     // The track must be on boundary at this point
     track.navState.SetBoundaryState(true);
     // nextState is initialized as needed.
-    auto volume                         = track.navState.Top();
-    int lvolID                          = volume->GetLogicalVolume()->id();
-    adeptint::VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
-    assert(auxData.fGPUregion);
+    auto volume = track.navState.Top();
+    int lvolID  = volume->GetLogicalVolume()->id();
+    // adeptint::VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
+    adeptint::VolAuxData const &auxData = auxDataArray[lvolID];
+    bool isGPURegion                    = auxData.fGPUregion;
+    assert(isGPURegion);
   }
 }
 
@@ -169,13 +173,17 @@ __global__ void FillFromDeviceBuffer(int numLeaked, LeakedTracks all, adeptint::
 }
 
 // Finish iteration: refresh track managers and fill statistics.
-__global__ void FinishIteration(AllTrackManagers all, Stats *stats)
+__global__ void FinishIteration(AllTrackManagers all, Stats *stats, AdeptScoring *scoring)
 {
+  // Update track manager stats
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     all.trackmgr[i]->refresh_stats();
-    stats->mgr_stats[i] = all.trackmgr[i]->fStats;
+    stats->mgr_stats[i]    = all.trackmgr[i]->fStats;
     stats->leakedTracks[i] = all.leakedTracks[i]->size();
   }
+  // Update hit buffer stats
+  scoring->refresh_stats();
+  stats->hostscoring_stats = scoring->fStats;
 }
 
 // Clear device leaked queues
@@ -188,6 +196,8 @@ __global__ void ClearLeakedQueues(LeakedTracks all)
 
 bool AdeptIntegration::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
+  // Try 16384 if debug mode is crashing
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192*2));
   // Upload geometry to GPU.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
@@ -294,9 +304,8 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
 {
   using TrackData = adeptint::TrackData;
   // Capacity of the different containers aka the maximum number of particles.
-  auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
-  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192));
-  
+  auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
   GPUstate &gpuState                            = *static_cast<GPUstate *>(fGPUstate);
   Secondaries secondaries{gpuState.allmgr_d.trackmgr[0], gpuState.allmgr_d.trackmgr[1], gpuState.allmgr_d.trackmgr[2]};
@@ -317,8 +326,9 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   constexpr int initThreads = 32;
   int initBlocks            = (buffer.toDevice.size() + initThreads - 1) / initThreads;
 
-  InitTracks<<<initBlocks, initThreads, 0, gpuState.stream>>>(
-      gpuState.toDevice_dev, buffer.toDevice.size(), buffer.startTrack, event, secondaries, world_dev, fScoring_dev);
+  InitTracks<<<initBlocks, initThreads, 0, gpuState.stream>>>(gpuState.toDevice_dev, buffer.toDevice.size(),
+                                                              buffer.startTrack, event, secondaries, world_dev,
+                                                              fScoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
 
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
@@ -336,13 +346,12 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   int numLeaked         = 0;
   int num_compact       = 0;
   int loopingNo         = 0;
-  int previousElectrons = -1, previousPositrons = -1;
+  int previousElectrons = -1, previousPositrons = -1, previousGammas = -1;
   LeakedTracks leakedTracks = {.leakedElectrons = electrons.leakedTracks,
-                            .leakedPositrons = positrons.leakedTracks,
-                            .leakedGammas    = gammas.leakedTracks};
+                               .leakedPositrons = positrons.leakedTracks,
+                               .leakedGammas    = gammas.leakedTracks};
 
-  auto copyLeakedTracksFromGPU = [&](int numLeaked)
-  {
+  auto copyLeakedTracksFromGPU = [&](int numLeaked) {
     PrepareLeakedBuffers(numLeaked);
     // Populate the buffer from sparse memory
     constexpr unsigned int block_size = 256;
@@ -351,11 +360,11 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
                                                                         gpuState.fromDevice_dev);
     // Copy the buffer from device to host
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fBuffer.fromDeviceBuff, gpuState.fromDevice_dev, numLeaked * sizeof(TrackData),
-                                        cudaMemcpyDeviceToHost, gpuState.stream));
+                                       cudaMemcpyDeviceToHost, gpuState.stream));
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
     fBuffer.fromDevice.insert(fBuffer.fromDevice.end(), &fBuffer.fromDeviceBuff[0], &fBuffer.fromDeviceBuff[numLeaked]);
   };
-  
+
   int niter = 0;
   do {
 
@@ -366,7 +375,8 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 
       TransportElectrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.trackmgr, secondaries, electrons.leakedTracks, fScoring_dev);
+          electrons.trackmgr, secondaries, electrons.leakedTracks, fScoring_dev,
+          VolAuxArray::GetInstance().fAuxData_dev);
 
       COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -379,7 +389,8 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 
       TransportPositrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.trackmgr, secondaries, positrons.leakedTracks, fScoring_dev);
+          positrons.trackmgr, secondaries, positrons.leakedTracks, fScoring_dev,
+          VolAuxArray::GetInstance().fAuxData_dev);
 
       COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
@@ -392,7 +403,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 
       TransportGammas<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.trackmgr, secondaries, gammas.leakedTracks, fScoring_dev);
+          gammas.trackmgr, secondaries, gammas.leakedTracks, fScoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
 
       COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
@@ -402,7 +413,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
 
     // The events ensure synchronization before finishing this iteration and
     // copying the Stats back to the host.
-    FinishIteration<<<1, 1, 0, gpuState.stream>>>(gpuState.allmgr_d, gpuState.stats_dev);
+    FinishIteration<<<1, 1, 0, gpuState.stream>>>(gpuState.allmgr_d, gpuState.stats_dev, fScoring_dev);
     COPCORE_CUDA_CHECK(
         cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, gpuState.stream));
 
@@ -422,6 +433,14 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
       if (compacted) num_compact++;
     }
 
+    // Check if we need to flush the hits buffer
+    if (fScoring->CheckAndFlush(gpuState.stats->hostscoring_stats, fScoring_dev, gpuState.stream)) {
+      // Synchronize the stream used to copy back the hits
+      COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream)); 
+      // Process the hits on CPU
+      ProcessGPUHits(gpuState.stats->hostscoring_stats);
+    }
+
     // Check if only charged particles are left that are looping.
     numElectrons = gpuState.allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
     numPositrons = gpuState.allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
@@ -429,11 +448,12 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
     if (fDebugLevel > 1) {
       printf("iter %d: elec %d, pos %d, gam %d, leak %d\n", niter++, numElectrons, numPositrons, numGammas, numLeaked);
     }
-    if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
+    if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == previousGammas) {
       loopingNo++;
     } else {
       previousElectrons = numElectrons;
       previousPositrons = numPositrons;
+      previousGammas = numGammas;
       loopingNo         = 0;
     }
 
@@ -467,6 +487,11 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
   // Transfer back scoring.
-  fScoring->CopyHitsToHost();
-  fScoring->fGlobalScoring.numKilled = inFlight;
+  fScoring->CopyHitsToHost(gpuState.stats->hostscoring_stats, fScoring_dev, gpuState.stream);
+  // Transfer back the global counters
+  // fScoring->fGlobalCounters_dev->numKilled = inFlight;
+  fScoring->CopyGlobalCountersToHost(gpuState.stream);
+  COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+  // Process the last hits on CPU
+  ProcessGPUHits(gpuState.stats->hostscoring_stats);
 }

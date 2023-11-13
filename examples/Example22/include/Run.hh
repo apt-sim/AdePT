@@ -59,6 +59,9 @@ public:
     ECAL_SQ,
     EVENT_SUM,
     EVENT_SQ,
+    EVENT_HIT_COPY_SIZE,
+    EVENT_HIT_COPY_SIZE_SQ,
+    NUM_PARTICLES,
     NUM_ACCUMULATORS
   };
 

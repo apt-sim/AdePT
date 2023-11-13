@@ -15,14 +15,18 @@ class TrackingAction;
 class SteppingAction : public G4UserSteppingAction {
 
 public:
-  SteppingAction(DetectorConstruction *aDetector, RunAction *aRunAction, TrackingAction *aTrackingAction);
+  SteppingAction(DetectorConstruction *aDetector, RunAction *aRunAction, TrackingAction *aTrackingAction,
+                 bool aDoBenchmark);
   ~SteppingAction() override;
   void UserSteppingAction(const G4Step *step) override;
+  void SetNumSteps(int aNumSteps) { fNumSteps = aNumSteps; }
 
 private:
   DetectorConstruction *fDetector;
   RunAction *fRunAction;
   TrackingAction *fTrackingAction;
+  int fNumSteps{0};
+  bool fDoBenchmark{false};
 };
 
 #endif

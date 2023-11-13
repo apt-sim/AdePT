@@ -10,10 +10,10 @@
 
 EventActionMessenger::EventActionMessenger(EventAction *aEventAction) : G4UImessenger(), fEventAction(aEventAction)
 {
-  fEventActionDir = new G4UIdirectory("/example21/event/");
+  fEventActionDir = new G4UIdirectory("/example22/event/");
   fEventActionDir->SetGuidance("UI commands for event actions");
   //
-  fVerbosityCmd = new G4UIcmdWithAnInteger("/example21/event/verbose", this);
+  fVerbosityCmd = new G4UIcmdWithAnInteger("/example22/event/verbose", this);
   fVerbosityCmd->SetGuidance("Scoring verbosity");
 }
 

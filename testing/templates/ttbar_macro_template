@@ -1,0 +1,148 @@
+# SPDX-FileCopyrightText: 2022 CERN
+# SPDX-License-Identifier: Apache-2.0
+#  $ui_dir.in
+#
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters
+## =============================================================================
+##
+/run/numberOfThreads $num_threads
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+##
+/$ui_dir/setSeed 1
+
+/$ui_dir/detector/filename $gdml_file
+/$ui_dir/detector/regionname EcalRegion
+/$ui_dir/adept/verbose 0
+## Threshold for buffering tracks before sending to GPU
+/$ui_dir/adept/threshold $adept_threshold
+## Total number of GPU track slots (not per thread)
+/$ui_dir/adept/milliontrackslots $adept_million_track_slots
+/$ui_dir/adept/millionhitslots 2
+
+/$ui_dir/detector/addsensitivevolume EAPD_01
+/$ui_dir/detector/addsensitivevolume EAPD_02
+/$ui_dir/detector/addsensitivevolume EAPD_03
+/$ui_dir/detector/addsensitivevolume EAPD_04
+/$ui_dir/detector/addsensitivevolume EAPD_05
+/$ui_dir/detector/addsensitivevolume EAPD_06
+/$ui_dir/detector/addsensitivevolume EAPD_07
+/$ui_dir/detector/addsensitivevolume EAPD_08
+/$ui_dir/detector/addsensitivevolume EAPD_09
+/$ui_dir/detector/addsensitivevolume EAPD_10
+/$ui_dir/detector/addsensitivevolume EAPD_11
+/$ui_dir/detector/addsensitivevolume EAPD_12
+/$ui_dir/detector/addsensitivevolume EAPD_13
+/$ui_dir/detector/addsensitivevolume EAPD_14
+/$ui_dir/detector/addsensitivevolume EAPD_15
+/$ui_dir/detector/addsensitivevolume EAPD_16
+/$ui_dir/detector/addsensitivevolume EAPD_17
+
+/$ui_dir/detector/sensitivegroup EAPD
+
+/$ui_dir/detector/addsensitivevolume EBRY_01
+/$ui_dir/detector/addsensitivevolume EBRY_02
+/$ui_dir/detector/addsensitivevolume EBRY_03
+/$ui_dir/detector/addsensitivevolume EBRY_04
+/$ui_dir/detector/addsensitivevolume EBRY_05
+/$ui_dir/detector/addsensitivevolume EBRY_06
+/$ui_dir/detector/addsensitivevolume EBRY_07
+/$ui_dir/detector/addsensitivevolume EBRY_08
+/$ui_dir/detector/addsensitivevolume EBRY_09
+/$ui_dir/detector/addsensitivevolume EBRY_10
+/$ui_dir/detector/addsensitivevolume EBRY_11
+/$ui_dir/detector/addsensitivevolume EBRY_12
+/$ui_dir/detector/addsensitivevolume EBRY_13
+/$ui_dir/detector/addsensitivevolume EBRY_14
+/$ui_dir/detector/addsensitivevolume EBRY_15
+/$ui_dir/detector/addsensitivevolume EBRY_16
+/$ui_dir/detector/addsensitivevolume EBRY_17
+
+/$ui_dir/detector/sensitivegroup EBRY_01
+/$ui_dir/detector/sensitivegroup EBRY_02
+/$ui_dir/detector/sensitivegroup EBRY_03
+/$ui_dir/detector/sensitivegroup EBRY_04
+/$ui_dir/detector/sensitivegroup EBRY_05
+/$ui_dir/detector/sensitivegroup EBRY_06
+/$ui_dir/detector/sensitivegroup EBRY_07
+/$ui_dir/detector/sensitivegroup EBRY_08
+/$ui_dir/detector/sensitivegroup EBRY_09
+/$ui_dir/detector/sensitivegroup EBRY_10
+/$ui_dir/detector/sensitivegroup EBRY_11
+/$ui_dir/detector/sensitivegroup EBRY_12
+/$ui_dir/detector/sensitivegroup EBRY_13
+/$ui_dir/detector/sensitivegroup EBRY_14
+/$ui_dir/detector/sensitivegroup EBRY_15
+/$ui_dir/detector/sensitivegroup EBRY_16
+/$ui_dir/detector/sensitivegroup EBRY_17
+
+/$ui_dir/detector/addsensitivevolume EATJ_01
+/$ui_dir/detector/addsensitivevolume EATJ_02
+/$ui_dir/detector/addsensitivevolume EATJ_03
+/$ui_dir/detector/addsensitivevolume EATJ_04
+/$ui_dir/detector/addsensitivevolume EATJ_05
+/$ui_dir/detector/addsensitivevolume EATJ_06
+/$ui_dir/detector/addsensitivevolume EATJ_07
+/$ui_dir/detector/addsensitivevolume EATJ_08
+/$ui_dir/detector/addsensitivevolume EATJ_09
+/$ui_dir/detector/addsensitivevolume EATJ_10
+/$ui_dir/detector/addsensitivevolume EATJ_11
+/$ui_dir/detector/addsensitivevolume EATJ_12
+/$ui_dir/detector/addsensitivevolume EATJ_13
+/$ui_dir/detector/addsensitivevolume EATJ_14
+/$ui_dir/detector/addsensitivevolume EATJ_15
+/$ui_dir/detector/addsensitivevolume EATJ_16
+/$ui_dir/detector/addsensitivevolume EATJ_17
+
+/$ui_dir/detector/sensitivegroup EATJ
+
+/$ui_dir/detector/addsensitivevolume EFRY
+
+/$ui_dir/detector/sensitivegroup EFRY
+
+## -----------------------------------------------------------------------------
+## Optionally, set a constant magnetic filed:
+## -----------------------------------------------------------------------------
+/$ui_dir/detector/setField $magnetic_field
+#/$ui_dir/detector/setField 0 0 3.8 tesla
+
+##
+## -----------------------------------------------------------------------------
+## Set the physics list (more exactly, the EM physics constructor):
+##   = 'HepEm'           : the G4HepEm EM physics c.t.r.
+##   =  'G4Em'           : the G4 EM physics c.t.r. that corresponds to G4HepEm
+##   = 'emstandard_opt0' : the original, G4 EM-Opt0 physics c.t.r.
+## -----------------------------------------------------------------------------
+##/testem/phys/addPhysics   HepEm
+##/testem/phys/addPhysics   G4Em
+##
+## -----------------------------------------------------------------------------
+## Set secondary production threshold, init. the run and set primary properties
+## -----------------------------------------------------------------------------
+/run/setCut 0.7 mm
+/run/initialize
+
+## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/$ui_dir/event/verbose 2
+
+/$ui_dir/gun/hepmc
+/generator/hepmcAscii/maxevents 256
+/generator/hepmcAscii/firstevent 0
+/generator/hepmcAscii/open ppttbar.hepmc3
+/generator/hepmcAscii/verbose 0
+
+##
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+##/tracking/verbose 1
+##/process/list
+
+/$ui_dir/setSeed $random_seed
+
+# run events with parametrised simulation
+/run/beamOn $num_events

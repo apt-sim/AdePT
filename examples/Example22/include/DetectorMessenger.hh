@@ -38,9 +38,9 @@ private:
   DetectorConstruction *fDetector = nullptr;
   /// Command to set the directory common to all messengers in this example
   G4UIdirectory *fExampleDir = nullptr;
-  /// Command to set the directory for detector settings /example21/detector
+  /// Command to set the directory for detector settings /example22/detector
   G4UIdirectory *fDetectorDir = nullptr;
-  /// Command to set the directory for AdePT integration settings /example21/adept
+  /// Command to set the directory for AdePT integration settings /example22/adept
   G4UIdirectory *fAdeptDir = nullptr;
   // Command to set the seed for the random number generator
   G4UIcmdWithAnInteger *fSetSeed = nullptr;
@@ -61,6 +61,8 @@ private:
   G4UIcmdWithAnInteger *fBufferThresholdCmd = nullptr;
   /// Total number of track slots for the gpu
   G4UIcmdWithADouble *fTrackSlotsCmd = nullptr;
+  /// Total number of hit slots for the gpu
+  G4UIcmdWithADouble *fHitSlotsCmd = nullptr;
 };
 
 #endif

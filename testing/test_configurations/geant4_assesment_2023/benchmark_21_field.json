@@ -1,0 +1,412 @@
+{
+    "bin_dir" : "../adept-build/BuildProducts/bin/",
+    "results_dir" : "benchmark_results/",
+    "plotting_scripts_dir" : "plotting_scripts/",
+    "plots_dir" : "benchmark_plots/",
+    "postprocessing_scripts_dir" : "postprocessing_scripts/",
+    "postprocessing_dir" : "benchmark_postprocessing/",
+    "templates_dir" : "templates/",
+    "macro_template" : "e21_ttbar_macro_template",
+    
+    "tests":
+    [
+        {
+            "name" : "Example 21 AdePT benchmark with field",
+            "type" : "benchmark",
+            
+            "plots" : 
+            [],
+
+            "postprocessing" :
+            [],
+
+            "runs":
+            [
+                {
+                    "name" : "Example21 AdePT 4 ttbar 1 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_adept_1t_4ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 1,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 4
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 AdePT 8 ttbar 2 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_adept_2t_8ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 2,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 8
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 AdePT 16 ttbar 4 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_adept_4t_16ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 4,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 16
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 AdePT 32 ttbar 8 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_adept_8t_32ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 8,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 AdePT 64 ttbar 16 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_adept_16t_64ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : true,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 16,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 64
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name" : "Example 21 Geant4 benchmark with field",
+            "type" : "benchmark",
+            
+            "plots" : 
+            [],
+
+            "postprocessing" :
+            [],
+
+            "runs":
+            [
+                {
+                    "name" : "Example21 Geant4 4 ttbar 1 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_geant4_1t_4ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 1,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 4
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 Geant4 8 ttbar 2 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_geant4_2t_8ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 2,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 8
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 Geant4 16 ttbar 4 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_geant4_4t_16ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 4,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 16
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 Geant4 32 ttbar 8 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_geant4_8t_32ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 8,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 32
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                },
+                {
+                    "name" : "Example21 Geant4 64 ttbar 16 thread with field",
+                    "executable" : "example21",
+                    "output_file" : "example21_geant4_16t_64ttbar_field",
+                    "ui_dir" : "example21",
+                    "use_adept" : false,
+
+                    "configuration" : 
+                    {
+                        "num_threads" : 16,
+                        "gdml_file" : "../adept-build/cms2018_sd.gdml",
+                        "adept_threshold" : 2000,
+                        "adept_million_track_slots" : 15,
+                        "magnetic_field" : "0 0 3.8 tesla",
+                        "particle_type" : "e-",
+                        "gun_energy" : "0 GeV",
+                        "num_particles" : 0,
+                        "randomize_gun" : false,
+                        "random_seed" : 0,
+                        "num_events" : 64
+                    },
+                    
+                    "random_gun_configuration" :
+                    {
+                        "particles" :
+                        {
+                            "e-" : {"weight" : 1, "energy": "0 GeV"}
+                        },
+                        "angles" :
+                        {
+                            "minPhi" : 0,
+                            "maxPhi" : 0,
+                            "minTheta" : 0,
+                            "maxTheta" : 0
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

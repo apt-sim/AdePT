@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 from cycler import cycler
+import math
 
 if len(sys.argv) < 5:
 	print("Usage: python3 plot_ratio.py output_file x_label y_label data.csv [data_2.csv data_3.csv ...]")
@@ -29,7 +30,10 @@ data2 = pd.read_csv(f2)
 ratio = data1/data2
 
 ratio_mean = ratio.mean()
-ratio_error = [np.std(ratio[column]) for column in ratio.columns]
+
+ratio_error = np.sqrt(data1.std()**2 + data2.std()**2) * ratio_mean
+
+print(ratio_error)
 
 width=0.2
 
@@ -40,7 +44,7 @@ x = np.arange(len(ratio.columns))
 plt.gca().set_axisbelow(True)
 plt.grid(True, axis='y', color='black', linestyle='dotted')
 #Plot the data in a bar chart
-plt.errorbar(x=x, y=ratio_mean, yerr=ratio_error, linewidth=0, marker="s", elinewidth=1, label="Ratio")
+plt.errorbar(x=x, y=ratio_mean, yerr=ratio_error, linewidth=1, marker="s", elinewidth=1, label="Ratio")
 plt.xticks(x, ratio.columns)
 plt.ylabel(y_label)
 plt.legend()

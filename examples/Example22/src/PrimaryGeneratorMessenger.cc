@@ -23,69 +23,69 @@
 PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun)
     : G4UImessenger(), fAction(Gun), fGunDir(0), fDefaultCmd(0), fRndmCmd(0)
 {
-  fGunDir = new G4UIdirectory("/example21/gun/");
+  fGunDir = new G4UIdirectory("/example22/gun/");
   fGunDir->SetGuidance("gun control");
 
-  fHepmcCmd = new G4UIcmdWithoutParameter("/example21/gun/hepmc", this);
+  fHepmcCmd = new G4UIcmdWithoutParameter("/example22/gun/hepmc", this);
   fHepmcCmd->SetGuidance("select hepmc input");
   fHepmcCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-  fDefaultCmd = new G4UIcmdWithoutParameter("/example21/gun/setDefault", this);
+  fDefaultCmd = new G4UIcmdWithoutParameter("/example22/gun/setDefault", this);
   fDefaultCmd->SetGuidance("set/reset kinematic defined in PrimaryGenerator");
   fDefaultCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-  fPrintCmd = new G4UIcmdWithABool("/example21/gun/print", this);
+  fPrintCmd = new G4UIcmdWithABool("/example22/gun/print", this);
   fPrintCmd->SetGuidance("print gun kinematics in PrimaryGenerator");
   fPrintCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-  fRndmCmd = new G4UIcmdWithADouble("/example21/gun/rndm", this);
+  fRndmCmd = new G4UIcmdWithADouble("/example22/gun/rndm", this);
   fRndmCmd->SetGuidance("random lateral extension on the beam");
   fRndmCmd->SetParameterName("rBeam", false);
   fRndmCmd->SetRange("rBeam>=0.&&rBeam<=1.");
   fRndmCmd->AvailableForStates(G4State_Idle);
 
-  fRndmDirCmd = new G4UIcmdWithADouble("/example21/gun/rndmDir", this);
+  fRndmDirCmd = new G4UIcmdWithADouble("/example22/gun/rndmDir", this);
   fRndmDirCmd->SetGuidance("random angular extension on the beam");
   fRndmDirCmd->SetParameterName("rBeamDir", false);
   fRndmDirCmd->SetRange("rBeamDir>=0.&&rBeamDir<=1.");
   fRndmDirCmd->AvailableForStates(G4State_Idle);
 
-  fRandomizeGunCmd = new G4UIcmdWithABool("/example21/gun/randomizeGun", this);
+  fRandomizeGunCmd = new G4UIcmdWithABool("/example22/gun/randomizeGun", this);
   fRandomizeGunCmd->SetGuidance("Shoot particles in random directions within defined Phi and Theta ranges, the "
                                 "particle type is also selected at random from the selected options");
   fRandomizeGunCmd->AvailableForStates(G4State_Idle);
 
-  fAddParticleCmd = new G4UIcmdWithAString("/example21/gun/addParticle", this);
+  fAddParticleCmd = new G4UIcmdWithAString("/example22/gun/addParticle", this);
   fAddParticleCmd->SetGuidance("When using randomization, add a particle to the list of possibilities\n\
-                                Usage: /example21/gun/addParticle type [\"weight\" weight] [\"energy\" energy unit]\n\
+                                Usage: /example22/gun/addParticle type [\"weight\" weight] [\"energy\" energy unit]\n\
                                 type: particle name\n\
                                 weight: probability that the particle will appear, between 0 and 1\n\
                                 energy: energy and unit for this type of particle\n");
   fAddParticleCmd->SetParameterName("rParticleName", false);
   fAddParticleCmd->SetDefaultValue("geantino");
 
-  fMinPhiCmd = new G4UIcmdWithADoubleAndUnit("/example21/gun/minPhi", this);
+  fMinPhiCmd = new G4UIcmdWithADoubleAndUnit("/example22/gun/minPhi", this);
   fMinPhiCmd->SetGuidance("Minimum phi angle when using randomization, units deg or rad");
   fMinPhiCmd->SetParameterName("rMinPhi", false);
   fMinPhiCmd->SetRange("rMinPhi>=0.&&rMinPhi<=360.");
   fMinPhiCmd->SetDefaultUnit("deg");
   fMinPhiCmd->AvailableForStates(G4State_Idle);
 
-  fMaxPhiCmd = new G4UIcmdWithADoubleAndUnit("/example21/gun/maxPhi", this);
+  fMaxPhiCmd = new G4UIcmdWithADoubleAndUnit("/example22/gun/maxPhi", this);
   fMaxPhiCmd->SetGuidance("Maximum phi angle when using randomization, units deg or rad");
   fMaxPhiCmd->SetParameterName("rMaxPhi", false);
   fMaxPhiCmd->SetRange("rMaxPhi>=0.&&rMaxPhi<=360.");
   fMaxPhiCmd->SetDefaultUnit("deg");
   fMaxPhiCmd->AvailableForStates(G4State_Idle);
 
-  fMinThetaCmd = new G4UIcmdWithADoubleAndUnit("/example21/gun/minTheta", this);
+  fMinThetaCmd = new G4UIcmdWithADoubleAndUnit("/example22/gun/minTheta", this);
   fMinThetaCmd->SetGuidance("Minimum Theta angle when using randomization, units deg or rad");
   fMinThetaCmd->SetParameterName("rMinTheta", false);
   fMinThetaCmd->SetRange("rMinTheta>=0.&&rMinTheta<=180.");
   fMinThetaCmd->SetDefaultUnit("deg");
   fMinThetaCmd->AvailableForStates(G4State_Idle);
 
-  fMaxThetaCmd = new G4UIcmdWithADoubleAndUnit("/example21/gun/maxTheta", this);
+  fMaxThetaCmd = new G4UIcmdWithADoubleAndUnit("/example22/gun/maxTheta", this);
   fMaxThetaCmd->SetGuidance("Maximum Theta angle when using randomization, units deg or rad");
   fMaxThetaCmd->SetParameterName("rMaxTheta", false);
   fMaxThetaCmd->SetRange("rMaxTheta>=0.&&rMaxTheta<=180.");
