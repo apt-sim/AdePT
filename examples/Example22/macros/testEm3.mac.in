@@ -13,21 +13,22 @@
 /process/verbose 0
 /tracking/verbose 0
 ##
-/example21/detector/filename @TESTEM3_GDML@
-/example21/adept/verbose 0
+/example22/detector/filename @TESTEM3_GDML@
+/example22/adept/verbose 0
 ## Threshold for buffering tracks before sending to GPU
-/example21/adept/threshold 100
+/example22/adept/threshold 100
 ## Total number of GPU track slots (not per thread)
-/example21/adept/milliontrackslots 1
+/example22/adept/milliontrackslots 8
+/example22/adept/millionhitslots 8
 
-/example21/detector/addsensitivevolume G4_Pb
-/example21/detector/addsensitivevolume G4_lAr
+/example22/detector/addsensitivevolume G4_Pb
+/example22/detector/addsensitivevolume G4_lAr
 
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic filed:
 ## -----------------------------------------------------------------------------
-/example21/detector/setField 0 0 0.1 tesla
-#/example21/detector/setField 0 0 0 tesla
+/example22/detector/setField 0 0 0.1 tesla
+#/example22/detector/setField 0 0 0 tesla
 
 ## -----------------------------------------------------------------------------
 ## Set secondary production threshold, init. the run and set primary properties
@@ -36,15 +37,16 @@
 /run/initialize
 
 ## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
-/example21/event/verbose 0
+/example22/event/verbose 0
 
-/example21/gun/setDefault
+/example22/gun/setDefault
+/gun/particle e-
 /gun/particle e-
 /gun/energy 10 GeV
 /gun/number 100
 /gun/position -220 0 0 mm
 /gun/direction 1 0 0
-#/example21/gun/print
+#/example22/gun/print
 
 ##
 ## -----------------------------------------------------------------------------

@@ -19,20 +19,31 @@
 // #include <G4HepEmData.hh>
 // #include <G4HepEmParameters.hh>
 
+#include <G4LogicalVolume.hh>
+#include <G4NavigationHistory.hh>
+#include <G4Step.hh>
+#include <G4TouchableHandle.hh>
+
 // For the moment the scoring type will be determined by what we include here
 #include "CommonStruct.h"
-#include "BasicScoring.h"
-#include "G4FastSimHitMaker.hh"
+#include "HostScoring.h"
 
 class G4Region;
 struct GPUstate;
 class G4VPhysicalVolume;
+
+template <class TTag>
+class TestManager;
+
+using AdeptScoring = HostScoring;
 
 class AdeptIntegration {
 public:
   static constexpr int kMaxThreads = 256;
   // Track capacity
   static int kCapacity;
+  // Hit Buffer capacity
+  static int kHitBufferCapacity;
 
   using TrackBuffer = adeptint::TrackBuffer;
   using VolAuxData  = adeptint::VolAuxData;
@@ -69,10 +80,11 @@ private:
   static G4HepEmState *fg4hepem_state; ///< The HepEm state singleton
   TrackBuffer fBuffer;                 ///< Vector of buffers of tracks to/from device (per thread)
   G4Region *fRegion{nullptr};          ///< Region to which applies
-  std::unordered_map<std::string, int> *sensitive_volume_index; ///< Map of sensitive volumes
-  static std::unordered_map<size_t, size_t> fglobal_volume_to_hit_map;       ///< Maps Vecgeom placement IDs to Hits
-  static std::unordered_map<size_t, size_t> fglobal_vecgeom_to_g4_map;       ///< Maps Vecgeom placement IDs to Hits
-  static int fGlobalNumSensitive;                ///< Total number of sensitive volumes
+  std::vector<G4LogicalVolume*> *fSensitiveLogicalVolumes;        ///< List of sensitive volumes
+  static std::unordered_map<size_t, size_t> fglobal_volume_to_hit_map; ///< Maps Vecgeom PV IDs to Hits
+  static std::unordered_map<size_t, const G4VPhysicalVolume *>
+      fglobal_vecgeom_to_g4_map;  ///< Maps Vecgeom PV IDs to G4 PV IDs
+  static int fGlobalNumSensitive; ///< Total number of sensitive volumes
 
   VolAuxData *CreateVolAuxData(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world,
                                const G4HepEmState &hepEmState);
@@ -101,6 +113,8 @@ public:
   void PrepareLeakedBuffers(int numLeaked);
   /// @brief Set track capacity on GPU
   static void SetTrackCapacity(size_t capacity) { kCapacity = capacity; }
+  /// @brief Set Hit buffer capacity on GPU and Host
+  static void SetHitBufferCapacity(size_t capacity) { kHitBufferCapacity = capacity; }
   /// @brief Set maximum batch size
   void SetMaxBatch(int npart) { fMaxBatch = npart; }
   /// @brief Set buffer threshold
@@ -116,11 +130,20 @@ public:
   void Cleanup();
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   void Shower(int event);
+  /// @brief Reconstruct and process hits coming from the GPU
+  void ProcessGPUHits(HostScoring::Stats &aStats);
+
+  /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
+  void FillG4NavigationHistory(unsigned int aNavIndex, G4NavigationHistory *aG4NavigationHistory);
+
+  /// @brief Reconstruct a G4Step using the provided information
+  void FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
+                  G4TouchableHandle &aPostG4TouchableHandle);
 
   /// Helper class for creation of hits within the sensitive detector
   // std::unique_ptr<G4FastSimHitMaker> fHitMaker;
 
-  void SetSensitiveVolumes(std::unordered_map<std::string, int> *sv) { sensitive_volume_index = sv; }
+  void SetSensitiveVolumes(std::vector<G4LogicalVolume*> *aSensitiveLogicalVolumes) { fSensitiveLogicalVolumes = aSensitiveLogicalVolumes; }
 };
 
 #endif

@@ -105,48 +105,6 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-G4bool SensitiveDetector::ProcessHits(const G4FastHit *aHit, const G4FastTrack *aTrack, G4TouchableHistory *aTouchable)
-{
-
-  G4double edep = aHit->GetEnergy();
-  if (edep == 0.) return true;
-
-  // I need to find the right hit based on the 'position'. For the moment, I use the position vector to store the id
-  // of the cell.
-
-  int hitID = (int)aHit->GetPosition().x();
-  auto hit  = (*fHitsCollection)[hitID];
-
-  // Add energy deposit from G4FastHit
-  hit->AddEdep(edep);
-  // set type to fast sim
-  hit->SetType(1);
-
-  return true;
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-G4bool SensitiveDetector::ProcessHits(int pvolID, double energy)
-{
-  if (energy == 0.) return true;
-
-  if(fScoringMap->find(pvolID) != fScoringMap->end())
-  {
-    std::size_t hitID = (*fScoringMap)[pvolID];
-    auto hit = (*fHitsCollection)[hitID];
-    // Add energy deposit from G4FastHit
-    hit->AddEdep(energy);
-    // set type to fast sim
-    hit->SetType(1);
-
-    return true;
-  }
-  return false;
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
 SimpleHit *SensitiveDetector::RetrieveAndSetupHit(G4TouchableHistory *aTouchable)
 {
   std::size_t hitID = (*fScoringMap)[aTouchable->GetHistory()->GetTopVolume()->GetInstanceID()];

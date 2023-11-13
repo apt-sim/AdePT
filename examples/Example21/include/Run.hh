@@ -59,6 +59,7 @@ public:
     ECAL_SQ,
     EVENT_SUM,
     EVENT_SQ,
+    NUM_PARTICLES,
     NUM_ACCUMULATORS
   };
 

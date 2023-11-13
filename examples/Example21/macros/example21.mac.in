@@ -15,7 +15,8 @@
 ##
 /example21/setSeed 1
 
-/example21/detector/filename @CMS2018_GDML@
+#/example21/detector/filename @CMS2018_GDML@
+/example21/detector/filename cms2018_sd.gdml
 /example21/adept/verbose 0
 ## Threshold for buffering tracks before sending to GPU
 /example21/adept/threshold 200
@@ -144,5 +145,5 @@
 
 # run events with parametrised simulation
 # by default all created models are active
-/run/beamOn 1
+/run/beamOn 10
 

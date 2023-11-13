@@ -18,46 +18,49 @@
 
 DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImessenger(), fDetector(aDetector)
 {
-  fExampleDir = new G4UIdirectory("/example21/");
+  fExampleDir = new G4UIdirectory("/example22/");
   fExampleDir->SetGuidance("UI commands specific to this example");
 
-  fDetectorDir = new G4UIdirectory("/example21/detector/");
+  fDetectorDir = new G4UIdirectory("/example22/detector/");
   fDetectorDir->SetGuidance("Detector construction UI commands");
 
-  fAdeptDir = new G4UIdirectory("/example21/adept/");
+  fAdeptDir = new G4UIdirectory("/example22/adept/");
   fDetectorDir->SetGuidance("AdePT integration UI commands");
 
-  fSetSeed = new G4UIcmdWithAnInteger("/example21/setSeed", this);
+  fSetSeed = new G4UIcmdWithAnInteger("/example22/setSeed", this);
   fSetSeed->SetGuidance("Set the seed for the random number generator");
 
-  fPrintCmd = new G4UIcmdWithoutParameter("/example21/detector/print", this);
+  fPrintCmd = new G4UIcmdWithoutParameter("/example22/detector/print", this);
   fPrintCmd->SetGuidance("Print current settings.");
 
-  fFileNameCmd = new G4UIcmdWithAString("/example21/detector/filename", this);
+  fFileNameCmd = new G4UIcmdWithAString("/example22/detector/filename", this);
   fFileNameCmd->SetGuidance("Set GDML file name");
   //
-  fRegionNameCmd = new G4UIcmdWithAString("/example21/detector/regionname", this);
+  fRegionNameCmd = new G4UIcmdWithAString("/example22/detector/regionname", this);
   fRegionNameCmd->SetGuidance("Set fast simulation region name");
   //
-  fSensVolNameCmd = new G4UIcmdWithAString("/example21/detector/addsensitivevolume", this);
+  fSensVolNameCmd = new G4UIcmdWithAString("/example22/detector/addsensitivevolume", this);
   fSensVolNameCmd->SetGuidance("Add a sensitive volume to the list");
   //
-  fSensVolGroupCmd = new G4UIcmdWithAString("/example21/detector/sensitivegroup", this);
+  fSensVolGroupCmd = new G4UIcmdWithAString("/example22/detector/sensitivegroup", this);
   fSensVolGroupCmd->SetGuidance("Define a wildcard for a sensitive volumes group");
   //
-  fActivationCmd = new G4UIcmdWithABool("/example21/adept/activate", this);
+  fActivationCmd = new G4UIcmdWithABool("/example22/adept/activate", this);
   fActivationCmd->SetGuidance("(Activate AdePT");
   //
-  fVerbosityCmd = new G4UIcmdWithAnInteger("/example21/adept/verbose", this);
+  fVerbosityCmd = new G4UIcmdWithAnInteger("/example22/adept/verbose", this);
   fVerbosityCmd->SetGuidance("Verbosity level for AdePT integration transport");
 
-  fBufferThresholdCmd = new G4UIcmdWithAnInteger("/example21/adept/threshold", this);
+  fBufferThresholdCmd = new G4UIcmdWithAnInteger("/example22/adept/threshold", this);
   fBufferThresholdCmd->SetGuidance("Threshold for starting AdePT transport");
 
-  fTrackSlotsCmd = new G4UIcmdWithADouble("/example21/adept/milliontrackslots", this);
+  fTrackSlotsCmd = new G4UIcmdWithADouble("/example22/adept/milliontrackslots", this);
   fTrackSlotsCmd->SetGuidance("Total number of allocated track slots per GPU");
 
-  fFieldCmd = new G4UIcmdWith3VectorAndUnit("/example21/detector/setField", this);
+  fHitSlotsCmd = new G4UIcmdWithADouble("/example22/adept/millionhitslots", this);
+  fHitSlotsCmd->SetGuidance("Total number of allocated hit slots per GPU");
+
+  fFieldCmd = new G4UIcmdWith3VectorAndUnit("/example22/detector/setField", this);
   fFieldCmd->SetGuidance("Set the constant magenetic field vector.");
   fFieldCmd->SetUnitCategory("Magnetic flux density");
   fFieldCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
@@ -82,6 +85,7 @@ DetectorMessenger::~DetectorMessenger()
   delete fVerbosityCmd;
   delete fBufferThresholdCmd;
   delete fTrackSlotsCmd;
+  delete fHitSlotsCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -110,5 +114,7 @@ void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
     fDetector->SetBufferThreshold(fBufferThresholdCmd->GetNewIntValue(aNewValue));
   } else if (aCommand == fTrackSlotsCmd) {
     fDetector->SetTrackSlots(fTrackSlotsCmd->GetNewDoubleValue(aNewValue));
+  } else if (aCommand == fHitSlotsCmd) {
+    fDetector->SetHitSlots(fHitSlotsCmd->GetNewDoubleValue(aNewValue));
   }
 }

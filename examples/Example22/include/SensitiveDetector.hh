@@ -52,7 +52,7 @@ class G4TouchableHistory;
  */
 class G4VPhysicalVolume;
 
-class SensitiveDetector : public G4VSensitiveDetector, public G4VFastSimSensitiveDetector {
+class SensitiveDetector : public G4VSensitiveDetector {
 public:
   SensitiveDetector(G4String aName);
   SensitiveDetector(G4String aName, std::set<const G4VPhysicalVolume*> *aSensitivePhysicalVolumes);
@@ -61,14 +61,10 @@ public:
   virtual void Initialize(G4HCofThisEvent *HCE) final;
   /// Process energy deposit from the full simulation.
   virtual G4bool ProcessHits(G4Step *aStep, G4TouchableHistory *aROhist) final;
-  /// Process energy deposit from the fast simulation.
-  virtual G4bool ProcessHits(const G4FastHit *aHit, const G4FastTrack *aTrack, G4TouchableHistory *aROhist) final;
-
-  virtual G4bool ProcessHits(int hitID, double energy) final;
 
   SimpleHit *RetrieveAndSetupHit(G4TouchableHistory *aTouchable);
 
-  std::unordered_map<std::string, int> fSensitive_volume_index;
+  std::vector<G4LogicalVolume*> fSensitiveLogicalVolumes;
   std::unordered_map<size_t, size_t> *fScoringMap;
 
 private:

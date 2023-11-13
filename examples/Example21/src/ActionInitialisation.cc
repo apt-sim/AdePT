@@ -64,12 +64,8 @@ void ActionInitialisation::Build() const
   SetUserAction(aRunAction);
   TrackingAction *aTrackingAction = new TrackingAction(fDetector);
   SetUserAction(aTrackingAction);
+  SteppingAction *aSteppingAction = new SteppingAction(fDetector, aRunAction, aTrackingAction, fDoBenchmark);
+  SetUserAction(aSteppingAction);
+  aTrackingAction->setSteppingAction(aSteppingAction);
 
-// Do not register this if the TestManager is not active or if benchmark is not selected
-#if defined TEST
-  if(fDoBenchmark)
-  {
-    SetUserAction(new SteppingAction(fDetector, aRunAction, aTrackingAction));
-  }
-#endif
 }

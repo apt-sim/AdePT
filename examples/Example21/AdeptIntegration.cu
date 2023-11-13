@@ -336,7 +336,7 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
   int numLeaked         = 0;
   int num_compact       = 0;
   int loopingNo         = 0;
-  int previousElectrons = -1, previousPositrons = -1;
+  int previousElectrons = -1, previousPositrons = -1, previousGammas = -1;
   LeakedTracks leakedTracks = {.leakedElectrons = electrons.leakedTracks,
                             .leakedPositrons = positrons.leakedTracks,
                             .leakedGammas    = gammas.leakedTracks};
@@ -429,11 +429,12 @@ void AdeptIntegration::ShowerGPU(int event, TrackBuffer &buffer) // const &buffe
     if (fDebugLevel > 1) {
       printf("iter %d: elec %d, pos %d, gam %d, leak %d\n", niter++, numElectrons, numPositrons, numGammas, numLeaked);
     }
-    if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
+    if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == previousGammas) {
       loopingNo++;
     } else {
       previousElectrons = numElectrons;
       previousPositrons = numPositrons;
+      previousGammas = numGammas;
       loopingNo         = 0;
     }
 

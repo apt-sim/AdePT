@@ -11,8 +11,8 @@
 
 // The clock to use for measurements
 #define CLOCK std::chrono::system_clock
-// The precission with which we will provide the results
-#define PRECISSION std::chrono::microseconds
+// The precision with which we will provide the results
+#define PRECISION std::chrono::microseconds
 
 /**
  * @brief A type containing a timestamp, accumulated time, and whether the timer is running
@@ -75,8 +75,8 @@ public:
   /** @brief Returns the accumulated duration for the specified tag in seconds */
   double getDurationSeconds(TTag tag)
   {
-    return (double)(std::chrono::duration_cast<PRECISSION>(fTimers[tag].accumulatedDuration)).count() /
-           PRECISSION::period::den;
+    return (double)(std::chrono::duration_cast<PRECISION>(fTimers[tag].accumulatedDuration)).count() /
+           PRECISION::period::den;
   }
 
   /** @brief Sets the accumulator value for the specified tag */
@@ -96,8 +96,8 @@ public:
     }
   }
 
-  /** @brief Empties the timer map */
-  void reset() { fTimers.clear(); }
+  /** @brief Empties the maps */
+  void reset() { fTimers.clear(); fAccumulators.clear(); }
 
   /** @brief Removes a timer from the map */
   void removeTimer(TTag tag) { fTimers.erase(tag); }
@@ -143,7 +143,7 @@ public:
 
   /** @brief Export a CSV file with the timer names as labels and the accumulated time for each */
   // If the file is not empty, write only the times
-  void exportCSV()
+  void exportCSV(bool overwrite = true)
   { 
     std::string aOutputDir;
     std::string aOutputFilename;
@@ -158,10 +158,10 @@ public:
     bool first_write = !std::filesystem::exists(path);
 
     std::ofstream output_file;
-    output_file.open(path, std::ofstream::app);
+    output_file.open(path, overwrite ? std::ofstream::trunc : std::ofstream::app);
 
     // Write the header only the first time
-    if (first_write) {
+    if (first_write || overwrite) {
       // Timers
       for (auto iter = fTimers.begin(); iter != fTimers.end(); ++iter) {
         output_file << iter->first;

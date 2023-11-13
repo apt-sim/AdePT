@@ -35,6 +35,7 @@
 #define TRACKINGACTION_HH
 
 #include "G4UserTrackingAction.hh"
+#include "SteppingAction.hh"
 #include "G4Region.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -58,6 +59,7 @@ public:
   inline void setCurrentRegion(G4Region* aCurrentRegion){fCurrentRegion = aCurrentRegion;}
   inline G4VPhysicalVolume* getCurrentVolume(){return fCurrentVolume;}
   inline void setCurrentVolume(G4VPhysicalVolume* aCurrentVolume){fCurrentVolume = aCurrentVolume;}
+  inline void setSteppingAction(SteppingAction* aSteppingAction){fSteppingAction = aSteppingAction;}
 
 private:
   DetectorConstruction* fDetector;
@@ -65,6 +67,7 @@ private:
   G4Region* fCurrentRegion;
   G4VPhysicalVolume* fCurrentVolume;
   G4Region* fGPURegion;
+  SteppingAction* fSteppingAction;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

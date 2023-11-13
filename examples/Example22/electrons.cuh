@@ -25,15 +25,16 @@
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
+using VolAuxData = AdeptIntegration::VolAuxData;
+
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron, typename Scoring>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
                                                           Secondaries &secondaries, MParrayTracks *leakedQueue,
-                                                          Scoring *userScoring)
+                                                          Scoring *userScoring, VolAuxData const *auxDataArray)
 {
-  using VolAuxData = AdeptIntegration::VolAuxData;
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
@@ -50,15 +51,18 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     const int slot      = (*electrons->fActiveTracks)[i];
     Track &currentTrack = (*electrons)[slot];
     auto energy         = currentTrack.energy;
+    auto preStepEnergy = energy;
     auto pos            = currentTrack.pos;
+    vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir            = currentTrack.dir;
+    vecgeom::Vector3D<Precision> preStepDir(dir);
     auto navState       = currentTrack.navState;
     const auto volume   = navState.Top();
     adeptint::TrackData trackdata;
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = volume->GetLogicalVolume()->id();
-    VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
-    
+    VolAuxData const &auxData = auxDataArray[lvolID];
+
     auto survive = [&](bool leak = false) {
       currentTrack.energy   = energy;
       currentTrack.pos      = pos;
@@ -107,8 +111,30 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
-    // Call G4HepEm to compute the physics step limit.
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+    G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
+
+    bool restrictedPhysicalStepLength = false;
+    if (BzFieldValue != 0) {
+      const double momentumMag = sqrt(energy * (energy + 2.0 * Mass));
+      // Distance along the track direction to reach the maximum allowed error
+      const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
+
+      constexpr int MaxSafeLength = 10;
+      double limit                = MaxSafeLength * safeLength;
+      limit                       = safety > limit ? safety : limit;
+
+      double physicalStepLength = elTrack.GetPStepLength();
+      if (physicalStepLength > limit) {
+        physicalStepLength           = limit;
+        restrictedPhysicalStepLength = true;
+        elTrack.SetPStepLength(physicalStepLength);
+        // Note: We are limiting the true step length, which is converted to
+        // a shorter geometry step length in HowFarToMSC. In that sense, the
+        // limit is an over-approximation, but that is fine for our purpose.
+      }
+    }
+
+    G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
     // Remember MSC values for the next step(s).
     currentTrack.initialRange       = mscData->fInitialRange;
@@ -193,79 +219,93 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     energy               = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
 
-    userScoring->AccountChargedStep(Charge);
-    if (auxData.fSensIndex >= 0) userScoring->Score(navState, Charge, elTrack.GetPStepLength(), energyDeposit);
+    // userScoring->AccountChargedStep(Charge);
+    if (auxData.fSensIndex >= 0) userScoring->RecordHit(IsElectron ? 0 : 1,       //Particle type
+                                                        elTrack.GetPStepLength(), //Step length
+                                                        energyDeposit,            //Total Edep
+                                                        &navState,                //Pre-step point navstate
+                                                        &preStepPos,              //Pre-step point position
+                                                        &preStepDir,              //Pre-step point momentum direction
+                                                        nullptr,                  //Pre-step point polarization
+                                                        preStepEnergy,            //Pre-step point kinetic energy
+                                                        IsElectron ? -1 : 1,      //Pre-step point charge
+                                                        &nextState,               //Post-step point navstate
+                                                        &pos,                     //Post-step point position
+                                                        &dir,                     //Post-step point momentum direction
+                                                        nullptr,                  //Post-step point polarization
+                                                        energy,                   //Post-step point kinetic energy
+                                                        IsElectron ? -1 : 1);     //Post-step point charge
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft           = theTrack->GetNumIALeft(ip);
-      currentTrack.numIALeft[ip] = numIALeft;
+        double numIALeft           = theTrack->GetNumIALeft(ip);
+        currentTrack.numIALeft[ip] = numIALeft;
     }
 
     if (stopped) {
-      if (!IsElectron) {
-        // Annihilate the stopped positron into two gammas heading to opposite
-        // directions (isotropic).
-        Track &gamma1 = secondaries.gammas->NextTrack();
-        Track &gamma2 = secondaries.gammas->NextTrack();
+        if (!IsElectron) {
+          // Annihilate the stopped positron into two gammas heading to opposite
+          // directions (isotropic).
+          Track &gamma1 = secondaries.gammas->NextTrack();
+          Track &gamma2 = secondaries.gammas->NextTrack();
 
-        userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+          userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
-        const double cost = 2 * currentTrack.Uniform() - 1;
-        const double sint = sqrt(1 - cost * cost);
-        const double phi  = k2Pi * currentTrack.Uniform();
-        double sinPhi, cosPhi;
-        sincos(phi, &sinPhi, &cosPhi);
+          const double cost = 2 * currentTrack.Uniform() - 1;
+          const double sint = sqrt(1 - cost * cost);
+          const double phi  = k2Pi * currentTrack.Uniform();
+          double sinPhi, cosPhi;
+          sincos(phi, &sinPhi, &cosPhi);
 
-        gamma1.InitAsSecondary(pos, navState);
-        newRNG.Advance();
-        gamma1.rngState = newRNG;
-        gamma1.energy   = copcore::units::kElectronMassC2;
-        gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
+          gamma1.InitAsSecondary(pos, navState);
+          newRNG.Advance();
+          gamma1.rngState = newRNG;
+          gamma1.energy   = copcore::units::kElectronMassC2;
+          gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
-        gamma2.InitAsSecondary(pos, navState);
-        // Reuse the RNG state of the dying track.
-        gamma2.rngState = currentTrack.rngState;
-        gamma2.energy   = copcore::units::kElectronMassC2;
-        gamma2.dir      = -gamma1.dir;
-      }
-      // Particles are killed by not enqueuing them into the new activeQueue.
-      continue;
+          gamma2.InitAsSecondary(pos, navState);
+          // Reuse the RNG state of the dying track.
+          gamma2.rngState = currentTrack.rngState;
+          gamma2.energy   = copcore::units::kElectronMassC2;
+          gamma2.dir      = -gamma1.dir;
+        }
+        // Particles are killed by not enqueuing them into the new activeQueue.
+        continue;
     }
 
     if (nextState.IsOnBoundary()) {
-      // For now, just count that we hit something.
-      userScoring->AccountHit();
+        // For now, just count that we hit something.
+        // userScoring->AccountHit();
 
-      // Kill the particle if it left the world.
-      if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+        // Kill the particle if it left the world.
+        if (nextState.Top() != nullptr) {
+          BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
-        // Move to the next boundary.
-        navState = nextState;
-        // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        const auto nextvolume         = navState.Top();
-        const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
-        VolAuxData const &nextauxData = userScoring->GetAuxData_dev(nextlvolID);
-        if (nextauxData.fGPUregion > 0)
-          survive();
-        else {
-          // To be safe, just push a bit the track exiting the GPU region to make sure
-          // Geant4 does not relocate it again inside the same region
-          pos += kPushOutRegion * dir;
-          survive(/*leak*/ true);
+          // Move to the next boundary.
+          navState = nextState;
+          // Check if the next volume belongs to the GPU region and push it to the appropriate queue
+          const auto nextvolume         = navState.Top();
+          const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
+          VolAuxData const &nextauxData = auxDataArray[nextlvolID];
+          if (nextauxData.fGPUregion > 0)
+            survive();
+          else {
+            // To be safe, just push a bit the track exiting the GPU region to make sure
+            // Geant4 does not relocate it again inside the same region
+            pos += kPushOutRegion * dir;
+            survive(/*leak*/ true);
+          }
         }
-      }
-      continue;
-    } else if (!propagated) {
-      // Did not yet reach the interaction point due to error in the magnetic
-      // field propagation. Try again next time.
-      survive();
-      continue;
+        continue;
+    } else if (!propagated || restrictedPhysicalStepLength) {
+        // Did not yet reach the interaction point due to error in the magnetic
+        // field propagation. Try again next time.
+        survive();
+        continue;
     } else if (winnerProcessIndex < 0) {
-      // No discrete process, move on.
-      survive();
-      continue;
+        // No discrete process, move on.
+        survive();
+        continue;
     }
 
     // Reset number of interaction left for the winner discrete process.
@@ -274,9 +314,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     // Check if a delta interaction happens instead of the real discrete process.
     if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
-      // A delta interaction happened, move on.
-      survive();
-      continue;
+        // A delta interaction happened, move on.
+        survive();
+        continue;
     }
 
     // Perform the discrete interaction, make sure the branched RNG state is
@@ -289,81 +329,82 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
 
     switch (winnerProcessIndex) {
-    case 0: {
-      // Invoke ionization (for e-/e+):
-      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
-                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
+      case 0: {
+        // Invoke ionization (for e-/e+):
+        double deltaEkin = (IsElectron)
+                               ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
+                               : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
 
-      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double dirSecondary[3];
-      G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+        double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+        double dirSecondary[3];
+        G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-      Track &secondary = secondaries.electrons->NextTrack();
+        Track &secondary = secondaries.electrons->NextTrack();
 
-      userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
-      secondary.InitAsSecondary(pos, navState);
-      secondary.rngState = newRNG;
-      secondary.energy   = deltaEkin;
-      secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+        secondary.InitAsSecondary(pos, navState);
+        secondary.rngState = newRNG;
+        secondary.energy   = deltaEkin;
+        secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      energy -= deltaEkin;
-      dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      survive();
-      break;
-    }
-    case 1: {
-      // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-      double logEnergy = std::log(energy);
-      double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
-                                                                                 auxData.fMCIndex, &rnge, IsElectron)
-                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
-                                                                                 auxData.fMCIndex, &rnge, IsElectron);
+        energy -= deltaEkin;
+        dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+        survive();
+        break;
+      }
+      case 1: {
+        // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
+        double logEnergy = std::log(energy);
+        double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
+                               ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
+                                                                                   auxData.fMCIndex, &rnge, IsElectron)
+                               : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
+                                                                                   auxData.fMCIndex, &rnge, IsElectron);
 
-      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double dirSecondary[3];
-      G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+        double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+        double dirSecondary[3];
+        G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-      Track &gamma = secondaries.gammas->NextTrack();
-      userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
+        Track &gamma = secondaries.gammas->NextTrack();
+        userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
-      gamma.InitAsSecondary(pos, navState);
-      gamma.rngState = newRNG;
-      gamma.energy   = deltaEkin;
-      gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+        gamma.InitAsSecondary(pos, navState);
+        gamma.rngState = newRNG;
+        gamma.energy   = deltaEkin;
+        gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      energy -= deltaEkin;
-      dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      survive();
-      break;
-    }
-    case 2: {
-      // Invoke annihilation (in-flight) for e+
-      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double theGamma1Ekin, theGamma2Ekin;
-      double theGamma1Dir[3], theGamma2Dir[3];
-      G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
-          energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
+        energy -= deltaEkin;
+        dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+        survive();
+        break;
+      }
+      case 2: {
+        // Invoke annihilation (in-flight) for e+
+        double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+        double theGamma1Ekin, theGamma2Ekin;
+        double theGamma1Dir[3], theGamma2Dir[3];
+        G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
+            energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
-      Track &gamma1 = secondaries.gammas->NextTrack();
-      Track &gamma2 = secondaries.gammas->NextTrack();
-      userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+        Track &gamma1 = secondaries.gammas->NextTrack();
+        Track &gamma2 = secondaries.gammas->NextTrack();
+        userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
-      gamma1.InitAsSecondary(pos, navState);
-      gamma1.rngState = newRNG;
-      gamma1.energy   = theGamma1Ekin;
-      gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
+        gamma1.InitAsSecondary(pos, navState);
+        gamma1.rngState = newRNG;
+        gamma1.energy   = theGamma1Ekin;
+        gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
-      gamma2.InitAsSecondary(pos, navState);
-      // Reuse the RNG state of the dying track.
-      gamma2.rngState = currentTrack.rngState;
-      gamma2.energy   = theGamma2Ekin;
-      gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
+        gamma2.InitAsSecondary(pos, navState);
+        // Reuse the RNG state of the dying track.
+        gamma2.rngState = currentTrack.rngState;
+        gamma2.energy   = theGamma2Ekin;
+        gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
-      // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
+        // The current track is killed by not enqueuing into the next activeQueue.
+        break;
+      }
     }
   }
 }
@@ -371,13 +412,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 // Instantiate kernels for electrons and positrons.
 template <typename Scoring>
 __global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, secondaries, leakedQueue, userScoring);
+  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, secondaries, leakedQueue, userScoring, auxDataArray);
 }
 template <typename Scoring>
 __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, secondaries, leakedQueue, userScoring);
+  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, secondaries, leakedQueue, userScoring, auxDataArray);
 }

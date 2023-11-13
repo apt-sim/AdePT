@@ -11,6 +11,8 @@
 #include "AdeptIntegration.h"
 #include "AdePTTrackingManager.hh"
 
+#include <G4GDMLParser.hh>
+
 class G4Box;
 class G4LogicalVolume;
 class G4VPhysicalVolume;
@@ -73,7 +75,12 @@ public:
   // Set total number of track slots on GPU
   void SetTrackSlots(double value) { fTrackSlotsGPU = value; }
 
+  // Set total number of hit slots
+  void SetHitSlots(double value) { fHitSlots = value; }
+
   double GetTrackSlots() { return fTrackSlotsGPU; }
+
+  double GetHitSlots() { return fHitSlots; }
 
   std::vector<G4String> &GetSensitiveGroups() { return fSensitive_group; }
 
@@ -83,6 +90,7 @@ private:
   int fVerbosity{0};        ///< Actually verbosity for AdePT integration
   int fBufferThreshold{20}; ///< Buffer threshold for AdePT transport
   double fTrackSlotsGPU{1}; ///< Total number of track slots allocated on GPU (millions)
+  double fHitSlots{1};      ///< Total number of hit slots allocated on GPU and Host (millions)
   G4String fGDML_file;
   G4String fRegion_name;
   std::vector<G4String> fSensitive_volumes;
@@ -100,8 +108,9 @@ private:
   PrimaryGeneratorAction *fPrimaryGenerator;
 
   // Physical Volumes where we will score
-  std::set<const G4VPhysicalVolume*> fSensitivePhysicalVolumes;
+  std::set<const G4VPhysicalVolume *> fSensitivePhysicalVolumes;
 
+  G4GDMLParser fParser;
 };
 
 #endif /* DETECTORCONSTRUCTION_H */
