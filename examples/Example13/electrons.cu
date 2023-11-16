@@ -123,11 +123,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     bool propagated = true;
     double geometryStepLength;
     vecgeom::NavStateIndex nextState;
-    const int max_iters = 10;
+    constexpr int max_iters = 10;
+    // printf("max_iters= %3d\n", max_iters);
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
-          propagated, safety, slot, max_iters );
+          propagated, safety, max_iters );
     } else {
       geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPush);
