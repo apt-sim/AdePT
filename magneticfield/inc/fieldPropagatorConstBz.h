@@ -87,7 +87,7 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, const Precision safetyIn, const int max_iterations)
+    vecgeom::NavStateIndex &next_state, bool &propagated, const vecgeom::Precision safetyIn, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
   #ifdef VECGEOM_FLOAT_PRECISION
@@ -161,7 +161,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
       if( lastWasZero && chordIters >= ReduceIters ) {
          lastWasZero = false;
       }
-      
+
       if (move == chordLen) {
         position  = endPosition;
         direction = endDirection;
@@ -174,7 +174,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         // Navigator::kBoundaryPush instead of a real 0.
         move = 0;
         lastWasZero = true;
-    
+
         // Reduce the step attempted in the next iteration to navigate around
         // boundaries where the chord step may end in a volume we just left.
         maxNextSafeMove   = ReduceFactor * safeMove;
