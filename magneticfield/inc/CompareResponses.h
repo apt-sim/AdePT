@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 2020-3 CERN
+// SPDX-License-Identifier: Apache-2.0
+
+// Author:   J. Apostolakis,  22 June 2022
+
 #ifndef CompareResponses_hh
 #define CompareResponses_hh 1
 
