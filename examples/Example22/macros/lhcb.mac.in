@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2023 CERN
+# SPDX-License-Identifier: Apache-2.0
+#  lhcb.mac.in
+#
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters
+## =============================================================================
+##
+/run/numberOfThreads 1
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+/event/verbose 0
+
+##
+/example21/detector/filename @LHCB_GDML@
+/example21/adept/verbose 0
+/example21/adept/threshold 50
+
+/example21/detector/addsensitivevolume _dd_Geometry_DownstreamRegion_Ecal_Modules_InnCell
+/example21/detector/addsensitivevolume _dd_Geometry_DownstreamRegion_Ecal_Modules_MidCell
+/example21/detector/addsensitivevolume _dd_Geometry_DownstreamRegion_Ecal_Modules_OutCell
+
+## -----------------------------------------------------------------------------
+## Optionally, set a constant magnetic filed:
+## -----------------------------------------------------------------------------
+/example21/detector/setField 0 0 1.0 tesla
+
+## -----------------------------------------------------------------------------
+## Set secondary production threshold, init. the run and set primary properties
+## -----------------------------------------------------------------------------
+/run/setCut 0.7 mm
+/run/initialize
+
+## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/example21/event/verbose 2
+
+#/example21/gun/hepmc
+#/generator/hepmcAscii/maxevents 50
+#/generator/hepmcAscii/firstevent 10
+#/generator/hepmcAscii/open ppminbias.hepmc3
+#/generator/hepmcAscii/verbose 1
+
+/example21/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 1
+/gun/position 0 0 0
+/gun/direction 0.085 0.085 0.99
+/example21/gun/rndmDir 0.0
+#/example21/gun/print
+
+##
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+##/tracking/verbose 1
+##/process/list
+
+/run/beamOn 1
+
