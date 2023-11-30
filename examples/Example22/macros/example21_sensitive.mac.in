@@ -1,0 +1,148 @@
+# SPDX-FileCopyrightText: 2023 CERN
+# SPDX-License-Identifier: Apache-2.0
+#  example21.in
+#
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters
+## =============================================================================
+##
+/run/numberOfThreads 1
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+##
+/example21/setSeed 1
+
+/example21/detector/filename cms-run3.gdml
+/example21/adept/verbose 0
+## Threshold for buffering tracks before sending to GPU
+/example21/adept/threshold 200
+## Total number of GPU track slots (not per thread)
+/example21/adept/milliontrackslots 1
+
+/example21/detector/addsensitivevolume ebalgo_EAPD_01
+/example21/detector/addsensitivevolume ebalgo_EAPD_02
+/example21/detector/addsensitivevolume ebalgo_EAPD_03
+/example21/detector/addsensitivevolume ebalgo_EAPD_04
+/example21/detector/addsensitivevolume ebalgo_EAPD_05
+/example21/detector/addsensitivevolume ebalgo_EAPD_06
+/example21/detector/addsensitivevolume ebalgo_EAPD_07
+/example21/detector/addsensitivevolume ebalgo_EAPD_08
+/example21/detector/addsensitivevolume ebalgo_EAPD_09
+/example21/detector/addsensitivevolume ebalgo_EAPD_10
+/example21/detector/addsensitivevolume ebalgo_EAPD_11
+/example21/detector/addsensitivevolume ebalgo_EAPD_12
+/example21/detector/addsensitivevolume ebalgo_EAPD_13
+/example21/detector/addsensitivevolume ebalgo_EAPD_14
+/example21/detector/addsensitivevolume ebalgo_EAPD_15
+/example21/detector/addsensitivevolume ebalgo_EAPD_16
+/example21/detector/addsensitivevolume ebalgo_EAPD_17
+
+/example21/detector/sensitivegroup ebalgo_EAPD
+
+/example21/detector/addsensitivevolume ebalgo_EBRY_01
+/example21/detector/addsensitivevolume ebalgo_EBRY_02
+/example21/detector/addsensitivevolume ebalgo_EBRY_03
+/example21/detector/addsensitivevolume ebalgo_EBRY_04
+/example21/detector/addsensitivevolume ebalgo_EBRY_05
+/example21/detector/addsensitivevolume ebalgo_EBRY_06
+/example21/detector/addsensitivevolume ebalgo_EBRY_07
+/example21/detector/addsensitivevolume ebalgo_EBRY_08
+/example21/detector/addsensitivevolume ebalgo_EBRY_09
+/example21/detector/addsensitivevolume ebalgo_EBRY_10
+/example21/detector/addsensitivevolume ebalgo_EBRY_11
+/example21/detector/addsensitivevolume ebalgo_EBRY_12
+/example21/detector/addsensitivevolume ebalgo_EBRY_13
+/example21/detector/addsensitivevolume ebalgo_EBRY_14
+/example21/detector/addsensitivevolume ebalgo_EBRY_15
+/example21/detector/addsensitivevolume ebalgo_EBRY_16
+/example21/detector/addsensitivevolume ebalgo_EBRY_17
+
+/example21/detector/sensitivegroup ebalgo_EBRY_01
+/example21/detector/sensitivegroup ebalgo_EBRY_02
+/example21/detector/sensitivegroup ebalgo_EBRY_03
+/example21/detector/sensitivegroup ebalgo_EBRY_04
+/example21/detector/sensitivegroup ebalgo_EBRY_05
+/example21/detector/sensitivegroup ebalgo_EBRY_06
+/example21/detector/sensitivegroup ebalgo_EBRY_07
+/example21/detector/sensitivegroup ebalgo_EBRY_08
+/example21/detector/sensitivegroup ebalgo_EBRY_09
+/example21/detector/sensitivegroup ebalgo_EBRY_10
+/example21/detector/sensitivegroup ebalgo_EBRY_11
+/example21/detector/sensitivegroup ebalgo_EBRY_12
+/example21/detector/sensitivegroup ebalgo_EBRY_13
+/example21/detector/sensitivegroup ebalgo_EBRY_14
+/example21/detector/sensitivegroup ebalgo_EBRY_15
+/example21/detector/sensitivegroup ebalgo_EBRY_16
+/example21/detector/sensitivegroup ebalgo_EBRY_17
+
+/example21/detector/addsensitivevolume ebalgo_EATJ_01
+/example21/detector/addsensitivevolume ebalgo_EATJ_02
+/example21/detector/addsensitivevolume ebalgo_EATJ_03
+/example21/detector/addsensitivevolume ebalgo_EATJ_04
+/example21/detector/addsensitivevolume ebalgo_EATJ_05
+/example21/detector/addsensitivevolume ebalgo_EATJ_06
+/example21/detector/addsensitivevolume ebalgo_EATJ_07
+/example21/detector/addsensitivevolume ebalgo_EATJ_08
+/example21/detector/addsensitivevolume ebalgo_EATJ_09
+/example21/detector/addsensitivevolume ebalgo_EATJ_10
+/example21/detector/addsensitivevolume ebalgo_EATJ_11
+/example21/detector/addsensitivevolume ebalgo_EATJ_12
+/example21/detector/addsensitivevolume ebalgo_EATJ_13
+/example21/detector/addsensitivevolume ebalgo_EATJ_14
+/example21/detector/addsensitivevolume ebalgo_EATJ_15
+/example21/detector/addsensitivevolume ebalgo_EATJ_16
+/example21/detector/addsensitivevolume ebalgo_EATJ_17
+
+/example21/detector/sensitivegroup ebalgo_EATJ
+
+/example21/detector/addsensitivevolume ebalgo_EFRY
+
+/example21/detector/sensitivegroup ebalgo_EFRY
+
+## -----------------------------------------------------------------------------
+## Optionally, set a constant magnetic filed:
+## -----------------------------------------------------------------------------
+/example21/detector/setField 0 0 0 tesla
+#/example21/detector/setField 0 0 3.8 tesla
+
+## -----------------------------------------------------------------------------
+## Set secondary production threshold, init. the run and set primary properties
+## -----------------------------------------------------------------------------
+/run/setCut 0.7 mm
+/run/initialize
+
+## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/example21/event/verbose 2
+
+/example21/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 200
+/gun/position 0 0 0
+/example21/gun/print true
+
+#If false, the following parameters are ignored
+/example21/gun/randomizeGun false
+#Usage: /example21/gun/addParticle type ["weight" weight] ["energy" energy unit]
+/example21/gun/addParticle e- weight 1 energy 10 GeV
+/example21/gun/addParticle proton weight 0 energy 10 GeV
+/example21/gun/minPhi 0 deg
+/example21/gun/maxPhi 360 deg
+/example21/gun/minTheta 10 deg
+/example21/gun/maxTheta 170 deg
+
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+##/tracking/verbose 1
+##/process/list
+
+/example21/setSeed 1
+
+# run events with parametrised simulation
+# by default all created models are active
+/run/beamOn 1
+
