@@ -242,6 +242,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
                ScoringPerVolume *scoringPerVolume_host, GlobalScoring *globalScoring_host, int numVolumes,
                int numPlaced, G4HepEmState *state, bool rotatingParticleGun)
 {
+  // NVTXTracer tracer("InitG4HepEM");
   InitG4HepEmGPU(state);
 
   // Transfer MC indices.
@@ -352,7 +353,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
     std::cout << "... " << std::flush;
   }
   
-  bool printStats= false;
+  constexpr bool printStats= false;
 
   unsigned long long killed = 0;
 
@@ -376,7 +377,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
     InitPrimaries<<<initBlocks, InitThreads, 0, stream>>>(electronGenerator, startEvent, chunk, energy, world_dev,
                                                           globalScoring, rotatingParticleGun);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-
+    
     stats->inFlight[ParticleType::Electron] = chunk;
     stats->inFlight[ParticleType::Positron] = 0;
     stats->inFlight[ParticleType::Gamma]    = 0;
@@ -389,6 +390,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
     int loopingNo         = 0;
     int previousElectrons = -1, previousPositrons = -1;
 
+    // constexpr int mod_it=25;
     int iteration= 0;
 
     do {
@@ -397,9 +399,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
           .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
           .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
       };
-
       // printf("\n\n-- Top of loop ----------------------\n");
-      // printf("\n\n-- Iteration %d \n", iteration);
 
       // *** ELECTRONS ***
       int numElectrons = stats->inFlight[ParticleType::Electron];
@@ -414,10 +414,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
       }
-
-      // Extra sync for debugging !!? JA 2022.09.19
-      // COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-      
+          
       // *** POSITRONS ***
       int numPositrons = stats->inFlight[ParticleType::Positron];
       if (numPositrons > 0) {
@@ -431,10 +428,6 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
       }
-
-      // Extra sync for debugging !!? JA 2022.09.19
-      // COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-      
       // *** GAMMAS ***
       int numGammas = stats->inFlight[ParticleType::Gamma];
       if (numGammas > 0) {
@@ -448,7 +441,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
       }
-
+      
       // *** END OF TRANSPORT ***
 
       // Extra sync for debugging !!? JA 2022.09.19
@@ -462,7 +455,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
 
       // Finally synchronize all kernels.
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-
+      
       // Count the number of particles in flight.
       inFlight = 0;
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
@@ -491,7 +484,9 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       iteration++;
       const int  iterModPrint = 100;  // Every how many to print info
       if( printStats && ( iteration % iterModPrint == 0 ) ) {
-         printf("Iteration = %6d   event = %4d   inflight= %4d   iter looping=%3d \n" , iteration, startEvent, inFlight, loopingNo );
+         printf("Iteration = %6d   event = %4d   inflight= %6d  ( e- : %6d g : %5d e+ : %4d) iter looping=%3d \n" ,
+                iteration, startEvent, inFlight,
+                numElectrons, numGammas, numPositrons, loopingNo );
       } 
       
     } while (inFlight > 0 && loopingNo < 200);
@@ -516,7 +511,7 @@ void example15(int numParticles, double energy, int batch, const int *MCIndex_ho
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     }
   }
-  std::cout << "done!" << std::endl;
+  std::cout << "\ndone!" << std::endl;
 
   auto time = timer.Stop();
   std::cout << "Run time: " << time << "\n";
