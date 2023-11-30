@@ -60,7 +60,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
 
-#if USE_RK
   constexpr int Nvar   = 6;
   using Field_t        = UniformMagneticField;        // ToDO:  Change to non-uniform type !!
   using Equation_t     = MagneticFieldEquation<Field_t>;
@@ -69,15 +68,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
   Field_t  magField( vecgeom::Vector3D<float>(0.0, 0.0, *gPtrBzFieldValue_dev) );
                      // 2.0*copcore::units::tesla) ); // -> Obtain it from object ?
-#endif
 
 #ifdef REPORT_OPTION
   static bool ReportOption = true;
-#if USE_RK  
   static const char* RunType= "Runge-Kutta field propagation";
-#else
-  static const char* RunType= "Helix for   field propagation";
-#endif
   if( ReportOption && blockIdx.x == 0 && threadIdx.x == 0 ) {
      printf( "-- Run type: %s .\n\n", RunType );
      ReportOption= false;
@@ -188,7 +182,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       using RkDriver_t = RkIntegrationDriver<Stepper_t, Precision, int, Equation_t, Field_t>;
 
       constexpr int max_iterations= 10;
-      // constexpr int max_iters_tail= 20;
 
 #ifdef  CHECK_RESULTS
       // Store starting values
@@ -205,7 +198,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
           energy, Mass, Charge, geometricalStepLengthFromPhysics,
           positionHx, directionHx, navState, nextStateHx, propagatedHx, safety,
-          slot, max_iterations );
+          max_iterations );
          // activeSize < 100 ? max_iterations : max_iters_tail );
       // End   Baseline reply
 #endif
