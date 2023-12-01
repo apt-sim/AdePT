@@ -21,6 +21,7 @@
 #include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
+#include <G4LogicalVolumeStore.hh>
 
 #include "SensitiveDetector.hh"
 #include "EventAction.hh"
@@ -240,13 +241,45 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycle
 }
 
 namespace {
-struct Counters {
+
+bool isInRegion(G4LogicalVolume const *volume, G4Region const *const region,
+                std::unordered_map<G4LogicalVolume const *, bool> &resultCache)
+{
+  if (volume->GetRegion() == region) {
+      return true;
+  }
+  // Maybe the volume is already known:
+  if (auto resultIt = resultCache.find(volume); resultIt != resultCache.end()) {
+      return resultIt->second;
+  }
+
+  // Visit all parent regions:
+  for (const auto parent : *G4LogicalVolumeStore::GetInstance()) {
+      const auto nDaughter = parent->GetNoDaughters();
+      for (unsigned int i = 0; i < nDaughter; ++i) {
+      if (parent->GetDaughter(i)->GetLogicalVolume() == volume) {
+        if (isInRegion(parent, region, resultCache)) {
+          std::cout << "Adding volume " << volume->GetName() << " to GPU region because parent is " << parent->GetName()
+                    << " in region " << parent->GetRegion()->GetName() << "\n";
+          resultCache[volume] = true;
+          return true;
+        }
+      }
+      }
+  }
+
+  resultCache[volume] = false;
+  return false;
+};
+
+struct VisitHelpers {
   int nphysical      = 0;
   int nlogical_sens  = 0;
   int nphysical_sens = 0;
   int ninregion      = 0;
+  std::unordered_map<G4LogicalVolume const *, bool> regionCache;
 };
-void visitAndSetMCIndex(G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume const *pvol, Counters &counters,
+void visitAndSetMCIndex(G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume const *pvol, VisitHelpers &helpers,
                         const G4HepEmState &hepEmState, adeptint::VolAuxData *auxData, G4Region const *adeptRegion,
                         std::unordered_map<std::string, int> const &sensitive_volume_index,
                         std::unordered_map<const G4VPhysicalVolume *, int> &fScoringMap)
@@ -255,7 +288,7 @@ void visitAndSetMCIndex(G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume 
   const auto nvolumes       = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   const auto g4vol          = g4pvol->GetLogicalVolume();
   const auto vol            = pvol->GetLogicalVolume();
-  int nd                    = g4vol->GetNoDaughters();
+  const int nd              = g4vol->GetNoDaughters();
   auto daughters            = vol->GetDaughters();
   if (static_cast<std::size_t>(nd) != daughters.size())
       throw std::runtime_error("Fatal: CreateVolAuxData: Mismatch in number of daughters");
@@ -300,12 +333,12 @@ void visitAndSetMCIndex(G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume 
 
   // All OK, now fill the MCC index in the array
   auxData[vol->id()].fMCIndex = hepemmcindex;
-  counters.nphysical++;
+  helpers.nphysical++;
 
   // Check if the volume belongs to the interesting region
-  if (g4vol->GetRegion() == adeptRegion) {
+  if (isInRegion(g4vol, adeptRegion, helpers.regionCache)) {
       auxData[vol->id()].fGPUregion = 1;
-      counters.ninregion++;
+      helpers.ninregion++;
   }
 
   // Check if the logical volume is sensitive
@@ -316,10 +349,10 @@ void visitAndSetMCIndex(G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume 
         if (g4vol->GetSensitiveDetector() == nullptr)
           throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4vol->GetName()) +
                                    " not sensitive while VecGeom one " + std::string(vol->GetName()) + " is.");
-        if (auxData[vol->id()].fSensIndex < 0) counters.nlogical_sens++;
+        if (auxData[vol->id()].fSensIndex < 0) helpers.nlogical_sens++;
         auxData[vol->id()].fSensIndex = sensvol.second;
         fScoringMap.insert(std::pair<const G4VPhysicalVolume *, int>(g4pvol, pvol->id()));
-        counters.nphysical_sens++;
+        helpers.nphysical_sens++;
         break;
       }
   }
@@ -338,7 +371,7 @@ void visitAndSetMCIndex(G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume 
         throw std::runtime_error("Fatal: CreateVolAuxData: Volume names " +
                                  std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
                                  std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
-      visitAndSetMCIndex(g4pvol_d, pvol_d, counters, hepEmState, auxData, adeptRegion, sensitive_volume_index,
+      visitAndSetMCIndex(g4pvol_d, pvol_d, helpers, hepEmState, auxData, adeptRegion, sensitive_volume_index,
                          fScoringMap);
   }
 }
@@ -349,7 +382,7 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
                                                          const G4HepEmState &hepEmState)
 {
   // - FIND vecgeom::LogicalVolume corresponding to each and every G4LogicalVolume
-  Counters counters;
+  VisitHelpers counters;
 
   const auto nvolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   VolAuxData *auxData = new VolAuxData[nvolumes];
