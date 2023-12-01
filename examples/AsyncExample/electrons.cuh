@@ -70,6 +70,18 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         activeQueue->push_back(slot);
     };
 
+    if (auxData.fGPUregion == 0) {
+      printf(__FILE__ ":%d Error: Should kick particle %d lvol %d (%15.12f %15.12f %15.12f) dir=(%f %f %f) "
+                      "evt=%d thread=%d "
+                      "e=%f safety=%f out of GPU\n",
+             __LINE__, IsElectron ? -11 : 11, lvolID, pos[0], pos[1], pos[2], dir[0], dir[1], dir[2],
+             currentTrack.eventId, currentTrack.threadId, currentTrack.energy,
+             BVHNavigator::ComputeSafety(pos, navState));
+      // pos += kPushOutRegion * dir;
+      // survive(true);
+      // continue;
+    }
+
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
     G4HepEmTrack *theTrack = elTrack.GetTrack();
