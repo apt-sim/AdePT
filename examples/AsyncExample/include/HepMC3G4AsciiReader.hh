@@ -11,7 +11,6 @@
 #define HEPMC3_G4_ASCII_READER_H
 
 #include "HepMC3G4Interface.hh"
-#include "HepMC3/ReaderAscii.h"
 #include "HepMC3/Print.h"
 
 #include <climits>
@@ -24,9 +23,7 @@ protected:
   G4String filename;
   int firstEventNumber = 0;
   int maxNumberOfEvents = INT_MAX;
-  int previousEventNumber = 0;
-  std::unique_ptr<HepMC3::ReaderAscii> asciiInput;
-  std::unique_ptr<HepMC3::GenEvent> event;
+  std::vector<HepMC3::GenEvent> events;
 
   G4int verbose = 0;
   std::unique_ptr<HepMC3G4AsciiReaderMessenger> messenger;
@@ -87,7 +84,7 @@ inline G4int HepMC3G4AsciiReader::GetMaxNumberOfEvents() const
 
 inline void HepMC3G4AsciiReader::SetFirstEventNumber(G4int i)
 {
-  firstEventNumber = previousEventNumber = i;
+  firstEventNumber = i;
 }
 
 inline G4int HepMC3G4AsciiReader::GetFirstEventNumber() const
