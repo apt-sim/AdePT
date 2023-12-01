@@ -196,4 +196,50 @@ void DetectorConstruction::CreateVecGeomWorld()
     std::cerr << "GeoManager world volume is nullptr" << G4endl;
     return;
   }
+
+  std::cout << "\n--------------------------------------------\n";
+  auto &geoManager = vecgeom::GeoManager::Instance();
+  for (unsigned int id : {3762, 3357, 3355, 3762, 3416, 3452}) {
+    using vecgeom::cxx::LogicalVolume;
+
+    std::cout << "\n\nLogical vol " << id << "\n";
+    {
+      std::vector<LogicalVolume const *> volumeStack;
+      std::function<void(unsigned int)> visitor;
+      visitor = [&visitor, &volumeStack](unsigned int volumeToSearch) {
+        if (volumeStack.back()->id() == volumeToSearch) return;
+
+        for (const auto placedDaughter : volumeStack.back()->GetDaughters()) {
+          LogicalVolume const *daughter = placedDaughter->GetLogicalVolume();
+          volumeStack.push_back(daughter);
+          visitor(volumeToSearch);
+
+          if (volumeStack.back()->id() == volumeToSearch)
+            return;
+          else
+            volumeStack.pop_back();
+        }
+      };
+
+      volumeStack.push_back(world->GetLogicalVolume());
+      visitor(id);
+
+      std::cout << "\nNavigation stack:\n";
+      for (auto lVol : volumeStack) {
+        std::cout << lVol->id() << "\t" << lVol->GetName() << "\n";
+      }
+
+      const auto log = geoManager.FindLogicalVolume(id);
+      log->Print();
+    }
+  }
+
+  std::cout << "\n--------------------------------------------\n";
+
+  for (int id : {10651, 10916}) {
+    std::cout << "Placed vol " << id << "\n";
+    const auto placed = geoManager.FindPlacedVolume(id);
+    if (placed) placed->Print();
+  }
+  std::cout << "\n--------------------------------------------\n";
 }

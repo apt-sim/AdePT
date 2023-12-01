@@ -61,11 +61,44 @@ G4bool EMShowerModel::ModelTrigger(const G4FastTrack & /*aFastTrack*/)
 
 void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
 {
-  // Remove particle from further processing by G4
   auto g4track           = aFastTrack.GetPrimaryTrack();
   auto particlePosition  = g4track->GetPosition();
   auto particleDirection = g4track->GetMomentumDirection();
 
+#ifndef NDEBUG
+  G4VSolid const *solid = aFastTrack.GetEnvelopeSolid();
+  const auto localPos   = aFastTrack.GetPrimaryTrackLocalPosition();
+  const auto localDir   = aFastTrack.GetPrimaryTrackLocalDirection();
+  const auto dist       = solid->DistanceToOut(localPos, localDir);
+  // if (dist < millimeter) std::cout << "DistanceToOut: " << std::setw(9) << dist / millimeter << "\n";
+  if (dist < micrometer) {
+    G4cout << "Error: AdePT will reject a particle that's immediately leaving the GPU region.\n";
+    G4cout << "Rejected pos: " << aFastTrack.GetPrimaryTrack()->GetPosition() << "\n";
+    G4cout << "Distance: " << solid->DistanceToOut(localPos, localDir) << "\n";
+    G4cout << *solid << "\n";
+    return;
+  }
+
+  const G4ThreeVector pos{-282.494219, -1126.731331, -3156.200000};
+  if ((particlePosition - pos).mag() < 1.E-5) {
+    G4cout << "TAG: The solid close to " << particlePosition << " is:\n";
+    G4cout << *solid << "\n";
+    G4cout << "LVol=" << aFastTrack.GetEnvelopeLogicalVolume()->GetName()
+           << " NDaugher=" << aFastTrack.GetEnvelopeLogicalVolume()->GetNoDaughters() << "\n";
+    G4cout << "DistanceToOut=" << solid->DistanceToOut(localPos, localDir) / millimeter << G4endl;
+  }
+
+  const G4ThreeVector posKickOut{129.079191, 1231.252437, 888.105959};
+  if ((particlePosition - posKickOut).mag() < 1.E-4) {
+    G4cout << "TAG: The solid close to the kick-out position " << particlePosition << " is:\n";
+    G4cout << *solid << "\n";
+    G4cout << "LVol=" << aFastTrack.GetEnvelopeLogicalVolume()->GetName()
+           << " NDaugher=" << aFastTrack.GetEnvelopeLogicalVolume()->GetNoDaughters() << "\n";
+    G4cout << "DistanceToOut=" << solid->DistanceToOut(localPos, localDir) / millimeter << G4endl;
+  }
+#endif
+
+  // Remove particle from further processing by G4
   aFastStep.KillPrimaryTrack();
   aFastStep.SetPrimaryTrackPathLength(0.0);
   G4double energy = aFastTrack.GetPrimaryTrack()->GetKineticEnergy();
