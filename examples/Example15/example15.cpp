@@ -202,6 +202,14 @@ int main(int argc, char *argv[])
 
   std::cout << "INFO: Particles to simulate = " << particles << " \n";  
   std::cout << "INFO: Bz field value = " << bzValue << " T (tesla) \n"; 
+
+  constexpr int stackLimit= 8 * 1024;  // 8192 
+  printf("example15.cpp/main(): Setting Cuda Device Stack Limit to %6d \n", stackLimit);
+  cudaError_t error = cudaDeviceSetLimit(cudaLimitStackSize, stackLimit);
+  if (error != cudaSuccess) {
+     printf("cudaDeviceSetLimit failed with %d, line(%d)\n", error, __LINE__);
+     exit(EXIT_FAILURE);
+  }
   
   vecgeom::Stopwatch timer;
   timer.Start();
