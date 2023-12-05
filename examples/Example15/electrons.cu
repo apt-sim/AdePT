@@ -1,14 +1,19 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "example13.cuh"
+#include "example15.cuh"
 
 #include <AdePT/BVHNavigator.h>
-#include <fieldPropagatorConstBz.h>
 
 #include <CopCore/PhysicalConstants.h>
 
 #define NOFLUCTUATION
+
+// Classes for Runge-Kutta integration 
+#include "MagneticFieldEquation.h"
+#include "DormandPrinceRK45.h"
+#include "fieldPropagatorRungeKutta.h"
+#include "fieldPropagatorConstBz.h"
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -24,6 +29,19 @@
 #include <G4HepEmElectronInteractionIoni.icc>
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
+
+#ifdef  CHECK_RESULTS
+#include "CompareResponses.h"
+#endif
+
+__device__ float *gPtrBzFieldValue_dev = nullptr;
+
+// Transfer pointer to memory address of BzFieldValue_dev to device ...
+//
+__global__ void SetBzFieldPtr( float* pBzFieldValue_dev )
+{
+   gPtrBzFieldValue_dev = pBzFieldValue_dev; 
+}
 
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
@@ -41,7 +59,28 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #endif
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+
+  constexpr int Nvar   = 6;
+  using Field_t        = UniformMagneticField;        // ToDO:  Change to non-uniform type !!
+  using Equation_t     = MagneticFieldEquation<Field_t>;
+  using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using DoPri5Driver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+
+  Field_t  magField( vecgeom::Vector3D<float>(0.0, 0.0, *gPtrBzFieldValue_dev) );
+                     // 2.0*copcore::units::tesla) ); // -> Obtain it from object ?
+
+#ifdef REPORT_OPTION
+  static bool ReportOption = true;
+  static const char* RunType= "Runge-Kutta field propagation";
+  if( ReportOption && blockIdx.x == 0 && threadIdx.x == 0 ) {
+     printf( "-- Run type: %s .\n\n", RunType );
+     ReportOption= false;
+  }
+#endif
+
+  // DoPri5Driver_t    
+  //  Static method fieldPropagatorRungeKutta<DoPri5Driver_t, vecgeom::Precision>
+  //     no object fieldPropagatorRK()
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -77,6 +116,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
     mscData->fTlimitMin          = currentTrack.tlimitMin;
 
+    // Initial value of magnetic field
+    // Equation_t::EvaluateDerivativesReturnB(magField, pos,
+    //                                       , momentum* dir,
+    //                                       , charge, dy_ds, magFieldStart);
+    
     // Prepare a branched RNG state while threads are synchronized. Even if not
     // used, this provides a fresh round of random numbers and reduces thread
     // divergence because the RNG state doesn't need to be advanced later.
@@ -123,12 +167,89 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     bool propagated = true;
     double geometryStepLength;
     vecgeom::NavStateIndex nextState;
-    constexpr int max_iters = 10;
-    // printf("max_iters= %3d\n", max_iters);
-    if (BzFieldValue != 0) {
-      geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
-          propagated, safety, max_iters );
+    
+    float BzFieldValue= *gPtrBzFieldValue_dev;   // Use vecgeom::Precision ?
+    if (BzFieldValue != 0.0) {
+      UniformMagneticField magneticFieldB( vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue ) );
+      // using fieldPropagatorRK = fieldPropagatorRungetKutta<RkDriver_t, Precision>;
+
+      // Set up the Integration using Runge-Kutta DoPri5 method
+      // 
+      constexpr unsigned int Nvar = 6; // Number of integration variables
+      using Field_t = UniformMagneticField;      
+      using Equation_t = MagneticFieldEquation<Field_t>;
+      using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, Precision>;
+      using RkDriver_t = RkIntegrationDriver<Stepper_t, Precision, int, Equation_t, Field_t>;
+
+      constexpr int max_iterations= 10;
+
+#ifdef  CHECK_RESULTS
+      // Store starting values
+      const vecgeom::Vector3D<Precision> startPosition= pos;
+      const vecgeom::Vector3D<Precision> startDirection= dir;
+
+      // Start Baseline reply 
+      vecgeom::Vector3D<Precision> positionHx= startPosition;
+      vecgeom::Vector3D<Precision> directionHx= startDirection;
+      vecgeom::NavStateIndex nextStateHx;
+      bool propagatedHx;
+      
+      fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+      Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
+          energy, Mass, Charge, geometricalStepLengthFromPhysics,
+          positionHx, directionHx, navState, nextStateHx, propagatedHx, safety,
+          max_iterations );
+         // activeSize < 100 ? max_iterations : max_iters_tail );
+      // End   Baseline reply
+#endif
+      int iterDone= -1;
+      geometryStepLength =
+         fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, BVHNavigator>::ComputeStepAndNextVolume( 
+            magneticFieldB,
+            energy, Mass, Charge, geometricalStepLengthFromPhysics,
+            pos, dir, navState, nextState,
+            propagated, /*lengthDone,*/ safety,
+            // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
+            max_iterations,
+            iterDone,  slot
+            );
+#ifdef CHECK_RESULTS
+#define formatBool(b) ((b) ? "yes " : "no")
+      constexpr Precision thresholdDiff=3.0e-3;
+      bool diffLength = false, badPosition = false, badDirection = false;
+      vecgeom::NavStateIndex& currNavState= navState;
+      bool sameLevel = nextState.GetLevel() == nextStateHx.GetLevel();
+      bool sameIndex = nextState.GetNavIndex() == nextStateHx.GetNavIndex();
+
+      if( std::fabs( helixStepLength - geometryStepLength ) > 1.0e-4 * helixStepLength ) {
+         bool sameNextVol= (nextState.GetLevel() == nextStateHx.GetLevel()) && (nextStateHx.GetNavIndex() == nextStateHx.GetNavIndex() )
+            && ( nextState.IsOnBoundary() == nextStateHx.IsOnBoundary() );
+         printf ("\ns-len diff: id= %3d kinE= %12.7g phys-request= %11.6g  helix-did= %11.6g rk-did= %11.6g (l-diff= %7.4g)"
+                 "  -- NavStates (curr/next RK/next Hx) :  Levels %1d %1d %1d  NavIdx: %5u %5u %5u  OnBoundary: %3s %3s %3s Agree? %9s \n",
+                 slot, energy, geometricalStepLengthFromPhysics, helixStepLength, geometryStepLength, geometryStepLength-helixStepLength,
+                 navState.GetLevel(),  nextState.GetLevel(),  nextStateHx.GetLevel(),
+                 navState.GetNavIndex(),  nextState.GetNavIndex(),  nextStateHx.GetNavIndex(),
+              // navState.IsOnBoundary()),  nextState.IsOnBoundary(),  nextStateHx.IsOnBoundary(),
+                 formatBool(navState.IsOnBoundary()),  formatBool(nextState.IsOnBoundary()),  formatBool(nextStateHx.IsOnBoundary()),
+                 ( sameNextVol ? "-Same-" : "-NotSame-" )
+                );
+         diffLength = true;
+      } else {
+         badPosition = 
+            CompareResponseVector3D( slot, startPosition, positionHx, pos, "Position", thresholdDiff );
+         badDirection =
+            CompareResponseVector3D( slot, startDirection, directionHx, dir, "Direction", thresholdDiff );
+      }
+      const char* Outcome[2]={ "Good", " Bad" };
+      bool problem = diffLength || badPosition || badDirection;
+      if( problem ) {
+         printf("%4s track (id= %3d)  e_kin= %8.4g stepReq= %9.5g (did: RK= %9.5g vs hlx= %9.5g , diff= %9.5g) iters= %5d\n ",
+                Outcome[problem],   // [diffLength||badPosition||badDirection],
+                slot, energy, geometricalStepLengthFromPhysics, geometryStepLength, helixStepLength,
+                geometryStepLength - helixStepLength, iterDone);
+         currentTrack.print(slot, /* verbose= */ true );
+      }
+#endif
     } else {
       geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPush);

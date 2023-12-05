@@ -12,8 +12,10 @@
 #ifndef CONSTFIELDHELIXSTEPPER_H_
 #define CONSTFIELDHELIXSTEPPER_H_
 
-#include "VecGeom/base/Global.h"
+#include <VecGeom/base/Vector3D.h>
 // Needed for Vector3D
+
+#include "fieldConstants.h"
 
 // namespace adept {
 // inline namespace ADEPT_IMPL_NAMESPACE {
@@ -28,30 +30,28 @@ class ConstFieldHelixStepper {
   using Vector3D = vecgeom::Vector3D<T>;
 
 public:
-  // VECCORE_ATT_HOST_DEVICE
+  // __host__ __device__
   // ConstFieldHelixStepper(); // For default initialisation only
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   ConstFieldHelixStepper(Precision Bx, Precision By, Precision Bz);
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   ConstFieldHelixStepper(Precision Bfield[3]);
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__
   ConstFieldHelixStepper(Vector3D<Precision> const &Bfield);
 
-  void VECCORE_ATT_HOST_DEVICE SetB(Precision Bx, Precision By, Precision Bz)
+  void __host__ __device__
+  SetB(Precision Bx, Precision By, Precision Bz)
   {
     // fB.Set(Bx, By, Bz);
     Vector3D<Precision> Bfield(Bx, By, Bz);
     CalculateDerived(Bfield);
   }
 
-  VECCORE_ATT_HOST_DEVICE
+  __host__ __device__  
   Vector3D<Precision> const GetFieldVec() const { return fBmag * fUnit; }
-
-  static constexpr Precision kB2C =
-      -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
 
   /*
   template<typename RT, typename Vector3D>
@@ -69,7 +69,7 @@ public:
    * output: new position, new direction of particle
    */
   template <typename Real_t, typename Int_t>
-  VECCORE_ATT_HOST_DEVICE void DoStep(Real_t const &posx, Real_t const &posy, Real_t const &posz, Real_t const &dirx,
+  __host__ __device__ void DoStep(Real_t const &posx, Real_t const &posy, Real_t const &posz, Real_t const &dirx,
                                       Real_t const &diry, Real_t const &dirz, Int_t const &charge,
                                       Real_t const &momentum, Real_t const &step, Real_t &newposx, Real_t &newposy,
                                       Real_t &newposz, Real_t &newdirx, Real_t &newdiry, Real_t &newdirz) const;
@@ -80,7 +80,7 @@ public:
    * output: new position, new direction of particle
    */
   template <typename Real_t, typename Int_t>
-  inline VECCORE_ATT_HOST_DEVICE void DoStep(Vector3D<Real_t> const &position, Vector3D<Real_t> const &direction,
+  inline __host__ __device__ void DoStep(Vector3D<Real_t> const &position, Vector3D<Real_t> const &direction,
                                              Int_t const &charge, Real_t const &momentum, Real_t const &step,
                                              Vector3D<Real_t> &endPosition, Vector3D<Real_t> &endDirection) const;
 
@@ -91,10 +91,10 @@ public:
                  vecgeom::Vector3D<Real_t> &endPosition, vecgeom::Vector3D<Real_t> &endDirection) const;
 
 protected:
-  inline VECCORE_ATT_HOST_DEVICE void CalculateDerived(Vector3D<Precision> Bvec);
+  inline  __host__ __device__ void CalculateDerived(Vector3D<Precision> Bvec);
 
   template <typename Real_t>
-  inline VECCORE_ATT_HOST_DEVICE bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const;
+  inline __host__ __device__ bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const;
 
 private:
   // Values below used for speed, code simplicity
@@ -103,9 +103,8 @@ private:
 
 }; // end class declaration
 
-inline // __host__ __device__
-    void
-    ConstFieldHelixStepper::CalculateDerived(Vector3D<Precision> Bvec)
+inline __host__ __device__
+void ConstFieldHelixStepper::CalculateDerived(Vector3D<Precision> Bvec)
 {
   fBmag         = Bvec.Mag();
   Precision bMagInv = (1 / fBmag);
@@ -113,17 +112,20 @@ inline // __host__ __device__
   if (fBmag > 0) fUnit = bMagInv * Bvec;
 }
 
-inline ConstFieldHelixStepper::ConstFieldHelixStepper(Precision Bx, Precision By, Precision Bz) // : fB(Bx, By, gBz)
+inline __host__ __device__
+ConstFieldHelixStepper::ConstFieldHelixStepper(Precision Bx, Precision By, Precision Bz) // : fB(Bx, By, gBz)
 {
   CalculateDerived({Bx, By, Bz});
 }
 
-inline ConstFieldHelixStepper::ConstFieldHelixStepper(Precision B[3]) // : fB(B[0], B[1], B[2])
+inline __host__ __device__
+ConstFieldHelixStepper::ConstFieldHelixStepper(Precision B[3]) // : fB(B[0], B[1], B[2])
 {
   CalculateDerived({B[0], B[1], B[2]});
 }
 
-inline VECCORE_ATT_HOST_DEVICE ConstFieldHelixStepper::ConstFieldHelixStepper(
+
+inline __host__ __device__ ConstFieldHelixStepper::ConstFieldHelixStepper(
     Vector3D<Precision> const &Bfield) // : fB(Bfield)
 {
   CalculateDerived(Bfield);
@@ -160,7 +162,7 @@ inline void ConstFieldHelixStepper::DoStep(Real_t const &x0, Real_t const &y0, R
 }
 
 template <typename Real_t, typename Int_t>
-inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPosition,
+inline __host__ __device__ void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D<Real_t> const &startPosition,
                                                                    vecgeom::Vector3D<Real_t> const &startDirection,
                                                                    Int_t const &charge, Real_t const &momentum,
                                                                    Real_t const &step,
@@ -178,11 +180,11 @@ inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vect
 
   Vector3D<Real_t> dir1Field(fUnit);
   Real_t UVdotUB = startDirection.Dot(dir1Field); //  Limit cases 0.0 and 1.0
-  Real_t dt2     = max(startDirection.Mag2() - UVdotUB * UVdotUB, Real_t(0.0));
+  Real_t dt2     = vecCore::Max(startDirection.Mag2() - UVdotUB * UVdotUB, Real_t(0.0));
   Real_t sinVB   = sqrt(dt2) + kSmall;
 
   // radius has sign and determines the sense of rotation
-  Real_t R = momentum * sinVB / (kB2C * Real_t(charge) * fBmag);
+  Real_t R = momentum * sinVB / (fieldConstants::kB2C * Real_t(charge) * fBmag);
 
   Vector3D<Real_t> restVelX = startDirection - UVdotUB * dir1Field;
 
@@ -205,14 +207,17 @@ inline VECCORE_ATT_HOST_DEVICE void ConstFieldHelixStepper::DoStep(vecgeom::Vect
   assert(fabs(dirVelX.Dot(dirCrossVB)) < 1.e-6);
   assert(fabs(dirCrossVB.Dot(dir1Field)) < 1.e-6);
 
-  Real_t phi = -step * Real_t(charge) * fBmag * kB2C / momentum;
+  Real_t phi = -step * Real_t(charge) * fBmag * fieldConstants::kB2C / momentum;
 
   // printf("CVFHS> phi= %g \n", vecCore::Get(phi,0) );  // phi (scalar)  or phi[0] (vector)
 
-  Real_t cosphi; //  = cos(phi);
-  Real_t sinphi; //  = sin(phi);
-  sincos(phi, &sinphi, &cosphi);
+  double cosphiD, sinphiD;
+  sincos(phi, &sinphiD, &cosphiD);
+  
+  Real_t cosphi = cosphiD; //  = cos(phi);
+  Real_t sinphi = sinphiD; //  = sin(phi);
 
+  
   endPosition = startPosition + R * (cosphi - 1) * dirCrossVB - R * sinphi * dirVelX +
                 step * UVdotUB * dir1Field; //   'Drift' along field direction
 

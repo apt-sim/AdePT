@@ -15,17 +15,18 @@ class fieldPropagatorConstBany {
   using Precision = vecgeom::Precision;
 
 public:
-  __host__ __device__ void stepInField(ConstFieldHelixStepper &helixAnyB, double kinE, double mass, int charge,
-                                       Precision step, vecgeom::Vector3D<vecgeom::Precision> &position,
-                                       vecgeom::Vector3D<vecgeom::Precision> &direction);
+  inline __host__ __device__
+  void stepInField(ConstFieldHelixStepper &helixAnyB, double kinE, double mass, int charge,
+                   Precision step, vecgeom::Vector3D<vecgeom::Precision> &position,
+                   vecgeom::Vector3D<vecgeom::Precision> &direction);
 };
 
 // ----------------------------------------------------------------------------
 
-__host__ __device__ void fieldPropagatorConstBany::stepInField(ConstFieldHelixStepper &helixAnyB, double kinE,
-                                                               double mass, int charge, Precision step,
-                                                               vecgeom::Vector3D<vecgeom::Precision> &position,
-                                                               vecgeom::Vector3D<vecgeom::Precision> &direction)
+inline __host__ __device__ void fieldPropagatorConstBany::stepInField(ConstFieldHelixStepper &helixAnyB, double kinE,
+                                                                      double mass, int charge, Precision step,
+                                                                      vecgeom::Vector3D<vecgeom::Precision> &position,
+                                                                      vecgeom::Vector3D<vecgeom::Precision> &direction)
 {
   using Precision = vecgeom::Precision;
   if (charge != 0) {

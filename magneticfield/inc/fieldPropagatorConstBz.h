@@ -33,8 +33,8 @@ public:
                                                          Vector3D &position, Vector3D &direction,
                                                          vecgeom::NavStateIndex const &current_state,
                                                          vecgeom::NavStateIndex &new_state, bool &propagated,
-                                                         Precision safety = 0, const int max_iteration = 100);
-
+                                                         const Precision safety = 0.0,
+                                                         const int max_iteration = 100);
 private:
   Precision BzValue;
 };
@@ -72,7 +72,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precisio
   // Direction projection in plane perpendicular to field vector
   Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
 
-  Precision bend = std::fabs(ConstBzFieldStepper::kB2C * charge * BzValue) / momentumMag;
+  Precision bend = std::fabs(fieldConstants::kB2C * charge * BzValue) / momentumMag;
 
   // R = helix radius, curv = 1./R = curvature in plane perpendicular to the field
   //Precision curv = bend / (dirxy + 1.e-30);
@@ -87,7 +87,7 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, Precision safety, const int max_iterations)
+    vecgeom::NavStateIndex &next_state, bool &propagated, const vecgeom::Precision safetyIn, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
   #ifdef VECGEOM_FLOAT_PRECISION
@@ -99,7 +99,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   Precision momentumMag = sqrt(kinE * (kinE + 2 * mass));
 
   // Distance along the track direction to reach the maximum allowed error
-  Precision safeLength = ComputeSafeLength(momentumMag, charge, direction);
+  const Precision safeLength = ComputeSafeLength(momentumMag, charge, direction);
 
   ConstBzFieldStepper helixBz(BzValue);
 
@@ -114,6 +114,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   } else {
     bool continueIteration = false;
 
+    Precision safety = safetyIn;
     Vector3D safetyOrigin = position;
     // Prepare next_state in case we skip navigation inside the safety sphere.
     current_state.CopyTo(&next_state);
@@ -121,6 +122,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
 
     Precision maxNextSafeMove = safeLength;
 
+    bool   lastWasZero = false;
     //  Locate the intersection of the curved trajectory and the boundaries of the current
     //    volume (including daughters).
     do {
@@ -153,6 +155,13 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         }
       }
 
+      static constexpr Precision ReduceFactor = 0.1;
+      static constexpr int       ReduceIters  = 6;
+
+      if( lastWasZero && chordIters >= ReduceIters ) {
+         lastWasZero = false;
+      }
+
       if (move == chordLen) {
         position  = endPosition;
         direction = endDirection;
@@ -164,13 +173,18 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
         // FIXME: Even for zero steps, the Navigator will return kPush + possibly
         // Navigator::kBoundaryPush instead of a real 0.
         move = 0;
+        lastWasZero = true;
 
-        static constexpr Precision ReduceFactor = 0.5;
-        static constexpr Precision ReduceIters  = 5;
         // Reduce the step attempted in the next iteration to navigate around
         // boundaries where the chord step may end in a volume we just left.
         maxNextSafeMove   = ReduceFactor * safeMove;
         continueIteration = chordIters < ReduceIters;
+
+        if( ! continueIteration ) {
+           // Let's move to the other side of this boundary -- this side we cannot progress !!
+           move = Navigator::kBoundaryPush;
+           // printf("fieldProp-ConstBz: pushing by %10.4g \n ", move );
+        }
       } else {
         // Accept the intersection point on the surface.  This means that
         //   the point at the boundary will be on the 'straight'-line chord,

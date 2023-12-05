@@ -3,12 +3,23 @@ SPDX-FileCopyrightText: 2021 CERN
 SPDX-License-Identifier: CC-BY-4.0
 -->
 
-## TestEm3
+## Example 14
 
-Test application for the validation of particle transportation on GPUs, with the same workflow as Example 11:
+Example demonstrating particle transportation on GPUs with a non-uniform magnetic field - in arbitrary geometry read from a GDML file.
 
- * geometry via VecGeom and optionally a magnetic field with constant Bz,
+New feature is
+ - definition of a non-uniform magnetic field
+ - integration of the equation of motion of charged particles using embedded Runge-Kutta method, Dormand Prince 4(5).
+ Caveats (at present) : 
+   - fixed accuracy of integration (constant in source)
+
+The features carried over from Example13 are:
+ * arbitrary geometry via gdml file (tested with cms2018.gdml from VecGeom persistency/gdml/gdmls folder) and optionally a magnetic field with constant Bz,
+ * geometry read as Geant4 geometry, reading in regions and cuts, to initialize G4HepEm data
+ * geometry read then into VecGeom, and synchronized to GPU
+ * G4HepEm material-cuts couple indices mapped to VecGeom logical volume id's
  * physics processes for e-/e+ (including MSC) and gammas using G4HepEm.
+ * scoring per placed volume, no sensitive detector feature
 
 Electrons, positrons, and gammas are stored in separate containers in device memory.
 Free positions in the storage are handed out with monotonic slot numbers, slots are not reused.
@@ -27,7 +38,7 @@ They are synchronized via a fourth stream using CUDA events.
 1. Obtain safety unless the track is currently on a boundary.
 2. Determine physics step limit, including conversion to geometric step length according to MSC.
 3. Query geometry (or optionally magnetic field) to get geometry step length.
-4. Convert geometry to true step length according to MSC, apply net direction change and displacement.
+4. Convert geometry to true step length according to MSC, apply net direction change and discplacement.
 5. Apply continuous effects; kill track if stopped.
 6. If the particle reaches a boundary, perform relocation.
 7. If not, and if there is a discrete process:
