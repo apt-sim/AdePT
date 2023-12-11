@@ -52,39 +52,61 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
   }
   else
   {
-  G4ThreeVector oldDirection = fParticleGun->GetParticleMomentumDirection();
-  // randomize direction if requested
-  if(fRndmDirection > 0.) {
+    const auto oldDirection = fParticleGun->GetParticleMomentumDirection();
+    const auto oldPosition  = fParticleGun->GetParticlePosition();
 
-    // calculate current phi and eta
-    double eta_old = atanh(oldDirection.z());
-    double phi_old = atan(oldDirection.y()/oldDirection.z());
+    constexpr bool randomParticle = false;
+    if (randomParticle) {
+      static G4ParticleDefinition *particles[4];
+      if (particles[0] == nullptr) {
+        unsigned int i                 = 0;
+        G4ParticleTable *particleTable = G4ParticleTable::GetParticleTable();
+        for (auto particleName : {"e-", "gamma", "proton", "neutron"}) {
+          particles[i] = particleTable->FindParticle(particleName);
+          std::cout << "Particle is " << particles[i] << "\n";
+          i++;
+        }
+      }
 
-    // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
-    const double phi = phi_old + (2. * M_PI * G4UniformRand()) * fRndmDirection;
-    const double eta = eta_old + (- 5. + 10. * G4UniformRand()) * fRndmDirection;
+      const auto rndm = static_cast<unsigned int>(G4UniformRand() * 3.9999999999);
+      fParticleGun->SetParticleDefinition(particles[rndm]);
+    }
 
-    // new direction
-    G4double dirx = cos(phi) / cosh(eta);
-    G4double diry = sin(phi) / cosh(eta);
-    G4double dirz = tanh(eta);
+    // randomize direction if requested
+    if (fRndmDirection > 0.) {
 
-    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx,diry,dirz));
-  }
-  // randomize the beam, if requested.
-  if (fRndmBeam > 0.) {
-    G4ThreeVector oldPosition = fParticleGun->GetParticlePosition();
-    G4double rbeam            = 0.5 * fRndmBeam;
-    G4double x0               = oldPosition.x();
-    G4double y0               = oldPosition.y() + (2 * G4UniformRand() - 1.) * rbeam;
-    G4double z0               = oldPosition.z() + (2 * G4UniformRand() - 1.) * rbeam;
-    fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
+      // calculate current phi and eta
+      double eta_old = atanh(oldDirection.z());
+      double phi_old = atan(oldDirection.y() / oldDirection.z());
+
+      // Generate new phi and new eta in a ranges determined by fRndmDirection parameter
+      const double phi = phi_old * 0. + (2. * M_PI * G4UniformRand()) * fRndmDirection;
+      const double eta = eta_old * 0. + (-5. + 10. * G4UniformRand()) * fRndmDirection;
+
+      // new direction
+      G4double dirx = cos(phi) / cosh(eta);
+      G4double diry = sin(phi) / cosh(eta);
+      G4double dirz = tanh(eta);
+
+      fParticleGun->SetParticleMomentumDirection(G4ThreeVector(dirx, diry, dirz));
+    }
+
+    // randomize the beam, if requested.
+    if (fRndmBeam > 0.) {
+      G4ThreeVector oldPosition = fParticleGun->GetParticlePosition();
+      G4double rbeam            = 0.5 * fRndmBeam;
+      G4double x0               = oldPosition.x();
+      G4double y0               = oldPosition.y() + (2 * G4UniformRand() - 1.) * rbeam;
+      G4double z0               = oldPosition.z() + (2 * G4UniformRand() - 1.) * rbeam;
+      fParticleGun->SetParticlePosition(G4ThreeVector(x0, y0, z0));
+      fParticleGun->GeneratePrimaryVertex(aEvent);
+      fParticleGun->SetParticlePosition(oldPosition);
+    }
+
     fParticleGun->GeneratePrimaryVertex(aEvent);
+
+    fParticleGun->SetParticleMomentumDirection(oldDirection);
     fParticleGun->SetParticlePosition(oldPosition);
-  } else {
-    fParticleGun->GeneratePrimaryVertex(aEvent);
-  }
-  fParticleGun->SetParticleMomentumDirection(oldDirection);
   }
 }
 

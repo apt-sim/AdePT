@@ -44,8 +44,8 @@ EMShowerModel::~EMShowerModel() {}
 
 G4bool EMShowerModel::IsApplicable(const G4ParticleDefinition &aParticleType)
 {
-  return &aParticleType == G4Electron::ElectronDefinition() || &aParticleType == G4Positron::PositronDefinition() ||
-         &aParticleType == G4Gamma::GammaDefinition();
+  return fAdept && (&aParticleType == G4Electron::ElectronDefinition() ||
+                    &aParticleType == G4Positron::PositronDefinition() || &aParticleType == G4Gamma::GammaDefinition());
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
