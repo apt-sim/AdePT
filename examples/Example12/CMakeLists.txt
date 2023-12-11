@@ -39,4 +39,4 @@ set_target_properties(example12 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RE
 
 # Tests
 add_test(NAME example12
-  COMMAND $<TARGET_FILE:example12> -gdml_file ${CMAKE_BINARY_DIR}/cms2018.gdml)
+  COMMAND $<TARGET_FILE:example12> -gdml_file ${PROJECT_BINARY_DIR}/cms2018.gdml)

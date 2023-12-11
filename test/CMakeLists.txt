@@ -37,7 +37,7 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
 add_executable(test_launcher test_launcher.cu test_launcher.cpp)
 target_include_directories(test_launcher PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)

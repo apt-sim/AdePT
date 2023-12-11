@@ -42,4 +42,4 @@ target_link_libraries(example13 PRIVATE NVTX)
 
 # Tests
 add_test(NAME example13
-  COMMAND $<TARGET_FILE:example13> -gdml_file ${CMAKE_BINARY_DIR}/cms2018.gdml)
+  COMMAND $<TARGET_FILE:example13> -gdml_file ${PROJECT_BINARY_DIR}/cms2018.gdml)

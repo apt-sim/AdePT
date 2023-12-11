@@ -31,7 +31,7 @@ add_library(raytracercu ${ADEPT_CUDA_SRCS})
 target_include_directories(raytracercu PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
 )
 
 target_link_libraries(raytracercu VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
@@ -42,7 +42,7 @@ set_target_properties(raytracercu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 add_executable(RaytraceBenchmark Raytracer.cpp RaytraceBenchmark.cpp)
 target_include_directories(RaytraceBenchmark PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
 target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml raytracercu CopCore::CopCore)
@@ -50,11 +50,11 @@ target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$
 set_target_properties(RaytraceBenchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 add_test(NAME RaytraceBenchmarkCPU
-  COMMAND $<TARGET_FILE:RaytraceBenchmark> -gdml_file ${CMAKE_BINARY_DIR}/trackML.gdml -on_gpu 0)
+  COMMAND $<TARGET_FILE:RaytraceBenchmark> -gdml_file ${PROJECT_BINARY_DIR}/trackML.gdml -on_gpu 0)
 set_tests_properties(RaytraceBenchmarkCPU PROPERTIES ATTACHED_FILES_ON_FAIL "output-cpu.ppm")
 
 add_test(NAME RaytraceBenchmarkGPU
-  COMMAND $<TARGET_FILE:RaytraceBenchmark> -gdml_file ${CMAKE_BINARY_DIR}/trackML.gdml -on_gpu 1)
+  COMMAND $<TARGET_FILE:RaytraceBenchmark> -gdml_file ${PROJECT_BINARY_DIR}/trackML.gdml -on_gpu 1)
 set_tests_properties(RaytraceBenchmarkGPU PROPERTIES ATTACHED_FILES_ON_FAIL "output-gpu.ppm")
 
 add_test(NAME RaytraceBenchmarkDiff
