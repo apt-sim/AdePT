@@ -76,20 +76,20 @@ set_target_properties(example17 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RE
 
 # Install macros and geometry file
 
-set(TESTEM3_GDML ${CMAKE_BINARY_DIR}/testEm3.gdml)
-set(LHCB_GDML ${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml)
-configure_file("macros/testEm3.gdml" "${CMAKE_BINARY_DIR}/testEm3.gdml")
-configure_file("macros/testEm3.mac.in" "${CMAKE_BINARY_DIR}/testEm3_e17.mac")
-configure_file("macros/testEm3G4.mac.in" "${CMAKE_BINARY_DIR}/testEm3G4_e17.mac")
-configure_file("macros/example17.mac.in" "${CMAKE_BINARY_DIR}/example17.mac")
-configure_file("macros/example17_ttbar.mac.in" "${CMAKE_BINARY_DIR}/example17_ttbar.mac")
-configure_file("macros/example17_validation.mac.in" "${CMAKE_BINARY_DIR}/example17_validation.mac")
-configure_file("macros/LHCb_Upgrade_fullLHCb.gdml" "${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml")
-configure_file("macros/lhcb.mac.in" "${CMAKE_BINARY_DIR}/lhcb_e17.mac")
-configure_file("macros/lhcb_validation.mac.in" "${CMAKE_BINARY_DIR}/lhcb_validation.mac")
+set(TESTEM3_GDML ${PROJECT_BINARY_DIR}/testEm3.gdml)
+set(LHCB_GDML ${PROJECT_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml)
+configure_file("macros/testEm3.gdml" "${PROJECT_BINARY_DIR}/testEm3.gdml")
+configure_file("macros/testEm3.mac.in" "${PROJECT_BINARY_DIR}/testEm3_e17.mac")
+configure_file("macros/testEm3G4.mac.in" "${PROJECT_BINARY_DIR}/testEm3G4_e17.mac")
+configure_file("macros/example17.mac.in" "${PROJECT_BINARY_DIR}/example17.mac")
+configure_file("macros/example17_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example17_ttbar.mac")
+configure_file("macros/example17_validation.mac.in" "${PROJECT_BINARY_DIR}/example17_validation.mac")
+configure_file("macros/LHCb_Upgrade_fullLHCb.gdml" "${PROJECT_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml")
+configure_file("macros/lhcb.mac.in" "${PROJECT_BINARY_DIR}/lhcb_e17.mac")
+configure_file("macros/lhcb_validation.mac.in" "${PROJECT_BINARY_DIR}/lhcb_validation.mac")
 
 # Tests
 add_test(NAME example17-adept-em3
-  COMMAND $<TARGET_FILE:example17> -m ${CMAKE_BINARY_DIR}/testEm3_e17.mac)
+  COMMAND $<TARGET_FILE:example17> -m ${PROJECT_BINARY_DIR}/testEm3_e17.mac)
 add_test(NAME example17-g4-em3
-  COMMAND $<TARGET_FILE:example17> -m ${CMAKE_BINARY_DIR}/testEm3G4_e17.mac)
+  COMMAND $<TARGET_FILE:example17> -m ${PROJECT_BINARY_DIR}/testEm3G4_e17.mac)
