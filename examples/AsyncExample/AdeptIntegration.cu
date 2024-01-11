@@ -800,7 +800,8 @@ void AdeptIntegration::TransportLoop()
         // Populate the staging buffer, copy to host, and clear the queues of leaked tracks
         constexpr unsigned int block_size = 256;
         unsigned int grid_size            = (numLeaked + block_size - 1) / block_size;
-#warning Make async
+
+        // TODO: Try to make this async to not impede transport
         FillFromDeviceBuffer<<<grid_size, block_size, 0, gpuState.stream>>>(numLeaked, leakedTracks,
                                                                             gpuState.fromDevice_dev.get());
         COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.fromDevice_host.get(), gpuState.fromDevice_dev.get(),
@@ -834,13 +835,13 @@ void AdeptIntegration::TransportLoop()
       }
     }
 
-#warning Figure out how to treat looping tracks
+    // TODO: Add special treatment of looping tracks
 
     AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
     ClearAllQueues<<<1, 1, 0, gpuState.stream>>>(queues);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
-#warning FIXME
+    // TODO: This should be per event
     fScoring[0].fGlobalScoring.numKilled += inFlight;
 
     if (fDebugLevel > 2) std::cout << "End transport loop.\n";
