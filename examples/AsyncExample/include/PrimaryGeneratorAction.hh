@@ -54,6 +54,7 @@ public:
   void SetDefaultKinematic();
   void SetRndmBeam(G4double val) { fRndmBeam = val; }
   void SetRndmDirection(G4double val) { fRndmDirection = val; }
+  void SetParticleNames(std::string names);
 
   virtual void GeneratePrimaries(G4Event *) final;
 
@@ -62,6 +63,7 @@ private:
   G4ParticleGun *fParticleGun;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
   G4double fRndmDirection;
+  std::vector<G4ParticleDefinition const *> fParticleDefinitions;
 
   // HepMC3 reader
   G4VPrimaryGenerator* fHepmcAscii;
