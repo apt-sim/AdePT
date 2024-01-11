@@ -14,10 +14,13 @@
 #include "G4UImessenger.hh"
 #include "globals.hh"
 
+#include <memory>
+
 class PrimaryGeneratorAction;
 class G4UIdirectory;
 class G4UIcmdWithoutParameter;
 class G4UIcmdWithADouble;
+class G4UIcmdWithAString;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -37,6 +40,7 @@ private:
   G4UIcmdWithoutParameter *fPrintCmd;
   G4UIcmdWithADouble *fRndmCmd;
   G4UIcmdWithADouble *fRndmDirCmd;
+  std::unique_ptr<G4UIcmdWithAString> fParticleCommand;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
