@@ -13,6 +13,8 @@
 #include "HepMC3G4AsciiReader.hh"
 #endif
 
+#include <sstream>
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction * /*det*/)
@@ -55,21 +57,10 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
     const auto oldDirection = fParticleGun->GetParticleMomentumDirection();
     const auto oldPosition  = fParticleGun->GetParticlePosition();
 
-    constexpr bool randomParticle = false;
-    if (randomParticle) {
-      static G4ParticleDefinition *particles[4];
-      if (particles[0] == nullptr) {
-        unsigned int i                 = 0;
-        G4ParticleTable *particleTable = G4ParticleTable::GetParticleTable();
-        for (auto particleName : {"e-", "gamma", "proton", "neutron"}) {
-          particles[i] = particleTable->FindParticle(particleName);
-          std::cout << "Particle is " << particles[i] << "\n";
-          i++;
-        }
-      }
-
-      const auto rndm = static_cast<unsigned int>(G4UniformRand() * 3.9999999999);
-      fParticleGun->SetParticleDefinition(particles[rndm]);
+    if (!fParticleDefinitions.empty()) {
+      const auto rndm         = static_cast<unsigned int>(G4UniformRand() * fParticleDefinitions.size());
+      const auto particleType = fParticleDefinitions[rndm];
+      fParticleGun->SetParticleDefinition(const_cast<G4ParticleDefinition *>(particleType));
     }
 
     // randomize direction if requested
@@ -130,4 +121,20 @@ void PrimaryGeneratorAction::Print() const
   G4cout << "=== Gun shooting " << fParticleGun->GetParticleDefinition()->GetParticleName() << " with energy "
          << fParticleGun->GetParticleEnergy() / GeV << "[GeV] from: " << fParticleGun->GetParticlePosition() / mm
          << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << "\n";
+}
+
+void PrimaryGeneratorAction::SetParticleNames(std::string names)
+{
+  fParticleDefinitions.clear();
+  G4ParticleTable *particleTable = G4ParticleTable::GetParticleTable();
+
+  std::stringstream input{names};
+  std::string token;
+
+  for (std::string token; std::getline(input, token, ' ');) {
+    auto particle = particleTable->FindParticle(token);
+    if (!particle) throw std::invalid_argument(token + " is an invalid particle name");
+    G4cout << "Added particle " << particle->GetParticleName() << " to list of particles.\n";
+    fParticleDefinitions.push_back(particle);
+  }
 }
