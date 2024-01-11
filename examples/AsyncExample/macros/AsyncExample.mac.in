@@ -136,6 +136,8 @@
 /gun/number 200
 /gun/position 0 0 0
 /adeptint/gun/rndmDir 1.0
+# Uncomment to randomise the particles shot:
+#/adeptint/gun/particle e- gamma proton pi0 pi+ pi-
 #/adeptint/gun/print
 
 ##

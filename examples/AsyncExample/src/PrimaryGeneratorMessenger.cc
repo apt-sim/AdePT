@@ -11,6 +11,7 @@
 #include "G4UIdirectory.hh"
 #include "G4UIcmdWithoutParameter.hh"
 #include "G4UIcmdWithADouble.hh"
+#include "G4UIcmdWithAString.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -45,6 +46,10 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction *Gun
   fRndmDirCmd->SetRange("rBeamDir>=0.&&rBeamDir<=1.");
   fRndmDirCmd->AvailableForStates(G4State_Idle);
 
+  fParticleCommand = std::make_unique<G4UIcmdWithAString>("/adeptint/gun/particle", this);
+  fParticleCommand->SetGuidance("Particle types to generate");
+  fParticleCommand->SetParameterName("particle names", true, true);
+  fParticleCommand->AvailableForStates(G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -84,6 +89,9 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newVa
     fAction->SetRndmDirection(fRndmDirCmd->GetNewDoubleValue(newValue));
   }
 
+  if (command == fParticleCommand.get()) {
+    fAction->SetParticleNames(newValue);
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
