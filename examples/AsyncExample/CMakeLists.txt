@@ -39,6 +39,7 @@ set(sources_g4
   src/SimpleHit.cc
   src/PrimaryGeneratorAction.cc
   src/PrimaryGeneratorMessenger.cc
+  src/ParticleGun.cc
   src/RunAction.cc
   src/SensitiveDetector.cc
   src/PhysListHepEm.cc
