@@ -148,27 +148,26 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newVa
       token_vector->push_back(str);
     }
     //The particle type is mandatory and must be the first argument
-    G4ParticleDefinition *pd;
+    G4ParticleDefinition *pd = nullptr;
     float weight = -1;
     double energy = -1;
     if (token_vector->size() >= 1) {
       pd = G4ParticleTable::GetParticleTable()->FindParticle((*token_vector)[0]);
     }
-    else
-    {
-      G4Exception("PrimaryGeneratorMessenger::SetNewValue()", "Notification", JustWarning,
-                  "No arguments provided. Usage: addParticle type [\"weight\" weight] [\"energy\" energy unit]");
+    if (!pd) {
+      G4Exception("PrimaryGeneratorMessenger::SetNewValue()", "Notification", FatalErrorInArgument,
+                  "Invalid particle name. Usage: addParticle type [\"weight\" weight] [\"energy\" energy unit]");
     }
 
-    for(int i=1; i<token_vector->size(); i++)
-    {
+    for (unsigned int i = 1; i < token_vector->size(); i++) {
       if((*token_vector)[i] == "weight")
       {
         weight = stof((*token_vector)[++i]);
       }
       if((*token_vector)[i] == "energy")
       {
-        energy = stof((*token_vector)[++i]) * G4UnitDefinition::GetValueOf((*token_vector)[++i]);
+        const auto value = stof((*token_vector)[++i]);
+        energy           = value * G4UnitDefinition::GetValueOf((*token_vector)[++i]);
       }
     }
 
