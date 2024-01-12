@@ -16,12 +16,9 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
-    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.),
-      fGunMessenger(0), fUseHepMC(false), fRandomizeGun(false), fInitializationDone(false), fPrintGun(false),
-      fMinPhi(0), fMaxPhi(0), fMinTheta(0), fMaxTheta(0)
+    : G4VUserPrimaryGeneratorAction(), fParticleGun(new ParticleGun()), fDetector(det), fRndmBeam(0.),
+      fRndmDirection(0.), fMinPhi(0), fMaxPhi(0), fMinTheta(0), fMaxTheta(0)
 {
-  G4int n_particle = 1;
-  fParticleGun     = new ParticleGun();
   SetDefaultKinematic();
 
   // create a messenger for this class
@@ -60,15 +57,14 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
       // Re-balance the user-provided weights if needed
       ReWeight();
       // Make sure all particles have a user-defined energy
-      for(int i=0; i<fParticleEnergies->size(); i++)
-      {
+      for (unsigned int i = 0; i < fParticleEnergies->size(); i++) {
         if((*fParticleEnergies)[i] < 0)
         {
           G4Exception("PrimaryGeneratorAction::GeneratePrimaries()", "Notification", FatalErrorInArgument,
                   ("Energy undefined for  " + (*fParticleList)[i]->GetParticleName()).c_str());
         }
       }
-      // In case the upper range for Phi or Theta was not defined, or is lower than the 
+      // In case the upper range for Phi or Theta was not defined, or is lower than the
       // lower range
       if(fMaxPhi < fMinPhi)
       {
@@ -166,7 +162,7 @@ void PrimaryGeneratorAction::ReWeight()
   if (userDefinedSum < 1 && numNotDefined == 0) {
     // If the user-provided weights do not sum up to 1 and there are no particles left to
     // distribute the remaining weight, re-balance their weights
-    for (int i = 0; i < fParticleWeights->size(); i++) {
+    for (unsigned int i = 0; i < fParticleWeights->size(); i++) {
       (*fParticleWeights)[i] = (*fParticleWeights)[i] / userDefinedSum;
       G4Exception("PrimaryGeneratorAction::ReWeight()", "Notification", JustWarning,
                   ("Sum of user-defined weights is <1, new weight for " + (*fParticleList)[i]->GetParticleName() +
@@ -174,7 +170,7 @@ void PrimaryGeneratorAction::ReWeight()
                       .c_str());
     }
   } else {
-    for (int i = 0; i < fParticleWeights->size(); i++) {
+    for (unsigned int i = 0; i < fParticleWeights->size(); i++) {
       double originalWeight = (*fParticleWeights)[i];
       // Particles with no user-defined weight have weight -1
       if (originalWeight >= 0) {
@@ -208,7 +204,7 @@ void PrimaryGeneratorAction::Print() const
            << fParticleGun->GetParticleEnergy() / GeV << "[GeV] from: " << fParticleGun->GetParticlePosition() / mm
            << " [mm] along direction: " << fParticleGun->GetParticleMomentumDirection() << G4endl;
   } else {
-    for (int i = 0; i < fParticleList->size(); i++) {
+    for (unsigned int i = 0; i < fParticleList->size(); i++) {
       G4cout << "=== Gun shooting " << (*fParticleEnergies)[i] / GeV << "[GeV] "
              << (*fParticleList)[i]->GetParticleName() << " with probability " << (*fParticleWeights)[i] * 100 << "%"
              << G4endl;
@@ -237,7 +233,7 @@ void PrimaryGeneratorAction::PrintPrimaries(G4Event* aEvent) const
     aParticleCounts[aParticleName] += 1;
     aParticleAverageEnergies[aParticleName] += aParticleEnergy;
   }
-    
+
   for(auto pd : aParticleCounts)
   {
     G4cout << pd.first << ": " << pd.second << ", " << aParticleAverageEnergies[pd.first]/pd.second << G4endl;
