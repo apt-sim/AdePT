@@ -3,8 +3,8 @@
 
 #include "Raytracer.h"
 
-#include <AdePT/BlockData.h>
-#include <AdePT/SparseVector.h>
+#include <AdePT/base/BlockData.h>
+#include <AdePT/base/SparseVector.h>
 
 #include <VecGeom/base/Global.h>
 

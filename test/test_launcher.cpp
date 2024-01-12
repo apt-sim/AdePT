@@ -8,7 +8,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <AdePT/BlockData.h>
+#include <AdePT/base/BlockData.h>
 #include "run_simulation.hpp"
 
 // Forward declare the GPU version of the class.

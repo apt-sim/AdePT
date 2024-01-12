@@ -20,7 +20,7 @@ endmacro()
 
 # - Test that linkage to CopCore target works
 add_executable(test_copcore_link test_copcore_link.cpp)
-target_link_libraries(test_copcore_link PRIVATE VecCore::VecCore CopCore::CopCore)
+target_link_libraries(test_copcore_link PRIVATE AdePT VecCore::VecCore CopCore::CopCore)
 
 # - Test that use/link to G4VG works
 add_executable(test_g4vg_link test_g4vg_link.cpp)
@@ -44,7 +44,7 @@ target_include_directories(test_launcher PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)
+target_link_libraries(test_launcher AdePT VecCore::VecCore CopCore::CopCore)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")

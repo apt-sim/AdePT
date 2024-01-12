@@ -4,9 +4,9 @@
 #include "TestEm3.h"
 #include "TestEm3.cuh"
 
-#include <AdePT/Atomic.h>
-#include <AdePT/BVHNavigator.h>
-#include <AdePT/MParray.h>
+#include <AdePT/base/Atomic.h>
+#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/base/MParray.h>
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>

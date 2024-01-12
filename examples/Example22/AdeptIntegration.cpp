@@ -25,8 +25,8 @@
 #include "SensitiveDetector.hh"
 #include "EventAction.hh"
 
-#include "TestManager.h"
-#include "TestManagerStore.h"
+#include <AdePT/base/TestManager.h>
+#include <AdePT/base/TestManagerStore.h>
 
 // Static members definition
 std::unordered_map<size_t, size_t> AdeptIntegration::fglobal_volume_to_hit_map;

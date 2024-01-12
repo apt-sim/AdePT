@@ -11,11 +11,11 @@
 
 #include <VecGeom/base/Vector3D.h>
 
-#include "MagneticFieldEquation.h"
+#include <AdePT/magneticfield/MagneticFieldEquation.h>
 
-#include "UniformMagneticField.h"
+#include <AdePT/magneticfield/UniformMagneticField.h>
 
-#include "PrintFieldVectors.h"
+#include <AdePT/magneticfield/PrintFieldVectors.h>
 
 using Real_t = float;
 // using Real_t = double;
@@ -156,7 +156,7 @@ bool TestEquation( Field_t const & magField)
 
 //   NEW Development Thurs 18 December 2021
 //   ---------------
-#include "DormandPrinceRK45.h"
+#include <AdePT/magneticfield/DormandPrinceRK45.h>
 #include <CopCore/PhysicalConstants.h>
 
 template <typename Real_t, typename Field_t> // , typename Equation_t>
@@ -195,7 +195,7 @@ bool TestStepper( Field_t const & magField)
 }
 
 
-#include "RkIntegrationDriver.h"
+#include <AdePT/magneticfield/RkIntegrationDriver.h>
 
 //   NEW Development Friday 19 November 2021
 //   ---------------
@@ -303,7 +303,7 @@ bool TestDriverAdvance( Field_t const & magField,  Real_t hLength = 300 )
 
 // ------------------------------------------------------------------------------------------------
 
-#include "ConstFieldHelixStepper.h"
+#include <AdePT/magneticfield/ConstFieldHelixStepper.h>
 
 //   NEW test Code Friday 26 November 2021
 //   -------------

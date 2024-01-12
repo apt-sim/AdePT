@@ -28,41 +28,19 @@ public:
   /// Set verbosity for integration
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
-  /// Set buffer threshold for AdePT
-  void SetBufferThreshold(int value) { fBufferThreshold = value; }
-
-  void SetSensitiveVolumes(std::vector<G4LogicalVolume *> *sv) { fSensitiveLogicalVolumes = sv; }
-
-  void SetScoringMap(std::unordered_map<size_t, size_t> *sm) { fScoringMap = sm; }
-
-  // Set total number of track slots on GPU
-  void SetTrackSlots(double value) { fTrackSlotsGPU = value; }
-
-  // Set total number of track slots on GPU and Host
-  void SetHitSlots(double value) { fHitSlots = value; }
+  // Set the AdeptIntegration instance
+  void SetAdeptIntegration(AdeptIntegration *adept) { fAdept = adept; }
 
 private:
   /// AdePT integration
   AdeptIntegration *fAdept;
 
-  /// Region where it applies
-  G4Region *fRegion{nullptr};
-
   /// Verbosity
   int fVerbosity{0};
-
-  /// AdePT buffer threshold
-  int fBufferThreshold{20};
-
-  bool fInitDone{false};
 
   G4double ProductionCut = 0.7 * copcore::units::mm;
 
   int MCIndex[100];
-  double fTrackSlotsGPU{1}; ///< Total number of track slots allocated on GPU (in millions)
-  double fHitSlots{1};      ///< Total number of hit slots allocated on GPU and Host (in millions)
-  std::vector<G4LogicalVolume *> *fSensitiveLogicalVolumes;
-  std::unordered_map<size_t, size_t> *fScoringMap;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

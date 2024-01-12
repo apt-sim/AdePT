@@ -144,9 +144,7 @@ endif()
 add_library(AdePT INTERFACE)
 target_include_directories(AdePT
   INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/base/inc>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/magneticfield/inc>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/tracking/inc>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(AdePT INTERFACE CopCore::CopCore)
 
@@ -163,6 +161,5 @@ if(TEST)
   message(STATUS "Testing enabled")
 endif()
 
-add_subdirectory(tracking)
 add_subdirectory(test)
 add_subdirectory(examples)

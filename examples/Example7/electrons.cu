@@ -3,8 +3,8 @@
 
 #include "TestEm3.cuh"
 
-#include <AdePT/LoopNavigator.h>
-#include <fieldPropagatorConstBz.h>
+#include <AdePT/base/LoopNavigator.h>
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <CopCore/PhysicalConstants.h>
 

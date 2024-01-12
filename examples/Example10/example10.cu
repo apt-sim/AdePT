@@ -4,9 +4,9 @@
 #include "example10.h"
 #include "example10.cuh"
 
-#include <AdePT/Atomic.h>
-#include <AdePT/LoopNavigator.h>
-#include <AdePT/MParray.h>
+#include <AdePT/base/Atomic.h>
+#include <AdePT/base/LoopNavigator.h>
+#include <AdePT/base/MParray.h>
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>

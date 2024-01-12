@@ -4,10 +4,10 @@
 #include "example18.h"
 #include "example18.cuh"
 
-#include <AdePT/Atomic.h>
-#include <AdePT/BVHNavigator.h>
-#include <AdePT/MParray.h>
-#include <AdePT/NVTX.h>
+#include <AdePT/base/Atomic.h>
+#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/base/MParray.h>
+#include <AdePT/base/NVTX.h>
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>

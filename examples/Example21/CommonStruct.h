@@ -5,7 +5,7 @@
 #define ADEPT_INTEGRATION_COMMONSTRUCT_H
 
 #include <vector>
-#include <AdePT/MParray.h>
+#include <AdePT/base/MParray.h>
 #include <TrackData.h>
 
 // Common data structures used by the integration with Geant4

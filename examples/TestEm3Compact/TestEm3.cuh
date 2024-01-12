@@ -6,8 +6,8 @@
 
 #include "TestEm3.h"
 
-#include <AdePT/MParray.h>
-#include <AdePT/TrackManager.cuh>
+#include <AdePT/base/MParray.h>
+#include <AdePT/base/TrackManager.cuh>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 

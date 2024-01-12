@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <CopCore/Ranluxpp.h>
-#include <AdePT/SparseVector.h>
+#include <AdePT/base/SparseVector.h>
 
 #include <VecGeom/base/Stopwatch.h>
 

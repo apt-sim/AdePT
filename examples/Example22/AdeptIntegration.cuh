@@ -7,7 +7,7 @@
 #include "AdeptIntegration.h"
 
 #include "Track.cuh"
-#include <AdePT/TrackManager.cuh>
+#include <AdePT/base/TrackManager.cuh>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>

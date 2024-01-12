@@ -7,7 +7,7 @@
 ## Geant4 macro for modelling simplified sampling calorimeters
 ## =============================================================================
 ##
-/run/numberOfThreads 1
+/run/numberOfThreads 8
 /control/verbose 0
 /run/verbose 0
 /process/verbose 0
@@ -21,7 +21,7 @@
 ## Threshold for buffering tracks before sending to GPU
 /example22/adept/threshold 200
 ## Total number of GPU track slots (not per thread)
-/example22/adept/milliontrackslots 1
+/example22/adept/milliontrackslots 8
 /example22/adept/millionhitslots 1
 
 /example22/detector/addsensitivevolume EAPD_01
@@ -146,5 +146,5 @@
 
 # run events with parametrised simulation
 # by default all created models are active
-/run/beamOn 1
+/run/beamOn 8
 

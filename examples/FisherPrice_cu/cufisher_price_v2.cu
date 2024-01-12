@@ -5,7 +5,7 @@
 #include <curand_kernel.h>
 #include <iostream>
 
-#include <AdePT/BlockData.h>
+#include <AdePT/base/BlockData.h>
 
 using Queue_t = adept::mpmc_bounded_queue<int>;
 

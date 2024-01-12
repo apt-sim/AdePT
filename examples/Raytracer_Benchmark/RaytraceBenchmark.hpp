@@ -5,9 +5,9 @@
 #include "Raytracer.h"
 
 #include <CopCore/Global.h>
-#include <AdePT/ArgParser.h>
-#include <AdePT/SparseVector.h>
-#include <AdePT/BVHNavigator.h>
+#include <AdePT/base/ArgParser.h>
+#include <AdePT/base/SparseVector.h>
+#include <AdePT/base/BVHNavigator.h>
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>

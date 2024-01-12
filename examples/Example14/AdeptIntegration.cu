@@ -9,9 +9,9 @@
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
-#include <AdePT/Atomic.h>
-#include <AdePT/BVHNavigator.h>
-#include <AdePT/MParray.h>
+#include <AdePT/base/Atomic.h>
+#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/base/MParray.h>
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>

@@ -3,7 +3,7 @@
 
 #include "example6.h"
 
-#include <AdePT/ArgParser.h>
+#include <AdePT/base/ArgParser.h>
 
 #include <G4NistManager.hh>
 #include <G4Material.hh>

@@ -14,7 +14,7 @@
 #include <vector>
 
 #include <CopCore/Global.h>
-#include <AdePT/BlockData.h>
+#include <AdePT/base/BlockData.h>
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/BVHManager.h>

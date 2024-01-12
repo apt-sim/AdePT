@@ -3,17 +3,17 @@
 
 #include "example15.cuh"
 
-#include <AdePT/BVHNavigator.h>
+#include <AdePT/base/BVHNavigator.h>
 
 #include <CopCore/PhysicalConstants.h>
 
 #define NOFLUCTUATION
 
 // Classes for Runge-Kutta integration 
-#include "MagneticFieldEquation.h"
-#include "DormandPrinceRK45.h"
-#include "fieldPropagatorRungeKutta.h"
-#include "fieldPropagatorConstBz.h"
+#include <AdePT/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/magneticfield/DormandPrinceRK45.h>
+#include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>

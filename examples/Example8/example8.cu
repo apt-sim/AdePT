@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2021 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/Atomic.h>
-#include <AdePT/LoopNavigator.h>
-#include <AdePT/MParray.h>
+#include <AdePT/base/Atomic.h>
+#include <AdePT/base/LoopNavigator.h>
+#include <AdePT/base/MParray.h>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/base/Stopwatch.h>
@@ -40,8 +40,8 @@
 #include <CopCore/PhysicalConstants.h>
 #include <CopCore/Ranluxpp.h>
 
-#include <ConstBzFieldStepper.h>
-#include <fieldPropagatorConstBz.h>
+#include <AdePT/magneticfield/ConstBzFieldStepper.h>
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include "example8.h"
 

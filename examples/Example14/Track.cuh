@@ -4,7 +4,7 @@
 #ifndef ADEPT_TRACK_CUH
 #define ADEPT_TRACK_CUH
 
-#include <AdePT/MParray.h>
+#include <AdePT/base/MParray.h>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 

@@ -39,7 +39,7 @@
 #include "G4Electron.hh"
 #include "G4Positron.hh"
 #include "Run.hh"
-#include "TestManager.h"
+#include <AdePT/base/TestManager.h>
 #include "DetectorConstruction.hh"
 #include "G4RegionStore.hh"
 

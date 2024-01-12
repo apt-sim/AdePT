@@ -34,7 +34,6 @@
 #include "globals.hh"
 
 class G4Event;
-class DetectorConstruction;
 class PrimaryGeneratorMessenger;
 
 /**
@@ -47,7 +46,7 @@ class PrimaryGeneratorMessenger;
 
 class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction {
 public:
-  PrimaryGeneratorAction(DetectorConstruction *);
+  PrimaryGeneratorAction();
   virtual ~PrimaryGeneratorAction();
 
   void Print() const;
@@ -74,7 +73,6 @@ public:
 private:
   /// Particle gun
   ParticleGun *fParticleGun;
-  DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
   G4double fRndmDirection;
   G4double fPrintGun;

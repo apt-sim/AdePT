@@ -31,7 +31,7 @@
 #include "RunAction.hh"
 #include "TrackingAction.hh"
 #include "SteppingAction.hh"
-#include "TestManager.h"
+#include <AdePT/base/TestManager.h>
 #include "DetectorConstruction.hh"
 
 ActionInitialisation::ActionInitialisation(DetectorConstruction *aDetector, G4String aOutputDirectory,
@@ -50,7 +50,7 @@ ActionInitialisation::~ActionInitialisation() {}
 
 void ActionInitialisation::BuildForMaster() const
 {
-  new PrimaryGeneratorAction(fDetector);
+  new PrimaryGeneratorAction();
   SetUserAction(new RunAction(fDetector, fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation));
 }
 
@@ -58,7 +58,7 @@ void ActionInitialisation::BuildForMaster() const
 
 void ActionInitialisation::Build() const
 {
-  SetUserAction(new PrimaryGeneratorAction(fDetector));
+  SetUserAction(new PrimaryGeneratorAction());
   SetUserAction(new EventAction(fDetector));
   RunAction *aRunAction = new RunAction(fDetector, fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation);
   SetUserAction(aRunAction);

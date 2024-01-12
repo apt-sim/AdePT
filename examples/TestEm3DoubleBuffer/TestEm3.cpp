@@ -3,7 +3,7 @@
 
 #include "TestEm3.h"
 
-#include <AdePT/ArgParser.h>
+#include <AdePT/base/ArgParser.h>
 #include <CopCore/SystemOfUnits.h>
 
 #include <G4NistManager.hh>

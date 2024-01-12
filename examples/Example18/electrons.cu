@@ -3,8 +3,8 @@
 
 #include "example18.cuh"
 
-#include <AdePT/BVHNavigator.h>
-#include <fieldPropagatorConstBz.h>
+#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <CopCore/PhysicalConstants.h>
 

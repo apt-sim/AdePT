@@ -3,8 +3,8 @@
 
 #include "TestEm3.cuh"
 
-#include <AdePT/LoopNavigator.h>
-#include <AdePT/MParray.h>
+#include <AdePT/base/LoopNavigator.h>
+#include <AdePT/base/MParray.h>
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>

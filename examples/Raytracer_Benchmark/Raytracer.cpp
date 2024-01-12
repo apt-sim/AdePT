@@ -9,8 +9,8 @@
 #include "Raytracer.h"
 
 #include <CopCore/Global.h>
-#include <AdePT/BlockData.h>
-#include <AdePT/BVHNavigator.h>
+#include <AdePT/base/BlockData.h>
+#include <AdePT/base/BVHNavigator.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/base/Stopwatch.h>

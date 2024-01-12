@@ -3,7 +3,7 @@
 
 #include "geant4_mock.h"
 
-#include <AdePT/ArgParser.h>
+#include <AdePT/base/ArgParser.h>
 
 #include <G4GDMLParser.hh>
 #include <G4LogicalVolumeStore.hh>

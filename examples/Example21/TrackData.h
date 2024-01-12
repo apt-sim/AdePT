@@ -4,7 +4,7 @@
 #ifndef ADEPT_TRACKDATA_H
 #define ADEPT_TRACKDATA_H
 
-#include <AdePT/MParray.h>
+#include <AdePT/base/MParray.h>
 
 namespace adeptint {
 

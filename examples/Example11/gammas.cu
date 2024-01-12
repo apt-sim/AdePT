@@ -3,7 +3,7 @@
 
 #include "example11.cuh"
 
-#include <AdePT/BVHNavigator.h>
+#include <AdePT/base/BVHNavigator.h>
 #include <CopCore/PhysicalConstants.h>
 
 #include <G4HepEmGammaManager.hh>

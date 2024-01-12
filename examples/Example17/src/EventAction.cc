@@ -39,8 +39,8 @@
 #include "G4GlobalFastSimulationManager.hh"
 #include "AdeptIntegration.h"
 
-#include "TestManager.h"
-#include "TestManagerStore.h"
+#include <AdePT/base/TestManager.h>
+#include <AdePT/base/TestManagerStore.h>
 #include "Run.hh"
 
 EventAction::EventAction(DetectorConstruction *aDetector)

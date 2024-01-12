@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <unordered_set>
 
-#include <AdePT/ArgParser.h>
+#include <AdePT/base/ArgParser.h>
 #include <CopCore/SystemOfUnits.h>
 
 #include <VecGeom/management/GeoManager.h>

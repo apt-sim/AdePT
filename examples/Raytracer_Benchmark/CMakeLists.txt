@@ -34,7 +34,7 @@ target_include_directories(raytracercu PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
 )
 
-target_link_libraries(raytracercu VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
+target_link_libraries(raytracercu AdePT VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
 target_compile_options(raytracercu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;-fmad=false>")
 set_target_properties(raytracercu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
@@ -45,7 +45,7 @@ target_include_directories(RaytraceBenchmark PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml raytracercu CopCore::CopCore)
+target_link_libraries(RaytraceBenchmark AdePT VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml raytracercu CopCore::CopCore)
 target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-fmad=false>")
 set_target_properties(RaytraceBenchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 

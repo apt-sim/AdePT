@@ -4,7 +4,7 @@
 #ifndef EXAMPLE9_CUH
 #define EXAMPLE9_CUH
 
-#include <AdePT/MParray.h>
+#include <AdePT/base/MParray.h>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "PrimaryGeneratorAction.hh"
 #include "PrimaryGeneratorMessenger.hh"
-#include "DetectorConstruction.hh"
 
 #include "ParticleGun.hh"
 #include "G4ParticleTable.hh"
@@ -15,8 +14,8 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-PrimaryGeneratorAction::PrimaryGeneratorAction(DetectorConstruction *det)
-    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fDetector(det), fRndmBeam(0.), fRndmDirection(0.),
+PrimaryGeneratorAction::PrimaryGeneratorAction()
+    : G4VUserPrimaryGeneratorAction(), fParticleGun(0), fRndmBeam(0.), fRndmDirection(0.),
       fGunMessenger(0), fUseHepMC(false), fRandomizeGun(false), fInitializationDone(false), fPrintGun(false),
       fMinPhi(0), fMaxPhi(0), fMinTheta(0), fMaxTheta(0)
 {

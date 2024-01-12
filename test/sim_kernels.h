@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include <AdePT/BlockData.h>
-#include <AdePT/MParray.h>
-#include <AdePT/Atomic.h>
+#include <AdePT/base/BlockData.h>
+#include <AdePT/base/MParray.h>
+#include <AdePT/base/Atomic.h>
 
 /** @brief Data structures */
 struct MyTrack {

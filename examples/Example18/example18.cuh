@@ -6,7 +6,7 @@
 
 #include "example18.h"
 
-#include <AdePT/MParray.h>
+#include <AdePT/base/MParray.h>
 #include <CopCore/SystemOfUnits.h>
 #include <CopCore/Ranluxpp.h>
 

@@ -3,7 +3,7 @@
 
 #include "example9.cuh"
 
-#include <fieldPropagatorConstBz.h>
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <CopCore/PhysicalConstants.h>
 

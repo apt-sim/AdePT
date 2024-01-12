@@ -12,18 +12,18 @@
 // #include <CopCore/Ranluxpp.h>
 
 #include <VecGeom/base/Vector3D.h>
-#include "track.h"
+#include <AdePT/tracking/track.h>
 
-#include <AdePT/BlockData.h>
+#include <AdePT/base/BlockData.h>
 
 #include "uniformMagField.h"
 
-#include "ConstFieldHelixStepper.h"
+#include <AdePT/magneticfield/ConstFieldHelixStepper.h>
 
-#include "fieldPropagatorConstBz.h"
-#include "fieldPropagatorConstBany.h"
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
+#include <AdePT/magneticfield/fieldPropagatorConstBany.h>
 
-#include "printTracks.h"
+#include <AdePT/tracking/printTracks.h>
 using trackBlock_t = adept::BlockData<track>;
 
 #include "initTracks.h"

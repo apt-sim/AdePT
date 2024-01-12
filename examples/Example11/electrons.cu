@@ -3,10 +3,10 @@
 
 #include "example11.cuh"
 
-#include <fieldPropagatorConstBz.h>
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <CopCore/PhysicalConstants.h>
-#include <AdePT/BVHNavigator.h>
+#include <AdePT/base/BVHNavigator.h>
 
 #define NOMSC
 #define NOFLUCTUATION

@@ -9,8 +9,8 @@
 #include "RaytraceBenchmark.hpp"
 
 #include <CopCore/Global.h>
-#include <AdePT/BlockData.h>
-#include <AdePT/LoopNavigator.h>
+#include <AdePT/base/BlockData.h>
+#include <AdePT/base/LoopNavigator.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>

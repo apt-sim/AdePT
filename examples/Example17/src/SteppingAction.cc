@@ -15,7 +15,7 @@
 #include "G4Electron.hh"
 #include "G4Positron.hh"
 #include "Run.hh"
-#include "TestManager.h"
+#include <AdePT/base/TestManager.h>
 
 SteppingAction::SteppingAction(DetectorConstruction *aDetector, RunAction *aRunAction, TrackingAction *aTrackingAction)
     : G4UserSteppingAction(), fDetector(aDetector), fRunAction(aRunAction), fTrackingAction(aTrackingAction)

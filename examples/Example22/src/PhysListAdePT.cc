@@ -40,6 +40,8 @@
 #include "G4NuclearStopping.hh"
 #include "G4SDManager.hh"
 
+#include "G4RunManager.hh"
+
 #include "DetectorConstruction.hh"
 #include "SensitiveDetector.hh"
 
@@ -90,13 +92,7 @@ void PhysListAdePT::ConstructProcess()
 
   // Setup tracking manager
 
-  auto caloSD = dynamic_cast<SensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
-  fTrackingManager->SetSensitiveVolumes(&(caloSD->fSensitiveLogicalVolumes));
-  fTrackingManager->SetScoringMap(caloSD->fScoringMap);
   fTrackingManager->SetVerbosity(0);
-  fTrackingManager->SetBufferThreshold(fDetector->GetBufferThreshold());
-  fTrackingManager->SetTrackSlots(fDetector->GetTrackSlots());
-  fTrackingManager->SetHitSlots(fDetector->GetHitSlots());
 
   // from G4EmStandardPhysics
 
@@ -114,4 +110,38 @@ void PhysListAdePT::ConstructProcess()
   G4EmModelActivator mact(GetPhysicsName());
 
   //end of G4EmStandardPhysics
+
+  auto caloSD = dynamic_cast<SensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
+  AdeptIntegration *adept = new AdeptIntegration();
+
+  adept->SetDebugLevel(0);
+  adept->SetBufferThreshold(fDetector->GetBufferThreshold());
+  adept->SetMaxBatch(2 * fDetector->GetBufferThreshold());
+
+  G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
+  bool sequential             = (rmType == G4RunManager::sequentialRM);
+
+  adept->SetSensitiveVolumes(&(caloSD->fSensitiveLogicalVolumes));
+  adept->SetRegion(nullptr);
+
+  auto tid = G4Threading::G4GetThreadId();
+  if (tid < 0) {
+    // This is supposed to set the max batching for Adept to allocate properly the memory
+    int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
+    int track_capacity    = 1024 * 1024 * fDetector->GetTrackSlots() / num_threads;
+    G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
+    AdeptIntegration::SetTrackCapacity(track_capacity);
+    int hit_buffer_capacity = 1024 * 1024 * fDetector->GetHitSlots() / num_threads;
+    G4cout << "AdePT Allocated hit buffer capacity: " << hit_buffer_capacity << " slots" << G4endl;
+    AdeptIntegration::SetHitBufferCapacity(hit_buffer_capacity);
+    adept->Initialize(true /*common_data*/);
+    if (sequential) 
+    {
+      adept->Initialize();
+    }
+  } else {
+    adept->Initialize();
+  }
+  
+  fTrackingManager->SetAdeptIntegration(adept);
 }

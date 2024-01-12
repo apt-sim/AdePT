@@ -12,8 +12,8 @@
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>
-#include <AdePT/BlockData.h>
-#include <AdePT/SparseVector.h>
+#include <AdePT/base/BlockData.h>
+#include <AdePT/base/SparseVector.h>
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>

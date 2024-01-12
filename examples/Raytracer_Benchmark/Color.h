@@ -9,7 +9,7 @@
 
 #include <CopCore/Global.h>
 #include <VecGeom/base/Global.h>
-#include <AdePT/Atomic.h>
+#include <AdePT/base/Atomic.h>
 
 namespace adept {
 union Color_t {

@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <AdePT/mpmc_bounded_queue.h>
+#include <AdePT/base/mpmc_bounded_queue.h>
 
 // Kernel function to perform atomic addition
 __global__ void pushData(adept::mpmc_bounded_queue<int> *queue)

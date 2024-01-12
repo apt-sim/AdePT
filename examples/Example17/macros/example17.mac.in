@@ -138,8 +138,8 @@
 #If false, the following parameters are ignored
 /example17/gun/randomizeGun true
 #Usage: /example17/gun/addParticle type ["weight" weight] ["energy" energy unit]
-/example17/gun/addParticle e- weight 1 energy 10 GeV
-/example17/gun/addParticle proton weight 0 energy 10 GeV
+/example17/gun/addParticle e- weight 0.6 energy 10 GeV
+/example17/gun/addParticle proton weight 0.4 energy 10 GeV
 /example17/gun/minPhi 0 deg
 /example17/gun/maxPhi 360 deg
 /example17/gun/minTheta 10 deg
@@ -158,11 +158,11 @@
 # by default all created models are active
 /param/ActivateModel AdePT
 #/analysis/setFileName example17_fastsim_100events.root
-/run/beamOn 1
+/run/beamOn 4
 
 /example17/setSeed 1
 
 # run events with full (detailed) simulation
 /param/InActivateModel AdePT
 #/analysis/setFileName example17_fullsim_100events.root
-/run/beamOn 1
+/run/beamOn 4

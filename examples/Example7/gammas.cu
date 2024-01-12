@@ -3,7 +3,7 @@
 
 #include "TestEm3.cuh"
 
-#include <AdePT/LoopNavigator.h>
+#include <AdePT/base/LoopNavigator.h>
 
 #include <CopCore/PhysicalConstants.h>
 

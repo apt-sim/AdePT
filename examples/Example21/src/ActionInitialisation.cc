@@ -31,7 +31,7 @@
 #include "RunAction.hh"
 #include "TrackingAction.hh"
 #include "SteppingAction.hh"
-#include "TestManager.h"
+#include <AdePT/base/TestManager.h>
 #include "DetectorConstruction.hh"
 
 ActionInitialisation::ActionInitialisation(DetectorConstruction *aDetector, G4String aOutputDirectory,

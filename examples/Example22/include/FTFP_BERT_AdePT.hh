@@ -18,10 +18,11 @@ public:
 
   FTFP_BERT_AdePT(const FTFP_BERT_AdePT &) = delete;
   FTFP_BERT_AdePT &operator=(const FTFP_BERT_AdePT &) = delete;
-
+  
   PhysListAdePT *GetAdePTPhysicsList(){return fAdePTPhysicsList;}
 
 private:
+  // NEVER INITIALIZED!
   PhysListAdePT *fAdePTPhysicsList{nullptr};
 };
 

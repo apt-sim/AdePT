@@ -3,7 +3,7 @@
 
 #include "example9.cuh"
 
-#include <AdePT/LoopNavigator.h>
+#include <AdePT/base/LoopNavigator.h>
 #include <CopCore/PhysicalConstants.h>
 
 #include <G4HepEmGammaManager.hh>

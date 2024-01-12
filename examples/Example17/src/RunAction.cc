@@ -28,7 +28,7 @@
 #include "DetectorConstruction.hh"
 #include "Run.hh"
 #include "G4Run.hh"
-#include "TestManager.h"
+#include <AdePT/base/TestManager.h>
 
 #include <thread>
 #include <mutex>
