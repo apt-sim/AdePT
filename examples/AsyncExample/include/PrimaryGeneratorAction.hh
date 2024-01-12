@@ -77,24 +77,24 @@ private:
   DetectorConstruction *fDetector;
   G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
   G4double fRndmDirection;
-  G4double fPrintGun;
+  G4double fPrintGun = false;
 
   // HepMC3 reader
-  G4VPrimaryGenerator* fHepmcAscii;
-  G4bool fUseHepMC;
+  G4VPrimaryGenerator *fHepmcAscii = nullptr;
+  G4bool fUseHepMC                 = false;
 
   //Gun randomization
-  bool fRandomizeGun;
+  bool fRandomizeGun{false};
   std::vector<G4ParticleDefinition*> *fParticleList;
   std::vector<float> *fParticleWeights;
   std::vector<float> *fParticleEnergies;
-  bool fInitializationDone;
+  bool fInitializationDone = false;
   G4double fMinPhi;
   G4double fMaxPhi;
   G4double fMinTheta;
   G4double fMaxTheta;
 
-  PrimaryGeneratorMessenger *fGunMessenger;
+  PrimaryGeneratorMessenger *fGunMessenger = nullptr;
 };
 
 #endif /* PRIMARYGENERATORACTION_HH */
