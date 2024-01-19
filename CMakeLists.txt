@@ -51,6 +51,10 @@ message(STATUS "Using VecCore version ${VecCore_VERSION}")
 
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 
+# Before looking for other packages, try to find XercesC explicitly to avoid
+# problems with G4HepEm not finding Geant4 11.1 even though we find it here.
+find_package(XercesC REQUIRED)
+
 # Find VecGeom geometry headers library
 set(VecGeom_VERSION_REQ 2.0.0-dev.3)
 find_package(VecGeom REQUIRED)
