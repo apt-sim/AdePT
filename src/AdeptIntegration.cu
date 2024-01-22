@@ -3,15 +3,16 @@
 
 #include <AdePT/integration/AdeptIntegration.h>
 #include <AdePT/integration/AdeptIntegration.cuh>
+#include <AdePT/base/Atomic.h>
+#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/base/MParray.h>
+#include <AdePT/kernels/electrons.cuh>
+#include <AdePT/kernels/gammas.cuh>
 
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
-
-#include <AdePT/base/Atomic.h>
-#include <AdePT/base/BVHNavigator.h>
-#include <AdePT/base/MParray.h>
 
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>
@@ -35,8 +36,7 @@
 #include <numeric>
 #include <algorithm>
 
-#include <AdePT/kernels/electrons.cuh>
-#include <AdePT/kernels/gammas.cuh>
+
 
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;

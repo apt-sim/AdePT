@@ -13,7 +13,6 @@
 #include "G4Material.hh"
 #include "G4MaterialTable.hh"
 
-#include <AdePT/integration/PhysListAdePT.hh>
 #include "G4DecayPhysics.hh"
 #include "G4EmStandardPhysics.hh"
 #include "G4EmExtraPhysics.hh"
@@ -21,10 +20,10 @@
 #include "G4StoppingPhysics.hh"
 #include "G4HadronElasticPhysics.hh"
 #include "G4NeutronTrackingCut.hh"
-
 #include "G4HadronPhysicsFTFP_BERT.hh"
+
+#include <AdePT/integration/PhysListAdePT.hh>
 #include <AdePT/integration/FTFP_BERT_AdePT.hh>
-#include "DetectorConstruction.hh"
 
 FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
 {

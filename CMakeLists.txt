@@ -136,17 +136,46 @@ if(BUILD_TESTING)
     EXPECTED_HASH SHA256=a6538d8f196fbfe4c14e806df3439d5a0d7050d538d364faabe882c750970e63)
 endif()
 
+set(ADEPT_SRCS
+  src/AdeptIntegration.cpp
+  src/AdePTConfigurationMessenger.cc
+  src/AdePTTrackingManager.cc
+  src/PhysListAdePT.cc
+  src/PhysListHepEm.cc
+  src/FTFP_BERT_HepEm.cc
+  src/FTFP_BERT_AdePT.cc
+)
+
+set(ADEPT_CUDA_SRCS
+  src/AdeptIntegration.cu
+  src/HostScoring.cu)
+
 # Builds...
 # Target for use of AdePT
-# NB: NOT complete yet due to dependence of AdePT/LoopNavigator.h on VecGeom
-#     This would be another INTERFACE link library, but needs care because it
-#     involves VecGeom+CUDA, so usage requirements need some care and thought
-add_library(AdePT INTERFACE)
-target_include_directories(AdePT
-  INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_link_libraries(AdePT INTERFACE CopCore::CopCore)
+add_library(AdePT SHARED ${ADEPT_SRCS})
+target_include_directories(AdePT PUBLIC
+                            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+target_link_libraries(AdePT PUBLIC 
+                      CopCore::CopCore
+                      VecGeom::vecgeom
+                      VecGeom::vgdml
+                      ${Geant4_LIBRARIES}
+                      G4HepEm::g4HepEm
+                      G4HepEm::g4HepEmData)
+
+add_library(AdePT_cuda SHARED ${ADEPT_CUDA_SRCS})
+target_include_directories(AdePT_cuda PUBLIC 
+                            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+target_link_libraries(AdePT_cuda PUBLIC
+                      ${Geant4_LIBRARIES}
+                      CopCore::CopCore
+                      VecGeom::vecgeomcuda_static
+                      G4HepEm::g4HepEmInit
+                      G4HepEm::g4HepEmRun)
+set_target_properties(AdePT_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+
+install(TARGETS AdePT AdePT_cuda DESTINATION lib)
+install(FILES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include/AdePT DESTINATION include)
 
 # Optional library to activate NVTX annotations for profiling:
 set(NVTX OFF CACHE BOOL "Add NVTX instrumentation for profiling (only for annotated examples)")

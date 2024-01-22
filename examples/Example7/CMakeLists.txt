@@ -29,7 +29,7 @@ endif()
 
 # example7-geant4 is the "full" Geant4 application for data export
 add_executable(example7-geant4 example7-geant4.cc geant4_mock.h geant4_mock.cc)
-target_link_libraries(example7-geant4 PRIVATE AdePT ${Geant4_LIBRARIES} G4HepEm::g4HepEmData G4HepEm::g4HepEmInit G4HepEm::g4HepEmDataJsonIO)
+target_link_libraries(example7-geant4 PRIVATE AdePT AdePT_cuda ${Geant4_LIBRARIES} G4HepEm::g4HepEmData G4HepEm::g4HepEmInit G4HepEm::g4HepEmDataJsonIO)
 
 # example7-adept is the pure AdePT application for the data import
 add_executable(example7-adept
@@ -41,6 +41,7 @@ add_executable(example7-adept
 target_link_libraries(example7-adept
   PRIVATE
     AdePT
+    AdePT_cuda
     CopCore::CopCore
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static

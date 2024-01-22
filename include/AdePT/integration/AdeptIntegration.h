@@ -80,7 +80,7 @@ private:
   static G4HepEmState *fg4hepem_state; ///< The HepEm state singleton
   TrackBuffer fBuffer;                 ///< Vector of buffers of tracks to/from device (per thread)
   G4Region *fRegion{nullptr};          ///< Region to which applies
-  std::vector<G4LogicalVolume*> *fSensitiveLogicalVolumes;        ///< List of sensitive volumes
+  //std::vector<G4LogicalVolume*> *fSensitiveLogicalVolumes;        ///< List of sensitive volumes
   static std::unordered_map<size_t, size_t> fglobal_volume_to_hit_map; ///< Maps Vecgeom PV IDs to Hits
   static std::unordered_map<size_t, const G4VPhysicalVolume *>
       fglobal_vecgeom_to_g4_map;  ///< Maps Vecgeom PV IDs to G4 PV IDs
@@ -142,11 +142,6 @@ public:
   /// @brief Reconstruct a G4Step using the provided information
   void FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
                   G4TouchableHandle &aPostG4TouchableHandle);
-
-  /// Helper class for creation of hits within the sensitive detector
-  // std::unique_ptr<G4FastSimHitMaker> fHitMaker;
-
-  void SetSensitiveVolumes(std::vector<G4LogicalVolume*> *aSensitiveLogicalVolumes) { fSensitiveLogicalVolumes = aSensitiveLogicalVolumes; }
 };
 
 #endif

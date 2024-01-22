@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/AdeptIntegration.cuh>
-
 #include <AdePT/base/BVHNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 

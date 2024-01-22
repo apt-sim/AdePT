@@ -8,7 +8,6 @@
 #include "globals.hh"
 #include <AdePT/integration/AdePTTrackingManager.hh>
 #include "AdePTConfiguration.hh"
-#include "DetectorConstruction.hh"
 
 class PhysListAdePT : public G4VPhysicsConstructor {
 public:

@@ -60,6 +60,7 @@ target_include_directories(example17 PRIVATE ${PROJECT_SOURCE_DIR}/examples/Exam
 target_link_libraries(example17
   PRIVATE
     AdePT
+    AdePT_cuda
     CopCore::CopCore
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static

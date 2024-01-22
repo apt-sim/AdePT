@@ -21,12 +21,6 @@ else()
 endif()
 
 set(sources_g4
-  ${PROJECT_SOURCE_DIR}/src/AdePTTrackingManager.cc
-  ${PROJECT_SOURCE_DIR}/src/PhysListAdePT.cc
-  ${PROJECT_SOURCE_DIR}/src/PhysListHepEm.cc
-  ${PROJECT_SOURCE_DIR}/src/FTFP_BERT_HepEm.cc
-  ${PROJECT_SOURCE_DIR}/src/FTFP_BERT_AdePT.cc
-  ${PROJECT_SOURCE_DIR}/src/AdePTConfigurationMessenger.cc
   ${PROJECT_SOURCE_DIR}/examples/common/src/ParticleGun.cc
   ${PROJECT_SOURCE_DIR}/examples/common/src/ParticleGunMessenger.cc
   src/ActionInitialisation.cc
@@ -54,9 +48,6 @@ endif()
 # example23
 add_executable(example23 
                 example23.cpp 
-                ${PROJECT_SOURCE_DIR}/src/AdeptIntegration.cpp 
-                ${PROJECT_SOURCE_DIR}/src/AdeptIntegration.cu 
-                ${PROJECT_SOURCE_DIR}/src/HostScoring.cu
                 ${sources_g4} 
                 ${sources_hepmc3})
 
@@ -64,27 +55,16 @@ target_include_directories(example23 PRIVATE
                           ${PROJECT_SOURCE_DIR}/examples/Example23/include 
                           ${PROJECT_SOURCE_DIR}/examples/Example23
                           ${PROJECT_SOURCE_DIR}/examples/common/include
-                          ${PROJECT_SOURCE_DIR}/include/
-                          ${PROJECT_SOURCE_DIR}/include/kernels/
-                          ${HEPMC3_INCLUDE_DIR}
-                          ${PROJECT_SOURCE_DIR}/base/inc/AdePT)
+                          ${HEPMC3_INCLUDE_DIR})
 
 target_link_libraries(example23
   PRIVATE
     AdePT
-    CopCore::CopCore
-    VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
-    VecGeom::vgdml
-    ${Geant4_LIBRARIES}
-    G4HepEm::g4HepEm
-    G4HepEm::g4HepEmData
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
-    CUDA::cudart
-    ${HEPMC3_LIBRARIES} ${HEPMC3_FIO_LIBRARIES})
+    AdePT_cuda
+    ${HEPMC3_LIBRARIES} 
+    ${HEPMC3_FIO_LIBRARIES})
 
-set_target_properties(example23 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+#set_target_properties(example23 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 # Install macros and geometry file
 

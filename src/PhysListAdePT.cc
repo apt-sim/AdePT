@@ -42,9 +42,6 @@
 
 #include "G4RunManager.hh"
 
-#include "DetectorConstruction.hh"
-#include "SensitiveDetector.hh"
-
 PhysListAdePT::PhysListAdePT(const G4String &name) : G4VPhysicsConstructor(name)
 {
   fAdePTConfiguration = new AdePTConfiguration();
@@ -114,7 +111,7 @@ void PhysListAdePT::ConstructProcess()
 
   //end of G4EmStandardPhysics
 
-  auto caloSD = dynamic_cast<SensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
+  auto caloSD = dynamic_cast<G4VSensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
   AdeptIntegration *adept = new AdeptIntegration();
 
   adept->SetDebugLevel(0);
@@ -124,7 +121,7 @@ void PhysListAdePT::ConstructProcess()
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
 
-  adept->SetSensitiveVolumes(&(caloSD->fSensitiveLogicalVolumes));
+  //adept->SetSensitiveVolumes(&(caloSD->fSensitiveLogicalVolumes));
   adept->SetRegion(nullptr);
 
   auto tid = G4Threading::G4GetThreadId();

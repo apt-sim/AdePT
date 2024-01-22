@@ -18,23 +18,23 @@ foreach(SRC_FILE ${ADEPT_COMMON_SRCS})
     COMMAND ${CMAKE_COMMAND} -E copy ${SRC_FILE_CPP} ${SRC_FILE_CU}
     DEPENDS ${SRC_FILE_CPP})
 
-  list(APPEND ADEPT_CUDA_SRCS ${SRC_FILE_CU})
+  list(APPEND CUDA_SRCS ${SRC_FILE_CU})
 
 endforeach()
 
-list(APPEND ADEPT_CUDA_SRCS
+list(APPEND CUDA_SRCS
   RaytraceBenchmark.cu
 )
 
 # library used for RaytraceBenchmark.cpp
-add_library(raytracercu ${ADEPT_CUDA_SRCS})
+add_library(raytracercu ${CUDA_SRCS})
 target_include_directories(raytracercu PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
 )
 
-target_link_libraries(raytracercu AdePT VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
+target_link_libraries(raytracercu AdePT AdePT_cuda VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
 target_compile_options(raytracercu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;-fmad=false>")
 set_target_properties(raytracercu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 

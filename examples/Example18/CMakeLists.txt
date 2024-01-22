@@ -25,6 +25,7 @@ add_executable(example18
 target_link_libraries(example18
   PRIVATE
     AdePT
+    AdePT_cuda
     CopCore::CopCore
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static

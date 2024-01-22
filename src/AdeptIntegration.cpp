@@ -25,9 +25,6 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
 
-#include "SensitiveDetector.hh"
-#include "EventAction.hh"
-
 #include <AdePT/base/TestManager.h>
 #include <AdePT/base/TestManagerStore.h>
 
@@ -219,11 +216,11 @@ void AdeptIntegration::Shower(int event)
   }
 
   // Count the number of particles produced
-  EventAction *evAct      = dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
-  evAct->number_gammas    = evAct->number_gammas + fScoring->fGlobalCounters_host->numGammas;
-  evAct->number_electrons = evAct->number_electrons + fScoring->fGlobalCounters_host->numElectrons;
-  evAct->number_positrons = evAct->number_positrons + fScoring->fGlobalCounters_host->numPositrons;
-  evAct->number_killed    = evAct->number_killed + fScoring->fGlobalCounters_host->numKilled;
+  // EventAction *evAct      = dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
+  // evAct->number_gammas    = evAct->number_gammas + fScoring->fGlobalCounters_host->numGammas;
+  // evAct->number_electrons = evAct->number_electrons + fScoring->fGlobalCounters_host->numElectrons;
+  // evAct->number_positrons = evAct->number_positrons + fScoring->fGlobalCounters_host->numPositrons;
+  // evAct->number_killed    = evAct->number_killed + fScoring->fGlobalCounters_host->numKilled;
 
 
   fBuffer.Clear();
@@ -249,8 +246,6 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
   std::vector<vecgeom::VPlacedVolume const *> aCurrentVecgeomHistory;
   // Used to keep track of the current geant4 history while visiting the tree
   std::vector<G4VPhysicalVolume const *> aCurrentGeant4History;
-  // Used to optimize the process of marking sensitive VecGeom volumes
-  std::vector<G4LogicalVolume *> aUnmarkedSensitiveLogicalVolumes(*fSensitiveLogicalVolumes);
 
   // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
   // (we need to make sure we set the right MCC index to the right volume)
@@ -317,33 +312,15 @@ adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume
 
     // Check if the logical volume is sensitive
     bool sens = false;
-    //for (G4LogicalVolume* sensvol : aUnmarkedSensitiveLogicalVolumes) {
-    for (auto iter = aUnmarkedSensitiveLogicalVolumes.begin();
-          iter != aUnmarkedSensitiveLogicalVolumes.end();
-          iter++) {
 
-      G4LogicalVolume* sensvol = *iter;
-        
-      if (vg_lvol->GetName() == sensvol->GetName() ||
-          std::string(vg_lvol->GetName()).rfind(sensvol->GetName() + "0x", 0) == 0) {
-        sens = true;
-
-        // We know the VecGeom LV is sensitive because it matches a G4 LV in the list
-        // Make sure the LV corresponding to the PV we are visiting is indeed sensitive
-        if (g4_lvol->GetSensitiveDetector() == nullptr)
-          throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
-                                   " not sensitive while VecGeom one " + std::string(vg_lvol->GetName()) + " is.");
-        // Mark the LV as sensitive in its auxiliary data 
-        if (auxData[vg_lvol->id()].fSensIndex < 0) 
-        {
-          nlogical_sens++;
-          G4cout << "VecGeom: Making " << vg_lvol->GetName() << " sensitive" << G4endl;
-        }
-        auxData[vg_lvol->id()].fSensIndex = 1;
-
-        aUnmarkedSensitiveLogicalVolumes.erase(iter);
-        break;
+    if (g4_lvol->GetSensitiveDetector() != nullptr)
+    {
+      if (auxData[vg_lvol->id()].fSensIndex < 0) 
+      {
+        nlogical_sens++;
+        G4cout << "VecGeom: Making " << vg_lvol->GetName() << " sensitive" << G4endl;
       }
+      auxData[vg_lvol->id()].fSensIndex = 1;
     }
 
     // If the volume is sensitive:
@@ -430,15 +407,16 @@ void AdeptIntegration::ProcessGPUHits(HostScoring::Stats &aStats)
     FillG4Step(&(fScoring->fGPUHitsBuffer_host[aHitIdx]), fG4Step, fPreG4TouchableHistoryHandle, fPostG4TouchableHistoryHandle);
 
     // Call SD code
-    SensitiveDetector *aSensitiveDetector =
-        (SensitiveDetector *)fPreG4NavigationHistory->GetVolume(fPreG4NavigationHistory->GetDepth())
+    G4VSensitiveDetector *aSensitiveDetector =
+            fPreG4NavigationHistory->GetVolume(fPreG4NavigationHistory->GetDepth())
             ->GetLogicalVolume()
             ->GetSensitiveDetector();
 
     // Double check, a nullptr here can indicate an issue reconstructing the navigation history
     assert(aSensitiveDetector != nullptr);
 
-    aSensitiveDetector->ProcessHits(fG4Step, (G4TouchableHistory *)fPreG4TouchableHistoryHandle());
+    aSensitiveDetector->Hit(fG4Step);
+    //aSensitiveDetector->ProcessHits(fG4Step, (G4TouchableHistory *)fPreG4TouchableHistoryHandle());
   }
 
   delete fPreG4NavigationHistory;
