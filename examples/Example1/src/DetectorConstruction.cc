@@ -138,7 +138,7 @@ void DetectorConstruction::ConstructSDandField()
         {
           // Make LogicalVolume sensitive by registering a SensitiveDetector for it
           SetSensitiveDetector(lvol, caloSD);
-          // We keep a list of Logical sensitive volumes, used for initializing AdePTIntegration
+          // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport
           caloSD->fSensitiveLogicalVolumes.push_back(lvol);
         }
         numSensitiveTouchables++;

@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdePTTransport.cuh>
+#include "testField.cuh"
+
 #include <AdePT/base/BVHNavigator.h>
 
 #include <CopCore/PhysicalConstants.h>
@@ -18,53 +19,41 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
-using VolAuxData = AdePTTransport::VolAuxData;
-
-template <typename Scoring>
-__global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries,
-                                MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray)
-{ 
+__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                                adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                ScoringPerVolume *scoringPerVolume)
+{
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
   const Precision kPush = 0.;
 #endif
-  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  constexpr int Pdg                  = 22;
-  int activeSize                     = gammas->fActiveTracks->size();
+  int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*gammas->fActiveTracks)[i];
-    Track &currentTrack = (*gammas)[slot];
+    const int slot      = (*active)[i];
+    Track &currentTrack = gammas[slot];
     auto energy         = currentTrack.energy;
-    auto preStepEnergy = energy;
     auto pos            = currentTrack.pos;
-    vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir            = currentTrack.dir;
-    vecgeom::Vector3D<Precision> preStepDir(dir);
     auto navState       = currentTrack.navState;
     const auto volume   = navState.Top();
-    adeptint::TrackData trackdata;
+    const int volumeID  = volume->id();
     // the MCC vector is indexed by the logical volume id
-    int lvolID                = volume->GetLogicalVolume()->id();
-    VolAuxData const &auxData = auxDataArray[lvolID];
+    const int theMCIndex = MCIndex[volume->GetLogicalVolume()->id()];
 
-    auto survive = [&](bool leak = false) {
+    auto survive = [&] {
       currentTrack.energy   = energy;
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
       currentTrack.navState = navState;
-      currentTrack.CopyTo(trackdata, Pdg);
-      if (leak)
-        leakedQueue->push_back(trackdata);
-      else
-        gammas->fNextTracks->push_back(slot);
+      activeQueue->push_back(slot);
     };
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
     G4HepEmTrack *theTrack = gammaTrack.GetTrack();
     theTrack->SetEKin(energy);
-    theTrack->SetMCIndex(auxData.fMCIndex);
+    theTrack->SetMCIndex(theMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -89,7 +78,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
-    //userScoring->AccountChargedStep(0);
+    atomicAdd(&globalScoring->neutralSteps, 1);
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -110,7 +99,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
-      //userScoring->AccountHit();
+      atomicAdd(&globalScoring->hits, 1);
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
@@ -118,18 +107,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
         // Move to the next boundary.
         navState = nextState;
-        // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        const auto nextvolume         = navState.Top();
-        const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
-        VolAuxData const &nextauxData = auxDataArray[nextlvolID];
-        if (nextauxData.fGPUregion > 0)
-          survive();
-        else {
-          // To be safe, just push a bit the track exiting the GPU region to make sure
-          // Geant4 does not relocate it again inside the same region
-          pos += kPushOutRegion * dir;
-          survive(/*leak*/ true);
-        }
+        survive();
       }
       continue;
     } else if (winnerProcessIndex < 0) {
@@ -157,18 +135,18 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       double logEnergy = std::log(energy);
       double elKinEnergy, posKinEnergy;
-      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
-                                                           elKinEnergy, posKinEnergy, &rnge);
+      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, theMCIndex, elKinEnergy,
+                                                           posKinEnergy, &rnge);
 
       double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondaryEl[3], dirSecondaryPos[3];
       G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                           posKinEnergy, &rnge);
 
-      Track &electron = secondaries.electrons->NextTrack();
-      Track &positron = secondaries.positrons->NextTrack();
-
-      userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
+      Track &electron = secondaries.electrons.NextTrack();
+      Track &positron = secondaries.positrons.NextTrack();
+      atomicAdd(&globalScoring->numElectrons, 1);
+      atomicAdd(&globalScoring->numPositrons, 1);
 
       electron.InitAsSecondary(pos, navState);
       electron.rngState = newRNG;
@@ -200,8 +178,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       const double energyEl = energy - newEnergyGamma;
       if (energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
-        Track &electron = secondaries.electrons->NextTrack();
-        userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        Track &electron = secondaries.electrons.NextTrack();
+        atomicAdd(&globalScoring->numElectrons, 1);
 
         electron.InitAsSecondary(pos, navState);
         electron.rngState = newRNG;
@@ -209,21 +187,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
-        if (auxData.fSensIndex >= 0) userScoring->RecordHit(2,              //Particle type
-                                                        geometryStepLength, //Step length
-                                                        0,                  //Total Edep
-                                                        &navState,          //Pre-step point navstate
-                                                        &preStepPos,        //Pre-step point position
-                                                        &preStepDir,        //Pre-step point momentum direction
-                                                        nullptr,            //Pre-step point polarization
-                                                        preStepEnergy,      //Pre-step point kinetic energy
-                                                        0,                  //Pre-step point charge
-                                                        &nextState,         //Post-step point navstate
-                                                        &pos,               //Post-step point position
-                                                        &dir,               //Post-step point momentum direction
-                                                        nullptr,            //Post-step point polarization
-                                                        newEnergyGamma,     //Post-step point kinetic energy
-                                                        0);                 //Post-step point charge
+        atomicAdd(&globalScoring->energyDeposit, energyEl);
+        atomicAdd(&scoringPerVolume->energyDeposit[volumeID], energyEl);
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -232,21 +197,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         dir    = newDirGamma;
         survive();
       } else {
-        if (auxData.fSensIndex >= 0) userScoring->RecordHit(2,              //Particle type
-                                                        geometryStepLength, //Step length
-                                                        0,                  //Total Edep
-                                                        &navState,          //Pre-step point navstate
-                                                        &preStepPos,        //Pre-step point position
-                                                        &preStepDir,        //Pre-step point momentum direction
-                                                        nullptr,            //Pre-step point polarization
-                                                        preStepEnergy,      //Pre-step point kinetic energy
-                                                        0,                  //Pre-step point charge
-                                                        &nextState,         //Post-step point navstate
-                                                        &pos,               //Post-step point position
-                                                        &dir,               //Post-step point momentum direction
-                                                        nullptr,            //Post-step point polarization
-                                                        newEnergyGamma,     //Post-step point kinetic energy
-                                                        0);                 //Post-step point charge
+        atomicAdd(&globalScoring->energyDeposit, newEnergyGamma);
+        atomicAdd(&scoringPerVolume->energyDeposit[volumeID], newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
       }
       break;
@@ -256,14 +208,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), energy, &rnge);
+          &g4HepEmData, theMCIndex, gammaTrack.GetPEmxSec(), energy, &rnge);
 
       double edep             = bindingEnergy;
       const double photoElecE = energy - edep;
       if (photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
-        Track &electron = secondaries.electrons->NextTrack();
-        userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        Track &electron = secondaries.electrons.NextTrack();
+        atomicAdd(&globalScoring->numElectrons, 1);
 
         double dirGamma[] = {dir.x(), dir.y(), dir.z()};
         double dirPhotoElec[3];
@@ -276,21 +228,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       } else {
         edep = energy;
       }
-      if (auxData.fSensIndex >= 0) userScoring->RecordHit(2,                //Particle type
-                                                        geometryStepLength, //Step length
-                                                        edep,               //Total Edep
-                                                        &navState,          //Pre-step point navstate
-                                                        &preStepPos,        //Pre-step point position
-                                                        &preStepDir,        //Pre-step point momentum direction
-                                                        nullptr,            //Pre-step point polarization
-                                                        preStepEnergy,      //Pre-step point kinetic energy
-                                                        0,                  //Pre-step point charge
-                                                        &nextState,         //Post-step point navstate
-                                                        &pos,               //Post-step point position
-                                                        &dir,               //Post-step point momentum direction
-                                                        nullptr,            //Post-step point polarization
-                                                        0,                  //Post-step point kinetic energy
-                                                        0);                 //Post-step point charge
+      atomicAdd(&globalScoring->energyDeposit, edep);
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }

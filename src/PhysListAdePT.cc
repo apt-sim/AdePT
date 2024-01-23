@@ -112,7 +112,7 @@ void PhysListAdePT::ConstructProcess()
   //end of G4EmStandardPhysics
 
   auto caloSD = dynamic_cast<G4VSensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
-  AdeptIntegration *adept = new AdeptIntegration();
+  AdePTTransport *adept = new AdePTTransport();
 
   adept->SetDebugLevel(0);
   adept->SetBufferThreshold(fAdePTConfiguration->GetTransportBufferThreshold());
@@ -131,10 +131,10 @@ void PhysListAdePT::ConstructProcess()
     int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
     int track_capacity    = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
     G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
-    AdeptIntegration::SetTrackCapacity(track_capacity);
+    AdePTTransport::SetTrackCapacity(track_capacity);
     int hit_buffer_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfHitSlots() / num_threads;
     G4cout << "AdePT Allocated hit buffer capacity: " << hit_buffer_capacity << " slots" << G4endl;
-    AdeptIntegration::SetHitBufferCapacity(hit_buffer_capacity);
+    AdePTTransport::SetHitBufferCapacity(hit_buffer_capacity);
     adept->Initialize(true /*common_data*/);
     if (sequential) 
     {
@@ -144,5 +144,5 @@ void PhysListAdePT::ConstructProcess()
     adept->Initialize();
   }
   
-  fTrackingManager->SetAdeptIntegration(adept);
+  fTrackingManager->SetAdePTTransport(adept);
 }

@@ -6,7 +6,7 @@
 
 #include "G4VTrackingManager.hh"
 #include "globals.hh"
-#include <AdePT/integration/AdeptIntegration.h>
+#include <AdePT/integration/AdePTTransport.h>
 #include "CopCore/SystemOfUnits.h"
 
 #include <vector>
@@ -28,12 +28,12 @@ public:
   /// Set verbosity for integration
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
-  // Set the AdeptIntegration instance
-  void SetAdeptIntegration(AdeptIntegration *adept) { fAdept = adept; }
+  // Set the AdePTTransport instance
+  void SetAdePTTransport(AdePTTransport *adept) { fAdept = adept; }
 
 private:
   /// AdePT integration
-  AdeptIntegration *fAdept;
+  AdePTTransport *fAdept;
 
   /// Verbosity
   int fVerbosity{0};

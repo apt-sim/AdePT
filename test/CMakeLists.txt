@@ -18,6 +18,8 @@ macro(add_to_test TESTS)
    endforeach()
 endmacro()
 
+add_subdirectory(testField)
+
 # - Test that linkage to CopCore target works
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_link_libraries(test_copcore_link PRIVATE AdePT VecCore::VecCore CopCore::CopCore)

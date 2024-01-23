@@ -144,7 +144,7 @@ if(BUILD_TESTING)
 endif()
 
 set(ADEPT_SRCS
-  src/AdeptIntegration.cpp
+  src/AdePTTransport.cpp
   src/AdePTConfigurationMessenger.cc
   src/AdePTTrackingManager.cc
   src/PhysListAdePT.cc
@@ -152,7 +152,7 @@ set(ADEPT_SRCS
 )
 
 set(ADEPT_CUDA_SRCS
-  src/AdeptIntegration.cu
+  src/AdePTTransport.cu
   src/HostScoring.cu)
 
 # Builds...

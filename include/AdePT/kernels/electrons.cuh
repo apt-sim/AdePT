@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdeptIntegration.cuh>
+#include <AdePT/integration/AdePTTransport.cuh>
 #include <AdePT/base/BVHNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
@@ -24,7 +24,7 @@
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
-using VolAuxData = AdeptIntegration::VolAuxData;
+using VolAuxData = AdePTTransport::VolAuxData;
 
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
