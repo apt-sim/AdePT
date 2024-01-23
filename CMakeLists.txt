@@ -3,6 +3,13 @@
 
 cmake_minimum_required(VERSION 3.18)
 
+# include(CMakePackageConfigHelpers)
+# configure_package_config_file(AdePTConfig.cmake.in
+#                           "${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+#                           INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}/AdePT")
+
+
+
 # Record the command line invoking the cmake command. Replay with recmake_initial.sh.
 include(cmake/RecordCmdLine.cmake)
 
@@ -142,8 +149,6 @@ set(ADEPT_SRCS
   src/AdePTTrackingManager.cc
   src/PhysListAdePT.cc
   src/PhysListHepEm.cc
-  src/FTFP_BERT_HepEm.cc
-  src/FTFP_BERT_AdePT.cc
 )
 
 set(ADEPT_CUDA_SRCS

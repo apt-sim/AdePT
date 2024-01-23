@@ -51,7 +51,7 @@ if(HepMC3_FOUND)
 endif()
 
 # example22
-add_executable(example22 example22.cpp AdeptIntegration.cpp AdeptIntegration.cu HostScoring.cu
+add_executable(example22 example22.cpp AdeptIntegration.cu HostScoring.cu
                ${sources_g4} ${sources_hepmc3})
 
 target_include_directories(example22 PRIVATE ${PROJECT_SOURCE_DIR}/examples/Example22/include 
@@ -61,7 +61,6 @@ target_include_directories(example22 PRIVATE ${PROJECT_SOURCE_DIR}/examples/Exam
 target_link_libraries(example22
   PRIVATE
     AdePT
-    AdePT_cuda
     CopCore::CopCore
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static

@@ -7,7 +7,7 @@
 ## Geant4 macro for modelling simplified sampling calorimeters
 ## =============================================================================
 ##
-/run/numberOfThreads 8
+/run/numberOfThreads 1
 /control/verbose 0
 /run/verbose 0
 /process/verbose 0
@@ -146,5 +146,5 @@
 
 # run events with parametrised simulation
 # by default all created models are active
-/run/beamOn 8
+/run/beamOn 1
 

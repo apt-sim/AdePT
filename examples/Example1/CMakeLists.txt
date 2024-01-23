@@ -2,21 +2,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 if(NOT TARGET G4HepEm::g4HepEm)
-  message(STATUS "Disabling example23 (needs G4HepEm)")
+  message(STATUS "Disabling example1 (needs G4HepEm)")
   return()
 endif()
 
 if(Geant4_FOUND)
   if(NOT Geant4_gdml_FOUND)
-    message(STATUS "Disabling example23 (needs Geant4 with GDML support)")
+    message(STATUS "Disabling example1 (needs Geant4 with GDML support)")
     return()
   endif()
   if(NOT Geant4_VERSION VERSION_GREATER_EQUAL 11.0)
-    message(STATUS "Disabling example23 (needs G4VTrackingManger interface available starting with geant4-11-00)")
+    message(STATUS "Disabling example1 (needs G4VTrackingManger interface available starting with geant4-11-00)")
     return()
   endif()
 else()
-  message(STATUS "Disabling example23 (needs Geant4)")
+  message(STATUS "Disabling example1 (needs Geant4)")
   return()
 endif()
 
@@ -34,7 +34,6 @@ set(sources_g4
   src/SimpleHit.cc
   src/PrimaryGeneratorAction.cc
   src/RunAction.cc
-  src/Run.cc
   src/SensitiveDetector.cc
   src/TrackingAction.cc
 )
@@ -47,26 +46,26 @@ if(HepMC3_FOUND)
      )
 endif()
 
-# example23
-add_executable(example23 
-                example23.cpp 
+# example1
+add_executable(example1 
+                example1.cpp 
                 ${sources_g4} 
                 ${sources_hepmc3})
 
-target_include_directories(example23 PRIVATE 
-                          ${PROJECT_SOURCE_DIR}/examples/Example23/include 
-                          ${PROJECT_SOURCE_DIR}/examples/Example23
+target_include_directories(example1 PRIVATE 
+                          ${PROJECT_SOURCE_DIR}/examples/Example1/include 
+                          ${PROJECT_SOURCE_DIR}/examples/Example1
                           ${PROJECT_SOURCE_DIR}/examples/common/include
                           ${HEPMC3_INCLUDE_DIR})
 
-target_link_libraries(example23
+target_link_libraries(example1
   PRIVATE
     AdePT
     AdePT_cuda
     ${HEPMC3_LIBRARIES} 
     ${HEPMC3_FIO_LIBRARIES})
 
-#set_target_properties(example23 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+#set_target_properties(example1 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 # Install macros and geometry file
 
@@ -75,8 +74,8 @@ target_link_libraries(example23
 #configure_file("../data/cms2018_sd.gdml" "${CMAKE_BINARY_DIR}/cms2018_sd.gdml")
 #configure_file("../data/testEm3.gdml" "${CMAKE_BINARY_DIR}/testEm3.gdml")
 #configure_file("macros/testEm3.mac.in" "${CMAKE_BINARY_DIR}/testEm3_e23.mac")
-#configure_file("macros/example23.mac.in" "${CMAKE_BINARY_DIR}/example23.mac")
-#configure_file("macros/example23_ttbar.mac.in" "${CMAKE_BINARY_DIR}/example23_ttbar.mac")
+#configure_file("macros/example1.mac.in" "${CMAKE_BINARY_DIR}/example1.mac")
+#configure_file("macros/example1_ttbar.mac.in" "${CMAKE_BINARY_DIR}/example1_ttbar.mac")
 #configure_file("../data/LHCb_Upgrade_fullLHCb.gdml" "${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml")
 #configure_file("macros/lhcb.mac.in" "${CMAKE_BINARY_DIR}/lhcb_e17.mac")
 #configure_file("macros/lhcb_validation.mac.in" "${CMAKE_BINARY_DIR}/lhcb_validation.mac")

@@ -40,17 +40,9 @@ SensitiveDetector::SensitiveDetector(G4String aName) : G4VSensitiveDetector(aNam
 }
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-SensitiveDetector::SensitiveDetector(G4String aName, std::set<const G4VPhysicalVolume*> *aSensitivePhysicalVolumes)
-    : G4VSensitiveDetector(aName), fSensitivePhysicalVolumes(aSensitivePhysicalVolumes), 
-    fScoringMap(nullptr), fNumSensitive(aSensitivePhysicalVolumes->size())
-{
-  collectionName.insert("hits");
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
 SensitiveDetector::~SensitiveDetector() {
-  //delete fScoringMap;
+  // Segmentation fault when freeing this, needs investigation
+  //delete fHitsCollection;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -63,19 +55,19 @@ void SensitiveDetector::Initialize(G4HCofThisEvent *aHCE)
   }
   aHCE->AddHitsCollection(fHitCollectionID, fHitsCollection);
 
-  fScoringMap = new std::unordered_map<size_t, size_t>();
-
   // Fill calorimeter hits with zero energy deposition
   // Retrieving the hits through the map allows us to set the Volume name associated to the hits
   int hitID = 0;
-  for(auto pvol: (*fSensitivePhysicalVolumes))
+  for(auto pvol: (fSensitivePhysicalVolumes))
   {
     auto hit = new SimpleHit();
     hit->SetPhysicalVolumeName(pvol->GetName());
-    fScoringMap->insert(std::pair<int, int>(pvol->GetInstanceID(), hitID));
+    fScoringMap.insert(std::pair<int, int>(pvol->GetInstanceID(), hitID));
     hitID++;
     fHitsCollection->insert(hit);
   }
+
+  fNumSensitive = fSensitivePhysicalVolumes.size();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -107,7 +99,7 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
 SimpleHit *SensitiveDetector::RetrieveAndSetupHit(G4TouchableHistory *aTouchable)
 {
-  std::size_t hitID = (*fScoringMap)[aTouchable->GetHistory()->GetTopVolume()->GetInstanceID()];
+  std::size_t hitID = fScoringMap[aTouchable->GetHistory()->GetTopVolume()->GetInstanceID()];
 
   assert(hitID < fNumSensitive);
 
