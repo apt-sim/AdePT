@@ -15,13 +15,12 @@ class TrackingAction;
 class SteppingAction : public G4UserSteppingAction {
 
 public:
-  SteppingAction(TrackingAction *aTrackingAction);
+  SteppingAction();
   ~SteppingAction() override;
   void UserSteppingAction(const G4Step *step) override;
   void SetNumSteps(int aNumSteps) { fNumSteps = aNumSteps; }
 
 private:
-  TrackingAction *fTrackingAction;
   int fNumSteps{0};
 };
 

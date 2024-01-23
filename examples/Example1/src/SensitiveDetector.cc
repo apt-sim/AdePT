@@ -30,7 +30,6 @@
 
 #include "G4HCofThisEvent.hh"
 #include "G4TouchableHistory.hh"
-#include "G4Track.hh"
 #include "G4Step.hh"
 #include "G4SDManager.hh"
 

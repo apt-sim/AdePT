@@ -58,8 +58,7 @@ void ActionInitialisation::Build() const
   SetUserAction(aRunAction);
   TrackingAction *aTrackingAction = new TrackingAction();
   SetUserAction(aTrackingAction);
-
-  SteppingAction *aSteppingAction = new SteppingAction(aTrackingAction);
+  SteppingAction *aSteppingAction = new SteppingAction();
   SetUserAction(aSteppingAction);
   aTrackingAction->setSteppingAction(aSteppingAction);
 }

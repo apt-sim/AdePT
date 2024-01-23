@@ -33,26 +33,9 @@
 
 #include "TrackingAction.hh"
 
-#include "G4RunManager.hh"
-#include "G4Track.hh"
-#include "G4Gamma.hh"
-#include "G4Electron.hh"
-#include "G4Positron.hh"
-#include <AdePT/base/TestManager.h>
-#include "DetectorConstruction.hh"
-#include "G4RegionStore.hh"
-
-#include "G4SystemOfUnits.hh"
-#include "G4UnitsTable.hh"
-#include "EventAction.hh"
-
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-TrackingAction::TrackingAction() : G4UserTrackingAction(), 
-                                   fCurrentRegion(nullptr), 
-                                   fCurrentVolume(nullptr)
-                                   //, fGPURegion(G4RegionStore::GetInstance()->GetRegion(aDetector->getRegionName()))
-                                   {}
+TrackingAction::TrackingAction() : G4UserTrackingAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -68,14 +51,6 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
 {
   // Reset step counter
   fSteppingAction->SetNumSteps(0);
-
-  // skip tracks coming from AdePT
-  if (aTrack->GetParentID() == -99) return;
-
-  // increase nb of processed tracks
-  // count nb of steps of this track
-  G4int nbSteps   = aTrack->GetCurrentStepNumber();
-  G4double Trleng = aTrack->GetTrackLength();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
