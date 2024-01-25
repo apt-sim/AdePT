@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/PhysListAdePT.hh>
+#include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include "G4ParticleDefinition.hh"
 #include "G4ProcessManager.hh"
@@ -91,7 +92,6 @@ void PhysListAdePT::ConstructProcess()
   G4Gamma::Definition()->SetTrackingManager(fTrackingManager);
 
   // Setup tracking manager
-
   fTrackingManager->SetVerbosity(0);
 
   // from G4EmStandardPhysics
@@ -112,6 +112,7 @@ void PhysListAdePT::ConstructProcess()
   //end of G4EmStandardPhysics
 
   auto caloSD = dynamic_cast<G4VSensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
+  
   AdePTTransport *adept = new AdePTTransport();
 
   adept->SetDebugLevel(0);
@@ -126,7 +127,8 @@ void PhysListAdePT::ConstructProcess()
 
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
-    adept->CreateVecGeomWorld();
+    //adept->CreateVecGeomWorld();
+    AdePTGeant4Integration::CreateVecGeomWorld();
     // This is supposed to set the max batching for Adept to allocate properly the memory
     int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
     int track_capacity    = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;

@@ -149,6 +149,7 @@ set(ADEPT_SRCS
   src/AdePTTrackingManager.cc
   src/PhysListAdePT.cc
   src/PhysListHepEm.cc
+  src/AdePTGeant4Integration.cpp
 )
 
 set(ADEPT_CUDA_SRCS

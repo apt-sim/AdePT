@@ -438,7 +438,7 @@ void AdePTTransport::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
       // Synchronize the stream used to copy back the hits
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream)); 
       // Process the hits on CPU
-      ProcessGPUHits(gpuState.stats->hostscoring_stats);
+      fIntegrationLayer.ProcessGPUHits(*fScoring, gpuState.stats->hostscoring_stats);
     }
 
     // Check if only charged particles are left that are looping.
@@ -493,5 +493,5 @@ void AdePTTransport::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
   fScoring->CopyGlobalCountersToHost(gpuState.stream);
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
   // Process the last hits on CPU
-  ProcessGPUHits(gpuState.stats->hostscoring_stats);
+  fIntegrationLayer.ProcessGPUHits(*fScoring, gpuState.stats->hostscoring_stats);
 }

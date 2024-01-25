@@ -1,0 +1,391 @@
+#include <AdePT/integration/AdePTGeant4Integration.hh>
+
+#include <VecGeom/management/GeoManager.h>
+#include <VecGeom/gdml/Frontend.h>
+#include <VecGeom/navigation/NavigationState.h>
+
+#include <G4ios.hh>
+#include <G4SystemOfUnits.hh>
+#include <G4GeometryManager.hh>
+#include <G4TransportationManager.hh>
+#include <G4MaterialCutsCouple.hh>
+#include <G4VSensitiveDetector.hh>
+
+#include <G4HepEmData.hh>
+#include <G4HepEmMatCutData.hh>
+
+void AdePTGeant4Integration::CreateVecGeomWorld()
+{
+  // Import the gdml file into VecGeom
+  vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
+  vgdml::Parser vgdmlParser;
+  //auto middleWare = vgdmlParser.Load(fGDML_file.c_str(), false, copcore::units::mm);
+  auto middleWare = vgdmlParser.Load("cms2018_sd.gdml", false, mm);
+  if (middleWare == nullptr) {
+    std::cerr << "Failed to read geometry from GDML file '" << "cms2018_sd.gdml" << "'" << G4endl;
+    return;
+  }
+
+  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
+  if (vecgeomWorld == nullptr) {
+    std::cerr << "GeoManager vecgeomWorld volume is nullptr" << G4endl;
+    return;
+  }
+}
+
+void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
+{
+  const G4VPhysicalVolume *g4world = G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
+  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
+  const int *g4tohepmcindex = hepEmState->fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
+  int nvolumes        = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  
+  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
+  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
+  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
+    const auto g4_lvol = g4_pvol->GetLogicalVolume();
+    const auto vg_lvol = vg_pvol->GetLogicalVolume();
+
+    int nd             = g4_lvol->GetNoDaughters();
+    auto daughters     = vg_lvol->GetDaughters();
+
+    if (nd != daughters.size()) throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
+    // Check if transformations are matching
+    auto g4trans = g4_pvol->GetTranslation();
+    auto g4rot   = g4_pvol->GetRotation();
+    G4RotationMatrix idrot;
+    auto vgtransformation  = vg_pvol->GetTransformation();
+    constexpr double epsil = 1.e-8;
+    for (int i = 0; i < 3; ++i) {
+        if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
+        throw std::runtime_error(
+            std::string("Fatal: CheckGeometry: Mismatch between Geant4 translation for physical volume") +
+            vg_pvol->GetName());
+    }
+
+    // check if VecGeom and Geant4 (local) transformations are matching. Not optimized, this will re-check
+    // already checked placed volumes when re-visiting the same volumes in different branches
+    if (!g4rot) g4rot = &idrot;
+    for (int row = 0; row < 3; ++row) {
+        for (int col = 0; col < 3; ++col) {
+        int i = row + 3 * col;
+        if (std::abs((*g4rot)(row, col) - vgtransformation->Rotation(i)) > epsil)
+            throw std::runtime_error(
+                std::string("Fatal: CheckGeometry: Mismatch between Geant4 rotation for physical volume") +
+                vg_pvol->GetName());
+        }
+    }
+
+    // Check the couples
+    if (g4_lvol->GetMaterialCutsCouple() == nullptr)
+        throw std::runtime_error("Fatal: CheckGeometry: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
+                                std::string(" has no material-cuts couple"));
+    int g4mcindex    = g4_lvol->GetMaterialCutsCouple()->GetIndex();
+    int hepemmcindex = g4tohepmcindex[g4mcindex];
+    // Check consistency with G4HepEm data
+    if (hepEmState->fData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
+        throw std::runtime_error(
+            "Fatal: CheckGeometry: Mismatch between Geant4 mcindex and corresponding G4HepEm index");
+    if (vg_lvol->id() >= nvolumes)
+          throw std::runtime_error("Fatal: CheckGeometry: Volume id larger than number of volumes");
+
+    // Now do the daughters
+    for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+      auto g4pvol_d = g4_lvol->GetDaughter(id);
+      auto pvol_d   = vg_lvol->GetDaughters()[id];
+
+      // VecGeom does not strip pointers from logical volume names
+      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
+        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
+                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
+                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
+      visitGeometry(g4pvol_d, pvol_d);
+    }
+  };
+
+  visitGeometry(g4world, vecgeomWorld);
+}
+
+void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState)
+{
+  const G4VPhysicalVolume *g4world = G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
+  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
+  const int *g4tohepmcindex = hepEmState->fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
+
+  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
+  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
+  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
+    const auto g4_lvol = g4_pvol->GetLogicalVolume();
+    const auto vg_lvol = vg_pvol->GetLogicalVolume();
+    // Fill the MCC index in the array
+    int g4mcindex    = g4_lvol->GetMaterialCutsCouple()->GetIndex();
+    int hepemmcindex = g4tohepmcindex[g4mcindex];
+    volAuxData[vg_lvol->id()].fMCIndex = hepemmcindex;
+
+    // Check if the volume belongs to the interesting region
+    // I am commenting out this 'if' because (for the moment) we don't want any particles leaking out from AdePT
+    // if (g4_lvol->GetRegion() == fRegion)
+    volAuxData[vg_lvol->id()].fGPUregion = 1;
+
+    // Check if the logical volume is sensitive
+    bool sens = false;
+
+    if (g4_lvol->GetSensitiveDetector() != nullptr)
+    {
+      if (volAuxData[vg_lvol->id()].fSensIndex < 0) 
+      {
+        G4cout << "VecGeom: Making " << vg_lvol->GetName() << " sensitive" << G4endl;
+      }
+      volAuxData[vg_lvol->id()].fSensIndex = 1;
+    }
+    // Now do the daughters
+    for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+      auto g4pvol_d = g4_lvol->GetDaughter(id);
+      auto pvol_d   = vg_lvol->GetDaughters()[id];
+
+      // VecGeom does not strip pointers from logical volume names
+      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
+        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
+                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
+                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
+      visitGeometry(g4pvol_d, pvol_d);
+    }
+  };
+
+  visitGeometry(g4world, vecgeomWorld);
+}
+
+void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
+{
+  const G4VPhysicalVolume *g4world = G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
+  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
+
+  // Used to keep track of the current vecgeom history while visiting the tree
+  std::vector<vecgeom::VPlacedVolume const *> aCurrentVecgeomHistory;
+  // Used to keep track of the current geant4 history while visiting the tree
+  std::vector<G4VPhysicalVolume const *> aCurrentGeant4History;
+
+  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
+  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
+  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
+    const auto g4_lvol = g4_pvol->GetLogicalVolume();
+    const auto vg_lvol = vg_pvol->GetLogicalVolume();
+
+    aCurrentVecgeomHistory.push_back(vg_pvol);
+    aCurrentGeant4History.push_back(g4_pvol);
+    
+    // If the volume is sensitive:
+    if(volAuxData[vg_lvol->id()].fSensIndex == 1)
+    {
+      // Initialize mapping of Vecgeom sensitive PlacedVolume IDs to G4 PhysicalVolume IDs
+      // In order to be able to reconstruct navigation histories based on a VecGeom Navigation State Index,
+      // we need to map not only the sensitive volume, but also the ones leading up to here
+      for (uint i = 0; i < aCurrentVecgeomHistory.size() - 1; i++) {
+        fglobal_vecgeom_to_g4_map.insert(
+            std::pair<int, const G4VPhysicalVolume *>(aCurrentVecgeomHistory[i]->id(), aCurrentGeant4History[i]));
+      }
+      bool new_pvol =
+          fglobal_vecgeom_to_g4_map.insert(std::pair<int, const G4VPhysicalVolume *>(vg_pvol->id(), g4_pvol)).second;
+    }
+    // Now do the daughters
+    for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+      auto g4pvol_d = g4_lvol->GetDaughter(id);
+      auto pvol_d   = vg_lvol->GetDaughters()[id];
+
+      // VecGeom does not strip pointers from logical volume names
+      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
+        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
+                                  std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
+                                  std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
+      visitGeometry(g4pvol_d, pvol_d);
+    }
+    aCurrentVecgeomHistory.pop_back();
+    aCurrentGeant4History.pop_back();
+  };
+  visitGeometry(g4world, vecgeomWorld);
+}
+
+void AdePTGeant4Integration::ProcessGPUHits(HostScoring &aScoring, HostScoring::Stats &aStats)
+{
+  // For sequential processing of hits we only need one instance of each object
+  G4NavigationHistory *fPreG4NavigationHistory = new G4NavigationHistory();
+  G4NavigationHistory *fPostG4NavigationHistory = new G4NavigationHistory();
+  G4Step *fG4Step                           = new G4Step();
+  G4TouchableHandle fPreG4TouchableHistoryHandle = new G4TouchableHistory();
+  G4TouchableHandle fPostG4TouchableHistoryHandle = new G4TouchableHistory();
+  fG4Step->SetPreStepPoint(new G4StepPoint());
+  fG4Step->SetPostStepPoint(new G4StepPoint());
+  fG4Step->SetTrack(new G4Track());
+
+  // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
+  for (size_t i = aStats.fBufferStart; i < aStats.fBufferStart + aStats.fUsedSlots; i++) {
+    // Get Hit index (Circular buffer)
+    int aHitIdx = i % aScoring.fBufferCapacity;
+
+    int aNavindex = aScoring.fGPUHitsBuffer_host[aHitIdx].fPreStepPoint.fNavigationStateIndex;
+    // Reconstruct Pre-Step point G4NavigationHistory
+    FillG4NavigationHistory(aNavindex, fPreG4NavigationHistory);
+    ((G4TouchableHistory *)fPreG4TouchableHistoryHandle())
+        ->UpdateYourself(fPreG4NavigationHistory->GetTopVolume(), fPreG4NavigationHistory);
+    // Reconstruct Post-Step point G4NavigationHistory
+    FillG4NavigationHistory(aNavindex, fPostG4NavigationHistory);
+    ((G4TouchableHistory *)fPostG4TouchableHistoryHandle())
+        ->UpdateYourself(fPostG4NavigationHistory->GetTopVolume(), fPostG4NavigationHistory);
+
+    // Reconstruct G4Step
+    FillG4Step(&(aScoring.fGPUHitsBuffer_host[aHitIdx]), fG4Step, fPreG4TouchableHistoryHandle, fPostG4TouchableHistoryHandle);
+
+    // Call SD code
+    G4VSensitiveDetector *aSensitiveDetector =
+            fPreG4NavigationHistory->GetVolume(fPreG4NavigationHistory->GetDepth())
+            ->GetLogicalVolume()
+            ->GetSensitiveDetector();
+
+    // Double check, a nullptr here can indicate an issue reconstructing the navigation history
+    assert(aSensitiveDetector != nullptr);
+
+    aSensitiveDetector->Hit(fG4Step);
+    //aSensitiveDetector->ProcessHits(fG4Step, (G4TouchableHistory *)fPreG4TouchableHistoryHandle());
+  }
+
+  delete fPreG4NavigationHistory;
+  delete fPostG4NavigationHistory;
+  delete fG4Step;
+}
+
+void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4NavigationHistory *aG4NavigationHistory)
+{
+  // Get the current depth of the history (corresponding to the previous reconstructed touchable)
+  auto aG4HistoryDepth = aG4NavigationHistory->GetDepth();
+  // Get the depth of the navigation state we want to reconstruct
+  vecgeom::NavigationState vgState(aNavIndex);
+  auto aVecGeomLevel = vgState.GetLevel();
+
+  unsigned int aLevel{0};
+  G4VPhysicalVolume *pvol{nullptr}, *pnewvol{nullptr};
+
+  for (aLevel = 0; aLevel <= aVecGeomLevel; aLevel++) {
+    // While we are in levels shallower than the history depth, it may be that we already
+    // have the correct volume in the history
+    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[vgState.At(aLevel)->id()]);
+
+    if (aLevel < aG4HistoryDepth) {
+      // In G4NavigationHistory, the initial volume has the index 1
+      pvol = aG4NavigationHistory->GetVolume(aLevel + 1);
+
+      // If they match we do not need to update the history at this level
+      if (pvol == pnewvol) continue;
+      // Once we find two non-matching volumes, we need to update the touchable history from this level on
+      if (aLevel) {
+        // If we are not in the top level
+        aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel);
+        // Update the current level
+        aG4NavigationHistory->NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
+      } else {
+        // Update the top level
+        aG4NavigationHistory->BackLevel(aG4HistoryDepth);
+        aG4NavigationHistory->SetFirstEntry(pnewvol);
+      }
+      // Now we are overwriting the history, so set the depth to the current depth
+      aG4HistoryDepth = aLevel;
+    } else {
+      // If the navigation state is deeper than the current history we need to add the new levels
+      aG4NavigationHistory->NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
+      aG4HistoryDepth++;
+    }
+  }
+  // Once finished, remove the extra levels if the current state is shallower than the previous history
+  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel);
+}
+
+void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, 
+                                  G4Step *aG4Step, 
+                                  G4TouchableHandle &aPreG4TouchableHandle,
+                                  G4TouchableHandle &aPostG4TouchableHandle)
+{
+  // G4Step
+  aG4Step->SetStepLength(aGPUHit->fStepLength);                    // Real data
+  aG4Step->SetTotalEnergyDeposit(aGPUHit->fTotalEnergyDeposit);    // Real data
+  // aG4Step->SetNonIonizingEnergyDeposit(0);                      // Missing data
+  // aG4Step->SetControlFlag(G4SteppingControl::NormalCondition);  // Missing data
+  // aG4Step->SetFirstStepFlag();                                  // Missing data
+  // aG4Step->SetLastStepFlag();                                   // Missing data
+  // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
+  // aG4Step->SetSecondary(nullptr);                               // Missing data
+
+  // G4Track
+  G4Track *aTrack = aG4Step->GetTrack();
+  // aTrack->SetTrackID(0);                                                                   // Missing data
+  // aTrack->SetParentID(0);                                                                  // Missing data
+  aTrack->SetPosition(G4ThreeVector(aGPUHit->fPostStepPoint.fPosition));                      // Real data
+  // aTrack->SetGlobalTime(0);                                                                // Missing data
+  // aTrack->SetLocalTime(0);                                                                 // Missing data
+  // aTrack->SetProperTime(0);                                                                // Missing data
+  // aTrack->SetTouchableHandle(aTrackTouchableHistory);                                      // Missing data
+  // aTrack->SetNextTouchableHandle(nullptr);                                                 // Missing data
+  // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
+  // aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);                                 // Real data
+  aTrack->SetMomentumDirection(G4ThreeVector(aGPUHit->fPostStepPoint.fMomentumDirection));    // Real data
+  // aTrack->SetVelocity(0);                                                                  // Missing data
+  aTrack->SetPolarization(G4ThreeVector(aGPUHit->fPostStepPoint.fPolarization));              // Real data
+  // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
+  // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
+  // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
+  aTrack->SetStep(aG4Step);                                                                   // Real data
+  aTrack->SetStepLength(aGPUHit->fStepLength);                                                // Real data
+  // aTrack->SetVertexPosition(G4ThreeVector(0, 0, 0));                                       // Missing data
+  // aTrack->SetVertexMomentumDirection(G4ThreeVector(0, 0, 0));                              // Missing data
+  // aTrack->SetVertexKineticEnergy(0);                                                       // Missing data
+  // aTrack->SetLogicalVolumeAtVertex(nullptr);                                               // Missing data
+  // aTrack->SetCreatorProcess(nullptr);                                                      // Missing data
+  // aTrack->SetCreatorModelID(0);                                                            // Missing data
+  // aTrack->SetParentResonanceDef(nullptr);                                                  // Missing data
+  // aTrack->SetParentResonanceID(0);                                                         // Missing data
+  // aTrack->SetWeight(0);                                                                    // Missing data
+  // aTrack->SetUserInformation(nullptr);                                                     // Missing data
+  // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
+
+  // Pre-Step Point
+  G4StepPoint *aPreStepPoint = aG4Step->GetPreStepPoint();
+  aPreStepPoint->SetPosition(G4ThreeVector(aGPUHit->fPreStepPoint.fPosition));                      // Real data
+  // aPreStepPoint->SetLocalTime(0);                                                                // Missing data
+  // aPreStepPoint->SetGlobalTime(0);                                                               // Missing data
+  // aPreStepPoint->SetProperTime(0);                                                               // Missing data
+  aPreStepPoint->SetMomentumDirection(G4ThreeVector(aGPUHit->fPreStepPoint.fMomentumDirection));    // Real data
+  aPreStepPoint->SetKineticEnergy(aGPUHit->fPreStepPoint.fEKin);                                    // Real data
+  // aPreStepPoint->SetVelocity(0);                                                                 // Missing data
+  // aPreStepPoint->SetMaterial(nullptr);                                                           // Missing data
+  aPreStepPoint->SetTouchableHandle(aPreG4TouchableHandle);                                         // Real data
+  // aPreStepPoint->SetMaterialCutsCouple(nullptr);                                                 // Missing data
+  // aPreStepPoint->SetSensitiveDetector(nullptr);                                                  // Missing data
+  // aPreStepPoint->SetSafety(0);                                                                   // Missing data
+  aPreStepPoint->SetPolarization(G4ThreeVector(aGPUHit->fPreStepPoint.fPolarization));              // Real data
+  // aPreStepPoint->SetStepStatus(G4StepStatus::fUndefined);                                        // Missing data
+  // aPreStepPoint->SetProcessDefinedStep(nullptr);                                                 // Missing data
+  // aPreStepPoint->SetMass(0);                                                                     // Missing data
+  aPreStepPoint->SetCharge(aGPUHit->fPreStepPoint.fCharge);                                         // Real data
+  // aPreStepPoint->SetMagneticMoment(0);                                                           // Missing data
+  // aPreStepPoint->SetWeight(0);                                                                   // Missing data
+
+  // Post-Step Point
+  G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
+  aPostStepPoint->SetPosition(G4ThreeVector(aGPUHit->fPostStepPoint.fPosition));                      // Real data
+  // aPostStepPoint->SetLocalTime(0);                                                                 // Missing data
+  // aPostStepPoint->SetGlobalTime(0);                                                                // Missing data
+  // aPostStepPoint->SetProperTime(0);                                                                // Missing data
+  aPostStepPoint->SetMomentumDirection(G4ThreeVector(aGPUHit->fPostStepPoint.fMomentumDirection));    // Real data
+  aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);                                    // Real data
+  // aPostStepPoint->SetVelocity(0);                                                                  // Missing data
+  aPostStepPoint->SetTouchableHandle(aPostG4TouchableHandle);                                         // Real data
+  // aPostStepPoint->SetMaterial(nullptr);                                                            // Missing data
+  // aPostStepPoint->SetMaterialCutsCouple(nullptr);                                                  // Missing data
+  // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
+  // aPostStepPoint->SetSafety(0);                                                                    // Missing data
+  aPostStepPoint->SetPolarization(G4ThreeVector(aGPUHit->fPostStepPoint.fPolarization));              // Real data
+  // aPostStepPoint->SetStepStatus(G4StepStatus::fUndefined);                                         // Missing data
+  // aPostStepPoint->SetProcessDefinedStep(nullptr);                                                  // Missing data
+  // aPostStepPoint->SetMass(0);                                                                      // Missing data
+  aPostStepPoint->SetCharge(aGPUHit->fPostStepPoint.fCharge);                                         // Real data
+  // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data
+  // aPostStepPoint->SetWeight(0);                                                                    // Missing data
+}
