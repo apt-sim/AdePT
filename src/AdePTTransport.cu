@@ -18,7 +18,6 @@
 #include <CopCore/PhysicalConstants.h>
 #include <CopCore/Ranluxpp.h>
 
-#include <G4Threading.hh>
 #include <G4TransportationManager.hh>
 #include <G4UniformMagField.hh>
 #include <G4FieldManager.hh>
@@ -67,7 +66,7 @@ static G4HepEmState *InitG4HepEm()
   InitG4HepEmState(state);
 
   G4HepEmMatCutData *cutData = state->fData->fTheMatCutData;
-  G4cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData << G4endl;
+  std::cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData << std::endl;
 
   // Copy to GPU.
   CopyG4HepEmDataToGPU(state->fData);
@@ -318,8 +317,8 @@ void AdePTTransport::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
                                      buffer.toDevice.size() * sizeof(adeptint::TrackData), cudaMemcpyHostToDevice,
                                      gpuState.stream));
   if (fDebugLevel > 0) {
-    G4cout << std::dec << G4endl << "GPU transporting event " << event << " for CPU thread "
-           << G4Threading::G4GetThreadId() << ": " << std::flush;
+    std::cout << std::dec << std::endl << "GPU transporting event " << event << " for CPU thread "
+           << fIntegrationLayer.GetThreadID() << ": " << std::flush;
   }
 
   // Initialize AdePT tracks using the track buffer copied from CPU
@@ -460,7 +459,7 @@ void AdePTTransport::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
   } while (inFlight > 0 && loopingNo < 200);
 
   if (fDebugLevel > 0) {
-    G4cout << inFlight << " in flight, " << numLeaked << " leaked, " << num_compact << " compacted\n";
+    std::cout << inFlight << " in flight, " << numLeaked << " leaked, " << num_compact << " compacted\n";
   }
 
   // Transfer the leaked tracks from GPU

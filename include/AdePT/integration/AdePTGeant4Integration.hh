@@ -21,6 +21,8 @@
 #include <G4VPhysicalVolume.hh>
 #include <G4NavigationHistory.hh>
 #include <G4Step.hh>
+#include <G4EventManager.hh>
+#include <G4Event.hh>
 
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/volumes/LogicalVolume.h>
@@ -40,7 +42,7 @@ class AdePTGeant4Integration {
         static void CheckGeometry(G4HepEmState *hepEmState);
 
         /// @brief Fills the auxiliary data needed for AdePT
-        void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState);
+        static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState);
 
         /// @brief Initializes the mapping of VecGeom to G4 volumes for sensitive volumes and their parents
         void InitScoringData(adeptint::VolAuxData *volAuxData);
@@ -55,8 +57,12 @@ class AdePTGeant4Integration {
                                   G4TouchableHandle &aPreG4TouchableHandle,
                                   G4TouchableHandle &aPostG4TouchableHandle);
 
-        // Get G4 Event ID
-        // Get G4 Thread ID
+        /// @brief Takes a buffer of tracks coming from the device and gives them back to Geant4
+        void ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel);
+
+        int GetEventID() { return G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(); }
+
+        int GetThreadID() { return G4Threading::G4GetThreadId(); }
 
     private:
         std::unordered_map<size_t, const G4VPhysicalVolume *>

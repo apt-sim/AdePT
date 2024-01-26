@@ -123,7 +123,7 @@ void PhysListAdePT::ConstructProcess()
   bool sequential             = (rmType == G4RunManager::sequentialRM);
 
   //adept->SetSensitiveVolumes(&(caloSD->fSensitiveLogicalVolumes));
-  adept->SetRegion(nullptr);
+  adept->SetGPURegionName(fAdePTConfiguration->GetGPURegionName());
 
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {

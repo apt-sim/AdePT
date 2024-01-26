@@ -1,6 +1,5 @@
 #include <string>
 #include <vector>
-#include "G4ParticleDefinition.hh"
 #include "AdePTConfigurationMessenger.hh"
 
 class AdePTConfiguration {

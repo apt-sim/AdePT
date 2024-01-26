@@ -108,6 +108,9 @@ void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
 
 void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState)
 {
+  // In order to run only in some regions this function needs to receive the GPU region name and get the 
+  // corresponding G4Region
+
   const G4VPhysicalVolume *g4world = G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
   const int *g4tohepmcindex = hepEmState->fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
@@ -388,4 +391,34 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
   aPostStepPoint->SetCharge(aGPUHit->fPostStepPoint.fCharge);                                         // Real data
   // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data
   // aPostStepPoint->SetWeight(0);                                                                    // Missing data
+}
+
+void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel)
+{
+  constexpr double tolerance = 10. * vecgeom::kTolerance;
+  int tid = GetThreadID();
+
+  // Build the secondaries and put them back on the Geant4 stack
+  int i = 0;
+  for (auto const &track : *tracksFromDevice) {
+    if (debugLevel > 1) {
+      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " energy " << track.energy
+             << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
+             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << std::endl;
+    }
+    G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
+
+    G4DynamicParticle *dynamique =
+        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.energy);
+
+    G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
+    // The returned track will be located by Geant4. For now we need to
+    // push it to make sure it is not relocated again in the GPU region
+    posi += tolerance * direction;
+
+    G4Track *secondary = new G4Track(dynamique, 0, posi);
+    secondary->SetParentID(-99);
+
+    G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
+  }
 }

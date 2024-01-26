@@ -84,7 +84,7 @@ public:
   /// @brief Set debug level for transport
   void SetDebugLevel(int level) { fDebugLevel = level; }
   /// @brief Set Geant4 region to which it applies
-  void SetRegion(G4Region *region) { fRegion = region; }
+  void SetGPURegionName(std::string regionName) { fGPURegionName = regionName; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize(bool common_data = false);
@@ -106,16 +106,9 @@ private:
   AdeptScoring *fScoring_dev{nullptr}; ///< Device ptr for scoring data
   static G4HepEmState *fg4hepem_state; ///< The HepEm state singleton
   TrackBuffer fBuffer;                 ///< Vector of buffers of tracks to/from device (per thread)
-  G4Region *fRegion{nullptr};          ///< Region to which applies
+  std::string fGPURegionName{nullptr};   ///< Region to which applies
   IntegrationLayer fIntegrationLayer;  ///< Provides functionality needed for integration with the simulation toolkit
 
-  // std::vector<G4LogicalVolume*> *fSensitiveLogicalVolumes;        ///< List of sensitive volumes
-  //  Maybe unneeded
-  // static std::unordered_map<size_t, size_t> fglobal_volume_to_hit_map; ///< Maps Vecgeom PV IDs to Hits
-  // static std::unordered_map<size_t, const G4VPhysicalVolume *>
-  //     fglobal_vecgeom_to_g4_map;  ///< Maps Vecgeom PV IDs to G4 PV IDs
-  //static int fGlobalNumSensitive; ///< Total number of sensitive volumes
-  
   /// @brief Used to map VecGeom to Geant4 volumes for scoring
   void InitializeSensitiveVolumeMapping(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world);
   void InitBVH();

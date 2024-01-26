@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/AdePTTransport.h>
+#include <AdePT/base/TestManager.h>
+#include <AdePT/base/TestManagerStore.h>
 
 #include <VecGeom/management/BVHManager.h>
 #include "VecGeom/management/GeoManager.h"
@@ -9,18 +11,11 @@
 
 #include "CopCore/SystemOfUnits.h"
 
-#include <G4Threading.hh>
-#include <G4EventManager.hh>
-#include <G4Event.hh>
-
 #include <G4HepEmData.hh>
 #include <G4HepEmState.hh>
 #include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
-
-#include <AdePT/base/TestManager.h>
-#include <AdePT/base/TestManagerStore.h>
 
 AdePTTransport::AdePTTransport()
 {
@@ -44,8 +39,8 @@ void AdePTTransport::AddTrack(int pdg, double energy, double x, double y, double
 
   if (fBuffer.toDevice.size() >= fBufferThreshold) {
     if (fDebugLevel > 0)
-      G4cout << "Reached the threshold of " << fBufferThreshold << " triggering the shower" << G4endl;
-    this->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+      std::cout << "Reached the threshold of " << fBufferThreshold << " triggering the shower" << std::endl;
+    this->Shower(fIntegrationLayer.GetEventID());
   }
 }
 
@@ -59,7 +54,7 @@ void AdePTTransport::Initialize(bool common_data)
   if (fNumVolumes == 0) throw std::runtime_error("AdePTTransport::Initialize: Number of geometry volumes is zero.");
 
   if (common_data) {
-    G4cout << "=== AdePTTransport: initializing geometry and physics\n";
+    std::cout << "=== AdePTTransport: initializing geometry and physics\n";
     // Initialize geometry on device
     if (!vecgeom::GeoManager::Instance().IsClosed())
       throw std::runtime_error("AdePTTransport::Initialize: VecGeom geometry not closed.");
@@ -82,29 +77,23 @@ void AdePTTransport::Initialize(bool common_data)
     VolAuxData *auxData = new VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
     fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state);
 
-    // VolAuxData *auxData = new VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();];
-    // AdePTGeant4Integration::InitVolAuxData(fg4hepem_state, auxData);
-
     // Initialize volume auxiliary data on device
     VolAuxArray::GetInstance().fNumVolumes = fNumVolumes;
     VolAuxArray::GetInstance().fAuxData    = auxData;
     VolAuxArray::GetInstance().InitializeOnGPU();
 
     // Print some settings
-    G4cout << "=== AdePTTransport: buffering " << fBufferThreshold << " particles for transport on the GPU" << G4endl;
-    G4cout << "=== AdePTTransport: maximum number of GPU track slots per thread: " << kCapacity << G4endl;
+    std::cout << "=== AdePTTransport: buffering " << fBufferThreshold << " particles for transport on the GPU" << std::endl;
+    std::cout << "=== AdePTTransport: maximum number of GPU track slots per thread: " << kCapacity << std::endl;
     return;
   }
 
   fIntegrationLayer.InitScoringData(VolAuxArray::GetInstance().fAuxData);
-  //fIntegrationLayer.Initialize(fg4hepem_state);
 
-  G4cout << "=== AdePTTransport: initializing transport engine for thread: " << G4Threading::G4GetThreadId()
-         << G4endl;
+  std::cout << "=== AdePTTransport: initializing transport engine for thread: " << fIntegrationLayer.GetThreadID()
+         << std::endl;
 
   // Initialize user scoring data
-  // fScoring     = new AdeptScoring(fGlobalNumSensitive, &fglobal_volume_to_hit_map,
-  // vecgeom::GeoManager::Instance().GetPlacedVolumesCount());
   fScoring     = new AdeptScoring(kHitBufferCapacity);
   fScoring_dev = fScoring->InitializeOnGPU();
 
@@ -113,6 +102,7 @@ void AdePTTransport::Initialize(bool common_data)
 
   fInit = true;
 }
+
 void AdePTTransport::InitBVH()
 {
   vecgeom::cxx::BVHManager::Init();
@@ -129,11 +119,9 @@ void AdePTTransport::Cleanup()
 
 void AdePTTransport::Shower(int event)
 {
-  constexpr double tolerance = 10. * vecgeom::kTolerance;
-
-  int tid = G4Threading::G4GetThreadId();
+  int tid = fIntegrationLayer.GetThreadID();
   if (fDebugLevel > 0 && fBuffer.toDevice.size() == 0) {
-    G4cout << "[" << tid << "] AdePTTransport::Shower: No more particles in buffer. Exiting.\n";
+    std::cout << "[" << tid << "] AdePTTransport::Shower: No more particles in buffer. Exiting.\n";
     return;
   }
 
@@ -147,20 +135,19 @@ void AdePTTransport::Shower(int event)
   int itr   = 0;
   int nelec = 0, nposi = 0, ngamma = 0;
   if (fDebugLevel > 0) {
-    G4cout << "[" << tid << "] toDevice: " << fBuffer.nelectrons << " elec, " << fBuffer.npositrons << " posi, "
+    std::cout << "[" << tid << "] toDevice: " << fBuffer.nelectrons << " elec, " << fBuffer.npositrons << " posi, "
            << fBuffer.ngammas << " gamma\n";
   }
   if (fDebugLevel > 1) {
     for (auto &track : fBuffer.toDevice) {
-      G4cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " energy " << track.energy
+      std::cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " energy " << track.energy
              << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << G4endl;
+             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << std::endl;
     }
   }
 
   AdePTTransport::ShowerGPU(event, fBuffer);
 
-  // if (fDebugLevel > 1) fScoring->Print();
   for (auto const &track : fBuffer.fromDevice) {
     if (track.pdg == 11)
       nelec++;
@@ -170,32 +157,10 @@ void AdePTTransport::Shower(int event)
       ngamma++;
   }
   if (fDebugLevel > 0) {
-    G4cout << "[" << tid << "] fromDevice: " << nelec << " elec, " << nposi << " posi, " << ngamma << " gamma\n";
+    std::cout << "[" << tid << "] fromDevice: " << nelec << " elec, " << nposi << " posi, " << ngamma << " gamma\n";
   }
 
-  // Build the secondaries and put them back on the Geant4 stack
-  int i = 0;
-  for (auto const &track : fBuffer.fromDevice) {
-    if (fDebugLevel > 1) {
-      G4cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " energy " << track.energy
-             << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << G4endl;
-    }
-    G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
-
-    G4DynamicParticle *dynamique =
-        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.energy);
-
-    G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
-    // The returned track will be located by Geant4. For now we need to
-    // push it to make sure it is not relocated again in the GPU region
-    posi += tolerance * direction;
-
-    G4Track *secondary = new G4Track(dynamique, 0, posi);
-    secondary->SetParentID(-99);
-
-    G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
-  }
+  fIntegrationLayer.ReturnTracks(&(fBuffer.fromDevice), fDebugLevel);
 
   fBuffer.Clear();
 
