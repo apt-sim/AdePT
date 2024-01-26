@@ -159,20 +159,21 @@ set(ADEPT_CUDA_SRCS
 
 # Builds...
 # Target for use of AdePT
-add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
-target_include_directories(AdePT_G4_integration PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
-target_link_libraries(AdePT_G4_integration PUBLIC 
-                      CopCore::CopCore
-                      VecGeom::vecgeom
-                      VecGeom::vgdml
-                      ${Geant4_LIBRARIES}
-                      G4HepEm::g4HepEm
-                      G4HepEm::g4HepEmData)
+#add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+#target_include_directories(AdePT_G4_integration PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+#target_link_libraries(AdePT_G4_integration PUBLIC 
+#                      CopCore::CopCore
+#                      VecGeom::vecgeom
+#                      VecGeom::vgdml
+#                      ${Geant4_LIBRARIES}
+#                      G4HepEm::g4HepEm
+#                      G4HepEm::g4HepEmData)
 
-add_library(AdePT SHARED ${ADEPT_SRCS})
+add_library(AdePT SHARED ${ADEPT_SRCS} ${ADEPT_G4_INTEGRATION_SRCS})
 target_include_directories(AdePT PUBLIC
                             $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
 target_link_libraries(AdePT PUBLIC 
+                      #AdePT_G4_integration
                       CopCore::CopCore
                       VecGeom::vecgeom
                       VecGeom::vgdml
