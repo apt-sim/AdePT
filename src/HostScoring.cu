@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/HostScoring.h>
+#include <AdePT/core/HostScoring.h>
 #include "CopCore/Global.h"
 
 namespace device_utils_hostscoring {

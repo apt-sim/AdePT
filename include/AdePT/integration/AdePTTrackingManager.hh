@@ -6,7 +6,7 @@
 
 #include "G4VTrackingManager.hh"
 #include "globals.hh"
-#include <AdePT/integration/AdePTTransport.h>
+#include <AdePT/core/AdePTTransport.h>
 #include "CopCore/SystemOfUnits.h"
 
 #include <vector>

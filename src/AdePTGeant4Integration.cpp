@@ -10,6 +10,8 @@
 #include <G4TransportationManager.hh>
 #include <G4MaterialCutsCouple.hh>
 #include <G4VSensitiveDetector.hh>
+#include <G4UniformMagField.hh>
+#include <G4FieldManager.hh>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
@@ -421,4 +423,14 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }
+}
+
+double AdePTGeant4Integration::GetUniformFieldZ()
+{
+  G4UniformMagField *field =
+      (G4UniformMagField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
+  if (field)
+    return field->GetConstantFieldValue()[2];
+  else
+    return 0;
 }

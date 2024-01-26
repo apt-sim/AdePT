@@ -13,8 +13,8 @@
 
 #include <G4HepEmState.hh>
 
-#include <AdePT/integration/CommonStruct.h>
-#include <AdePT/integration/HostScoring.h>
+#include <AdePT/core/CommonStruct.h>
+#include <AdePT/core/HostScoring.h>
 
 #include <G4VPhysicalVolume.hh>
 #include <G4LogicalVolume.hh>
@@ -47,8 +47,21 @@ class AdePTGeant4Integration {
         /// @brief Initializes the mapping of VecGeom to G4 volumes for sensitive volumes and their parents
         void InitScoringData(adeptint::VolAuxData *volAuxData);
 
+        /// @brief Reconstructs GPU hits on host and calls the user-defined sensitive detector code
         void ProcessGPUHits(HostScoring &aScoring, HostScoring::Stats &aStats);
 
+        /// @brief Takes a buffer of tracks coming from the device and gives them back to Geant4
+        void ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel);
+
+        /// @brief Returns the Z value of the user-defined uniform magnetic field
+        /// @details This function can only be called when the user-defined field is a G4UniformMagField
+        double GetUniformFieldZ();
+
+        int GetEventID() { return G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(); }
+
+        int GetThreadID() { return G4Threading::G4GetThreadId(); }
+
+    private:
         /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
         void FillG4NavigationHistory(unsigned int aNavIndex, G4NavigationHistory *aG4NavigationHistory);
 
@@ -57,14 +70,6 @@ class AdePTGeant4Integration {
                                   G4TouchableHandle &aPreG4TouchableHandle,
                                   G4TouchableHandle &aPostG4TouchableHandle);
 
-        /// @brief Takes a buffer of tracks coming from the device and gives them back to Geant4
-        void ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel);
-
-        int GetEventID() { return G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(); }
-
-        int GetThreadID() { return G4Threading::G4GetThreadId(); }
-
-    private:
         std::unordered_map<size_t, const G4VPhysicalVolume *>
             fglobal_vecgeom_to_g4_map;  ///< Maps Vecgeom PV IDs to G4 PV IDs
 };

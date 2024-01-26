@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdePTTransport.h>
-#include <AdePT/integration/AdePTTransport.cuh>
+#include <AdePT/core/AdePTTransport.h>
+#include <AdePT/core/AdePTTransport.cuh>
 #include <AdePT/base/Atomic.h>
 #include <AdePT/base/BVHNavigator.h>
 #include <AdePT/base/MParray.h>
@@ -17,10 +17,6 @@
 #include <CopCore/Global.h>
 #include <CopCore/PhysicalConstants.h>
 #include <CopCore/Ranluxpp.h>
-
-#include <G4TransportationManager.hh>
-#include <G4UniformMagField.hh>
-#include <G4FieldManager.hh>
 
 #include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
@@ -212,13 +208,7 @@ bool AdePTTransport::InitializePhysics()
   // Initialize shared physics data
   AdePTTransport::fg4hepem_state = InitG4HepEm();
   // Initialize field
-  double bz = 0;
-  auto field =
-      (G4UniformMagField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
-  if (field) {
-    auto field_vect = field->GetConstantFieldValue();
-    bz              = field_vect[2];
-  }
+  double bz = fIntegrationLayer.GetUniformFieldZ();
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(BzFieldValue, &bz, sizeof(double)));
 
   return true;

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdePTTransport.cuh>
+#include <AdePT/core/AdePTTransport.cuh>
 #include <AdePT/base/BVHNavigator.h>
 
 #include <CopCore/PhysicalConstants.h>

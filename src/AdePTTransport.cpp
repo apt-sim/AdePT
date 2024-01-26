@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdePTTransport.h>
+#include <AdePT/core/AdePTTransport.h>
 #include <AdePT/base/TestManager.h>
 #include <AdePT/base/TestManagerStore.h>
 

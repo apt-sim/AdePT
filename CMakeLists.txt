@@ -143,14 +143,15 @@ if(BUILD_TESTING)
     EXPECTED_HASH SHA256=a6538d8f196fbfe4c14e806df3439d5a0d7050d538d364faabe882c750970e63)
 endif()
 
-set(ADEPT_SRCS
-  src/AdePTTransport.cpp
-  src/AdePTConfigurationMessenger.cc
+set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
   src/PhysListAdePT.cc
   src/PhysListHepEm.cc
-  src/AdePTGeant4Integration.cpp
-)
+  src/AdePTGeant4Integration.cpp)
+
+set(ADEPT_SRCS
+  src/AdePTTransport.cpp
+  src/AdePTConfigurationMessenger.cc)
 
 set(ADEPT_CUDA_SRCS
   src/AdePTTransport.cu
@@ -158,10 +159,9 @@ set(ADEPT_CUDA_SRCS
 
 # Builds...
 # Target for use of AdePT
-add_library(AdePT SHARED ${ADEPT_SRCS})
-target_include_directories(AdePT PUBLIC
-                            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
-target_link_libraries(AdePT PUBLIC 
+add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+target_include_directories(AdePT_G4_integration PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+target_link_libraries(AdePT_G4_integration PUBLIC 
                       CopCore::CopCore
                       VecGeom::vecgeom
                       VecGeom::vgdml
@@ -169,11 +169,20 @@ target_link_libraries(AdePT PUBLIC
                       G4HepEm::g4HepEm
                       G4HepEm::g4HepEmData)
 
+add_library(AdePT SHARED ${ADEPT_SRCS})
+target_include_directories(AdePT PUBLIC
+                            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+target_link_libraries(AdePT PUBLIC 
+                      CopCore::CopCore
+                      VecGeom::vecgeom
+                      VecGeom::vgdml
+                      G4HepEm::g4HepEm
+                      G4HepEm::g4HepEmData)
+
 add_library(AdePT_cuda SHARED ${ADEPT_CUDA_SRCS})
 target_include_directories(AdePT_cuda PUBLIC 
                             $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
 target_link_libraries(AdePT_cuda PUBLIC
-                      ${Geant4_LIBRARIES}
                       CopCore::CopCore
                       VecGeom::vecgeomcuda_static
                       G4HepEm::g4HepEmInit
