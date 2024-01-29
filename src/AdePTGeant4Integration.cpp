@@ -16,15 +16,15 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
 
-void AdePTGeant4Integration::CreateVecGeomWorld()
+void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
 {
   // Import the gdml file into VecGeom
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
   vgdml::Parser vgdmlParser;
   //auto middleWare = vgdmlParser.Load(fGDML_file.c_str(), false, copcore::units::mm);
-  auto middleWare = vgdmlParser.Load("cms2018_sd.gdml", false, mm);
+  auto middleWare = vgdmlParser.Load(filename, false, mm);
   if (middleWare == nullptr) {
-    std::cerr << "Failed to read geometry from GDML file '" << "cms2018_sd.gdml" << "'" << G4endl;
+    std::cerr << "Failed to read geometry from GDML file '" << filename << "'" << G4endl;
     return;
   }
 

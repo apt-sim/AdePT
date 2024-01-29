@@ -36,7 +36,7 @@ class AdePTGeant4Integration {
         /// @brief Initializes VecGeom geometry
         /// @details Currently VecGeom geometry is initialized by loading it from a GDML file, 
         /// however ideally this function will call the G4 to VecGeom geometry converter
-        static void CreateVecGeomWorld();
+        static void CreateVecGeomWorld( /*Temporary parameter*/ std::string filename);
 
         /// @brief This function compares G4 and VecGeom geometries and reports any differences
         static void CheckGeometry(G4HepEmState *hepEmState);

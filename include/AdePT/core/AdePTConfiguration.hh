@@ -15,6 +15,9 @@ public:
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
 
+  // We temporarily load VecGeom geometry from GDML
+  void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
+
   std::string GetGPURegionName() { return fGPURegionName; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetVerbosity() { return fVerbosity; };
@@ -22,6 +25,9 @@ public:
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
+
+  // Temporary
+  std::string GetVecGeomGDML(){ return fVecGeomGDML; }
 
 private:
   int fRandomSeed;
@@ -32,6 +38,8 @@ private:
   double fMillionsOfTrackSlots{1};
   double fMillionsOfHitSlots{1};
   float fHitBufferFlushThreshold{0.8};
+
+  std::string fVecGeomGDML{""};
 
   AdePTConfigurationMessenger *fAdePTConfigurationMessenger;
 };

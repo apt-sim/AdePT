@@ -122,13 +122,11 @@ void PhysListAdePT::ConstructProcess()
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
 
-  //adept->SetSensitiveVolumes(&(caloSD->fSensitiveLogicalVolumes));
   adept->SetGPURegionName(fAdePTConfiguration->GetGPURegionName());
 
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
-    //adept->CreateVecGeomWorld();
-    AdePTGeant4Integration::CreateVecGeomWorld();
+    AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
     // This is supposed to set the max batching for Adept to allocate properly the memory
     int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
     int track_capacity    = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;

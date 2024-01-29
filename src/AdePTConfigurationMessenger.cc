@@ -48,6 +48,9 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetHitBufferFlushThresholdCmd->SetGuidance("Set the usage threshold at which the buffer of hits is copied back to the host from GPU");
   fSetHitBufferFlushThresholdCmd->SetParameterName("HitBufferThreshold", false);
   fSetHitBufferFlushThresholdCmd->SetRange("HitBufferThreshold>=0.&&HitBufferThreshold<=1.");
+
+  fSetGDMLCmd = new G4UIcmdWithAString("/adept/setVecGeomGDML", this);
+  fSetGDMLCmd->SetGuidance("Temporary method for setting the geometry to use with VecGeom");
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -102,7 +105,10 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
   {
     fAdePTConfiguration->SetHitBufferFlushThreshold(fSetHitBufferFlushThresholdCmd->GetNewDoubleValue(newValue));
   }
-
+  else if(command == fSetGDMLCmd)
+  {
+    fAdePTConfiguration->SetVecGeomGDML(newValue);
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

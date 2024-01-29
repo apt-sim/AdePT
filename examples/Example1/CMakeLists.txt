@@ -66,19 +66,8 @@ target_link_libraries(example1
     ${HEPMC3_LIBRARIES} 
     ${HEPMC3_FIO_LIBRARIES})
 
-#set_target_properties(example1 PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-
 # Install macros and geometry file
 
-#set(TESTEM3_GDML ${CMAKE_BINARY_DIR}/testEm3.gdml)
-#set(LHCB_GDML ${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml)
-#configure_file("../data/cms2018_sd.gdml" "${CMAKE_BINARY_DIR}/cms2018_sd.gdml")
-#configure_file("../data/testEm3.gdml" "${CMAKE_BINARY_DIR}/testEm3.gdml")
-#configure_file("macros/testEm3.mac.in" "${CMAKE_BINARY_DIR}/testEm3_e23.mac")
-#configure_file("macros/example1.mac.in" "${CMAKE_BINARY_DIR}/example1.mac")
-#configure_file("macros/example1_ttbar.mac.in" "${CMAKE_BINARY_DIR}/example1_ttbar.mac")
-#configure_file("../data/LHCb_Upgrade_fullLHCb.gdml" "${CMAKE_BINARY_DIR}/LHCb_Upgrade_fullLHCb.gdml")
-#configure_file("macros/lhcb.mac.in" "${CMAKE_BINARY_DIR}/lhcb_e17.mac")
-#configure_file("macros/lhcb_validation.mac.in" "${CMAKE_BINARY_DIR}/lhcb_validation.mac")
+configure_file("macros/example1.mac.in" "${CMAKE_BINARY_DIR}/example1.mac")
 
 # Tests
