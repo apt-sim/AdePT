@@ -9,7 +9,7 @@
 #ifndef TEST_AGGREGATOR_H
 #define TEST_AGGREGATOR_H
 
-#if defined TEST
+//#if defined TEST
 
 #include <mutex>
 #include <vector>
@@ -83,6 +83,6 @@ public:
   void Reset() {}
 };
 
-#endif
+//#endif
 
 #endif

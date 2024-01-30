@@ -35,7 +35,6 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
   }
 
 /*
-#if defined TEST
   if (fDoBenchmark) {
     // Check if we moved to a new volume
     if (theStep->IsLastStepInVolume()) {
@@ -82,6 +81,5 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
       }
     }
   }
-#endif
 */
 }

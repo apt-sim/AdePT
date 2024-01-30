@@ -25,7 +25,7 @@ struct TimeInfo {
   bool counting;                                                        ///< Whether the timer is running
 };
 
-#if defined TEST
+//#if defined TEST
 
 // Entry management
 #include <map>
@@ -193,6 +193,7 @@ public:
   }
 };
 
+/*
 #else
 
 template <class TTag>
@@ -221,5 +222,6 @@ public:
 };
 
 #endif
+*/
 
 #endif

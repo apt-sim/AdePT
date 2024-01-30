@@ -59,7 +59,6 @@ int main(int argc, char **argv)
     }
   }
 
-#if defined TEST
   if (doBenchmark && doValidation) {
     G4Exception(
         "main()", "Notification", JustWarning,
@@ -73,13 +72,6 @@ int main(int argc, char **argv)
         "--do_benchmark\n"
         "--do_validation");
   }
-#else
-  if (doBenchmark || doValidation) {
-    G4Exception(
-        "main()", "Notification", JustWarning,
-        "The application must be compiled with -DTEST in order to use the options --do_benchmark and --do_validation");
-  }
-#endif  
 
   // Initialization of default Run manager
   auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);

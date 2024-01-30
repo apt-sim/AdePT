@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-# include(CMakePackageConfigHelpers)
+include(CMakePackageConfigHelpers)
 # configure_package_config_file(AdePTConfig.cmake.in
 #                           "${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
 #                           INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}/AdePT")
@@ -20,7 +20,7 @@ project(Adept
 
 # - Include needed custom/core modules
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-include(CMakeSettings)
+include(CMakeSettings) 
 include(CTest)
 include(CheckCXXSourceCompiles)
 
@@ -200,11 +200,6 @@ add_library(NVTX INTERFACE)
 if(NVTX)
   target_link_libraries(NVTX INTERFACE nvToolsExt)
   target_compile_definitions(NVTX INTERFACE -DUSE_NVTX)
-endif()
-
-if(TEST)
-  add_definitions(-DTEST)
-  message(STATUS "Testing enabled")
 endif()
 
 add_subdirectory(test)
