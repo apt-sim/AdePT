@@ -56,6 +56,7 @@ public:
 struct LeakedTracks {
   Track *fTracks;
   adept::MParray *fLeakedQueue;
+  adept::MParray *fLeakedQueueNext;
   SlotManager *fSlotManager;
 };
 
@@ -77,9 +78,11 @@ struct AllLeaked {
 struct ParticleQueues {
   adept::MParray *currentlyActive;
   adept::MParray *nextActive;
-  adept::MParray *leakedTracks;
+  adept::MParray *leakedTracksCurrent;
+  adept::MParray *leakedTracksNext;
 
   void SwapActive() { std::swap(currentlyActive, nextActive); }
+  void SwapLeakedQueue() { std::swap(leakedTracksCurrent, leakedTracksNext); }
 };
 
 struct ParticleType {
