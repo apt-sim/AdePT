@@ -201,7 +201,7 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycle
 
   if (fDebugLevel >= 2) {
       std::stringstream str;
-      str << "[" << eventId << "," << cycleNumber << "]: Pushed " << tracks.size() << " tracks to G4";
+      str << "\n[" << eventId << "," << cycleNumber << "]: Pushed " << tracks.size() << " tracks to G4";
       str << "\tEnergy back to G4: " << std::setprecision(6)
           << (oldEnergyTransferred - fGPUNetEnergy[threadId]) / CLHEP::GeV << "\tGPU net energy "
           << std::setprecision(6) << fGPUNetEnergy[threadId] / CLHEP::GeV << " GeV";

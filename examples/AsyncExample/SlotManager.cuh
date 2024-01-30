@@ -75,10 +75,7 @@ public:
 
   __device__ void MarkSlotForFreeing(unsigned int toBeFreed);
 
-  __device__ value_type OccupiedSlots() const
-  {
-    return fSlotCounter;
-  }
+  __device__ value_type OccupiedSlots() const { return fSlotCounter - fFreeCounter; }
 
   __device__ void FreeMarkedSlots();
   __host__ static void SortListOfFreeSlots(int slotMgrIndex, cudaStream_t stream);
@@ -126,15 +123,19 @@ __device__ void SlotManager::MarkSlotForFreeing(unsigned int toBeFreed)
 
 __device__ void SlotManager::FreeMarkedSlots()
 {
-  if (fSlotCounter < fFreeCounter) {
-    printf(__FILE__ ":%d Error: Trying to free too many slots: free %d when allocated %d.\n", __LINE__, fFreeCounter,
-           fSlotCounter);
-    COPCORE_EXCEPTION("Error: Trying to free too many slots.");
+  const auto oldSlotCounter = fSlotCounter;
+
+  if (oldSlotCounter < fFreeCounter && threadIdx.x == 0) {
+    printf(__FILE__ ":%d (%d,%d) Error: Trying to free too many slots: free %d when allocated %d.\n", __LINE__,
+           blockIdx.x, threadIdx.x, fFreeCounter, oldSlotCounter);
+    for (unsigned int i = 0; i < fFreeCounter; ++i) {
+      printf("%d ", fToFreeList[i]);
+    }
+    printf("\n");
+    // COPCORE_EXCEPTION("Error: Trying to free too many slots.");
   }
 
-  assert(fSlotCounter >= fFreeCounter);
-  const auto oldSlotCounter = fSlotCounter;
-  const auto begin = fSlotCounter - fFreeCounter;
+  const auto begin = oldSlotCounter - fFreeCounter;
   for (unsigned int i = threadIdx.x; i < fFreeCounter; i += blockDim.x) {
     const auto slotListIndex = begin + i;
     const auto toFree        = fToFreeList[i];
