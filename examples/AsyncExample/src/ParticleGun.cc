@@ -16,6 +16,11 @@ void ParticleGun::GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi,
                                               std::vector<float> *aParticleWeights,
                                               std::vector<float> *aParticleEnergies)
 {
+  if (fInitialSeed == 0) {
+    fInitialSeed = G4Random::getTheSeed();
+  }
+  G4Random::setTheSeed(fInitialSeed + 1337 * aEvent->GetEventID());
+
   // Create a new vertex
   //
   auto *vertex = new G4PrimaryVertex(particle_position, particle_time);
