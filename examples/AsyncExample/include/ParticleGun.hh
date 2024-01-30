@@ -12,8 +12,11 @@ public:
   ParticleGun() : G4ParticleGun() {}
   ~ParticleGun() {}
   void GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi, G4double aMaxPhi, G4double aMinTheta,
-                                   G4double aMaxTheta, std::vector<G4ParticleDefinition*> *aParticleList, 
+                                   G4double aMaxTheta, std::vector<G4ParticleDefinition *> *aParticleList,
                                    std::vector<float> *aParticleWeights, std::vector<float> *aParticleEnergies);
+
+private:
+  long fInitialSeed = 0;
 };
 
 #endif /* PARTICLEGUN_HH */
