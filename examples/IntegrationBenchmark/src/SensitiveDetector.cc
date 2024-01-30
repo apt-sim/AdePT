@@ -38,22 +38,6 @@ SensitiveDetector::SensitiveDetector(G4String aName) : G4VSensitiveDetector(aNam
 {
   collectionName.insert("hits");
 }
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-/*
-SensitiveDetector::SensitiveDetector(G4String aName, std::set<const G4VPhysicalVolume*> *aSensitivePhysicalVolumes)
-    : G4VSensitiveDetector(aName), fSensitivePhysicalVolumes(aSensitivePhysicalVolumes), 
-    fScoringMap(nullptr), fNumSensitive(aSensitivePhysicalVolumes->size())
-{
-  collectionName.insert("hits");
-}
-*/
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-SensitiveDetector::~SensitiveDetector() {
-  // Segmentation fault when freeing this, needs investigation
-  //delete fHitsCollection;
-}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

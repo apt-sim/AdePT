@@ -48,7 +48,7 @@ class SensitiveDetector : public G4VSensitiveDetector {
 public:
   SensitiveDetector(G4String aName);
   SensitiveDetector(G4String aName, std::set<const G4VPhysicalVolume*> *aSensitivePhysicalVolumes);
-  virtual ~SensitiveDetector();
+  ~SensitiveDetector() = default;
   /// Create hit collection
   virtual void Initialize(G4HCofThisEvent *HCE) final;
   /// Process energy deposit from the full simulation.

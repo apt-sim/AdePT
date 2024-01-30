@@ -39,19 +39,13 @@ SensitiveDetector::SensitiveDetector(G4String aName) : G4VSensitiveDetector(aNam
 }
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-SensitiveDetector::~SensitiveDetector() {
-  // Segmentation fault when freeing this, needs investigation
-  //delete fHitsCollection;
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
 void SensitiveDetector::Initialize(G4HCofThisEvent *aHCE)
 {
   fHitsCollection = new SimpleHitsCollection(SensitiveDetectorName, collectionName[0]);
   if (fHitCollectionID < 0) {
     fHitCollectionID = G4SDManager::GetSDMpointer()->GetCollectionID(fHitsCollection);
   }
+  // Hits collection is now managed by G4
   aHCE->AddHitsCollection(fHitCollectionID, fHitsCollection);
 
   // Fill calorimeter hits with zero energy deposition
