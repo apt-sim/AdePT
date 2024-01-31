@@ -1,6 +1,6 @@
 #include <string>
 #include <vector>
-#include "AdePTConfigurationMessenger.hh"
+#include <AdePT/integration/AdePTConfigurationMessenger.hh>
 
 class AdePTConfiguration {
 public:
