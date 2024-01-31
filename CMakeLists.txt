@@ -138,16 +138,6 @@ endif()
 
 configure_file(examples/data/cms2018_sd.gdml ${CMAKE_BINARY_DIR}/cms2018_sd.gdml)
 
-
-include(CMakePackageConfigHelpers)
-#Generate the configuration file from the template and save it to the build directory
-configure_package_config_file(AdePTConfig.cmake.in 
-                              "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
-                              INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-                              PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
-
-
-
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
   src/PhysListAdePT.cc
@@ -194,10 +184,6 @@ target_link_libraries(AdePT_cuda PUBLIC
                       G4HepEm::g4HepEmRun)
 set_target_properties(AdePT_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
-install(TARGETS AdePT AdePT_cuda AdePT_G4_integration DESTINATION lib)
-install(DIRECTORY include/AdePT DESTINATION include)
-install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake" DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
-
 # Optional library to activate NVTX annotations for profiling:
 set(NVTX OFF CACHE BOOL "Add NVTX instrumentation for profiling (only for annotated examples)")
 add_library(NVTX INTERFACE)
@@ -208,3 +194,23 @@ endif()
 
 add_subdirectory(test)
 add_subdirectory(examples)
+
+####################################################################################################
+
+include(CMakePackageConfigHelpers)
+#Generate the configuration file from the template and save it to the build directory
+configure_package_config_file(AdePTConfig.cmake.in 
+                              "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+                              INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+                              PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
+
+export(TARGETS CopCore AdePT_G4_integration AdePT AdePT_cuda
+  FILE "${PROJECT_BINARY_DIR}/AdePTTargets.cmake")
+
+install(TARGETS AdePT AdePT_cuda AdePT_G4_integration 
+        EXPORT AdePTTargets
+        DESTINATION lib)
+install(DIRECTORY include/AdePT DESTINATION include)
+install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake" DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+install(EXPORT AdePTTargets DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
