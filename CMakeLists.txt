@@ -3,13 +3,6 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-include(CMakePackageConfigHelpers)
-# configure_package_config_file(AdePTConfig.cmake.in
-#                           "${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
-#                           INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}/AdePT")
-
-
-
 # Record the command line invoking the cmake command. Replay with recmake_initial.sh.
 include(cmake/RecordCmdLine.cmake)
 
@@ -145,6 +138,17 @@ endif()
 
 configure_file(examples/data/cms2018_sd.gdml ${CMAKE_BINARY_DIR}/cms2018_sd.gdml)
 
+
+
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(AdePTConfig.cmake.in
+                              "cmake/AdePTConfig.cmake"
+                              INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
+
+
+
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
   src/PhysListAdePT.cc
@@ -191,8 +195,9 @@ target_link_libraries(AdePT_cuda PUBLIC
                       G4HepEm::g4HepEmRun)
 set_target_properties(AdePT_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
-install(TARGETS AdePT AdePT_cuda DESTINATION lib)
-install(FILES $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include/AdePT DESTINATION include)
+install(TARGETS AdePT AdePT_cuda AdePT_G4_integration DESTINATION lib)
+install(DIRECTORY include/AdePT DESTINATION include)
+install(DIRECTORY ${PROJECT_BINARY_DIR}/cmake/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
 
 # Optional library to activate NVTX annotations for profiling:
 set(NVTX OFF CACHE BOOL "Add NVTX instrumentation for profiling (only for annotated examples)")
