@@ -139,13 +139,12 @@ endif()
 configure_file(examples/data/cms2018_sd.gdml ${CMAKE_BINARY_DIR}/cms2018_sd.gdml)
 
 
-
-
 include(CMakePackageConfigHelpers)
-configure_package_config_file(AdePTConfig.cmake.in
-                              "cmake/AdePTConfig.cmake"
-                              INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
-
+#Generate the configuration file from the template and save it to the build directory
+configure_package_config_file(AdePTConfig.cmake.in 
+                              "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+                              INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+                              PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
 
 
 
@@ -197,7 +196,7 @@ set_target_properties(AdePT_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_R
 
 install(TARGETS AdePT AdePT_cuda AdePT_G4_integration DESTINATION lib)
 install(DIRECTORY include/AdePT DESTINATION include)
-install(DIRECTORY ${PROJECT_BINARY_DIR}/cmake/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake" DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
 
 # Optional library to activate NVTX annotations for profiling:
 set(NVTX OFF CACHE BOOL "Add NVTX instrumentation for profiling (only for annotated examples)")
