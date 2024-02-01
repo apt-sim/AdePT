@@ -118,7 +118,6 @@ struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
   unsigned int usedSlots[ParticleType::NumParticleTypes];
-  unsigned int injectionQueue;
   unsigned int occupancy[AdeptIntegration::kMaxThreads];
 };
 
