@@ -69,8 +69,8 @@ private:
   std::thread fGPUWorker;                                             ///< Thread to manage GPU
   enum class EventState : unsigned char {
     NewTracksFromG4,
-    InjectionRunning,
-    TracksInjected,
+    G4Flush,
+    InFlight,
     DeviceFlushed,
     LeakedTracksRetrieved,
     ScoringRetrieved
