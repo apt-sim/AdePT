@@ -17,8 +17,13 @@ target_include_directories(CopCore INTERFACE
 add_library(CopCore::CopCore ALIAS CopCore)
 
 # Install headers and target(s)
-install(DIRECTORY include/CopCore DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-install(TARGETS CopCore EXPORT CopCoreTargets)
+install(DIRECTORY include/CopCore 
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+install(TARGETS CopCore 
+        EXPORT CopCoreTargets
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 # Support files
 include(CMakePackageConfigHelpers)
@@ -34,6 +39,10 @@ configure_package_config_file(CopCoreConfig.cmake.in "${PROJECT_BINARY_DIR}/CopC
 install(FILES "${PROJECT_BINARY_DIR}/CopCoreConfigVersion.cmake" "${PROJECT_BINARY_DIR}/CopCoreConfig.cmake"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/CopCore")
 
+export(TARGETS CopCore
+  NAMESPACE ${PROJECT_NAME}::
+  FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake)
+
 install(EXPORT CopCoreTargets
-  NAMESPACE CopCore::
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/CopCore")
+    NAMESPACE ${PROJECT_NAME}::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/CopCore")

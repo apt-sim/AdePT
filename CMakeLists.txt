@@ -3,10 +3,12 @@
 
 cmake_minimum_required(VERSION 3.18)
 
+include(GNUInstallDirs)
+
 # Record the command line invoking the cmake command. Replay with recmake_initial.sh.
 include(cmake/RecordCmdLine.cmake)
 
-project(Adept
+project(AdePT
   VERSION 0.1.0
   DESCRIPTION "Accelerated demonstrator of electromagnetic Particle Transport"
   LANGUAGES C CXX CUDA)
@@ -36,9 +38,6 @@ set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
 set(CMAKE_CUDA_STANDARD_REQUIRED ${CMAKE_CXX_STANDARD_REQUIRED})
 set(CMAKE_CUDA_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
-
-# (for now internal) CopCore dependency
-add_subdirectory(base/inc/CopCore)
 
 # With CUDA language enabled above, this should find the toolkit alongside the compiler
 find_package(CUDAToolkit REQUIRED)
@@ -127,6 +126,9 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecog
 # targets and depend on them.
 add_subdirectory(external)
 
+# (for now internal) CopCore dependency
+add_subdirectory(CopCore)
+
 if(BUILD_TESTING)
   set(TESTING_GDML "${PROJECT_BINARY_DIR}/trackML.gdml")
   set(CMS2018_GDML "${PROJECT_BINARY_DIR}/cms2018.gdml")
@@ -155,7 +157,11 @@ set(ADEPT_CUDA_SRCS
 # Builds...
 # Target for use of AdePT
 add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
-target_include_directories(AdePT_G4_integration PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+target_include_directories(AdePT_G4_integration PUBLIC 
+                          #Include directory for building the library
+                          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                          #Include directory for the installed target
+                          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
 target_link_libraries(AdePT_G4_integration PUBLIC 
                       CopCore::CopCore
                       VecGeom::vecgeom
@@ -166,7 +172,10 @@ target_link_libraries(AdePT_G4_integration PUBLIC
 
 add_library(AdePT SHARED ${ADEPT_SRCS})
 target_include_directories(AdePT PUBLIC
-                            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+                          #Include directory for building the library
+                          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                          #Include directory for the installed target
+                          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
 target_link_libraries(AdePT PUBLIC 
                       CopCore::CopCore
                       VecGeom::vecgeom
@@ -176,13 +185,18 @@ target_link_libraries(AdePT PUBLIC
 
 add_library(AdePT_cuda SHARED ${ADEPT_CUDA_SRCS})
 target_include_directories(AdePT_cuda PUBLIC 
-                            $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>/include)
+                          #Include directory for building the library
+                          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                          #Include directory for the installed target
+                          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
 target_link_libraries(AdePT_cuda PUBLIC
                       CopCore::CopCore
                       VecGeom::vecgeomcuda_static
                       G4HepEm::g4HepEmInit
                       G4HepEm::g4HepEmRun)
 set_target_properties(AdePT_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+
+
 
 # Optional library to activate NVTX annotations for profiling:
 set(NVTX OFF CACHE BOOL "Add NVTX instrumentation for profiling (only for annotated examples)")
@@ -199,18 +213,32 @@ add_subdirectory(examples)
 
 include(CMakePackageConfigHelpers)
 #Generate the configuration file from the template and save it to the build directory
-configure_package_config_file(AdePTConfig.cmake.in 
-                              "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+configure_package_config_file(${PROJECT_NAME}Config.cmake.in 
+                              "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"
                               INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
                               PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
 
-export(TARGETS CopCore AdePT_G4_integration AdePT AdePT_cuda
-  FILE "${PROJECT_BINARY_DIR}/AdePTTargets.cmake")
-
+#Install the libraries
 install(TARGETS AdePT AdePT_cuda AdePT_G4_integration 
-        EXPORT AdePTTargets
-        DESTINATION lib)
-install(DIRECTORY include/AdePT DESTINATION include)
-install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake" DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
-install(EXPORT AdePTTargets DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+        EXPORT ${PROJECT_NAME}Targets
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+#Install the headers
+install(DIRECTORY include/AdePT 
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+#Install the configuration file
+install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake" 
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
+#Export the targets file
+export(TARGETS AdePT_G4_integration AdePT AdePT_cuda
+        FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake")
+
+#Install the targets file
+install(EXPORT ${PROJECT_NAME}Targets
+        NAMESPACE ${PROJECT_NAME}::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
 
