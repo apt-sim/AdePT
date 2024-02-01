@@ -4,13 +4,15 @@
 set(AdePT_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
 set_and_check(AdePT_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
-# Include the targets file
-include("${AdePT_CMAKE_DIR}/AdePTTargets.cmake")
-
 set(AdePT_LIBRARIES
     AdePT::AdePT
     AdePT::AdePT_cuda
     AdePT::AdePT_G4_integration)
 
+# Find required dependencies
+include(CMakeFindDependencyMacro)
 find_dependency(CopCore REQUIRED)
-include(${CopCore_USE_FILE})
+find_dependency(G4HepEm REQUIRED)
+
+# Include the targets file
+include("${AdePT_CMAKE_DIR}/AdePTTargets.cmake")
