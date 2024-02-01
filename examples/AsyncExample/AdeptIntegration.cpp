@@ -82,7 +82,7 @@ void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned short cy
   adeptint::TrackData track{threadId, eventId, trackId, pdg, energy, x, y, z, dirx, diry, dirz};
   if (fDebugLevel >= 2) {
     fGPUNetEnergy[threadId] += energy;
-    if (fDebugLevel > 3) {
+    if (fDebugLevel >= 5) {
       G4cout << "\n[_in," << eventId << "," << cycleNumber << "," << trackId << "]: " << track << "\tGPU net energy "
              << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
     }
@@ -151,6 +151,7 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycle
   }
 
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
+  fEventStates[threadId].store(EventState::G4Flush, std::memory_order_release);
 
   std::vector<adeptint::TrackData> tracks;
   if (fEventStates[threadId].load(std::memory_order_acquire) < EventState::LeakedTracksRetrieved) {
@@ -177,7 +178,7 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycle
 
       if (fDebugLevel >= 2) {
       fGPUNetEnergy[threadId] -= track.energy;
-      if (fDebugLevel > 3) {
+      if (fDebugLevel >= 5) {
         G4cout << "\n[out," << track.eventId << "," << cycleNumber << "," << trackId++ << "]: " << track
                << "\tGPU net energy " << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
       }
