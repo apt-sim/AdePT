@@ -21,8 +21,8 @@
 #include <G4VPhysicalVolume.hh>
 #include <G4NavigationHistory.hh>
 #include <G4Step.hh>
-#include <G4EventManager.hh>
 #include <G4Event.hh>
+#include <G4EventManager.hh>
 
 #include <VecGeom/volumes/PlacedVolume.h>
 #include <VecGeom/volumes/LogicalVolume.h>

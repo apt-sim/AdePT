@@ -22,7 +22,10 @@ add_executable(testField
   testField.cu
   electrons.cu
   gammas.cu)
-target_include_directories(testField PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>/include/)
+target_include_directories(testField PUBLIC 
+                          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/>
+                          $<BUILD_INTERFACE:${Geant4_INCLUDE_DIRS}>
+                          $<BUILD_INTERFACE:${G4HepEm_INCLUDE_DIR}>)
 target_link_libraries(testField
   PRIVATE
     CopCore::CopCore
@@ -30,9 +33,7 @@ target_link_libraries(testField
     VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
-    G4HepEm::g4HepEmData
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
+    ${G4HepEm_LIBRARIES}
     CUDA::cudart)
 
 set_target_properties(testField PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)

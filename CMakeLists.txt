@@ -124,7 +124,11 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecog
 
 # Add external dependencies before our own code to allow checking for the
 # targets and depend on them.
-add_subdirectory(external)
+# add_subdirectory(external)
+find_package(G4HepEm)
+if(G4HepEm_FOUND)
+  message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
+endif()
 
 # (for now internal) CopCore dependency
 add_subdirectory(CopCore)
@@ -185,6 +189,7 @@ target_link_libraries(AdePT PUBLIC
 
 add_library(AdePT_cuda SHARED ${ADEPT_CUDA_SRCS})
 target_include_directories(AdePT_cuda PUBLIC 
+                          ${Geant4_INCLUDE_DIRS}
                           #Include directory for building the library
                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                           #Include directory for the installed target
