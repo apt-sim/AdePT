@@ -20,40 +20,37 @@
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
 template <typename Scoring>
-__global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
-                                adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring)
+__global__ void __launch_bounds__(256, 1)
+    TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
+                    adept::MParray *leakedQueue, Scoring *userScoring, GammaInteractions gammaInteractions)
 {
   using VolAuxData = AdeptIntegration::VolAuxData;
 #ifdef VECGEOM_FLOAT_PRECISION
-  const Precision kPush = 10 * vecgeom::kTolerance;
+  constexpr Precision kPush = 10 * vecgeom::kTolerance;
 #else
-  const Precision kPush = 0.;
+  constexpr Precision kPush = 0.;
 #endif
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  int activeSize                     = active->size();
+  const int activeSize               = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];
-    auto energy         = currentTrack.energy;
+    const auto energy         = currentTrack.energy;
     auto pos            = currentTrack.pos;
-    auto dir            = currentTrack.dir;
+    const auto dir            = currentTrack.dir;
     auto navState       = currentTrack.navState;
     const auto volume   = navState.Top();
-    // the MCC vector is indexed by the logical volume id
-    int lvolID                = volume->GetLogicalVolume()->id();
+    const int lvolID          = volume->GetLogicalVolume()->id(); // the MCC vector is indexed by the logical volume id
     VolAuxData const &auxData = userScoring[currentTrack.threadId].GetAuxData_dev(lvolID);
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     auto &slotManager = *secondaries.gammas.fSlotManager;
 
-    auto survive = [&](bool leak = false) {
-      currentTrack.energy   = energy;
+    // Write local variables back into track and enqueue
+    auto survive = [&](adept::MParray *const nextQueue) {
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
       currentTrack.navState = navState;
-      if (leak)
-        leakedQueue->push_back(slot);
-      else
-        activeQueue->push_back(slot);
+      if (nextQueue) nextQueue->push_back(slot);
     };
 
     // Init a track with the needed data to call into G4HepEm.
@@ -119,12 +116,12 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
         VolAuxData const &nextauxData = userScoring[currentTrack.threadId].GetAuxData_dev(nextlvolID);
         if (nextauxData.fGPUregion > 0)
-          survive();
+          survive(activeQueue);
         else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
           pos += kPushOutRegion * dir;
-          survive(/*leak*/ true);
+          survive(leakedQueue);
         }
       } else {
         slotManager.MarkSlotForFreeing(slot);
@@ -132,7 +129,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      survive();
+      survive(activeQueue);
       continue;
     }
 
@@ -141,20 +138,55 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
     userScoring[currentTrack.threadId].AccountGammaInteraction(winnerProcessIndex);
 
+    assert(winnerProcessIndex < gammaInteractions.NInt);
+
+    // Enqueue track in special interaction queue
+    survive(nullptr);
+    GammaInteractions::Data si{
+        geometryStepLength,
+        gammaTrack.GetPEmxSec(),
+        static_cast<unsigned int>(slot),
+    };
+    gammaInteractions.queues[winnerProcessIndex]->push_back(std::move(si));
+  }
+}
+
+template <typename Scoring, unsigned int InteractionType>
+__global__ void __launch_bounds__(256, 1)
+    ApplyGammaInteractions(Track *gammas, Secondaries secondaries, adept::MParray *activeQueue, Scoring *userScoring,
+                           GammaInteractions gammaInteractions)
+{
+  using VolAuxData = AdeptIntegration::VolAuxData;
+  static_assert(InteractionType < GammaInteractions::NInt, "No gamma interaction defined for the specified index");
+
+  const auto &queue             = *gammaInteractions.queues[InteractionType];
+  const unsigned int activeSize = queue.size();
+  for (unsigned int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const unsigned int slot         = queue[i].slot;
+    const double geometryStepLength = queue[i].geometryStepLength;
+    Track &currentTrack             = gammas[slot];
+    auto &slotManager               = *secondaries.gammas.fSlotManager;
+    const auto energy               = currentTrack.energy;
+    const auto &dir                 = currentTrack.dir;
+
+    VolAuxData const &auxData =
+        userScoring[currentTrack.threadId].GetAuxData_dev(currentTrack.navState.Top()->GetLogicalVolume()->id());
+
+    auto survive = [&]() { activeQueue->push_back(slot); };
+
     // Perform the discrete interaction.
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-    switch (winnerProcessIndex) {
-    case 0: {
+    if constexpr (InteractionType == GammaInteractions::PairCreation) {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (energy < 2 * copcore::units::kElectronMassC2) {
         survive();
         continue;
       }
 
-      double logEnergy = std::log(energy);
+      const double logEnergy = std::log(energy);
       double elKinEnergy, posKinEnergy;
       G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
                                                            elKinEnergy, posKinEnergy, &rnge);
@@ -169,22 +201,22 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
-      electron.InitAsSecondary(pos, navState, currentTrack);
+      electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
       electron.rngState = newRNG;
       electron.energy   = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
-      positron.InitAsSecondary(pos, navState, currentTrack);
+      positron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
       // Reuse the RNG state of the dying track.
       positron.rngState = currentTrack.rngState;
       positron.energy   = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
-      // The current track is killed by not enqueuing into the next activeQueue.
+      // Kill the original track.
       slotManager.MarkSlotForFreeing(slot);
-      break;
     }
-    case 1: {
+
+    if constexpr (InteractionType == GammaInteractions::ComptonScattering) {
       // Invoke Compton scattering of gamma.
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (energy < LowEnergyThreshold) {
@@ -203,35 +235,35 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         Track &electron = secondaries.electrons.NextTrack();
         userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
-        electron.InitAsSecondary(pos, navState, currentTrack);
+        electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
         electron.rngState = newRNG;
         electron.energy   = energyEl;
         electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
         if (auxData.fSensIndex >= 0)
-          userScoring[currentTrack.threadId].Score(navState, 0, geometryStepLength, energyEl);
+          userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, energyEl);
       }
 
       // Check the new gamma energy and deposit if below threshold.
       if (newEnergyGamma > LowEnergyThreshold) {
-        energy = newEnergyGamma;
-        dir    = newDirGamma;
+        currentTrack.energy = newEnergyGamma;
+        currentTrack.dir    = newDirGamma;
         survive();
       } else {
         if (auxData.fSensIndex >= 0)
-          userScoring[currentTrack.threadId].Score(navState, 0, geometryStepLength, newEnergyGamma);
+          userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, newEnergyGamma);
         // The current track is killed by not enqueuing into the next activeQueue.
         slotManager.MarkSlotForFreeing(slot);
       }
-      break;
     }
-    case 2: {
+
+    if constexpr (InteractionType == GammaInteractions::PhotoelectricProcess) {
       // Invoke photoelectric process.
-      const double theLowEnergyThreshold = 1 * copcore::units::eV;
+      constexpr double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), energy, &rnge);
+          &g4HepEmData, auxData.fMCIndex, queue[i].PEmxSec, energy, &rnge);
 
       double edep             = bindingEnergy;
       const double photoElecE = energy - edep;
@@ -244,18 +276,17 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
         double dirPhotoElec[3];
         G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-        electron.InitAsSecondary(pos, navState, currentTrack);
+        electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
         electron.rngState = newRNG;
         electron.energy   = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
       } else {
         edep = energy;
       }
-      if (auxData.fSensIndex >= 0) userScoring[currentTrack.threadId].Score(navState, 0, geometryStepLength, edep);
+      if (auxData.fSensIndex >= 0)
+        userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, edep);
       // The current track is killed by not enqueuing into the next activeQueue.
       slotManager.MarkSlotForFreeing(slot);
-      break;
-    }
     }
   }
 }

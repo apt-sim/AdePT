@@ -60,6 +60,16 @@ struct LeakedTracks {
   SlotManager *fSlotManager;
 };
 
+struct GammaInteractions {
+  enum Interaction : unsigned int { PairCreation = 0, ComptonScattering = 1, PhotoelectricProcess = 2, NInt };
+  struct Data {
+    double geometryStepLength;
+    double PEmxSec; // Only used for photoelectric process
+    unsigned int slot;
+  };
+  adept::MParrayT<Data> * queues[Interaction::NInt];
+};
+
 // A bundle of generators for the three particle types.
 struct Secondaries {
   ParticleGenerator electrons;
@@ -130,6 +140,8 @@ struct GPUstate {
   using TrackData = adeptint::TrackData;
 
   ParticleType particles[ParticleType::NumParticleTypes];
+  GammaInteractions gammaInteractions;
+
   std::vector<adeptint::unique_ptr_cuda<void>> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
   cudaStream_t stream;                ///< all-particle sync stream
