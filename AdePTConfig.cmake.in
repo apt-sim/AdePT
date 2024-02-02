@@ -25,6 +25,9 @@ find_dependency(VecGeom REQUIRED)
 
 find_package(G4HepEm)
 if(G4HepEm_FOUND)
+  if(NOT G4HepEm_cuda_FOUND)
+    message(FATAL_ERROR "AdePT needs G4HepEm to be compiled with CUDA support (-DG4HepEm_CUDA_BUILD=ON)")
+  endif()
   message(STATUS "G4HepEm Found ${G4HepEm_INCLUDE_DIR}")
 endif()
 
