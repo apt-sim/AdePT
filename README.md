@@ -16,6 +16,7 @@ The following packages are a required to build and run:
 - CUDA Toolkit (tested 10.1, min version TBD)
 - VecCore [library](https://github.com/root-project/veccore) 0.7.0 (recommended, but older versions >= 0.5.0 also work)
 - VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 1.1.20
+- G4HepEM [library](https://github.com/mnovak42/g4hepem)
 
 A suitable environment may be set up either from CVMFS (requires the sft.cern.ch and projects.cern.ch repos
 to be available on the local system):
@@ -71,14 +72,23 @@ $ cmake -S. -B./vecgeom-build \
 $ cmake --build ./vecgeom-build --target install -- -j6 ### build using 6 threads and install
 ```
 
+To configure and build G4HepEM, use the configuration options below:
+```console
+$ cmake -S. -B./g4hepem-build \
+  -DCMAKE_INSTALL_PREFIX="<path_to_g4hepem_installation>" \
+  -DCMAKE_PREFIX_PATH="<path_to_geant4_installation>" \
+  -DG4HepEm_CUDA_BUILD=ON
+$ cmake --build ./g4hepem-build --target install -- -j6 ### build using 6 threads and install
+```
+
 To configure AdePT, simply run:
 
 ```console
 $ cmake -S. -B./adept-build <otherargs>
 ```
-As <otherargs> one needs to provide the paths to the dependence libraries VecCore and VecGeom, and optionally the path to the Alpaka installation (in case you want to build FisherPrice_Alpaka)
+As <otherargs> one needs to provide the paths to the dependence libraries VecCore, VecGeom and G4HepEM
 ```console
-   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>;[<alpakaInstallDir>]" \
+   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>;<path_to_g4hepem_installation>" \
    -DCMAKE_CUDA_ARCHITECTURES=<cuda_architecture> \
    -DCMAKE_BUILD_TYPE=Release
 ```
@@ -93,6 +103,28 @@ The provided examples and tests can be run from the build directory:
 ```console
 $ cd adept-build
 $ CUDA_VISIBLE_DEVICES=0 BuildProducts/bin/<executable>   ### use the device number matching the selected <cuda_architecture>
+```
+
+## Including AdePT in other CMake projects
+
+In order to include AdePT in a separate project we need to run:
+
+```
+find_package(AdePT)
+```
+
+Which has the same dependencies as before (VecGeom, VecCore and G4HepEM).
+
+Then, for the targets using AdePT:
+
+```
+target_include_directories(example_target <SCOPE> 
+                          <TARGET INCLUDE DIRECTORIES>
+                          ${AdePT_INCLUDE_DIRS})
+
+target_link_libraries(example_target <SCOPE>
+                      <TARGET LINK LIBRARIES>
+                      ${AdePT_LIBRARIES})
 ```
 
 ## Copyright

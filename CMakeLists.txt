@@ -215,7 +215,7 @@ add_subdirectory(examples)
 
 include(CMakePackageConfigHelpers)
 #Generate the configuration file from the template and save it to the build directory
-configure_package_config_file(${PROJECT_NAME}Config.cmake.in 
+configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in 
                               "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"
                               INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
                               PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
