@@ -122,9 +122,6 @@ add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebIn
 # Disable warnings from the CUDA frontend about unknown GCC pragmas - let the compiler decide what it likes.
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma>")
 
-# Add external dependencies before our own code to allow checking for the
-# targets and depend on them.
-# add_subdirectory(external)
 find_package(G4HepEm)
 if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
