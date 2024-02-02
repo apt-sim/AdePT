@@ -127,10 +127,11 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t Capacity)
   adept::MParray::MakeInstanceAt(Capacity, queues.leakedTracksNext);
 }
 
-// Kernel to initialize the set of queues per particle type.
-__global__ void InitInjectionQueue(adept::MParrayT<QueueIndexPair> *queue, size_t Capacity)
+// Init a queue at the designated location
+template <typename T>
+__global__ void InitQueue(adept::MParrayT<T> *queue, size_t Capacity)
 {
-  adept::MParrayT<QueueIndexPair>::MakeInstanceAt(Capacity, queue);
+  adept::MParrayT<T>::MakeInstanceAt(Capacity, queue);
 }
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
@@ -302,7 +303,8 @@ __global__ void FreeSlots(TracksAndSlots tracksAndSlots)
 }
 
 // Finish iteration: clear queues and fill statistics.
-__global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
+__global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots,
+                                GammaInteractions gammaInteractions)
 {
   if (blockIdx.x == 0) {
     // Clear queues and write statistics
@@ -320,6 +322,10 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
                tracksAndSlots.slotManagers[i]->OccupiedSlots());
         asm("trap;");
       }
+    }
+  } else if (blockIdx.x == 2) {
+    if (threadIdx.x < gammaInteractions.NInt) {
+      gammaInteractions.queues[threadIdx.x]->clear();
     }
   }
 
@@ -530,6 +536,14 @@ void AdeptIntegration::InitializeGPU()
     COPCORE_CUDA_CHECK(cudaEventCreate(&particleType.event));
   }
 
+  // init gamma interaction queues
+  for (unsigned int i = 0; i < GammaInteractions::NInt; ++i) {
+    const auto capacity     = fTrackCapacity / 3;
+    const auto instanceSize = adept::MParrayT<GammaInteractions::Data>::SizeOfInstance(capacity);
+    COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.gammaInteractions.queues[i], instanceSize));
+    InitQueue<GammaInteractions::Data><<<1, 1>>>(gpuState.gammaInteractions.queues[i], capacity);
+  }
+
   // initialize statistics
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.stats_dev, sizeof(Stats)));
   COPCORE_CUDA_CHECK(cudaMallocHost(&gpuState.stats, sizeof(Stats)));
@@ -551,7 +565,7 @@ void AdeptIntegration::InitializeGPU()
   adept::MParrayT<QueueIndexPair> *injectQueue;
   COPCORE_CUDA_CHECK(cudaMalloc(&injectQueue, injectQueueSize));
   gpuState.injectionQueue = {injectQueue, adeptint::cudaDeleter};
-  InitInjectionQueue<<<1, 1>>>(gpuState.injectionQueue.get(), gpuState.fNumToDevice);
+  InitQueue<QueueIndexPair><<<1, 1>>>(gpuState.injectionQueue.get(), gpuState.fNumToDevice);
 }
 
 void AdeptIntegration::FreeGPU()
@@ -576,6 +590,10 @@ void AdeptIntegration::FreeGPU()
 
     COPCORE_CUDA_CHECK(cudaStreamDestroy(gpuState.particles[i].stream));
     COPCORE_CUDA_CHECK(cudaEventDestroy(gpuState.particles[i].event));
+  }
+
+  for (auto queue : gpuState.gammaInteractions.queues) {
+    COPCORE_CUDA_CHECK(cudaFree(queue));
   }
 
   gpuState.allCudaPointers.clear();
@@ -707,7 +725,15 @@ void AdeptIntegration::TransportLoop()
         const auto [threads, blocks] = computeThreadsAndBlocks(prevNumGammas);
         TransportGammas<AdeptScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, fScoring_dev);
+            gammas.queues.leakedTracksCurrent, fScoring_dev, gpuState.gammaInteractions);
+
+        constexpr unsigned int intThreads = 256;
+        ApplyGammaInteractions<AdeptScoring, 0><<<20, intThreads, 0, gammas.stream>>>(
+            gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
+        ApplyGammaInteractions<AdeptScoring, 1><<<20, intThreads, 0, gammas.stream>>>(
+            gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
+        ApplyGammaInteractions<AdeptScoring, 2><<<40, intThreads, 0, gammas.stream>>>(
+            gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
@@ -845,7 +871,8 @@ void AdeptIntegration::TransportLoop()
       }
 
       // *** Finish iteration ***
-      FinishIteration<<<3, 32, 0, gpuState.stream>>>(allParticleQueues, gpuState.stats_dev, tracksAndSlots);
+      FinishIteration<<<4, 32, 0, gpuState.stream>>>(allParticleQueues, gpuState.stats_dev, tracksAndSlots,
+                                                     gpuState.gammaInteractions);
       COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, gpuState.stream));
       for (auto stream : {electrons.stream, positrons.stream, gammas.stream, statsStream}) {
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, cudaEvent));
