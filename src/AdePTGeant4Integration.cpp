@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include <VecGeom/management/GeoManager.h>

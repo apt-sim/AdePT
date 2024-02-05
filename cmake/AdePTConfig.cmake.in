@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2023 CERN
+# SPDX-License-Identifier: Apache-2.0
+
 @PACKAGE_INIT@
 
 # Set the include dir from CMAKE_INSTALL_INCLUDEDIR
