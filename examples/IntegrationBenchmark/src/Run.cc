@@ -5,8 +5,8 @@
 #include "G4Run.hh"
 #include "Run.hh"
 
-#include <AdePT/base/TestManager.h>
-#include <AdePT/base/TestManagerStore.h>
+#include <AdePT/benchmarking/TestManager.h>
+#include <AdePT/benchmarking/TestManagerStore.h>
 #include <cmath>
 
 #define STDEV(N, MEAN, SUM_SQUARES) N > 1 ? sqrt((SUM_SQUARES - N * MEAN * MEAN) / N) : 0

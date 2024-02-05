@@ -14,7 +14,7 @@
 #include <mutex>
 #include <vector>
 #include <map>
-#include <AdePT/base/TestManager.h>
+#include <AdePT/benchmarking/TestManager.h>
 
 template <class TTag>
 class TestManagerStore {

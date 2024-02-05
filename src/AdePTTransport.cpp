@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/core/AdePTTransport.h>
-#include <AdePT/base/TestManager.h>
-#include <AdePT/base/TestManagerStore.h>
+#include <AdePT/benchmarking/TestManager.h>
+#include <AdePT/benchmarking/TestManagerStore.h>
 
 #include <VecGeom/management/BVHManager.h>
 #include "VecGeom/management/GeoManager.h"

@@ -3,7 +3,7 @@
 
 #include "TestEm3.cuh"
 
-#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/navigation/BVHNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>

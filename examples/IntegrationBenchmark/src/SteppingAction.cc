@@ -15,7 +15,7 @@
 #include "G4Electron.hh"
 #include "G4Positron.hh"
 #include "Run.hh"
-#include <AdePT/base/TestManager.h>
+#include <AdePT/benchmarking/TestManager.h>
 
 SteppingAction::SteppingAction(TrackingAction *aTrackingAction, bool aDoBenchmark)
     : G4UserSteppingAction(), fTrackingAction(aTrackingAction),

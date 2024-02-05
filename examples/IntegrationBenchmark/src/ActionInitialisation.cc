@@ -31,7 +31,7 @@
 #include "RunAction.hh"
 #include "TrackingAction.hh"
 #include "SteppingAction.hh"
-#include <AdePT/base/TestManager.h>
+#include <AdePT/benchmarking/TestManager.h>
 
 ActionInitialisation::ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark,
                                            bool aDoValidation)

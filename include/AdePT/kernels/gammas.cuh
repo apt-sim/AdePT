@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/core/AdePTTransport.cuh>
-#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/navigation/BVHNavigator.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 

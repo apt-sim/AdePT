@@ -4,7 +4,7 @@
 #include <AdePT/core/AdePTTransport.h>
 #include <AdePT/core/AdePTTransport.cuh>
 #include <AdePT/base/Atomic.h>
-#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/navigation/BVHNavigator.h>
 #include <AdePT/base/MParray.h>
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>

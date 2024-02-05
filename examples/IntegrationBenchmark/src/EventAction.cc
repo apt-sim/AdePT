@@ -37,8 +37,8 @@
 #include "G4PhysicalVolumeStore.hh"
 #include "G4SystemOfUnits.hh"
 
-#include <AdePT/base/TestManager.h>
-#include <AdePT/base/TestManagerStore.h>
+#include <AdePT/benchmarking/TestManager.h>
+#include <AdePT/benchmarking/TestManagerStore.h>
 #include "Run.hh"
 
 EventAction::EventAction(): G4UserEventAction(), fHitCollectionID(-1), fTimer()

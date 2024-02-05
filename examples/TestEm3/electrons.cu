@@ -3,10 +3,10 @@
 
 #include "TestEm3.cuh"
 
-#include <AdePT/base/BVHNavigator.h>
-#include <AdePT/base/LoopNavigator.h>
+#include <AdePT/navigation/BVHNavigator.h>
+#include <AdePT/navigation/LoopNavigator.h>
 #ifdef ADEPT_USE_SURF
-#include <AdePT/base/SurfNavigator.h>
+#include <AdePT/navigation/SurfNavigator.h>
 #endif
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 

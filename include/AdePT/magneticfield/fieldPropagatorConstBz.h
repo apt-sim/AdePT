@@ -9,7 +9,7 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 
 #include <AdePT/base/BlockData.h>
-#include <AdePT/base/LoopNavigator.h>
+#include <AdePT/navigation/LoopNavigator.h>
 
 #include <AdePT/magneticfield/ConstBzFieldStepper.h>
 

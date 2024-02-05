@@ -5,7 +5,7 @@
 #include "testField.cuh"
 
 #include <AdePT/base/Atomic.h>
-#include <AdePT/base/BVHNavigator.h>
+#include <AdePT/navigation/BVHNavigator.h>
 #include <AdePT/base/MParray.h>
 
 #include <AdePT/copcore/Global.h>
