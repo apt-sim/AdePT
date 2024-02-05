@@ -3,8 +3,6 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-include(GNUInstallDirs)
-
 # Record the command line invoking the cmake command. Replay with recmake_initial.sh.
 include(cmake/RecordCmdLine.cmake)
 
@@ -12,6 +10,8 @@ project(AdePT
   VERSION 0.1.0
   DESCRIPTION "Accelerated demonstrator of electromagnetic Particle Transport"
   LANGUAGES C CXX CUDA)
+
+include(GNUInstallDirs)
 
 # - Include needed custom/core modules
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
