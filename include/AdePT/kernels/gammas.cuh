@@ -4,7 +4,7 @@
 #include <AdePT/core/AdePTTransport.cuh>
 #include <AdePT/base/BVHNavigator.h>
 
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 #include <G4HepEmGammaManager.hh>
 #include <G4HepEmGammaTrack.hh>

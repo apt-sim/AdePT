@@ -4,7 +4,7 @@
 #include "TestEm3.h"
 
 #include <AdePT/base/ArgParser.h>
-#include <CopCore/SystemOfUnits.h>
+#include <AdePT/copcore/SystemOfUnits.h>
 
 #include <G4NistManager.hh>
 #include <G4Material.hh>

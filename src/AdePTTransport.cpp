@@ -9,7 +9,7 @@
 #include "VecGeom/management/GeoManager.h"
 #include <VecGeom/gdml/Frontend.h>
 
-#include "CopCore/SystemOfUnits.h"
+#include "AdePT/copcore/SystemOfUnits.h"
 
 #include <G4HepEmData.hh>
 #include <G4HepEmState.hh>

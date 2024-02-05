@@ -10,7 +10,7 @@
 #endif
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 #define NOFLUCTUATION
 

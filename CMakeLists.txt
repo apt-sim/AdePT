@@ -127,9 +127,6 @@ if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
 endif()
 
-# (for now internal) CopCore dependency
-add_subdirectory(CopCore)
-
 if(BUILD_TESTING)
   set(TESTING_GDML "${PROJECT_BINARY_DIR}/trackML.gdml")
   set(CMS2018_GDML "${PROJECT_BINARY_DIR}/cms2018.gdml")
@@ -155,8 +152,11 @@ set(ADEPT_CUDA_SRCS
   src/AdePTTransport.cu
   src/HostScoring.cu)
 
-# Builds...
-# Target for use of AdePT
+add_library(CopCore INTERFACE)
+target_include_directories(CopCore INTERFACE
+                           $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
+                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
+
 add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
 target_include_directories(AdePT_G4_integration PUBLIC 
                           #Include directory for building the library
@@ -164,7 +164,7 @@ target_include_directories(AdePT_G4_integration PUBLIC
                           #Include directory for the installed target
                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
 target_link_libraries(AdePT_G4_integration PUBLIC 
-                      CopCore::CopCore
+                      CopCore
                       VecGeom::vecgeom
                       VecGeom::vgdml
                       ${Geant4_LIBRARIES}
@@ -178,7 +178,7 @@ target_include_directories(AdePT PUBLIC
                           #Include directory for the installed target
                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
 target_link_libraries(AdePT PUBLIC 
-                      CopCore::CopCore
+                      CopCore
                       VecGeom::vecgeom
                       VecGeom::vgdml
                       G4HepEm::g4HepEm
@@ -192,12 +192,11 @@ target_include_directories(AdePT_cuda PUBLIC
                           #Include directory for the installed target
                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
 target_link_libraries(AdePT_cuda PUBLIC
-                      CopCore::CopCore
+                      CopCore
                       VecGeom::vecgeomcuda_static
                       G4HepEm::g4HepEmInit
                       G4HepEm::g4HepEmRun)
 set_target_properties(AdePT_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-
 
 
 # Optional library to activate NVTX annotations for profiling:
@@ -221,7 +220,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
                               PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
 
 #Install the libraries
-install(TARGETS AdePT AdePT_cuda AdePT_G4_integration 
+install(TARGETS CopCore AdePT AdePT_cuda AdePT_G4_integration 
         EXPORT ${PROJECT_NAME}Targets
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -236,7 +235,7 @@ install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
 
 #Export the targets file
-export(TARGETS AdePT_G4_integration AdePT AdePT_cuda
+export(TARGETS CopCore AdePT_G4_integration AdePT AdePT_cuda
         FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake")
 
 #Install the targets file

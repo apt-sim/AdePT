@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <iostream>
-#include <CopCore/Ranluxpp.h>
+#include <AdePT/copcore/Ranluxpp.h>
 #include <AdePT/base/SparseVector.h>
 
 #include <VecGeom/base/Stopwatch.h>

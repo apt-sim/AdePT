@@ -8,9 +8,9 @@
 #include <AdePT/base/BVHNavigator.h>
 #include <AdePT/base/MParray.h>
 
-#include <CopCore/Global.h>
-#include <CopCore/PhysicalConstants.h>
-#include <CopCore/Ranluxpp.h>
+#include <AdePT/copcore/Global.h>
+#include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/copcore/Ranluxpp.h>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/base/Stopwatch.h>

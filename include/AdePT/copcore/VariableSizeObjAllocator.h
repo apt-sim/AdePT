@@ -14,7 +14,7 @@
 #include <stdexcept>
 #include <iostream>
 
-#include <CopCore/Global.h>
+#include <AdePT/copcore/Global.h>
 
 namespace copcore {
 

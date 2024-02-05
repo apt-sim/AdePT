@@ -10,7 +10,7 @@
 #ifndef ADEPT_ATOMIC_H_
 #define ADEPT_ATOMIC_H_
 
-#include <CopCore/Global.h>
+#include <AdePT/copcore/Global.h>
 #include <cassert>
 
 #ifndef COPCORE_DEVICE_COMPILATION

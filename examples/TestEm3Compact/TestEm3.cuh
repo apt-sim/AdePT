@@ -8,8 +8,8 @@
 
 #include <AdePT/base/MParray.h>
 #include <AdePT/base/TrackManager.cuh>
-#include <CopCore/SystemOfUnits.h>
-#include <CopCore/Ranluxpp.h>
+#include <AdePT/copcore/SystemOfUnits.h>
+#include <AdePT/copcore/Ranluxpp.h>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>

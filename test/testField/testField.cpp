@@ -29,7 +29,7 @@
 #include <VecGeom/gdml/Frontend.h>
 #include <VecGeom/management/CudaManager.h>
 
-#include <CopCore/SystemOfUnits.h>
+#include <AdePT/copcore/SystemOfUnits.h>
 #include <AdePT/base/ArgParser.h>
 
 static constexpr double DefaultCut = 0.7 * mm;

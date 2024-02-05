@@ -9,7 +9,7 @@
 #include <AdePT/base/SurfNavigator.h>
 #endif
 
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 #include <G4HepEmGammaManager.hh>
 #include <G4HepEmGammaTrack.hh>

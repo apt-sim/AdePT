@@ -10,7 +10,7 @@
 #ifndef COPCORE_LAUNCHER_H_
 #define COPCORE_LAUNCHER_H_
 
-#include <CopCore/Global.h>
+#include <AdePT/copcore/Global.h>
 
 namespace copcore {
 

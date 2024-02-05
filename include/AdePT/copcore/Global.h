@@ -11,7 +11,7 @@
 
 #include <cstdio>
 #include <type_traits>
-#include <CopCore/Macros.h>
+#include <AdePT/copcore/Macros.h>
 
 #ifdef COPCORE_CUDA_COMPILER
 // Compiling with nvcc

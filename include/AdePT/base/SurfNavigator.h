@@ -9,7 +9,7 @@
 #ifndef RT_SURF_NAVIGATOR_H_
 #define RT_SURF_NAVIGATOR_H_
 
-#include <CopCore/Global.h>
+#include <AdePT/copcore/Global.h>
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>

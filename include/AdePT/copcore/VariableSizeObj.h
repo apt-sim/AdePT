@@ -126,7 +126,7 @@
 #ifndef COPCORE_VARIABLESIZEOBJ_H
 #define COPCORE_VARIABLESIZEOBJ_H
 
-#include <CopCore/Global.h>
+#include <AdePT/copcore/Global.h>
 
 // For memset and memcpy
 #include <string.h>

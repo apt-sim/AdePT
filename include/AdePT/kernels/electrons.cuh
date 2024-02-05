@@ -5,7 +5,7 @@
 #include <AdePT/base/BVHNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 #define NOFLUCTUATION
 

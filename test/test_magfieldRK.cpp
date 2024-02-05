@@ -157,7 +157,7 @@ bool TestEquation( Field_t const & magField)
 //   NEW Development Thurs 18 December 2021
 //   ---------------
 #include <AdePT/magneticfield/DormandPrinceRK45.h>
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 template <typename Real_t, typename Field_t> // , typename Equation_t>
 bool TestStepper( Field_t const & magField)

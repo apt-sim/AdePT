@@ -4,7 +4,7 @@
 #ifndef COPCORE_RANLUXPP_H_
 #define COPCORE_RANLUXPP_H_
 
-#include <CopCore/Global.h>
+#include <AdePT/copcore/Global.h>
 
 #include "ranluxpp/mulmod.h"
 #include "ranluxpp/ranlux_lcg.h"

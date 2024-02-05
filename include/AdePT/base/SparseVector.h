@@ -44,7 +44,7 @@
 #ifndef ADEPT_SPARSEVECTOR_H_
 #define ADEPT_SPARSEVECTOR_H_
 
-#include <CopCore/CopCore.h>
+#include <AdePT/copcore/CopCore.h>
 #include <AdePT/base/Atomic.h>
 
 namespace adept {

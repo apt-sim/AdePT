@@ -14,9 +14,9 @@
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
-#include <CopCore/Global.h>
-#include <CopCore/PhysicalConstants.h>
-#include <CopCore/Ranluxpp.h>
+#include <AdePT/copcore/Global.h>
+#include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/copcore/Ranluxpp.h>
 
 #include <G4HepEmState.hh>
 #include <G4HepEmData.hh>

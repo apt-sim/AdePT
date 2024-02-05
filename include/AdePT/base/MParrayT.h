@@ -10,7 +10,7 @@
 #ifndef ADEPT_MPARRAYT_H_
 #define ADEPT_MPARRAYT_H_
 
-#include <CopCore/CopCore.h>
+#include <AdePT/copcore/CopCore.h>
 #include <AdePT/base/Atomic.h>
 
 namespace adept {

@@ -30,7 +30,7 @@
 #ifndef COPCORE_PHYSICALCONSTANTS_H
 #define COPCORE_PHYSICALCONSTANTS_H
 
-#include <CopCore/SystemOfUnits.h>
+#include <AdePT/copcore/SystemOfUnits.h>
 
 namespace copcore {
 namespace units {

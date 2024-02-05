@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/core/HostScoring.h>
-#include "CopCore/Global.h"
+#include "AdePT/copcore/Global.h"
 
 namespace device_utils_hostscoring {
 

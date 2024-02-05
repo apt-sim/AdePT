@@ -10,7 +10,7 @@
 #ifndef ADEPT_BLOCKDATA_H_
 #define ADEPT_BLOCKDATA_H_
 
-#include <CopCore/CopCore.h>
+#include <AdePT/copcore/CopCore.h>
 #include <AdePT/base/Atomic.h>
 #include <AdePT/base/mpmc_bounded_queue.h>
 

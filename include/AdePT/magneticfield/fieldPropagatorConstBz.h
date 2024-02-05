@@ -6,7 +6,7 @@
 #pragma once
 
 #include <VecGeom/base/Vector3D.h>
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 #include <AdePT/base/BlockData.h>
 #include <AdePT/base/LoopNavigator.h>

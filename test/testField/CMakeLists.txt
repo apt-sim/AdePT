@@ -28,7 +28,7 @@ target_include_directories(testField PUBLIC
                           $<BUILD_INTERFACE:${G4HepEm_INCLUDE_DIR}>)
 target_link_libraries(testField
   PRIVATE
-    CopCore::CopCore
+    CopCore
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static
     VecGeom::vgdml

@@ -22,7 +22,7 @@
 #define ADEPT_TRACKMANAGER_H_
 
 #include <type_traits>
-#include <CopCore/CopCore.h>
+#include <AdePT/copcore/CopCore.h>
 #include <AdePT/base/Atomic.h>
 
 namespace adept {

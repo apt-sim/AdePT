@@ -14,7 +14,7 @@
 
 #include <VecCore/VecMath.h>
 #include <VecGeom/base/Vector3D.h>   // Needed for Vector3D
-// #include <CopCore/PhysicalConstants.h>
+// #include <AdePT/copcore/PhysicalConstants.h>
 
 #include "ErrorEstimatorRK.h"
 

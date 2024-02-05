@@ -5,8 +5,8 @@
 #define ADEPT_TRACK_CUH
 
 #include <AdePT/core/TrackData.h>
-#include <CopCore/SystemOfUnits.h>
-#include <CopCore/Ranluxpp.h>
+#include <AdePT/copcore/SystemOfUnits.h>
+#include <AdePT/copcore/Ranluxpp.h>
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>

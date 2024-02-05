@@ -15,7 +15,7 @@
 // #include <VecCore/Math.h>
 #include <VecGeom/base/Vector3D.h>
 
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 template <typename MagneticField_t>
 class MagneticFieldEquation
