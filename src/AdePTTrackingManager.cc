@@ -28,12 +28,48 @@ AdePTTrackingManager::~AdePTTrackingManager() {
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part) {
+  
+  // For tracking on CPU by Geant4, construct the physics tables for the processes of 
+  // particles taken by this tracking manager, since Geant4 won't do it anymore
+  G4ProcessManager* pManager = part.GetProcessManager();
+  G4ProcessManager* pManagerShadow = part.GetMasterProcessManager();
+
+  G4ProcessVector* pVector = pManager->GetProcessList();
+  for (std::size_t j = 0; j < pVector->size(); ++j) {
+    if (pManagerShadow == pManager) {
+      (*pVector)[j]->BuildPhysicsTable(part);
+    }
+    else {
+      (*pVector)[j]->BuildWorkerPhysicsTable(part);
+    }
+  }
+
+  // For tracking on GPU by AdePT
+
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void AdePTTrackingManager::PreparePhysicsTable(
     const G4ParticleDefinition &part) {
+
+  // For tracking on CPU by Geant4, prepare the physics tables for the processes of 
+  // particles taken by this tracking manager, since Geant4 won't do it anymore
+  G4ProcessManager* pManager = part.GetProcessManager();
+  G4ProcessManager* pManagerShadow = part.GetMasterProcessManager();
+
+  G4ProcessVector* pVector = pManager->GetProcessList();
+  for (std::size_t j = 0; j < pVector->size(); ++j) {
+    if (pManagerShadow == pManager) {
+      (*pVector)[j]->PreparePhysicsTable(part);
+    }
+    else {
+      (*pVector)[j]->PrepareWorkerPhysicsTable(part);
+    }
+  }
+
+  // For tracking on GPU by AdePT
+
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

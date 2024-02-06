@@ -68,23 +68,6 @@ void PhysListAdePT::ConstructProcess()
 {
   G4PhysicsListHelper *ph = G4PhysicsListHelper::GetPhysicsListHelper();
 
-  // from G4EmStandardPhysics
-  G4EmBuilder::PrepareEMPhysics();
-
-  G4EmParameters* param = G4EmParameters::Instance();
-
-  // processes used by several particles
-  G4hMultipleScattering* hmsc = new G4hMultipleScattering("ionmsc");
-
-  // nuclear stopping is enabled if th eenergy limit above zero
-  G4double nielEnergyLimit = param->MaxNIELEnergy();
-  G4NuclearStopping* pnuc = nullptr;
-  if(nielEnergyLimit > 0.0) {
-    pnuc = new G4NuclearStopping();
-    pnuc->SetMaxKinEnergy(nielEnergyLimit);
-  }
-  // end of G4EmStandardPhysics
-
   // Register custom tracking manager for e-/e+ and gammas.
   fTrackingManager = new AdePTTrackingManager();
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
@@ -93,23 +76,6 @@ void PhysListAdePT::ConstructProcess()
 
   // Setup tracking manager
   fTrackingManager->SetVerbosity(0);
-
-  // from G4EmStandardPhysics
-
-  // generic ion
-  G4ParticleDefinition* particle = G4GenericIon::GenericIon();
-  G4ionIonisation* ionIoni = new G4ionIonisation();
-  ph->RegisterProcess(hmsc, particle);
-  ph->RegisterProcess(ionIoni, particle);
-  if(nullptr != pnuc) { ph->RegisterProcess(pnuc, particle); }
-
-  // muons, hadrons ions
-  G4EmBuilder::ConstructCharged(hmsc, pnuc);
-
-  // extra configuration
-  G4EmModelActivator mact(GetPhysicsName());
-
-  //end of G4EmStandardPhysics
 
   auto caloSD = dynamic_cast<G4VSensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
   
