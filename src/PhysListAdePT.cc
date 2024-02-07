@@ -41,6 +41,7 @@
 #include "G4NuclearStopping.hh"
 #include "G4SDManager.hh"
 
+#include "G4GeometryManager.hh"
 #include "G4RunManager.hh"
 
 PhysListAdePT::PhysListAdePT(const G4String &name) : G4VPhysicsConstructor(name)
@@ -55,7 +56,7 @@ PhysListAdePT::PhysListAdePT(const G4String &name) : G4VPhysicsConstructor(name)
   param->SetMscRangeFactor(0.04);
   //
 
-  SetPhysicsType(bElectromagnetic);
+  SetPhysicsType(bUnknown);
 }
 
 PhysListAdePT::~PhysListAdePT() 
@@ -88,7 +89,7 @@ void PhysListAdePT::ConstructProcess()
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
 
-  adept->SetGPURegionName(fAdePTConfiguration->GetGPURegionName());
+  adept->SetGPURegionNames(fAdePTConfiguration->GetGPURegionNames());
 
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {

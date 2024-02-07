@@ -84,7 +84,7 @@ public:
   /// @brief Set debug level for transport
   void SetDebugLevel(int level) { fDebugLevel = level; }
   /// @brief Set Geant4 region to which it applies
-  void SetGPURegionName(std::string regionName) { fGPURegionName = regionName; }
+  void SetGPURegionNames(std::vector<std::string> *regionName) { fGPURegionNames = regionName; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize(bool common_data = false);
@@ -94,20 +94,20 @@ public:
   void Shower(int event);
 
 private:
-  bool fInit{false};                   ///< Service initialized flag
-  int fNthreads{0};                    ///< Number of cpu threads
-  int fMaxBatch{0};                    ///< Max batch size for allocating GPU memory
-  int fNumVolumes{0};                  ///< Total number of active logical volumes
-  int fNumSensitive{0};                ///< Total number of sensitive volumes
-  int fBufferThreshold{20};            ///< Buffer threshold for flushing AdePT transport buffer
-  int fDebugLevel{1};                  ///< Debug level
-  GPUstate *fGPUstate{nullptr};        ///< CUDA state placeholder
-  AdeptScoring *fScoring{nullptr};     ///< User scoring object
-  AdeptScoring *fScoring_dev{nullptr}; ///< Device ptr for scoring data
-  static G4HepEmState *fg4hepem_state; ///< The HepEm state singleton
-  TrackBuffer fBuffer;                 ///< Vector of buffers of tracks to/from device (per thread)
-  std::string fGPURegionName{""};   ///< Region to which applies
-  IntegrationLayer fIntegrationLayer;  ///< Provides functionality needed for integration with the simulation toolkit
+  bool fInit{false};                          ///< Service initialized flag
+  int fNthreads{0};                           ///< Number of cpu threads
+  int fMaxBatch{0};                           ///< Max batch size for allocating GPU memory
+  int fNumVolumes{0};                         ///< Total number of active logical volumes
+  int fNumSensitive{0};                       ///< Total number of sensitive volumes
+  int fBufferThreshold{20};                   ///< Buffer threshold for flushing AdePT transport buffer
+  int fDebugLevel{1};                         ///< Debug level
+  GPUstate *fGPUstate{nullptr};               ///< CUDA state placeholder
+  AdeptScoring *fScoring{nullptr};            ///< User scoring object
+  AdeptScoring *fScoring_dev{nullptr};        ///< Device ptr for scoring data
+  static G4HepEmState *fg4hepem_state;        ///< The HepEm state singleton
+  TrackBuffer fBuffer;                        ///< Vector of buffers of tracks to/from device (per thread)
+  std::vector<std::string> *fGPURegionNames{}; ///< Region to which applies
+  IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
 
   /// @brief Used to map VecGeom to Geant4 volumes for scoring
   void InitializeSensitiveVolumeMapping(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world);

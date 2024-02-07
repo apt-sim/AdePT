@@ -26,6 +26,10 @@
 /adept/setMillionsOfTrackSlots 1
 /adept/setMillionsOfHitSlots 1
 
+/adept/addGPURegion ECAL
+/adept/addGPURegion HCAL
+
+
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic filed:
 ## -----------------------------------------------------------------------------

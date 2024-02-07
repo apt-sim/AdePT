@@ -10,7 +10,7 @@ public:
   AdePTConfiguration() { fAdePTConfigurationMessenger = new AdePTConfigurationMessenger(this); }
   ~AdePTConfiguration() { delete fAdePTConfigurationMessenger; }
   void SetRandomSeed(int randomSeed) { fRandomSeed = randomSeed; }
-  void SetGPURegionName(std::string name) { fGPURegionName = name; }
+  void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
   void SetTransportBufferThreshold(int threshold) { fTransportBufferThreshold = threshold; }
@@ -21,7 +21,7 @@ public:
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
 
-  std::string GetGPURegionName() { return fGPURegionName; }
+  std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetVerbosity() { return fVerbosity; };
   int GetTransportBufferThreshold() { return fTransportBufferThreshold; }
@@ -34,7 +34,7 @@ public:
 
 private:
   int fRandomSeed;
-  std::string fGPURegionName{""};
+  std::vector<std::string> fGPURegionNames{};
   bool fAdePTActivated{true};
   int fVerbosity{0};
   int fTransportBufferThreshold{200};

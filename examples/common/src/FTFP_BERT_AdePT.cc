@@ -36,12 +36,11 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
 
   // EM Physics
 
+  // Register the EM physics to use for tracking on CPU
+  RegisterPhysics(new G4EmStandardPhysics());
+
   // Register the AdePT physics
   RegisterPhysics(new PhysListAdePT());
-
-  // Register the EM physics to use for tracking on CPU
-  // Important: This must be done after registering the AdePT physics constructor
-  RegisterPhysics(new G4EmStandardPhysics());
 
   // Synchroton Radiation & GN Physics
   // comenting out to remove gamma- and lepto-nuclear processes

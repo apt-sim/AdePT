@@ -26,8 +26,8 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetSeedCmd = new G4UIcmdWithAnInteger("/adept/setSeed", this);
   fSetSeedCmd->SetGuidance("Set a random seed for AdePT");
 
-  fSetRegionCmd = new G4UIcmdWithAString("/adept/setRegion", this);
-  fSetRegionCmd->SetGuidance("Set the region in which transport will be done on GPU");
+  fAddRegionCmd = new G4UIcmdWithAString("/adept/addGPURegion", this);
+  fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
 
   fActivateAdePTCmd = new G4UIcmdWithABool("/adept/activateAdePT", this);
   fActivateAdePTCmd->SetGuidance("Set whether to use AdePT for transport, if false all transport is done by Geant4");
@@ -59,7 +59,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
 {
   delete fDir;
   delete fSetSeedCmd;
-  delete fSetRegionCmd;
+  delete fAddRegionCmd;
   delete fActivateAdePTCmd;
   delete fSetVerbosityCmd;
   delete fSetTransportBufferThresholdCmd;
@@ -77,9 +77,9 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
   {
     fAdePTConfiguration->SetRandomSeed(fSetSeedCmd->GetNewIntValue(newValue));
   }
-  else if(command == fSetRegionCmd)
+  else if(command == fAddRegionCmd)
   {
-    fAdePTConfiguration->SetGPURegionName(newValue);
+    fAdePTConfiguration->AddGPURegionName(newValue);
   }
   else if(command == fActivateAdePTCmd)
   {
