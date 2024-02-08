@@ -72,10 +72,9 @@ void AdePTTransport::Initialize(bool common_data)
     int *sensitive_volumes = nullptr;
 
     // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.  
-
     fIntegrationLayer.CheckGeometry(fg4hepem_state);
     VolAuxData *auxData = new VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
-    fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state);
+    fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state, fTrackInAllRegions, fGPURegionNames);
 
     // Initialize volume auxiliary data on device
     VolAuxArray::GetInstance().fNumVolumes = fNumVolumes;

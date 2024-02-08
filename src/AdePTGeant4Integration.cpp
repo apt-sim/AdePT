@@ -15,6 +15,7 @@
 #include <G4VSensitiveDetector.hh>
 #include <G4UniformMagField.hh>
 #include <G4FieldManager.hh>
+#include <G4RegionStore.hh>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
@@ -24,7 +25,6 @@ void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
   // Import the gdml file into VecGeom
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
   vgdml::Parser vgdmlParser;
-  //auto middleWare = vgdmlParser.Load(fGDML_file.c_str(), false, copcore::units::mm);
   auto middleWare = vgdmlParser.Load(filename, false, mm);
   if (middleWare == nullptr) {
     std::cerr << "Failed to read geometry from GDML file '" << filename << "'" << G4endl;
@@ -111,14 +111,23 @@ void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
   visitGeometry(g4world, vecgeomWorld);
 }
 
-void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState)
+void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
+                                            bool trackInAllRegions, std::vector<std::string> *gpuRegionNames)
 {
-  // In order to run only in some regions this function needs to receive the GPU region name and get the 
-  // corresponding G4Region
-
   const G4VPhysicalVolume *g4world = G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
   const int *g4tohepmcindex = hepEmState->fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
+
+  // We need to go from region names to G4Region
+  std::vector<G4Region*> gpuRegions{};
+  if(!trackInAllRegions)
+  {
+    for(std::string regionName: *(gpuRegionNames))
+    {
+      G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
+      gpuRegions.push_back(region);
+    }
+  }
 
   // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
   typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
@@ -130,11 +139,21 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
     int hepemmcindex = g4tohepmcindex[g4mcindex];
     volAuxData[vg_lvol->id()].fMCIndex = hepemmcindex;
 
-    // Check if the volume belongs to the interesting region
-    // I am commenting out this 'if' because (for the moment) we don't want any particles leaking out from AdePT
-    // if (g4_lvol->GetRegion() == fRegion)
-    volAuxData[vg_lvol->id()].fGPUregion = 1;
-
+    // Check if the volume belongs to a GPU region
+    if(!trackInAllRegions)
+    {
+      for(G4Region *gpuRegion: gpuRegions)
+      {
+        if (g4_lvol->GetRegion() == gpuRegion) {
+          volAuxData[vg_lvol->id()].fGPUregion = 1;
+        }
+      }
+    }
+    else
+    {
+      volAuxData[vg_lvol->id()].fGPUregion = 1;
+    }
+    
     // Check if the logical volume is sensitive
     bool sens = false;
 
@@ -400,6 +419,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
 
 void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel)
 {
+  G4cout << "Returning " << tracksFromDevice->size() << " tracks from device" << G4endl;
+
   constexpr double tolerance = 10. * vecgeom::kTolerance;
   int tid = GetThreadID();
 

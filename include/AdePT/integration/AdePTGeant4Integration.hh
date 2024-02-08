@@ -42,7 +42,8 @@ class AdePTGeant4Integration {
         static void CheckGeometry(G4HepEmState *hepEmState);
 
         /// @brief Fills the auxiliary data needed for AdePT
-        static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState);
+        static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState, 
+                                    bool trackInAllRegions, std::vector<std::string> *gpuRegionNames);
 
         /// @brief Initializes the mapping of VecGeom to G4 volumes for sensitive volumes and their parents
         void InitScoringData(adeptint::VolAuxData *volAuxData);

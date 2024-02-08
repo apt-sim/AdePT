@@ -10,6 +10,7 @@ public:
   AdePTConfiguration() { fAdePTConfigurationMessenger = new AdePTConfigurationMessenger(this); }
   ~AdePTConfiguration() { delete fAdePTConfigurationMessenger; }
   void SetRandomSeed(int randomSeed) { fRandomSeed = randomSeed; }
+  void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
@@ -21,6 +22,7 @@ public:
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
 
+  bool GetTrackInAllRegions() { return fTrackInAllRegions; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetVerbosity() { return fVerbosity; };
@@ -34,6 +36,7 @@ public:
 
 private:
   int fRandomSeed;
+  bool fTrackInAllRegions{false};
   std::vector<std::string> fGPURegionNames{};
   bool fAdePTActivated{true};
   int fVerbosity{0};

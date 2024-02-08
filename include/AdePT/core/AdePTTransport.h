@@ -83,8 +83,12 @@ public:
   void SetBufferThreshold(int limit) { fBufferThreshold = limit; }
   /// @brief Set debug level for transport
   void SetDebugLevel(int level) { fDebugLevel = level; }
+  /// @brief Set whether AdePT should transport particles across the whole geometry
+  void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
+  bool GetTrackInAllRegions() { return fTrackInAllRegions; }
   /// @brief Set Geant4 region to which it applies
-  void SetGPURegionNames(std::vector<std::string> *regionName) { fGPURegionNames = regionName; }
+  void SetGPURegionNames(std::vector<std::string> *regionNames) { fGPURegionNames = regionNames; }
+  std::vector<std::string> *GetGPURegionNames() { return fGPURegionNames; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize(bool common_data = false);
@@ -106,6 +110,7 @@ private:
   AdeptScoring *fScoring_dev{nullptr};        ///< Device ptr for scoring data
   static G4HepEmState *fg4hepem_state;        ///< The HepEm state singleton
   TrackBuffer fBuffer;                        ///< Vector of buffers of tracks to/from device (per thread)
+  bool fTrackInAllRegions;                    ///< Whether the whole geometry is a GPU region
   std::vector<std::string> *fGPURegionNames{}; ///< Region to which applies
   IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
 

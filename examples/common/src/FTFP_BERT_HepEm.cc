@@ -35,8 +35,8 @@ FTFP_BERT_HepEm::FTFP_BERT_HepEm(G4int ver)
   SetVerboseLevel(ver);
 
   // EM Physics
-  //  RegisterPhysics( new G4EmStandardPhysics(ver));
-  RegisterPhysics(new PhysListHepEm);
+  RegisterPhysics( new G4EmStandardPhysics(ver));
+  //RegisterPhysics(new PhysListHepEm);
 
   // Synchroton Radiation & GN Physics
   // comenting out to remove gamma- and lepto-nuclear processes

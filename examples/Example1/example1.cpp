@@ -35,7 +35,7 @@ int main(int argc, char **argv)
       batchMacroName     = G4String(argv[i + 1]);
       useInteractiveMode = false;
       ++i;
-    } else if (argument == "--no_AdePT") {
+    } else if (argument == "--noadept") {
       useAdePT = false;
     } else {
       G4Exception("main", "Unknown argument", FatalErrorInArgument,

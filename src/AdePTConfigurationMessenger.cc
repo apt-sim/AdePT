@@ -26,6 +26,9 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetSeedCmd = new G4UIcmdWithAnInteger("/adept/setSeed", this);
   fSetSeedCmd->SetGuidance("Set a random seed for AdePT");
 
+  fSetTrackInAllRegionsCmd = new G4UIcmdWithABool("/adept/setTrackInAllRegions", this);
+  fSetTrackInAllRegionsCmd->SetGuidance("If true, particles are tracked on the GPU across the whole geometry");
+
   fAddRegionCmd = new G4UIcmdWithAString("/adept/addGPURegion", this);
   fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
 
@@ -59,6 +62,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
 {
   delete fDir;
   delete fSetSeedCmd;
+  delete fSetTrackInAllRegionsCmd;
   delete fAddRegionCmd;
   delete fActivateAdePTCmd;
   delete fSetVerbosityCmd;
@@ -76,6 +80,10 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
   if(command == fSetSeedCmd)
   {
     fAdePTConfiguration->SetRandomSeed(fSetSeedCmd->GetNewIntValue(newValue));
+  }
+  else if(command == fSetTrackInAllRegionsCmd)
+  {
+    fAdePTConfiguration->SetTrackInAllRegions(fSetTrackInAllRegionsCmd->GetNewBoolValue(newValue));
   }
   else if(command == fAddRegionCmd)
   {

@@ -5,6 +5,8 @@
 #define AdePTTrackingManager_h 1
 
 #include "G4VTrackingManager.hh"
+#include "G4RegionStore.hh"
+
 #include "globals.hh"
 #include <AdePT/core/AdePTTransport.h>
 #include "AdePT/copcore/SystemOfUnits.h"
@@ -29,8 +31,23 @@ public:
   /// Set verbosity for integration
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
-  // Set the AdePTTransport instance
-  void SetAdePTTransport(AdePTTransport *adept) { fAdept = adept; }
+  // Set the AdePTTransport instance, also initializes the GPU region list
+  void SetAdePTTransport(AdePTTransport *adept) { 
+    fAdept = adept;
+    if(!adept->GetTrackInAllRegions())
+    {
+      for(std::string regionName: *(adept->GetGPURegionNames()))
+      {
+        G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
+        G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
+        if(region != nullptr)
+          fGPURegions.push_back(region);
+        else
+          G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument, 
+                      ("Region given to /adept/addGPURegion: " + regionName + " Not found\n").c_str());
+      }
+    }
+  }
 
 private:
 
@@ -44,7 +61,7 @@ private:
   /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
   void StepInHostRegion(G4Track *aTrack);
 
-  G4Region *fPlaceholderRegion{nullptr};
+  std::vector<G4Region*> fGPURegions{};
   AdePTTransport *fAdept;
   int fVerbosity{0};
   G4double ProductionCut = 0.7 * copcore::units::mm;

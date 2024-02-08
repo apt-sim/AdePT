@@ -53,7 +53,7 @@ PhysListAdePT::PhysListAdePT(const G4String &name) : G4VPhysicsConstructor(name)
   param->SetVerbose(1);
 
   // Range factor: (can be set from the G4 macro)
-  param->SetMscRangeFactor(0.04);
+  // param->SetMscRangeFactor(0.04);
   //
 
   SetPhysicsType(bUnknown);
@@ -80,21 +80,25 @@ void PhysListAdePT::ConstructProcess()
 
   auto caloSD = dynamic_cast<G4VSensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
   
-  AdePTTransport *adept = new AdePTTransport();
+  // Create one instance of AdePTTransport per thread and set it up according to the user configuration
+  AdePTTransport *aAdePTTransport = new AdePTTransport();
+  aAdePTTransport->SetDebugLevel(0);
+  aAdePTTransport->SetBufferThreshold(fAdePTConfiguration->GetTransportBufferThreshold());
+  aAdePTTransport->SetMaxBatch(2 * fAdePTConfiguration->GetTransportBufferThreshold());
+  aAdePTTransport->SetTrackInAllRegions(fAdePTConfiguration->GetTrackInAllRegions());
+  aAdePTTransport->SetGPURegionNames(fAdePTConfiguration->GetGPURegionNames());
 
-  adept->SetDebugLevel(0);
-  adept->SetBufferThreshold(fAdePTConfiguration->GetTransportBufferThreshold());
-  adept->SetMaxBatch(2 * fAdePTConfiguration->GetTransportBufferThreshold());
-
+  // Check if this is a sequential run
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
 
-  adept->SetGPURegionNames(fAdePTConfiguration->GetGPURegionNames());
-
+  // One thread initializes common elements
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
+    // Load the VecGeom world in memory
     AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
-    // This is supposed to set the max batching for Adept to allocate properly the memory
+    
+    // Track and Hit buffer capacities on GPU are split among threads
     int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
     int track_capacity    = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
     G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
@@ -102,14 +106,24 @@ void PhysListAdePT::ConstructProcess()
     int hit_buffer_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfHitSlots() / num_threads;
     G4cout << "AdePT Allocated hit buffer capacity: " << hit_buffer_capacity << " slots" << G4endl;
     AdePTTransport::SetHitBufferCapacity(hit_buffer_capacity);
-    adept->Initialize(true /*common_data*/);
+
+    // Initialize common data:
+    // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
+    aAdePTTransport->Initialize(true /*common_data*/);
     if (sequential) 
     {
-      adept->Initialize();
+      // Initialize per-thread data (When in sequential mode)
+      aAdePTTransport->Initialize();
     }
   } else {
-    adept->Initialize();
+    // Initialize per-thread data
+    aAdePTTransport->Initialize();
   }
   
-  fTrackingManager->SetAdePTTransport(adept);
+  // Give the custom tracking manager a pointer to the AdePTTransport instance
+  fTrackingManager->SetAdePTTransport(aAdePTTransport);
+
+  // Translate Region names to actual G4 Regions and give them to the custom tracking manager
+
+
 }
