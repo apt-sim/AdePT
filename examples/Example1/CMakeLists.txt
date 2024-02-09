@@ -69,5 +69,6 @@ target_link_libraries(example1
 # Install macros and geometry file
 
 configure_file("macros/example1.mac.in" "${CMAKE_BINARY_DIR}/example1.mac")
+configure_file("macros/example1_ttbar.mac.in" "${CMAKE_BINARY_DIR}/example1_ttbar.mac")
 
 # Tests

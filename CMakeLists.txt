@@ -137,6 +137,7 @@ if(BUILD_TESTING)
 endif()
 
 configure_file(examples/data/cms2018_sd.gdml ${CMAKE_BINARY_DIR}/cms2018_sd.gdml)
+configure_file(examples/data/ppttbar.hepmc3 ${CMAKE_BINARY_DIR}/ppttbar.hepmc3)
 
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc

@@ -419,7 +419,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
 
 void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel)
 {
-  G4cout << "Returning " << tracksFromDevice->size() << " tracks from device" << G4endl;
+  // G4cout << "Returning " << tracksFromDevice->size() << " tracks from device" << G4endl;
 
   constexpr double tolerance = 10. * vecgeom::kTolerance;
   int tid = GetThreadID();
