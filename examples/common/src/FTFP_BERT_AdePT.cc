@@ -22,7 +22,8 @@
 #include "G4NeutronTrackingCut.hh"
 #include "G4HadronPhysicsFTFP_BERT.hh"
 
-#include <AdePT/integration/PhysListAdePT.hh>
+#include <AdePT/integration/HepEMPhysics.hh>
+#include <AdePT/integration/AdePTPhysics.hh>
 #include "FTFP_BERT_AdePT.hh"
 
 FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
@@ -37,10 +38,11 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
   // EM Physics
 
   // Register the EM physics to use for tracking on CPU
-  RegisterPhysics(new G4EmStandardPhysics());
+  // RegisterPhysics(new G4EmStandardPhysics());
+  RegisterPhysics(new HepEMPhysics());
 
   // Register the AdePT physics
-  RegisterPhysics(new PhysListAdePT());
+  RegisterPhysics(new AdePTPhysics());
 
   // Synchroton Radiation & GN Physics
   // comenting out to remove gamma- and lepto-nuclear processes

@@ -13,7 +13,7 @@
 #include "G4Material.hh"
 #include "G4MaterialTable.hh"
 
-#include <AdePT/integration/PhysListHepEm.hh>
+#include <AdePT/integration/HepEMPhysics.hh>
 #include "G4DecayPhysics.hh"
 #include "G4EmStandardPhysics.hh"
 #include "G4EmExtraPhysics.hh"
@@ -35,8 +35,8 @@ FTFP_BERT_HepEm::FTFP_BERT_HepEm(G4int ver)
   SetVerboseLevel(ver);
 
   // EM Physics
-  RegisterPhysics( new G4EmStandardPhysics(ver));
-  //RegisterPhysics(new PhysListHepEm);
+  // RegisterPhysics( new G4EmStandardPhysics(ver));
+  RegisterPhysics(new HepEMPhysics());
 
   // Synchroton Radiation & GN Physics
   // comenting out to remove gamma- and lepto-nuclear processes

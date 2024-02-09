@@ -9,7 +9,7 @@
 #include "globals.hh"
 #include "G4VModularPhysicsList.hh"
 #include <AdePT/integration/AdePTTrackingManager.hh>
-#include <AdePT/integration/PhysListAdePT.hh>
+#include <AdePT/integration/AdePTPhysics.hh>
 
 class FTFP_BERT_AdePT : public G4VModularPhysicsList {
 public:
@@ -19,11 +19,11 @@ public:
   FTFP_BERT_AdePT(const FTFP_BERT_AdePT &) = delete;
   FTFP_BERT_AdePT &operator=(const FTFP_BERT_AdePT &) = delete;
   
-  PhysListAdePT *GetAdePTPhysicsList(){return fAdePTPhysicsList;}
+  AdePTPhysics *GetAdePTPhysicsList(){return fAdePTPhysicsList;}
 
 private:
   // NEVER INITIALIZED!
-  PhysListAdePT *fAdePTPhysicsList{nullptr};
+  AdePTPhysics *fAdePTPhysicsList{nullptr};
 };
 
 #endif

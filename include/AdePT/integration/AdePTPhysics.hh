@@ -1,16 +1,19 @@
 
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
-#ifndef PhysListHepEm_h
-#define PhysListHepEm_h 1
+#ifndef AdePTPhysics_h
+#define AdePTPhysics_h 1
 
 #include "G4VPhysicsConstructor.hh"
 #include "globals.hh"
+#include <AdePT/integration/AdePTTrackingManager.hh>
+#include <AdePT/core/AdePTConfiguration.hh>
 
-class PhysListHepEm : public G4VPhysicsConstructor {
+class AdePTPhysics : public G4VPhysicsConstructor {
 public:
-  PhysListHepEm(const G4String &name = "G4HepEm-physics-list");
-  ~PhysListHepEm();
+  AdePTPhysics(const G4String &name = "AdePT-physics-list");
+  ~AdePTPhysics();
+  AdePTTrackingManager* GetTrackingManager(){return fTrackingManager;}
 
 public:
   // This method is dummy for physics: particles are constructed in PhysicsList
@@ -20,6 +23,10 @@ public:
   // each physics process will be instantiated and
   // registered to the process manager of each particle type
   void ConstructProcess() override;
+
+private:
+  AdePTTrackingManager* fTrackingManager;
+  AdePTConfiguration* fAdePTConfiguration;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

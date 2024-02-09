@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/PhysListAdePT.hh>
+#include <AdePT/integration/AdePTPhysics.hh>
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include "G4ParticleDefinition.hh"
@@ -44,7 +44,7 @@
 #include "G4GeometryManager.hh"
 #include "G4RunManager.hh"
 
-PhysListAdePT::PhysListAdePT(const G4String &name) : G4VPhysicsConstructor(name)
+AdePTPhysics::AdePTPhysics(const G4String &name) : G4VPhysicsConstructor(name)
 {
   fAdePTConfiguration = new AdePTConfiguration();
 
@@ -59,13 +59,13 @@ PhysListAdePT::PhysListAdePT(const G4String &name) : G4VPhysicsConstructor(name)
   SetPhysicsType(bUnknown);
 }
 
-PhysListAdePT::~PhysListAdePT() 
+AdePTPhysics::~AdePTPhysics() 
 {
   delete fAdePTConfiguration;
   delete fTrackingManager;
 }
 
-void PhysListAdePT::ConstructProcess()
+void AdePTPhysics::ConstructProcess()
 {
   G4PhysicsListHelper *ph = G4PhysicsListHelper::GetPhysicsListHelper();
 

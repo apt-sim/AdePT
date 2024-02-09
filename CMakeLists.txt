@@ -141,8 +141,8 @@ configure_file(examples/data/ppttbar.hepmc3 ${CMAKE_BINARY_DIR}/ppttbar.hepmc3)
 
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
-  src/PhysListAdePT.cc
-  src/PhysListHepEm.cc
+  src/AdePTPhysics.cc
+  src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp)
 
 set(ADEPT_SRCS

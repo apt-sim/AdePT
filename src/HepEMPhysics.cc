@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/PhysListHepEm.hh>
+#include <AdePT/integration/HepEMPhysics.hh>
 
 // include the G4HepEmProcess from the G4HepEm lib.
 #include "G4HepEmProcess.hh"
@@ -44,7 +44,7 @@
 
 
 
-PhysListHepEm::PhysListHepEm(const G4String &name) : G4VPhysicsConstructor(name)
+HepEMPhysics::HepEMPhysics(const G4String &name) : G4VPhysicsConstructor(name)
 {
   G4EmParameters *param = G4EmParameters::Instance();
   param->SetDefaults();
@@ -57,9 +57,9 @@ PhysListHepEm::PhysListHepEm(const G4String &name) : G4VPhysicsConstructor(name)
   SetPhysicsType(bElectromagnetic);
 }
 
-PhysListHepEm::~PhysListHepEm() {}
+HepEMPhysics::~HepEMPhysics() {}
 
-void PhysListHepEm::ConstructProcess()
+void HepEMPhysics::ConstructProcess()
 {
 
   G4PhysicsListHelper *ph = G4PhysicsListHelper::GetPhysicsListHelper();
