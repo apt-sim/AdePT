@@ -11,9 +11,9 @@
 #define HEPMC3_G4_INTERFACE_H
 
 #include "G4VPrimaryGenerator.hh"
-#include "HepMC3/GenEvent.h"
-#include "HepMC3/GenVertex.h"
-#include "HepMC3/GenParticle.h"
+#include <HepMC3/GenEvent.h>
+#include <HepMC3/GenVertex.h>
+#include <HepMC3/GenParticle.h>
 
 /// A base class for primary generation via HepMC object.
 /// This class is derived from G4VPrimaryGenerator.

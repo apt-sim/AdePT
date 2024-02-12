@@ -10,9 +10,9 @@
 #ifndef HEPMC3_G4_ASCII_READER_H
 #define HEPMC3_G4_ASCII_READER_H
 
-#include "HepMC3G4Interface.hh"
-#include "HepMC3/ReaderAscii.h"
-#include "HepMC3/Print.h"
+#include <HepMC3G4Interface.hh>
+#include <HepMC3/ReaderAscii.h>
+#include <HepMC3/Print.h>
 
 #include <climits>
 
