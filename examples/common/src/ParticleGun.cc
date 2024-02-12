@@ -10,7 +10,10 @@
 #include "Randomize.hh"
 #include "G4SystemOfUnits.hh"
 #include "G4ParticleTable.hh"
+
+#ifdef HEPMC3_FOUND
 #include "HepMC3G4AsciiReader.hh"
+#endif
 
 #include <numeric>
 
