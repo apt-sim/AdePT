@@ -17,9 +17,7 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
 
-AdePTTransport::AdePTTransport()
-{
-}
+AdePTTransport::AdePTTransport() {}
 
 AdePTTransport::~AdePTTransport()
 {
@@ -27,7 +25,7 @@ AdePTTransport::~AdePTTransport()
 }
 
 void AdePTTransport::AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry,
-                                double dirz)
+                              double dirz)
 {
   fBuffer.toDevice.emplace_back(pdg, energy, x, y, z, dirx, diry, dirz);
   if (pdg == 11)
@@ -71,7 +69,7 @@ void AdePTTransport::Initialize(bool common_data)
     // Also set the mappings from sensitive volumes to hits and VecGeom to G4 indices
     int *sensitive_volumes = nullptr;
 
-    // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.  
+    // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
     fIntegrationLayer.CheckGeometry(fg4hepem_state);
     VolAuxData *auxData = new VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
     fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state, fTrackInAllRegions, fGPURegionNames);
@@ -82,7 +80,8 @@ void AdePTTransport::Initialize(bool common_data)
     VolAuxArray::GetInstance().InitializeOnGPU();
 
     // Print some settings
-    std::cout << "=== AdePTTransport: buffering " << fBufferThreshold << " particles for transport on the GPU" << std::endl;
+    std::cout << "=== AdePTTransport: buffering " << fBufferThreshold << " particles for transport on the GPU"
+              << std::endl;
     std::cout << "=== AdePTTransport: maximum number of GPU track slots per thread: " << kCapacity << std::endl;
     return;
   }
@@ -90,7 +89,7 @@ void AdePTTransport::Initialize(bool common_data)
   fIntegrationLayer.InitScoringData(VolAuxArray::GetInstance().fAuxData);
 
   std::cout << "=== AdePTTransport: initializing transport engine for thread: " << fIntegrationLayer.GetThreadID()
-         << std::endl;
+            << std::endl;
 
   // Initialize user scoring data
   fScoring     = new AdeptScoring(kHitBufferCapacity);
@@ -135,13 +134,14 @@ void AdePTTransport::Shower(int event)
   int nelec = 0, nposi = 0, ngamma = 0;
   if (fDebugLevel > 0) {
     std::cout << "[" << tid << "] toDevice: " << fBuffer.nelectrons << " elec, " << fBuffer.npositrons << " posi, "
-           << fBuffer.ngammas << " gamma\n";
+              << fBuffer.ngammas << " gamma\n";
   }
   if (fDebugLevel > 1) {
     for (auto &track : fBuffer.toDevice) {
       std::cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " energy " << track.energy
-             << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << std::endl;
+                << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
+                << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
+                << std::endl;
     }
   }
 
