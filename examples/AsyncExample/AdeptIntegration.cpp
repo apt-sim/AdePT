@@ -218,7 +218,7 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycle
       fGPUNetEnergy[threadId] = 0.;
 
       if (fDebugLevel >= 2) {
-      G4cout << "Scoring for event " << eventId << " cycle " << cycleNumber << G4endl;
+      G4cout << "\n\tScoring for event " << eventId << " cycle " << cycleNumber << G4endl;
       scoring.Print();
       }
 
