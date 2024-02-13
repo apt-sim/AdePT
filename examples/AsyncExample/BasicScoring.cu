@@ -148,3 +148,10 @@ __device__ void BasicScoring::AccountProduced(int num_ele, int num_pos, int num_
   atomicAdd(&fGlobalScoring_dev->numPositrons, num_pos);
   atomicAdd(&fGlobalScoring_dev->numGammas, num_gam);
 }
+
+__device__ void BasicScoring::AccountGammaInteraction(unsigned int interactionType)
+{
+  // Increment number of secondaries
+  if (interactionType < 3) atomicAdd(&fGlobalScoring_dev->gammaInteractions[interactionType], 1);
+}
+
