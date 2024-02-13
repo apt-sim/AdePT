@@ -617,17 +617,20 @@ void AdeptIntegration::TransportLoop()
   ParticleType &gammas    = gpuState.particles[ParticleType::Gamma];
 
   cudaEvent_t cudaEvent, cudaStatsEvent;
-  cudaStream_t transferStream, statsStream;
+  cudaStream_t transferStream, statsStream, interactionStream;
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaStatsEvent, cudaEventDisableTiming));
   adeptint::unique_ptr_cudaEvent cudaEventCleanup{&cudaEvent, adeptint::cudaEventDeleter};
   adeptint::unique_ptr_cudaEvent cudaStatsEventCleanup{&cudaStatsEvent, adeptint::cudaEventDeleter};
   COPCORE_CUDA_CHECK(cudaStreamCreate(&transferStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&statsStream));
+  COPCORE_CUDA_CHECK(cudaStreamCreate(&interactionStream));
   std::unique_ptr<cudaStream_t, decltype(&adeptint::cudaStreamDeleter)> cudaStreamCleanup{&transferStream,
                                                                                           adeptint::cudaStreamDeleter};
   std::unique_ptr<cudaStream_t, decltype(&adeptint::cudaStreamDeleter)> cudaStatsStreamCleanup{
       &statsStream, adeptint::cudaStreamDeleter};
+  std::unique_ptr<cudaStream_t, decltype(&adeptint::cudaStreamDeleter)> cudaInteractionStreamCleanup{
+      &interactionStream, adeptint::cudaStreamDeleter};
   auto waitForOtherStream = [&cudaEvent](cudaStream_t waitingStream, cudaStream_t streamToWaitFor) {
     COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, streamToWaitFor));
     COPCORE_CUDA_CHECK(cudaStreamWaitEvent(waitingStream, cudaEvent));
@@ -727,15 +730,20 @@ void AdeptIntegration::TransportLoop()
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
             gammas.queues.leakedTracksCurrent, fScoring_dev, gpuState.gammaInteractions);
 
+        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(interactionStream, gammas.event, 0));
+
         constexpr unsigned int intThreads = 256;
         ApplyGammaInteractions<AdeptScoring, 0><<<20, intThreads, 0, gammas.stream>>>(
             gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
         ApplyGammaInteractions<AdeptScoring, 1><<<20, intThreads, 0, gammas.stream>>>(
             gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
-        ApplyGammaInteractions<AdeptScoring, 2><<<40, intThreads, 0, gammas.stream>>>(
+        ApplyGammaInteractions<AdeptScoring, 2><<<40, intThreads, 0, interactionStream>>>(
             gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
+        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, interactionStream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
       }
 
