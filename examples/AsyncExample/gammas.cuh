@@ -139,6 +139,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Reset number of interaction left for the winner discrete process.
     // (Will be resampled in the next iteration.)
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
+    userScoring[currentTrack.threadId].AccountGammaInteraction(winnerProcessIndex);
 
     // Perform the discrete interaction.
     G4HepEmRandomEngine rnge(&currentTrack.rngState);

@@ -23,6 +23,7 @@ struct GlobalScoring {
   unsigned long long numGammas;
   unsigned long long numElectrons;
   unsigned long long numPositrons;
+  unsigned long long gammaInteractions[3];
   // Not used on the device, filled in by the host.
   unsigned long long numKilled;
 
@@ -30,8 +31,9 @@ struct GlobalScoring {
   {
     printf(
         "\nGlobal scoring:\n\tstpChg=%llu\n\tstpNeu=%llu\n\thits=%llu\n\tnumGam=%llu\n\tnumEle=%llu\n\tnumPos=%llu\n\t"
-        "numKilled=%llu\n",
-        chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled);
+        "numKilled=%llu\n\tgammaInt=%llu\t%llu\t%llu\n",
+        chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled, gammaInteractions[0],
+        gammaInteractions[1], gammaInteractions[2]);
   }
 };
 
@@ -73,6 +75,9 @@ struct BasicScoring {
 
   /// @brief Account for the number of produced secondaries
   __device__ void AccountProduced(int num_ele, int num_pos, int num_gam);
+
+  /// Count a gamma interaction
+  __device__ void AccountGammaInteraction(unsigned int interactionType);
 
   /// @brief Initialize hit data structures on device at given location
   /// @param BasicScoring_dev Device location where to construct the scoring
