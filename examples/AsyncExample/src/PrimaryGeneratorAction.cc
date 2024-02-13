@@ -126,9 +126,11 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
   }
 
   // Print the particle gun info if requested
-  if (fPrintGun) Print();
+  if (fPrintGun) {
+    Print();
 
-  PrintPrimaries(aEvent);
+    PrintPrimaries(aEvent);
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
