@@ -22,6 +22,10 @@ endmacro()
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_link_libraries(test_copcore_link PRIVATE VecCore::VecCore CopCore::CopCore)
 
+# - Test that use/link to G4VG works
+add_executable(test_g4vg_link test_g4vg_link.cpp)
+target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
+
 # - Unit tests
 set(ADEPT_UNIT_TESTS_BASE
   test_atomic.cu               # Unit test for atomic ops
@@ -44,3 +48,4 @@ target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
+
