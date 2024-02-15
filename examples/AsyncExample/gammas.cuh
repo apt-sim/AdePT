@@ -151,142 +151,145 @@ __global__ void __launch_bounds__(256, 1)
   }
 }
 
-template <typename Scoring, unsigned int InteractionType>
+template <typename Scoring>
 __global__ void __launch_bounds__(256, 1)
     ApplyGammaInteractions(Track *gammas, Secondaries secondaries, adept::MParray *activeQueue, Scoring *userScoring,
                            GammaInteractions gammaInteractions)
 {
   using VolAuxData = AdeptIntegration::VolAuxData;
-  static_assert(InteractionType < GammaInteractions::NInt, "No gamma interaction defined for the specified index");
 
-  const auto &queue             = *gammaInteractions.queues[InteractionType];
-  const unsigned int activeSize = queue.size();
-  for (unsigned int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const unsigned int slot         = queue[i].slot;
-    const double geometryStepLength = queue[i].geometryStepLength;
-    Track &currentTrack             = gammas[slot];
-    auto &slotManager               = *secondaries.gammas.fSlotManager;
-    const auto energy               = currentTrack.energy;
-    const auto &dir                 = currentTrack.dir;
+  for (unsigned int interactionType = blockIdx.y; interactionType < GammaInteractions::NInt;
+       interactionType += gridDim.y) {
 
-    VolAuxData const &auxData =
-        userScoring[currentTrack.threadId].GetAuxData_dev(currentTrack.navState.Top()->GetLogicalVolume()->id());
+    const auto &queue             = *gammaInteractions.queues[interactionType];
+    const unsigned int activeSize = queue.size();
+    for (unsigned int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+      const unsigned int slot         = queue[i].slot;
+      const double geometryStepLength = queue[i].geometryStepLength;
+      Track &currentTrack             = gammas[slot];
+      auto &slotManager               = *secondaries.gammas.fSlotManager;
+      const auto energy               = currentTrack.energy;
+      const auto &dir                 = currentTrack.dir;
 
-    auto survive = [&]() { activeQueue->push_back(slot); };
+      VolAuxData const &auxData =
+          userScoring[currentTrack.threadId].GetAuxData_dev(currentTrack.navState.Top()->GetLogicalVolume()->id());
 
-    // Perform the discrete interaction.
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
-    // We might need one branched RNG state, prepare while threads are synchronized.
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+      auto survive = [&]() { activeQueue->push_back(slot); };
 
-    if constexpr (InteractionType == GammaInteractions::PairCreation) {
-      // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
-      if (energy < 2 * copcore::units::kElectronMassC2) {
-        survive();
-        continue;
-      }
+      // Perform the discrete interaction.
+      G4HepEmRandomEngine rnge(&currentTrack.rngState);
+      // We might need one branched RNG state, prepare while threads are synchronized.
+      RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-      const double logEnergy = std::log(energy);
-      double elKinEnergy, posKinEnergy;
-      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
-                                                           elKinEnergy, posKinEnergy, &rnge);
+      if (interactionType == GammaInteractions::PairCreation) {
+        // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
+        if (energy < 2 * copcore::units::kElectronMassC2) {
+          survive();
+          continue;
+        }
 
-      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double dirSecondaryEl[3], dirSecondaryPos[3];
-      G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
-                                                          posKinEnergy, &rnge);
+        const double logEnergy = std::log(energy);
+        double elKinEnergy, posKinEnergy;
+        G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
+                                                             elKinEnergy, posKinEnergy, &rnge);
 
-      Track &electron = secondaries.electrons.NextTrack();
-      Track &positron = secondaries.positrons.NextTrack();
+        double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+        double dirSecondaryEl[3], dirSecondaryPos[3];
+        G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
+                                                            posKinEnergy, &rnge);
 
-      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
-
-      electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
-      electron.rngState = newRNG;
-      electron.energy   = elKinEnergy;
-      electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
-
-      positron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
-      // Reuse the RNG state of the dying track.
-      positron.rngState = currentTrack.rngState;
-      positron.energy   = posKinEnergy;
-      positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
-
-      // Kill the original track.
-      slotManager.MarkSlotForFreeing(slot);
-    }
-
-    if constexpr (InteractionType == GammaInteractions::ComptonScattering) {
-      // Invoke Compton scattering of gamma.
-      constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
-      if (energy < LowEnergyThreshold) {
-        survive();
-        continue;
-      }
-      const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double dirPrimary[3];
-      const double newEnergyGamma =
-          G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
-      vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-
-      const double energyEl = energy - newEnergyGamma;
-      if (energyEl > LowEnergyThreshold) {
-        // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons.NextTrack();
-        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        Track &positron = secondaries.positrons.NextTrack();
+
+        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
         electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
         electron.rngState = newRNG;
-        electron.energy   = energyEl;
-        electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
-        electron.dir.Normalize();
-      } else {
-        if (auxData.fSensIndex >= 0)
-          userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, energyEl);
+        electron.energy   = elKinEnergy;
+        electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
+
+        positron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
+        // Reuse the RNG state of the dying track.
+        positron.rngState = currentTrack.rngState;
+        positron.energy   = posKinEnergy;
+        positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
+
+        // Kill the original track.
+        slotManager.MarkSlotForFreeing(slot);
       }
 
-      // Check the new gamma energy and deposit if below threshold.
-      if (newEnergyGamma > LowEnergyThreshold) {
-        currentTrack.energy = newEnergyGamma;
-        currentTrack.dir    = newDirGamma;
-        survive();
-      } else {
+      if (interactionType == GammaInteractions::ComptonScattering) {
+        // Invoke Compton scattering of gamma.
+        constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
+        if (energy < LowEnergyThreshold) {
+          survive();
+          continue;
+        }
+        const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
+        double dirPrimary[3];
+        const double newEnergyGamma =
+            G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
+        vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+
+        const double energyEl = energy - newEnergyGamma;
+        if (energyEl > LowEnergyThreshold) {
+          // Create a secondary electron and sample/compute directions.
+          Track &electron = secondaries.electrons.NextTrack();
+          userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+
+          electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
+          electron.rngState = newRNG;
+          electron.energy   = energyEl;
+          electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
+          electron.dir.Normalize();
+        } else {
+          if (auxData.fSensIndex >= 0)
+            userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, energyEl);
+        }
+
+        // Check the new gamma energy and deposit if below threshold.
+        if (newEnergyGamma > LowEnergyThreshold) {
+          currentTrack.energy = newEnergyGamma;
+          currentTrack.dir    = newDirGamma;
+          survive();
+        } else {
+          if (auxData.fSensIndex >= 0)
+            userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, newEnergyGamma);
+          // The current track is killed by not enqueuing into the next activeQueue.
+          slotManager.MarkSlotForFreeing(slot);
+        }
+      }
+
+      if (interactionType == GammaInteractions::PhotoelectricProcess) {
+        // Invoke photoelectric process.
+        constexpr double theLowEnergyThreshold = 1 * copcore::units::eV;
+
+        const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
+            &g4HepEmData, auxData.fMCIndex, queue[i].PEmxSec, energy, &rnge);
+
+        double edep             = bindingEnergy;
+        const double photoElecE = energy - edep;
+        if (photoElecE > theLowEnergyThreshold) {
+          // Create a secondary electron and sample directions.
+          Track &electron = secondaries.electrons.NextTrack();
+          userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+
+          double dirGamma[] = {dir.x(), dir.y(), dir.z()};
+          double dirPhotoElec[3];
+          G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
+
+          electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
+          electron.rngState = newRNG;
+          electron.energy   = photoElecE;
+          electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
+        } else {
+          edep = energy;
+        }
         if (auxData.fSensIndex >= 0)
-          userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, newEnergyGamma);
+          userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, edep);
         // The current track is killed by not enqueuing into the next activeQueue.
         slotManager.MarkSlotForFreeing(slot);
       }
-    }
-
-    if constexpr (InteractionType == GammaInteractions::PhotoelectricProcess) {
-      // Invoke photoelectric process.
-      constexpr double theLowEnergyThreshold = 1 * copcore::units::eV;
-
-      const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, auxData.fMCIndex, queue[i].PEmxSec, energy, &rnge);
-
-      double edep             = bindingEnergy;
-      const double photoElecE = energy - edep;
-      if (photoElecE > theLowEnergyThreshold) {
-        // Create a secondary electron and sample directions.
-        Track &electron = secondaries.electrons.NextTrack();
-        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
-        double dirGamma[] = {dir.x(), dir.y(), dir.z()};
-        double dirPhotoElec[3];
-        G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
-
-        electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
-        electron.rngState = newRNG;
-        electron.energy   = photoElecE;
-        electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
-      } else {
-        edep = energy;
-      }
-      if (auxData.fSensIndex >= 0)
-        userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, edep);
-      // The current track is killed by not enqueuing into the next activeQueue.
-      slotManager.MarkSlotForFreeing(slot);
     }
   }
 }
