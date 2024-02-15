@@ -730,21 +730,17 @@ void AdeptIntegration::TransportLoop()
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
             gammas.queues.leakedTracksCurrent, fScoring_dev, gpuState.gammaInteractions);
 
-        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(interactionStream, gammas.event, 0));
+        // COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
+        // COPCORE_CUDA_CHECK(cudaStreamWaitEvent(interactionStream, gammas.event, 0));
 
-        constexpr unsigned int intThreads = 256;
-        ApplyGammaInteractions<AdeptScoring, 0><<<20, intThreads, 0, gammas.stream>>>(
-            gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
-        ApplyGammaInteractions<AdeptScoring, 1><<<20, intThreads, 0, gammas.stream>>>(
-            gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
-        ApplyGammaInteractions<AdeptScoring, 2><<<40, intThreads, 0, interactionStream>>>(
+        constexpr unsigned int intThreads = 128;
+        ApplyGammaInteractions<AdeptScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
             gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
-        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, interactionStream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
+        // COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, interactionStream));
+        // COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
       }
 
       // *** Count detailed event statistics ***
