@@ -7,7 +7,7 @@ if(NOT TARGET G4HepEm::g4HepEm)
 endif()
 
 # TestEm3 for validation of particle transportation with GPUs.
-add_executable(TestEm3 TestEm3.cpp TestEm3.cu electrons.cu gammas.cu)
+add_executable(TestEm3 TestEm3.cu electrons.cu gammas.cu TestEm3.cpp)
 target_include_directories(TestEm3 PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(TestEm3 PRIVATE CopCore AdePT_G4_integration AdePT AdePT_cuda)
 

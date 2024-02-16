@@ -41,6 +41,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir            = currentTrack.dir;
     vecgeom::Vector3D<Precision> preStepDir(dir);
+    double globalTime = currentTrack.globalTime;
+    double localTime  = currentTrack.localTime;
+    double properTime = currentTrack.properTime;
     auto navState       = currentTrack.navState;
     const auto volume   = navState.Top();
     adeptint::TrackData trackdata;
@@ -52,6 +55,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.energy   = energy;
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
+      currentTrack.globalTime = globalTime;
+      currentTrack.localTime  = localTime;
+      currentTrack.properTime = properTime;
       currentTrack.navState = navState;
       currentTrack.CopyTo(trackdata, Pdg);
       if (leak)
@@ -170,12 +176,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
-      electron.InitAsSecondary(pos, navState);
+      electron.InitAsSecondary(pos, navState, globalTime);
       electron.rngState = newRNG;
       electron.energy   = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
-      positron.InitAsSecondary(pos, navState);
+      positron.InitAsSecondary(pos, navState, globalTime);
       // Reuse the RNG state of the dying track.
       positron.rngState = currentTrack.rngState;
       positron.energy   = posKinEnergy;
@@ -203,7 +209,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         Track &electron = secondaries.electrons->NextTrack();
         userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
-        electron.InitAsSecondary(pos, navState);
+        electron.InitAsSecondary(pos, navState, globalTime);
         electron.rngState = newRNG;
         electron.energy   = energyEl;
         electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
@@ -269,7 +275,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         double dirPhotoElec[3];
         G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-        electron.InitAsSecondary(pos, navState);
+        electron.InitAsSecondary(pos, navState, globalTime);
         electron.rngState = newRNG;
         electron.energy   = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);

@@ -25,9 +25,9 @@ AdePTTransport::~AdePTTransport()
 }
 
 void AdePTTransport::AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry,
-                              double dirz)
+                              double dirz, double globalTime, double localTime, double properTime)
 {
-  fBuffer.toDevice.emplace_back(pdg, energy, x, y, z, dirx, diry, dirz);
+  fBuffer.toDevice.emplace_back(pdg, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime);
   if (pdg == 11)
     fBuffer.nelectrons++;
   else if (pdg == -11)
@@ -141,7 +141,8 @@ void AdePTTransport::Shower(int event)
       std::cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " energy " << track.energy
                 << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
                 << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
-                << std::endl;
+                << " global time, local time, proper time: " << "(" << track.globalTime << ", " << track.localTime 
+                << ", " << track.properTime << ")" << std::endl;
     }
   }
 

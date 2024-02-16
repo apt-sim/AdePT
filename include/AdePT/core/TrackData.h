@@ -9,15 +9,22 @@
 namespace adeptint {
 
 /// @brief Track data exchanged between Geant4 and AdePT
+/// @details This struct is initialised from an AdePT Track, either in GPU or CPU, copied to
+/// the destination, and used to reconstruct the track
 struct TrackData {
   double position[3];
   double direction[3];
   double energy{0};
   int pdg{0};
+  double globalTime{0};
+  double localTime{0};
+  double properTime{0};
 
   TrackData() = default;
-  TrackData(int pdg_id, double ene, double x, double y, double z, double dirx, double diry, double dirz)
-      : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}
+  TrackData(int pdg_id, double ene, double x, double y, double z, double dirx, double diry, double dirz, double gTime,
+            double lTime, double pTime)
+      : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}, globalTime{gTime}, localTime{lTime},
+        properTime{pTime}
   {
   }
 

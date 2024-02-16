@@ -138,10 +138,13 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       auto particlePosition  = aTrack->GetPosition();
       auto particleDirection = aTrack->GetMomentumDirection();
       G4double energy        = aTrack->GetKineticEnergy();
+      G4double globalTime    = aTrack->GetGlobalTime();
+      G4double localTime     = aTrack->GetLocalTime();
+      G4double properTime    = aTrack->GetProperTime();
       auto pdg               = aTrack->GetParticleDefinition()->GetPDGEncoding();
 
       fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
-                       particleDirection[1], particleDirection[2]);
+                       particleDirection[1], particleDirection[2], globalTime, localTime, properTime);
       
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);

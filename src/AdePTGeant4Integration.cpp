@@ -419,7 +419,10 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
 
 void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel)
 {
-  // G4cout << "Returning " << tracksFromDevice->size() << " tracks from device" << G4endl;
+  // debugLevel = 2;
+  if (debugLevel > 1) {
+    G4cout << "Returning " << tracksFromDevice->size() << " tracks from device" << G4endl;
+  }
 
   constexpr double tolerance = 10. * vecgeom::kTolerance;
   int tid = GetThreadID();
@@ -430,7 +433,9 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
     if (debugLevel > 1) {
       std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " energy " << track.energy
              << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] << std::endl;
+             << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] 
+             << " global time, local time, proper time: " << "(" << track.globalTime << ", " << track.localTime 
+             << ", " << track.properTime << ")" << std::endl;
     }
     G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
 
@@ -442,7 +447,9 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
     // push it to make sure it is not relocated again in the GPU region
     posi += tolerance * direction;
 
-    G4Track *secondary = new G4Track(dynamique, 0, posi);
+    G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
+    secondary->SetLocalTime(track.localTime);
+    secondary->SetProperTime(track.properTime);
     secondary->SetParentID(-99);
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);

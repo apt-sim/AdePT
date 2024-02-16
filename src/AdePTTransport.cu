@@ -125,6 +125,11 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
 
     track.pos = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
     track.dir = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
+
+    track.globalTime = trackinfo->globalTime;
+    track.localTime = trackinfo->localTime;
+    track.properTime = trackinfo->properTime;
+
     track.navState.Clear();
     // We locate the pushed point because we run the risk that the
     // point is not located in the GPU region

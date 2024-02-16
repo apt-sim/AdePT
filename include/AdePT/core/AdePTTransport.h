@@ -69,7 +69,8 @@ public:
   int GetNfromDevice() const { return fBuffer.fromDevice.size(); }
 
   /// @brief Adds a track to the buffer
-  void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz);
+  void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz,
+                double globalTime, double localTime, double properTime);
   /// @brief Prepare the buffers for copying leaked tracks
   /// @param numLeaked Number of tracks to be copied
   void PrepareLeakedBuffers(int numLeaked);
