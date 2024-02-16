@@ -148,6 +148,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // (Will be resampled in the next iteration.)
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
+
+    // Update the flight times of the particle
+    // TODO: Make sure that this is the right place for this
+    double deltaTime = theTrack->GetGStepLength()/copcore::units::kCLight;
+    globalTime += deltaTime;
+    localTime += deltaTime;
+
     // Perform the discrete interaction.
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
     // We might need one branched RNG state, prepare while threads are synchronized.
