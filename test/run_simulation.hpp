@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <AdePT/base/BlockData.h>
 #include "sim_kernels.h"
 
 ///______________________________________________________________________________________

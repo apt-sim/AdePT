@@ -42,12 +42,12 @@ set(ADEPT_UNIT_TESTS_BASE
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
-add_executable(test_launcher test_launcher.cu test_launcher.cpp)
-target_include_directories(test_launcher PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-)
-target_link_libraries(test_launcher AdePT_cuda AdePT AdePT_G4_integration)
+# add_executable(test_launcher test_launcher.cu test_launcher.cpp)
+# target_include_directories(test_launcher PUBLIC
+#   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+#   $<INSTALL_INTERFACE:base>
+# )
+# target_link_libraries(test_launcher AdePT_cuda AdePT AdePT_G4_integration)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
