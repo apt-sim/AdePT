@@ -47,7 +47,7 @@ target_include_directories(test_launcher PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(test_launcher AdePT)
+target_link_libraries(test_launcher AdePT AdePT_G4_integration)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
