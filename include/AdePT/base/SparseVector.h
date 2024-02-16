@@ -327,7 +327,6 @@ class SparseVectorInterface {
   using Mask_t                 = unsigned int;
   using AtomicInt_t            = adept::Atomic_t<int>;
   using AtomicMask_t           = adept::Atomic_t<Mask_t>;
-  using LaunchGrid_t           = copcore::launch_grid<copcore::BackendType::CUDA>;
 
 protected:
   void *fBegin     = nullptr; ///< Start address of the vector data

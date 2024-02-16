@@ -14,7 +14,7 @@
 #include <AdePT/copcore/Allocator.h>
 #include <AdePT/copcore/VariableSizeObj.h>
 #include <AdePT/copcore/VariableSizeObjAllocator.h>
-#include <AdePT/copcore/launch_grid.h>
-#include <AdePT/copcore/Launcher.h>
+
+
 
 #endif // COPCORE_COPCORE_H_
