@@ -35,8 +35,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*gammas->fActiveTracks)[i];
     Track &currentTrack = (*gammas)[slot];
-    auto energy         = currentTrack.energy;
-    auto preStepEnergy = energy;
+    auto eKin         = currentTrack.eKin;
+    auto preStepEnergy = eKin;
     auto pos            = currentTrack.pos;
     vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir            = currentTrack.dir;
@@ -52,7 +52,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     VolAuxData const &auxData = auxDataArray[lvolID];
 
     auto survive = [&](bool leak = false) {
-      currentTrack.energy   = energy;
+      currentTrack.eKin   = eKin;
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
       currentTrack.globalTime = globalTime;
@@ -69,7 +69,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
     G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(energy);
+    theTrack->SetEKin(eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
@@ -156,14 +156,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
-      if (energy < 2 * copcore::units::kElectronMassC2) {
+      if (eKin < 2 * copcore::units::kElectronMassC2) {
         survive();
         continue;
       }
 
-      double logEnergy = std::log(energy);
+      double logEnergy = std::log(eKin);
       double elKinEnergy, posKinEnergy;
-      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
+      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, eKin, logEnergy, auxData.fMCIndex,
                                                            elKinEnergy, posKinEnergy, &rnge);
 
       double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
@@ -178,13 +178,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       electron.InitAsSecondary(pos, navState, globalTime);
       electron.rngState = newRNG;
-      electron.energy   = elKinEnergy;
+      electron.eKin   = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
       positron.InitAsSecondary(pos, navState, globalTime);
       // Reuse the RNG state of the dying track.
       positron.rngState = currentTrack.rngState;
-      positron.energy   = posKinEnergy;
+      positron.eKin   = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.
@@ -193,17 +193,17 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     case 1: {
       // Invoke Compton scattering of gamma.
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
-      if (energy < LowEnergyThreshold) {
+      if (eKin < LowEnergyThreshold) {
         survive();
         continue;
       }
       const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirPrimary[3];
       const double newEnergyGamma =
-          G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
+          G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(eKin, dirPrimary, origDirPrimary, &rnge);
       vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
 
-      const double energyEl = energy - newEnergyGamma;
+      const double energyEl = eKin - newEnergyGamma;
       if (energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons->NextTrack();
@@ -211,8 +211,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.rngState = newRNG;
-        electron.energy   = energyEl;
-        electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
+        electron.eKin   = energyEl;
+        electron.dir      = eKin * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
         if (auxData.fSensIndex >= 0) userScoring->RecordHit(2,              //Particle type
@@ -234,7 +234,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       // Check the new gamma energy and deposit if below threshold.
       if (newEnergyGamma > LowEnergyThreshold) {
-        energy = newEnergyGamma;
+        eKin = newEnergyGamma;
         dir    = newDirGamma;
         survive();
       } else {
@@ -262,10 +262,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), energy, &rnge);
+          &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), eKin, &rnge);
 
       double edep             = bindingEnergy;
-      const double photoElecE = energy - edep;
+      const double photoElecE = eKin - edep;
       if (photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
         Track &electron = secondaries.electrons->NextTrack();
@@ -277,10 +277,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.rngState = newRNG;
-        electron.energy   = photoElecE;
+        electron.eKin   = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
       } else {
-        edep = energy;
+        edep = eKin;
       }
       if (auxData.fSensIndex >= 0) userScoring->RecordHit(2,                //Particle type
                                                         geometryStepLength, //Step length

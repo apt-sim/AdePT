@@ -138,7 +138,7 @@ void AdePTTransport::Shower(int event)
   }
   if (fDebugLevel > 1) {
     for (auto &track : fBuffer.toDevice) {
-      std::cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " energy " << track.energy
+      std::cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " kinetic energy " << track.eKin
                 << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
                 << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
                 << " global time, local time, proper time: " << "(" << track.globalTime << ", " << track.localTime 

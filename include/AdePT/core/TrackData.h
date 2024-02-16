@@ -14,7 +14,7 @@ namespace adeptint {
 struct TrackData {
   double position[3];
   double direction[3];
-  double energy{0};
+  double eKin{0};
   int pdg{0};
   double globalTime{0};
   double localTime{0};
@@ -23,7 +23,7 @@ struct TrackData {
   TrackData() = default;
   TrackData(int pdg_id, double ene, double x, double y, double z, double dirx, double diry, double dirz, double gTime,
             double lTime, double pTime)
-      : position{x, y, z}, direction{dirx, diry, dirz}, energy{ene}, pdg{pdg_id}, globalTime{gTime}, localTime{lTime},
+      : position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, pdg{pdg_id}, globalTime{gTime}, localTime{lTime},
         properTime{pTime}
   {
   }
@@ -31,7 +31,7 @@ struct TrackData {
   inline bool operator<(TrackData const &t)
   {
     if (pdg != t.pdg) return pdg < t.pdg;
-    if (energy != t.energy) return energy < t.energy;
+    if (eKin != t.eKin) return eKin < t.eKin;
     if (position[0] != t.position[0]) return position[0] < t.position[0];
     if (position[1] != t.position[1]) return position[1] < t.position[1];
     if (position[2] != t.position[2]) return position[2] < t.position[2];

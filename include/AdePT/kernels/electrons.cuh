@@ -26,6 +26,15 @@
 
 using VolAuxData = AdePTTransport::VolAuxData;
 
+// Compute velocity based on the kinetic energy of the particle
+__device__ double GetVelocity(double eKin)
+{ 
+  // Taken from G4DynamicParticle::ComputeBeta
+  double T = eKin / copcore::units::kElectronMassC2;
+  double beta = sqrt(T*(T+2.))/(T+1.0);
+  return copcore::units::kCLight * beta;
+}
+
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
@@ -41,7 +50,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Charge               = IsElectron ? -1 : 1;
-  constexpr double Mass              = copcore::units::kElectronMassC2;
+  constexpr double restMass              = copcore::units::kElectronMassC2;
   constexpr int Pdg                  = IsElectron ? 11 : -11;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
@@ -49,8 +58,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*electrons->fActiveTracks)[i];
     Track &currentTrack = (*electrons)[slot];
-    auto energy         = currentTrack.energy;
-    auto preStepEnergy  = energy;
+    auto eKin         = currentTrack.eKin;
+    auto preStepEnergy  = eKin;
     auto pos            = currentTrack.pos;
     vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir = currentTrack.dir;
@@ -66,7 +75,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     VolAuxData const &auxData = auxDataArray[lvolID];
 
     auto survive = [&](bool leak = false) {
-      currentTrack.energy     = energy;
+      currentTrack.eKin     = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
       currentTrack.globalTime = globalTime;
@@ -83,7 +92,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
     G4HepEmTrack *theTrack = elTrack.GetTrack();
-    theTrack->SetEKin(energy);
+    theTrack->SetEKin(eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
     theTrack->SetOnBoundary(navState.IsOnBoundary());
     theTrack->SetCharge(Charge);
@@ -120,7 +129,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     bool restrictedPhysicalStepLength = false;
     if (BzFieldValue != 0) {
-      const double momentumMag = sqrt(energy * (energy + 2.0 * Mass));
+      const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
       // Distance along the track direction to reach the maximum allowed error
       const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
 
@@ -163,7 +172,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     vecgeom::NavStateIndex nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety);
+          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety);
     } else {
       geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPush);
@@ -221,8 +230,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    energy               = theTrack->GetEKin();
+    eKin               = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
+
+    // Update the flight times of the particle
+    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and 
+    // the velocity depends on the remaining energy
+    double deltaTime = elTrack.GetPStepLength()/GetVelocity(eKin);
+    globalTime += deltaTime;
+    localTime += deltaTime;
+    properTime += deltaTime * (restMass / eKin);
 
     // userScoring->AccountChargedStep(Charge);
     if (auxData.fSensIndex >= 0)
@@ -239,7 +256,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                              &pos,                     // Post-step point position
                              &dir,                     // Post-step point momentum direction
                              nullptr,                  // Post-step point polarization
-                             energy,                   // Post-step point kinetic energy
+                             eKin,                     // Post-step point kinetic energy
                              IsElectron ? -1 : 1);     // Post-step point charge
 
     // Save the `number-of-interaction-left` in our track.
@@ -266,13 +283,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         gamma1.InitAsSecondary(pos, navState, globalTime);
         newRNG.Advance();
         gamma1.rngState = newRNG;
-        gamma1.energy   = copcore::units::kElectronMassC2;
+        gamma1.eKin   = copcore::units::kElectronMassC2;
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
         gamma2.InitAsSecondary(pos, navState, globalTime);
         // Reuse the RNG state of the dying track.
         gamma2.rngState = currentTrack.rngState;
-        gamma2.energy   = copcore::units::kElectronMassC2;
+        gamma2.eKin   = copcore::units::kElectronMassC2;
         gamma2.dir      = -gamma1.dir;
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
@@ -337,12 +354,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke ionization (for e-/e+):
-      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
-                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
+      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, eKin, &rnge)
+                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
 
       double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondary[3];
-      G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &secondary = secondaries.electrons->NextTrack();
 
@@ -350,36 +367,36 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       secondary.InitAsSecondary(pos, navState, globalTime);
       secondary.rngState = newRNG;
-      secondary.energy   = deltaEkin;
+      secondary.eKin   = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      energy -= deltaEkin;
+      eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
       break;
     }
     case 1: {
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-      double logEnergy = std::log(energy);
-      double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
+      double logEnergy = std::log(eKin);
+      double deltaEkin = eKin < g4HepEmPars.fElectronBremModelLim
+                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, eKin, logEnergy,
                                                                                  auxData.fMCIndex, &rnge, IsElectron)
-                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
+                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, eKin, logEnergy,
                                                                                  auxData.fMCIndex, &rnge, IsElectron);
 
       double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondary[3];
-      G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &gamma = secondaries.gammas->NextTrack();
       userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
       gamma.InitAsSecondary(pos, navState, globalTime);
       gamma.rngState = newRNG;
-      gamma.energy   = deltaEkin;
+      gamma.eKin   = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      energy -= deltaEkin;
+      eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
       break;
@@ -390,7 +407,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       double theGamma1Ekin, theGamma2Ekin;
       double theGamma1Dir[3], theGamma2Dir[3];
       G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
-          energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
+          eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
       Track &gamma1 = secondaries.gammas->NextTrack();
       Track &gamma2 = secondaries.gammas->NextTrack();
@@ -398,13 +415,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       gamma1.InitAsSecondary(pos, navState, globalTime);
       gamma1.rngState = newRNG;
-      gamma1.energy   = theGamma1Ekin;
+      gamma1.eKin   = theGamma1Ekin;
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
       gamma2.InitAsSecondary(pos, navState, globalTime);
       // Reuse the RNG state of the dying track.
       gamma2.rngState = currentTrack.rngState;
-      gamma2.energy   = theGamma2Ekin;
+      gamma2.eKin   = theGamma2Ekin;
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.

@@ -16,7 +16,7 @@
 struct Track {
   using Precision = vecgeom::Precision;
   RanluxppDouble rngState;
-  double energy;
+  double eKin;
   double numIALeft[3];
   double initialRange;
   double dynamicRangeFactor;
@@ -63,7 +63,7 @@ struct Track {
     tdata.direction[0] = dir[0];
     tdata.direction[1] = dir[1];
     tdata.direction[2] = dir[2];
-    tdata.energy       = energy;
+    tdata.eKin       = eKin;
     tdata.globalTime = globalTime;
     tdata.localTime = localTime;
     tdata.properTime = properTime;

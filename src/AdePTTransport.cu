@@ -114,7 +114,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
 
     Track &track = trackmgr->NextTrack();
     track.rngState.SetSeed(1234567 * event + startTrack + i);
-    track.energy       = trackinfo[i].energy;
+    track.eKin       = trackinfo[i].eKin;
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;

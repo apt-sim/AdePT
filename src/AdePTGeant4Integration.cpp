@@ -431,7 +431,7 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
   int i = 0;
   for (auto const &track : *tracksFromDevice) {
     if (debugLevel > 1) {
-      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " energy " << track.energy
+      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " kinetic energy " << track.eKin
              << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
              << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2] 
              << " global time, local time, proper time: " << "(" << track.globalTime << ", " << track.localTime 
@@ -440,7 +440,7 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
     G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
 
     G4DynamicParticle *dynamique =
-        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.energy);
+        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.eKin);
 
     G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
     // The returned track will be located by Geant4. For now we need to
