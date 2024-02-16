@@ -22,7 +22,8 @@ add_subdirectory(testField)
 
 # - Test that linkage to CopCore target works
 add_executable(test_copcore_link test_copcore_link.cpp)
-target_link_libraries(test_copcore_link PRIVATE AdePT_G4_integration AdePT AdePT_cuda CopCore)
+target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(test_copcore_link PRIVATE CopCore)
 
 # - Test that use/link to G4VG works
 add_executable(test_g4vg_link test_g4vg_link.cpp)
@@ -46,7 +47,7 @@ target_include_directories(test_launcher PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
   $<INSTALL_INTERFACE:base>
 )
-target_link_libraries(test_launcher AdePT_G4_integration AdePT AdePT_cuda CopCore)
+target_link_libraries(test_launcher AdePT)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
