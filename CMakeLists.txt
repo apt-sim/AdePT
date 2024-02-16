@@ -193,8 +193,10 @@ target_include_directories(AdePT_cuda PUBLIC
                           #Include directory for the installed target
                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>)
 target_link_libraries(AdePT_cuda PUBLIC
-                      "-Wl,--whole-archive" VecGeom::vecgeomcuda_static
-                      "-Wl,--no-whole-archive" CopCore
+                      VecGeom::vecgeomcuda_static
+                      CopCore
+                      #"-Wl,--whole-archive" VecGeom::vecgeomcuda_static
+                      #"-Wl,--no-whole-archive" CopCore
                       G4HepEm::g4HepEmInit
                       G4HepEm::g4HepEmRun)
 set_target_properties(AdePT_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
