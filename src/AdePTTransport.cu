@@ -136,8 +136,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     int lvolID  = volume->GetLogicalVolume()->id();
     // adeptint::VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
     adeptint::VolAuxData const &auxData = auxDataArray[lvolID];
-    bool isGPURegion                    = auxData.fGPUregion;
-    assert(isGPURegion);
+    assert(auxData.fGPUregion);
   }
 }
 
