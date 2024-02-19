@@ -139,9 +139,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     // nextState is initialized as needed.
     auto volume = track.navState.Top();
     int lvolID  = volume->GetLogicalVolume()->id();
-    // adeptint::VolAuxData const &auxData = userScoring->GetAuxData_dev(lvolID);
-    adeptint::VolAuxData const &auxData = auxDataArray[lvolID];
-    assert(auxData.fGPUregion);
+    assert(auxDataArray[lvolID].fGPUregion);
   }
 }
 
