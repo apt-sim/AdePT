@@ -150,7 +150,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
 
     // Update the flight times of the particle
-    // TODO: Make sure that this is the right place for this
     double deltaTime = theTrack->GetGStepLength()/copcore::units::kCLight;
     globalTime += deltaTime;
     localTime += deltaTime;
