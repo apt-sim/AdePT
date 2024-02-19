@@ -3,7 +3,3 @@
 
 add_subdirectory(Example1)
 add_subdirectory(IntegrationBenchmark)
-add_subdirectory(TestEm3)
-add_subdirectory(TestEm3MT)
-add_subdirectory(TestEm3Compact)
-add_subdirectory(TestEm3DoubleBuffer)

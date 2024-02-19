@@ -19,6 +19,7 @@ macro(add_to_test TESTS)
 endmacro()
 
 add_subdirectory(testField)
+add_subdirectory(TestEm3)
 
 # - Test that linkage to CopCore target works
 add_executable(test_copcore_link test_copcore_link.cpp)
