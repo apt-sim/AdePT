@@ -7,6 +7,8 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Accelerated demonstrator of electromagnetic Particle Transport
 
+This is the legacy version of AdePT, based on examples
+
 ## Build Requirements
 
 The following packages are a required to build and run:
