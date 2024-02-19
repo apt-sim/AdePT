@@ -7,8 +7,11 @@ if(NOT TARGET G4HepEm::g4HepEm)
 endif()
 
 # TestEm3 for validation of particle transportation with GPUs.
-add_executable(TestEm3-compact TestEm3.cpp TestEm3.cu electrons.cu gammas.cu)
-target_link_libraries(TestEm3-compact PRIVATE AdePT_G4_integration AdePT AdePT_cuda CopCore VecGeom::vecgeom VecGeom::vecgeomcuda_static VecGeom::vgdml ${Geant4_LIBRARIES} G4HepEm::g4HepEmData G4HepEm::g4HepEmInit G4HepEm::g4HepEmRun)
+add_executable(TestEm3-compact TestEm3.cu electrons.cu gammas.cu TestEm3.cpp)
+target_include_directories(TestEm3-compact PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(TestEm3-compact PRIVATE CopCore AdePT_G4_integration AdePT AdePT_cuda_standalone VecGeom::vecgeomcuda_static)
+
 set_target_properties(TestEm3-compact PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
 
 add_test(NAME TestEm3-compact COMMAND TestEm3-compact)
