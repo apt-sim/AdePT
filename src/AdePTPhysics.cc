@@ -77,8 +77,6 @@ void AdePTPhysics::ConstructProcess()
 
   // Setup tracking manager
   fTrackingManager->SetVerbosity(0);
-
-  auto caloSD = dynamic_cast<G4VSensitiveDetector*>(G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector"));
   
   // Create one instance of AdePTTransport per thread and set it up according to the user configuration
   AdePTTransport *aAdePTTransport = new AdePTTransport();
