@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <CopCore/Ranluxpp.h>
+#include <AdePT/copcore/Ranluxpp.h>
 
 #include <iostream>
 

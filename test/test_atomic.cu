@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <AdePT/Atomic.h>
+#include <AdePT/base/Atomic.h>
 
 // Example data structure containing several atomics
 struct SomeStruct {

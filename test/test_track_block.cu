@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <AdePT/BlockData.h>
+#include <AdePT/base/BlockData.h>
 
 struct MyTrack {
   int index{0};

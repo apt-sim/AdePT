@@ -7,7 +7,7 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    target_link_libraries(${TARGET_NAME} AdePT VecCore::VecCore VecGeom::vecgeomcuda_static VecGeom::vecgeom)
+    target_link_libraries(${TARGET_NAME} AdePT_cuda AdePT_G4_integration AdePT)
    endforeach()
 endmacro()
 
@@ -18,9 +18,23 @@ macro(add_to_test TESTS)
    endforeach()
 endmacro()
 
+add_subdirectory(testField)
+add_subdirectory(TestEm3)
+
 # - Test that linkage to CopCore target works
 add_executable(test_copcore_link test_copcore_link.cpp)
-target_link_libraries(test_copcore_link PRIVATE VecCore::VecCore CopCore::CopCore)
+target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(test_copcore_link PRIVATE CopCore)
+
+# Fetch the G4 to VecGeom geometry converter
+cmake_policy(SET CMP0135 NEW)
+include(FetchContent)
+# Load Celeritas
+FetchContent_Declare(
+  g4vg
+  EXCLUDE_FROM_ALL
+  URL https://github.com/celeritas-project/g4vg/archive/e034ada099132f857866949ec9ce8eadf1ff2251.zip)
+FetchContent_MakeAvailable(g4vg)
 
 # - Test that use/link to G4VG works
 add_executable(test_g4vg_link test_g4vg_link.cpp)
@@ -32,19 +46,10 @@ set(ADEPT_UNIT_TESTS_BASE
   test_ranluxpp.cu             # Unit test for RANLUX++
   test_queue.cu                # Unit test for mpmc_bounded_queue
   test_track_block.cu          # Unit test for BlockData
-  test_sparsevector.cu         # Unit test for SparseVector on GPU
-  test_sparsevector_cpu.cpp    # Unit test for SparseVector on CPU
   test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
 )
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
-
-add_executable(test_launcher test_launcher.cu test_launcher.cpp)
-target_include_directories(test_launcher PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/base/inc>
-  $<INSTALL_INTERFACE:base>
-)
-target_link_libraries(test_launcher VecCore::VecCore CopCore::CopCore)
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
