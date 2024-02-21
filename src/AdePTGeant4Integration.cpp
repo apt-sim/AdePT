@@ -374,7 +374,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
   G4Track *aTrack = aG4Step->GetTrack();
   // aTrack->SetTrackID(0);                                                                   // Missing data
   // aTrack->SetParentID(0);                                                                  // Missing data
-  aTrack->SetPosition(*aPostStepPointPosition);                                                // Real data
+  aTrack->SetPosition(*aPostStepPointPosition);                                               // Real data
   // aTrack->SetGlobalTime(0);                                                                // Missing data
   // aTrack->SetLocalTime(0);                                                                 // Missing data
   // aTrack->SetProperTime(0);                                                                // Missing data
@@ -382,9 +382,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
   // aTrack->SetNextTouchableHandle(nullptr);                                                 // Missing data
   // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
   // aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);                                 // Real data
-  aTrack->SetMomentumDirection(*aPostStepPointMomentumDirection);                              // Real data
+  aTrack->SetMomentumDirection(*aPostStepPointMomentumDirection);                             // Real data
   // aTrack->SetVelocity(0);                                                                  // Missing data
-  aTrack->SetPolarization(*aPostStepPointPolarization);                                        // Real data
+  aTrack->SetPolarization(*aPostStepPointPolarization);                                       // Real data
   // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
   // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
   // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
@@ -411,8 +411,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
   aPreStepPoint->SetMomentumDirection(G4ThreeVector(aGPUHit->fPreStepPoint.fMomentumDirection));    // Real data
   aPreStepPoint->SetKineticEnergy(aGPUHit->fPreStepPoint.fEKin);                                    // Real data
   // aPreStepPoint->SetVelocity(0);                                                                 // Missing data
-  // aPreStepPoint->SetMaterial(nullptr);                                                           // Missing data
   aPreStepPoint->SetTouchableHandle(aPreG4TouchableHandle);                                         // Real data
+  aPreStepPoint->SetMaterial(aPreG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterial());// Real data
   // aPreStepPoint->SetMaterialCutsCouple(nullptr);                                                 // Missing data
   // aPreStepPoint->SetSensitiveDetector(nullptr);                                                  // Missing data
   // aPreStepPoint->SetSafety(0);                                                                   // Missing data
@@ -426,19 +426,19 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit,
 
   // Post-Step Point
   G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
-  aPostStepPoint->SetPosition(*aPostStepPointPosition);                                                // Real data
+  aPostStepPoint->SetPosition(*aPostStepPointPosition);                                               // Real data
   // aPostStepPoint->SetLocalTime(0);                                                                 // Missing data
   // aPostStepPoint->SetGlobalTime(0);                                                                // Missing data
   // aPostStepPoint->SetProperTime(0);                                                                // Missing data
-  aPostStepPoint->SetMomentumDirection(*aPostStepPointMomentumDirection);                              // Real data
+  aPostStepPoint->SetMomentumDirection(*aPostStepPointMomentumDirection);                             // Real data
   aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);                                    // Real data
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data
   aPostStepPoint->SetTouchableHandle(aPostG4TouchableHandle);                                         // Real data
-  // aPostStepPoint->SetMaterial(nullptr);                                                            // Missing data
+  aPostStepPoint->SetMaterial(aPostG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterial());// Real data
   // aPostStepPoint->SetMaterialCutsCouple(nullptr);                                                  // Missing data
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
-  aPostStepPoint->SetPolarization(*aPostStepPointPolarization);                                        // Real data
+  aPostStepPoint->SetPolarization(*aPostStepPointPolarization);                                       // Real data
   // aPostStepPoint->SetStepStatus(G4StepStatus::fUndefined);                                         // Missing data
   // aPostStepPoint->SetProcessDefinedStep(nullptr);                                                  // Missing data
   // aPostStepPoint->SetMass(0);                                                                      // Missing data
