@@ -330,12 +330,20 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
   }
 
 #if false
-  if (blockIdx.x == 3 && threadIdx.x == 0) {
-    printf("In flight (kernel): %ld %ld %ld  %ld\tslots: %d %d %d\n", all.queues[0].nextActive->size(),
-            all.queues[1].nextActive->size(), all.queues[2].nextActive->size(),
-            all.queues[0].nextActive->size() + all.queues[1].nextActive->size() + all.queues[2].nextActive->size(),
-            tracksAndSlots.slotManagers[0]->OccupiedSlots(), tracksAndSlots.slotManagers[1]->OccupiedSlots(),
-            tracksAndSlots.slotManagers[2]->OccupiedSlots());
+  if (blockIdx.x == 3) {
+    for (unsigned int i = threadIdx.x; i < 3; ++i) {
+      if (tracksAndSlots.slotManagers[i]->OccupiedSlots() < all.queues[i].nextActive->size())
+        printf("Error: For particle %d, %d slots are allocated for %ld in flight\n", i,
+               tracksAndSlots.slotManagers[i]->OccupiedSlots(), all.queues[i].nextActive->size());
+    }
+
+    if (threadIdx.x == 4) {
+      printf("In flight (kernel): %ld %ld %ld  %ld\tslots: %d %d %d\n", all.queues[0].nextActive->size(),
+             all.queues[1].nextActive->size(), all.queues[2].nextActive->size(),
+             all.queues[0].nextActive->size() + all.queues[1].nextActive->size() + all.queues[2].nextActive->size(),
+             tracksAndSlots.slotManagers[0]->OccupiedSlots(), tracksAndSlots.slotManagers[1]->OccupiedSlots(),
+             tracksAndSlots.slotManagers[2]->OccupiedSlots());
+    }
   }
 #endif
 }
