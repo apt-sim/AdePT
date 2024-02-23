@@ -565,6 +565,10 @@ void AdeptIntegration::InitializeGPU()
   // initialize buffers for track transfer on host and device
   allocToDeviceTrackData(gpuState, gpuState.fNumToDevice);
   allocFromDeviceTrackData(gpuState, gpuState.fNumFromDevice);
+  unsigned int *nFromDevice_host = nullptr;
+  COPCORE_CUDA_CHECK(cudaMallocHost(&nFromDevice_host, sizeof(unsigned int)));
+  gpuState.nFromDevice.reset(nFromDevice_host);
+
   fBuffer = std::make_unique<adeptint::TrackBuffer>(gpuState.toDevice_host.get(), gpuState.fNumToDevice,
                                                     gpuState.toDevice_host.get() + gpuState.fNumToDevice,
                                                     gpuState.fNumToDevice, fNThread);
@@ -657,10 +661,6 @@ void AdeptIntegration::TransportLoop()
     }
     return {TransportThreads, transportBlocks};
   };
-
-  unsigned int *nFromDevice_host = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocHost(&nFromDevice_host, sizeof(unsigned int)));
-  adeptint::unique_ptr_cuda<unsigned int> nFromDevCleanup{nFromDevice_host, adeptint::cudaHostDeleter};
 
   SlotManager *const slotMgrArray = gpuState.particles[0].slotManager;
   while (gpuState.runTransport) {
@@ -844,17 +844,17 @@ void AdeptIntegration::TransportLoop()
         const unsigned int grid_size      = (gpuState.fNumFromDevice + block_size - 1) / block_size;
         FillFromDeviceBuffer<<<grid_size, block_size, 0, transferStream>>>(allLeaked, gpuState.fromDevice_dev.get(),
                                                                            gpuState.fNumFromDevice);
-        COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(nFromDevice_host, nFromDevice_dev, sizeof(unsigned int), 0,
-                                                     cudaMemcpyDeviceToHost, transferStream));
+        COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(gpuState.nFromDevice.get(), nFromDevice_dev, sizeof(unsigned int),
+                                                     0, cudaMemcpyDeviceToHost, transferStream));
         ClearQueue<<<1, 1, 0, transferStream>>>(electrons.queues.leakedTracksNext);
         ClearQueue<<<1, 1, 0, transferStream>>>(positrons.queues.leakedTracksNext);
         ClearQueue<<<1, 1, 0, transferStream>>>(gammas.queues.leakedTracksNext);
         // waitForOtherStream(gpuState.stream, transferStream);
       } else if (transferState == TransferState::CollectOnDevice && cudaStreamQuery(transferStream) == cudaSuccess) {
         transferState = TransferState::CopyToHost;
-        if (*nFromDevice_host > 0) {
+        if (*gpuState.nFromDevice > 0) {
           COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.fromDevice_host.get(), gpuState.fromDevice_dev.get(),
-                                             (*nFromDevice_host) * sizeof(TrackData), cudaMemcpyDeviceToHost,
+                                             (*gpuState.nFromDevice) * sizeof(TrackData), cudaMemcpyDeviceToHost,
                                              transferStream));
         } else {
           transferState = TransferState::BackOnHost;
@@ -868,7 +868,7 @@ void AdeptIntegration::TransportLoop()
         std::scoped_lock lock{fBuffer->fromDeviceMutex};
 
         for (TrackData *trackIt = gpuState.fromDevice_host.get();
-             trackIt < gpuState.fromDevice_host.get() + (*nFromDevice_host); ++trackIt) {
+             trackIt < gpuState.fromDevice_host.get() + (*gpuState.nFromDevice); ++trackIt) {
           assert(0 <= trackIt->threadId && trackIt->threadId <= fNThread);
           fBuffer->fromDeviceBuffers[trackIt->threadId].push_back(*trackIt);
         }

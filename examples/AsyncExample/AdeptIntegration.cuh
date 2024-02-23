@@ -152,14 +152,15 @@ struct GPUstate {
   adeptint::unique_ptr_cuda<TrackData> toDevice_dev{nullptr, adeptint::cudaDeleter};    ///< toDevice buffer of tracks
   adeptint::unique_ptr_cuda<TrackData> fromDevice_host{nullptr, adeptint::cudaHostDeleter}; ///< Tracks from device
   adeptint::unique_ptr_cuda<TrackData> fromDevice_dev{nullptr, adeptint::cudaDeleter};  ///< fromDevice buffer of tracks
+  adeptint::unique_ptr_cuda<unsigned int> nFromDevice{
+      nullptr, adeptint::cudaHostDeleter}; ///< Number of tracks collected on device
+
   Stats *stats_dev{nullptr};          ///< statistics object pointer on device
   Stats *stats{nullptr};              ///< statistics object pointer on host
 
   adeptint::unique_ptr_cuda<adept::MParrayT<QueueIndexPair>> injectionQueue{nullptr, adeptint::cudaDeleter};
   std::atomic_bool runTransport{true}; ///< Keep transport thread running
 };
-
-// Struct to keep track of particles to be enqueued for transport
 
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)
