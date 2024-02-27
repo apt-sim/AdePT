@@ -41,7 +41,7 @@ private:
   /// Command printing current settings
   G4UIcmdWithoutParameter *fPrintCmd = nullptr;
 
-  G4UIcmdWithAString *fFileNameCmd     = nullptr;
+  G4UIcmdWithAString *fFileNameCmd = nullptr;
 
   G4UIcmdWith3VectorAndUnit *fFieldCmd = nullptr;
 };

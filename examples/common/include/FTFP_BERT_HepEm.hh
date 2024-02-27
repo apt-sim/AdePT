@@ -14,7 +14,7 @@ public:
   FTFP_BERT_HepEm(G4int ver = 1);
   virtual ~FTFP_BERT_HepEm() = default;
 
-  FTFP_BERT_HepEm(const FTFP_BERT_HepEm &) = delete;
+  FTFP_BERT_HepEm(const FTFP_BERT_HepEm &)            = delete;
   FTFP_BERT_HepEm &operator=(const FTFP_BERT_HepEm &) = delete;
 };
 

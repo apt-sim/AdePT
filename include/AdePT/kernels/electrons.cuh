@@ -28,10 +28,10 @@ using VolAuxData = AdePTTransport::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
 __device__ double GetVelocity(double eKin)
-{ 
+{
   // Taken from G4DynamicParticle::ComputeBeta
-  double T = eKin / copcore::units::kElectronMassC2;
-  double beta = sqrt(T*(T+2.))/(T+1.0);
+  double T    = eKin / copcore::units::kElectronMassC2;
+  double beta = sqrt(T * (T + 2.)) / (T + 1.0);
   return copcore::units::kCLight * beta;
 }
 
@@ -50,7 +50,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Charge               = IsElectron ? -1 : 1;
-  constexpr double restMass              = copcore::units::kElectronMassC2;
+  constexpr double restMass          = copcore::units::kElectronMassC2;
   constexpr int Pdg                  = IsElectron ? 11 : -11;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
@@ -58,7 +58,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*electrons->fActiveTracks)[i];
     Track &currentTrack = (*electrons)[slot];
-    auto eKin         = currentTrack.eKin;
+    auto eKin           = currentTrack.eKin;
     auto preStepEnergy  = eKin;
     auto pos            = currentTrack.pos;
     vecgeom::Vector3D<Precision> preStepPos(pos);
@@ -75,7 +75,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     VolAuxData const &auxData = auxDataArray[lvolID];
 
     auto survive = [&](bool leak = false) {
-      currentTrack.eKin     = eKin;
+      currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
       currentTrack.globalTime = globalTime;
@@ -230,13 +230,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    eKin               = theTrack->GetEKin();
+    eKin                 = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     // Update the flight times of the particle
-    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and 
+    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
     // the velocity depends on the remaining energy
-    double deltaTime = elTrack.GetPStepLength()/GetVelocity(eKin);
+    double deltaTime = elTrack.GetPStepLength() / GetVelocity(eKin);
     globalTime += deltaTime;
     localTime += deltaTime;
     properTime += deltaTime * (restMass / eKin);
@@ -283,13 +283,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         gamma1.InitAsSecondary(pos, navState, globalTime);
         newRNG.Advance();
         gamma1.rngState = newRNG;
-        gamma1.eKin   = copcore::units::kElectronMassC2;
+        gamma1.eKin     = copcore::units::kElectronMassC2;
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
         gamma2.InitAsSecondary(pos, navState, globalTime);
         // Reuse the RNG state of the dying track.
         gamma2.rngState = currentTrack.rngState;
-        gamma2.eKin   = copcore::units::kElectronMassC2;
+        gamma2.eKin     = copcore::units::kElectronMassC2;
         gamma2.dir      = -gamma1.dir;
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
@@ -367,7 +367,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       secondary.InitAsSecondary(pos, navState, globalTime);
       secondary.rngState = newRNG;
-      secondary.eKin   = deltaEkin;
+      secondary.eKin     = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
       eKin -= deltaEkin;
@@ -393,7 +393,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       gamma.InitAsSecondary(pos, navState, globalTime);
       gamma.rngState = newRNG;
-      gamma.eKin   = deltaEkin;
+      gamma.eKin     = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
       eKin -= deltaEkin;
@@ -415,13 +415,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       gamma1.InitAsSecondary(pos, navState, globalTime);
       gamma1.rngState = newRNG;
-      gamma1.eKin   = theGamma1Ekin;
+      gamma1.eKin     = theGamma1Ekin;
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
       gamma2.InitAsSecondary(pos, navState, globalTime);
       // Reuse the RNG state of the dying track.
       gamma2.rngState = currentTrack.rngState;
-      gamma2.eKin   = theGamma2Ekin;
+      gamma2.eKin     = theGamma2Ekin;
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 
       // The current track is killed by not enqueuing into the next activeQueue.

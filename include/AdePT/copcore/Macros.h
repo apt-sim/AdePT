@@ -46,34 +46,32 @@
  * Expands to the relevant CUDA keyword or host compiler attribute
  */
 
-
 #ifndef COPCORE_MACROS_H_
 #define COPCORE_MACROS_H_
 
 // Macros for separating CUDA compiler from others
 #ifdef __CUDACC__
-#  define COPCORE_CUDA_COMPILER
+#define COPCORE_CUDA_COMPILER
 #endif
 
 // Define function keywords if not already present.
 #ifndef __host__
-#  define __host__
+#define __host__
 #endif
 
 #ifndef __device__
-#  define __device__
+#define __device__
 #endif
 
 #ifndef __forceinline__
-#  define __forceinline__ inline __attribute__((always_inline))
+#define __forceinline__ inline __attribute__((always_inline))
 #endif
 
 // Definition of __CUDA_ARCH__ means we are compiling CUDA *and*
 // on the device compile pass
 // COPCORE_DEVICE_COMPILATION is defined in this case
 #ifdef __CUDA_ARCH__
-#  define COPCORE_DEVICE_COMPILATION
+#define COPCORE_DEVICE_COMPILATION
 #endif
-
 
 #endif // COPCORE_MACROS_H_

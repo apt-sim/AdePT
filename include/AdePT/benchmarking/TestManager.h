@@ -25,7 +25,7 @@ struct TimeInfo {
   bool counting;                                                        ///< Whether the timer is running
 };
 
-//#if defined TEST
+// #if defined TEST
 
 // Entry management
 #include <map>
@@ -97,7 +97,11 @@ public:
   }
 
   /** @brief Empties the maps */
-  void reset() { fTimers.clear(); fAccumulators.clear(); }
+  void reset()
+  {
+    fTimers.clear();
+    fAccumulators.clear();
+  }
 
   /** @brief Removes a timer from the map */
   void removeTimer(TTag tag) { fTimers.erase(tag); }
@@ -112,39 +116,27 @@ public:
   bool hasAccumulator(TTag tag) const { return fAccumulators.find(tag) != fAccumulators.end(); }
 
   /** @brief Returns the timer map */
-  std::map<TTag, TimeInfo>* getTimers() 
-  {
-    return &fTimers;
-  }
-  
+  std::map<TTag, TimeInfo> *getTimers() { return &fTimers; }
+
   /** @brief Returns the accumulator map */
-  std::map<TTag, double>* getAccumulators() 
-  {
-    return &fAccumulators;
-  }
+  std::map<TTag, double> *getAccumulators() { return &fAccumulators; }
 
   /** @brief Sets the output directory variable */
-  void setOutputDirectory(std::string aOutputDir)
-  {
-    fOutputDir = aOutputDir;
-  }
+  void setOutputDirectory(std::string aOutputDir) { fOutputDir = aOutputDir; }
 
   /** @brief Returns the output directory */
-  std::string getOutputDirectory(){ return fOutputDir; }
+  std::string getOutputDirectory() { return fOutputDir; }
 
   /** @brief Sets the output filename variable */
-  void setOutputFilename(std::string aOutputFilename)
-  {
-    fOutputFilename = aOutputFilename;
-  }
+  void setOutputFilename(std::string aOutputFilename) { fOutputFilename = aOutputFilename; }
 
   /** @brief Returns the output filename */
-  std::string getOutputFilename(){ return fOutputFilename; }
+  std::string getOutputFilename() { return fOutputFilename; }
 
   /** @brief Export a CSV file with the timer names as labels and the accumulated time for each */
   // If the file is not empty, write only the times
   void exportCSV(bool overwrite = true)
-  { 
+  {
     std::string aOutputDir;
     std::string aOutputFilename;
     fOutputDir.empty() ? aOutputDir = "benchmark" : aOutputDir = fOutputDir;

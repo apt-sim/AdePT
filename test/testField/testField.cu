@@ -103,7 +103,8 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t Capacity)
 
 // Kernel function to initialize a set of primary particles.
 __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int numEvents, double energy,
-                              const vecgeom::VPlacedVolume *world, GlobalScoring *globalScoring, bool rotatingParticleGun)
+                              const vecgeom::VPlacedVolume *world, GlobalScoring *globalScoring,
+                              bool rotatingParticleGun)
 {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < numEvents; i += blockDim.x * gridDim.x) {
     Track &track = generator.NextTrack();
@@ -120,7 +121,8 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
 
     track.pos = {0, 0, 0};
     if (rotatingParticleGun) {
-      // Generate particles flat in phi and in eta between -5 and 5. We'll lose the far forwards ones, so no need to simulate.
+      // Generate particles flat in phi and in eta between -5 and 5. We'll lose the far forwards ones, so no need to
+      // simulate.
       const double phi = 2. * M_PI * track.rngState.Rndm();
       const double eta = -5. + 10. * track.rngState.Rndm();
       track.dir.x()    = static_cast<vecgeom::Precision>(cos(phi) / cosh(eta));
@@ -155,83 +157,73 @@ __global__ void ClearQueue(adept::MParray *queue)
   queue->clear();
 }
 
-__global__ void printTrackV2(const Track* trkArray_dev,
-                             const adept::MParray *active_dev,
-                             int i,
-                             bool verbose)
+__global__ void printTrackV2(const Track *trkArray_dev, const adept::MParray *active_dev, int i, bool verbose)
 {
   const int slot = (*active_dev)[i];
   trkArray_dev[slot].print(slot, verbose);
 }
 
-__global__
-void get_size( const adept::MParray *arr_dev, int* capacity_dev )
+__global__ void get_size(const adept::MParray *arr_dev, int *capacity_dev)
 {
-   *capacity_dev = arr_dev->size();
-   // printf( " Size of arr_dev %p = %d \n", arr_dev, *capacity_dev );
+  *capacity_dev = arr_dev->size();
+  // printf( " Size of arr_dev %p = %d \n", arr_dev, *capacity_dev );
 }
 
-__host__
-int obtain_size( const adept::MParray *arr_dev )
+__host__ int obtain_size(const adept::MParray *arr_dev)
 {
-  static int* pCapacity_dev = nullptr;
+  static int *pCapacity_dev = nullptr;
   int capacity_host;
-  
-  if( ! pCapacity_dev ) {
+
+  if (!pCapacity_dev) {
     COPCORE_CUDA_CHECK(cudaMalloc(&pCapacity_dev, sizeof(int)));
     std::cout << " Created memory space for capacity_dev.  Ptr = " << pCapacity_dev << std::endl;
   }
 
   // Fill it on device
-  get_size<<<1,1>>>(arr_dev, pCapacity_dev);
+  get_size<<<1, 1>>>(arr_dev, pCapacity_dev);
 
   // Fetch it from the device
-  COPCORE_CUDA_CHECK(cudaMemcpy( &capacity_host, pCapacity_dev,
-                                 sizeof(int), cudaMemcpyDeviceToHost) );
-  return capacity_host;  
+  COPCORE_CUDA_CHECK(cudaMemcpy(&capacity_host, pCapacity_dev, sizeof(int), cudaMemcpyDeviceToHost));
+  return capacity_host;
 }
 
-__host__
-void printTracks( const Track *trackArr_dev, 
-                  const adept::MParray *active_dev,
-                  short particleTypeId,
-                  bool verbose,
-                  int numTracks  )
+__host__ void printTracks(const Track *trackArr_dev, const adept::MParray *active_dev, short particleTypeId,
+                          bool verbose, int numTracks)
 {
-  static const char* particleTypeName[ParticleType::NumParticleTypes] = { "Electrons", "Positrons", "Gammas" };
-  static const char* particleShortName[] = { "e-", "e+", "g" };
+  static const char *particleTypeName[ParticleType::NumParticleTypes] = {"Electrons", "Positrons", "Gammas"};
+  static const char *particleShortName[]                              = {"e-", "e+", "g"};
   // int numPrinted = 0;
-  int capacity_host= obtain_size( active_dev );
+  int capacity_host = obtain_size(active_dev);
 
-  if( numTracks > 0 ) {
-     printf("%s : %d\n", particleTypeName[particleTypeId], numTracks );
+  if (numTracks > 0) {
+    printf("%s : %d\n", particleTypeName[particleTypeId], numTracks);
 
-     for( int i= 0; i < capacity_host; i++ ){
-        // Track &trk = *(trackArr+i);
-        printf(" %2s (pid= %2d) ", particleShortName[particleTypeId], particleTypeId );
-        //if (numPrinted++ < numTracks )
-        //{
-           printTrackV2<<<1, 1>>>(trackArr_dev, active_dev, i, verbose);
-           // std::cout << "\n";
-        // }
-        cudaDeviceSynchronize();                                                  
-     }
-     // cudaDeviceSynchronize();                                       
+    for (int i = 0; i < capacity_host; i++) {
+      // Track &trk = *(trackArr+i);
+      printf(" %2s (pid= %2d) ", particleShortName[particleTypeId], particleTypeId);
+      // if (numPrinted++ < numTracks )
+      //{
+      printTrackV2<<<1, 1>>>(trackArr_dev, active_dev, i, verbose);
+      // std::cout << "\n";
+      // }
+      cudaDeviceSynchronize();
+    }
+    // cudaDeviceSynchronize();
   }
 }
 
-__host__
-void printActiveTracks( ParticleType& electrons, ParticleType& positrons, ParticleType& gammas, bool verbTrk )
+__host__ void printActiveTracks(ParticleType &electrons, ParticleType &positrons, ParticleType &gammas, bool verbTrk)
 {
   int numElectrons = obtain_size(electrons.queues.currentlyActive);
   int numPositrons = obtain_size(positrons.queues.currentlyActive);
-  int numGammas = obtain_size(gammas.queues.currentlyActive);
+  int numGammas    = obtain_size(gammas.queues.currentlyActive);
   // printf("Electrons: \n");
-  printTracks( electrons.tracks, electrons.queues.currentlyActive, ParticleType::Electron, /* "Electrons", */ verbTrk, numElectrons );
-  // printf("Positrons: \n");  
-  printTracks( positrons.tracks, positrons.queues.currentlyActive, ParticleType::Positron, verbTrk, numPositrons );
-  // printf("Gammas: \n");  
-  printTracks( gammas.tracks,  gammas.queues.currentlyActive, ParticleType::Gamma, verbTrk, numGammas );
+  printTracks(electrons.tracks, electrons.queues.currentlyActive, ParticleType::Electron, /* "Electrons", */ verbTrk,
+              numElectrons);
+  // printf("Positrons: \n");
+  printTracks(positrons.tracks, positrons.queues.currentlyActive, ParticleType::Positron, verbTrk, numPositrons);
+  // printf("Gammas: \n");
+  printTracks(gammas.tracks, gammas.queues.currentlyActive, ParticleType::Gamma, verbTrk, numGammas);
   std::cout << std::endl;
 }
 
@@ -268,7 +260,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   } else {
     std::cout << "INFO: running with magnetic field OFF" << std::endl;
   }
-  std::cout<<std::flush;
+  std::cout << std::flush;
 
   // Allocate structures to manage tracks of an implicit type:
   //  * memory to hold the actual Track elements,
@@ -335,25 +327,27 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   COPCORE_CUDA_CHECK(cudaMemcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
 
   COPCORE_CUDA_CHECK(cudaMalloc(&BzFieldValue_dev, sizeof(BzFieldValue_host)));
-  COPCORE_CUDA_CHECK(cudaMemcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host), cudaMemcpyHostToDevice));
-  std::cout << " Host: passed value of BzField to device at " << BzFieldValue_dev << " value = " << BzFieldValue_host << "\n";
+  COPCORE_CUDA_CHECK(
+      cudaMemcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host), cudaMemcpyHostToDevice));
+  std::cout << " Host: passed value of BzField to device at " << BzFieldValue_dev << " value = " << BzFieldValue_host
+            << "\n";
 
   // Pass the location of the BzFieldValue_dev !
-  SetBzFieldPtr<<<1,1>>>(BzFieldValue_dev);
+  SetBzFieldPtr<<<1, 1>>>(BzFieldValue_dev);
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
 
   vecgeom::Stopwatch timer;
   timer.Start();
 
   std::cout << "Entering loop to simulate " << numParticles << " particles. " << std::flush;
-  
+
   std::cout << std::endl << "Simulating particles ";
   const bool detailed = true; //  (numParticles / batch) < 50;
   if (!detailed) {
     std::cout << "... " << std::flush;
   }
-  
-  constexpr bool printStats= false;
+
+  constexpr bool printStats = false;
 
   unsigned long long killed = 0;
 
@@ -377,7 +371,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
     InitPrimaries<<<initBlocks, InitThreads, 0, stream>>>(electronGenerator, startEvent, chunk, energy, world_dev,
                                                           globalScoring, rotatingParticleGun);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-    
+
     stats->inFlight[ParticleType::Electron] = chunk;
     stats->inFlight[ParticleType::Positron] = 0;
     stats->inFlight[ParticleType::Gamma]    = 0;
@@ -391,7 +385,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
     int previousElectrons = -1, previousPositrons = -1;
 
     // constexpr int mod_it=25;
-    int iteration= 0;
+    int iteration = 0;
 
     do {
       Secondaries secondaries = {
@@ -414,7 +408,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
       }
-          
+
       // *** POSITRONS ***
       int numPositrons = stats->inFlight[ParticleType::Positron];
       if (numPositrons > 0) {
@@ -441,12 +435,12 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
       }
-      
+
       // *** END OF TRANSPORT ***
 
       // Extra sync for debugging !!? JA 2022.09.19
       // COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-      
+
       // The events ensure synchronization before finishing this iteration and
       // copying the Stats back to the host.
       AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
@@ -455,12 +449,12 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
 
       // Finally synchronize all kernels.
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
-      
+
       // Count the number of particles in flight.
       inFlight = 0;
       for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-         inFlight += stats->inFlight[i];
-         // int npi= stats->inFlight[i];   inFlight += npi;    std::cout <<  " [" << i << "]=" << npi << " ";
+        inFlight += stats->inFlight[i];
+        // int npi= stats->inFlight[i];   inFlight += npi;    std::cout <<  " [" << i << "]=" << npi << " ";
       }
 
       // Swap the queues for the next iteration.
@@ -482,19 +476,18 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
       }
 
       iteration++;
-      const int  iterModPrint = 100;  // Every how many to print info
-      if( printStats && ( iteration % iterModPrint == 0 ) ) {
-         printf("Iteration = %6d   event = %4d   inflight= %6d  ( e- : %6d g : %5d e+ : %4d) iter looping=%3d \n" ,
-                iteration, startEvent, inFlight,
-                numElectrons, numGammas, numPositrons, loopingNo );
-      } 
-      
+      const int iterModPrint = 100; // Every how many to print info
+      if (printStats && (iteration % iterModPrint == 0)) {
+        printf("Iteration = %6d   event = %4d   inflight= %6d  ( e- : %6d g : %5d e+ : %4d) iter looping=%3d \n",
+               iteration, startEvent, inFlight, numElectrons, numGammas, numPositrons, loopingNo);
+      }
+
     } while (inFlight > 0 && loopingNo < 200);
 
     // if( verbose ) std::cout << std::endl;
 
-    if( printStats ) {
-       printf( "-- Tracks:  %5d InFlight at the end (killed).  Iterations needed = %4d \n", inFlight, iteration );
+    if (printStats) {
+      printf("-- Tracks:  %5d InFlight at the end (killed).  Iterations needed = %4d \n", inFlight, iteration);
     }
 
     if (inFlight > 0) {

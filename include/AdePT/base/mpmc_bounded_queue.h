@@ -51,13 +51,9 @@ private:
   friend Base_t;
 
   /** @brief Functions required by VariableSizeObjectInterface */
-  __host__ __device__
-  __forceinline__
-  ArrayData_t &GetVariableData() { return fBuffer; }
+  __host__ __device__ __forceinline__ ArrayData_t &GetVariableData() { return fBuffer; }
 
-  __host__ __device__
-  __forceinline__
-  const ArrayData_t &GetVariableData() const { return fBuffer; }
+  __host__ __device__ __forceinline__ const ArrayData_t &GetVariableData() const { return fBuffer; }
 
   // constructors and assignment operators are private
   // states have to be constructed using MakeInstance() function
@@ -68,9 +64,8 @@ private:
    * @param addr Address where the queue is allocated.
    * The user should make sure to allocate at least SizeofInstance(fBuffersize) bytes
    */
-  __host__ __device__
-  __forceinline__
-  mpmc_bounded_queue(int nvalues) : fCapacity(nvalues), fMask(nvalues - 1), fBuffer(nvalues)
+  __host__ __device__ __forceinline__ mpmc_bounded_queue(int nvalues)
+      : fCapacity(nvalues), fMask(nvalues - 1), fBuffer(nvalues)
   {
     // The queue size must be a power of 2 (for fast access)
     assert((nvalues >= 2) && ((nvalues & (nvalues - 1)) == 0) && "buffer size has to be a power of 2");
@@ -78,18 +73,15 @@ private:
       fBuffer[i].fSequence.store(i);
   }
 
-  __host__ __device__
-  __forceinline__
-  mpmc_bounded_queue(int /*nvalues*/, mpmc_bounded_queue const & /*other*/) {}
+  __host__ __device__ __forceinline__ mpmc_bounded_queue(int /*nvalues*/, mpmc_bounded_queue const & /*other*/) {}
   /** @brief MPMC bounded queue copy constructor */
-  __host__ __device__
-  __forceinline__
-  mpmc_bounded_queue(mpmc_bounded_queue const &other) : mpmc_bounded_queue(other.fCapacity, other) {}
+  __host__ __device__ __forceinline__ mpmc_bounded_queue(mpmc_bounded_queue const &other)
+      : mpmc_bounded_queue(other.fCapacity, other)
+  {
+  }
 
   /** @brief MPMC bounded queue copy constructor with given size */
-  __host__ __device__
-  __forceinline__
-  mpmc_bounded_queue(size_t new_size, mpmc_bounded_queue const &other)
+  __host__ __device__ __forceinline__ mpmc_bounded_queue(size_t new_size, mpmc_bounded_queue const &other)
       : fCapacity(new_size), fMask(new_size - 1), fEnqueue(other.fEnqueue), fDequeue(other.fDequeue),
         fNstored(other.fNstored), fBuffer(new_size, other.fBuffer)
   {
@@ -110,19 +102,13 @@ public:
   using Base_t::SizeOfAlignAware;
 
   /** @brief Returns the size in bytes of a BlockData object with given capacity */
-  __host__ __device__
-  __forceinline__
-  static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
+  __host__ __device__ __forceinline__ static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
 
   /** @brief Maximum number of elements */
-  __host__ __device__
-  __forceinline__
-  int Capacity() const { return fCapacity; }
+  __host__ __device__ __forceinline__ int Capacity() const { return fCapacity; }
 
   /** @brief Size function */
-  __host__ __device__
-  __forceinline__
-  void clear()
+  __host__ __device__ __forceinline__ void clear()
   {
     fEnqueue.store(0);
     fDequeue.store(0);
@@ -132,14 +118,10 @@ public:
   }
 
   /** @brief Size function */
-  __host__ __device__
-  __forceinline__
-  int size() const { return fNstored.load(); }
+  __host__ __device__ __forceinline__ int size() const { return fNstored.load(); }
 
   /** @brief MPMC enqueue function */
-  __host__ __device__
-  __forceinline__
-  bool enqueue(Type const &data)
+  __host__ __device__ __forceinline__ bool enqueue(Type const &data)
   {
     Value_t *cell;
     int pos = fEnqueue.load();
@@ -161,9 +143,7 @@ public:
   }
 
   /** @brief MPMC dequeue function */
-  __host__ __device__
-  __forceinline__
-  bool dequeue(Type &data)
+  __host__ __device__ __forceinline__ bool dequeue(Type &data)
   {
     Value_t *cell;
     int pos = fDequeue.load();
@@ -189,18 +169,14 @@ public:
         The index should be smaller than the number of stored elements. The range is only
         checked in debug mode.
     */
-  __host__ __device__
-  __forceinline__
-  Type &operator[](const int index)
+  __host__ __device__ __forceinline__ Type &operator[](const int index)
   {
     assert(index >= 0 && index < fNstored.load() && "Index in queue out of range");
     int pos = fDequeue.load() + index;
     return fBuffer[pos & fMask].fData;
   }
 
-  __host__ __device__
-  __forceinline__
-  Type const &operator[](const int index) const
+  __host__ __device__ __forceinline__ Type const &operator[](const int index) const
   {
     assert(index >= 0 && index < fNstored.load() && "Index in queue out of range");
     int pos = fDequeue.load() + index;

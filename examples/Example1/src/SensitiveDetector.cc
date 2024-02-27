@@ -51,8 +51,7 @@ void SensitiveDetector::Initialize(G4HCofThisEvent *aHCE)
   // Fill calorimeter hits with zero energy deposition
   // Retrieving the hits through the map allows us to set the Volume name associated to the hits
   int hitID = 0;
-  for(auto pvol: (fSensitivePhysicalVolumes))
-  {
+  for (auto pvol : (fSensitivePhysicalVolumes)) {
     auto hit = new SimpleHit();
     hit->SetPhysicalVolumeName(pvol->GetName());
     fScoringMap.insert(std::pair<int, int>(pvol->GetInstanceID(), hitID));
@@ -84,7 +83,7 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
   // Set hit type to full simulation (only if hit is not already marked as fast sim)
   if (hit->GetType() != 1) hit->SetType(0);
-  
+
   return true;
 }
 

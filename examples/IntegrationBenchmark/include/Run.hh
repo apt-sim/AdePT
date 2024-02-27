@@ -24,10 +24,10 @@ public:
   void Merge(const G4Run *run) override;
 
   TestManager<TAG_TYPE> *GetTestManager() const { return fTestManager; }
-  void SetDoBenchmark( bool aDoBenchmark ){ fDoBenchmark = aDoBenchmark; }
-  bool GetDoBenchmark(){ return fDoBenchmark; }
-  void SetDoValidation( bool aDoValidation ){ fDoValidation = aDoValidation; }
-  bool GetDoValidation(){ return fDoValidation; }
+  void SetDoBenchmark(bool aDoBenchmark) { fDoBenchmark = aDoBenchmark; }
+  bool GetDoBenchmark() { return fDoBenchmark; }
+  void SetDoValidation(bool aDoValidation) { fDoValidation = aDoValidation; }
+  bool GetDoValidation() { return fDoValidation; }
 
   /** @brief Compute and display collected metrics */
   void EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename);

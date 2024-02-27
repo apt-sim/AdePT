@@ -33,17 +33,11 @@
 #include <thread>
 #include <mutex>
 
-RunAction::RunAction()
-    : G4UserRunAction(), fOutputDirectory(""),
-      fOutputFilename("")
-{
-}
+RunAction::RunAction() : G4UserRunAction(), fOutputDirectory(""), fOutputFilename("") {}
 
-RunAction::RunAction(G4String aOutputDirectory,
-                                           G4String aOutputFilename,
-                                            bool aDoBenchmark, bool aDoValidation)
-    : G4UserRunAction(), fOutputDirectory(aOutputDirectory),
-      fOutputFilename(aOutputFilename), fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation)
+RunAction::RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation)
+    : G4UserRunAction(), fOutputDirectory(aOutputDirectory), fOutputFilename(aOutputFilename),
+      fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation)
 {
 }
 
@@ -58,8 +52,7 @@ void RunAction::BeginOfRunAction(const G4Run *)
   fTimer.Start();
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
-    if(fDoBenchmark)
-    {
+    if (fDoBenchmark) {
       fRun->GetTestManager()->timerStart(Run::timers::TOTAL);
     }
   }
@@ -77,12 +70,10 @@ void RunAction::EndOfRunAction(const G4Run *)
   // Print timer just for the master thread since this is called when all workers are done
   if (tid < 0) {
     G4cout << "Run time: " << time << "\n";
-    if(fDoBenchmark)
-    {
+    if (fDoBenchmark) {
       fRun->GetTestManager()->timerStop(Run::timers::TOTAL);
     }
-    if(fDoBenchmark || fDoValidation)
-    {
+    if (fDoBenchmark || fDoValidation) {
       fRun->EndOfRunSummary(fOutputDirectory, fOutputFilename);
     }
   }

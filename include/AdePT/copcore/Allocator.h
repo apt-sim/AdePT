@@ -19,8 +19,7 @@
 namespace copcore {
 
 template <class T, BackendType backend>
-class Allocator {
-};
+class Allocator {};
 
 #ifdef COPCORE_CUDA_COMPILER
 
@@ -44,7 +43,7 @@ public:
   bool operator!=(const Allocator &other) const { return !(*this == other); }
 
   template <typename... P>
-  value_type *allocate(std::size_t n, const P &... params) const
+  value_type *allocate(std::size_t n, const P &...params) const
   {
     int old_device = SetDevice(fDeviceId);
 
@@ -113,7 +112,7 @@ public:
   bool operator!=(const Allocator &other) const { return !(*this == other); }
 
   template <typename... P>
-  value_type *allocate(std::size_t n, const P &... params) const
+  value_type *allocate(std::size_t n, const P &...params) const
   {
     auto obj_size       = sizeof(T);
     value_type *result  = (value_type *)malloc(n * obj_size);

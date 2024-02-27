@@ -9,7 +9,7 @@
 #ifndef TEST_AGGREGATOR_H
 #define TEST_AGGREGATOR_H
 
-//#if defined TEST
+// #if defined TEST
 
 #include <mutex>
 #include <vector>
@@ -21,8 +21,8 @@ class TestManagerStore {
 
 private:
   static TestManagerStore *fInstance; ///< This class is a Singleton
-  static std::mutex fInitMutex;            ///< Mutex for initialization
-  static std::mutex fAccessMutex;          ///< Mutex for adding BenchmarkStates
+  static std::mutex fInitMutex;       ///< Mutex for initialization
+  static std::mutex fAccessMutex;     ///< Mutex for adding BenchmarkStates
   std::vector<std::map<TTag, double>>
       *fBenchmarkStates; ///< This vector holds one map with the information from each TestManager
 
@@ -49,8 +49,7 @@ public:
     for (auto iter = aTestManager->getTimers()->begin(); iter != aTestManager->getTimers()->end(); ++iter) {
       aBenchmarkState[iter->first] = aTestManager->getDurationSeconds(iter->first);
     }
-    for (auto iter = aTestManager->getAccumulators()->begin(); iter != aTestManager->getAccumulators()->end();
-         ++iter) {
+    for (auto iter = aTestManager->getAccumulators()->begin(); iter != aTestManager->getAccumulators()->end(); ++iter) {
       aBenchmarkState[iter->first] = iter->second;
     }
     // Make sure only one thread is adding a State at a time
@@ -83,6 +82,6 @@ public:
   void Reset() {}
 };
 
-//#endif
+// #endif
 
 #endif

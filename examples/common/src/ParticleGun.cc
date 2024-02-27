@@ -24,7 +24,7 @@ ParticleGun::ParticleGun() : G4ParticleGun()
 #ifdef HEPMC3_FOUND
   fHepmcAscii = new HepMC3G4AsciiReader();
 #endif
-  
+
   fParticleList     = new std::vector<G4ParticleDefinition *>();
   fParticleWeights  = new std::vector<float>();
   fParticleEnergies = new std::vector<float>();
@@ -52,22 +52,18 @@ void ParticleGun::GeneratePrimaries(G4Event *aEvent)
       // Re-balance the user-provided weights if needed
       ReWeight();
       // Make sure all particles have a user-defined energy
-      for(int i=0; i<fParticleEnergies->size(); i++)
-      {
-        if((*fParticleEnergies)[i] < 0)
-        {
+      for (int i = 0; i < fParticleEnergies->size(); i++) {
+        if ((*fParticleEnergies)[i] < 0) {
           G4Exception("PrimaryGeneratorAction::GeneratePrimaries()", "Notification", FatalErrorInArgument,
-                  ("Energy undefined for  " + (*fParticleList)[i]->GetParticleName()).c_str());
+                      ("Energy undefined for  " + (*fParticleList)[i]->GetParticleName()).c_str());
         }
       }
-      // In case the upper range for Phi or Theta was not defined, or is lower than the 
+      // In case the upper range for Phi or Theta was not defined, or is lower than the
       // lower range
-      if(fMaxPhi < fMinPhi)
-      {
+      if (fMaxPhi < fMinPhi) {
         fMaxPhi = fMinPhi;
       }
-      if(fMaxTheta < fMinTheta)
-      {
+      if (fMaxTheta < fMinTheta) {
         fMaxTheta = fMinTheta;
       }
     }
@@ -77,8 +73,8 @@ void ParticleGun::GeneratePrimaries(G4Event *aEvent)
     fHepmcAscii->GeneratePrimaryVertex(aEvent);
   } else {
     if (fRandomizeGun) {
-      GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, fParticleList,
-                                                fParticleWeights, fParticleEnergies);
+      GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, fParticleList, fParticleWeights,
+                                  fParticleEnergies);
     } else {
       GeneratePrimaryVertex(aEvent);
     }
@@ -230,26 +226,23 @@ void ParticleGun::Print()
   }
 }
 
-void ParticleGun::PrintPrimaries(G4Event* aEvent) const
+void ParticleGun::PrintPrimaries(G4Event *aEvent) const
 {
-  std::map<G4String, G4int> aParticleCounts = {};
+  std::map<G4String, G4int> aParticleCounts             = {};
   std::map<G4String, G4double> aParticleAverageEnergies = {};
 
-  for(int i=0; i<aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++)
-  {
-    G4String aParticleName = aEvent->GetPrimaryVertex()->GetPrimary(i)->GetParticleDefinition()->GetParticleName();
+  for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
+    G4String aParticleName   = aEvent->GetPrimaryVertex()->GetPrimary(i)->GetParticleDefinition()->GetParticleName();
     G4double aParticleEnergy = aEvent->GetPrimaryVertex()->GetPrimary(i)->GetKineticEnergy();
-    if(!aParticleCounts.count(aParticleName))
-    {
-      aParticleCounts[aParticleName] = 0;
+    if (!aParticleCounts.count(aParticleName)) {
+      aParticleCounts[aParticleName]          = 0;
       aParticleAverageEnergies[aParticleName] = 0;
     }
     aParticleCounts[aParticleName] += 1;
     aParticleAverageEnergies[aParticleName] += aParticleEnergy;
   }
-    
-  for(auto pd : aParticleCounts)
-  {
-    G4cout << pd.first << ": " << pd.second << ", " << aParticleAverageEnergies[pd.first]/pd.second << G4endl;
+
+  for (auto pd : aParticleCounts) {
+    G4cout << pd.first << ": " << pd.second << ", " << aParticleAverageEnergies[pd.first] / pd.second << G4endl;
   }
 }

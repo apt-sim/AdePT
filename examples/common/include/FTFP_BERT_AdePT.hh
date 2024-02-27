@@ -16,10 +16,10 @@ public:
   FTFP_BERT_AdePT(G4int ver = 1);
   virtual ~FTFP_BERT_AdePT() = default;
 
-  FTFP_BERT_AdePT(const FTFP_BERT_AdePT &) = delete;
+  FTFP_BERT_AdePT(const FTFP_BERT_AdePT &)            = delete;
   FTFP_BERT_AdePT &operator=(const FTFP_BERT_AdePT &) = delete;
-  
-  AdePTPhysics *GetAdePTPhysicsList(){return fAdePTPhysicsList;}
+
+  AdePTPhysics *GetAdePTPhysicsList() { return fAdePTPhysicsList; }
 
 private:
   // NEVER INITIALIZED!

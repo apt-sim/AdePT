@@ -16,11 +16,9 @@ struct SomeStruct {
   adept::Atomic_t<int> var_int;
   adept::Atomic_t<float> var_float;
 
-  __host__ __device__
-  SomeStruct() {}
+  __host__ __device__ SomeStruct() {}
 
-  __host__ __device__
-  static SomeStruct *MakeInstanceAt(void *addr)
+  __host__ __device__ static SomeStruct *MakeInstanceAt(void *addr)
   {
     SomeStruct *obj = new (addr) SomeStruct();
     return obj;

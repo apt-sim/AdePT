@@ -11,12 +11,12 @@
 #include "G4PhysicsListHelper.hh"
 
 #include "G4ComptonScattering.hh"
-//#include "G4KleinNishinaModel.hh"  // by defult in G4ComptonScattering
+// #include "G4KleinNishinaModel.hh"  // by defult in G4ComptonScattering
 
 #include "G4GammaConversion.hh"
 #include "G4PhotoElectricEffect.hh"
 #include "G4LivermorePhotoElectricModel.hh"
-//#include "G4RayleighScattering.hh"
+// #include "G4RayleighScattering.hh"
 
 #include "G4eMultipleScattering.hh"
 #include "G4GoudsmitSaundersonMscModel.hh"
@@ -29,7 +29,7 @@
 
 #include "G4BuilderType.hh"
 #include "G4LossTableManager.hh"
-//#include "G4UAtomicDeexcitation.hh"
+// #include "G4UAtomicDeexcitation.hh"
 
 #include "G4SystemOfUnits.hh"
 
@@ -41,8 +41,6 @@
 #include "G4hIonisation.hh"
 #include "G4ionIonisation.hh"
 #include "G4NuclearStopping.hh"
-
-
 
 HepEMPhysics::HepEMPhysics(const G4String &name) : G4VPhysicsConstructor(name)
 {
@@ -67,15 +65,15 @@ void HepEMPhysics::ConstructProcess()
   // from G4EmStandardPhysics
   G4EmBuilder::PrepareEMPhysics();
 
-  G4EmParameters* param = G4EmParameters::Instance();
+  G4EmParameters *param = G4EmParameters::Instance();
 
   // processes used by several particles
-  G4hMultipleScattering* hmsc = new G4hMultipleScattering("ionmsc");
+  G4hMultipleScattering *hmsc = new G4hMultipleScattering("ionmsc");
 
   // nuclear stopping is enabled if th eenergy limit above zero
   G4double nielEnergyLimit = param->MaxNIELEnergy();
-  G4NuclearStopping* pnuc = nullptr;
-  if(nielEnergyLimit > 0.0) {
+  G4NuclearStopping *pnuc  = nullptr;
+  if (nielEnergyLimit > 0.0) {
     pnuc = new G4NuclearStopping();
     pnuc->SetMaxKinEnergy(nielEnergyLimit);
   }
@@ -113,11 +111,13 @@ void HepEMPhysics::ConstructProcess()
   // from G4EmStandardPhysics
 
   // generic ion
-  G4ParticleDefinition* particle = G4GenericIon::GenericIon();
-  G4ionIonisation* ionIoni = new G4ionIonisation();
+  G4ParticleDefinition *particle = G4GenericIon::GenericIon();
+  G4ionIonisation *ionIoni       = new G4ionIonisation();
   ph->RegisterProcess(hmsc, particle);
   ph->RegisterProcess(ionIoni, particle);
-  if(nullptr != pnuc) { ph->RegisterProcess(pnuc, particle); }
+  if (nullptr != pnuc) {
+    ph->RegisterProcess(pnuc, particle);
+  }
 
   // muons, hadrons ions
   G4EmBuilder::ConstructCharged(hmsc, pnuc);
@@ -125,5 +125,5 @@ void HepEMPhysics::ConstructProcess()
   // extra configuration
   G4EmModelActivator mact(GetPhysicsName());
 
-  //end of G4EmStandardPhysics
+  // end of G4EmStandardPhysics
 }

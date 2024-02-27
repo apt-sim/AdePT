@@ -31,8 +31,6 @@
 #include <numeric>
 #include <algorithm>
 
-
-
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
@@ -62,7 +60,8 @@ static G4HepEmState *InitG4HepEm()
   InitG4HepEmState(state);
 
   G4HepEmMatCutData *cutData = state->fData->fTheMatCutData;
-  std::cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData << std::endl;
+  std::cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData
+            << std::endl;
 
   // Copy to GPU.
   CopyG4HepEmDataToGPU(state->fData);
@@ -114,7 +113,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
 
     Track &track = trackmgr->NextTrack();
     track.rngState.SetSeed(1234567 * event + startTrack + i);
-    track.eKin       = trackinfo[i].eKin;
+    track.eKin         = trackinfo[i].eKin;
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
@@ -127,7 +126,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.dir = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
 
     track.globalTime = trackinfo->globalTime;
-    track.localTime = trackinfo->localTime;
+    track.localTime  = trackinfo->localTime;
     track.properTime = trackinfo->properTime;
 
     track.navState.Clear();
@@ -194,7 +193,7 @@ __global__ void ClearLeakedQueues(LeakedTracks all)
 bool AdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
   // Try 16384 if debug mode is crashing
-  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192*2));
+  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192 * 2));
   // Upload geometry to GPU.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
@@ -309,8 +308,9 @@ void AdePTTransport::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
                                      buffer.toDevice.size() * sizeof(adeptint::TrackData), cudaMemcpyHostToDevice,
                                      gpuState.stream));
   if (fDebugLevel > 0) {
-    std::cout << std::dec << std::endl << "GPU transporting event " << event << " for CPU thread "
-           << fIntegrationLayer.GetThreadID() << ": " << std::flush;
+    std::cout << std::dec << std::endl
+              << "GPU transporting event " << event << " for CPU thread " << fIntegrationLayer.GetThreadID() << ": "
+              << std::flush;
   }
 
   // Initialize AdePT tracks using the track buffer copied from CPU
@@ -427,7 +427,7 @@ void AdePTTransport::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
     // Check if we need to flush the hits buffer
     if (fScoring->CheckAndFlush(gpuState.stats->hostscoring_stats, fScoring_dev, gpuState.stream)) {
       // Synchronize the stream used to copy back the hits
-      COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream)); 
+      COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
       // Process the hits on CPU
       fIntegrationLayer.ProcessGPUHits(*fScoring, gpuState.stats->hostscoring_stats);
     }
@@ -444,7 +444,7 @@ void AdePTTransport::ShowerGPU(int event, TrackBuffer &buffer) // const &buffer)
     } else {
       previousElectrons = numElectrons;
       previousPositrons = numPositrons;
-      previousGammas = numGammas;
+      previousGammas    = numGammas;
       loopingNo         = 0;
     }
 

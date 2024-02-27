@@ -20,8 +20,7 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-ParticleGunMessenger::ParticleGunMessenger(ParticleGun *Gun)
-    : G4UImessenger(), fGun(Gun), fDir(0), fDefaultCmd(0)
+ParticleGunMessenger::ParticleGunMessenger(ParticleGun *Gun) : G4UImessenger(), fGun(Gun), fDir(0), fDefaultCmd(0)
 {
   fDir = new G4UIdirectory("/gun/");
   fDir->SetGuidance("gun control");
@@ -125,27 +124,22 @@ void ParticleGunMessenger::SetNewValue(G4UIcommand *command, G4String newValue)
     while ((str = tkn()) != "") {
       token_vector->push_back(str);
     }
-    //The particle type is mandatory and must be the first argument
+    // The particle type is mandatory and must be the first argument
     G4ParticleDefinition *pd;
-    float weight = -1;
+    float weight  = -1;
     double energy = -1;
     if (token_vector->size() >= 1) {
       pd = G4ParticleTable::GetParticleTable()->FindParticle((*token_vector)[0]);
-    }
-    else
-    {
+    } else {
       G4Exception("ParticleGunMessenger::SetNewValue()", "Notification", JustWarning,
                   "No arguments provided. Usage: addParticle type [\"weight\" weight] [\"energy\" energy unit]");
     }
 
-    for(int i=1; i<token_vector->size(); i++)
-    {
-      if((*token_vector)[i] == "weight")
-      {
+    for (int i = 1; i < token_vector->size(); i++) {
+      if ((*token_vector)[i] == "weight") {
         weight = stof((*token_vector)[++i]);
       }
-      if((*token_vector)[i] == "energy")
-      {
+      if ((*token_vector)[i] == "energy") {
         energy = stof((*token_vector)[++i]) * G4UnitDefinition::GetValueOf((*token_vector)[++i]);
       }
     }

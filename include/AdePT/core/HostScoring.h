@@ -72,7 +72,6 @@ struct HostScoring {
     fGPUHitsBuffer_host = (GPUHit *)malloc(sizeof(GPUHit) * fBufferCapacity);
     // Allocate the global counters struct on host
     fGlobalCounters_host = (GlobalCounters *)malloc(sizeof(GlobalCounters));
-
   };
 
   ~HostScoring()
@@ -113,7 +112,7 @@ struct HostScoring {
   void CopyHitsToHost(Stats &aStats_host, HostScoring *aScoring_device, cudaStream_t stream);
 
   /// @brief Update the stats struct. To be called before copying it back.
-  /// @details This is an in-device update, meant to copy the state of the member variables we need 
+  /// @details This is an in-device update, meant to copy the state of the member variables we need
   /// into a struct that can be copied back to the host
   __device__ __forceinline__ void refresh_stats()
   {
@@ -123,8 +122,8 @@ struct HostScoring {
   }
 
   /// @brief Account for the number of produced secondaries
-  /// @details Atomically increase the number of produced secondaries. These numbers are used as another 
-  /// way to compare the amount of work done with Geant4. This is not part of the scoring per se and is 
+  /// @details Atomically increase the number of produced secondaries. These numbers are used as another
+  /// way to compare the amount of work done with Geant4. This is not part of the scoring per se and is
   /// copied back at the end of a shower
   __device__ void AccountProduced(int num_ele, int num_pos, int num_gam);
 

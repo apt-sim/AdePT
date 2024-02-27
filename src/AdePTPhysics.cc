@@ -9,12 +9,12 @@
 #include "G4PhysicsListHelper.hh"
 
 #include "G4ComptonScattering.hh"
-//#include "G4KleinNishinaModel.hh"  // by defult in G4ComptonScattering
+// #include "G4KleinNishinaModel.hh"  // by defult in G4ComptonScattering
 
 #include "G4GammaConversion.hh"
 #include "G4PhotoElectricEffect.hh"
 #include "G4LivermorePhotoElectricModel.hh"
-//#include "G4RayleighScattering.hh"
+// #include "G4RayleighScattering.hh"
 
 #include "G4eMultipleScattering.hh"
 #include "G4GoudsmitSaundersonMscModel.hh"
@@ -27,7 +27,7 @@
 
 #include "G4BuilderType.hh"
 #include "G4LossTableManager.hh"
-//#include "G4UAtomicDeexcitation.hh"
+// #include "G4UAtomicDeexcitation.hh"
 
 #include "G4SystemOfUnits.hh"
 
@@ -59,7 +59,7 @@ AdePTPhysics::AdePTPhysics(const G4String &name) : G4VPhysicsConstructor(name)
   SetPhysicsType(bUnknown);
 }
 
-AdePTPhysics::~AdePTPhysics() 
+AdePTPhysics::~AdePTPhysics()
 {
   delete fAdePTConfiguration;
   delete fTrackingManager;
@@ -77,7 +77,7 @@ void AdePTPhysics::ConstructProcess()
 
   // Setup tracking manager
   fTrackingManager->SetVerbosity(0);
-  
+
   // Create one instance of AdePTTransport per thread and set it up according to the user configuration
   AdePTTransport *aAdePTTransport = new AdePTTransport();
   aAdePTTransport->SetDebugLevel(0);
@@ -95,10 +95,10 @@ void AdePTPhysics::ConstructProcess()
   if (tid < 0) {
     // Load the VecGeom world in memory
     AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
-    
+
     // Track and Hit buffer capacities on GPU are split among threads
-    int num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
-    int track_capacity    = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
+    int num_threads    = G4RunManager::GetRunManager()->GetNumberOfThreads();
+    int track_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
     G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
     AdePTTransport::SetTrackCapacity(track_capacity);
     int hit_buffer_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfHitSlots() / num_threads;
@@ -108,8 +108,7 @@ void AdePTPhysics::ConstructProcess()
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
     aAdePTTransport->Initialize(true /*common_data*/);
-    if (sequential) 
-    {
+    if (sequential) {
       // Initialize per-thread data (When in sequential mode)
       aAdePTTransport->Initialize();
     }
@@ -117,11 +116,9 @@ void AdePTPhysics::ConstructProcess()
     // Initialize per-thread data
     aAdePTTransport->Initialize();
   }
-  
+
   // Give the custom tracking manager a pointer to the AdePTTransport instance
   fTrackingManager->SetAdePTTransport(aAdePTTransport);
 
   // Translate Region names to actual G4 Regions and give them to the custom tracking manager
-
-
 }
