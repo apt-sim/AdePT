@@ -40,35 +40,32 @@ set(sources_g4
 
 if(HepMC3_FOUND)
   set(sources_hepmc3
-      ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReader.cc
-      ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReaderMessenger.cc
-      ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4Interface.cc
-     )
+    ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReader.cc
+    ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReaderMessenger.cc
+    ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4Interface.cc
+  )
 endif()
 
 # example1
-add_executable(example1 
-                example1.cpp 
-                ${sources_g4} 
-                ${sources_hepmc3})
-
-target_include_directories(example1 PRIVATE 
-                          ${PROJECT_SOURCE_DIR}/examples/Example1/include 
-                          ${PROJECT_SOURCE_DIR}/examples/Example1
-                          ${PROJECT_SOURCE_DIR}/examples/common/include
-                          ${HEPMC3_INCLUDE_DIR})
-
+add_executable(example1 example1.cpp ${sources_g4} ${sources_hepmc3})
+target_include_directories(example1
+  PRIVATE 
+    ${PROJECT_SOURCE_DIR}/examples/Example1/include 
+    ${PROJECT_SOURCE_DIR}/examples/Example1
+    ${PROJECT_SOURCE_DIR}/examples/common/include
+    ${HEPMC3_INCLUDE_DIR}
+)
 target_link_libraries(example1
   PRIVATE
     AdePT_G4_integration
     AdePT
     AdePT_cuda
     ${HEPMC3_LIBRARIES} 
-    ${HEPMC3_FIO_LIBRARIES})
+    ${HEPMC3_FIO_LIBRARIES}
+)
 
 # Install macros and geometry file
-
-configure_file("macros/example1.mac.in" "${CMAKE_BINARY_DIR}/example1.mac")
-configure_file("macros/example1_ttbar.mac.in" "${CMAKE_BINARY_DIR}/example1_ttbar.mac")
+configure_file("macros/example1.mac.in" "${PROJECT_BINARY_DIR}/example1.mac")
+configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
 
 # Tests
