@@ -19,8 +19,7 @@
 namespace copcore {
 
 template <class T, BackendType backend>
-class VariableSizeObjAllocator {
-};
+class VariableSizeObjAllocator {};
 
 #ifdef COPCORE_CUDA_COMPILER
 
@@ -46,7 +45,7 @@ public:
   bool operator!=(const VariableSizeObjAllocator &other) const { return !(*this == other); }
 
   template <typename... P>
-  value_type *allocate(std::size_t n, const P &... params) const
+  value_type *allocate(std::size_t n, const P &...params) const
   {
     int old_device = SetDevice(fDeviceId);
 
@@ -123,7 +122,7 @@ public:
   bool operator!=(const VariableSizeObjAllocator &other) const { return !(*this == other); }
 
   template <typename... P>
-  value_type *allocate(std::size_t n, const P &... params) const
+  value_type *allocate(std::size_t n, const P &...params) const
   {
     value_type *result   = nullptr;
     std::size_t obj_size = T::SizeOfAlignAware(fCapacity);

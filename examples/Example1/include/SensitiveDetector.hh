@@ -47,7 +47,7 @@ class G4VPhysicalVolume;
 class SensitiveDetector : public G4VSensitiveDetector {
 public:
   SensitiveDetector(G4String aName);
-  SensitiveDetector(G4String aName, std::set<const G4VPhysicalVolume*> *aSensitivePhysicalVolumes);
+  SensitiveDetector(G4String aName, std::set<const G4VPhysicalVolume *> *aSensitivePhysicalVolumes);
   ~SensitiveDetector() = default;
   /// Create hit collection
   virtual void Initialize(G4HCofThisEvent *HCE) final;
@@ -56,9 +56,9 @@ public:
 
   SimpleHit *RetrieveAndSetupHit(G4TouchableHistory *aTouchable);
 
-  std::vector<G4LogicalVolume*> fSensitiveLogicalVolumes;
+  std::vector<G4LogicalVolume *> fSensitiveLogicalVolumes;
   /// Physical Volumes where we want to score
-  std::set<const G4VPhysicalVolume*> fSensitivePhysicalVolumes;
+  std::set<const G4VPhysicalVolume *> fSensitivePhysicalVolumes;
 
   std::unordered_map<size_t, size_t> fScoringMap;
 

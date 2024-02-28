@@ -13,10 +13,9 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-PrimaryGeneratorAction::PrimaryGeneratorAction()
-    : G4VUserPrimaryGeneratorAction(), fParticleGun(0)
+PrimaryGeneratorAction::PrimaryGeneratorAction() : G4VUserPrimaryGeneratorAction(), fParticleGun(0)
 {
-  fParticleGun     = new ParticleGun();
+  fParticleGun = new ParticleGun();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -32,5 +31,3 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event *aEvent)
 {
   fParticleGun->GeneratePrimaries(aEvent);
 }
-
-

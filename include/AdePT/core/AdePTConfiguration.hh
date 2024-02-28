@@ -32,7 +32,7 @@ public:
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
 
   // Temporary
-  std::string GetVecGeomGDML(){ return fVecGeomGDML; }
+  std::string GetVecGeomGDML() { return fVecGeomGDML; }
 
 private:
   int fRandomSeed;

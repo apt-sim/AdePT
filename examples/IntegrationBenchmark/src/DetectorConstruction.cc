@@ -47,9 +47,7 @@ DetectorConstruction::DetectorConstruction() : G4VUserDetectorConstruction()
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-DetectorConstruction::~DetectorConstruction()
-{
-}
+DetectorConstruction::~DetectorConstruction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -113,45 +111,40 @@ void DetectorConstruction::ConstructSDandField()
 
   We will have one hit per Placement of a sensitive LogicalVolume
   SensitiveDetector will store the mapping of PhysicalVolumes to hits, and use it in ProcessHits
-  
-  fSensitive_volumes Contains the names of the LogicalVolumes we want to make sensitive, at this point 
+
+  fSensitive_volumes Contains the names of the LogicalVolumes we want to make sensitive, at this point
   it has been already filled through macro commands
 
   In order to find all placements of these sensitive volumes, we need to walk the tree
   */
   int numSensitiveTouchables = 0;
-  int numTouchables = 0;
+  int numTouchables          = 0;
 
   SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector");
-  //SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector", &fSensitivePhysicalVolumes);
+  // SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector", &fSensitivePhysicalVolumes);
   G4SDManager::GetSDMpointer()->AddNewDetector(caloSD);
-  std::vector<G4LogicalVolume*> aSensitiveLogicalVolumes;
+  std::vector<G4LogicalVolume *> aSensitiveLogicalVolumes;
 
   std::function<void(G4VPhysicalVolume const *)> visitAndSetupScoring = [&](G4VPhysicalVolume const *pvol) {
     const auto lvol = pvol->GetLogicalVolume();
-    int nd           = lvol->GetNoDaughters();
+    int nd          = lvol->GetNoDaughters();
     numTouchables++;
 
     // Check if the LogicalVolume is sensitive
     auto aAuxInfoList = fParser.GetVolumeAuxiliaryInformation(lvol);
-    for(auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++ )
-    {
-      G4String str=iaux->type;
-      G4String val=iaux->value;
-      G4String unit=iaux->unit;
+    for (auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++) {
+      G4String str  = iaux->type;
+      G4String val  = iaux->value;
+      G4String unit = iaux->unit;
 
-      if(str == "SensDet")
-      {
+      if (str == "SensDet") {
         // If it is, record the PV
-        if( caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end() )
-        {
-          caloSD->fSensitivePhysicalVolumes.insert(pvol); 
+        if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
+          caloSD->fSensitivePhysicalVolumes.insert(pvol);
         }
         // If this is the first time we see this LV
-        if(std::find(caloSD->fSensitiveLogicalVolumes.begin(), 
-            caloSD->fSensitiveLogicalVolumes.end(), 
-            lvol) == caloSD->fSensitiveLogicalVolumes.end())
-        {
+        if (std::find(caloSD->fSensitiveLogicalVolumes.begin(), caloSD->fSensitiveLogicalVolumes.end(), lvol) ==
+            caloSD->fSensitiveLogicalVolumes.end()) {
           // Make LogicalVolume sensitive by registering a SensitiveDetector for it
           SetSensitiveDetector(lvol, caloSD);
           // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport

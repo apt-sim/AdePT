@@ -13,7 +13,7 @@ class AdePTPhysics : public G4VPhysicsConstructor {
 public:
   AdePTPhysics(const G4String &name = "AdePT-physics-list");
   ~AdePTPhysics();
-  AdePTTrackingManager* GetTrackingManager(){return fTrackingManager;}
+  AdePTTrackingManager *GetTrackingManager() { return fTrackingManager; }
 
 public:
   // This method is dummy for physics: particles are constructed in PhysicsList
@@ -25,8 +25,8 @@ public:
   void ConstructProcess() override;
 
 private:
-  AdePTTrackingManager* fTrackingManager;
-  AdePTConfiguration* fAdePTConfiguration;
+  AdePTTrackingManager *fTrackingManager;
+  AdePTConfiguration *fAdePTConfiguration;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

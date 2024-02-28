@@ -35,20 +35,16 @@ struct AtomicBase_t {
   AtomicType_t fData{0}; ///< Atomic data
 
   /** @brief Constructor taking an address */
-  __host__ __device__
-  AtomicBase_t() : fData{0} {}
+  __host__ __device__ AtomicBase_t() : fData{0} {}
 
   /** @brief Copy constructor */
-  __host__ __device__
-  AtomicBase_t(AtomicBase_t const &other) { store(other.load()); }
+  __host__ __device__ AtomicBase_t(AtomicBase_t const &other) { store(other.load()); }
 
   /** @brief Assignment */
-  __host__ __device__
-  AtomicBase_t &operator=(AtomicBase_t const &other) { store(other.load()); }
+  __host__ __device__ AtomicBase_t &operator=(AtomicBase_t const &other) { store(other.load()); }
 
   /** @brief Emplace the data at a given address */
-  __host__ __device__
-  static AtomicBase_t *MakeInstanceAt(void *addr)
+  __host__ __device__ static AtomicBase_t *MakeInstanceAt(void *addr)
   {
     assert(addr != nullptr && "cannot allocate at nullptr address");
     assert((((unsigned long long)addr) % alignof(AtomicType_t)) == 0 && "addr does not satisfy alignment");
@@ -78,12 +74,10 @@ struct AtomicBase_t {
 #else
 
   /** @brief Atomically replaces the current value with desired. */
-  __device__
-  void store(Type desired) { atomicExch(&fData, desired); }
+  __device__ void store(Type desired) { atomicExch(&fData, desired); }
 
   /** @brief Atomically loads and returns the current value of the atomic variable. */
-  __device__
-  Type load() const
+  __device__ Type load() const
   {
     // There is no atomic load on CUDA. Issue a memory fence to get the required
     // semantics and make sure that the value is really loaded from memory.
@@ -92,13 +86,11 @@ struct AtomicBase_t {
   }
 
   /** @brief Atomically replaces the underlying value with desired. */
-  __device__
-  Type exchange(Type desired) { return atomicExch(&fData, desired); }
+  __device__ Type exchange(Type desired) { return atomicExch(&fData, desired); }
 
   /** @brief Atomically compares the stored value with the expected one, and if equal stores desired.
    * If not loads the old value into expected. Returns true if swap was successful. */
-  __device__
-  bool compare_exchange_strong(Type &expected, Type desired)
+  __device__ bool compare_exchange_strong(Type &expected, Type desired)
   {
     Type old    = atomicCAS(&fData, expected, desired);
     bool worked = (old == expected);
@@ -107,48 +99,37 @@ struct AtomicBase_t {
   }
 
   /** @brief Atomically replaces the current value with the result of arithmetic addition of the value and arg. */
-  __device__
-  Type fetch_add(Type arg) { return atomicAdd(&fData, arg); }
+  __device__ Type fetch_add(Type arg) { return atomicAdd(&fData, arg); }
 
   /** @brief Atomically replaces the current value with the result of arithmetic subtraction of the value and arg. */
-  __device__
-  Type fetch_sub(Type arg) { return atomicAdd(&fData, -arg); }
+  __device__ Type fetch_sub(Type arg) { return atomicAdd(&fData, -arg); }
 
   /** @brief Atomically replaces the current value with the result of bitwise AND of the value and arg. */
-  __device__
-  Type fetch_and(Type arg) { return atomicAnd(&fData, arg); }
+  __device__ Type fetch_and(Type arg) { return atomicAnd(&fData, arg); }
 
   /** @brief Atomically replaces the current value with the result of bitwise OR of the value and arg. */
-  __device__
-  Type fetch_or(Type arg) { return atomicOr(&fData, arg); }
+  __device__ Type fetch_or(Type arg) { return atomicOr(&fData, arg); }
 
   /** @brief Atomically replaces the current value with the result of bitwise XOR of the value and arg. */
-  __device__
-  Type fetch_xor(Type arg) { return atomicXor(&fData, arg); }
+  __device__ Type fetch_xor(Type arg) { return atomicXor(&fData, arg); }
 
   /** @brief Performs atomic add. */
-  __device__
-  Type operator+=(Type arg) { return (fetch_add(arg) + arg); }
+  __device__ Type operator+=(Type arg) { return (fetch_add(arg) + arg); }
 
   /** @brief Performs atomic subtract. */
-  __device__
-  Type operator-=(Type arg) { return (fetch_sub(arg) - arg); }
+  __device__ Type operator-=(Type arg) { return (fetch_sub(arg) - arg); }
 
   /** @brief Performs atomic pre-increment. */
-  __device__
-  Type operator++() { return (fetch_add(1) + 1); }
+  __device__ Type operator++() { return (fetch_add(1) + 1); }
 
   /** @brief Performs atomic post-increment. */
-  __device__
-  Type operator++(int) { return fetch_add(1); }
+  __device__ Type operator++(int) { return fetch_add(1); }
 
   /** @brief Performs atomic pre-decrement. */
-  __device__
-  Type operator--() { return (fetch_sub(1) - 1); }
+  __device__ Type operator--() { return (fetch_sub(1) - 1); }
 
   /** @brief Performs atomic post-decrement. */
-  __device__
-  Type operator--(int) { return fetch_sub(1); }
+  __device__ Type operator--(int) { return fetch_sub(1); }
 
 #endif
 };
@@ -202,8 +183,7 @@ struct Atomic_t<Type, typename std::enable_if<std::is_integral<Type>::value>::ty
   Type operator--(int) { return fetch_sub(1); }
 #else
   /** @brief Atomically assigns the desired value to the atomic variable. */
-  __device__
-  Type operator=(Type desired)
+  __device__ Type operator=(Type desired)
   {
     atomicExch(&fData, desired);
     return desired;
@@ -257,8 +237,7 @@ struct Atomic_t<Type, typename std::enable_if<!std::is_integral<Type>::value>::t
 #else
 
   /** @brief Atomically assigns the desired value to the atomic variable. */
-  __device__
-  Type operator=(Type desired)
+  __device__ Type operator=(Type desired)
   {
     atomicExch(&fData, desired);
     return desired;

@@ -33,16 +33,14 @@ private:
   static constexpr int kMaxPos        = 9 * 64;
 
 protected:
-  __host__ __device__
-  void SaveState(uint64_t *state) const
+  __host__ __device__ void SaveState(uint64_t *state) const
   {
     for (int i = 0; i < 9; i++) {
       state[i] = fState[i];
     }
   }
 
-  __host__ __device__
-  void XORstate(const uint64_t *state)
+  __host__ __device__ void XORstate(const uint64_t *state)
   {
     for (int i = 0; i < 9; i++) {
       fState[i] ^= state[i];

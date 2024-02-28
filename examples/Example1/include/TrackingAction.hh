@@ -50,10 +50,10 @@ public:
   virtual void PreUserTrackingAction(const G4Track *);
   virtual void PostUserTrackingAction(const G4Track *);
 
-  inline void setSteppingAction(SteppingAction* aSteppingAction){fSteppingAction = aSteppingAction;}
+  inline void setSteppingAction(SteppingAction *aSteppingAction) { fSteppingAction = aSteppingAction; }
 
 private:
-  SteppingAction* fSteppingAction;
+  SteppingAction *fSteppingAction;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

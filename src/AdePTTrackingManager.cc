@@ -119,19 +119,14 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     G4Region *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
     // Check if the particle is in a GPU region
     bool isGPURegion = false;
-    if(fAdept->GetTrackInAllRegions())
-    {
+    if (fAdept->GetTrackInAllRegions()) {
       isGPURegion = true;
-    }
-    else
-    {
-      for(G4Region *gpuRegion: fGPURegions)
-      {
-        if (region == gpuRegion)
-          isGPURegion = true;
+    } else {
+      for (G4Region *gpuRegion : fGPURegions) {
+        if (region == gpuRegion) isGPURegion = true;
       }
     }
-    
+
     if (isGPURegion) {
       // If the track is in a GPU region, hand it over to AdePT
 
@@ -145,7 +140,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
       fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
                        particleDirection[1], particleDirection[2], globalTime, localTime, properTime);
-      
+
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);
 
@@ -166,13 +161,13 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   delete aTrack;
 }
 
-void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack) 
+void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
 {
   /* From G4 Example RE07 */
 
-  G4EventManager* eventManager = G4EventManager::GetEventManager();
-  G4TrackingManager* trackManager = eventManager->GetTrackingManager();
-  G4SteppingManager* steppingManager = trackManager->GetSteppingManager();
+  G4EventManager *eventManager       = G4EventManager::GetEventManager();
+  G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
+  G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
 
   // Track the particle Step-by-Step while it is alive and outside of a GPU region
   while ((aTrack->GetTrackStatus() == fAlive) || (aTrack->GetTrackStatus() == fStopButAlive)) {
@@ -183,12 +178,11 @@ void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
       // Switch the touchable to update the volume, which is checked in the
       // condition below and at the call site.
       aTrack->SetTouchableHandle(aTrack->GetNextTouchableHandle());
-      G4Region* region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+      G4Region *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
       // This should never be true if this flag is set, as all particles would be sent to AdePT
       assert(fAdept->GetTrackInAllRegions() == false);
       // Check whether the particle has entered a GPU region
-      for(G4Region *gpuRegion: fGPURegions)
-      {
+      for (G4Region *gpuRegion : fGPURegions) {
         if (region == gpuRegion) {
           return;
         }

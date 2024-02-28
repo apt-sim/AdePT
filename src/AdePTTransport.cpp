@@ -141,8 +141,8 @@ void AdePTTransport::Shower(int event)
       std::cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " kinetic energy " << track.eKin
                 << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
                 << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
-                << " global time, local time, proper time: " << "(" << track.globalTime << ", " << track.localTime 
-                << ", " << track.properTime << ")" << std::endl;
+                << " global time, local time, proper time: "
+                << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << std::endl;
     }
   }
 

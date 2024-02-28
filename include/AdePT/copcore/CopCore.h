@@ -15,6 +15,4 @@
 #include <AdePT/copcore/VariableSizeObj.h>
 #include <AdePT/copcore/VariableSizeObjAllocator.h>
 
-
-
 #endif // COPCORE_COPCORE_H_

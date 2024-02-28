@@ -86,7 +86,7 @@ public:
   inline G4int GetType() const { return fType; }
 
   /// Set PhysicalVolumeName
-  inline void SetPhysicalVolumeName(G4String aPhysicalVolumeName) { fPhysicalVolumeName = aPhysicalVolumeName;}
+  inline void SetPhysicalVolumeName(G4String aPhysicalVolumeName) { fPhysicalVolumeName = aPhysicalVolumeName; }
   /// Get PhysicalVolumeName
   inline G4String GetPhysicalVolumeName() const { return fPhysicalVolumeName; }
 
@@ -99,8 +99,8 @@ public:
   G4double fTime = -1;
   /// Type: 0 = full sim, 1 = fast sim
   G4int fType = -1;
-  /// These hits will be associated to PhysicalVolumes  
-  G4String fPhysicalVolumeName = ""; 
+  /// These hits will be associated to PhysicalVolumes
+  G4String fPhysicalVolumeName = "";
 };
 
 typedef G4THitsCollection<SimpleHit> SimpleHitsCollection;

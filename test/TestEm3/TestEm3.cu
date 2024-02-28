@@ -187,10 +187,10 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
 
   InitBVH();
 
-  #ifdef ADEPT_USE_SURF
+#ifdef ADEPT_USE_SURF
   auto &surfdata = vgbrep::SurfData<double>::Instance();
   vgbrep::BrepCudaManager<double>::Instance().TransferSurfData(surfdata);
-  #endif
+#endif
 
   G4HepEmState *state = InitG4HepEm();
 
@@ -321,7 +321,7 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
     int transportBlocks;
 
     int inFlight;
-    int loopingNo = 0;
+    int loopingNo         = 0;
     int previousElectrons = -1, previousPositrons = -1;
 
     do {
@@ -398,13 +398,13 @@ void TestEm3(const vecgeom::cxx::VPlacedVolume *world, int numParticles, double 
       // Check if only charged particles are left that are looping.
       numElectrons = stats->inFlight[ParticleType::Electron];
       numPositrons = stats->inFlight[ParticleType::Positron];
-      numGammas = stats->inFlight[ParticleType::Gamma];
+      numGammas    = stats->inFlight[ParticleType::Gamma];
       if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == 0) {
         loopingNo++;
       } else {
         previousElectrons = numElectrons;
         previousPositrons = numPositrons;
-        loopingNo = 0;
+        loopingNo         = 0;
       }
 
     } while (inFlight > 0 && loopingNo < 200);

@@ -54,26 +54,24 @@ struct Track {
 
   __host__ __device__ void print(int id = -1, bool verbose = false) const
   {
-     using copcore::units::MeV;
-     using copcore::units::mm;
-     // static const char *particleName[3] = {"e-", "g", "e+"};
-     printf( " id= %3d Pos[mm]: "
-             "%10.7g, %10.7g, %10.7g "
-             " kE[MeV]= %10.5g  Dir: %9.6f %9.6f %9.6f "
-             " - intl= %6.3f %6.3f %6.3f r0= %10.5g\n",
-             id, pos[0] / mm, pos[1] / mm, pos[2] / mm ,              
-             energy / MeV, dir[0], dir[1], dir[2],
-             numIALeft[0] , numIALeft[1], numIALeft[2],
-             initialRange / mm );
+    using copcore::units::MeV;
+    using copcore::units::mm;
+    // static const char *particleName[3] = {"e-", "g", "e+"};
+    printf(" id= %3d Pos[mm]: "
+           "%10.7g, %10.7g, %10.7g "
+           " kE[MeV]= %10.5g  Dir: %9.6f %9.6f %9.6f "
+           " - intl= %6.3f %6.3f %6.3f r0= %10.5g\n",
+           id, pos[0] / mm, pos[1] / mm, pos[2] / mm, energy / MeV, dir[0], dir[1], dir[2], numIALeft[0], numIALeft[1],
+           numIALeft[2], initialRange / mm);
 
 #ifdef COPCORE_DEVICE_COMPILATION
-     if (verbose) {
-        auto currentLevel = navState.GetLevel();
-        auto currentIndex = navState.GetNavIndex(currentLevel);
-        printf("  id= %3d current: (lv= %3d  ind= %8u  bnd= %1d)  ", id, currentLevel, currentIndex,
-               (int) navState.IsOnBoundary() );
-        printf("\n");        
-     }
+    if (verbose) {
+      auto currentLevel = navState.GetLevel();
+      auto currentIndex = navState.GetNavIndex(currentLevel);
+      printf("  id= %3d current: (lv= %3d  ind= %8u  bnd= %1d)  ", id, currentLevel, currentIndex,
+             (int)navState.IsOnBoundary());
+      printf("\n");
+    }
 #endif
   }
 };
@@ -166,6 +164,6 @@ extern __constant__ __device__ int *MCIndex;
 extern float BzFieldValue_host; //   = 1.0 * copcore::units::tesla;
 extern /*__device__*/ float *BzFieldValue_dev;
 
-__global__ void SetBzFieldPtr( float* pBzFieldValue_dev );
+__global__ void SetBzFieldPtr(float *pBzFieldValue_dev);
 
 #endif

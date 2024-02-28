@@ -40,7 +40,7 @@ float *BzFieldValue_dev = nullptr;
 const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
 {
   auto defaultRegion = new G4Region("DefaultRegionForTheWorld"); // deleted by store
-  auto pcuts = G4ProductionCutsTable::GetProductionCutsTable()->GetDefaultProductionCuts();
+  auto pcuts         = G4ProductionCutsTable::GetProductionCutsTable()->GetDefaultProductionCuts();
   pcuts->SetProductionCut(DefaultCut, "gamma");
   pcuts->SetProductionCut(DefaultCut, "e-");
   pcuts->SetProductionCut(DefaultCut, "e+");
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
   // Only outputs are the data file(s)
   // Separate for now, but will want to unify
   OPTION_STRING(gdml_file, "cms2018.gdml"); //  "trackML.gdml"); //  "cms2018.gdml");
-  OPTION_INT(cache_depth, 0); // 0 = full depth
+  OPTION_INT(cache_depth, 0);               // 0 = full depth
   OPTION_INT(particles, 100);
   OPTION_DOUBLE(energy, 10); // entered in GeV
   energy *= copcore::units::GeV;
@@ -200,17 +200,17 @@ int main(int argc, char *argv[])
   OPTION_DOUBLE(bzValue, -1.00); // entered in tesla
   BzFieldValue_host = bzValue * copcore::units::tesla;
 
-  std::cout << "INFO: Particles to simulate = " << particles << " \n";  
-  std::cout << "INFO: Bz field value = " << bzValue << " T (tesla) \n"; 
+  std::cout << "INFO: Particles to simulate = " << particles << " \n";
+  std::cout << "INFO: Bz field value = " << bzValue << " T (tesla) \n";
 
-  constexpr int stackLimit= 8 * 1024;  // 8192 
+  constexpr int stackLimit = 8 * 1024; // 8192
   printf("testField.cpp/main(): Setting Cuda Device Stack Limit to %6d \n", stackLimit);
   cudaError_t error = cudaDeviceSetLimit(cudaLimitStackSize, stackLimit);
   if (error != cudaSuccess) {
-     printf("cudaDeviceSetLimit failed with %d, line(%d)\n", error, __LINE__);
-     exit(EXIT_FAILURE);
+    printf("cudaDeviceSetLimit failed with %d, line(%d)\n", error, __LINE__);
+    exit(EXIT_FAILURE);
   }
-  
+
   vecgeom::Stopwatch timer;
   timer.Start();
 

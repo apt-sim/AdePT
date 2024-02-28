@@ -37,7 +37,7 @@
 #include "G4PhysicalVolumeStore.hh"
 #include "G4SystemOfUnits.hh"
 
-EventAction::EventAction(): G4UserEventAction(), fHitCollectionID(-1), fTimer()
+EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1), fTimer()
 {
   fMessenger = new EventActionMessenger(this);
 }
@@ -50,7 +50,7 @@ EventAction::~EventAction() {}
 
 void EventAction::BeginOfEventAction(const G4Event *)
 {
-  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
+  auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   fTimer.Start();
 }
@@ -59,7 +59,7 @@ void EventAction::BeginOfEventAction(const G4Event *)
 
 void EventAction::EndOfEventAction(const G4Event *aEvent)
 {
-  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
+  auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   fTimer.Stop();
 
@@ -82,14 +82,14 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   // Store the original IO precission and width
   auto aOriginalPrecission = std::cout.precision();
-  auto aOriginalWidth = std::cout.width();
+  auto aOriginalWidth      = std::cout.width();
 
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
     hit   = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
     hitEn = hit->GetEdep();
     totalEnergy += hitEn;
     G4String vol_name = hit->GetPhysicalVolumeName();
-    
+
     if (hitEn > 1 && fVerbosity > 1)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;

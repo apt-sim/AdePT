@@ -32,9 +32,7 @@
 #include "TrackingAction.hh"
 #include "SteppingAction.hh"
 
-ActionInitialisation::ActionInitialisation() : G4VUserActionInitialization()
-{
-}
+ActionInitialisation::ActionInitialisation() : G4VUserActionInitialization() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

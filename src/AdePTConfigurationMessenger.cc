@@ -39,16 +39,20 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetVerbosityCmd->SetGuidance("Set verbosity level for the AdePT integration layer");
 
   fSetTransportBufferThresholdCmd = new G4UIcmdWithAnInteger("/adept/setTransportBufferThreshold", this);
-  fSetTransportBufferThresholdCmd->SetGuidance("Set number of particles to be buffered before triggering the transport on GPU");
+  fSetTransportBufferThresholdCmd->SetGuidance(
+      "Set number of particles to be buffered before triggering the transport on GPU");
 
   fSetMillionsOfTrackSlotsCmd = new G4UIcmdWithADouble("/adept/setMillionsOfTrackSlots", this);
-  fSetMillionsOfTrackSlotsCmd->SetGuidance("Set the total number of track slots that will be allocated on the GPU, in millions");
+  fSetMillionsOfTrackSlotsCmd->SetGuidance(
+      "Set the total number of track slots that will be allocated on the GPU, in millions");
 
   fSetMillionsOfHitSlotsCmd = new G4UIcmdWithADouble("/adept/setMillionsOfHitSlots", this);
-  fSetMillionsOfHitSlotsCmd->SetGuidance("Set the total number of hit slots that will be allocated on the GPU, in millions");
+  fSetMillionsOfHitSlotsCmd->SetGuidance(
+      "Set the total number of hit slots that will be allocated on the GPU, in millions");
 
   fSetHitBufferFlushThresholdCmd = new G4UIcmdWithADouble("/adept/setHitBufferThreshold", this);
-  fSetHitBufferFlushThresholdCmd->SetGuidance("Set the usage threshold at which the buffer of hits is copied back to the host from GPU");
+  fSetHitBufferFlushThresholdCmd->SetGuidance(
+      "Set the usage threshold at which the buffer of hits is copied back to the host from GPU");
   fSetHitBufferFlushThresholdCmd->SetParameterName("HitBufferThreshold", false);
   fSetHitBufferFlushThresholdCmd->SetRange("HitBufferThreshold>=0.&&HitBufferThreshold<=1.");
 
@@ -77,44 +81,25 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
 void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String newValue)
 {
 
-  if(command == fSetSeedCmd)
-  {
+  if (command == fSetSeedCmd) {
     fAdePTConfiguration->SetRandomSeed(fSetSeedCmd->GetNewIntValue(newValue));
-  }
-  else if(command == fSetTrackInAllRegionsCmd)
-  {
+  } else if (command == fSetTrackInAllRegionsCmd) {
     fAdePTConfiguration->SetTrackInAllRegions(fSetTrackInAllRegionsCmd->GetNewBoolValue(newValue));
-  }
-  else if(command == fAddRegionCmd)
-  {
+  } else if (command == fAddRegionCmd) {
     fAdePTConfiguration->AddGPURegionName(newValue);
-  }
-  else if(command == fActivateAdePTCmd)
-  {
+  } else if (command == fActivateAdePTCmd) {
     fAdePTConfiguration->SetAdePTActivation(fActivateAdePTCmd->GetNewBoolValue(newValue));
-  }
-  else if(command == fSetVerbosityCmd)
-  {
+  } else if (command == fSetVerbosityCmd) {
     fAdePTConfiguration->SetVerbosity(fSetVerbosityCmd->GetNewIntValue(newValue));
-  }
-  else if(command == fSetTransportBufferThresholdCmd)
-  {
+  } else if (command == fSetTransportBufferThresholdCmd) {
     fAdePTConfiguration->SetTransportBufferThreshold(fSetTransportBufferThresholdCmd->GetNewIntValue(newValue));
-  }
-  else if(command == fSetMillionsOfTrackSlotsCmd)
-  {
+  } else if (command == fSetMillionsOfTrackSlotsCmd) {
     fAdePTConfiguration->SetMillionsOfTrackSlots(fSetMillionsOfTrackSlotsCmd->GetNewDoubleValue(newValue));
-  }
-  else if(command == fSetMillionsOfHitSlotsCmd)
-  {
+  } else if (command == fSetMillionsOfHitSlotsCmd) {
     fAdePTConfiguration->SetMillionsOfHitSlots(fSetMillionsOfHitSlotsCmd->GetNewDoubleValue(newValue));
-  }
-  else if(command == fSetHitBufferFlushThresholdCmd)
-  {
+  } else if (command == fSetHitBufferFlushThresholdCmd) {
     fAdePTConfiguration->SetHitBufferFlushThreshold(fSetHitBufferFlushThresholdCmd->GetNewDoubleValue(newValue));
-  }
-  else if(command == fSetGDMLCmd)
-  {
+  } else if (command == fSetGDMLCmd) {
     fAdePTConfiguration->SetVecGeomGDML(newValue);
   }
 }

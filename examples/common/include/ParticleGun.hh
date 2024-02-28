@@ -16,14 +16,14 @@ public:
   ~ParticleGun();
   virtual void GeneratePrimaries(G4Event *) final;
   void GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi, G4double aMaxPhi, G4double aMinTheta,
-                                   G4double aMaxTheta, std::vector<G4ParticleDefinition*> *aParticleList, 
+                                   G4double aMaxTheta, std::vector<G4ParticleDefinition *> *aParticleList,
                                    std::vector<float> *aParticleWeights, std::vector<float> *aParticleEnergies);
   void Print();
-  void PrintPrimaries(G4Event* aEvent) const;
-  void SetHepMC() {fUseHepMC = true;}
+  void PrintPrimaries(G4Event *aEvent) const;
+  void SetHepMC() { fUseHepMC = true; }
   void SetDefaultKinematic();
   void SetRandomizeGun(G4bool val) { fRandomizeGun = val; }
-  void AddParticle(G4ParticleDefinition* val, float weight=-1, double energy=-1);
+  void AddParticle(G4ParticleDefinition *val, float weight = -1, double energy = -1);
   void SetMinPhi(G4double val) { fMinPhi = val; }
   void SetMaxPhi(G4double val) { fMaxPhi = val; }
   void SetMinTheta(G4double val) { fMinTheta = val; }
@@ -33,12 +33,12 @@ public:
    * among the particles with undefined weight.
    */
   void ReWeight();
-  
+
 private:
   G4double fPrintGun;
-  //Gun randomization
+  // Gun randomization
   bool fRandomizeGun;
-  std::vector<G4ParticleDefinition*> *fParticleList;
+  std::vector<G4ParticleDefinition *> *fParticleList;
   std::vector<float> *fParticleWeights;
   std::vector<float> *fParticleEnergies;
   bool fInitializationDone;
@@ -48,11 +48,10 @@ private:
   G4double fMaxTheta;
 
   // HepMC3 reader
-  G4VPrimaryGenerator* fHepmcAscii;
+  G4VPrimaryGenerator *fHepmcAscii;
   G4bool fUseHepMC;
 
   ParticleGunMessenger *fMessenger;
-
 };
 
 #endif /* PARTICLEGUN_HH */

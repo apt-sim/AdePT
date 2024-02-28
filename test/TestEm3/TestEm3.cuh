@@ -94,7 +94,9 @@ class ParticleGenerator {
 
 public:
   __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue)
-    : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue) {}
+      : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue)
+  {
+  }
 
   __host__ __device__ Track &NextTrack()
   {
@@ -114,14 +116,13 @@ struct Secondaries {
   ParticleGenerator gammas;
 };
 
-
 // Kernels in different TUs.
-__global__ void TransportElectrons(
-    Track *electrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
-__global__ void TransportPositrons(
-    Track *positrons, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-    GlobalScoring *globalScoring, ScoringPerVolume *scoringPerVolume);
+__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                   ScoringPerVolume *scoringPerVolume);
+__global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
+                                   adept::MParray *activeQueue, GlobalScoring *globalScoring,
+                                   ScoringPerVolume *scoringPerVolume);
 
 __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,

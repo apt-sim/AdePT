@@ -41,46 +41,36 @@ private:
   friend Base_t;
 
   /** @brief Functions required by VariableSizeObjectInterface */
-  __host__ __device__
-  __forceinline__
-  ArrayData_t &GetVariableData() { return fData; }
+  __host__ __device__ __forceinline__ ArrayData_t &GetVariableData() { return fData; }
 
-  __host__ __device__
-  __forceinline__
-  const ArrayData_t &GetVariableData() const { return fData; }
+  __host__ __device__ __forceinline__ const ArrayData_t &GetVariableData() const { return fData; }
 
   // constructors and assignment operators are private
   // states have to be constructed using MakeInstance() function
-  __host__ __device__
-  __forceinline__
-  BlockData(size_t nvalues) : fCapacity(nvalues), fData(nvalues)
+  __host__ __device__ __forceinline__ BlockData(size_t nvalues) : fCapacity(nvalues), fData(nvalues)
   {
     char *address = (char *)this + Base_t::SizeOfAlignAware(nvalues) - BlockData<Type>::SizeOfExtra(nvalues);
     fHoles        = (Queue_t *)address;
     Queue_t::MakeInstanceAt(nvalues, address);
   }
 
-  __host__ __device__
-  __forceinline__
-  BlockData(BlockData const &other) : BlockData(other.fCapacity, other) {}
+  __host__ __device__ __forceinline__ BlockData(BlockData const &other) : BlockData(other.fCapacity, other) {}
 
-  __host__ __device__
-  __forceinline__
-  BlockData(size_t new_size, BlockData const &other) : Base_t(other), fCapacity(new_size), fData(new_size, other.fData)
+  __host__ __device__ __forceinline__ BlockData(size_t new_size, BlockData const &other)
+      : Base_t(other), fCapacity(new_size), fData(new_size, other.fData)
   {
     char *address = (char *)this + Base_t::SizeOfAlignAware(new_size) - BlockData<Type>::SizeOfExtra(new_size);
     fHoles        = (Queue_t *)address;
     Queue_t::MakeCopyAt(new_size, *other.fHoles, address);
   }
 
-  __forceinline__
-  __host__ __device__
-  ~BlockData() {}
+  __forceinline__ __host__ __device__ ~BlockData() {}
 
   /** @brief Returns the size in bytes of extra queue data needed by BlockData object with given capacity */
-  __host__ __device__
-  __forceinline__
-  static size_t SizeOfExtra(int capacity) { return Queue_t::SizeOfAlignAware(capacity); }
+  __host__ __device__ __forceinline__ static size_t SizeOfExtra(int capacity)
+  {
+    return Queue_t::SizeOfAlignAware(capacity);
+  }
 
 public:
   ///< Enumerate the part of the private interface, we want to expose.
@@ -93,38 +83,26 @@ public:
   using Base_t::SizeOfAlignAware;
 
   /** @brief Returns the size in bytes of a BlockData object with given capacity */
-  __host__ __device__
-  __forceinline__
-  static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
+  __host__ __device__ __forceinline__ static size_t SizeOfInstance(int capacity) { return Base_t::SizeOf(capacity); }
 
   /** @brief Maximum number of elements */
-  __host__ __device__
-  __forceinline__
-  int Capacity() const { return fCapacity; }
+  __host__ __device__ __forceinline__ int Capacity() const { return fCapacity; }
 
   /** @brief Clear the content */
-  __host__ __device__
-  __forceinline__
-  void Clear()
+  __host__ __device__ __forceinline__ void Clear()
   {
     fNused.store(0);
     fNbooked.store(0);
   }
 
   /** @brief Read-only index operator */
-  __host__ __device__
-  __forceinline__
-  Type const &operator[](const int index) const { return fData[index]; }
+  __host__ __device__ __forceinline__ Type const &operator[](const int index) const { return fData[index]; }
 
   /** @brief Read/write index operator */
-  __host__ __device__
-  __forceinline__
-  Type &operator[](const int index) { return fData[index]; }
+  __host__ __device__ __forceinline__ Type &operator[](const int index) { return fData[index]; }
 
   /** @brief Dispatch next free element, nullptr if none left */
-  __host__ __device__
-  __forceinline__
-  Type *NextElement()
+  __host__ __device__ __forceinline__ Type *NextElement()
   {
     // Try to get a hole index if any
     int index = -1;
@@ -139,9 +117,7 @@ public:
   }
 
   /** @brief Release an element */
-  __host__ __device__
-  __forceinline__
-  void ReleaseElement(int index)
+  __host__ __device__ __forceinline__ void ReleaseElement(int index)
   {
     // No checks currently done that the index was given via NextElement
     // or that it wasn't already released. Either case will produce errors.
@@ -150,19 +126,13 @@ public:
   }
 
   /** @brief Number of elements currently distributed */
-  __host__ __device__
-  __forceinline__
-  int GetNused() { return fNused.load(); }
+  __host__ __device__ __forceinline__ int GetNused() { return fNused.load(); }
 
   /** @brief Number of holes in the block */
-  __host__ __device__
-  __forceinline__
-  int GetNholes() { return fHoles->size(); }
+  __host__ __device__ __forceinline__ int GetNholes() { return fHoles->size(); }
 
   /** @brief Check if container is fully distributed */
-  __host__ __device__
-  __forceinline__
-  bool IsFull() const { return (GetNused() == fCapacity); }
+  __host__ __device__ __forceinline__ bool IsFull() const { return (GetNused() == fCapacity); }
 
 }; // End BlockData
 } // End namespace adept

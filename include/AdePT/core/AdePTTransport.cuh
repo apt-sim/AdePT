@@ -75,8 +75,8 @@ struct GPUstate {
   using TrackData = adeptint::TrackData;
 
   ParticleType particles[ParticleType::NumParticleTypes];
-  AllTrackManagers allmgr_h;          ///< Host pointers for track managers
-  AllTrackManagers allmgr_d;          ///< Device pointers for track managers
+  AllTrackManagers allmgr_h; ///< Host pointers for track managers
+  AllTrackManagers allmgr_d; ///< Device pointers for track managers
   // Create a stream to synchronize kernels of all particle types.
   cudaStream_t stream;                ///< all-particle sync stream
   TrackData *toDevice_dev{nullptr};   ///< toDevice buffer of tracks

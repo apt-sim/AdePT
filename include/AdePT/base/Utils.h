@@ -27,9 +27,7 @@ __host__ __device__ Type round_up_align(Type value, size_t padding)
 }
 
 /** @brief CPP/CUDA Portable memset operation */
-__host__ __device__
-__forceinline__
-void memset(void *ptr, int value, size_t num)
+__host__ __device__ __forceinline__ void memset(void *ptr, int value, size_t num)
 {
 #ifndef COPCORE_DEVICE_COMPILATION
   memset(ptr, value, num);
@@ -39,9 +37,7 @@ void memset(void *ptr, int value, size_t num)
 }
 
 /** @brief CPP/CUDA Portable memcpy operation */
-__host__ __device__
-__forceinline__
-void memcpy(void *destination, const void *source, size_t num, int type = 0)
+__host__ __device__ __forceinline__ void memcpy(void *destination, const void *source, size_t num, int type = 0)
 {
 #ifndef COPCORE_DEVICE_COMPILATION
   memcpy(destination, source, num);

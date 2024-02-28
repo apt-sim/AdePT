@@ -35,8 +35,8 @@
 
 ActionInitialisation::ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark,
                                            bool aDoValidation)
-    : G4VUserActionInitialization(), fOutputDirectory(aOutputDirectory),
-      fOutputFilename(aOutputFilename), fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation)
+    : G4VUserActionInitialization(), fOutputDirectory(aOutputDirectory), fOutputFilename(aOutputFilename),
+      fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation)
 {
 }
 

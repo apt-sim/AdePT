@@ -41,7 +41,7 @@
 #include <AdePT/benchmarking/TestManagerStore.h>
 #include "Run.hh"
 
-EventAction::EventAction(): G4UserEventAction(), fHitCollectionID(-1), fTimer()
+EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1), fTimer()
 {
   fMessenger = new EventActionMessenger(this);
 }
@@ -54,12 +54,12 @@ EventAction::~EventAction() {}
 
 void EventAction::BeginOfEventAction(const G4Event *)
 {
-  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
+  auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   fTimer.Start();
 
-  //Get the Run object associated to this thread and start the timer for this event
-  Run* currentRun = static_cast< Run* > ( G4RunManager::GetRunManager()->GetNonConstCurrentRun() );
+  // Get the Run object associated to this thread and start the timer for this event
+  Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
   currentRun->GetTestManager()->timerStart(Run::timers::EVENT);
 
   // zero the counters
@@ -73,15 +73,14 @@ void EventAction::BeginOfEventAction(const G4Event *)
 
 void EventAction::EndOfEventAction(const G4Event *aEvent)
 {
-  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
+  auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   fTimer.Stop();
 
-  //Get the Run object associated to this thread and stop the timer for this event
-  Run* currentRun = static_cast< Run* > ( G4RunManager::GetRunManager()->GetNonConstCurrentRun() );
+  // Get the Run object associated to this thread and stop the timer for this event
+  Run *currentRun   = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
   auto aTestManager = currentRun->GetTestManager();
-  if(currentRun->GetDoBenchmark())
-  {
+  if (currentRun->GetDoBenchmark()) {
     aTestManager->timerStop(Run::timers::EVENT);
   }
   aTestManager->addToAccumulator(Run::accumulators::NUM_PARTICLES, aEvent->GetPrimaryVertex()->GetNumberOfParticle());
@@ -102,7 +101,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   SimpleHit *hit       = nullptr;
   G4double hitEn       = 0;
   G4double totalEnergy = 0;
-  
+
   // print number of secondaries std::setw(24) << std::fixed
   if (fVerbosity > 0) {
     G4cout << "EndOfEventAction " << eventId << ": electrons " << number_electrons << G4endl;
@@ -114,14 +113,14 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   // Store the original IO precission and width
   auto aOriginalPrecission = std::cout.precision();
-  auto aOriginalWidth = std::cout.width();
+  auto aOriginalWidth      = std::cout.width();
 
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
     hit   = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
     hitEn = hit->GetEdep();
     totalEnergy += hitEn;
     G4String vol_name = hit->GetPhysicalVolumeName();
-    
+
     if (hitEn > 1 && fVerbosity > 1)
       G4cout << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
              << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << G4endl;
@@ -131,10 +130,9 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
   }
 
-  if(currentRun->GetDoValidation())
-  {
+  if (currentRun->GetDoValidation()) {
     /*
-    //Set an accumulator for each sensitive volume, making sure the ID doesn't collide with the 
+    //Set an accumulator for each sensitive volume, making sure the ID doesn't collide with the
     //defined timers
     for (int igroup = 0; igroup < ngroups; ++igroup) {
       G4cout << "EndOfEventAction " << eventId << " : group " << std::setw(5) << groups[igroup] << "  edep "
@@ -147,26 +145,24 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     //Record the current contents of the TestManager in order to be able to extract per-event data
     TestManagerStore<int>::GetInstance()->RecordState(aTestManager);
     */
-  }
-  else if(currentRun->GetDoBenchmark())
-  {
-    //Get the timings
+  } else if (currentRun->GetDoBenchmark()) {
+    // Get the timings
     double eventTime = aTestManager->getDurationSeconds(Run::timers::EVENT);
     double nonEMTime = aTestManager->getAccumulator(Run::accumulators::NONEM_EVT);
-    double ecalTime = eventTime - nonEMTime;
+    double ecalTime  = eventTime - nonEMTime;
 
-    //Accumulate the results with the rest of events of this worker thread to provide global stats
+    // Accumulate the results with the rest of events of this worker thread to provide global stats
     aTestManager->addToAccumulator(Run::accumulators::EVENT_SUM, eventTime);
-    aTestManager->addToAccumulator(Run::accumulators::EVENT_SQ, eventTime*eventTime);
+    aTestManager->addToAccumulator(Run::accumulators::EVENT_SQ, eventTime * eventTime);
     aTestManager->addToAccumulator(Run::accumulators::NONEM_SUM, nonEMTime);
-    aTestManager->addToAccumulator(Run::accumulators::NONEM_SQ, nonEMTime*nonEMTime);
+    aTestManager->addToAccumulator(Run::accumulators::NONEM_SQ, nonEMTime * nonEMTime);
     aTestManager->addToAccumulator(Run::accumulators::ECAL_SUM, ecalTime);
-    aTestManager->addToAccumulator(Run::accumulators::ECAL_SQ, ecalTime*ecalTime);
+    aTestManager->addToAccumulator(Run::accumulators::ECAL_SQ, ecalTime * ecalTime);
 
-    //Record the current contents of the TestManager in order to be able to extract per-event data
+    // Record the current contents of the TestManager in order to be able to extract per-event data
     TestManagerStore<int>::GetInstance()->RecordState(aTestManager);
 
-    //Reset the timers for the next event
+    // Reset the timers for the next event
     aTestManager->removeTimer(Run::timers::EVENT);
     aTestManager->removeAccumulator(Run::accumulators::NONEM_EVT);
   }

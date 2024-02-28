@@ -32,8 +32,7 @@ private:
   Precision fBz;
 
 public:
-  __host__ __device__
-  ConstBzFieldStepper(float Bz = 0.) : fBz(Bz) {}
+  __host__ __device__ ConstBzFieldStepper(float Bz = 0.) : fBz(Bz) {}
 
   void SetBz(Precision Bz) { fBz = Bz; }
   Precision GetBz() const { return fBz; }
@@ -62,7 +61,7 @@ public:
       BaseType const & /*diry*/, BaseType const & /*dirz*/, BaseIType const & /*charge*/, BaseType const & /*momentum*/,
       BaseType const & /*step*/, BaseType & /*newsposx*/, BaseType & /*newposy*/, BaseType & /*newposz*/,
       BaseType & /*newdirx*/, BaseType & /*newdiry*/, BaseType & /*newdirz*/
-      ) const;
+  ) const;
 
   /**
    * this function propagates the track along the helix solution by a step
@@ -71,11 +70,11 @@ public:
    */
   template <typename Vector3D, typename BaseType, typename BaseIType>
   __host__ __device__ void DoStep(Vector3D const &pos, Vector3D const &dir, BaseIType const &charge,
-                                      BaseType const &momentum, BaseType const &step, Vector3D &newpos,
-                                      Vector3D &newdir) const
+                                  BaseType const &momentum, BaseType const &step, Vector3D &newpos,
+                                  Vector3D &newdir) const
   {
-    DoStep<BaseType,BaseIType>(pos[0], pos[1], pos[2], dir[0], dir[1], dir[2], charge, momentum, step, newpos[0], newpos[1], newpos[2],
-           newdir[0], newdir[1], newdir[2]);
+    DoStep<BaseType, BaseIType>(pos[0], pos[1], pos[2], dir[0], dir[1], dir[2], charge, momentum, step, newpos[0],
+                                newpos[1], newpos[2], newdir[0], newdir[1], newdir[2]);
   }
 
 }; // end class declaration

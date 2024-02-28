@@ -30,10 +30,7 @@
 #include <thread>
 #include <mutex>
 
-RunAction::RunAction()
-    : G4UserRunAction()
-{
-}
+RunAction::RunAction() : G4UserRunAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

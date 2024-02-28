@@ -20,31 +20,25 @@ Run::~Run() {}
 
 void Run::Merge(const G4Run *run)
 {
-  if(fDoBenchmark)
-  {
+  if (fDoBenchmark) {
     const Run *localRun = static_cast<const Run *>(run);
 
     TestManager<TAG_TYPE> *aTestManager = localRun->GetTestManager();
 
-    fTestManager->addToAccumulator(accumulators::EVENT_SUM,
-                                        aTestManager->getAccumulator(accumulators::EVENT_SUM));
-    fTestManager->addToAccumulator(accumulators::EVENT_SQ,
-                                        aTestManager->getAccumulator(accumulators::EVENT_SQ));
-    fTestManager->addToAccumulator(accumulators::NONEM_SUM,
-                                        aTestManager->getAccumulator(accumulators::NONEM_SUM));
-    fTestManager->addToAccumulator(accumulators::NONEM_SQ,
-                                        aTestManager->getAccumulator(accumulators::NONEM_SQ));
-    fTestManager->addToAccumulator(accumulators::ECAL_SUM,
-                                        aTestManager->getAccumulator(accumulators::ECAL_SUM));
+    fTestManager->addToAccumulator(accumulators::EVENT_SUM, aTestManager->getAccumulator(accumulators::EVENT_SUM));
+    fTestManager->addToAccumulator(accumulators::EVENT_SQ, aTestManager->getAccumulator(accumulators::EVENT_SQ));
+    fTestManager->addToAccumulator(accumulators::NONEM_SUM, aTestManager->getAccumulator(accumulators::NONEM_SUM));
+    fTestManager->addToAccumulator(accumulators::NONEM_SQ, aTestManager->getAccumulator(accumulators::NONEM_SQ));
+    fTestManager->addToAccumulator(accumulators::ECAL_SUM, aTestManager->getAccumulator(accumulators::ECAL_SUM));
     fTestManager->addToAccumulator(accumulators::ECAL_SQ, aTestManager->getAccumulator(accumulators::ECAL_SQ));
-    fTestManager->addToAccumulator(accumulators::NUM_PARTICLES, 
-                                        aTestManager->getAccumulator(accumulators::NUM_PARTICLES));
+    fTestManager->addToAccumulator(accumulators::NUM_PARTICLES,
+                                   aTestManager->getAccumulator(accumulators::NUM_PARTICLES));
 
     // TEMP: DELETE THIS
-    fTestManager->addToAccumulator(accumulators::EVENT_HIT_COPY_SIZE, 
-                                        aTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE));
-    fTestManager->addToAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ, 
-                                        aTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ));
+    fTestManager->addToAccumulator(accumulators::EVENT_HIT_COPY_SIZE,
+                                   aTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE));
+    fTestManager->addToAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ,
+                                   aTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ));
   }
 
   G4Run::Merge(run);
@@ -52,8 +46,7 @@ void Run::Merge(const G4Run *run)
 
 void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
 {
-  if(fDoBenchmark && !fDoValidation)
-  {
+  if (fDoBenchmark && !fDoValidation) {
     // Printout of global statistics
     double runTime    = fTestManager->getDurationSeconds(timers::TOTAL);
     double eventMean  = fTestManager->getAccumulator(accumulators::EVENT_SUM) / GetNumberOfEvent();
@@ -64,19 +57,20 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
 
     double ecalMean  = fTestManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
     double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fTestManager->getAccumulator(accumulators::ECAL_SQ));
-    
+
     // TEMP: DELETE THIS
-    double sizeMean  = fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE) / GetNumberOfEvent();
-    double sizeStdev = STDEV(GetNumberOfEvent(), sizeMean, fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ));
+    double sizeMean = fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE) / GetNumberOfEvent();
+    double sizeStdev =
+        STDEV(GetNumberOfEvent(), sizeMean, fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ));
 
     G4cout << "------------------------------------------------------------"
-          << "\n";
+           << "\n";
     G4cout << "BENCHMARK: Run: " << GetRunID() << "\n";
     G4cout << "BENCHMARK: Number of Events: " << GetNumberOfEvent() << "\n";
     G4cout << "BENCHMARK: Run time: " << runTime << "\n";
     G4cout << "BENCHMARK: Mean Event time: " << eventMean << "\n";
     G4cout << "BENCHMARK: Event Standard Deviation: " << eventStdev << "\n";
-    
+
     // TEMP: DELETE THIS
     G4cout << "BENCHMARK: Mean size: " << sizeMean << "MB\n";
     G4cout << "BENCHMARK: Size Standard Deviation: " << sizeStdev << "\n";
@@ -87,8 +81,7 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
   TestManager<std::string> aOutputTestManager;
 
   for (int i = 0; i < aBenchmarkStates->size(); i++) {
-    if(fDoValidation)
-    {
+    if (fDoValidation) {
       /*
       // If we are taking validation data, export it to the specified file
       auto &groups = aDetector->GetSensitiveGroups();
@@ -103,9 +96,7 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
 
       aOutputTestManager.reset();
       */
-    }
-    else if(fDoBenchmark)
-    {
+    } else if (fDoBenchmark) {
       // Recover the results from each event and output them to the specified file
       double eventTime = (*aBenchmarkStates)[i][Run::timers::EVENT];
       double nonEMTime = (*aBenchmarkStates)[i][Run::accumulators::NONEM_EVT];
