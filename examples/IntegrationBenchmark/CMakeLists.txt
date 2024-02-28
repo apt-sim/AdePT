@@ -41,32 +41,31 @@ set(sources_g4
 
 if(HepMC3_FOUND)
   set(sources_hepmc3
-      ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReader.cc
-      ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReaderMessenger.cc
-      ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4Interface.cc
-     )
+    ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReader.cc
+    ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4AsciiReaderMessenger.cc
+    ${PROJECT_SOURCE_DIR}/examples/common/src/HepMC3G4Interface.cc
+  )
 endif()
 
 # integrationBenchmark
-add_executable(integrationBenchmark 
-                integrationBenchmark.cpp 
-                ${sources_g4} 
-                ${sources_hepmc3})
-
-target_include_directories(integrationBenchmark PRIVATE 
-                          ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark/include 
-                          ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark
-                          ${PROJECT_SOURCE_DIR}/examples/common/include
-                          ${HEPMC3_INCLUDE_DIR})
-
+add_executable(integrationBenchmark integrationBenchmark.cpp ${sources_g4} ${sources_hepmc3})
+target_include_directories(integrationBenchmark
+  PRIVATE 
+    ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark/include 
+    ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark
+    ${PROJECT_SOURCE_DIR}/examples/common/include
+    ${HEPMC3_INCLUDE_DIR}
+)
 target_link_libraries(integrationBenchmark
   PRIVATE
     AdePT_G4_integration
     AdePT
     AdePT_cuda
     ${HEPMC3_LIBRARIES} 
-    ${HEPMC3_FIO_LIBRARIES})
+    ${HEPMC3_FIO_LIBRARIES}
+)
 
-    configure_file("macros/integrationbenchmark.mac.in" "${CMAKE_BINARY_DIR}/integrationbenchmark.mac")
+# Scripts
+configure_file("macros/integrationbenchmark.mac.in" "${CMAKE_BINARY_DIR}/integrationbenchmark.mac")
 
 # Tests
