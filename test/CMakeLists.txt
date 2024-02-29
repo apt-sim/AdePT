@@ -8,8 +8,8 @@ macro(build_tests TESTS)
   foreach(TEST ${TESTS})
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
-    set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
+    # NB: We do not use PRIVATE for executables due to an apparent limitation in CudaRDCUtils
+    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT_G4_integration AdePT)
    endforeach()
 endmacro()
 
