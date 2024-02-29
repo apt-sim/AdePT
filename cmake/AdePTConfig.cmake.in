@@ -7,21 +7,17 @@
 set(AdePT_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
 set_and_check(AdePT_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+# So that we find VecGeom and set appropriate RDC flags, we need
+# to use our own wrapper module, but only here.
+list(PREPEND CMAKE_MODULE_PATH "${AdePT_CMAKE_DIR}")
+
 set(AdePT_LIBRARIES
     AdePT::CopCore
     AdePT::AdePT_G4_integration
-    AdePT::AdePT
-    AdePT::AdePT_cuda)
-
-set(AdePT_LIBRARIES_EXTRA
-    AdePT::CopCore
-    AdePT::AdePT_G4_integration
-    AdePT::AdePT
-    AdePT::AdePT_cuda_standalone)
+    AdePT::AdePT)
 
 # Find required dependencies
-
-SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
+set(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
 
 include(CMakeFindDependencyMacro)
 
@@ -42,3 +38,7 @@ endif()
 
 # Include the targets file
 include("${AdePT_CMAKE_DIR}/AdePTTargets.cmake")
+
+# Restore CMAKE_MODULE_PATH, with ours at the back
+list(REMOVE_ITEM CMAKE_MODULE_PATH "${AdePT_CMAKE_DIR}")
+list(APPEND CMAKE_MODULE_PATH "${AdePT_CMAKE_DIR}")

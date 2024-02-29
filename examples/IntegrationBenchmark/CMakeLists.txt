@@ -56,11 +56,10 @@ target_include_directories(integrationBenchmark
     ${PROJECT_SOURCE_DIR}/examples/common/include
     ${HEPMC3_INCLUDE_DIR}
 )
-target_link_libraries(integrationBenchmark
+cuda_rdc_target_link_libraries(integrationBenchmark
   PRIVATE
     AdePT_G4_integration
     AdePT
-    AdePT_cuda
     ${HEPMC3_LIBRARIES} 
     ${HEPMC3_FIO_LIBRARIES}
 )
