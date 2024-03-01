@@ -249,6 +249,7 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, adeptint::TrackData *fromDev
   const auto numPositrons = all.leakedPositrons.fLeakedQueue->size();
   const auto numGammas    = all.leakedGammas.fLeakedQueue->size();
   const auto total        = numElectrons + numPositrons + numGammas;
+  if (blockIdx.x == 0 && threadIdx.x == 0) nFromDevice_dev = total < maxFromDeviceBuffer ? total : maxFromDeviceBuffer;
 
   for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x; i < total; i += blockDim.x * gridDim.x) {
     LeakedTracks *leakedTracks = nullptr;
@@ -290,8 +291,6 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, adeptint::TrackData *fromDev
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }
   }
-
-  if (blockIdx.x == 0 && threadIdx.x == 0) nFromDevice_dev = total;
 }
 
 __global__ void FreeSlots(TracksAndSlots tracksAndSlots)
