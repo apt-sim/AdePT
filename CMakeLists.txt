@@ -153,6 +153,7 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
+  src/adept_g4_dummy.cu
 )
 
 # - Build RDC/Non-RDC libraries
