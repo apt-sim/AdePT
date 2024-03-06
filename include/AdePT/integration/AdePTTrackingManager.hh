@@ -10,6 +10,7 @@
 #include "globals.hh"
 #include <AdePT/core/AdePTTransport.h>
 #include "AdePT/copcore/SystemOfUnits.h"
+#include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include <vector>
 
@@ -32,7 +33,7 @@ public:
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
   // Set the AdePTTransport instance, also initializes the GPU region list
-  void SetAdePTTransport(AdePTTransport *adept)
+  void SetAdePTTransport(AdePTTransport<AdePTGeant4Integration> *adept)
   {
     fAdept = adept;
     if (!adept->GetTrackInAllRegions()) {
@@ -60,7 +61,7 @@ private:
   void StepInHostRegion(G4Track *aTrack);
 
   std::vector<G4Region *> fGPURegions{};
-  AdePTTransport *fAdept;
+  AdePTTransport<AdePTGeant4Integration> *fAdept;
   int fVerbosity{0};
   G4double ProductionCut = 0.7 * copcore::units::mm;
   int MCIndex[100];

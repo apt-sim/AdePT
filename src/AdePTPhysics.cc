@@ -79,7 +79,7 @@ void AdePTPhysics::ConstructProcess()
   fTrackingManager->SetVerbosity(0);
 
   // Create one instance of AdePTTransport per thread and set it up according to the user configuration
-  AdePTTransport *aAdePTTransport = new AdePTTransport();
+  auto aAdePTTransport = new AdePTTransport<AdePTGeant4Integration>();
   aAdePTTransport->SetDebugLevel(0);
   aAdePTTransport->SetBufferThreshold(fAdePTConfiguration->GetTransportBufferThreshold());
   aAdePTTransport->SetMaxBatch(2 * fAdePTConfiguration->GetTransportBufferThreshold());
@@ -100,10 +100,10 @@ void AdePTPhysics::ConstructProcess()
     int num_threads    = G4RunManager::GetRunManager()->GetNumberOfThreads();
     int track_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
     G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
-    AdePTTransport::SetTrackCapacity(track_capacity);
+    aAdePTTransport->SetTrackCapacity(track_capacity);
     int hit_buffer_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfHitSlots() / num_threads;
     G4cout << "AdePT Allocated hit buffer capacity: " << hit_buffer_capacity << " slots" << G4endl;
-    AdePTTransport::SetHitBufferCapacity(hit_buffer_capacity);
+    aAdePTTransport->SetHitBufferCapacity(hit_buffer_capacity);
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data

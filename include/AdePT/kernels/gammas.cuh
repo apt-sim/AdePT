@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/AdePTTransport.cuh>
+#include <AdePT/core/AdePTTransportStruct.cuh>
 #include <AdePT/navigation/BVHNavigator.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
@@ -18,7 +18,7 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
-using VolAuxData = AdePTTransport::VolAuxData;
+using VolAuxData = adeptint::VolAuxData;
 
 template <typename Scoring>
 __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,

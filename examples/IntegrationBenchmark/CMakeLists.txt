@@ -58,7 +58,7 @@ target_include_directories(integrationBenchmark
 )
 target_link_libraries(integrationBenchmark
   PRIVATE
-    AdePT_G4_integration
+    AdePT_G4_integration  
     AdePT
     AdePT_cuda
     ${HEPMC3_LIBRARIES} 

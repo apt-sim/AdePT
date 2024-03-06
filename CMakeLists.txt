@@ -139,18 +139,17 @@ endif()
 #----------------------------------------------------------------------------#
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
+  src/AdePTTrackingManager.cu
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
 )
 
 set(ADEPT_SRCS
-  src/AdePTTransport.cpp
   src/AdePTConfigurationMessenger.cc
 )
 
 set(ADEPT_CUDA_SRCS
-  src/AdePTTransport.cu
   src/HostScoring.cu
 )
 

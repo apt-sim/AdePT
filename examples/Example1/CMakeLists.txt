@@ -57,9 +57,9 @@ target_include_directories(example1
 )
 target_link_libraries(example1
   PRIVATE
-    AdePT_G4_integration
     AdePT
     AdePT_cuda
+    AdePT_G4_integration
     ${HEPMC3_LIBRARIES} 
     ${HEPMC3_FIO_LIBRARIES}
 )

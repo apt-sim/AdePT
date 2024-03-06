@@ -17,15 +17,31 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
 
-AdePTTransport::AdePTTransport() {}
+namespace adept_impl {
+/// Forward declarations for methods implemented in AdePTTransport.cu
+using TrackBuffer = adeptint::TrackBuffer;
+bool InitializeField(double);
+bool InitializeVolAuxArray(adeptint::VolAuxArray &);
+void FreeVolAuxArray(adeptint::VolAuxArray &);
+G4HepEmState *InitG4HepEm();
+GPUstate *InitializeGPU(TrackBuffer &, int, int);
+void FreeGPU(GPUstate &, G4HepEmState *);
+template <typename IntegrationLayer>
+void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GPUstate &gpuState, AdeptScoring *scoring,
+               AdeptScoring *scoring_dev);
 
-AdePTTransport::~AdePTTransport()
+} // namespace adept_impl
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
 {
-  delete fScoring;
+  return adept_impl::InitializeField(bz);
 }
 
-void AdePTTransport::AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry,
-                              double dirz, double globalTime, double localTime, double properTime)
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, double energy, double x, double y, double z, double dirx,
+                                                double diry, double dirz, double globalTime, double localTime,
+                                                double properTime)
 {
   fBuffer.toDevice.emplace_back(pdg, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime);
   if (pdg == 11)
@@ -42,27 +58,55 @@ void AdePTTransport::AddTrack(int pdg, double energy, double x, double y, double
   }
 }
 
-void AdePTTransport::Initialize(bool common_data)
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
+{
+  // Upload geometry to GPU.
+  auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+  cudaManager.LoadGeometry(world);
+  auto world_dev = cudaManager.Synchronize();
+  // Initialize BVH
+  InitBVH();
+  return (world_dev != nullptr);
+}
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializePhysics()
+{
+  fg4hepem_state = adept_impl::InitG4HepEm();
+  return true;
+}
+
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
 {
   if (fInit) return;
-  if (fMaxBatch <= 0) throw std::runtime_error("AdePTTransport::Initialize: Maximum batch size not set.");
+  if (fMaxBatch <= 0)
+    throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Maximum batch size not set.");
 
   fNumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
 
-  if (fNumVolumes == 0) throw std::runtime_error("AdePTTransport::Initialize: Number of geometry volumes is zero.");
+  if (fNumVolumes == 0)
+    throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Number of geometry volumes is zero.");
 
   if (common_data) {
     std::cout << "=== AdePTTransport: initializing geometry and physics\n";
     // Initialize geometry on device
     if (!vecgeom::GeoManager::Instance().IsClosed())
-      throw std::runtime_error("AdePTTransport::Initialize: VecGeom geometry not closed.");
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: VecGeom geometry not closed.");
 
     const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
     if (!InitializeGeometry(world))
-      throw std::runtime_error("AdePTTransport::Initialize: Cannot initialize geometry on GPU");
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Cannot initialize geometry on GPU");
 
     // Initialize G4HepEm
-    if (!InitializePhysics()) throw std::runtime_error("AdePTTransport::Initialize cannot initialize physics on GPU");
+    if (!InitializePhysics())
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize physics on GPU");
+
+    // Initialize field
+    double bz = fIntegrationLayer.GetUniformFieldZ();
+    if (!InitializeField(bz))
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
 
     // Do the material-cut couple index mapping once
     // as well as set flags for sensitive volumes and region
@@ -71,18 +115,20 @@ void AdePTTransport::Initialize(bool common_data)
 
     // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
     fIntegrationLayer.CheckGeometry(fg4hepem_state);
-    VolAuxData *auxData = new VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+    adeptint::VolAuxData *auxData =
+        new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
     fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state, fTrackInAllRegions, fGPURegionNames);
 
     // Initialize volume auxiliary data on device
-    VolAuxArray::GetInstance().fNumVolumes = fNumVolumes;
-    VolAuxArray::GetInstance().fAuxData    = auxData;
-    VolAuxArray::GetInstance().InitializeOnGPU();
+    auto &volAuxArray       = VolAuxArray::GetInstance();
+    volAuxArray.fNumVolumes = fNumVolumes;
+    volAuxArray.fAuxData    = auxData;
+    adept_impl::InitializeVolAuxArray(volAuxArray);
 
     // Print some settings
     std::cout << "=== AdePTTransport: buffering " << fBufferThreshold << " particles for transport on the GPU"
               << std::endl;
-    std::cout << "=== AdePTTransport: maximum number of GPU track slots per thread: " << kCapacity << std::endl;
+    std::cout << "=== AdePTTransport: maximum number of GPU track slots per thread: " << fCapacity << std::endl;
     return;
   }
 
@@ -92,34 +138,39 @@ void AdePTTransport::Initialize(bool common_data)
             << std::endl;
 
   // Initialize user scoring data
-  fScoring     = new AdeptScoring(kHitBufferCapacity);
+  fScoring     = new AdeptScoring(fHitBufferCapacity);
   fScoring_dev = fScoring->InitializeOnGPU();
 
   // Initialize the transport engine for the current thread
-  InitializeGPU();
+  fGPUstate = adept_impl::InitializeGPU(fBuffer, fCapacity, fMaxBatch);
 
   fInit = true;
 }
 
-void AdePTTransport::InitBVH()
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::InitBVH()
 {
-  vecgeom::cxx::BVHManager::Init();
-  vecgeom::cxx::BVHManager::DeviceInit();
+  vecgeom::BVHManager::Init();
+  vecgeom::BVHManager::DeviceInit();
 }
 
-void AdePTTransport::Cleanup()
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::Cleanup()
 {
   if (!fInit) return;
-  AdePTTransport::FreeGPU();
+  adept_impl::FreeGPU(*fGPUstate, fg4hepem_state);
+  fg4hepem_state = nullptr;
+  adept_impl::FreeVolAuxArray(VolAuxArray::GetInstance());
   fScoring->FreeGPU(fScoring_dev);
   delete[] fBuffer.fromDeviceBuff;
 }
 
-void AdePTTransport::Shower(int event)
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::Shower(int event)
 {
   int tid = fIntegrationLayer.GetThreadID();
   if (fDebugLevel > 0 && fBuffer.toDevice.size() == 0) {
-    std::cout << "[" << tid << "] AdePTTransport::Shower: No more particles in buffer. Exiting.\n";
+    std::cout << "[" << tid << "] AdePTTransport<IntegrationLayer>::Shower: No more particles in buffer. Exiting.\n";
     return;
   }
 
@@ -146,7 +197,12 @@ void AdePTTransport::Shower(int event)
     }
   }
 
-  AdePTTransport::ShowerGPU(event, fBuffer);
+  if (fDebugLevel > 0) {
+    std::cout << std::dec << std::endl
+              << "GPU transporting event " << event << " for CPU thread " << fIntegrationLayer.GetThreadID() << ": "
+              << std::flush;
+  }
+  adept_impl::ShowerGPU(fIntegrationLayer, event, fBuffer, *fGPUstate, fScoring, fScoring_dev);
 
   for (auto const &track : fBuffer.fromDevice) {
     if (track.pdg == 11)
@@ -163,6 +219,4 @@ void AdePTTransport::Shower(int event)
   fIntegrationLayer.ReturnTracks(&(fBuffer.fromDevice), fDebugLevel);
 
   fBuffer.Clear();
-
-  // fScoring->ClearGPU();
 }
