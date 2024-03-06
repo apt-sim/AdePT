@@ -20,7 +20,6 @@
 #include "CommonStruct.h"
 
 #include <AdePT/core/HostScoring.h>
-#include <AdePT/integration/AdePTGeant4Integration.hh>
 
 class G4Region;
 struct GPUstate;
@@ -29,40 +28,16 @@ class G4VPhysicalVolume;
 template <class TTag>
 class TestManager;
 
-using AdeptScoring     = HostScoring;
-using IntegrationLayer = AdePTGeant4Integration;
-
+template <typename IntegrationLayer>
 class AdePTTransport {
 public:
   static constexpr int kMaxThreads = 256;
-  // Track capacity
-  static int kCapacity;
-  // Hit Buffer capacity
-  static int kHitBufferCapacity;
+  using TrackBuffer                = adeptint::TrackBuffer;
+  using VolAuxArray                = adeptint::VolAuxArray;
 
-  using TrackBuffer = adeptint::TrackBuffer;
-  using VolAuxData  = adeptint::VolAuxData;
+  AdePTTransport() = default;
 
-  /// @brief Structure holding the arrays of auxiliary volume data on host and device
-  struct VolAuxArray {
-    int fNumVolumes{0};
-    VolAuxData *fAuxData{nullptr};     ///< array of auxiliary volume data on host
-    VolAuxData *fAuxData_dev{nullptr}; ///< array of auxiliary volume data on device
-
-    static VolAuxArray &GetInstance()
-    {
-      static VolAuxArray theAuxArray;
-      return theAuxArray;
-    }
-
-    ~VolAuxArray() { FreeGPU(); }
-
-    void InitializeOnGPU();
-    void FreeGPU();
-  };
-
-  AdePTTransport();
-  ~AdePTTransport();
+  ~AdePTTransport() { delete fScoring; }
 
   int GetNtoDevice() const { return fBuffer.toDevice.size(); }
 
@@ -71,13 +46,14 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz,
                 double globalTime, double localTime, double properTime);
-  /// @brief Prepare the buffers for copying leaked tracks
-  /// @param numLeaked Number of tracks to be copied
-  void PrepareLeakedBuffers(int numLeaked);
-  /// @brief Set track capacity on GPU
-  static void SetTrackCapacity(size_t capacity) { kCapacity = capacity; }
+
+  void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
+  /// @brief Get the track capacity on GPU
+  int GetTrackCapacity() const { return fCapacity; }
   /// @brief Set Hit buffer capacity on GPU and Host
-  static void SetHitBufferCapacity(size_t capacity) { kHitBufferCapacity = capacity; }
+  void SetHitBufferCapacity(size_t capacity) { fHitBufferCapacity = capacity; }
+  /// @brief Get the hit buffer size (host/device)
+  int GetHitBufferCapacity() const { return fHitBufferCapacity; }
   /// @brief Set maximum batch size
   void SetMaxBatch(int npart) { fMaxBatch = npart; }
   /// @brief Set buffer threshold
@@ -99,7 +75,8 @@ public:
   void Shower(int event);
 
 private:
-  bool fInit{false};                           ///< Service initialized flag
+  int fCapacity{1024 * 1024};                  ///< Track container capacity on GPU
+  int fHitBufferCapacity{1024 * 1024};         ///< Capacity of hit buffers
   int fNthreads{0};                            ///< Number of cpu threads
   int fMaxBatch{0};                            ///< Max batch size for allocating GPU memory
   int fNumVolumes{0};                          ///< Total number of active logical volumes
@@ -109,21 +86,23 @@ private:
   GPUstate *fGPUstate{nullptr};                ///< CUDA state placeholder
   AdeptScoring *fScoring{nullptr};             ///< User scoring object
   AdeptScoring *fScoring_dev{nullptr};         ///< Device ptr for scoring data
-  static G4HepEmState *fg4hepem_state;         ///< The HepEm state singleton
+  G4HepEmState *fg4hepem_state{nullptr};       ///< The HepEm state singleton
   TrackBuffer fBuffer;                         ///< Vector of buffers of tracks to/from device (per thread)
-  bool fTrackInAllRegions;                     ///< Whether the whole geometry is a GPU region
   std::vector<std::string> *fGPURegionNames{}; ///< Region to which applies
   IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
+  bool fInit{false};                  ///< Service initialized flag
+  bool fTrackInAllRegions;            ///< Whether the whole geometry is a GPU region
 
   /// @brief Used to map VecGeom to Geant4 volumes for scoring
   void InitializeSensitiveVolumeMapping(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world);
   void InitBVH();
   void InitializeUserData() { fScoring->InitializeOnGPU(); }
+  bool InitializeField(double bz);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
-  void InitializeGPU();
-  void ShowerGPU(int event, TrackBuffer &buffer); // const &buffer);
-  void FreeGPU();
+  void ProcessGPUHits();
 };
+
+#include "AdePTTransport.icc"
 
 #endif

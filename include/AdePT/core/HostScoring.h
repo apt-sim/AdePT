@@ -155,4 +155,6 @@ struct HostScoring {
   GlobalCounters *fGlobalCounters_host{nullptr};
 };
 
+using AdeptScoring = HostScoring;
+
 #endif // HOSTSCORING_H

@@ -139,17 +139,13 @@ endif()
 # Build Targets
 #----------------------------------------------------------------------------#
 set(ADEPT_SRCS
-  src/AdePTTransport.cpp
   src/AdePTConfigurationMessenger.cc
-)
-
-set(ADEPT_CUDA_SRCS
-  src/AdePTTransport.cu
   src/HostScoring.cu
 )
 
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
+  src/AdePTTrackingManager.cu
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
@@ -169,7 +165,7 @@ cuda_rdc_target_include_directories(CopCore
 )
 
 # - AdePT
-cuda_rdc_add_library(AdePT SHARED ${ADEPT_SRCS} ${ADEPT_CUDA_SRCS})
+cuda_rdc_add_library(AdePT SHARED ${ADEPT_SRCS})
 cuda_rdc_add_library(AdePT::AdePT ALIAS AdePT)
 cuda_rdc_target_include_directories(AdePT 
   PUBLIC

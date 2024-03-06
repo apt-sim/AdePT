@@ -11,12 +11,42 @@
 // Common data structures used by the integration with Geant4
 namespace adeptint {
 
+/// @brief Common configuration data for AdePT transport
+struct CommonConfig {
+  int fDebugLevel; ///< Debug level
+
+  static CommonConfig &GetInstance()
+  {
+    static CommonConfig theConfig;
+    return theConfig;
+  }
+};
+
 /// @brief Auxiliary logical volume data. This stores in the same structure the material-cuts couple index,
 /// the sensitive volume handler index and the flag if the region is active for AdePT.
 struct VolAuxData {
   int fSensIndex{-1}; ///< index of handler for sensitive volumes (-1 means non-sensitive)
   int fMCIndex{0};    ///< material-cut cuple index in G4HepEm
   int fGPUregion{0};  ///< GPU region index (currently 1 or 0, meaning tracked on GPU or not)
+};
+
+/// @brief Structure holding the arrays of auxiliary volume data on host and device
+struct VolAuxArray {
+  int fNumVolumes{0};
+  VolAuxData *fAuxData{nullptr};     ///< array of auxiliary volume data on host
+  VolAuxData *fAuxData_dev{nullptr}; ///< array of auxiliary volume data on device
+
+  static VolAuxArray &GetInstance()
+  {
+    static VolAuxArray theAuxArray;
+    return theAuxArray;
+  }
+  /*
+    ~VolAuxArray() { FreeGPU(); }
+
+    void InitializeOnGPU();
+    void FreeGPU();
+  */
 };
 
 /// @brief Buffer holding input tracks to be transported on GPU and output tracks to be

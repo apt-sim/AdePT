@@ -9,7 +9,7 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     # NB: We do not use PRIVATE for executables due to an apparent limitation in CudaRDCUtils
-    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT_G4_integration AdePT)
+    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT AdePT_G4_integration)
    endforeach()
 endmacro()
 
