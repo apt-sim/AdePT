@@ -60,7 +60,6 @@ target_link_libraries(integrationBenchmark
   PRIVATE
     AdePT_G4_integration  
     AdePT
-    AdePT_cuda
     ${HEPMC3_LIBRARIES} 
     ${HEPMC3_FIO_LIBRARIES}
 )

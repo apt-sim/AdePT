@@ -147,9 +147,6 @@ set(ADEPT_G4_INTEGRATION_SRCS
 
 set(ADEPT_SRCS
   src/AdePTConfigurationMessenger.cc
-)
-
-set(ADEPT_CUDA_SRCS
   src/HostScoring.cu
 )
 
@@ -158,22 +155,6 @@ target_include_directories(CopCore
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
-)
-
-add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
-target_include_directories(AdePT_G4_integration 
-  PUBLIC 
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
-)
-target_link_libraries(AdePT_G4_integration 
-  PUBLIC 
-    CopCore
-    VecGeom::vecgeom
-    VecGeom::vgdml
-    ${Geant4_LIBRARIES}
-    G4HepEm::g4HepEm
-    G4HepEm::g4HepEmData
 )
 
 add_library(AdePT SHARED ${ADEPT_SRCS})
@@ -191,47 +172,29 @@ target_link_libraries(AdePT
     G4HepEm::g4HepEmData
 )
 
-add_library(AdePT_cuda SHARED ${ADEPT_CUDA_SRCS})
-target_include_directories(AdePT_cuda 
+add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+target_include_directories(AdePT_G4_integration 
   PUBLIC 
-    ${Geant4_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
 )
-target_link_libraries(AdePT_cuda 
-  PUBLIC
-    VecGeom::vecgeomcuda_static
+target_link_libraries(AdePT_G4_integration 
+  PUBLIC 
     CopCore
+    VecGeom::vecgeom
+    VecGeom::vecgeomcuda_static
+    VecGeom::vgdml
+    ${Geant4_LIBRARIES}
+    AdePT
+    G4HepEm::g4HepEm
+    G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
-)
-set_target_properties(AdePT_cuda
-  PROPERTIES 
-    CUDA_SEPARABLE_COMPILATION ON 
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON
 )
 
-# AdePT_cuda links against vecgeomcuda_static. This is fine as long as the final executable doesn't link with 
-# vecgeomcuda itself, as is the case with Geant4 integration examples. However for standalone applications not 
-# using geant4, that may need features from vecgeomcuda, this doesn't work. In that case AdePT_cuda has to link 
-# to the shared version of vecgeomcuda, and the final executable to vecgeomcuda_static
-add_library(AdePT_cuda_standalone SHARED ${ADEPT_CUDA_SRCS})
-target_include_directories(AdePT_cuda_standalone 
-  PUBLIC 
-    ${Geant4_INCLUDE_DIRS}
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
-)
-target_link_libraries(AdePT_cuda_standalone
-  PUBLIC
-    VecGeom::vecgeomcuda
-    CopCore
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
-)
-set_target_properties(AdePT_cuda_standalone
+set_target_properties(AdePT_G4_integration
   PROPERTIES 
-    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_SEPARABLE_COMPILATION ON 
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
 )
 
@@ -260,7 +223,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT AdePT_cuda AdePT_G4_integration AdePT_cuda_standalone 
+install(TARGETS CopCore AdePT AdePT_G4_integration 
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -278,7 +241,7 @@ install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
 )
 
 #Export the targets file
-export(TARGETS CopCore AdePT_G4_integration AdePT AdePT_cuda AdePT_cuda_standalone
+export(TARGETS CopCore AdePT_G4_integration AdePT
   FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
 )
 
