@@ -5,7 +5,7 @@
 #define ADEPT_TRANSPORT_STRUCT_CUH
 
 #include <AdePT/core/CommonStruct.h>
-#include <AdePT/core/HostScoring.h>
+#include <AdePT/core/HostScoring.cuh>
 
 #include "Track.cuh"
 #include <AdePT/base/TrackManager.cuh>
@@ -68,7 +68,7 @@ struct AllTrackManagers {
 // A data structure to transfer statistics after each iteration.
 struct Stats {
   adept::TrackManager<Track>::Stats mgr_stats[ParticleType::NumParticleTypes];
-  HostScoring::Stats hostscoring_stats;
+  //HostScoring::Stats hostscoring_stats;
   int leakedTracks[ParticleType::NumParticleTypes];
 };
 

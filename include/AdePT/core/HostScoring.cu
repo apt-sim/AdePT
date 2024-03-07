@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/HostScoring.h>
 #include "AdePT/copcore/Global.h"
 
 namespace device_utils_hostscoring {
@@ -57,6 +56,7 @@ void HostScoring::FreeGPU(HostScoring *aHostScoring_dev)
   // Free the space allocated for the GPU instance of this object
   COPCORE_CUDA_CHECK(cudaFree(aHostScoring_dev));
 }
+
 
 __device__ void HostScoring::RecordHit(
     char aParticleType, double aStepLength, double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
