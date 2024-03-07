@@ -143,7 +143,11 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
+)
+
+set(ADEPT_SRCS
   src/AdePTConfigurationMessenger.cc
+  src/HostScoring.cu
 )
 
 add_library(CopCore INTERFACE)
@@ -151,6 +155,21 @@ target_include_directories(CopCore
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
+)
+
+add_library(AdePT SHARED ${ADEPT_SRCS})
+target_include_directories(AdePT 
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
+)
+target_link_libraries(AdePT 
+  PUBLIC 
+    CopCore
+    VecGeom::vecgeom
+    VecGeom::vgdml
+    G4HepEm::g4HepEm
+    G4HepEm::g4HepEmData
 )
 
 add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
@@ -166,6 +185,7 @@ target_link_libraries(AdePT_G4_integration
     VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
+    AdePT
     G4HepEm::g4HepEm
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
@@ -203,7 +223,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT_G4_integration 
+install(TARGETS CopCore AdePT AdePT_G4_integration 
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -221,7 +241,7 @@ install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
 )
 
 #Export the targets file
-export(TARGETS CopCore AdePT_G4_integration
+export(TARGETS CopCore AdePT_G4_integration AdePT
   FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
 )
 

@@ -16,8 +16,10 @@
 
 #include <G4HepEmState.hh>
 
+// For the moment the scoring type will be determined by what we include here
 #include "CommonStruct.h"
-#include <AdePT/core/HostScoring.cuh>
+
+#include <AdePT/core/HostScoring.h>
 
 class G4Region;
 struct GPUstate;
