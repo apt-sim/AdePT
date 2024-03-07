@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/HostScoring.h>
+#include <AdePT/core/AdePTScoringTemplate.cuh>
+#include <AdePT/core/HostScoringStruct.cuh>
+#include <AdePT/core/HostScoringImpl.cuh>
+
 #include <AdePT/core/AdePTTransportStruct.cuh>
 #include <AdePT/base/Atomic.h>
 #include <AdePT/navigation/BVHNavigator.h>
@@ -171,8 +174,8 @@ __global__ void FinishIteration(AllTrackManagers all, Stats *stats, AdeptScoring
     stats->leakedTracks[i] = all.leakedTracks[i]->size();
   }
   // Update hit buffer stats
-  scoring->refresh_stats();
-  stats->hostscoring_stats = scoring->fStats;
+  adept_scoring::EndOfIterationGPU(scoring);
+  stats->scoring_stats = *scoring->fStats_dev;
 }
 
 // Clear device leaked queues
@@ -240,6 +243,12 @@ GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatc
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.toDevice_dev, maxbatch * sizeof(TrackData)));
   PrepareLeakedBuffers(1000, buffer, gpuState);
   return gpuState_ptr;
+}
+
+AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring)
+{
+  // Initialize Scoring
+  return adept_scoring::InitializeOnGPU(scoring);
 }
 
 void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
@@ -396,13 +405,8 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       if (compacted) num_compact++;
     }
 
-    // Check if we need to flush the hits buffer
-    if (scoring->CheckAndFlush(gpuState.stats->hostscoring_stats, scoring_dev, gpuState.stream)) {
-      // Synchronize the stream used to copy back the hits
-      COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
-      // Process the hits on CPU
-      integration.ProcessGPUHits(*scoring, gpuState.stats->hostscoring_stats);
-    }
+    scoring->fStats = gpuState.stats->scoring_stats;
+    adept_scoring::EndOfIteration<IntegrationLayer>(*scoring, scoring_dev, gpuState.stream, integration);
 
     // Check if only charged particles are left that are looping.
     numElectrons = gpuState.allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
@@ -449,13 +453,6 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   ClearLeakedQueues<<<1, 1, 0, gpuState.stream>>>(leakedTracks);
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
-  // Transfer back scoring.
-  scoring->CopyHitsToHost(gpuState.stats->hostscoring_stats, scoring_dev, gpuState.stream);
-  // Transfer back the global counters
-  // scoring->fGlobalCounters_dev->numKilled = inFlight;
-  scoring->CopyGlobalCountersToHost(gpuState.stream);
-  COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
-  // Process the last hits on CPU
-  integration.ProcessGPUHits(*scoring, gpuState.stats->hostscoring_stats);
+  adept_scoring::EndOfTransport<IntegrationLayer>(*scoring, scoring_dev, gpuState.stream, integration);
 }
 } /// namespace adept_impl

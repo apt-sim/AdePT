@@ -41,12 +41,6 @@ struct VolAuxArray {
     static VolAuxArray theAuxArray;
     return theAuxArray;
   }
-  /*
-    ~VolAuxArray() { FreeGPU(); }
-
-    void InitializeOnGPU();
-    void FreeGPU();
-  */
 };
 
 /// @brief Buffer holding input tracks to be transported on GPU and output tracks to be

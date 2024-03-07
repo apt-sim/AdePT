@@ -13,8 +13,6 @@ target_link_libraries(TestEm3
   PRIVATE 
     CopCore 
     AdePT_G4_integration
-    AdePT 
-    AdePT_cuda_standalone 
     VecGeom::vecgeomcuda_static
 )
 set_target_properties(TestEm3 

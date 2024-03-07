@@ -95,7 +95,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
-    // userScoring->AccountChargedStep(0);
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -116,7 +115,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
-      // userScoring->AccountHit();
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
@@ -179,7 +177,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       Track &electron = secondaries.electrons->NextTrack();
       Track &positron = secondaries.positrons->NextTrack();
 
-      userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
+      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
       electron.InitAsSecondary(pos, navState, globalTime);
       electron.rngState = newRNG;
@@ -212,7 +210,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons->NextTrack();
-        userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.rngState = newRNG;
@@ -221,7 +219,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir.Normalize();
       } else {
         if (auxData.fSensIndex >= 0)
-          userScoring->RecordHit(2,                  // Particle type
+          adept_scoring::RecordHit(userScoring, 
+                                 2,                  // Particle type
                                  geometryStepLength, // Step length
                                  0,                  // Total Edep
                                  &navState,          // Pre-step point navstate
@@ -245,7 +244,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         survive();
       } else {
         if (auxData.fSensIndex >= 0)
-          userScoring->RecordHit(2,                  // Particle type
+          adept_scoring::RecordHit(userScoring, 
+                                 2,                  // Particle type
                                  geometryStepLength, // Step length
                                  0,                  // Total Edep
                                  &navState,          // Pre-step point navstate
@@ -276,7 +276,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
         Track &electron = secondaries.electrons->NextTrack();
-        userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
         double dirGamma[] = {dir.x(), dir.y(), dir.z()};
         double dirPhotoElec[3];
@@ -290,7 +290,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         edep = eKin;
       }
       if (auxData.fSensIndex >= 0)
-        userScoring->RecordHit(2,                  // Particle type
+        adept_scoring::RecordHit(userScoring, 
+                               2,                  // Particle type
                                geometryStepLength, // Step length
                                edep,               // Total Edep
                                &navState,          // Pre-step point navstate

@@ -21,7 +21,7 @@ AdePTTrackingManager::AdePTTrackingManager() {}
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
-  fAdept->Cleanup();
+  fAdeptTransport->Cleanup();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -78,9 +78,9 @@ void AdePTTrackingManager::FlushEvent()
 
   if (fVerbosity > 0)
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer with "
-           << fAdept->GetNtoDevice() << " particles left." << G4endl;
+           << fAdeptTransport->GetNtoDevice() << " particles left." << G4endl;
 
-  fAdept->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+  fAdeptTransport->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
 }
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
@@ -119,7 +119,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     G4Region *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
     // Check if the particle is in a GPU region
     bool isGPURegion = false;
-    if (fAdept->GetTrackInAllRegions()) {
+    if (fAdeptTransport->GetTrackInAllRegions()) {
       isGPURegion = true;
     } else {
       for (G4Region *gpuRegion : fGPURegions) {
@@ -138,7 +138,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double properTime    = aTrack->GetProperTime();
       auto pdg               = aTrack->GetParticleDefinition()->GetPDGEncoding();
 
-      fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
+      fAdeptTransport->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
                        particleDirection[1], particleDirection[2], globalTime, localTime, properTime);
 
       // The track dies from the point of view of Geant4
@@ -180,7 +180,7 @@ void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
       aTrack->SetTouchableHandle(aTrack->GetNextTouchableHandle());
       G4Region *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
       // This should never be true if this flag is set, as all particles would be sent to AdePT
-      assert(fAdept->GetTrackInAllRegions() == false);
+      assert(fAdeptTransport->GetTrackInAllRegions() == false);
       // Check whether the particle has entered a GPU region
       for (G4Region *gpuRegion : fGPURegions) {
         if (region == gpuRegion) {

@@ -16,10 +16,9 @@
 
 #include <G4HepEmState.hh>
 
-// For the moment the scoring type will be determined by what we include here
 #include "CommonStruct.h"
-
-#include <AdePT/core/HostScoring.h>
+#include <AdePT/core/AdePTScoringTemplate.cuh>
+#include <AdePT/core/HostScoringStruct.cuh>
 
 class G4Region;
 struct GPUstate;
@@ -75,8 +74,9 @@ public:
   void Shower(int event);
 
 private:
-  int fCapacity{1024 * 1024};                  ///< Track container capacity on GPU
-  int fHitBufferCapacity{1024 * 1024};         ///< Capacity of hit buffers
+  static inline G4HepEmState *fg4hepem_state{nullptr};       ///< The HepEm state singleton
+  static inline int fCapacity{1024 * 1024};                  ///< Track container capacity on GPU
+  static inline int fHitBufferCapacity{1024 * 1024};         ///< Capacity of hit buffers
   int fNthreads{0};                            ///< Number of cpu threads
   int fMaxBatch{0};                            ///< Max batch size for allocating GPU memory
   int fNumVolumes{0};                          ///< Total number of active logical volumes
@@ -86,7 +86,6 @@ private:
   GPUstate *fGPUstate{nullptr};                ///< CUDA state placeholder
   AdeptScoring *fScoring{nullptr};             ///< User scoring object
   AdeptScoring *fScoring_dev{nullptr};         ///< Device ptr for scoring data
-  G4HepEmState *fg4hepem_state{nullptr};       ///< The HepEm state singleton
   TrackBuffer fBuffer;                         ///< Vector of buffers of tracks to/from device (per thread)
   std::vector<std::string> *fGPURegionNames{}; ///< Region to which applies
   IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
@@ -96,7 +95,6 @@ private:
   /// @brief Used to map VecGeom to Geant4 volumes for scoring
   void InitializeSensitiveVolumeMapping(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world);
   void InitBVH();
-  void InitializeUserData() { fScoring->InitializeOnGPU(); }
   bool InitializeField(double bz);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();

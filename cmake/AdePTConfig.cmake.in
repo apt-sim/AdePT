@@ -9,13 +9,7 @@ set_and_check(AdePT_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
 set(AdePT_LIBRARIES
     AdePT::CopCore
-    AdePT::AdePT_G4_integration
-    AdePT::AdePT)
-
-set(AdePT_LIBRARIES_EXTRA
-    AdePT::CopCore
-    AdePT::AdePT_G4_integration
-    AdePT::AdePT)
+    AdePT::AdePT_G4_integration)
 
 # Find required dependencies
 

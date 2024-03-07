@@ -33,11 +33,11 @@ public:
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
   // Set the AdePTTransport instance, also initializes the GPU region list
-  void SetAdePTTransport(AdePTTransport<AdePTGeant4Integration> *adept)
+  void SetAdePTTransport(AdePTTransport<AdePTGeant4Integration> *adeptTransport)
   {
-    fAdept = adept;
-    if (!adept->GetTrackInAllRegions()) {
-      for (std::string regionName : *(adept->GetGPURegionNames())) {
+    fAdeptTransport = adeptTransport;
+    if (!adeptTransport->GetTrackInAllRegions()) {
+      for (std::string regionName : *(adeptTransport->GetGPURegionNames())) {
         G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
         G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
         if (region != nullptr)
@@ -61,7 +61,7 @@ private:
   void StepInHostRegion(G4Track *aTrack);
 
   std::vector<G4Region *> fGPURegions{};
-  AdePTTransport<AdePTGeant4Integration> *fAdept;
+  AdePTTransport<AdePTGeant4Integration> *fAdeptTransport;
   int fVerbosity{0};
   G4double ProductionCut = 0.7 * copcore::units::mm;
   int MCIndex[100];

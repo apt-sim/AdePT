@@ -25,6 +25,7 @@ bool InitializeVolAuxArray(adeptint::VolAuxArray &);
 void FreeVolAuxArray(adeptint::VolAuxArray &);
 G4HepEmState *InitG4HepEm();
 GPUstate *InitializeGPU(TrackBuffer &, int, int);
+AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring);
 void FreeGPU(GPUstate &, G4HepEmState *);
 template <typename IntegrationLayer>
 void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GPUstate &gpuState, AdeptScoring *scoring,
@@ -137,12 +138,12 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
   std::cout << "=== AdePTTransport: initializing transport engine for thread: " << fIntegrationLayer.GetThreadID()
             << std::endl;
 
-  // Initialize user scoring data
+  // Initialize user scoring data on Host
   fScoring     = new AdeptScoring(fHitBufferCapacity);
-  fScoring_dev = fScoring->InitializeOnGPU();
 
   // Initialize the transport engine for the current thread
   fGPUstate = adept_impl::InitializeGPU(fBuffer, fCapacity, fMaxBatch);
+  fScoring_dev = adept_impl::InitializeScoringGPU(fScoring);
 
   fInit = true;
 }
@@ -161,7 +162,7 @@ void AdePTTransport<IntegrationLayer>::Cleanup()
   adept_impl::FreeGPU(*fGPUstate, fg4hepem_state);
   fg4hepem_state = nullptr;
   adept_impl::FreeVolAuxArray(VolAuxArray::GetInstance());
-  fScoring->FreeGPU(fScoring_dev);
+  adept_scoring::FreeGPU(fScoring, fScoring_dev);
   delete[] fBuffer.fromDeviceBuff;
 }
 
