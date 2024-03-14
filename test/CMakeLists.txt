@@ -39,7 +39,6 @@ file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/v1.2.0/persistency/gdml
 # Detailed tests
 #----------------------------------------------------------------------------#
 add_subdirectory(testField)
-# add_subdirectory(TestEm3)
 
 #----------------------------------------------------------------------------#
 # Link/RDC tests

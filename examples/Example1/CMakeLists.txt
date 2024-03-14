@@ -63,7 +63,12 @@ target_link_libraries(example1
 )
 
 # Install macros and geometry file
+SET(GDML ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 configure_file("macros/example1.mac.in" "${PROJECT_BINARY_DIR}/example1.mac")
 configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
 
 # Tests
+
+add_test(NAME example1
+  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
+)
