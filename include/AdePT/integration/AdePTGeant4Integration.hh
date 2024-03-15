@@ -14,7 +14,7 @@
 #include <G4HepEmState.hh>
 
 #include <AdePT/core/CommonStruct.h>
-#include <AdePT/core/HostScoring.h>
+#include <AdePT/core/HostScoringStruct.cuh>
 
 #include <G4VPhysicalVolume.hh>
 #include <G4LogicalVolume.hh>

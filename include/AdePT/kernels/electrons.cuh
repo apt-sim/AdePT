@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/AdePTTransport.cuh>
+#include <AdePT/core/AdePTTransportStruct.cuh>
 #include <AdePT/navigation/BVHNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
@@ -24,7 +24,7 @@
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
-using VolAuxData = AdePTTransport::VolAuxData;
+using VolAuxData = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
 __device__ double GetVelocity(double eKin)
@@ -241,9 +241,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     localTime += deltaTime;
     properTime += deltaTime * (restMass / eKin);
 
-    // userScoring->AccountChargedStep(Charge);
     if (auxData.fSensIndex >= 0)
-      userScoring->RecordHit(IsElectron ? 0 : 1,       // Particle type
+      adept_scoring::RecordHit(userScoring,
+                             IsElectron ? 0 : 1,       // Particle type
                              elTrack.GetPStepLength(), // Step length
                              energyDeposit,            // Total Edep
                              &navState,                // Pre-step point navstate
@@ -272,7 +272,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         Track &gamma1 = secondaries.gammas->NextTrack();
         Track &gamma2 = secondaries.gammas->NextTrack();
 
-        userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
         const double cost = 2 * currentTrack.Uniform() - 1;
         const double sint = sqrt(1 - cost * cost);
@@ -298,7 +298,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
-      // userScoring->AccountHit();
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
@@ -363,7 +362,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       Track &secondary = secondaries.electrons->NextTrack();
 
-      userScoring->AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
       secondary.InitAsSecondary(pos, navState, globalTime);
       secondary.rngState = newRNG;
@@ -389,7 +388,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &gamma = secondaries.gammas->NextTrack();
-      userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
+      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
       gamma.InitAsSecondary(pos, navState, globalTime);
       gamma.rngState = newRNG;
@@ -411,7 +410,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       Track &gamma1 = secondaries.gammas->NextTrack();
       Track &gamma2 = secondaries.gammas->NextTrack();
-      userScoring->AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
       gamma1.InitAsSecondary(pos, navState, globalTime);
       gamma1.rngState = newRNG;

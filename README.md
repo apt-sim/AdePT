@@ -127,19 +127,6 @@ target_link_libraries(example_target <SCOPE>
                       ${AdePT_LIBRARIES})
 ```
 
-### Targets dependent on vecgeomcuda
-
-When using AdePT_LIBRARIES we are linking against the library AdePT::AdePT_cuda, which in turn links to the static library VecGeom::vecgeomcuda_static. For most purposes this will be fine, however, in case the final executable uses some feature from vecgeomcuda and needs to link against it, this aproach will not work.
-
-In order to address this we provide AdePT::AdePT_cuda_standalone, which links with the shared VecGeom::vecgeomcuda. This allows the final executable to correctly link with VecGeom::vecgeomcuda_static. This library is provided as part of AdePT_LIBRARIES_EXTRA. 
-
-```
-target_link_libraries(example_target <SCOPE>
-                      <TARGET LINK LIBRARIES>
-                      VecGeom::vecgeomcuda_static
-                      ${AdePT_LIBRARIES_EXTRA})
-```
-
 ## Copyright
 
 AdePT code is Copyright (C) CERN, 2020, for the benefit of the AdePT project.

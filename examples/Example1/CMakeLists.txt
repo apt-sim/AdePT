@@ -58,14 +58,17 @@ target_include_directories(example1
 target_link_libraries(example1
   PRIVATE
     AdePT_G4_integration
-    AdePT
-    AdePT_cuda
     ${HEPMC3_LIBRARIES} 
     ${HEPMC3_FIO_LIBRARIES}
 )
 
 # Install macros and geometry file
+SET(GDML ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 configure_file("macros/example1.mac.in" "${PROJECT_BINARY_DIR}/example1.mac")
 configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
 
 # Tests
+
+add_test(NAME example1
+  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
+)

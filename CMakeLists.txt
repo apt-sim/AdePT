@@ -124,7 +124,7 @@ add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:
 # - For Debug, generate full debug information - this completely disables optimizations!
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Debug>>:--device-debug>")
 # - For both, interleave the source in PTX to enhance the debugging experience.
-add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:--source-in-ptx>")
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:-G>")
 
 # Disable warnings from the CUDA frontend about unknown GCC pragmas - let the compiler decide what it likes.
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma>")
@@ -139,19 +139,11 @@ endif()
 #----------------------------------------------------------------------------#
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
+  src/AdePTTrackingManager.cu
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
-)
-
-set(ADEPT_SRCS
-  src/AdePTTransport.cpp
   src/AdePTConfigurationMessenger.cc
-)
-
-set(ADEPT_CUDA_SRCS
-  src/AdePTTransport.cu
-  src/HostScoring.cu
 )
 
 add_library(CopCore INTERFACE)
@@ -171,68 +163,18 @@ target_link_libraries(AdePT_G4_integration
   PUBLIC 
     CopCore
     VecGeom::vecgeom
+    VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
     G4HepEm::g4HepEmData
-)
-
-add_library(AdePT SHARED ${ADEPT_SRCS})
-target_include_directories(AdePT 
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
-)
-target_link_libraries(AdePT 
-  PUBLIC 
-    CopCore
-    VecGeom::vecgeom
-    VecGeom::vgdml
-    G4HepEm::g4HepEm
-    G4HepEm::g4HepEmData
-)
-
-add_library(AdePT_cuda SHARED ${ADEPT_CUDA_SRCS})
-target_include_directories(AdePT_cuda 
-  PUBLIC 
-    ${Geant4_INCLUDE_DIRS}
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
-)
-target_link_libraries(AdePT_cuda 
-  PUBLIC
-    VecGeom::vecgeomcuda_static
-    CopCore
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
 )
-set_target_properties(AdePT_cuda
+
+set_target_properties(AdePT_G4_integration
   PROPERTIES 
     CUDA_SEPARABLE_COMPILATION ON 
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON
-)
-
-# AdePT_cuda links against vecgeomcuda_static. This is fine as long as the final executable doesn't link with 
-# vecgeomcuda itself, as is the case with Geant4 integration examples. However for standalone applications not 
-# using geant4, that may need features from vecgeomcuda, this doesn't work. In that case AdePT_cuda has to link 
-# to the shared version of vecgeomcuda, and the final executable to vecgeomcuda_static
-add_library(AdePT_cuda_standalone SHARED ${ADEPT_CUDA_SRCS})
-target_include_directories(AdePT_cuda_standalone 
-  PUBLIC 
-    ${Geant4_INCLUDE_DIRS}
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
-)
-target_link_libraries(AdePT_cuda_standalone
-  PUBLIC
-    VecGeom::vecgeomcuda
-    CopCore
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
-)
-set_target_properties(AdePT_cuda_standalone
-  PROPERTIES 
-    CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
 )
 
@@ -261,7 +203,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT AdePT_cuda AdePT_G4_integration AdePT_cuda_standalone 
+install(TARGETS CopCore AdePT_G4_integration 
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -279,7 +221,7 @@ install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
 )
 
 #Export the targets file
-export(TARGETS CopCore AdePT_G4_integration AdePT AdePT_cuda AdePT_cuda_standalone
+export(TARGETS CopCore AdePT_G4_integration
   FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
 )
 

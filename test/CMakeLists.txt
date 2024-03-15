@@ -9,7 +9,7 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    target_link_libraries(${TARGET_NAME} AdePT_cuda AdePT_G4_integration AdePT)
+    target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
    endforeach()
 endmacro()
 
@@ -39,7 +39,6 @@ file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/v1.2.0/persistency/gdml
 # Detailed tests
 #----------------------------------------------------------------------------#
 add_subdirectory(testField)
-add_subdirectory(TestEm3)
 
 #----------------------------------------------------------------------------#
 # Link/RDC tests

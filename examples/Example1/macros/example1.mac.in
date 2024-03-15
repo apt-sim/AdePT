@@ -16,9 +16,9 @@
 ##
 /adept/setSeed 1
 
-/detector/filename cms2018_sd.gdml
+/detector/filename @GDML@
 # Temporary workaround since we don't have a G4 to VecGeom converter
-/adept/setVecGeomGDML cms2018_sd.gdml
+/adept/setVecGeomGDML @GDML@
 /adept/setVerbosity 0
 ## Threshold for buffering tracks before sending to GPU
 /adept/setTransportBufferThreshold 2000

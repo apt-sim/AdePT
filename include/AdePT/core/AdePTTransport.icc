@@ -1,0 +1,223 @@
+// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-License-Identifier: Apache-2.0
+
+#include <AdePT/core/AdePTTransport.h>
+#include <AdePT/benchmarking/TestManager.h>
+#include <AdePT/benchmarking/TestManagerStore.h>
+
+#include <VecGeom/management/BVHManager.h>
+#include "VecGeom/management/GeoManager.h"
+#include <VecGeom/gdml/Frontend.h>
+
+#include "AdePT/copcore/SystemOfUnits.h"
+
+#include <G4HepEmData.hh>
+#include <G4HepEmState.hh>
+#include <G4HepEmStateInit.hh>
+#include <G4HepEmParameters.hh>
+#include <G4HepEmMatCutData.hh>
+
+namespace adept_impl {
+/// Forward declarations for methods implemented in AdePTTransport.cu
+using TrackBuffer = adeptint::TrackBuffer;
+bool InitializeField(double);
+bool InitializeVolAuxArray(adeptint::VolAuxArray &);
+void FreeVolAuxArray(adeptint::VolAuxArray &);
+G4HepEmState *InitG4HepEm();
+GPUstate *InitializeGPU(TrackBuffer &, int, int);
+AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring);
+void FreeGPU(GPUstate &, G4HepEmState *);
+template <typename IntegrationLayer>
+void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GPUstate &gpuState, AdeptScoring *scoring,
+               AdeptScoring *scoring_dev);
+
+} // namespace adept_impl
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
+{
+  return adept_impl::InitializeField(bz);
+}
+
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, double energy, double x, double y, double z, double dirx,
+                                                double diry, double dirz, double globalTime, double localTime,
+                                                double properTime)
+{
+  fBuffer.toDevice.emplace_back(pdg, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime);
+  if (pdg == 11)
+    fBuffer.nelectrons++;
+  else if (pdg == -11)
+    fBuffer.npositrons++;
+  else if (pdg == 22)
+    fBuffer.ngammas++;
+
+  if (fBuffer.toDevice.size() >= fBufferThreshold) {
+    if (fDebugLevel > 0)
+      std::cout << "Reached the threshold of " << fBufferThreshold << " triggering the shower" << std::endl;
+    this->Shower(fIntegrationLayer.GetEventID());
+  }
+}
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
+{
+  // Upload geometry to GPU.
+  auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+  cudaManager.LoadGeometry(world);
+  auto world_dev = cudaManager.Synchronize();
+  // Initialize BVH
+  InitBVH();
+  return (world_dev != nullptr);
+}
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializePhysics()
+{
+  fg4hepem_state = adept_impl::InitG4HepEm();
+  return true;
+}
+
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
+{
+  if (fInit) return;
+  if (fMaxBatch <= 0)
+    throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Maximum batch size not set.");
+
+  fNumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+
+  if (fNumVolumes == 0)
+    throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Number of geometry volumes is zero.");
+
+  if (common_data) {
+    std::cout << "=== AdePTTransport: initializing geometry and physics\n";
+    // Initialize geometry on device
+    if (!vecgeom::GeoManager::Instance().IsClosed())
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: VecGeom geometry not closed.");
+
+    const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
+    if (!InitializeGeometry(world))
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Cannot initialize geometry on GPU");
+
+    // Initialize G4HepEm
+    if (!InitializePhysics())
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize physics on GPU");
+
+    // Initialize field
+    double bz = fIntegrationLayer.GetUniformFieldZ();
+    if (!InitializeField(bz))
+      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
+
+    // Do the material-cut couple index mapping once
+    // as well as set flags for sensitive volumes and region
+    // Also set the mappings from sensitive volumes to hits and VecGeom to G4 indices
+    int *sensitive_volumes = nullptr;
+
+    // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
+    fIntegrationLayer.CheckGeometry(fg4hepem_state);
+    adeptint::VolAuxData *auxData =
+        new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+    fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state, fTrackInAllRegions, fGPURegionNames);
+
+    // Initialize volume auxiliary data on device
+    auto &volAuxArray       = VolAuxArray::GetInstance();
+    volAuxArray.fNumVolumes = fNumVolumes;
+    volAuxArray.fAuxData    = auxData;
+    adept_impl::InitializeVolAuxArray(volAuxArray);
+
+    // Print some settings
+    std::cout << "=== AdePTTransport: buffering " << fBufferThreshold << " particles for transport on the GPU"
+              << std::endl;
+    std::cout << "=== AdePTTransport: maximum number of GPU track slots per thread: " << fCapacity << std::endl;
+    return;
+  }
+
+  fIntegrationLayer.InitScoringData(VolAuxArray::GetInstance().fAuxData);
+
+  std::cout << "=== AdePTTransport: initializing transport engine for thread: " << fIntegrationLayer.GetThreadID()
+            << std::endl;
+
+  // Initialize user scoring data on Host
+  fScoring     = new AdeptScoring(fHitBufferCapacity);
+
+  // Initialize the transport engine for the current thread
+  fGPUstate = adept_impl::InitializeGPU(fBuffer, fCapacity, fMaxBatch);
+  fScoring_dev = adept_impl::InitializeScoringGPU(fScoring);
+
+  fInit = true;
+}
+
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::InitBVH()
+{
+  vecgeom::BVHManager::Init();
+  vecgeom::BVHManager::DeviceInit();
+}
+
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::Cleanup()
+{
+  if (!fInit) return;
+  adept_impl::FreeGPU(*fGPUstate, fg4hepem_state);
+  fg4hepem_state = nullptr;
+  adept_impl::FreeVolAuxArray(VolAuxArray::GetInstance());
+  adept_scoring::FreeGPU(fScoring, fScoring_dev);
+  delete[] fBuffer.fromDeviceBuff;
+}
+
+template <typename IntegrationLayer>
+void AdePTTransport<IntegrationLayer>::Shower(int event)
+{
+  int tid = fIntegrationLayer.GetThreadID();
+  if (fDebugLevel > 0 && fBuffer.toDevice.size() == 0) {
+    std::cout << "[" << tid << "] AdePTTransport<IntegrationLayer>::Shower: No more particles in buffer. Exiting.\n";
+    return;
+  }
+
+  if (event != fBuffer.eventId) {
+    fBuffer.eventId    = event;
+    fBuffer.startTrack = 0;
+  } else {
+    fBuffer.startTrack += fBuffer.toDevice.size();
+  }
+
+  int itr   = 0;
+  int nelec = 0, nposi = 0, ngamma = 0;
+  if (fDebugLevel > 0) {
+    std::cout << "[" << tid << "] toDevice: " << fBuffer.nelectrons << " elec, " << fBuffer.npositrons << " posi, "
+              << fBuffer.ngammas << " gamma\n";
+  }
+  if (fDebugLevel > 1) {
+    for (auto &track : fBuffer.toDevice) {
+      std::cout << "[" << tid << "] toDevice[ " << itr++ << "]: pdg " << track.pdg << " kinetic energy " << track.eKin
+                << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
+                << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
+                << " global time, local time, proper time: "
+                << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << std::endl;
+    }
+  }
+
+  if (fDebugLevel > 0) {
+    std::cout << std::dec << std::endl
+              << "GPU transporting event " << event << " for CPU thread " << fIntegrationLayer.GetThreadID() << ": "
+              << std::flush;
+  }
+  adept_impl::ShowerGPU(fIntegrationLayer, event, fBuffer, *fGPUstate, fScoring, fScoring_dev);
+
+  for (auto const &track : fBuffer.fromDevice) {
+    if (track.pdg == 11)
+      nelec++;
+    else if (track.pdg == -11)
+      nposi++;
+    else if (track.pdg == 22)
+      ngamma++;
+  }
+  if (fDebugLevel > 0) {
+    std::cout << "[" << tid << "] fromDevice: " << nelec << " elec, " << nposi << " posi, " << ngamma << " gamma\n";
+  }
+
+  fIntegrationLayer.ReturnTracks(&(fBuffer.fromDevice), fDebugLevel);
+
+  fBuffer.Clear();
+}

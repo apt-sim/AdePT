@@ -19,11 +19,6 @@
  * @details The timestamp marks the start of the current measuring period, the accumulated duration
  * represents the total time measured under the same tag.
  */
-struct TimeInfo {
-  std::chrono::time_point<CLOCK> start;                                 ///< Start timestamp
-  std::chrono::duration<CLOCK::rep, CLOCK::period> accumulatedDuration; ///< Total time measured under the same tag
-  bool counting;                                                        ///< Whether the timer is running
-};
 
 // #if defined TEST
 
@@ -38,6 +33,13 @@ struct TimeInfo {
 #include <iomanip>
 // Output files and directories
 #include <filesystem>
+
+struct TimeInfo {
+  std::chrono::time_point<CLOCK> start;                                 ///< Start timestamp
+  std::chrono::duration<CLOCK::rep, CLOCK::period> accumulatedDuration; ///< Total time measured under the same tag
+  bool counting;                                                        ///< Whether the timer is running
+};
+
 
 template <class TTag>
 class TestManager {
