@@ -11,6 +11,7 @@
 #include <AdePT/core/AdePTTransport.h>
 #include "AdePT/copcore/SystemOfUnits.h"
 #include <AdePT/integration/AdePTGeant4Integration.hh>
+#include <AdePT/core/AdePTConfiguration.hh>
 
 #include <vector>
 
@@ -36,18 +37,9 @@ public:
   void SetAdePTTransport(AdePTTransport<AdePTGeant4Integration> *adeptTransport)
   {
     fAdeptTransport = adeptTransport;
-    if (!adeptTransport->GetTrackInAllRegions()) {
-      for (std::string regionName : *(adeptTransport->GetGPURegionNames())) {
-        G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
-        G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
-        if (region != nullptr)
-          fGPURegions.push_back(region);
-        else
-          G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
-                      ("Region given to /adept/addGPURegion: " + regionName + " Not found\n").c_str());
-      }
-    }
   }
+
+  void SetAdePTConfiguration(AdePTConfiguration *aAdePTConfiguration) { fAdePTConfiguration = aAdePTConfiguration; }
 
 private:
   /// @brief Steps a particle using the generic G4 tracking, until it dies or enters a user-defined
@@ -61,10 +53,13 @@ private:
   void StepInHostRegion(G4Track *aTrack);
 
   std::vector<G4Region *> fGPURegions{};
-  AdePTTransport<AdePTGeant4Integration> *fAdeptTransport;
   int fVerbosity{0};
   G4double ProductionCut = 0.7 * copcore::units::mm;
   int MCIndex[100];
+  
+  AdePTTransport<AdePTGeant4Integration> *fAdeptTransport;
+  AdePTConfiguration *fAdePTConfiguration;
+  bool fAdePTInitialized{false};
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
