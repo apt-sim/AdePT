@@ -24,10 +24,72 @@ AdePTTrackingManager::~AdePTTrackingManager()
   fAdeptTransport->Cleanup();
 }
 
+void AdePTTrackingManager::InitializeAdePT()
+{
+  // AdePT needs to be initialized here, since we know all needed Geant4 initializations are already finished
+  fAdeptTransport->SetDebugLevel(0);
+  fAdeptTransport->SetBufferThreshold(fAdePTConfiguration->GetTransportBufferThreshold());
+  fAdeptTransport->SetMaxBatch(2 * fAdePTConfiguration->GetTransportBufferThreshold());
+  fAdeptTransport->SetTrackInAllRegions(fAdePTConfiguration->GetTrackInAllRegions());
+  fAdeptTransport->SetGPURegionNames(fAdePTConfiguration->GetGPURegionNames());
+
+  // Check if this is a sequential run
+  G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
+  bool sequential             = (rmType == G4RunManager::sequentialRM);
+
+  // One thread initializes common elements
+  auto tid = G4Threading::G4GetThreadId();
+  if (tid < 0) {
+    // Load the VecGeom world in memory
+    AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
+
+    // Track and Hit buffer capacities on GPU are split among threads
+    int num_threads    = G4RunManager::GetRunManager()->GetNumberOfThreads();
+    int track_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
+    G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
+    fAdeptTransport->SetTrackCapacity(track_capacity);
+    int hit_buffer_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfHitSlots() / num_threads;
+    G4cout << "AdePT Allocated hit buffer capacity: " << hit_buffer_capacity << " slots" << G4endl;
+    fAdeptTransport->SetHitBufferCapacity(hit_buffer_capacity);
+
+    // Initialize common data:
+    // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
+    fAdeptTransport->Initialize(true /*common_data*/);
+    if (sequential) {
+      // Initialize per-thread data (When in sequential mode)
+      fAdeptTransport->Initialize();
+    }
+  } else {
+    // Initialize per-thread data
+    fAdeptTransport->Initialize();
+  }
+
+  // Initialize the GPU region list
+
+  if (!fAdeptTransport->GetTrackInAllRegions()) {
+    for (std::string regionName : *(fAdeptTransport->GetGPURegionNames())) {
+      G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
+      G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
+      if (region != nullptr)
+        fGPURegions.push_back(region);
+      else
+        G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
+                    ("Region given to /adept/addGPURegion: " + regionName + " Not found\n").c_str());
+    }
+  }
+
+  fAdePTInitialized = true;
+}
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
 {
+  if (!fAdePTInitialized)
+  {
+    InitializeAdePT();
+  }
+
   // For tracking on CPU by Geant4, construct the physics tables for the processes of
   // particles taken by this tracking manager, since Geant4 won't do it anymore
   G4ProcessManager *pManager       = part.GetProcessManager();

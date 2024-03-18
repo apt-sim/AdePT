@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef ADEPT_CONFIGURATION_HH
+#define ADEPT_CONFIGURATION_HH
+
 #include <string>
 #include <vector>
 #include <AdePT/integration/AdePTConfigurationMessenger.hh>
@@ -49,3 +52,5 @@ private:
 
   AdePTConfigurationMessenger *fAdePTConfigurationMessenger;
 };
+
+#endif

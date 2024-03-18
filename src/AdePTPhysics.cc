@@ -78,47 +78,12 @@ void AdePTPhysics::ConstructProcess()
   // Setup tracking manager
   fTrackingManager->SetVerbosity(0);
 
-  // Create one instance of AdePTTransport per thread and set it up according to the user configuration
+  // Create one instance of AdePTTransport per thread
   auto aAdePTTransport = new AdePTTransport<AdePTGeant4Integration>();
-  aAdePTTransport->SetDebugLevel(0);
-  aAdePTTransport->SetBufferThreshold(fAdePTConfiguration->GetTransportBufferThreshold());
-  aAdePTTransport->SetMaxBatch(2 * fAdePTConfiguration->GetTransportBufferThreshold());
-  aAdePTTransport->SetTrackInAllRegions(fAdePTConfiguration->GetTrackInAllRegions());
-  aAdePTTransport->SetGPURegionNames(fAdePTConfiguration->GetGPURegionNames());
-
-  // Check if this is a sequential run
-  G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
-  bool sequential             = (rmType == G4RunManager::sequentialRM);
-
-  // One thread initializes common elements
-  auto tid = G4Threading::G4GetThreadId();
-  if (tid < 0) {
-    // Load the VecGeom world in memory
-    AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
-
-    // Track and Hit buffer capacities on GPU are split among threads
-    int num_threads    = G4RunManager::GetRunManager()->GetNumberOfThreads();
-    int track_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
-    G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
-    aAdePTTransport->SetTrackCapacity(track_capacity);
-    int hit_buffer_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfHitSlots() / num_threads;
-    G4cout << "AdePT Allocated hit buffer capacity: " << hit_buffer_capacity << " slots" << G4endl;
-    aAdePTTransport->SetHitBufferCapacity(hit_buffer_capacity);
-
-    // Initialize common data:
-    // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
-    aAdePTTransport->Initialize(true /*common_data*/);
-    if (sequential) {
-      // Initialize per-thread data (When in sequential mode)
-      aAdePTTransport->Initialize();
-    }
-  } else {
-    // Initialize per-thread data
-    aAdePTTransport->Initialize();
-  }
 
   // Give the custom tracking manager a pointer to the AdePTTransport instance
   fTrackingManager->SetAdePTTransport(aAdePTTransport);
+  fTrackingManager->SetAdePTConfiguration(fAdePTConfiguration);
 
   // Translate Region names to actual G4 Regions and give them to the custom tracking manager
 }

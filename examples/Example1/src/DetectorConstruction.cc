@@ -47,25 +47,6 @@ G4VPhysicalVolume *DetectorConstruction::Construct()
     return world;
   }
 
-  // - REGIONS
-  if (world->GetLogicalVolume()->GetRegion() == nullptr) {
-    // Add default region if none available
-    // constexpr double DefaultCut = 0.7 * mm;
-    auto defaultRegion = G4RegionStore::GetInstance()->GetRegion("DefaultRegionForTheWorld");
-
-    defaultRegion->AddRootLogicalVolume(world->GetLogicalVolume());
-  }
-
-  for (auto region : *G4RegionStore::GetInstance()) {
-    region->UsedInMassGeometry(true); // make sure all regions are marked as used
-    region->UpdateMaterialList();
-  }
-
-  // - UPDATE COUPLES
-  G4cout << "Updating material-cut couples based on " << G4RegionStore::GetInstance()->size() << " regions ...\n";
-  G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
-  theCoupleTable->UpdateCoupleTable(world);
-
   fWorld = world;
 
   return world;
