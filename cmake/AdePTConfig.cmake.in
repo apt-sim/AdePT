@@ -13,8 +13,7 @@ list(PREPEND CMAKE_MODULE_PATH "${AdePT_CMAKE_DIR}")
 
 set(AdePT_LIBRARIES
     AdePT::CopCore
-    AdePT::AdePT_G4_integration
-    AdePT::AdePT)
+    AdePT::AdePT_G4_integration)
 
 # Find required dependencies
 set(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")

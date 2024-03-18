@@ -123,7 +123,7 @@ functions to ensure the correct device linking. For an executable target:
 include(CudaRdcUtils)
 
 add_executable(MyExe MyExe.cc)
-cuda_rdc_target_link_libraries(MyExe AdePT::AdePT)
+cuda_rdc_target_link_libraries(MyExe AdePT::AdePT_G4_integration)
 ```
 
 and for a library plus executable:
@@ -132,7 +132,7 @@ and for a library plus executable:
 include(CudaRdcUtils)
 
 cuda_rdc_add_library(MyLib ...)
-cuda_rdc_target_link_libraries(MyLib AdePT::AdePT)
+cuda_rdc_target_link_libraries(MyLib AdePT::AdePT_G4_integration)
 
 add_executable(MyExe MyExe.cc)
 cuda_rdc_target_link_libraries(MyExe MyLib)

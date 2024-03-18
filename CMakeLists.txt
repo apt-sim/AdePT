@@ -138,22 +138,13 @@ endif()
 #----------------------------------------------------------------------------#
 # Build Targets
 #----------------------------------------------------------------------------#
-set(ADEPT_SRCS
-  src/AdePTTransport.cpp
-  src/AdePTConfigurationMessenger.cc
-)
-
-set(ADEPT_CUDA_SRCS
-  src/AdePTTransport.cu
-  src/HostScoring.cu
-)
-
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
+  src/AdePTTrackingManager.cu
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
-  src/adept_g4_dummy.cu
+  src/AdePTConfigurationMessenger.cc
 )
 
 # - Build RDC/Non-RDC libraries
@@ -169,23 +160,6 @@ cuda_rdc_target_include_directories(CopCore
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
 )
 
-# - AdePT
-cuda_rdc_add_library(AdePT SHARED ${ADEPT_SRCS} ${ADEPT_CUDA_SRCS})
-cuda_rdc_add_library(AdePT::AdePT ALIAS AdePT)
-cuda_rdc_target_include_directories(AdePT 
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-cuda_rdc_target_link_libraries(AdePT 
-  PUBLIC 
-    CopCore
-    VecGeom::vecgeom
-    VecGeom::vgdml
-    G4HepEm::g4HepEm
-    G4HepEm::g4HepEmData
-)
-
 # - AdePT_G4_integration
 cuda_rdc_add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
 cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
@@ -196,7 +170,6 @@ cuda_rdc_target_include_directories(AdePT_G4_integration
 )
 cuda_rdc_target_link_libraries(AdePT_G4_integration 
   PUBLIC 
-    AdePT
     CopCore
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static
@@ -231,7 +204,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-cuda_rdc_install(TARGETS CopCore AdePT AdePT_G4_integration
+cuda_rdc_install(TARGETS CopCore AdePT_G4_integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
