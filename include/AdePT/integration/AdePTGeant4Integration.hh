@@ -69,6 +69,16 @@ private:
                   G4TouchableHandle &aPostG4TouchableHandle);
 
   std::unordered_map<size_t, const G4VPhysicalVolume *> fglobal_vecgeom_to_g4_map; ///< Maps Vecgeom PV IDs to G4 PV IDs
+
+  bool fScoringObjectsInitialized{false};
+  G4NavigationHistory *fPreG4NavigationHistory;
+  G4NavigationHistory *fPostG4NavigationHistory;
+  G4Step *fG4Step;
+  G4TouchableHandle fPreG4TouchableHistoryHandle;
+  G4TouchableHandle fPostG4TouchableHistoryHandle;
+  G4Track *fElectronTrack;
+  G4Track *fPositronTrack;
+  G4Track *fGammaTrack;
 };
 
 #endif
