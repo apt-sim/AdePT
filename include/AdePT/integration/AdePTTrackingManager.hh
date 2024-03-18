@@ -30,6 +30,8 @@ public:
 
   void FlushEvent() override;
 
+  void InitializeAdePT();
+
   /// Set verbosity for integration
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
