@@ -30,7 +30,7 @@
 class AdePTGeant4Integration {
 public:
   AdePTGeant4Integration()  = default;
-  ~AdePTGeant4Integration() = default;
+  ~AdePTGeant4Integration();
 
   /// @brief Initializes VecGeom geometry
   /// @details Currently VecGeom geometry is initialized by loading it from a GDML file,

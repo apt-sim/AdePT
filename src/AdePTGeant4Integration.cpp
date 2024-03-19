@@ -20,6 +20,16 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
 
+AdePTGeant4Integration::~AdePTGeant4Integration()
+{
+  delete fPreG4NavigationHistory;
+  delete fPostG4NavigationHistory;
+  delete fG4Step;
+  delete fElectronTrack;
+  delete fPositronTrack;
+  delete fGammaTrack;
+}
+
 void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
 {
   // Import the gdml file into VecGeom
