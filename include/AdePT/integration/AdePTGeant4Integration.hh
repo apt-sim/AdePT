@@ -30,7 +30,7 @@
 class AdePTGeant4Integration {
 public:
   AdePTGeant4Integration()  = default;
-  ~AdePTGeant4Integration() = default;
+  ~AdePTGeant4Integration();
 
   /// @brief Initializes VecGeom geometry
   /// @details Currently VecGeom geometry is initialized by loading it from a GDML file,
@@ -69,6 +69,16 @@ private:
                   G4TouchableHandle &aPostG4TouchableHandle);
 
   std::unordered_map<size_t, const G4VPhysicalVolume *> fglobal_vecgeom_to_g4_map; ///< Maps Vecgeom PV IDs to G4 PV IDs
+
+  bool fScoringObjectsInitialized{false};
+  G4NavigationHistory *fPreG4NavigationHistory{nullptr};
+  G4NavigationHistory *fPostG4NavigationHistory{nullptr};
+  G4Step *fG4Step{nullptr};
+  G4TouchableHandle fPreG4TouchableHistoryHandle;
+  G4TouchableHandle fPostG4TouchableHistoryHandle;
+  G4Track *fElectronTrack{nullptr};
+  G4Track *fPositronTrack{nullptr};
+  G4Track *fGammaTrack{nullptr};
 };
 
 #endif

@@ -20,6 +20,16 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
 
+AdePTGeant4Integration::~AdePTGeant4Integration()
+{
+  delete fPreG4NavigationHistory;
+  delete fPostG4NavigationHistory;
+  delete fG4Step;
+  delete fElectronTrack;
+  delete fPositronTrack;
+  delete fGammaTrack;
+}
+
 void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
 {
   // Import the gdml file into VecGeom
@@ -227,30 +237,32 @@ void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
 
 void AdePTGeant4Integration::ProcessGPUHits(HostScoring &aScoring, HostScoring::Stats &aStats)
 {
-  // For sequential processing of hits we only need one instance of each object
-  G4NavigationHistory *fPreG4NavigationHistory    = new G4NavigationHistory();
-  G4NavigationHistory *fPostG4NavigationHistory   = new G4NavigationHistory();
-  G4Step *fG4Step                                 = new G4Step();
-  G4TouchableHandle fPreG4TouchableHistoryHandle  = new G4TouchableHistory();
-  G4TouchableHandle fPostG4TouchableHistoryHandle = new G4TouchableHistory();
-  fG4Step->SetPreStepPoint(new G4StepPoint());
-  fG4Step->SetPostStepPoint(new G4StepPoint());
+  if (!fScoringObjectsInitialized) {
+    // For sequential processing of hits we only need one instance of each object
+    fPreG4NavigationHistory       = new G4NavigationHistory();
+    fPostG4NavigationHistory      = new G4NavigationHistory();
+    fG4Step                       = new G4Step();
+    fPreG4TouchableHistoryHandle  = new G4TouchableHistory();
+    fPostG4TouchableHistoryHandle = new G4TouchableHistory();
+    fG4Step->SetPreStepPoint(new G4StepPoint());
+    fG4Step->SetPostStepPoint(new G4StepPoint());
 
-  // We need the dynamic particle associated to the track to have the correct particle definition, however this can
-  // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
-  // For this reason we create one track per particle type, to be reused
-  // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
-  // The same goes for the G4Track global time and position
-  G4ParticleDefinition *aG4ParticleDefinition;
-  G4Track *aElectronTrack = new G4Track(
-      new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0), 0,
-      G4ThreeVector(0, 0, 0));
-  G4Track *aPositronTrack = new G4Track(
-      new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0), 0,
-      G4ThreeVector(0, 0, 0));
-  G4Track *aGammaTrack = new G4Track(
-      new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0), 0,
-      G4ThreeVector(0, 0, 0));
+    // We need the dynamic particle associated to the track to have the correct particle definition, however this can
+    // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
+    // For this reason we create one track per particle type, to be reused
+    // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
+    // The same goes for the G4Track global time and position
+    fElectronTrack = new G4Track(
+        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0), 0,
+        G4ThreeVector(0, 0, 0));
+    fPositronTrack = new G4Track(
+        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0), 0,
+        G4ThreeVector(0, 0, 0));
+    fGammaTrack = new G4Track(
+        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0), 0,
+        G4ThreeVector(0, 0, 0));
+    fScoringObjectsInitialized = true;
+  }
 
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
   for (size_t i = aStats.fBufferStart; i < aStats.fBufferStart + aStats.fUsedSlots; i++) {
@@ -270,13 +282,13 @@ void AdePTGeant4Integration::ProcessGPUHits(HostScoring &aScoring, HostScoring::
     // Reconstruct G4Step
     switch (aScoring.fGPUHitsBuffer_host[aHitIdx].fParticleType) {
     case 0:
-      fG4Step->SetTrack(aElectronTrack);
+      fG4Step->SetTrack(fElectronTrack);
       break;
     case 1:
-      fG4Step->SetTrack(aPositronTrack);
+      fG4Step->SetTrack(fPositronTrack);
       break;
     case 2:
-      fG4Step->SetTrack(aGammaTrack);
+      fG4Step->SetTrack(fGammaTrack);
       break;
     }
     FillG4Step(&(aScoring.fGPUHitsBuffer_host[aHitIdx]), fG4Step, fPreG4TouchableHistoryHandle,
@@ -292,10 +304,6 @@ void AdePTGeant4Integration::ProcessGPUHits(HostScoring &aScoring, HostScoring::
 
     aSensitiveDetector->Hit(fG4Step);
   }
-
-  delete fPreG4NavigationHistory;
-  delete fPostG4NavigationHistory;
-  delete fG4Step;
 }
 
 void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4NavigationHistory *aG4NavigationHistory)
