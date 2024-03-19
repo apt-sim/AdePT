@@ -20,6 +20,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(CMakeSettings) 
 include(CTest)
 include(CheckCXXSourceCompiles)
+include(CudaRdcUtils)
 
 # - Core/C++/CUDA build and dependency settings
 # For single-mode generators, default to Optimized with Debug if nothing is specified
@@ -146,20 +147,28 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTConfigurationMessenger.cc
 )
 
-add_library(CopCore INTERFACE)
-target_include_directories(CopCore
+# - Build RDC/Non-RDC libraries
+# NB: The ALIAS call after the main library MUST be here to make 
+# RDC-enabled libraries to work when installed with a NAMESPACE.
+
+# - CopCore
+cuda_rdc_add_library(CopCore INTERFACE)
+cuda_rdc_add_library(AdePT::CopCore ALIAS CopCore)
+cuda_rdc_target_include_directories(CopCore
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
 )
 
-add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
-target_include_directories(AdePT_G4_integration 
+# - AdePT_G4_integration
+cuda_rdc_add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
+cuda_rdc_target_include_directories(AdePT_G4_integration 
   PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_link_libraries(AdePT_G4_integration 
+cuda_rdc_target_link_libraries(AdePT_G4_integration 
   PUBLIC 
     CopCore
     VecGeom::vecgeom
@@ -168,14 +177,6 @@ target_link_libraries(AdePT_G4_integration
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
     G4HepEm::g4HepEmData
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
-)
-
-set_target_properties(AdePT_G4_integration
-  PROPERTIES 
-    CUDA_SEPARABLE_COMPILATION ON 
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON
 )
 
 # Optional library to activate NVTX annotations for profiling:
@@ -203,7 +204,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT_G4_integration 
+cuda_rdc_install(TARGETS CopCore AdePT_G4_integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -215,14 +216,11 @@ install(DIRECTORY include/AdePT
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-#Install the configuration file
-install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake" 
+#Install the configuration files and needed modules for downstream
+install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+  "${PROJECT_SOURCE_DIR}/cmake/CudaRdcUtils.cmake"
+  "${PROJECT_SOURCE_DIR}/cmake/FindVecGeom.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
-
-#Export the targets file
-export(TARGETS CopCore AdePT_G4_integration
-  FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
 )
 
 #Install the targets file
