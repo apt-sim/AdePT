@@ -163,19 +163,23 @@ target_link_libraries(AdePT_G4_integration
   PUBLIC 
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
-    VecGeom::vgdml
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
-)
+  PRIVATE
+    VecGeom::vecgeomcuda
+    VecGeom::vgdml
+    )
+target_link_options(AdePT_G4_integration
+  PRIVATE $<DEVICE_LINK:$<TARGET_FILE:VecGeom::vecgeomcuda_static>>)
 
 set_target_properties(AdePT_G4_integration
   PROPERTIES 
     CUDA_SEPARABLE_COMPILATION ON 
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    CUDA_RUNTIME_LIBRARY Shared
 )
 
 # Optional library to activate NVTX annotations for profiling:

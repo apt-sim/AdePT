@@ -34,17 +34,18 @@ target_include_directories(testField
 target_link_libraries(testField
   PRIVATE
     CopCore
-    VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
+    VecGeom::vecgeomcuda
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     ${G4HepEm_LIBRARIES}
-    CUDA::cudart
 )
+target_link_options(testField
+  PRIVATE $<DEVICE_LINK:$<TARGET_FILE:VecGeom::vecgeomcuda_static>>)
 set_target_properties(testField 
   PROPERTIES 
     CUDA_SEPARABLE_COMPILATION ON 
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    CUDA_RUNTIME_LIBRARY Shared
 )
 
 # Tests
