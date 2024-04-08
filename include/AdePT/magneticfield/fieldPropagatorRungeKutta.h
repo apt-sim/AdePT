@@ -24,7 +24,7 @@ public:
   static inline __host__ __device__ __host__ __device__ Real_t ComputeStepAndNextVolume(
       Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep,
       vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
-      vecgeom::NavStateIndex const &current_state, vecgeom::NavStateIndex &next_state, bool &propagated,
+      vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, bool &propagated,
       const Real_t & /*safety*/, const int max_iterations, int &iterDone, int threadId);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
@@ -192,7 +192,7 @@ inline __host__ __device__ Real_t
 fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStepAndNextVolume(
     Field_t const &magField, double kinE, double mass, int charge, double physicsStep,
     vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
-    vecgeom::NavStateIndex const &current_state, vecgeom::NavStateIndex &next_state, bool &propagated,
+    vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, bool &propagated,
     const Real_t & /*safety*/,               //  eventually In/Out ?
     const int max_iterations, int &itersDone //  useful for now - to monitor and report -- unclear if needed later
     ,

@@ -166,7 +166,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Check if there's a volume boundary in between.
     bool propagated = true;
     double geometryStepLength;
-    vecgeom::NavStateIndex nextState;
+    vecgeom::NavigationState nextState;
 
     float BzFieldValue = *gPtrBzFieldValue_dev; // Use vecgeom::Precision ?
     if (BzFieldValue != 0.0) {
@@ -191,7 +191,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       // Start Baseline reply
       vecgeom::Vector3D<Precision> positionHx  = startPosition;
       vecgeom::Vector3D<Precision> directionHx = startDirection;
-      vecgeom::NavStateIndex nextStateHx;
+      vecgeom::NavigationState nextStateHx;
       bool propagatedHx;
 
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
@@ -212,7 +212,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #define formatBool(b) ((b) ? "yes " : "no")
       constexpr Precision thresholdDiff = 3.0e-3;
       bool diffLength = false, badPosition = false, badDirection = false;
-      vecgeom::NavStateIndex &currNavState = navState;
+      vecgeom::NavigationState &currNavState = navState;
       bool sameLevel                       = nextState.GetLevel() == nextStateHx.GetLevel();
       bool sameIndex                       = nextState.GetNavIndex() == nextStateHx.GetNavIndex();
 

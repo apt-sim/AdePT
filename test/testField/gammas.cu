@@ -74,7 +74,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    vecgeom::NavStateIndex nextState;
+    vecgeom::NavigationState nextState;
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
