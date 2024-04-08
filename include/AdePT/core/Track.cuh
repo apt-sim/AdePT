@@ -9,7 +9,7 @@
 #include <AdePT/copcore/Ranluxpp.h>
 
 #include <VecGeom/base/Vector3D.h>
-#include <VecGeom/navigation/NavStateIndex.h>
+#include <VecGeom/navigation/NavigationState.h>
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
@@ -28,12 +28,12 @@ struct Track {
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
-  vecgeom::NavStateIndex navState;
+  vecgeom::NavigationState navState;
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
   __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
-                                           const vecgeom::NavStateIndex &parentNavState, double gTime)
+                                           const vecgeom::NavigationState &parentNavState, double gTime)
   {
     // The caller is responsible to branch a new RNG state and to set the energy.
     this->numIALeft[0] = -1.0;

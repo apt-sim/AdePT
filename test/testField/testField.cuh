@@ -15,7 +15,7 @@
 #include <G4HepEmRandomEngine.hh>
 
 #include <VecGeom/base/Vector3D.h>
-#include <VecGeom/navigation/NavStateIndex.h>
+#include <VecGeom/navigation/NavigationState.h>
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
@@ -30,12 +30,12 @@ struct Track {
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
-  vecgeom::NavStateIndex navState;
+  vecgeom::NavigationState navState;
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
   __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
-                                           const vecgeom::NavStateIndex &parentNavState)
+                                           const vecgeom::NavigationState &parentNavState)
   {
     // The caller is responsible to branch a new RNG state and to set the energy.
     this->numIALeft[0] = -1.0;
@@ -67,7 +67,8 @@ struct Track {
 #ifdef COPCORE_DEVICE_COMPILATION
     if (verbose) {
       auto currentLevel = navState.GetLevel();
-      auto currentIndex = navState.GetNavIndex(currentLevel);
+      // NavStateTuple doesn't implement GetNavIndex( int )
+      auto currentIndex = 0; //navState.GetNavIndex(currentLevel);
       printf("  id= %3d current: (lv= %3d  ind= %8u  bnd= %1d)  ", id, currentLevel, currentIndex,
              (int)navState.IsOnBoundary());
       printf("\n");

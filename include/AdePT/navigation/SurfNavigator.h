@@ -13,7 +13,7 @@
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
-#include <VecGeom/navigation/NavStateIndex.h>
+#include <VecGeom/navigation/NavigationState.h>
 #include <VecGeom/surfaces/Navigator.h>
 
 #ifdef VECGEOM_ENABLE_CUDA
@@ -34,14 +34,14 @@ public:
 
   // Locates the point in the geometry volume tree
   __host__ __device__ static VPlacedVolumePtr_t LocatePointIn(VPlacedVolumePtr_t vol, Vector3D const &point,
-                                                              vecgeom::NavStateIndex &path, bool top,
+                                                              vecgeom::NavigationState &path, bool top,
                                                               VPlacedVolumePtr_t exclude = nullptr)
   {
     return vgbrep::protonav::LocatePointIn(vol, point, path, top);
   }
 
   // Computes the isotropic safety from the globalpoint.
-  __host__ __device__ static Precision ComputeSafety(Vector3D const &globalpoint, vecgeom::NavStateIndex const &state)
+  __host__ __device__ static Precision ComputeSafety(Vector3D const &globalpoint, vecgeom::NavigationState const &state)
   {
     int closest_surf = 0;
     return vgbrep::protonav::ComputeSafety(globalpoint, state, closest_surf);
@@ -55,8 +55,8 @@ public:
   // The surface model does automatic relocation, so this function does it as well.
   __host__ __device__ static Precision ComputeStepAndNextVolume(Vector3D const &globalpoint, Vector3D const &globaldir,
                                                                 Precision step_limit,
-                                                                vecgeom::NavStateIndex const &in_state,
-                                                                vecgeom::NavStateIndex &out_state, Precision push = 0)
+                                                                vecgeom::NavigationState const &in_state,
+                                                                vecgeom::NavigationState &out_state, Precision push = 0)
   {
     if (step_limit <= 0) {
       in_state.CopyTo(&out_state);
@@ -75,8 +75,8 @@ public:
   // the next volume.
   __host__ __device__ static Precision ComputeStepAndPropagatedState(Vector3D const &globalpoint,
                                                                      Vector3D const &globaldir, Precision step_limit,
-                                                                     vecgeom::NavStateIndex const &in_state,
-                                                                     vecgeom::NavStateIndex &out_state,
+                                                                     vecgeom::NavigationState const &in_state,
+                                                                     vecgeom::NavigationState &out_state,
                                                                      Precision push = 0)
   {
     return ComputeStepAndNextVolume(globalpoint, globaldir, step_limit, in_state, out_state, push);
@@ -85,7 +85,7 @@ public:
   // Relocate a state that was returned from ComputeStepAndNextVolume: the surface
   // model does this computation within ComputeStepAndNextVolume, so the relocation does nothing
   __host__ __device__ static void RelocateToNextVolume(Vector3D const & /*globalpoint*/, Vector3D const & /*globaldir*/,
-                                                       vecgeom::NavStateIndex & /*state*/)
+                                                       vecgeom::NavigationState & /*state*/)
   {
   }
 };

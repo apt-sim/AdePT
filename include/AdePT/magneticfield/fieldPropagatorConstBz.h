@@ -31,8 +31,8 @@ public:
   template <class Navigator = LoopNavigator>
   __host__ __device__ Precision ComputeStepAndNextVolume(double kinE, double mass, int charge, Precision physicsStep,
                                                          Vector3D &position, Vector3D &direction,
-                                                         vecgeom::NavStateIndex const &current_state,
-                                                         vecgeom::NavStateIndex &new_state, bool &propagated,
+                                                         vecgeom::NavigationState const &current_state,
+                                                         vecgeom::NavigationState &new_state, bool &propagated,
                                                          const Precision safety = 0.0, const int max_iteration = 100);
 
 private:
@@ -86,8 +86,8 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precisio
 template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
-    vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavStateIndex const &current_state,
-    vecgeom::NavStateIndex &next_state, bool &propagated, const vecgeom::Precision safetyIn, const int max_iterations)
+    vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavigationState const &current_state,
+    vecgeom::NavigationState &next_state, bool &propagated, const vecgeom::Precision safetyIn, const int max_iterations)
 {
   using Precision = vecgeom::Precision;
 #ifdef VECGEOM_FLOAT_PRECISION
