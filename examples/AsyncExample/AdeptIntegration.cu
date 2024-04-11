@@ -359,21 +359,34 @@ __global__ void ZeroEventCounters(Stats *stats)
 /**
  * Count how many tracks are currently in flight for each event.
  */
-// TODO: Use shared mem to reduce atomic operations?
 __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
 {
-  // Count occupancy for each event
+  constexpr unsigned int N = AdeptIntegration::kMaxThreads;
+  __shared__ unsigned int sharedCount[N];
+
   for (unsigned int particleType = blockIdx.x; particleType < ParticleType::NumParticleTypes;
        particleType += gridDim.x) {
     Track const *const tracks   = tracksAndSlots.tracks[particleType];
     adept::MParray const *queue = all.queues[particleType].currentlyActive;
 
+    for (unsigned int i = threadIdx.x; i < N; i += blockDim.x)
+      sharedCount[i] = 0;
+
+    __syncthreads();
+
     const auto end = queue->size();
     for (unsigned int i = threadIdx.x; i < end; i += blockDim.x) {
       const auto slot     = (*queue)[i];
       const auto threadId = tracks[slot].threadId;
-      atomicAdd(stats->perEventInFlight + threadId, 1u);
+      atomicAdd(sharedCount + threadId, 1u);
     }
+
+    __syncthreads();
+
+    for (unsigned int i = threadIdx.x; i < N; i += blockDim.x)
+      atomicAdd(stats->perEventInFlight + i, sharedCount[i]);
+
+    __syncthreads();
   }
 }
 
