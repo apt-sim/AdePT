@@ -128,7 +128,8 @@ struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
   unsigned int usedSlots[ParticleType::NumParticleTypes];
-  unsigned int occupancy[AdeptIntegration::kMaxThreads];
+  unsigned int perEventInFlight[AdeptIntegration::kMaxThreads];
+  unsigned int perEventLeaked[AdeptIntegration::kMaxThreads];
 };
 
 struct QueueIndexPair {
@@ -159,6 +160,11 @@ struct GPUstate {
   Stats *stats{nullptr};              ///< statistics object pointer on host
 
   adeptint::unique_ptr_cuda<adept::MParrayT<QueueIndexPair>> injectionQueue{nullptr, adeptint::cudaDeleter};
+
+  enum class InjectState { Idle, CreatingSlots, ReadyToEnqueue, Enqueueing };
+  std::atomic<InjectState> injectState;
+  enum class ExtractState { Idle, FreeingSlots, ReadyToCopy, CopyToHost };
+  std::atomic<ExtractState> extractState;
   std::atomic_bool runTransport{true}; ///< Keep transport thread running
 };
 

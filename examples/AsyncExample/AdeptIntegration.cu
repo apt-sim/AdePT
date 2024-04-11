@@ -271,12 +271,12 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, adeptint::TrackData *fromDev
     }
 
     const auto trackSlot = (*leakedTracks->fLeakedQueue)[queueSlot];
+    Track const *const track = leakedTracks->fTracks + trackSlot;
 
     if (i >= maxFromDeviceBuffer) {
       // No space to transfer it out
       leakedTracks->fLeakedQueueNext->push_back(trackSlot);
     } else {
-      Track const *const track   = leakedTracks->fTracks + trackSlot;
       fromDevice[i].position[0]  = track->pos[0];
       fromDevice[i].position[1]  = track->pos[1];
       fromDevice[i].position[2]  = track->pos[2];
@@ -349,38 +349,58 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
 
 __global__ void ZeroEventCounters(Stats *stats)
 {
-  constexpr unsigned int size = sizeof(stats->occupancy) / sizeof(stats->occupancy[0]);
+  constexpr auto size = std::extent<decltype(stats->perEventInFlight)>::value;
   for (unsigned int i = threadIdx.x; i < size; i += blockDim.x) {
-    stats->occupancy[i] = 0;
+    stats->perEventInFlight[i] = 0;
+    stats->perEventLeaked[i]   = 0;
   }
 }
 
+/**
+ * Count how many tracks are currently in flight for each event.
+ */
 // TODO: Use shared mem to reduce atomic operations?
-__global__ void FillEventCounters(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
+__global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
 {
   // Count occupancy for each event
-  constexpr unsigned int NQueue = 3u;
-  for (unsigned int queueCounter = blockIdx.x; queueCounter < NQueue * ParticleType::NumParticleTypes;
-       queueCounter += gridDim.x) {
-    const auto particleType     = queueCounter / NQueue;
-    const auto queueType        = queueCounter % NQueue;
+  for (unsigned int particleType = blockIdx.x; particleType < ParticleType::NumParticleTypes;
+       particleType += gridDim.x) {
     Track const *const tracks   = tracksAndSlots.tracks[particleType];
-    adept::MParray const *queue = queueType == 0 ? all.queues[particleType].currentlyActive
-                                                 : (queueType == 1 ? all.queues[particleType].leakedTracksCurrent
-                                                                   : all.queues[particleType].leakedTracksNext);
+    adept::MParray const *queue = all.queues[particleType].currentlyActive;
 
     const auto end = queue->size();
     for (unsigned int i = threadIdx.x; i < end; i += blockDim.x) {
       const auto slot     = (*queue)[i];
       const auto threadId = tracks[slot].threadId;
-      atomicAdd(stats->occupancy + threadId, 1u);
+      atomicAdd(stats->perEventInFlight + threadId, 1u);
     }
   }
 }
 
-__global__ void ClearQueue(adept::MParray *queue)
+/**
+ * Count tracks both in the current and the future queue of leaked particles.
+ */
+__global__ void CountLeakedTracks(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
 {
-  queue->clear();
+  constexpr auto nQueue = 2 * ParticleType::NumParticleTypes;
+  for (unsigned int queueIndex = blockIdx.x; queueIndex < nQueue; queueIndex += gridDim.x) {
+    const auto particleType   = queueIndex / 2;
+    Track const *const tracks = tracksAndSlots.tracks[particleType];
+    auto const queue = queueIndex < ParticleType::NumParticleTypes ? all.queues[particleType].leakedTracksCurrent
+                                                                   : all.queues[particleType].leakedTracksNext;
+    const auto end   = queue->size();
+    for (unsigned int i = threadIdx.x; i < end; i += blockDim.x) {
+      const auto slot     = (*queue)[i];
+      const auto threadId = tracks[slot].threadId;
+      atomicAdd(stats->perEventLeaked + threadId, 1u);
+    }
+  }
+}
+
+template <typename... Args>
+__global__ void ClearQueues(Args *...queue)
+{
+  (queue->clear(), ...);
 }
 
 __global__ void ClearAllQueues(AllParticleQueues all)
@@ -615,9 +635,44 @@ void AdeptIntegration::FreeGPU()
   AdeptIntegration::fg4hepem_state = nullptr;
 }
 
+void AdeptIntegration::ReturnTracksToG4()
+{
+  using TrackData                      = adeptint::TrackData;
+  const auto &fromDevice               = fGPUstate->fromDevice_host.get();
+  TrackData const *const fromDeviceEnd = fromDevice + *fGPUstate->nFromDevice;
+  std::scoped_lock lock{fBuffer->fromDeviceMutex};
+
+  for (TrackData *trackIt = fromDevice; trackIt < fromDeviceEnd; ++trackIt) {
+    assert(0 <= trackIt->threadId && trackIt->threadId <= fNThread);
+    fBuffer->fromDeviceBuffers[trackIt->threadId].push_back(*trackIt);
+  }
+
+  AdvanceEventStates(EventState::SecondFlush, EventState::DeviceFlushed);
+  fGPUstate->extractState = GPUstate::ExtractState::Idle;
+
+#ifndef NDEBUG
+  for (const auto &trackBuffer : fBuffer->fromDeviceBuffers) {
+    if (trackBuffer.empty()) continue;
+    const auto eventId = trackBuffer.front().eventId;
+    assert(std::all_of(trackBuffer.begin(), trackBuffer.end(),
+                       [eventId](const TrackData &track) { return eventId == track.eventId; }));
+  }
+#endif
+}
+
+void AdeptIntegration::AdvanceEventStates(EventState oldState, EventState newState)
+{
+  for (auto &eventState : fEventStates) {
+    EventState expected = oldState;
+    eventState.compare_exchange_strong(expected, newState, std::memory_order_release, std::memory_order_relaxed);
+  }
+}
+
 void AdeptIntegration::TransportLoop()
 {
   using TrackData = adeptint::TrackData;
+  using InjectState  = GPUstate::InjectState;
+  using ExtractState = GPUstate::ExtractState;
   // Capacity of the different containers aka the maximum number of particles.
   auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
@@ -647,8 +702,6 @@ void AdeptIntegration::TransportLoop()
     COPCORE_CUDA_CHECK(cudaStreamWaitEvent(waitingStream, cudaEvent));
   };
 
-  enum class TransferState { Idle, ToDevice, Enqueued, CollectOnDevice, CopyToHost, BackOnHost };
-
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
     constexpr int TransportThreads             = 256;
     constexpr int LowOccupancyTransportThreads = 32;
@@ -666,10 +719,11 @@ void AdeptIntegration::TransportLoop()
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(slotMgrArray, ParticleType::NumParticleTypes);
     COPCORE_CUDA_CHECK(cudaMemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
 
-    int inFlight          = 0;
-    int loopingNo         = 0;
+    int inFlight                                                   = 0;
+    unsigned int numLeaked                                         = 0;
+    unsigned int particlesInFlight[ParticleType::NumParticleTypes] = {1, 1, 1};
+    int loopingNo                                                  = 0;
     int previousElectrons = -1, previousPositrons = -1;
-    TransferState transferState = TransferState::Idle;
 
     auto needTransport = [](std::atomic<EventState> const &state) {
       return state.load(std::memory_order_acquire) < EventState::LeakedTracksRetrieved;
@@ -686,8 +740,9 @@ void AdeptIntegration::TransportLoop()
 
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
-    for (unsigned int iteration = 0; inFlight > 0 || transferState != TransferState::Idle ||
-                                     std::any_of(fEventStates.begin(), fEventStates.end(), needTransport);
+    for (unsigned int iteration = 0;
+         inFlight > 0 || gpuState.injectState != InjectState::Idle || gpuState.extractState != ExtractState::Idle ||
+         std::any_of(fEventStates.begin(), fEventStates.end(), needTransport);
          ++iteration) {
 
       // Swap the queues for the next iteration.
@@ -704,79 +759,25 @@ void AdeptIntegration::TransportLoop()
       const TracksAndSlots tracksAndSlots       = {{electrons.tracks, positrons.tracks, gammas.tracks},
                                                    {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
 
-      const auto prevNumElectrons = gpuState.stats->inFlight[ParticleType::Electron];
-      const auto prevNumPositrons = gpuState.stats->inFlight[ParticleType::Positron];
-      const auto prevNumGammas    = gpuState.stats->inFlight[ParticleType::Gamma];
-
-      // *** ELECTRONS ***
-      {
-        const auto [threads, blocks] = computeThreadsAndBlocks(prevNumElectrons);
-        TransportElectrons<AdeptScoring><<<blocks, threads, 0, electrons.stream>>>(
-            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, fScoring_dev);
-
-        COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
-      }
-
-      // *** POSITRONS ***
-      {
-        const auto [threads, blocks] = computeThreadsAndBlocks(prevNumPositrons);
-        TransportPositrons<AdeptScoring><<<blocks, threads, 0, positrons.stream>>>(
-            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.leakedTracksCurrent, fScoring_dev);
-
-        COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
-      }
-
-      // *** GAMMAS ***
-      {
-        const auto [threads, blocks] = computeThreadsAndBlocks(prevNumGammas);
-        TransportGammas<AdeptScoring><<<blocks, threads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, fScoring_dev, gpuState.gammaInteractions);
-
-        // COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
-        // COPCORE_CUDA_CHECK(cudaStreamWaitEvent(interactionStream, gammas.event, 0));
-
-        constexpr unsigned int intThreads = 128;
-        ApplyGammaInteractions<AdeptScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
-            gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
-
-        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
-        // COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, interactionStream));
-        // COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
-      }
-
-      // *** Count detailed event statistics ***
-      {
-        ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
-        FillEventCounters<<<3 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
-            allParticleQueues, gpuState.stats_dev, tracksAndSlots);
-        waitForOtherStream(gpuState.stream, statsStream);
-
-        COPCORE_CUDA_CHECK(
-            cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, statsStream));
-        COPCORE_CUDA_CHECK(cudaEventRecord(cudaStatsEvent, statsStream));
-      }
-
-      // *** Inject particles ***
-      if (transferState == TransferState::Idle) {
-        if (auto &toDevice = fBuffer->getActiveBuffer(); toDevice.nTrack > 0) {
-          transferState = TransferState::ToDevice;
-
-          std::vector<unsigned int> threadsInFlushState;
-          for (unsigned int tid = 0; tid < fEventStates.size(); ++tid) {
-            if (fEventStates[tid].load(std::memory_order_acquire) == EventState::G4Flush) {
-              threadsInFlushState.push_back(tid);
-            }
+      // --------------------------
+      // *** Particle injection ***
+      // --------------------------
+      if (gpuState.injectState == InjectState::Idle) {
+        for (auto &eventState : fEventStates) {
+          if (const auto state = eventState.load(std::memory_order_acquire); state == EventState::G4RequestsFlush) {
+            eventState = EventState::Inject;
+          } else if (state == EventState::Inject) {
+            eventState = EventState::InjectionCompleted;
           }
+        }
+
+        if (auto &toDevice = fBuffer->getActiveBuffer(); toDevice.nTrack > 0) {
+          gpuState.injectState = InjectState::CreatingSlots;
 
           fBuffer->swapToDeviceBuffers();
           std::scoped_lock lock{toDevice.mutex};
           const auto nInject = std::min(toDevice.nTrack.load(), toDevice.maxTracks);
+          toDevice.nTrack    = 0;
 
           if (fDebugLevel > 3) std::cout << "Injecting " << nInject << " to GPU\n";
 
@@ -793,48 +794,117 @@ void AdeptIntegration::TransportLoop()
           InjectTracks<<<injectBlocks, injectThreads, 0, transferStream>>>(gpuState.toDevice_dev.get(), nInject,
                                                                            secondaries, world_dev, fScoring_dev,
                                                                            gpuState.injectionQueue.get());
-          std::set<unsigned int> threadIdsInjected;
-          for (unsigned int i = 0; i < nInject; ++i) {
-            threadIdsInjected.insert(toDevice.tracks[i].threadId);
-          }
-          for (auto threadInFlush : threadsInFlushState) {
-            if (threadIdsInjected.count(threadInFlush) == 0) {
-              fEventStates[threadInFlush] = EventState::InFlight;
-            }
-          }
+          COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+              transferStream,
+              [](void *arg) { (*static_cast<decltype(GPUstate::injectState) *>(arg)) = InjectState::ReadyToEnqueue; },
+              &gpuState.injectState));
 
           // Ensure that copy operation completed before releasing lock on to-device buffer
-          toDevice.nTrack = 0;
           COPCORE_CUDA_CHECK(cudaEventSynchronize(cudaEvent));
         } else {
-          transferState = TransferState::Enqueued;
-          // Advance event state since nothing to inject
-          for (auto &eventState : fEventStates) {
-            EventState expected = EventState::G4Flush;
-            eventState.compare_exchange_strong(expected, EventState::InFlight, std::memory_order_relaxed,
-                                               std::memory_order_relaxed);
-          }
+          gpuState.injectState = InjectState::Idle;
         }
-      } else if (transferState == TransferState::ToDevice && cudaStreamQuery(transferStream) == cudaSuccess) {
-        transferState = TransferState::Enqueued;
-        EnqueueTracks<<<1, 256, 0, gpuState.stream>>>(allParticleQueues, gpuState.injectionQueue.get());
       }
 
+      // *** Enqueue particles that are ready on the device ***
+      if (gpuState.injectState == InjectState::ReadyToEnqueue) {
+        gpuState.injectState = InjectState::Enqueueing;
+        EnqueueTracks<<<1, 256, 0, gpuState.stream>>>(allParticleQueues, gpuState.injectionQueue.get());
+        // New injection has to wait until particles are enqueued:
+        waitForOtherStream(transferStream, gpuState.stream);
+      } else if (gpuState.injectState == InjectState::Enqueueing) {
+        gpuState.injectState = InjectState::Idle;
+      }
+
+      // ------------------
+      // *** Transport ***
+      // ------------------
+
+      // *** ELECTRONS ***
+      {
+        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
+        TransportElectrons<AdeptScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+            electrons.queues.leakedTracksCurrent, fScoring_dev);
+
+        COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
+      }
+
+      // *** POSITRONS ***
+      {
+        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
+        TransportPositrons<AdeptScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
+            positrons.queues.leakedTracksCurrent, fScoring_dev);
+
+        COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
+      }
+
+      // *** GAMMAS ***
+      {
+        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
+        TransportGammas<AdeptScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
+            gammas.queues.leakedTracksCurrent, fScoring_dev, gpuState.gammaInteractions);
+
+        constexpr unsigned int intThreads = 128;
+        ApplyGammaInteractions<AdeptScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
+            gammas.tracks, secondaries, gammas.queues.nextActive, fScoring_dev, gpuState.gammaInteractions);
+
+        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
+      }
+
+      // ---------------------------------------
+      // *** Count detailed event statistics ***
+      // ---------------------------------------
+      const bool prepareDeviceStats = true || iteration % 5 == 4 || fDebugLevel >= 3;
+      if (prepareDeviceStats) {
+        AdvanceEventStates(EventState::Transporting, EventState::WaitingForTransportToFinish);
+        AdvanceEventStates(EventState::InjectionCompleted, EventState::Transporting);
+
+        // Reset all counters count the currently flying population
+        ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
+        CountCurrentPopulation<<<ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
+            allParticleQueues, gpuState.stats_dev, tracksAndSlots);
+        // Count leaked tracks. Note that new tracks might be added while/after we count:
+        CountLeakedTracks<<<2 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
+            allParticleQueues, gpuState.stats_dev, tracksAndSlots);
+
+        waitForOtherStream(gpuState.stream, statsStream);
+
+        // Get results to host:
+        COPCORE_CUDA_CHECK(
+            cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, statsStream));
+        COPCORE_CUDA_CHECK(cudaEventRecord(cudaStatsEvent, statsStream));
+      }
+
+      // -------------------------
       // *** Collect particles ***
-      if (transferState == TransferState::Enqueued) {
-        transferState             = TransferState::CollectOnDevice;
+      // -------------------------
+
+      if (gpuState.extractState == ExtractState::Idle &&
+          std::any_of(fEventStates.begin(), fEventStates.end(), [](const auto &eventState) {
+            const auto state = eventState.load(std::memory_order_acquire);
+            return EventState::NeedDeviceFlush <= state && state < EventState::DeviceFlushed;
+          })) {
+        gpuState.extractState = ExtractState::FreeingSlots;
+
+        // There is two device buffers, which might both need to be flushed
+        AdvanceEventStates(EventState::FirstFlush, EventState::SecondFlush);
+        AdvanceEventStates(EventState::NeedDeviceFlush, EventState::FirstFlush);
+
         const AllLeaked allLeaked = {.leakedElectrons = {electrons.tracks, electrons.queues.leakedTracksCurrent,
                                                          electrons.queues.leakedTracksNext, electrons.slotManager},
                                      .leakedPositrons = {positrons.tracks, positrons.queues.leakedTracksCurrent,
                                                          positrons.queues.leakedTracksNext, positrons.slotManager},
                                      .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracksCurrent,
                                                          gammas.queues.leakedTracksNext, gammas.slotManager}};
-        electrons.queues.SwapLeakedQueue();
-        positrons.queues.SwapLeakedQueue();
-        gammas.queues.SwapLeakedQueue();
 
         // Ensure that transport that's writing to the old queues finishes before collecting leaked tracks
-        for (auto event : {electrons.event, positrons.event, gammas.event}) {
+        for (auto const &event : {electrons.event, positrons.event, gammas.event}) {
           COPCORE_CUDA_CHECK(cudaStreamWaitEvent(transferStream, event));
         }
 
@@ -845,91 +915,106 @@ void AdeptIntegration::TransportLoop()
                                                                            gpuState.fNumFromDevice);
         COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(gpuState.nFromDevice.get(), nFromDevice_dev, sizeof(unsigned int),
                                                      0, cudaMemcpyDeviceToHost, transferStream));
-        ClearQueue<<<1, 1, 0, transferStream>>>(electrons.queues.leakedTracksNext);
-        ClearQueue<<<1, 1, 0, transferStream>>>(positrons.queues.leakedTracksNext);
-        ClearQueue<<<1, 1, 0, transferStream>>>(gammas.queues.leakedTracksNext);
-        // waitForOtherStream(gpuState.stream, transferStream);
-      } else if (transferState == TransferState::CollectOnDevice && cudaStreamQuery(transferStream) == cudaSuccess) {
-        transferState = TransferState::CopyToHost;
-        if (*gpuState.nFromDevice > 0) {
-          COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.fromDevice_host.get(), gpuState.fromDevice_dev.get(),
-                                             (*gpuState.nFromDevice) * sizeof(TrackData), cudaMemcpyDeviceToHost,
-                                             transferStream));
-        } else {
-          transferState = TransferState::BackOnHost;
-        }
+        COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+            transferStream,
+            [](void *arg) { (*static_cast<decltype(GPUstate::extractState) *>(arg)) = ExtractState::ReadyToCopy; },
+            &gpuState.extractState));
+        ClearQueues<<<1, 1, 0, transferStream>>>(electrons.queues.leakedTracksCurrent,
+                                                 positrons.queues.leakedTracksCurrent,
+                                                 gammas.queues.leakedTracksCurrent);
 
-        // Freeing of slots has to run exclusively
-        FreeSlots<<<ParticleType::NumParticleTypes, 256, 0, gpuState.stream>>>(tracksAndSlots);
-        waitForOtherStream(transferStream, gpuState.stream);
-      } else if (transferState == TransferState::CopyToHost && cudaStreamQuery(transferStream) == cudaSuccess) {
-        transferState = TransferState::BackOnHost;
-        std::scoped_lock lock{fBuffer->fromDeviceMutex};
-
-        for (TrackData *trackIt = gpuState.fromDevice_host.get();
-             trackIt < gpuState.fromDevice_host.get() + (*gpuState.nFromDevice); ++trackIt) {
-          assert(0 <= trackIt->threadId && trackIt->threadId <= fNThread);
-          fBuffer->fromDeviceBuffers[trackIt->threadId].push_back(*trackIt);
-        }
-#ifndef NDEBUG
-        for (const auto &trackBuffer : fBuffer->fromDeviceBuffers) {
-          if (trackBuffer.empty()) continue;
-          const auto eventId = trackBuffer.front().eventId;
-          assert(std::all_of(trackBuffer.begin(), trackBuffer.end(),
-                             [eventId](const TrackData &track) { return eventId == track.eventId; }));
-        }
-#endif
+        electrons.queues.SwapLeakedQueue();
+        positrons.queues.SwapLeakedQueue();
+        gammas.queues.SwapLeakedQueue();
       }
 
+      if (gpuState.extractState == ExtractState::ReadyToCopy) {
+        gpuState.extractState = ExtractState::CopyToHost;
+        COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.fromDevice_host.get(), gpuState.fromDevice_dev.get(),
+                                           (*gpuState.nFromDevice) * sizeof(TrackData), cudaMemcpyDeviceToHost,
+                                           transferStream));
+        COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+            transferStream, [](void *thisPtr) { static_cast<AdeptIntegration *>(thisPtr)->ReturnTracksToG4(); }, this));
+      }
+
+      // -------------------------
       // *** Finish iteration ***
+      // -------------------------
+
+      // This kernel needs to wait that all of the above work (except for asynchronous particle transfer) is done.
+      // Don't forget to synchronise any of the transport or event counting with it.
       FinishIteration<<<4, 32, 0, gpuState.stream>>>(allParticleQueues, gpuState.stats_dev, tracksAndSlots,
                                                      gpuState.gammaInteractions);
+
+      // Free slots if one of the queues is half full
+      if (gpuState.injectState != InjectState::CreatingSlots &&
+          (std::any_of(std::cbegin(gpuState.stats->usedSlots), std::cend(gpuState.stats->usedSlots),
+                       [this](unsigned int capacity) { return capacity >= fTrackCapacity / 2; }) ||
+           iteration % 100 == 0)) {
+        // Freeing of slots has to run exclusively
+        waitForOtherStream(gpuState.stream, transferStream);
+        FreeSlots<<<ParticleType::NumParticleTypes, 256, 0, gpuState.stream>>>(tracksAndSlots);
+        waitForOtherStream(transferStream, gpuState.stream);
+      }
+
+      // *** Synchronise all but transfer stream with the end of this iteration ***
       COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, gpuState.stream));
       for (auto stream : {electrons.stream, positrons.stream, gammas.stream, statsStream}) {
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, cudaEvent));
       }
 
+      // ------------------------------------------
+      // *** Take decisions for next iterations ***
+      // ------------------------------------------
+
       // *** Count particles in flight ***
-      inFlight               = 0;
-      unsigned int numLeaked = 0;
-      // Wait for arrival of device statistics from previous iteration
-      COPCORE_CUDA_CHECK(cudaEventSynchronize(cudaStatsEvent));
-      for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-        inFlight += gpuState.stats->inFlight[i];
-        numLeaked += gpuState.stats->leakedTracks[i];
-      }
+      if (prepareDeviceStats) {
+        inFlight  = 0;
+        numLeaked = 0;
+        COPCORE_CUDA_CHECK(cudaEventSynchronize(cudaStatsEvent));
+        for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+          inFlight += gpuState.stats->inFlight[i];
+          numLeaked += gpuState.stats->leakedTracks[i];
+          particlesInFlight[i] = gpuState.stats->inFlight[i];
+        }
 
-      if (transferState == TransferState::BackOnHost) {
-        transferState = TransferState::Idle;
-
-        // Notify G4 workers if their events completed
-        bool eventCompleted = false;
         for (unsigned short threadId = 0; threadId < fNThread; ++threadId) {
-          if (gpuState.stats->occupancy[threadId] == 0) {
-            EventState expected = EventState::InFlight;
-            eventCompleted |= fEventStates[threadId].compare_exchange_strong(
-                expected, EventState::DeviceFlushed, std::memory_order_relaxed, std::memory_order_relaxed);
+          const auto state = fEventStates[threadId].load(std::memory_order_acquire);
+          if (state == EventState::WaitingForTransportToFinish && gpuState.stats->perEventInFlight[threadId] == 0) {
+            fEventStates[threadId] = EventState::NeedDeviceFlush;
+          }
+          if (EventState::NeedDeviceFlush <= state && state < EventState::LeakedTracksRetrieved &&
+              gpuState.stats->perEventInFlight[threadId] != 0) {
+            std::cerr << "ERROR thread " << threadId << " is in state " << static_cast<unsigned int>(state)
+                      << " and occupancy is " << gpuState.stats->perEventInFlight[threadId] << "\n";
           }
         }
-        if (eventCompleted) {
-          fBuffer->cv_fromDevice.notify_all();
-        }
+      }
+
+      // *** Notify G4 workers if their events completed ***
+      if (std::any_of(fEventStates.begin(), fEventStates.end(),
+                      [](const EventState &state) { return state == EventState::DeviceFlushed; })) {
+        fBuffer->cv_fromDevice.notify_all();
       }
 
       if (fDebugLevel >= 3) {
         std::cerr << inFlight << " in flight ";
+        std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
+                  << gpuState.stats->inFlight[ParticleType::Positron] << " "
+                  << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tSlots:("
+                  << gpuState.stats->usedSlots[ParticleType::Electron] << " "
+                  << gpuState.stats->usedSlots[ParticleType::Positron] << " "
+                  << gpuState.stats->usedSlots[ParticleType::Gamma] << ")";
+        std::cerr << ", " << numLeaked << " leaked."
+                  << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
+                  << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load());
         if (fDebugLevel >= 4) {
-          std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
-                    << gpuState.stats->inFlight[ParticleType::Positron] << " "
-                    << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tSlots:("
-                    << gpuState.stats->usedSlots[ParticleType::Electron] << " "
-                    << gpuState.stats->usedSlots[ParticleType::Positron] << " "
-                    << gpuState.stats->usedSlots[ParticleType::Gamma] << ")";
-        }
-        std::cerr << ", " << numLeaked << " leaked.\n\tper event: ";
-        for (unsigned int i = 0; i < fNThread; ++i) {
-          std::cerr << i << ": " << gpuState.stats->occupancy[i]
-                    << " (s=" << static_cast<unsigned short>(fEventStates[i].load(std::memory_order_acquire)) << ")\t";
+          std::cerr << "\n\tper event: ";
+          for (unsigned int i = 0; i < fNThread; ++i) {
+            std::cerr << i << ": " << gpuState.stats->perEventInFlight[i]
+                      << " (s=" << static_cast<unsigned short>(fEventStates[i].load(std::memory_order_acquire))
+                      << ")\t";
+          }
         }
         std::cerr << std::endl;
       }
@@ -948,9 +1033,9 @@ void AdeptIntegration::TransportLoop()
 
 #ifndef NDEBUG
       // *** Check slots ***
-      if (transferState == TransferState::Idle || transferState >= TransferState::CopyToHost) {
+      if (gpuState.injectState != InjectState::CreatingSlots && gpuState.extractState != ExtractState::FreeingSlots) {
         AssertConsistencyOfSlotManagers<<<120, 256, 0, gpuState.stream>>>(slotMgrArray, ParticleType::NumParticleTypes);
-        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+        COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
       }
 
 #if false
