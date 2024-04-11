@@ -74,7 +74,8 @@ target_link_libraries(AsyncExample
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
     CUDA::cudart
-    ${HEPMC3_LIBRARIES} ${HEPMC3_FIO_LIBRARIES})
+    ${HEPMC3_LIBRARIES} ${HEPMC3_FIO_LIBRARIES}
+    NVTX)
 
 set_target_properties(AsyncExample PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
