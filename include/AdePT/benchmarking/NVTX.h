@@ -37,7 +37,7 @@ public:
     _name = name;
 
     if (!first) nvtxRangeEnd(_id);
-    nvtxEventAttributes_t eventAttrib = {0};
+    nvtxEventAttributes_t eventAttrib;
     eventAttrib.version               = NVTX_VERSION;
     eventAttrib.size                  = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
     eventAttrib.colorType             = NVTX_COLOR_ARGB;
@@ -51,8 +51,8 @@ public:
   {
     // Require the occupancy to be larger than the majority of previous iterations to call it rising
     const bool rising = 2 * std::count_if(_lastOccups.begin(), _lastOccups.end(),
-                                          [occupancy](auto elm) { return occupancy > elm + 1; }) >
-                        _lastOccups.size();
+                                          [occupancy](auto const elm) { return occupancy > elm + 1; }) >
+                        static_cast<ptrdiff_t>(_lastOccups.size());
 
     if (rising) {
       setTag("occupancy rising");
