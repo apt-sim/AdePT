@@ -40,6 +40,8 @@
 #include "electrons.cuh"
 #include "gammas.cuh"
 
+#include <AdePT/NVTX.h>
+
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
@@ -683,6 +685,8 @@ void AdeptIntegration::AdvanceEventStates(EventState oldState, EventState newSta
 
 void AdeptIntegration::TransportLoop()
 {
+  NVTXTracer tracer{"TransportLoop"};
+
   using TrackData = adeptint::TrackData;
   using InjectState  = GPUstate::InjectState;
   using ExtractState = GPUstate::ExtractState;
@@ -729,6 +733,7 @@ void AdeptIntegration::TransportLoop()
 
   SlotManager *const slotMgrArray = gpuState.particles[0].slotManager;
   while (gpuState.runTransport) {
+    NVTXTracer nvtx1{"Setup"}, nvtx2{"Setup2"};
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(slotMgrArray, ParticleType::NumParticleTypes);
     COPCORE_CUDA_CHECK(cudaMemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
 
@@ -753,10 +758,30 @@ void AdeptIntegration::TransportLoop()
 
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
+#ifdef USE_NVTX
+    std::map<AdeptIntegration::EventState, std::string> stateMap{
+        {EventState::NewTracksFromG4, "NewTracksFromG4"},
+        {EventState::G4RequestsFlush, "G4RequestsFlush"},
+        {EventState::Inject, "Inject"},
+        {EventState::InjectionCompleted, "InjectionCompleted"},
+        {EventState::Transporting, "Transporting"},
+        {EventState::WaitingForTransportToFinish, "WaitingForTransportToFinish"},
+        {EventState::NeedDeviceFlush, "NeedDeviceFlush"},
+        {EventState::FirstFlush, "FirstFlush"},
+        {EventState::SecondFlush, "SecondFlush"},
+        {EventState::DeviceFlushed, "DeviceFlushed"},
+        {EventState::LeakedTracksRetrieved, "LeakedTracksRetrieved"},
+        {EventState::ScoringRetrieved, "ScoringRetrieved"}};
+#endif
+
     for (unsigned int iteration = 0;
          inFlight > 0 || gpuState.injectState != InjectState::Idle || gpuState.extractState != ExtractState::Idle ||
          std::any_of(fEventStates.begin(), fEventStates.end(), needTransport);
          ++iteration) {
+#ifdef USE_NVTX
+      nvtx1.setTag(stateMap[fEventStates[0].load()].data());
+      nvtx2.setTag(stateMap[fEventStates[1].load()].data());
+#endif
 
       // Swap the queues for the next iteration.
       electrons.queues.SwapActive();
