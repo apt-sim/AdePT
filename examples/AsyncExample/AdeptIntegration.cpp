@@ -151,7 +151,7 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycle
   }
 
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
-  fEventStates[threadId].store(EventState::G4Flush, std::memory_order_release);
+  fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
 
   std::vector<adeptint::TrackData> tracks;
   if (fEventStates[threadId].load(std::memory_order_acquire) < EventState::LeakedTracksRetrieved) {

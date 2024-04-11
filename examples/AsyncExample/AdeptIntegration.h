@@ -69,8 +69,14 @@ private:
   std::thread fGPUWorker;                                             ///< Thread to manage GPU
   enum class EventState : unsigned char {
     NewTracksFromG4,
-    G4Flush,
-    InFlight,
+    G4RequestsFlush,
+    Inject,
+    InjectionCompleted,
+    Transporting,
+    WaitingForTransportToFinish,
+    NeedDeviceFlush,
+    FirstFlush,
+    SecondFlush,
     DeviceFlushed,
     LeakedTracksRetrieved,
     ScoringRetrieved
@@ -87,6 +93,8 @@ private:
   void FreeGPU();
   /// @brief Asynchronous loop for transporting particles on GPU.
   void TransportLoop();
+  void ReturnTracksToG4();
+  void AdvanceEventStates(EventState oldState, EventState newState);
 
 public:
   AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int bufferThreshold, int debugLevel,
