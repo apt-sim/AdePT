@@ -9,13 +9,13 @@
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
-#include <AdePT/Atomic.h>
-#include <AdePT/BVHNavigator.h>
-#include <AdePT/MParray.h>
+#include <AdePT/base/Atomic.h>
+#include <AdePT/navigation/BVHNavigator.h>
+#include <AdePT/base/MParray.h>
 
-#include <CopCore/Global.h>
-#include <CopCore/PhysicalConstants.h>
-#include <CopCore/Ranluxpp.h>
+#include <AdePT/copcore/Global.h>
+#include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/copcore/Ranluxpp.h>
 
 #include <G4Threading.hh>
 #include <G4TransportationManager.hh>
@@ -40,7 +40,7 @@
 #include "electrons.cuh"
 #include "gammas.cuh"
 
-#include <AdePT/NVTX.h>
+#include <AdePT/benchmarking/NVTX.h>
 
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
