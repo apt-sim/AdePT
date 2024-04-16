@@ -443,3 +443,4 @@ __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Second
 {
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, secondaries, leakedQueue, userScoring, auxDataArray);
 }
+

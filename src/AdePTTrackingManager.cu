@@ -8,3 +8,4 @@
 namespace adept_impl {
     template void ShowerGPU<AdePTGeant4Integration>(AdePTGeant4Integration&, int, adeptint::TrackBuffer&, GPUstate&, HostScoring*, HostScoring*);
 }
+
