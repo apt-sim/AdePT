@@ -170,6 +170,7 @@ target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
+    CUDA::cudart
 )
 
 set_target_properties(AdePT_G4_integration
