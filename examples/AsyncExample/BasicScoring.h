@@ -4,8 +4,8 @@
 #ifndef SCORING_H
 #define SCORING_H
 
-#include <CopCore/Global.h>
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/Global.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 #include "CommonStruct.h"
 

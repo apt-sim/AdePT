@@ -3,9 +3,9 @@
 
 #include "AdeptIntegration.cuh"
 
-#include <AdePT/BVHNavigator.h>
+#include <AdePT/navigation/BVHNavigator.h>
 
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 #include <G4HepEmGammaManager.hh>
 #include <G4HepEmGammaTrack.hh>
