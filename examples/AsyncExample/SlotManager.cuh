@@ -3,7 +3,7 @@
 #ifndef SLOTMANAGER_CUH
 #define SLOTMANAGER_CUH
 
-#include "CopCore/Global.h"
+#include "AdePT/copcore/Global.h"
 
 // A data structure to manage slots in the track storage.
 // It manages two lists:

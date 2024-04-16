@@ -29,7 +29,7 @@
 #define EMSHOWERMODEL_HH
 
 #include "G4VFastSimulationModel.hh"
-#include <CopCore/SystemOfUnits.h>
+#include <AdePT/copcore/SystemOfUnits.h>
 #include "AdeptIntegration.h"
 
 #include <G4HepEmData.hh>
