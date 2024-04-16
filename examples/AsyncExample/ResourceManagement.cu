@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "ResourceManagement.h"
 
-#include "CopCore/Global.h"
+#include "AdePT/copcore/Global.h"
 
 namespace adeptint {
 

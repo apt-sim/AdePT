@@ -63,16 +63,7 @@ target_include_directories(AsyncExample PRIVATE ${PROJECT_SOURCE_DIR}/examples/A
 
 target_link_libraries(AsyncExample
   PRIVATE
-    AdePT
-    CopCore::CopCore
-    VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
-    VecGeom::vgdml
-    ${Geant4_LIBRARIES}
-    G4HepEm::g4HepEm
-    G4HepEm::g4HepEmData
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
+    AdePT_G4_integration
     CUDA::cudart
     ${HEPMC3_LIBRARIES} ${HEPMC3_FIO_LIBRARIES}
     NVTX)
@@ -81,13 +72,6 @@ set_target_properties(AsyncExample PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA
 
 target_compile_options(AsyncExample PRIVATE -Wall -Wextra)
 # g4HepEm headers generate warnings, so declare them as system headers:
-get_target_property(G4HepIncs g4HepEmRun INTERFACE_INCLUDE_DIRECTORIES)
-target_include_directories(g4HepEmRun SYSTEM INTERFACE ${G4HepIncs})
-
-target_compile_options(example21 PRIVATE -Wall -Wextra)
-# g4HepEm headers generate warnings, so declare them as system headers:
-get_target_property(G4HepIncs g4HepEmRun INTERFACE_INCLUDE_DIRECTORIES)
-target_include_directories(g4HepEmRun SYSTEM INTERFACE ${G4HepIncs})
 
 # Install macros and geometry file
 

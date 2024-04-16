@@ -4,8 +4,8 @@
 #include "BasicScoring.h"
 #include "AdeptIntegration.h"
 
-#include <CopCore/Global.h>
-#include <CopCore/PhysicalConstants.h>
+#include <AdePT/copcore/Global.h>
+#include <AdePT/copcore/PhysicalConstants.h>
 
 #include "Track.cuh" // not nice - we expose the track model here, interface of DepositEnergy to be changed
 
