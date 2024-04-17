@@ -130,15 +130,14 @@
 ## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
 /adeptint/event/verbose 2
 
-/adeptint/gun/setDefault
+/gun/setDefault
 /gun/particle e-
 /gun/energy 10 GeV
 /gun/number 200
 /gun/position 0 0 0
-/adeptint/gun/rndmDir 1.0
-# Uncomment to randomise the particles shot:
-#/adeptint/gun/particle e- gamma proton pi0 pi+ pi-
-#/adeptint/gun/print
+/gun/randomizeGun false
+/gun/addParticle e- weight 1 energy 10 GeV
+/gun/print false
 
 ##
 ## -----------------------------------------------------------------------------
