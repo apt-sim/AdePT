@@ -38,6 +38,7 @@ public:
   void ReWeight();
 
 private:
+  long fInitialSeed  = 0;
   G4double fPrintGun = 0.;
   // Gun randomization
   bool fRandomizeGun = false;
