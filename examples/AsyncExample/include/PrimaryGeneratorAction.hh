@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 //
 // ********************************************************************
@@ -29,12 +29,10 @@
 #define PRIMARYGENERATORACTION_HH
 
 #include "G4VUserPrimaryGeneratorAction.hh"
-#include "G4ParticleGun.hh"
 #include "ParticleGun.hh"
 #include "globals.hh"
 
 class G4Event;
-class DetectorConstruction;
 class PrimaryGeneratorMessenger;
 
 /**
@@ -47,54 +45,15 @@ class PrimaryGeneratorMessenger;
 
 class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction {
 public:
-  PrimaryGeneratorAction(DetectorConstruction *);
-  virtual ~PrimaryGeneratorAction();
-
-  void Print() const;
-  void PrintPrimaries(G4Event* aEvent) const;
-  void SetHepMC() {fUseHepMC = true;}
-  void SetDefaultKinematic();
-  void SetRndmBeam(G4double val) { fRndmBeam = val; }
-  void SetRndmDirection(G4double val) { fRndmDirection = val; }
-  void SetRandomizeGun(G4bool val) { fRandomizeGun = val; }
-  void AddParticle(G4ParticleDefinition* val, float weight=-1, double energy=-1);
-  void SetMinPhi(G4double val) { fMinPhi = val; }
-  void SetMaxPhi(G4double val) { fMaxPhi = val; }
-  void SetMinTheta(G4double val) { fMinTheta = val; }
-  void SetMaxTheta(G4double val) { fMaxTheta = val; }
-  /** @brief Checks that the user-provided weights sum to 1 or less, distributes the remaining weight
-   * among the particles with undefined weight.
-   */
-  void ReWeight();
-
-  void SetPrintGun(G4double val) { fPrintGun = val; }
-
-  virtual void GeneratePrimaries(G4Event *) final;
+  PrimaryGeneratorAction() : G4VUserPrimaryGeneratorAction(), fParticleGun{new ParticleGun()} {}
+  virtual ~PrimaryGeneratorAction() = default;
+  virtual void GeneratePrimaries(G4Event * aEvent) final {
+    fParticleGun->GeneratePrimaries(aEvent);
+  }
 
 private:
   /// Particle gun
-  ParticleGun *fParticleGun;
-  DetectorConstruction *fDetector;
-  G4double fRndmBeam; // lateral random beam extension in fraction sizeYZ/2
-  G4double fRndmDirection;
-  G4double fPrintGun = false;
-
-  // HepMC3 reader
-  G4VPrimaryGenerator *fHepmcAscii = nullptr;
-  G4bool fUseHepMC                 = false;
-
-  //Gun randomization
-  bool fRandomizeGun{false};
-  std::vector<G4ParticleDefinition*> *fParticleList;
-  std::vector<float> *fParticleWeights;
-  std::vector<float> *fParticleEnergies;
-  bool fInitializationDone = false;
-  G4double fMinPhi;
-  G4double fMaxPhi;
-  G4double fMinTheta;
-  G4double fMaxTheta;
-
-  PrimaryGeneratorMessenger *fGunMessenger = nullptr;
+  std::unique_ptr<ParticleGun> fParticleGun;
 };
 
 #endif /* PRIMARYGENERATORACTION_HH */
