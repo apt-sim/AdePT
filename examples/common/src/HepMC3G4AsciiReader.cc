@@ -1,70 +1,58 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 //
-/// \file eventgenerator/HepMC3/HepMCEx01/src/HepMC3G4AsciiReader.cc
 /// \brief Implementation of the HepMC3G4AsciiReader class
 //
 //
 
 #include "HepMC3G4AsciiReader.hh"
 #include "HepMC3G4AsciiReaderMessenger.hh"
-#include "G4EventManager.hh"
-#include "G4Event.hh"
+
+#include "HepMC3/ReaderAscii.h"
 
 #include <iostream>
-#include <fstream>
-
-std::vector<HepMC3::GenEvent *> *HepMC3G4AsciiReader::fEvents = nullptr;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-HepMC3G4AsciiReader::HepMC3G4AsciiReader() : fFilename("xxx.dat"), fVerbose(0)
-{
-  fMessenger = new HepMC3G4AsciiReaderMessenger(this);
-}
+HepMC3G4AsciiReader::HepMC3G4AsciiReader() : fMessenger{new HepMC3G4AsciiReaderMessenger(this)} {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-HepMC3G4AsciiReader::~HepMC3G4AsciiReader()
-{
-  for (auto evt : *fEvents)
-    delete evt;
-
-  delete fEvents;
-  delete fAsciiInput;
-  delete fMessenger;
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-void HepMC3G4AsciiReader::Initialize()
-{
-  fAsciiInput = new HepMC3::ReaderAscii(fFilename.c_str());
-
-  fEvents               = new std::vector<HepMC3::GenEvent *>();
-  HepMC3::GenEvent *evt = nullptr;
-
-  int counter = 0;
-
-  if (fFirstEventNumber > 0) fAsciiInput->skip(fFirstEventNumber);
-
-  // read file
-  while (!fAsciiInput->failed() && counter < fMaxNumberOfEvents) {
-    evt = new HepMC3::GenEvent();
-    fAsciiInput->read_event(*evt);
-
-    if (fAsciiInput->failed()) break;
-
-    fEvents->push_back(evt);
-    counter++;
-  }
-  G4cout << "Read " << fFilename << " file with " << fEvents->size() << " events." << G4endl;
-}
+HepMC3G4AsciiReader::~HepMC3G4AsciiReader() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 HepMC3::GenEvent *HepMC3G4AsciiReader::GenerateHepMCEvent(int eventId)
 {
-  HepMC3::GenEvent *evt = (*fEvents)[(eventId % fEvents->size())];
+  if (eventId >= fMaxNumberOfEvents) return nullptr;
+  if (fEvents.empty()) Read();
+  if (eventId >= static_cast<int>(fEvents.size())) return nullptr;
 
+  HepMC3::GenEvent *evt = &fEvents[eventId];
   if (fVerbose > 0) HepMC3::Print::content(*evt);
 
   return evt;
+}
+
+void HepMC3G4AsciiReader::Read()
+{
+  fEvents.clear();
+  HepMC3::ReaderAscii asciiInput{fFilename.c_str()};
+  if (asciiInput.failed()) throw std::runtime_error{"Failed to read from " + fFilename};
+
+  if (fMaxNumberOfEvents != INT_MAX) fEvents.reserve(fMaxNumberOfEvents);
+  // The function seems to use a weird convention. skip(0) skips one event.
+  if (fFirstEventNumber > 0) asciiInput.skip(fFirstEventNumber - 1);
+
+  for (int i = 0; i < fMaxNumberOfEvents; ++i) {
+    fEvents.emplace_back();
+    auto &event = fEvents.back();
+    asciiInput.read_event(event);
+
+    if (asciiInput.failed()) {
+      if (fMaxNumberOfEvents != INT_MAX) {
+        std::cerr << __FILE__ << ':' << __LINE__ << " Read " << i << " events whereas " << fMaxNumberOfEvents
+                  << " were requested.\n";
+      }
+      break;
+    }
+  }
 }

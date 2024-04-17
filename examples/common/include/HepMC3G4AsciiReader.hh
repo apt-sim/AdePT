@@ -10,11 +10,11 @@
 #ifndef HEPMC3_G4_ASCII_READER_H
 #define HEPMC3_G4_ASCII_READER_H
 
-#include <HepMC3G4Interface.hh>
-#include <HepMC3/ReaderAscii.h>
-#include <HepMC3/Print.h>
+#include "HepMC3G4Interface.hh"
+#include "HepMC3/Print.h"
 
 #include <climits>
+#include <memory>
 
 class HepMC3G4AsciiReaderMessenger;
 
@@ -23,12 +23,10 @@ protected:
   G4String fFilename;
   int fFirstEventNumber  = 0;
   int fMaxNumberOfEvents = INT_MAX;
-  HepMC3::ReaderAscii *fAsciiInput;
+  std::vector<HepMC3::GenEvent> fEvents;
 
-  static std::vector<HepMC3::GenEvent *> *fEvents;
-
-  G4int fVerbose;
-  HepMC3G4AsciiReaderMessenger *fMessenger;
+  G4int fVerbose = 0;
+  std::unique_ptr<HepMC3G4AsciiReaderMessenger> fMessenger;
 
   virtual HepMC3::GenEvent *GenerateHepMCEvent(int eventId);
 
@@ -49,8 +47,14 @@ public:
   void SetFirstEventNumber(G4int i);
   G4int GetFirstEventNumber() const;
 
-  // methods...
-  void Initialize();
+  void Initialize()
+  {
+    fEvents.clear();
+    GenerateHepMCEvent(0);
+  }
+
+private:
+  void Read();
 };
 
 // ====================================================================
