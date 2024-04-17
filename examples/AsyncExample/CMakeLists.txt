@@ -1,13 +1,11 @@
 # SPDX-FileCopyrightText: 2023 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-find_package(HepMC3 QUIET)
-
 if(HepMC3_FOUND)
   message(STATUS "HepMC3 found ${HEPMC3_INCLUDE_DIR}")
-  add_definitions(-DHEPMC3_FOUND)
+else()
+  find_package(HepMC3)
 endif()
-
 
 if(NOT TARGET G4HepEm::g4HepEm)
   message(STATUS "Disabling AsyncExample (needs G4HepEm)")
@@ -37,9 +35,6 @@ set(sources_g4
   src/EventAction.cc
   src/EventActionMessenger.cc
   src/SimpleHit.cc
-  src/PrimaryGeneratorAction.cc
-  src/PrimaryGeneratorMessenger.cc
-  src/ParticleGun.cc
   src/RunAction.cc
   src/SensitiveDetector.cc
   src/PhysListHepEm.cc
@@ -47,33 +42,47 @@ set(sources_g4
   src/FTFP_BERT_HepEm.cc
 )
 
+# Make use of common source shared between examples:
+add_library(ExamplesCommon OBJECT
+    ../common/src/ParticleGun.cc
+    ../common/src/ParticleGunMessenger.cc
+)
+
+target_include_directories(ExamplesCommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../common/include)
+target_link_libraries(ExamplesCommon PUBLIC ${Geant4_LIBRARIES})
+target_compile_options(ExamplesCommon PRIVATE -Wall -Wextra)
+
 if(HepMC3_FOUND)
-  set(sources_hepmc3
-      src/HepMC3G4AsciiReader.cc
-      src/HepMC3G4AsciiReaderMessenger.cc
-      src/HepMC3G4Interface.cc
-     )
+  target_sources(ExamplesCommon PRIVATE
+    ../common/src/HepMC3G4AsciiReader.cc
+    ../common/src/HepMC3G4AsciiReaderMessenger.cc
+    ../common/src/HepMC3G4Interface.cc
+  )
+  target_link_libraries(ExamplesCommon INTERFACE ${HEPMC3_LIBRARIES} ${HEPMC3_FIO_LIBRARIES})
+  target_compile_definitions(ExamplesCommon PRIVATE HEPMC3_FOUND)
 endif()
 
-add_executable(AsyncExample example.cpp AdeptIntegration.cpp AdeptIntegration.cu BasicScoring.cu ResourceManagement.cu
-               ${sources_g4} ${sources_hepmc3})
+add_executable(AsyncExample
+    example.cpp AdeptIntegration.cpp
+    AdeptIntegration.cu BasicScoring.cu ResourceManagement.cu
+    ${sources_g4})
 
-target_include_directories(AsyncExample PRIVATE ${PROJECT_SOURCE_DIR}/examples/AsyncExample/include
-  ${PROJECT_SOURCE_DIR}/examples/AsyncExample ${HEPMC3_INCLUDE_DIR})
+target_include_directories(AsyncExample PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(AsyncExample
   PRIVATE
     AdePT_G4_integration
+    ExamplesCommon
     CUDA::cudart
-    ${HEPMC3_LIBRARIES} ${HEPMC3_FIO_LIBRARIES}
     NVTX)
 
-set_target_properties(AsyncExample PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+set_target_properties(AsyncExample PROPERTIES
+  CUDA_SEPARABLE_COMPILATION ON
+  CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 target_compile_options(AsyncExample PRIVATE -Wall -Wextra)
-# g4HepEm headers generate warnings, so declare them as system headers:
 
 # Install macros and geometry file
-
 configure_file("macros/AsyncExample.mac.in" "${CMAKE_BINARY_DIR}/AsyncExample.mac")
-
