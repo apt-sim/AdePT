@@ -12,13 +12,14 @@
 #include "G4PhysicalConstants.hh"
 #include "G4SystemOfUnits.hh"
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-HepMC3G4Interface::HepMC3G4Interface() : fHepmcEvent(nullptr) {}
+#include <HepMC3/GenEvent.h>
+#include <HepMC3/GenVertex.h>
+#include <HepMC3/GenParticle.h>
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 HepMC3G4Interface::~HepMC3G4Interface()
 {
-  delete fHepmcEvent;
+
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -78,11 +79,11 @@ void HepMC3G4Interface::HepMC2G4(const HepMC3::GenEvent *hepmcevt, G4Event *g4ev
 void HepMC3G4Interface::GeneratePrimaryVertex(G4Event *anEvent)
 {
   // generate next event
-  fHepmcEvent = GenerateHepMCEvent(anEvent->GetEventID());
-  if (!fHepmcEvent) {
+  const auto hepmcEvent = GenerateHepMCEvent(anEvent->GetEventID());
+  if (!hepmcEvent) {
     G4cout << "HepMCInterface: no generated particles. run terminated..." << G4endl;
     G4RunManager::GetRunManager()->AbortRun();
     return;
   }
-  HepMC2G4(fHepmcEvent, anEvent);
+  HepMC2G4(hepmcEvent, anEvent);
 }
