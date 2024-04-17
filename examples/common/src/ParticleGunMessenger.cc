@@ -20,29 +20,29 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-ParticleGunMessenger::ParticleGunMessenger(ParticleGun *Gun) : G4UImessenger(), fGun(Gun), fDir(0), fDefaultCmd(0)
+ParticleGunMessenger::ParticleGunMessenger(ParticleGun *Gun) : G4UImessenger(), fGun(Gun)
 {
-  fDir = new G4UIdirectory("/gun/");
+  fDir.reset(new G4UIdirectory("/gun/"));
   fDir->SetGuidance("gun control");
 
-  fHepmcCmd = new G4UIcmdWithoutParameter("/gun/hepmc", this);
+  fHepmcCmd.reset(new G4UIcmdWithoutParameter("/gun/hepmc", this));
   fHepmcCmd->SetGuidance("select hepmc input");
   fHepmcCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-  fDefaultCmd = new G4UIcmdWithoutParameter("/gun/setDefault", this);
+  fDefaultCmd.reset(new G4UIcmdWithoutParameter("/gun/setDefault", this));
   fDefaultCmd->SetGuidance("set/reset kinematic defined in PrimaryGenerator");
   fDefaultCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-  fPrintCmd = new G4UIcmdWithABool("/gun/print", this);
+  fPrintCmd.reset(new G4UIcmdWithABool("/gun/print", this));
   fPrintCmd->SetGuidance("print gun kinematics in PrimaryGenerator");
   fPrintCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-  fRandomizeGunCmd = new G4UIcmdWithABool("/gun/randomizeGun", this);
+  fRandomizeGunCmd.reset(new G4UIcmdWithABool("/gun/randomizeGun", this));
   fRandomizeGunCmd->SetGuidance("Shoot particles in random directions within defined Phi and Theta ranges, the "
                                 "particle type is also selected at random from the selected options");
   fRandomizeGunCmd->AvailableForStates(G4State_Idle);
 
-  fAddParticleCmd = new G4UIcmdWithAString("/gun/addParticle", this);
+  fAddParticleCmd.reset(new G4UIcmdWithAString("/gun/addParticle", this));
   fAddParticleCmd->SetGuidance("When using randomization, add a particle to the list of possibilities\n\
                                 Usage: /gun/addParticle type [\"weight\" weight] [\"energy\" energy unit]\n\
                                 type: particle name\n\
@@ -51,28 +51,28 @@ ParticleGunMessenger::ParticleGunMessenger(ParticleGun *Gun) : G4UImessenger(), 
   fAddParticleCmd->SetParameterName("rParticleName", false);
   fAddParticleCmd->SetDefaultValue("geantino");
 
-  fMinPhiCmd = new G4UIcmdWithADoubleAndUnit("/gun/minPhi", this);
+  fMinPhiCmd.reset(new G4UIcmdWithADoubleAndUnit("/gun/minPhi", this));
   fMinPhiCmd->SetGuidance("Minimum phi angle when using randomization, units deg or rad");
   fMinPhiCmd->SetParameterName("rMinPhi", false);
   fMinPhiCmd->SetRange("rMinPhi>=0.&&rMinPhi<=360.");
   fMinPhiCmd->SetDefaultUnit("deg");
   fMinPhiCmd->AvailableForStates(G4State_Idle);
 
-  fMaxPhiCmd = new G4UIcmdWithADoubleAndUnit("/gun/maxPhi", this);
+  fMaxPhiCmd.reset(new G4UIcmdWithADoubleAndUnit("/gun/maxPhi", this));
   fMaxPhiCmd->SetGuidance("Maximum phi angle when using randomization, units deg or rad");
   fMaxPhiCmd->SetParameterName("rMaxPhi", false);
   fMaxPhiCmd->SetRange("rMaxPhi>=0.&&rMaxPhi<=360.");
   fMaxPhiCmd->SetDefaultUnit("deg");
   fMaxPhiCmd->AvailableForStates(G4State_Idle);
 
-  fMinThetaCmd = new G4UIcmdWithADoubleAndUnit("/gun/minTheta", this);
+  fMinThetaCmd.reset(new G4UIcmdWithADoubleAndUnit("/gun/minTheta", this));
   fMinThetaCmd->SetGuidance("Minimum Theta angle when using randomization, units deg or rad");
   fMinThetaCmd->SetParameterName("rMinTheta", false);
   fMinThetaCmd->SetRange("rMinTheta>=0.&&rMinTheta<=180.");
   fMinThetaCmd->SetDefaultUnit("deg");
   fMinThetaCmd->AvailableForStates(G4State_Idle);
 
-  fMaxThetaCmd = new G4UIcmdWithADoubleAndUnit("/gun/maxTheta", this);
+  fMaxThetaCmd.reset(new G4UIcmdWithADoubleAndUnit("/gun/maxTheta", this));
   fMaxThetaCmd->SetGuidance("Maximum Theta angle when using randomization, units deg or rad");
   fMaxThetaCmd->SetParameterName("rMaxTheta", false);
   fMaxThetaCmd->SetRange("rMaxTheta>=0.&&rMaxTheta<=180.");
@@ -82,84 +82,74 @@ ParticleGunMessenger::ParticleGunMessenger(ParticleGun *Gun) : G4UImessenger(), 
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-ParticleGunMessenger::~ParticleGunMessenger()
-{
-  delete fHepmcCmd;
-  delete fDefaultCmd;
-  delete fPrintCmd;
-  delete fRandomizeGunCmd;
-  delete fAddParticleCmd;
-  delete fMinPhiCmd;
-  delete fMaxPhiCmd;
-  delete fMinThetaCmd;
-  delete fMaxThetaCmd;
-  delete fDir;
-}
+ParticleGunMessenger::~ParticleGunMessenger() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void ParticleGunMessenger::SetNewValue(G4UIcommand *command, G4String newValue)
 {
 
-  if (command == fHepmcCmd) {
+  if (command == fHepmcCmd.get()) {
     fGun->SetHepMC();
   }
 
-  if (command == fDefaultCmd) {
+  if (command == fDefaultCmd.get()) {
     fGun->SetDefaultKinematic();
   }
 
-  if (command == fPrintCmd) {
+  if (command == fPrintCmd.get()) {
     fGun->SetPrintGun(fPrintCmd->GetNewBoolValue(newValue));
   }
 
-  if (command == fRandomizeGunCmd) {
+  if (command == fRandomizeGunCmd.get()) {
     fGun->SetRandomizeGun(fRandomizeGunCmd->GetNewBoolValue(newValue));
   }
 
-  if (command == fAddParticleCmd) {
+  if (command == fAddParticleCmd.get()) {
     G4Tokenizer tkn(newValue);
     G4String str;
-    std::vector<G4String> *token_vector = new std::vector<G4String>();
+    std::vector<G4String> token_vector;
     while ((str = tkn()) != "") {
-      token_vector->push_back(str);
+      token_vector.push_back(str);
     }
     // The particle type is mandatory and must be the first argument
-    G4ParticleDefinition *pd;
+    G4ParticleDefinition *pd = nullptr;
     float weight  = -1;
     double energy = -1;
-    if (token_vector->size() >= 1) {
-      pd = G4ParticleTable::GetParticleTable()->FindParticle((*token_vector)[0]);
+    if (token_vector.size() >= 1) {
+      pd = G4ParticleTable::GetParticleTable()->FindParticle(token_vector[0]);
     } else {
       G4Exception("ParticleGunMessenger::SetNewValue()", "Notification", JustWarning,
                   "No arguments provided. Usage: addParticle type [\"weight\" weight] [\"energy\" energy unit]");
+      return;
     }
 
-    for (int i = 1; i < token_vector->size(); i++) {
-      if ((*token_vector)[i] == "weight") {
-        weight = stof((*token_vector)[++i]);
+    for (unsigned int i = 1; i < token_vector.size(); i++) {
+      if (token_vector[i] == "weight") {
+        weight = stof(token_vector[++i]);
       }
-      if ((*token_vector)[i] == "energy") {
-        energy = stof((*token_vector)[++i]) * G4UnitDefinition::GetValueOf((*token_vector)[++i]);
+      if (token_vector[i] == "energy") {
+        energy = stof(token_vector[++i]);
+        energy *= G4UnitDefinition::GetValueOf(token_vector[++i]);
       }
     }
 
     fGun->AddParticle(pd, weight, energy);
   }
 
-  if (command == fMinPhiCmd) {
+  if (command == fMinPhiCmd.get()) {
     fGun->SetMinPhi(fMinPhiCmd->GetNewDoubleValue(newValue));
   }
 
-  if (command == fMaxPhiCmd) {
+  if (command == fMaxPhiCmd.get()) {
     fGun->SetMaxPhi(fMaxPhiCmd->GetNewDoubleValue(newValue));
   }
 
-  if (command == fMinThetaCmd) {
+  if (command == fMinThetaCmd.get()) {
     fGun->SetMinTheta(fMinThetaCmd->GetNewDoubleValue(newValue));
   }
 
-  if (command == fMaxThetaCmd) {
+  if (command == fMaxThetaCmd.get()) {
     fGun->SetMaxTheta(fMaxThetaCmd->GetNewDoubleValue(newValue));
   }
 }
