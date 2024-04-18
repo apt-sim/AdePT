@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @file CopCore/Macros.h
+ * @file AdePT/copcore/Macros.h
  * @brief CopCore global macros
  *
  * @details Compiling mixtures of C/C++/CUDA, we run into the cases of compiling for
@@ -12,7 +12,7 @@
  * assist this markup process. Only C/C++ and NVidia CUDA are currently supported,
  * but other "backends" such as HIP can be added as time goes on.
  *
- * CopCore/AdePT follow LHCb's Allen project in using macros for host/device/inline
+ * AdePT/copcore/AdePT follow LHCb's Allen project in using macros for host/device/inline
  * functions that match the CUDA keywords.
  */
 /**

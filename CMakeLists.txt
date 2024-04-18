@@ -17,7 +17,7 @@ project(AdePT
 #----------------------------------------------------------------------------#
 # - Include needed custom/core modules
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-include(CMakeSettings) 
+include(CMakeSettings)
 include(CTest)
 include(CheckCXXSourceCompiles)
 
@@ -124,12 +124,12 @@ add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:
 # - For Debug, generate full debug information - this completely disables optimizations!
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Debug>>:--device-debug>")
 # - For both, interleave the source in PTX to enhance the debugging experience.
-add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:-G>")
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:--source-in-ptx>")
 
 # Disable warnings from the CUDA frontend about unknown GCC pragmas - let the compiler decide what it likes.
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma>")
 
-find_package(G4HepEm)
+find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
 endif()
@@ -154,13 +154,13 @@ target_include_directories(CopCore
 )
 
 add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
-target_include_directories(AdePT_G4_integration 
-  PUBLIC 
+target_include_directories(AdePT_G4_integration
+  PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
 )
-target_link_libraries(AdePT_G4_integration 
-  PUBLIC 
+target_link_libraries(AdePT_G4_integration
+  PUBLIC
     CopCore
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static
@@ -170,11 +170,12 @@ target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
+    CUDA::cudart
 )
 
 set_target_properties(AdePT_G4_integration
-  PROPERTIES 
-    CUDA_SEPARABLE_COMPILATION ON 
+  PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
 )
 
@@ -196,14 +197,14 @@ endif()
 
 include(CMakePackageConfigHelpers)
 #Generate the configuration file from the template and save it to the build directory
-configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in 
+configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
   "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   PATH_VARS CMAKE_INSTALL_INCLUDEDIR
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT_G4_integration 
+install(TARGETS CopCore AdePT_G4_integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -211,12 +212,12 @@ install(TARGETS CopCore AdePT_G4_integration
 )
 
 #Install the headers
-install(DIRECTORY include/AdePT 
+install(DIRECTORY include/AdePT
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 #Install the configuration file
-install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake" 
+install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 

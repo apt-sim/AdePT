@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @file CopCore/CopCore.h
+ * @file AdePT/copcore/CopCore.h
  * @brief Main front end to CopCore
  */
 

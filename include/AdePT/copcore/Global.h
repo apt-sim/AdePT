@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @file CopCore/Global.h
+ * @file AdePT/copcore/Global.h
  * @brief CopCore global macros and types
  */
 

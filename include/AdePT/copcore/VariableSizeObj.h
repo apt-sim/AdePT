@@ -291,7 +291,7 @@ public:
   }
 
   // Size of the allocated derived type data members that are also variable size
-  __host__ __device__ static constexpr size_t SizeOfExtra(size_t nvalues) { return 0; }
+  __host__ __device__ static constexpr size_t SizeOfExtra(size_t /*nvalues*/) { return 0; }
 
   // equivalent of sizeof function taking into account padding for alignment
   // this function should be used when making arrays of VariableSizeObjects

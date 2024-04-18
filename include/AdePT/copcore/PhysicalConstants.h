@@ -3,7 +3,7 @@
 
 /**
  * @brief   Physical constants in internal units.
- * @file    CopCore/PhysicalConstants.h
+ * @file    AdePT/copcore/PhysicalConstants.h
  * @author  M Novak, A Ribon
  * @date    december 2015
  *
