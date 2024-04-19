@@ -14,6 +14,8 @@
 #include "G4UImessenger.hh"
 #include "globals.hh"
 
+#include <memory>
+
 class ParticleGun;
 class G4UIdirectory;
 class G4UIcmdWithoutParameter;
@@ -32,18 +34,18 @@ public:
   virtual void SetNewValue(G4UIcommand *, G4String);
 
 private:
-  ParticleGun *fGun;
+  ParticleGun *fGun = nullptr;
 
-  G4UIdirectory *fDir;
-  G4UIcmdWithoutParameter *fHepmcCmd;
-  G4UIcmdWithoutParameter *fDefaultCmd;
-  G4UIcmdWithABool *fPrintCmd;
-  G4UIcmdWithABool *fRandomizeGunCmd;
-  G4UIcmdWithAString *fAddParticleCmd;
-  G4UIcmdWithADoubleAndUnit *fMinPhiCmd;
-  G4UIcmdWithADoubleAndUnit *fMaxPhiCmd;
-  G4UIcmdWithADoubleAndUnit *fMinThetaCmd;
-  G4UIcmdWithADoubleAndUnit *fMaxThetaCmd;
+  std::unique_ptr<G4UIdirectory> fDir;
+  std::unique_ptr<G4UIcmdWithoutParameter> fHepmcCmd;
+  std::unique_ptr<G4UIcmdWithoutParameter> fDefaultCmd;
+  std::unique_ptr<G4UIcmdWithABool> fPrintCmd;
+  std::unique_ptr<G4UIcmdWithABool> fRandomizeGunCmd;
+  std::unique_ptr<G4UIcmdWithAString> fAddParticleCmd;
+  std::unique_ptr<G4UIcmdWithADoubleAndUnit> fMinPhiCmd;
+  std::unique_ptr<G4UIcmdWithADoubleAndUnit> fMaxPhiCmd;
+  std::unique_ptr<G4UIcmdWithADoubleAndUnit> fMinThetaCmd;
+  std::unique_ptr<G4UIcmdWithADoubleAndUnit> fMaxThetaCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
