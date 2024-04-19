@@ -37,19 +37,18 @@ set(sources_g4
   src/SimpleHit.cc
   src/RunAction.cc
   src/SensitiveDetector.cc
-  src/PhysListHepEm.cc
   src/TrackingAction.cc
-  src/FTFP_BERT_HepEm.cc
 )
 
 # Make use of common source shared between examples:
 add_library(ExamplesCommon OBJECT
     ../common/src/ParticleGun.cc
     ../common/src/ParticleGunMessenger.cc
+    ../common/src/FTFP_BERT_HepEm.cc
 )
 
 target_include_directories(ExamplesCommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../common/include)
-target_link_libraries(ExamplesCommon PUBLIC ${Geant4_LIBRARIES})
+target_link_libraries(ExamplesCommon PUBLIC AdePT_G4_integration)
 target_compile_options(ExamplesCommon PRIVATE -Wall -Wextra)
 
 if(HepMC3_FOUND)
