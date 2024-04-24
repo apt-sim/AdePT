@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //
-/// \file eventgenerator/HepMC3/HepMCEx01/include/HepMC3G4AsciiReaderMessenger.hh
+/// \file HepMC3G4AsciiReaderMessenger.hh
 /// \brief Definition of the HepMC3G4AsciiReaderMessenger class
 //
 //
@@ -11,6 +11,8 @@
 #define HEPMC3_G4_ASCII_READER_MESSENGER_H
 
 #include "G4UImessenger.hh"
+
+#include <memory>
 
 class HepMC3G4AsciiReader;
 class G4UIdirectory;
@@ -29,11 +31,11 @@ public:
 private:
   HepMC3G4AsciiReader *gen;
 
-  G4UIdirectory *fDir;
-  G4UIcmdWithAnInteger *fVerbose;
-  G4UIcmdWithAnInteger *fMaxevent;
-  G4UIcmdWithAnInteger *fFirstevent;
-  G4UIcmdWithAString *fOpen;
+  std::unique_ptr<G4UIdirectory> fDir;
+  std::unique_ptr<G4UIcmdWithAnInteger> fVerbose;
+  std::unique_ptr<G4UIcmdWithAnInteger> fMaxevent;
+  std::unique_ptr<G4UIcmdWithAnInteger> fFirstevent;
+  std::unique_ptr<G4UIcmdWithAString> fOpen;
 };
 
 #endif

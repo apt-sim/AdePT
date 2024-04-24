@@ -6,9 +6,12 @@
 
 #include "G4ParticleGun.hh"
 #include "G4VPrimaryGenerator.hh"
-#include "G4Event.hh"
+
+#include <memory>
+#include <vector>
 
 class ParticleGunMessenger;
+class G4Event;
 
 class ParticleGun : public G4ParticleGun {
 public:
@@ -35,23 +38,23 @@ public:
   void ReWeight();
 
 private:
-  G4double fPrintGun;
+  G4double fPrintGun = 0.;
   // Gun randomization
-  bool fRandomizeGun;
-  std::vector<G4ParticleDefinition *> *fParticleList;
-  std::vector<float> *fParticleWeights;
-  std::vector<float> *fParticleEnergies;
-  bool fInitializationDone;
-  G4double fMinPhi;
-  G4double fMaxPhi;
-  G4double fMinTheta;
-  G4double fMaxTheta;
+  bool fRandomizeGun = false;
+  std::vector<G4ParticleDefinition *> fParticleList;
+  std::vector<float> fParticleWeights;
+  std::vector<float> fParticleEnergies;
+  bool fInitializationDone = false;
+  G4double fMinPhi         = 0.;
+  G4double fMaxPhi         = 0.;
+  G4double fMinTheta       = 0.;
+  G4double fMaxTheta       = 0.;
 
   // HepMC3 reader
-  G4VPrimaryGenerator *fHepmcAscii;
-  G4bool fUseHepMC;
+  std::unique_ptr<G4VPrimaryGenerator> fHepmcAscii;
+  G4bool fUseHepMC = false;
 
-  ParticleGunMessenger *fMessenger;
+  std::unique_ptr<ParticleGunMessenger> fMessenger;
 };
 
 #endif /* PARTICLEGUN_HH */
