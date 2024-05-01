@@ -20,6 +20,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(CMakeSettings)
 include(CTest)
 include(CheckCXXSourceCompiles)
+include(CudaRdcUtils)
 
 # - Core/C++/CUDA build and dependency settings
 # For single-mode generators, default to Optimized with Debug if nothing is specified
@@ -146,24 +147,23 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTConfigurationMessenger.cc
 )
 
-add_library(CopCore INTERFACE)
-target_include_directories(CopCore
+cuda_rdc_add_library(CopCore INTERFACE)
+cuda_rdc_target_include_directories(CopCore
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
-add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
-target_include_directories(AdePT_G4_integration
+cuda_rdc_add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+cuda_rdc_target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
-target_link_libraries(AdePT_G4_integration
+cuda_rdc_target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
@@ -204,7 +204,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT_G4_integration
+cuda_rdc_install(TARGETS CopCore AdePT_G4_integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -227,7 +227,7 @@ export(TARGETS CopCore AdePT_G4_integration
 )
 
 #Install the targets file
-install(EXPORT ${PROJECT_NAME}Targets
+cuda_rdc_install(EXPORT ${PROJECT_NAME}Targets
   NAMESPACE ${PROJECT_NAME}::
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )

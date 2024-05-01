@@ -9,7 +9,7 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
+    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
    endforeach()
 endmacro()
 
@@ -46,7 +46,7 @@ add_subdirectory(testField)
 # - Check CopCore links as expected 
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(test_copcore_link PRIVATE CopCore)
+cuda_rdc_target_link_libraries(test_copcore_link PRIVATE CopCore)
 
 # - Check G4VG links as expected 
 include(FetchContent)
@@ -57,7 +57,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(g4vg)
 
 add_executable(test_g4vg_link test_g4vg_link.cpp)
-target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
+cuda_rdc_target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
 
 #----------------------------------------------------------------------------#
 # Basic Unit Tests
