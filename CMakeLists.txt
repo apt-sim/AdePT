@@ -179,6 +179,7 @@ cuda_rdc_target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
+    G4VG::g4vg
     CUDA::cudart
 )
 
@@ -230,11 +231,6 @@ install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
   "${PROJECT_SOURCE_DIR}/cmake/CudaRdcUtils.cmake"
   "${PROJECT_SOURCE_DIR}/cmake/FindVecGeom.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
-
-#Export the targets file
-export(TARGETS CopCore AdePT_G4_integration
-  FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
 )
 
 #Install the targets file

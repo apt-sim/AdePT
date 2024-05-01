@@ -36,6 +36,8 @@ if(G4HepEm_FOUND)
   message(STATUS "G4HepEm Found ${G4HepEm_INCLUDE_DIR}")
 endif()
 
+find_dependency(G4VG REQUIRED)
+
 # Include the targets file
 include("${AdePT_CMAKE_DIR}/AdePTTargets.cmake")
 
