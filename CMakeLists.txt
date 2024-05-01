@@ -119,6 +119,15 @@ if(HepMC3_FOUND)
   add_compile_definitions(HEPMC3_FOUND)
 endif()
 
+# G4VG - external for now
+include(FetchContent)
+FetchContent_Declare(
+  g4vg
+  EXCLUDE_FROM_ALL
+  URL https://github.com/celeritas-project/g4vg/archive/bb2779587119a5762e0b07054d9496bb71fa1e3b.zip)
+FetchContent_MakeAvailable(g4vg)
+
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")

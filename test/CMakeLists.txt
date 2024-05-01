@@ -49,13 +49,6 @@ target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/inclu
 cuda_rdc_target_link_libraries(test_copcore_link PRIVATE CopCore)
 
 # - Check G4VG links as expected 
-include(FetchContent)
-FetchContent_Declare(
-  g4vg
-  EXCLUDE_FROM_ALL
-  URL https://github.com/celeritas-project/g4vg/archive/bb2779587119a5762e0b07054d9496bb71fa1e3b.zip)
-FetchContent_MakeAvailable(g4vg)
-
 add_executable(test_g4vg_link test_g4vg_link.cpp)
 cuda_rdc_target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
 
