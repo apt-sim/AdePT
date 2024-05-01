@@ -216,8 +216,10 @@ install(DIRECTORY include/AdePT
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-#Install the configuration file
+#Install the configuration file and support modules needed downstream
 install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+  "${PROJECT_SOURCE_DIR}/cmake/CudaRdcUtils.cmake"
+  "${PROJECT_SOURCE_DIR}/cmake/FindVecGeom.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 

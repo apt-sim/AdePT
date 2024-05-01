@@ -115,16 +115,27 @@ find_package(AdePT)
 
 Which has the same dependencies as before (VecGeom, VecCore and G4HepEM).
 
-Then, for the targets using AdePT:
+Due to the design of the CUDA interface in the VecGeom dependency, linking to
+AdePT whether or not your project uses CUDA code requires use of CMake wrapper
+functions to ensure the correct device linking. For an executable target:
 
+```cmake
+include(CudaRdcUtils)
+
+add_executable(MyExe MyExe.cc)
+cuda_rdc_target_link_libraries(MyExe AdePT::AdePT_G4_integration)
 ```
-target_include_directories(example_target <SCOPE> 
-                          <TARGET INCLUDE DIRECTORIES>
-                          ${AdePT_INCLUDE_DIRS})
 
-target_link_libraries(example_target <SCOPE>
-                      <TARGET LINK LIBRARIES>
-                      ${AdePT_LIBRARIES})
+and for a library plus executable:
+
+```cmake
+include(CudaRdcUtils)
+
+cuda_rdc_add_library(MyLib ...)
+cuda_rdc_target_link_libraries(MyLib AdePT::AdePT_G4_integration)
+
+add_executable(MyExe MyExe.cc)
+cuda_rdc_target_link_libraries(MyExe MyLib)
 ```
 
 ## Copyright
