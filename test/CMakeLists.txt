@@ -53,7 +53,7 @@ include(FetchContent)
 FetchContent_Declare(
   g4vg
   EXCLUDE_FROM_ALL
-  URL https://github.com/celeritas-project/g4vg/archive/e034ada099132f857866949ec9ce8eadf1ff2251.zip)
+  URL https://github.com/celeritas-project/g4vg/archive/bb2779587119a5762e0b07054d9496bb71fa1e3b.zip)
 FetchContent_MakeAvailable(g4vg)
 
 add_executable(test_g4vg_link test_g4vg_link.cpp)
