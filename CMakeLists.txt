@@ -128,7 +128,7 @@ include(FetchContent)
 FetchContent_Declare(
   g4vg
   EXCLUDE_FROM_ALL
-  URL https://github.com/celeritas-project/g4vg/archive/bb2779587119a5762e0b07054d9496bb71fa1e3b.zip)
+  URL https://github.com/celeritas-project/g4vg/archive/804ea9c0d177ef1b2cbe16d6035c814764b2dc4b.zip)
 FetchContent_MakeAvailable(g4vg)
 
 
