@@ -131,6 +131,9 @@ FetchContent_Declare(
   URL https://github.com/celeritas-project/g4vg/archive/804ea9c0d177ef1b2cbe16d6035c814764b2dc4b.zip)
 FetchContent_MakeAvailable(g4vg)
 
+# Because of the structure of RDC libraries, we need to ensure full linking on
+# platforms that may have "--as-needed" as the default
+add_link_options("$<HOST_LINK:$<$<CXX_COMPILER_ID:GNU,Clang>:LINKER:--no-as-needed>>")
 
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.

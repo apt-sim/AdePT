@@ -138,6 +138,20 @@ add_executable(MyExe MyExe.cc)
 cuda_rdc_target_link_libraries(MyExe MyLib)
 ```
 
+If you are building on a platform with a linker that defaults to
+only linking "needed" libraries (Ubuntu GCC is a know case here),
+you may need to disable this behaviour on the target linking to
+AdePT:
+
+```cmake
+include(CudaRdcUtils)
+
+add_executable(MyExe MyExe.cc)
+cuda_rdc_target_link_libraries(MyExe AdePT::AdePT_G4_integration)
+target_link_options(MyExe "LINKER:--no-as-needed")
+```
+
+
 ## Copyright
 
 AdePT code is Copyright (C) CERN, 2020, for the benefit of the AdePT project.
