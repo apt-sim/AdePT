@@ -12,6 +12,7 @@ pipeline {
     string(name: 'EXTERNALS', defaultValue: 'devAdePT/latest', description: 'LCG software stack in CVMFS')
     choice(name: 'MODEL', choices: ['experimental', 'nightly', 'continuous'], description: 'CDash model')
     choice(name: 'COMPILER', choices: ['gcc11', 'gcc8', 'gcc10', 'clang10', 'native'])
+    choice(name: 'OS', choices: ['el9', 'centos7'])
     choice(name: 'BUILDTYPE', choices: ['Release', 'Debug'])
     string(name: 'LABEL', defaultValue: 'TeslaT4', description: 'Jenkins label for physical nodes or container image for docker')
     string(name: 'ExtraCMakeOptions', defaultValue: '', description: 'CMake extra configuration options')
@@ -75,7 +76,7 @@ pipeline {
         expression { params.LABEL =~ 'cuda|physical|TeslaT4' }
       }
       agent {
-        label "$LABEL"
+        label "$LABEL-$OS"
       }
       stages {
         stage('PreCheckNode') {
@@ -129,7 +130,7 @@ def buildAndTest() {
   }
   sh label: 'build_and_test', script: """
     set +x
-    source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-centos7-${COMPILER}-opt/setup.sh
+    source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
     set -x
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
