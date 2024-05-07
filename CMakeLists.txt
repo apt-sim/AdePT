@@ -128,7 +128,7 @@ include(FetchContent)
 FetchContent_Declare(
   g4vg
   EXCLUDE_FROM_ALL
-  URL https://github.com/celeritas-project/g4vg/archive/804ea9c0d177ef1b2cbe16d6035c814764b2dc4b.zip)
+  URL https://github.com/celeritas-project/g4vg/archive/f372cddc08fb694ccd560018d9b5bd18c1cdf98f.zip)
 FetchContent_MakeAvailable(g4vg)
 
 # Because of the structure of RDC libraries, we need to ensure full linking on
