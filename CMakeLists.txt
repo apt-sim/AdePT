@@ -124,11 +124,13 @@ if(HepMC3_FOUND)
 endif()
 
 # G4VG - external for now
+# Nominally we should build it as a static/object library to not expose it downstream.
+# Left as installed package until co-working with Celeritas established in celer-adept in case of
+# duplicate symbols.
 include(FetchContent)
 FetchContent_Declare(
   g4vg
-  EXCLUDE_FROM_ALL
-  URL https://github.com/celeritas-project/g4vg/archive/f372cddc08fb694ccd560018d9b5bd18c1cdf98f.zip)
+  URL https://github.com/celeritas-project/g4vg/archive/c1f4a9315ab2c23e5ba0043f7c3422586a738799.zip)
 FetchContent_MakeAvailable(g4vg)
 
 # Because of the structure of RDC libraries, we need to ensure full linking on
