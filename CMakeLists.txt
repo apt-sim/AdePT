@@ -166,6 +166,7 @@ set(ADEPT_G4_INTEGRATION_SRCS
 )
 
 cuda_rdc_add_library(CopCore INTERFACE)
+cuda_rdc_add_library(CopCore::CopCore ALIAS CopCore)
 cuda_rdc_target_include_directories(CopCore
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
@@ -173,6 +174,7 @@ cuda_rdc_target_include_directories(CopCore
 )
 
 cuda_rdc_add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
 cuda_rdc_target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
