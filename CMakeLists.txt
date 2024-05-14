@@ -127,11 +127,13 @@ endif()
 # Nominally we should build it as a static/object library to not expose it downstream.
 # Left as installed package until co-working with Celeritas established in celer-adept in case of
 # duplicate symbols.
-include(FetchContent)
-FetchContent_Declare(
-  g4vg
-  URL https://github.com/celeritas-project/g4vg/archive/c1f4a9315ab2c23e5ba0043f7c3422586a738799.zip)
-FetchContent_MakeAvailable(g4vg)
+if(NOT G4VG_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(
+    g4vg
+    URL https://github.com/celeritas-project/g4vg/archive/c1f4a9315ab2c23e5ba0043f7c3422586a738799.zip)
+  FetchContent_MakeAvailable(g4vg)
+endif()
 
 # Because of the structure of RDC libraries, we need to ensure full linking on
 # platforms that may have "--as-needed" as the default
