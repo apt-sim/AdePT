@@ -29,7 +29,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
     set(__DEFAULT_CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
   endif()
   set(CMAKE_BUILD_TYPE "${__DEFAULT_CMAKE_BUILD_TYPE}"
-    CACHE STRING "Choose the type of build, options are: None Release MinSizeRel Debug RelWithDebInfo MinSizeRel."
+    CACHE STRING "Choose the type of build, options are: None Release MinSizeRel Debug RelWithDebInfo."
     FORCE
   )
 endif()
