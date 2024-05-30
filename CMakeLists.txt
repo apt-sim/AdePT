@@ -150,14 +150,14 @@ add_library(CopCore INTERFACE)
 target_include_directories(CopCore
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
 add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
 target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 target_link_libraries(AdePT_G4_integration
   PUBLIC
