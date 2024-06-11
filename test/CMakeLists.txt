@@ -48,9 +48,11 @@ add_executable(test_copcore_link test_copcore_link.cpp)
 target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
 cuda_rdc_target_link_libraries(test_copcore_link PRIVATE CopCore)
 
-# - Check G4VG links as expected 
+# - Check G4VG links as expected
+# Don't use keyword linking as this appears to cause problems with downstream
+# projects importing AdePT via FetchContent.
 add_executable(test_g4vg_link test_g4vg_link.cpp)
-cuda_rdc_target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
+cuda_rdc_target_link_libraries(test_g4vg_link G4VG::g4vg)
 
 #----------------------------------------------------------------------------#
 # Basic Unit Tests
