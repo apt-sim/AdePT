@@ -54,7 +54,7 @@ private:
   /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
   void StepInHostRegion(G4Track *aTrack);
 
-  std::vector<G4Region *> fGPURegions{};
+  std::set<G4Region *> fGPURegions{};
   int fVerbosity{0};
   G4double ProductionCut = 0.7 * copcore::units::mm;
   int MCIndex[100];

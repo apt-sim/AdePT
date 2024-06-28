@@ -29,8 +29,8 @@
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true
 # In order to do the GPU transport only in specific regions
-/adept/addGPURegion EcalRegion
-/adept/addGPURegion HcalRegion
+#/adept/addGPURegion EcalRegion
+#/adept/addGPURegion HcalRegion
 
 
 ## -----------------------------------------------------------------------------

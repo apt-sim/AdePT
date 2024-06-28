@@ -71,7 +71,7 @@ void AdePTTrackingManager::InitializeAdePT()
       G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
       G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
       if (region != nullptr)
-        fGPURegions.push_back(region);
+        fGPURegions.insert(region);
       else
         G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
                     ("Region given to /adept/addGPURegion: " + regionName + " Not found\n").c_str());
@@ -208,8 +208,20 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
     } else {
       // If the particle is not in a GPU region, track it on CPU
-
-      StepInHostRegion(aTrack);
+      if(fGPURegions.empty())
+      {
+        // If there are no GPU regions, track until the end in Geant4
+        trackManager->ProcessOneTrack(aTrack);
+        if (aTrack->GetTrackStatus() != fStopAndKill) {
+          G4Exception("AdePTTrackingManager::HandOverOneTrack", "NotStopped", FatalException,
+            "track was not stopped");
+        }
+      }
+      else
+      {
+        // Track the particle step by step until it dies or enters a GPU region
+        StepInHostRegion(aTrack);
+      }
     }
   }
   // Inform end of tracking to physics processes
@@ -230,6 +242,7 @@ void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
+  G4Region *previousRegion           = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
 
   // Track the particle Step-by-Step while it is alive and outside of a GPU region
   while ((aTrack->GetTrackStatus() == fAlive) || (aTrack->GetTrackStatus() == fStopButAlive)) {
@@ -243,9 +256,12 @@ void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
       G4Region *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
       // This should never be true if this flag is set, as all particles would be sent to AdePT
       assert(fAdeptTransport->GetTrackInAllRegions() == false);
-      // Check whether the particle has entered a GPU region
-      for (G4Region *gpuRegion : fGPURegions) {
-        if (region == gpuRegion) {
+      // If the region changed, check whether the particle has entered a GPU region
+      if(region != previousRegion)
+      {
+        previousRegion = region;
+        if(fGPURegions.find(region) != fGPURegions.end())
+        {
           return;
         }
       }
