@@ -184,8 +184,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     if (fAdeptTransport->GetTrackInAllRegions()) {
       isGPURegion = true;
     } else {
-      for (G4Region *gpuRegion : fGPURegions) {
-        if (region == gpuRegion) isGPURegion = true;
+      if(fGPURegions.find(region) != fGPURegions.end()) {
+        isGPURegion = true;
       }
     }
 
