@@ -34,6 +34,7 @@ target_include_directories(testField
 target_link_libraries(testField
   PRIVATE
     CopCore
+    # Retain "classic" linking option here for simplicity/illustration
     VecGeom::vecgeom
     VecGeom::vecgeomcuda_static
     VecGeom::vgdml

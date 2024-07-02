@@ -20,6 +20,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(CMakeSettings)
 include(CTest)
 include(CheckCXXSourceCompiles)
+include(CudaRdcUtils)
 
 # - Core/C++/CUDA build and dependency settings
 # For single-mode generators, default to Optimized with Debug if nothing is specified
@@ -80,6 +81,10 @@ endif()
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
 endif()
+# Make sure VecGeom has CUDA support)
+if(NOT TARGET VecGeom::vecgeomcuda)
+  message(FATAL_ERROR "AdePT requires VecGeom compiled with CUDA support")
+endif()
 # Check for surface model support in VecGeom
 if(ADEPT_USE_SURF)
   if(VecGeom_SURF_FOUND)
@@ -118,6 +123,22 @@ if(HepMC3_FOUND)
   add_compile_definitions(HEPMC3_FOUND)
 endif()
 
+# G4VG - external for now
+# Nominally we should build it as a static/object library to not expose it downstream.
+# Left as installed package until co-working with Celeritas established in celer-adept in case of
+# duplicate symbols.
+if(NOT G4VG_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(
+    g4vg
+    URL https://github.com/celeritas-project/g4vg/archive/c1f4a9315ab2c23e5ba0043f7c3422586a738799.zip)
+  FetchContent_MakeAvailable(g4vg)
+endif()
+
+# Because of the structure of RDC libraries, we need to ensure full linking on
+# platforms that may have "--as-needed" as the default
+add_link_options("$<HOST_LINK:$<$<CXX_COMPILER_ID:GNU,Clang>:LINKER:--no-as-needed>>")
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
@@ -146,30 +167,32 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTConfigurationMessenger.cc
 )
 
-add_library(CopCore INTERFACE)
-target_include_directories(CopCore
+cuda_rdc_add_library(CopCore INTERFACE)
+cuda_rdc_add_library(CopCore::CopCore ALIAS CopCore)
+cuda_rdc_target_include_directories(CopCore
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
-add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
-target_include_directories(AdePT_G4_integration
+cuda_rdc_add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
+cuda_rdc_target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
-target_link_libraries(AdePT_G4_integration
+cuda_rdc_target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
+    G4VG::g4vg
     CUDA::cudart
 )
 
@@ -204,7 +227,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT_G4_integration
+cuda_rdc_install(TARGETS CopCore AdePT_G4_integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -216,18 +239,15 @@ install(DIRECTORY include/AdePT
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-#Install the configuration file
+#Install the configuration file and support modules needed downstream
 install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+  "${PROJECT_SOURCE_DIR}/cmake/CudaRdcUtils.cmake"
+  "${PROJECT_SOURCE_DIR}/cmake/FindVecGeom.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 
-#Export the targets file
-export(TARGETS CopCore AdePT_G4_integration
-  FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
-)
-
 #Install the targets file
-install(EXPORT ${PROJECT_NAME}Targets
+cuda_rdc_install(EXPORT ${PROJECT_NAME}Targets
   NAMESPACE ${PROJECT_NAME}::
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )

@@ -8,6 +8,7 @@
 #include "G4EventManager.hh"
 #include "G4Event.hh"
 #include "G4RunManager.hh"
+#include "G4TransportationManager.hh"
 
 #include "G4Electron.hh"
 #include "G4Gamma.hh"
@@ -41,7 +42,9 @@ void AdePTTrackingManager::InitializeAdePT()
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
     // Load the VecGeom world in memory
-    AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
+    auto* tman = G4TransportationManager::GetTransportationManager();
+    auto* world = tman->GetNavigatorForTracking()->GetWorldVolume();
+    AdePTGeant4Integration::CreateVecGeomWorld(world);
 
     // Track and Hit buffer capacities on GPU are split among threads
     int num_threads    = G4RunManager::GetRunManager()->GetNumberOfThreads();
