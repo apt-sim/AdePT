@@ -46,8 +46,8 @@ unsigned int aHitIndex = GetNextFreeHitIndex(hostScoring_dev);
 }
 
 /// @brief Utility function to copy a 3D vector, used for filling the Step Points
-__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> *source,
-                                            vecgeom::Vector3D<Precision> *destination)
+__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const *source,
+                                             vecgeom::Vector3D<Precision> *destination)
 {
   destination->x() = source->x();
   destination->y() = source->y();
@@ -151,14 +151,13 @@ namespace adept_scoring
 
   /// @brief Record a hit
   template <>
-  __device__ void RecordHit(HostScoring *hostScoring_dev, int aParentID, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
-                          vecgeom::Vector3D<Precision> *aPrePosition,
-                          vecgeom::Vector3D<Precision> *aPreMomentumDirection,
-                          vecgeom::Vector3D<Precision> *aPrePolarization, double aPreEKin, double aPreCharge,
-                          vecgeom::NavigationState const *aPostState, vecgeom::Vector3D<Precision> *aPostPosition,
-                          vecgeom::Vector3D<Precision> *aPostMomentumDirection,
-                          vecgeom::Vector3D<Precision> *aPostPolarization, double aPostEKin, double aPostCharge)
+  __device__ void RecordHit(
+      HostScoring *hostScoring_dev, int aParentID, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
+      vecgeom::NavigationState const *aPreState, vecgeom::Vector3D<Precision> const *aPrePosition,
+      vecgeom::Vector3D<Precision> const *aPreMomentumDirection, vecgeom::Vector3D<Precision> const *aPrePolarization,
+      double aPreEKin, double aPreCharge, vecgeom::NavigationState const *aPostState,
+      vecgeom::Vector3D<Precision> const *aPostPosition, vecgeom::Vector3D<Precision> const *aPostMomentumDirection,
+      vecgeom::Vector3D<Precision> const *aPostPolarization, double aPostEKin, double aPostCharge, unsigned int, short)
   {
     // Acquire a hit slot
     GPUHit *aGPUHit = GetNextFreeHit(hostScoring_dev);
@@ -217,7 +216,9 @@ namespace adept_scoring
       // Synchronize the stream used to copy back the hits
       COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
       // Process the hits on CPU
-      integration.ProcessGPUHits(hostScoring, hostScoring.fStats);
+      for (const auto &hit : hostScoring) {
+        integration.ProcessGPUHit(hit);
+      }
     }
   }
 
@@ -231,7 +232,9 @@ namespace adept_scoring
     CopyGlobalCountersToHost(hostScoring, stream);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     // Process the last hits on CPU
-    integration.ProcessGPUHits(hostScoring, hostScoring.fStats);
+    for (const auto &hit : hostScoring) {
+      integration.ProcessGPUHit(hit);
+    }
   }
 }
 
