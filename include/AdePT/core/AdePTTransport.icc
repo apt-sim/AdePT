@@ -249,7 +249,7 @@ void AdePTTransport<IntegrationLayer>::Shower(int event)
     std::cout << "[" << tid << "] fromDevice: " << nelec << " elec, " << nposi << " posi, " << ngamma << " gamma\n";
   }
 
-  fIntegrationLayer.ReturnTracks(&(fBuffer.fromDevice), fDebugLevel);
+  fIntegrationLayer.ReturnTracks(fBuffer.fromDevice.begin(), fBuffer.fromDevice.end(), fDebugLevel);
 
   fBuffer.Clear();
 }
