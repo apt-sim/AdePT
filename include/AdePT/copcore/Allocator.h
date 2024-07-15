@@ -119,7 +119,7 @@ public:
     value_type *current = result;
 
     // allocate all objects at their aligned positions in the buffer
-    for (auto i = 0; i < n; ++i)
+    for (std::size_t i = 0; i < n; ++i)
       new (current++) T(params...);
 
     return result;

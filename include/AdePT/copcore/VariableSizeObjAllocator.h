@@ -130,7 +130,7 @@ public:
     char *buff           = (char *)result;
 
     // allocate all objects at their aligned positions in the buffer
-    for (auto i = 0; i < n; ++i) {
+    for (std::size_t i = 0; i < n; ++i) {
       T::MakeInstanceAt(fCapacity, buff, params...);
       buff += obj_size;
     }
@@ -144,7 +144,7 @@ public:
     char *buff           = (char *)ptr;
 
     // Call destructor for all allocated objects
-    for (auto i = 0; i < n; ++i) {
+    for (std::size_t i = 0; i < n; ++i) {
       T::ReleaseInstance((T *)buff);
       buff += obj_size;
     }
