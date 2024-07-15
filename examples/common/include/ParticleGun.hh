@@ -46,9 +46,9 @@ private:
   std::vector<float> fParticleEnergies;
   bool fInitializationDone = false;
   G4double fMinPhi         = 0.;
-  G4double fMaxPhi         = 0.;
-  G4double fMinTheta       = 0.;
-  G4double fMaxTheta       = 0.;
+  G4double fMaxPhi         = 360.;
+  G4double fMinTheta       = 10.;
+  G4double fMaxTheta       = 170.;
 
   // HepMC3 reader
   std::unique_ptr<G4VPrimaryGenerator> fHepmcAscii;
