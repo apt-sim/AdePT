@@ -20,14 +20,52 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
 
+namespace AdePTGeant4Integration_detail {
+/// This struct holds temporary scoring objects that are needed to send hits to Geant4.
+/// These are allocated as members to go around G4's pool allocators, which creates a destruction
+/// order fiasco when the pools are destroyed before the objects.
+/// This strategy also keeps all these objects much closer in memory.
+struct ScoringObjects {
+  G4NavigationHistory fPreG4NavigationHistory;
+  G4NavigationHistory fPostG4NavigationHistory;
+  G4Step fG4Step;
+  // The following objects have to leak, since the TouchableHistory is part of a memory pool, and
+  // can thus create a destruction-order fiasco:
+  G4TouchableHandle *fPreG4TouchableHistoryHandle{new G4TouchableHandle{new G4TouchableHistory()}};
+  G4TouchableHandle *fPostG4TouchableHistoryHandle{new G4TouchableHandle{new G4TouchableHistory()}};
+
+  // We need the dynamic particle associated to the track to have the correct particle definition, however this can
+  // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
+  // For this reason we create one track per particle type, to be reused
+  // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
+  // The same goes for the G4Track global time and position
+  G4Track fElectronTrack{
+      new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0), 0,
+      G4ThreeVector(0, 0, 0)};
+  G4Track fPositronTrack{
+      new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0), 0,
+      G4ThreeVector(0, 0, 0)};
+  G4Track fGammaTrack{
+      new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0), 0,
+      G4ThreeVector(0, 0, 0)};
+
+  ScoringObjects()
+  {
+    fG4Step.SetPreStepPoint(new G4StepPoint());  // Takes ownership
+    fG4Step.SetPostStepPoint(new G4StepPoint()); // Takes ownership
+  }
+};
+
+void Deleter::operator()(ScoringObjects *ptr)
+{
+  delete ptr;
+}
+
+} // namespace AdePTGeant4Integration_detail
+
 AdePTGeant4Integration::~AdePTGeant4Integration()
 {
-  delete fPreG4NavigationHistory;
-  delete fPostG4NavigationHistory;
-  delete fG4Step;
-  delete fElectronTrack;
-  delete fPositronTrack;
-  delete fGammaTrack;
+
 }
 
 void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
@@ -133,7 +171,7 @@ void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
 }
 
 void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
-                                            bool trackInAllRegions, std::vector<std::string> *gpuRegionNames)
+                                            bool trackInAllRegions, std::vector<std::string> const *gpuRegionNames)
 {
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
@@ -246,78 +284,54 @@ void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
   visitGeometry(g4world, vecgeomWorld);
 }
 
-void AdePTGeant4Integration::ProcessGPUHits(HostScoring &aScoring, HostScoring::Stats &aStats)
+void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
 {
-  if (!fScoringObjectsInitialized) {
-    // For sequential processing of hits we only need one instance of each object
-    fPreG4NavigationHistory       = new G4NavigationHistory();
-    fPostG4NavigationHistory      = new G4NavigationHistory();
-    fG4Step                       = new G4Step();
-    fPreG4TouchableHistoryHandle  = new G4TouchableHistory();
-    fPostG4TouchableHistoryHandle = new G4TouchableHistory();
-    fG4Step->SetPreStepPoint(new G4StepPoint());
-    fG4Step->SetPostStepPoint(new G4StepPoint());
-
-    // We need the dynamic particle associated to the track to have the correct particle definition, however this can
-    // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
-    // For this reason we create one track per particle type, to be reused
-    // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
-    // The same goes for the G4Track global time and position
-    fElectronTrack = new G4Track(
-        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0), 0,
-        G4ThreeVector(0, 0, 0));
-    fPositronTrack = new G4Track(
-        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0), 0,
-        G4ThreeVector(0, 0, 0));
-    fGammaTrack = new G4Track(
-        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0), 0,
-        G4ThreeVector(0, 0, 0));
-    fScoringObjectsInitialized = true;
+  if (!fScoringObjects) {
+    fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());
   }
 
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
-  for (size_t i = aStats.fBufferStart; i < aStats.fBufferStart + aStats.fUsedSlots; i++) {
-    // Get Hit index (Circular buffer)
-    int aHitIdx = i % aScoring.fBufferCapacity;
+  int aNavindex = hit.fPreStepPoint.fNavigationStateIndex;
+  // Reconstruct Pre-Step point G4NavigationHistory
+  FillG4NavigationHistory(aNavindex, &fScoringObjects->fPreG4NavigationHistory);
+  (*fScoringObjects->fPreG4TouchableHistoryHandle)
+      ->UpdateYourself(fScoringObjects->fPreG4NavigationHistory.GetTopVolume(),
+                       &fScoringObjects->fPreG4NavigationHistory);
+  // Reconstruct Post-Step point G4NavigationHistory
+  FillG4NavigationHistory(aNavindex, &fScoringObjects->fPostG4NavigationHistory);
+  (*fScoringObjects->fPostG4TouchableHistoryHandle)
+      ->UpdateYourself(fScoringObjects->fPostG4NavigationHistory.GetTopVolume(),
+                       &fScoringObjects->fPostG4NavigationHistory);
 
-    int aNavindex = aScoring.fGPUHitsBuffer_host[aHitIdx].fPreStepPoint.fNavigationStateIndex;
-    // Reconstruct Pre-Step point G4NavigationHistory
-    FillG4NavigationHistory(aNavindex, fPreG4NavigationHistory);
-    ((G4TouchableHistory *)fPreG4TouchableHistoryHandle())
-        ->UpdateYourself(fPreG4NavigationHistory->GetTopVolume(), fPreG4NavigationHistory);
-    // Reconstruct Post-Step point G4NavigationHistory
-    FillG4NavigationHistory(aNavindex, fPostG4NavigationHistory);
-    ((G4TouchableHistory *)fPostG4TouchableHistoryHandle())
-        ->UpdateYourself(fPostG4NavigationHistory->GetTopVolume(), fPostG4NavigationHistory);
-
-    // Reconstruct G4Step
-    switch (aScoring.fGPUHitsBuffer_host[aHitIdx].fParticleType) {
-    case 0:
-      fG4Step->SetTrack(fElectronTrack);
-      break;
-    case 1:
-      fG4Step->SetTrack(fPositronTrack);
-      break;
-    case 2:
-      fG4Step->SetTrack(fGammaTrack);
-      break;
-    }
-    FillG4Step(&(aScoring.fGPUHitsBuffer_host[aHitIdx]), fG4Step, fPreG4TouchableHistoryHandle,
-               fPostG4TouchableHistoryHandle);
-
-    // Call SD code
-    G4VSensitiveDetector *aSensitiveDetector = fPreG4NavigationHistory->GetVolume(fPreG4NavigationHistory->GetDepth())
-                                                   ->GetLogicalVolume()
-                                                   ->GetSensitiveDetector();
-
-    // Double check, a nullptr here can indicate an issue reconstructing the navigation history
-    assert(aSensitiveDetector != nullptr);
-
-    aSensitiveDetector->Hit(fG4Step);
+  // Reconstruct G4Step
+  switch (hit.fParticleType) {
+  case 0:
+    fScoringObjects->fG4Step.SetTrack(&fScoringObjects->fElectronTrack);
+    break;
+  case 1:
+    fScoringObjects->fG4Step.SetTrack(&fScoringObjects->fPositronTrack);
+    break;
+  case 2:
+    fScoringObjects->fG4Step.SetTrack(&fScoringObjects->fGammaTrack);
+    break;
   }
+  FillG4Step(&hit, &fScoringObjects->fG4Step, *fScoringObjects->fPreG4TouchableHistoryHandle,
+             *fScoringObjects->fPostG4TouchableHistoryHandle);
+
+  // Call SD code
+  G4VSensitiveDetector *aSensitiveDetector =
+      fScoringObjects->fPreG4NavigationHistory.GetVolume(fScoringObjects->fPreG4NavigationHistory.GetDepth())
+          ->GetLogicalVolume()
+          ->GetSensitiveDetector();
+
+  // Double check, a nullptr here can indicate an issue reconstructing the navigation history
+  assert(aSensitiveDetector != nullptr);
+
+  aSensitiveDetector->Hit(&fScoringObjects->fG4Step);
 }
 
-void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4NavigationHistory *aG4NavigationHistory)
+void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex,
+                                                     G4NavigationHistory *aG4NavigationHistory) const
 {
   // Get the current depth of the history (corresponding to the previous reconstructed touchable)
   auto aG4HistoryDepth = aG4NavigationHistory->GetDepth();
@@ -326,12 +340,13 @@ void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4N
   auto aVecGeomLevel = vgState.GetLevel();
 
   unsigned int aLevel{0};
-  G4VPhysicalVolume *pvol{nullptr}, *pnewvol{nullptr};
+  G4VPhysicalVolume const *pvol{nullptr};
+  G4VPhysicalVolume *pnewvol{nullptr};
 
   for (aLevel = 0; aLevel <= aVecGeomLevel; aLevel++) {
     // While we are in levels shallower than the history depth, it may be that we already
     // have the correct volume in the history
-    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[vgState.At(aLevel)->id()]);
+    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map.at(vgState.At(aLevel)->id()));
 
     if (aLevel < aG4HistoryDepth) {
       // In G4NavigationHistory, the initial volume has the index 1
@@ -362,8 +377,9 @@ void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4N
   if (aG4HistoryDepth >= aLevel) aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel);
 }
 
-void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
-                                        G4TouchableHandle &aPostG4TouchableHandle)
+void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
+                                        G4TouchableHandle &aPreG4TouchableHandle,
+                                        G4TouchableHandle &aPostG4TouchableHandle) const
 {
   const G4ThreeVector *aPostStepPointMomentumDirection = new G4ThreeVector(aGPUHit->fPostStepPoint.fMomentumDirection);
   const G4ThreeVector *aPostStepPointPolarization      = new G4ThreeVector(aGPUHit->fPostStepPoint.fPolarization);
@@ -456,46 +472,38 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
   // aPostStepPoint->SetWeight(0);                                                                    // Missing data
 }
 
-void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *tracksFromDevice, int debugLevel)
+void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex,
+                                         int debugLevel) const
 {
-  // debugLevel = 2;
-  if (debugLevel > 1) {
-    G4cout << "Returning " << tracksFromDevice->size() << " tracks from device" << G4endl;
-  }
-
   constexpr double tolerance = 10. * vecgeom::kTolerance;
-  int tid                    = GetThreadID();
 
   // Build the secondaries and put them back on the Geant4 stack
-  int i = 0;
-  for (auto const &track : *tracksFromDevice) {
-    if (debugLevel > 1) {
-      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " kinetic energy " << track.eKin
-                << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-                << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
-                << " global time, local time, proper time: "
-                << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << std::endl;
-    }
-    G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
-
-    G4DynamicParticle *dynamique =
-        new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.eKin);
-
-    G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
-    // The returned track will be located by Geant4. For now we need to
-    // push it to make sure it is not relocated again in the GPU region
-    posi += tolerance * direction;
-
-    G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
-    secondary->SetLocalTime(track.localTime);
-    secondary->SetProperTime(track.properTime);
-    secondary->SetParentID(-99);
-
-    G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
+  if (debugLevel > 1) {
+    std::cout << "[" << GetThreadID() << "] fromDevice[ " << trackIndex << "]: pdg " << track.pdg << " kinetic energy "
+              << track.eKin << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
+              << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
+              << " global time, local time, proper time: "
+              << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << std::endl;
   }
+  G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
+
+  G4DynamicParticle *dynamique =
+      new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.eKin);
+
+  G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
+  // The returned track will be located by Geant4. For now we need to
+  // push it to make sure it is not relocated again in the GPU region
+  posi += tolerance * direction;
+
+  G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
+  secondary->SetLocalTime(track.localTime);
+  secondary->SetProperTime(track.properTime);
+  secondary->SetParentID(-99);
+
+  G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
 }
 
-double AdePTGeant4Integration::GetUniformFieldZ()
+double AdePTGeant4Integration::GetUniformFieldZ() const
 {
   G4UniformMagField *field =
       (G4UniformMagField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
