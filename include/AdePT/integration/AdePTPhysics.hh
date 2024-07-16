@@ -6,8 +6,9 @@
 
 #include "G4VPhysicsConstructor.hh"
 #include "globals.hh"
-#include <AdePT/integration/AdePTTrackingManager.hh>
-#include <AdePT/core/AdePTConfiguration.hh>
+
+class AdePTTrackingManager;
+class AdePTConfiguration;
 
 class AdePTPhysics : public G4VPhysicsConstructor {
 public:

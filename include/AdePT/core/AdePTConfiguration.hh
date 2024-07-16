@@ -4,14 +4,26 @@
 #ifndef ADEPT_CONFIGURATION_HH
 #define ADEPT_CONFIGURATION_HH
 
+#include <AdePT/integration/AdePTConfigurationMessenger.hh>
+#include <AdePT/core/AdePTTransportInterface.hh>
+
+#include <memory>
 #include <string>
 #include <vector>
-#include <AdePT/integration/AdePTConfigurationMessenger.hh>
 
 class AdePTConfiguration {
 public:
-  AdePTConfiguration() { fAdePTConfigurationMessenger = new AdePTConfigurationMessenger(this); }
-  ~AdePTConfiguration() { delete fAdePTConfigurationMessenger; }
+  /// @brief Factory function to create AdePT instances.
+  /// Every AdePT transport implementation needs to provide this function to create
+  /// instances of the transport implementation. These might either be one instance
+  /// per thread, or share one instance across many threads. This is up to the
+  /// transport implementation.
+  using AdeptFactoryFunction_t = std::shared_ptr<AdePTTransportInterface> (*)(
+      unsigned int nThread, unsigned int nTrackSlot, unsigned int nHitSlot, int verbosity,
+      std::vector<std::string> const *GPURegionNames, bool trackInAllRegions);
+
+  AdePTConfiguration();
+  ~AdePTConfiguration();
   void SetRandomSeed(int randomSeed) { fRandomSeed = randomSeed; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
@@ -22,6 +34,9 @@ public:
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
+  /// Register a function to create AdePT instances. This function will be called on every thread that
+  /// needs an instance of AdePT.
+  static void SetAdePTFactoryFunction(AdeptFactoryFunction_t func) { sFactoryFunction = func; }
 
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
@@ -35,6 +50,8 @@ public:
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
+
+  std::shared_ptr<AdePTTransportInterface> CreateAdePTInstance(unsigned int nThread);
 
   // Temporary
   std::string GetVecGeomGDML() { return fVecGeomGDML; }
@@ -50,10 +67,11 @@ private:
   double fMillionsOfTrackSlots{1};
   double fMillionsOfHitSlots{1};
   std::vector<std::string> fGPURegionNames{};
+  int fNThread = -1;
 
   std::string fVecGeomGDML{""};
-
-  AdePTConfigurationMessenger *fAdePTConfigurationMessenger;
+  std::unique_ptr<AdePTConfigurationMessenger> fAdePTConfigurationMessenger;
+  inline static AdeptFactoryFunction_t sFactoryFunction = nullptr;
 };
 
 #endif

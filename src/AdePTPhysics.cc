@@ -2,47 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/AdePTPhysics.hh>
+
 #include <AdePT/integration/AdePTGeant4Integration.hh>
+#include <AdePT/core/AdePTConfiguration.hh>
+#include <AdePT/core/AdePTTransportInterface.hh>
+#include <AdePT/integration/AdePTTrackingManager.hh>
 
 #include "G4ParticleDefinition.hh"
-#include "G4ProcessManager.hh"
-#include "G4PhysicsListHelper.hh"
-
-#include "G4ComptonScattering.hh"
-// #include "G4KleinNishinaModel.hh"  // by defult in G4ComptonScattering
-
-#include "G4GammaConversion.hh"
-#include "G4PhotoElectricEffect.hh"
-#include "G4LivermorePhotoElectricModel.hh"
-// #include "G4RayleighScattering.hh"
-
-#include "G4eMultipleScattering.hh"
-#include "G4GoudsmitSaundersonMscModel.hh"
-#include "G4eIonisation.hh"
-#include "G4eBremsstrahlung.hh"
-#include "G4eplusAnnihilation.hh"
-
+#include "G4Electron.hh"
+#include "G4Positron.hh"
+#include "G4Gamma.hh"
 #include "G4EmParameters.hh"
-#include "G4MscStepLimitType.hh"
-
 #include "G4BuilderType.hh"
-#include "G4LossTableManager.hh"
-// #include "G4UAtomicDeexcitation.hh"
-
-#include "G4SystemOfUnits.hh"
-
-// from G4EmStandardPhysics
-#include "G4GenericIon.hh"
-#include "G4EmModelActivator.hh"
-#include "G4EmBuilder.hh"
-#include "G4hMultipleScattering.hh"
-#include "G4hIonisation.hh"
-#include "G4ionIonisation.hh"
-#include "G4NuclearStopping.hh"
-#include "G4SDManager.hh"
-
-#include "G4GeometryManager.hh"
-#include "G4RunManager.hh"
 
 AdePTPhysics::AdePTPhysics(const G4String &name) : G4VPhysicsConstructor(name)
 {
@@ -68,8 +39,6 @@ AdePTPhysics::~AdePTPhysics()
 
 void AdePTPhysics::ConstructProcess()
 {
-  G4PhysicsListHelper *ph = G4PhysicsListHelper::GetPhysicsListHelper();
-
   // Register custom tracking manager for e-/e+ and gammas.
   fTrackingManager = new AdePTTrackingManager();
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
@@ -78,13 +47,5 @@ void AdePTPhysics::ConstructProcess()
 
   // Setup tracking manager
   fTrackingManager->SetVerbosity(0);
-
-  // Create one instance of AdePTTransport per thread
-  auto aAdePTTransport = new AdePTTransport<AdePTGeant4Integration>();
-
-  // Give the custom tracking manager a pointer to the AdePTTransport instance
-  fTrackingManager->SetAdePTTransport(aAdePTTransport);
   fTrackingManager->SetAdePTConfiguration(fAdePTConfiguration);
-
-  // Translate Region names to actual G4 Regions and give them to the custom tracking manager
 }

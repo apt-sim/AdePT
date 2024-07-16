@@ -47,7 +47,8 @@ bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
 template <typename IntegrationLayer>
 void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parent_id, double energy, double x, double y, double z,
                                                 double dirx, double diry, double dirz, double globalTime,
-                                                double localTime, double properTime)
+                                                double localTime, double properTime, int /*threadId*/, unsigned int eventId,
+                                                unsigned int /*trackIndex*/)
 {
   fBuffer.toDevice.emplace_back(pdg, parent_id, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime);
   if (pdg == 11)
@@ -60,7 +61,7 @@ void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parent_id, double e
   if (fBuffer.toDevice.size() >= fBufferThreshold) {
     if (fDebugLevel > 0)
       std::cout << "Reached the threshold of " << fBufferThreshold << " triggering the shower" << std::endl;
-    this->Shower(fIntegrationLayer.GetEventID());
+    this->Shower(eventId, 0);
   }
 }
 
@@ -199,7 +200,7 @@ void AdePTTransport<IntegrationLayer>::Cleanup()
 }
 
 template <typename IntegrationLayer>
-void AdePTTransport<IntegrationLayer>::Shower(int event)
+void AdePTTransport<IntegrationLayer>::Shower(int event, int /*threadId*/)
 {
   int tid = fIntegrationLayer.GetThreadID();
   if (fDebugLevel > 0 && fBuffer.toDevice.size() == 0) {
