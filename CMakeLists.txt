@@ -144,6 +144,7 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
   src/AdePTConfigurationMessenger.cc
+  src/AdePTConfiguration.cc
 )
 
 add_library(CopCore INTERFACE)
