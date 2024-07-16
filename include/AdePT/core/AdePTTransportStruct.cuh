@@ -102,21 +102,12 @@ struct GPUstate {
   Stats *stats{nullptr};              ///< statistics object pointer on host
 };
 
-// Constant data structures from G4HepEm accessed by the kernels.
-// (defined in TestEm3.cu)
-extern __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
-extern __constant__ __device__ struct G4HepEmData g4HepEmData;
-
-// Pointer for array of volume auxiliary data on device
-extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
-
-// constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
-extern __constant__ __device__ double BzFieldValue;
+namespace adept_impl {
 constexpr double kPush = 1.e-8 * copcore::units::cm;
-__constant__ __device__ struct G4HepEmParameters g4HepEmPars;
-__constant__ __device__ struct G4HepEmData g4HepEmData;
+extern __constant__ struct G4HepEmParameters g4HepEmPars;
+extern __constant__ struct G4HepEmData g4HepEmData;
 
-__constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
-__constant__ __device__ double BzFieldValue               = 0;
-
+extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
+extern __constant__ __device__ double BzFieldValue;
+} // namespace adept_impl
 #endif

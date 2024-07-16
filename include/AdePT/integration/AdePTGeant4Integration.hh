@@ -12,12 +12,12 @@
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/HostScoringStruct.cuh>
 
-#include <G4HepEmState.hh>
-
 #include <G4EventManager.hh>
 #include <G4Event.hh>
 
 #include <unordered_map>
+
+struct G4HepEmState;
 
 namespace AdePTGeant4Integration_detail {
 struct ScoringObjects;

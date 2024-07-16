@@ -43,12 +43,12 @@ add_subdirectory(testField)
 #----------------------------------------------------------------------------#
 # Link/RDC tests
 #----------------------------------------------------------------------------#
-# - Check CopCore links as expected 
+# - Check CopCore links as expected
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(test_copcore_link PRIVATE CopCore)
 
-# - Check G4VG links as expected 
+# - Check G4VG links as expected
 if(VecGeom_SURF_FOUND)
   message(STATUS "${Magenta}Disabled g4vg when using VecGeom surface model${ColorReset}")
 else()

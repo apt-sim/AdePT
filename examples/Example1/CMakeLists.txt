@@ -51,17 +51,17 @@ endif()
 # example1
 add_executable(example1 example1.cpp ${sources_g4} ${sources_hepmc3})
 target_include_directories(example1
-  PRIVATE 
-    ${PROJECT_SOURCE_DIR}/examples/Example1/include 
+  PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/Example1/include
     ${PROJECT_SOURCE_DIR}/examples/Example1
     ${PROJECT_SOURCE_DIR}/examples/common/include
     ${HEPMC3_INCLUDE_DIR}
 )
 target_link_libraries(example1
   PRIVATE
-    AdePT_G4_integration
-    ${HEPMC3_LIBRARIES} 
+    ${HEPMC3_LIBRARIES}
     ${HEPMC3_FIO_LIBRARIES}
+    AdePT_G4_integration
 )
 
 # Install macros and geometry file

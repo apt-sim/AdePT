@@ -42,6 +42,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                                           Secondaries &secondaries, MParrayTracks *leakedQueue,
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
+  using namespace adept_impl;
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
