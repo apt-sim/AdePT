@@ -4,14 +4,29 @@
 #ifndef ADEPT_CONFIGURATION_HH
 #define ADEPT_CONFIGURATION_HH
 
+#include <AdePT/integration/AdePTConfigurationMessenger.hh>
+#include <AdePT/core/AdePTTransportInterface.hh>
+
+#include <memory>
 #include <string>
 #include <vector>
-#include <AdePT/integration/AdePTConfigurationMessenger.hh>
 
+/// @brief Factory function to create AdePT instances.
+/// Every AdePT transport implementation needs to provide this function to create
+/// instances of the transport implementation. These might either be one instance
+/// per thread, or share one instance across many threads. This is up to the
+/// transport implementation.
+std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
+                                                               unsigned int nHitSlot, int verbosity,
+                                                               std::vector<std::string> const *GPURegionNames,
+                                                               bool trackInAllRegions);
+
+/// @brief Create and configure instances of an AdePT transport implementation.
+///
 class AdePTConfiguration {
 public:
-  AdePTConfiguration() { fAdePTConfigurationMessenger = new AdePTConfigurationMessenger(this); }
-  ~AdePTConfiguration() { delete fAdePTConfigurationMessenger; }
+  AdePTConfiguration();
+  ~AdePTConfiguration();
   void SetRandomSeed(int randomSeed) { fRandomSeed = randomSeed; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
@@ -36,6 +51,8 @@ public:
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
 
+  std::shared_ptr<AdePTTransportInterface> CreateAdePTInstance(unsigned int nThread);
+
   // Temporary
   std::string GetVecGeomGDML() { return fVecGeomGDML; }
 
@@ -50,10 +67,10 @@ private:
   double fMillionsOfTrackSlots{1};
   double fMillionsOfHitSlots{1};
   std::vector<std::string> fGPURegionNames{};
+  int fNThread = -1;
 
   std::string fVecGeomGDML{""};
-
-  AdePTConfigurationMessenger *fAdePTConfigurationMessenger;
+  std::unique_ptr<AdePTConfigurationMessenger> fAdePTConfigurationMessenger;
 };
 
 #endif

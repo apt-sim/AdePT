@@ -13,6 +13,8 @@
 #include "G4Gamma.hh"
 #include "G4Positron.hh"
 
+#include <algorithm>
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 AdePTTrackingManager::AdePTTrackingManager() {}
@@ -26,13 +28,7 @@ AdePTTrackingManager::~AdePTTrackingManager()
 
 void AdePTTrackingManager::InitializeAdePT()
 {
-  // AdePT needs to be initialized here, since we know all needed Geant4 initializations are already finished
-  fAdeptTransport->SetDebugLevel(0);
-  fAdeptTransport->SetBufferThreshold(fAdePTConfiguration->GetTransportBufferThreshold());
-  fAdeptTransport->SetMaxBatch(2 * fAdePTConfiguration->GetTransportBufferThreshold());
-  fAdeptTransport->SetTrackInAllRegions(fAdePTConfiguration->GetTrackInAllRegions());
-  fAdeptTransport->SetGPURegionNames(fAdePTConfiguration->GetGPURegionNames());
-  fAdeptTransport->SetCUDAStackLimit(fAdePTConfiguration->GetCUDAStackLimit());
+  const auto num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
 
   // Check if this is a sequential run
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
@@ -44,14 +40,9 @@ void AdePTTrackingManager::InitializeAdePT()
     // Load the VecGeom world in memory
     AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
 
-    // Track and Hit buffer capacities on GPU are split among threads
-    int num_threads    = G4RunManager::GetRunManager()->GetNumberOfThreads();
-    int track_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfTrackSlots() / num_threads;
-    G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;
-    fAdeptTransport->SetTrackCapacity(track_capacity);
-    int hit_buffer_capacity = 1024 * 1024 * fAdePTConfiguration->GetMillionsOfHitSlots() / num_threads;
-    G4cout << "AdePT Allocated hit buffer capacity: " << hit_buffer_capacity << " slots" << G4endl;
-    fAdeptTransport->SetHitBufferCapacity(hit_buffer_capacity);
+    // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
+    // all threads.
+    fAdeptTransport = fAdePTConfiguration->CreateAdePTInstance(num_threads);
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
@@ -61,13 +52,16 @@ void AdePTTrackingManager::InitializeAdePT()
       fAdeptTransport->Initialize();
     }
   } else {
+    // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
+    // all threads.
+    fAdeptTransport = fAdePTConfiguration->CreateAdePTInstance(num_threads);
     // Initialize per-thread data
     fAdeptTransport->Initialize();
   }
 
   // Initialize the GPU region list
 
-  if (!fAdeptTransport->GetTrackInAllRegions()) {
+  if (!fAdePTConfiguration->GetTrackInAllRegions()) {
     for (std::string regionName : *(fAdeptTransport->GetGPURegionNames())) {
       G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
       G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
@@ -151,10 +145,10 @@ void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 void AdePTTrackingManager::FlushEvent()
 {
   if (fVerbosity > 0)
-    G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer with "
-           << fAdeptTransport->GetNtoDevice() << " particles left." << G4endl;
-  if(fAdeptTransport->GetNtoDevice() > 0)
-    fAdeptTransport->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+    G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer." << G4endl;
+
+  fAdeptTransport->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(),
+                          G4Threading::G4GetThreadId());
 }
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
@@ -165,6 +159,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   G4TrackVector *secondaries         = trackManager->GimmeSecondaries();
+  const bool trackInAllRegions       = fAdeptTransport->GetTrackInAllRegions();
 
   // Clear secondary particle vector
   for (std::size_t itr = 0; itr < secondaries->size(); ++itr) {
@@ -190,16 +185,10 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
   // Track the particle Step-by-Step while it is alive
   while ((aTrack->GetTrackStatus() == fAlive) || (aTrack->GetTrackStatus() == fStopButAlive)) {
-    G4Region *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+    G4Region const *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+
     // Check if the particle is in a GPU region
-    bool isGPURegion = false;
-    if (fAdeptTransport->GetTrackInAllRegions()) {
-      isGPURegion = true;
-    } else {
-      if (fGPURegions.find(region) != fGPURegions.end()) {
-        isGPURegion = true;
-      }
-    }
+    const bool isGPURegion = trackInAllRegions || fGPURegions.find(region) != fGPURegions.end();
 
     if (isGPURegion) {
       // If the track is in a GPU region, hand it over to AdePT
@@ -212,10 +201,16 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double properTime    = aTrack->GetProperTime();
       auto pdg               = aTrack->GetParticleDefinition()->GetPDGEncoding();
       int id                 = aTrack->GetTrackID();
+      const auto eventID     = eventManager->GetConstCurrentEvent()->GetEventID();
+      if (fCurrentEventID != eventID) {
+        // Do this to reproducibly seed the AdePT random numbers:
+        fCurrentEventID = eventID;
+        fTrackCounter   = 0;
+      }
 
       fAdeptTransport->AddTrack(pdg, id, energy, particlePosition[0], particlePosition[1], particlePosition[2],
                                 particleDirection[0], particleDirection[1], particleDirection[2], globalTime, localTime,
-                                properTime);
+                                properTime, G4Threading::G4GetThreadId(), eventID, fTrackCounter++);
 
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);
@@ -243,20 +238,21 @@ void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
-  G4Region *previousRegion           = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+  G4Region const *previousRegion       = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+  G4UserSteppingAction *steppingAction = steppingManager->GetUserAction();
 
   // Track the particle Step-by-Step while it is alive and outside of a GPU region
-  while ((aTrack->GetTrackStatus() == fAlive) || (aTrack->GetTrackStatus() == fStopButAlive)) {
+  while ((aTrack->GetTrackStatus() == fAlive || aTrack->GetTrackStatus() == fStopButAlive)) {
     aTrack->IncrementCurrentStepNumber();
     steppingManager->Stepping();
+    if (steppingAction) steppingAction->UserSteppingAction(aTrack->GetStep());
 
     if (aTrack->GetTrackStatus() != fStopAndKill) {
       // Switch the touchable to update the volume, which is checked in the
       // condition below and at the call site.
       aTrack->SetTouchableHandle(aTrack->GetNextTouchableHandle());
-      G4Region *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
-      // This should never be true if this flag is set, as all particles would be sent to AdePT
-      assert(fAdeptTransport->GetTrackInAllRegions() == false);
+      G4Region const *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+
       // If the region changed, check whether the particle has entered a GPU region
       if (region != previousRegion) {
         previousRegion = region;

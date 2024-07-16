@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef ADEPT_TRANSPORT_CUH
+#define ADEPT_TRANSPORT_CUH
+
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 #include <AdePT/core/HostScoringStruct.cuh>
 #include <AdePT/core/HostScoringImpl.cuh>
@@ -48,6 +51,11 @@
 #include <algorithm>
 
 namespace adept_impl {
+inline __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
+inline __constant__ __device__ struct G4HepEmData g4HepEmData;
+
+inline __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
+inline __constant__ __device__ double BzFieldValue               = 0;
 
 bool InitializeVolAuxArray(adeptint::VolAuxArray &array)
 {
@@ -75,7 +83,7 @@ G4HepEmState *InitG4HepEm()
 
   // Copy to GPU.
   CopyG4HepEmDataToGPU(state->fData);
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, state->fParameters, sizeof(G4HepEmParameters)));
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(adept_impl::g4HepEmPars, state->fParameters, sizeof(G4HepEmParameters)));
 
   // Create G4HepEmData with the device pointers.
   G4HepEmData dataOnDevice;
@@ -552,3 +560,5 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   adept_scoring::EndOfTransport<IntegrationLayer>(*scoring, scoring_dev, gpuState.stream, integration);
 }
 } // namespace adept_impl
+
+#endif

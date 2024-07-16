@@ -24,6 +24,7 @@ template <typename Scoring>
 __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,
                                 Scoring *userScoring, VolAuxData const *auxDataArray)
 {
+  using namespace adept_impl;
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else

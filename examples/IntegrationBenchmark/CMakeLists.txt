@@ -52,16 +52,16 @@ endif()
 # integrationBenchmark
 add_executable(integrationBenchmark integrationBenchmark.cpp ${sources_g4} ${sources_hepmc3})
 target_include_directories(integrationBenchmark
-  PRIVATE 
-    ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark/include 
+  PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark/include
     ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark
     ${PROJECT_SOURCE_DIR}/examples/common/include
     ${HEPMC3_INCLUDE_DIR}
 )
 target_link_libraries(integrationBenchmark
   PRIVATE
-    AdePT_G4_integration  
-    ${HEPMC3_LIBRARIES} 
+    AdePT_G4_integration
+    ${HEPMC3_LIBRARIES}
     ${HEPMC3_FIO_LIBRARIES}
 )
 
