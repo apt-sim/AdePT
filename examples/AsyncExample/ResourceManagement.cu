@@ -4,7 +4,7 @@
 
 #include "AdePT/copcore/Global.h"
 
-namespace adeptint {
+namespace AsyncAdePT {
 
 void cudaDeleter(void *ptr)
 {
@@ -16,15 +16,14 @@ void cudaHostDeleter(void *ptr)
   COPCORE_CUDA_CHECK(cudaFreeHost(ptr));
 }
 
-void cudaStreamDeleter(cudaStream_t *stream)
+void cudaStreamDeleter(void *stream)
 {
-  COPCORE_CUDA_CHECK(cudaStreamDestroy(*stream));
+  COPCORE_CUDA_CHECK(cudaStreamDestroy(*static_cast<cudaStream_t *>(stream)));
 }
 
-void cudaEventDeleter(cudaEvent_t *event)
+void cudaEventDeleter(void *event)
 {
-  COPCORE_CUDA_CHECK(cudaEventDestroy(*event));
+  COPCORE_CUDA_CHECK(cudaEventDestroy(*static_cast<cudaEvent_t *>(event)));
 }
-using unique_ptr_cudaEvent = std::unique_ptr<cudaEvent_t, void (*)(cudaEvent_t *)>;
 
-} // namespace adeptint
+} // namespace AsyncAdePT

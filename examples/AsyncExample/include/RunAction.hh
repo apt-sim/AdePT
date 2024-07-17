@@ -31,7 +31,6 @@
 #include "G4UserRunAction.hh"
 #include <VecGeom/base/Stopwatch.h>
 class G4Run;
-class DetectorConstruction;
 
 /**
  * @brief Run action
@@ -45,7 +44,7 @@ class DetectorConstruction;
 class RunAction : public G4UserRunAction {
 public:
   /// Constructor. Defines the histograms.
-  RunAction(DetectorConstruction *aDetector);
+  RunAction();
   virtual ~RunAction();
 
   /// Open the file for the analysis

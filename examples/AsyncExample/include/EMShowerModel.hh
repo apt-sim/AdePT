@@ -30,7 +30,6 @@
 
 #include "G4VFastSimulationModel.hh"
 #include <AdePT/copcore/SystemOfUnits.h>
-#include "AdeptIntegration.h"
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
@@ -43,6 +42,7 @@
 class EMShowerMessenger;
 class G4FastSimHitMaker;
 class G4VPhysicalVolume;
+class AdeptIntegration;
 
 /**
  * @brief Example fast simulation model for EM showers.

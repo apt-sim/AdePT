@@ -30,7 +30,6 @@
 
 #include "G4HCofThisEvent.hh"
 #include "G4TouchableHistory.hh"
-#include "G4Track.hh"
 #include "G4Step.hh"
 #include "G4SDManager.hh"
 
@@ -40,31 +39,26 @@ SensitiveDetector::SensitiveDetector(G4String aName) : G4VSensitiveDetector(aNam
 }
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-SensitiveDetector::SensitiveDetector(G4String aName, G4int numSensitive)
-    : G4VSensitiveDetector(aName), fNumSensitive(numSensitive)
-{
-  collectionName.insert("hits");
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-SensitiveDetector::~SensitiveDetector() {}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
 void SensitiveDetector::Initialize(G4HCofThisEvent *aHCE)
 {
   fHitsCollection = new SimpleHitsCollection(SensitiveDetectorName, collectionName[0]);
   if (fHitCollectionID < 0) {
     fHitCollectionID = G4SDManager::GetSDMpointer()->GetCollectionID(fHitsCollection);
   }
+  // Hits collection is now managed by G4
   aHCE->AddHitsCollection(fHitCollectionID, fHitsCollection);
 
-  // fill calorimeter hits with zero energy deposition
-  for (G4int iz = 0; iz < fNumSensitive; iz++) {
+  // Retrieving the hits through the map allows us to set the Volume name associated to the hits
+  int hitID = 0;
+  for (auto pvol : (fSensitivePhysicalVolumes)) {
     auto hit = new SimpleHit();
+    hit->SetPhysicalVolumeName(pvol->GetName());
+    fScoringMap.insert(std::pair<int, int>(pvol->GetInstanceID(), hitID));
+    hitID++;
     fHitsCollection->insert(hit);
   }
+
+  fNumSensitive = fSensitivePhysicalVolumes.size();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -86,44 +80,11 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
   if (hit->GetTime() == -1 || hit->GetTime() > aStep->GetTrack()->GetGlobalTime())
     hit->SetTime(aStep->GetTrack()->GetGlobalTime());
 
-  // Set hit type to full simulation (only if hit is not already marked as fast
-  // sim)
+  // Set hit type to full simulation (only if hit is not already marked as fast sim)
   if (hit->GetType() != 1) hit->SetType(0);
 
   return true;
 }
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-G4bool SensitiveDetector::ProcessHits(const G4FastHit *aHit, const G4FastTrack * /*aTrack*/,
-                                      G4TouchableHistory * /*aTouchable*/)
-{
-
-  G4double edep = aHit->GetEnergy();
-  if (edep == 0.) return true;
-
-  // I need to find the right hit based on the 'position'. For the moment, I use the position vector to store the id
-  // of the cell.
-
-  int hitID = (int)aHit->GetPosition().x();
-  auto hit  = (*fHitsCollection)[hitID];
-
-  // Add energy deposit from G4FastHit
-  hit->AddEdep(edep);
-  // set type to fast sim
-  hit->SetType(1);
-
-  /*
-    // Fill time information from G4FastTrack
-    // If it's already filled, choose hit with earliest global time
-    if (hit->GetTime() == -1 || hit->GetTime() > aTrack->GetPrimaryTrack()->GetGlobalTime()) {
-      hit->SetTime(aTrack->GetPrimaryTrack()->GetGlobalTime());
-    }
-  */
-
-  return true;
-}
-
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 G4bool SensitiveDetector::ProcessHits(int hitID, double energy)
@@ -145,7 +106,8 @@ G4bool SensitiveDetector::ProcessHits(int hitID, double energy)
 
 SimpleHit *SensitiveDetector::RetrieveAndSetupHit(G4TouchableHistory *aTouchable)
 {
-  std::size_t hitID = (*fScoringMap)[aTouchable->GetHistory()->GetTopVolume()];
+  std::size_t hitID = fScoringMap[aTouchable->GetHistory()->GetTopVolume()->GetInstanceID()];
+
   assert(hitID < static_cast<std::size_t>(fNumSensitive));
 
   if (hitID >= fHitsCollection->entries()) {
