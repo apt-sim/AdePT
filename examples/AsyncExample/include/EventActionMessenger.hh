@@ -49,7 +49,7 @@ public:
 private:
   EventAction *fEventAction = nullptr;
 
-  G4UIdirectory *fEventActionDir      = nullptr;
+  G4UIdirectory *fDir                 = nullptr;
   G4UIcmdWithAnInteger *fVerbosityCmd = nullptr;
 };
 

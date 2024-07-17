@@ -5,18 +5,20 @@
 
 #include <memory>
 
-namespace adeptint {
+namespace AsyncAdePT {
 void cudaDeleter(void *ptr);
 void cudaHostDeleter(void *ptr);
+void cudaStreamDeleter(void *stream);
+void cudaEventDeleter(void *event);
 
 template <typename T = void>
 using unique_ptr_cuda = std::unique_ptr<T, void (*)(void *)>;
 
-void cudaStreamDeleter(cudaStream_t *stream);
-using unique_ptr_cudaStream = std::unique_ptr<cudaStream_t, void (*)(cudaStream_t *)>;
-void cudaEventDeleter(cudaEvent_t *event);
-using unique_ptr_cudaEvent = std::unique_ptr<cudaEvent_t, void (*)(cudaEvent_t *)>;
+#ifdef __CUDACC__
+using unique_ptr_cudaStream = std::unique_ptr<cudaStream_t, void (*)(void *)>;
+using unique_ptr_cudaEvent  = std::unique_ptr<cudaEvent_t, void (*)(void *)>;
+#endif
 
-} // namespace adeptint
+} // namespace AsyncAdePT
 
 #endif // RESOURCE_MANAGEMENT_CUH

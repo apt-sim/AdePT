@@ -19,12 +19,14 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
+namespace AsyncAdePT {
+
 template <typename Scoring>
 __global__ void __launch_bounds__(256, 1)
     TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
                     adept::MParray *leakedQueue, Scoring *userScoring, GammaInteractions gammaInteractions)
 {
-  using VolAuxData = AdeptIntegration::VolAuxData;
+  using VolAuxData = adeptint::VolAuxData;
 #ifdef VECGEOM_FLOAT_PRECISION
   constexpr Precision kPush = 10 * vecgeom::kTolerance;
 #else
@@ -33,15 +35,16 @@ __global__ void __launch_bounds__(256, 1)
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   const int activeSize               = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    Track &currentTrack = gammas[slot];
+    const int slot            = (*active)[i];
+    Track &currentTrack       = gammas[slot];
     const auto energy         = currentTrack.energy;
-    auto pos            = currentTrack.pos;
+    // const auto preStepEnergy  = energy;
+    auto pos = currentTrack.pos;
+    // const auto preStepPos{pos};
     const auto dir            = currentTrack.dir;
-    auto navState       = currentTrack.navState;
-    const auto volume   = navState.Top();
-    const int lvolID          = volume->GetLogicalVolume()->id(); // the MCC vector is indexed by the logical volume id
-    VolAuxData const &auxData = userScoring[currentTrack.threadId].GetAuxData_dev(lvolID);
+    // const auto preStepDir{dir};
+    auto navState             = currentTrack.navState;
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     auto &slotManager = *secondaries.gammas.fSlotManager;
 
@@ -82,7 +85,6 @@ __global__ void __launch_bounds__(256, 1)
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
-    userScoring[currentTrack.threadId].AccountChargedStep(0);
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -102,9 +104,6 @@ __global__ void __launch_bounds__(256, 1)
     }
 
     if (nextState.IsOnBoundary()) {
-      // For now, just count that we hit something.
-      userScoring[currentTrack.threadId].AccountHit();
-
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
         BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
@@ -114,7 +113,7 @@ __global__ void __launch_bounds__(256, 1)
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
-        VolAuxData const &nextauxData = userScoring[currentTrack.threadId].GetAuxData_dev(nextlvolID);
+        VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
         if (nextauxData.fGPUregion > 0)
           survive(activeQueue);
         else {
@@ -136,7 +135,11 @@ __global__ void __launch_bounds__(256, 1)
     // Reset number of interaction left for the winner discrete process.
     // (Will be resampled in the next iteration.)
     currentTrack.numIALeft[winnerProcessIndex] = -1.0;
-    userScoring[currentTrack.threadId].AccountGammaInteraction(winnerProcessIndex);
+
+    // Update the flight times of the particle
+    const double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
+    currentTrack.globalTime += deltaTime;
+    currentTrack.localTime += deltaTime;
 
     assert(winnerProcessIndex < gammaInteractions.NInt);
 
@@ -156,7 +159,7 @@ __global__ void __launch_bounds__(256, 1)
     ApplyGammaInteractions(Track *gammas, Secondaries secondaries, adept::MParray *activeQueue, Scoring *userScoring,
                            GammaInteractions gammaInteractions)
 {
-  using VolAuxData = AdeptIntegration::VolAuxData;
+  using VolAuxData = adeptint::VolAuxData;
 
   for (unsigned int interactionType = blockIdx.y; interactionType < GammaInteractions::NInt;
        interactionType += gridDim.y) {
@@ -171,8 +174,13 @@ __global__ void __launch_bounds__(256, 1)
       const auto energy               = currentTrack.energy;
       const auto &dir                 = currentTrack.dir;
 
-      VolAuxData const &auxData =
-          userScoring[currentTrack.threadId].GetAuxData_dev(currentTrack.navState.Top()->GetLogicalVolume()->id());
+#warning Implement the transfer of these quantities:
+      const auto &preStepNavState = currentTrack.navState;
+      const auto &preStepPos      = currentTrack.pos;
+      const auto &preStepDir      = currentTrack.dir;
+      const auto preStepEnergy    = currentTrack.energy;
+
+      VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
 
       auto survive = [&]() { activeQueue->push_back(slot); };
 
@@ -201,7 +209,8 @@ __global__ void __launch_bounds__(256, 1)
         Track &electron = secondaries.electrons.NextTrack();
         Track &positron = secondaries.positrons.NextTrack();
 
-        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
+        adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 1,
+                                       /*numGammas*/ 0);
 
         electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
         electron.rngState = newRNG;
@@ -235,7 +244,8 @@ __global__ void __launch_bounds__(256, 1)
         if (energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
           Track &electron = secondaries.electrons.NextTrack();
-          userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+          adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
+                                         /*numGammas*/ 0);
 
           electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
           electron.rngState = newRNG;
@@ -244,7 +254,23 @@ __global__ void __launch_bounds__(256, 1)
           electron.dir.Normalize();
         } else {
           if (auxData.fSensIndex >= 0)
-            userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, energyEl);
+            adept_scoring::RecordHit(&userScoring[currentTrack.threadId],
+                                     ParticleType::Electron, // Particle type
+                                     geometryStepLength,     // Step length
+                                     0,                      // Total Edep
+                                     &preStepNavState,       // Pre-step point navstate
+                                     &preStepPos,            // Pre-step point position
+                                     &preStepDir,            // Pre-step point momentum direction
+                                     nullptr,                // Pre-step point polarization
+                                     0,                      // Pre-step point kinetic energy
+                                     -1,                     // Pre-step point charge
+                                     &currentTrack.navState, // Post-step point navstate
+                                     &currentTrack.pos,      // Post-step point position
+                                     &currentTrack.dir,      // Post-step point momentum direction
+                                     nullptr,                // Post-step point polarization
+                                     energyEl,               // Post-step point kinetic energy
+                                     -1,                     // Post-step point charge
+                                     currentTrack.eventId, currentTrack.threadId);
         }
 
         // Check the new gamma energy and deposit if below threshold.
@@ -254,7 +280,24 @@ __global__ void __launch_bounds__(256, 1)
           survive();
         } else {
           if (auxData.fSensIndex >= 0)
-            userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, newEnergyGamma);
+            adept_scoring::RecordHit(userScoring + currentTrack.threadId,
+                                     2,                      // Particle type
+                                     geometryStepLength,     // Step length
+                                     0,                      // Total Edep
+                                     &preStepNavState,       // Pre-step point navstate
+                                     &preStepPos,            // Pre-step point position
+                                     &preStepDir,            // Pre-step point momentum direction
+                                     nullptr,                // Pre-step point polarization
+                                     preStepEnergy,          // Pre-step point kinetic energy
+                                     0,                      // Pre-step point charge
+                                     &currentTrack.navState, // Post-step point navstate
+                                     &currentTrack.pos,      // Post-step point position
+                                     &currentTrack.dir,      // Post-step point momentum direction
+                                     nullptr,                // Post-step point polarization
+                                     newEnergyGamma,         // Post-step point kinetic energy
+                                     0,                      // Post-step point charge
+                                     currentTrack.eventId, currentTrack.threadId);
+
           // The current track is killed by not enqueuing into the next activeQueue.
           slotManager.MarkSlotForFreeing(slot);
         }
@@ -272,7 +315,8 @@ __global__ void __launch_bounds__(256, 1)
         if (photoElecE > theLowEnergyThreshold) {
           // Create a secondary electron and sample directions.
           Track &electron = secondaries.electrons.NextTrack();
-          userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+          adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
+                                         /*numGammas*/ 0);
 
           double dirGamma[] = {dir.x(), dir.y(), dir.z()};
           double dirPhotoElec[3];
@@ -286,10 +330,28 @@ __global__ void __launch_bounds__(256, 1)
           edep = energy;
         }
         if (auxData.fSensIndex >= 0)
-          userScoring[currentTrack.threadId].Score(currentTrack.navState, 0, geometryStepLength, edep);
+          adept_scoring::RecordHit(userScoring + currentTrack.threadId,
+                                   2,                      // Particle type
+                                   geometryStepLength,     // Step length
+                                   edep,                   // Total Edep
+                                   &preStepNavState,       // Pre-step point navstate
+                                   &preStepPos,            // Pre-step point position
+                                   &preStepDir,            // Pre-step point momentum direction
+                                   nullptr,                // Pre-step point polarization
+                                   preStepEnergy,          // Pre-step point kinetic energy
+                                   0,                      // Pre-step point charge
+                                   &currentTrack.navState, // Post-step point navstate
+                                   &currentTrack.pos,      // Post-step point position
+                                   &currentTrack.dir,      // Post-step point momentum direction
+                                   nullptr,                // Post-step point polarization
+                                   0,                      // Post-step point kinetic energy
+                                   0,                      // Post-step point charge
+                                   currentTrack.eventId, currentTrack.threadId);
         // The current track is killed by not enqueuing into the next activeQueue.
         slotManager.MarkSlotForFreeing(slot);
       }
     }
   }
 }
+
+} // namespace AsyncAdePT

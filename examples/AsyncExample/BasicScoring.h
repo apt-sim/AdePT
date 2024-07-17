@@ -1,99 +1,106 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 #ifndef SCORING_H
 #define SCORING_H
 
-#include <AdePT/copcore/Global.h>
-#include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/core/AdePTScoringTemplate.cuh>
+
+#include "ResourceManagement.h"
+#include <AdePT/core/HostScoringStruct.cuh>
 #include <VecGeom/navigation/NavStateIndex.h>
-#include "CommonStruct.h"
 
-struct BasicScoring;
-using AdeptScoring = BasicScoring;
+#include <atomic>
+#include <deque>
+#include <shared_mutex>
 
-// Data structures for scoring. The accessors must make sure to use atomic operations if needed.
-struct GlobalScoring {
-  double energyDeposit;
-  // Not int to avoid overflows for more than 100,000 events; unsigned long long
-  // is the only other data type available for atomicAdd().
-  unsigned long long chargedSteps;
-  unsigned long long neutralSteps;
-  unsigned long long hits;
-  unsigned long long numGammas;
-  unsigned long long numElectrons;
-  unsigned long long numPositrons;
-  unsigned long long gammaInteractions[3];
-  // Not used on the device, filled in by the host.
-  unsigned long long numKilled;
+namespace AsyncAdePT {
 
-  void Print()
+/// Struct holding GPU hits to be used both on host and device.
+struct HitScoringBuffer {
+  GPUHit *hitBuffer_dev     = nullptr;
+  unsigned int fSlotCounter = 0;
+  unsigned int fNSlot       = 0;
+
+  __device__ GPUHit &GetNextSlot();
+};
+
+extern __device__ HitScoringBuffer gHitScoringBuffer_dev;
+
+class HitScoring {
+  unique_ptr_cuda<GPUHit> fGPUHitBuffer_dev;
+  unique_ptr_cuda<GPUHit> fGPUHitBuffer_host;
+  struct BufferHandle {
+    HitScoringBuffer hitScoring;
+    GPUHit *hostBuffer;
+    enum class State { Free, OnDevice, OnDeviceNeedTransferToHost, TransferToHost, NeedHostProcessing };
+    std::atomic<State> state;
+  };
+  std::array<BufferHandle, 2> fBuffers;
+  void *fHitScoringBuffer_deviceAddress = nullptr;
+  unsigned int fHitCapacity;
+  unsigned short fActiveBuffer = 0;
+  unique_ptr_cuda<std::byte> fGPUSortAuxMemory;
+  std::size_t fGPUSortAuxMemorySize;
+
+  std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
+  mutable std::shared_mutex fProcessingHitsMutex;
+
+  void ProcessBuffer(BufferHandle &handle);
+
+public:
+  HitScoring(unsigned int hitCapacity, unsigned int nThread);
+  unsigned int HitCapacity() const { return fHitCapacity; }
+  void SwapDeviceBuffers(cudaStream_t cudaStream);
+  bool ProcessHits();
+  bool ReadyToSwapBuffers() const
   {
-    printf(
-        "\nGlobal scoring:\n\tstpChg=%llu\n\tstpNeu=%llu\n\thits=%llu\n\tnumGam=%llu\n\tnumEle=%llu\n\tnumPos=%llu\n\t"
-        "numKilled=%llu\n\tgammaInt=%llu\t%llu\t%llu\n",
-        chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled, gammaInteractions[0],
-        gammaInteractions[1], gammaInteractions[2]);
+    return std::any_of(fBuffers.begin(), fBuffers.end(),
+                       [](const auto &handle) { return handle.state == BufferHandle::State::Free; });
   }
+  void TransferHitsToHost(cudaStream_t cudaStreamForHitCopy);
+  std::shared_ptr<const std::vector<GPUHit>> GetNextHitsVector(unsigned int threadId);
 };
 
-struct ScoringPerVolume {
-  double *energyDeposit;
-  double *chargedTrackLength;
-};
+struct PerEventScoring {
+  GlobalCounters fGlobalCounters;
+  PerEventScoring *const fScoring_dev;
 
-struct BasicScoring {
-  using VolAuxData = adeptint::VolAuxData;
-  int fNumSensitive{0};
-  VolAuxData *fAuxData_dev{nullptr};
-  double *fEnergyDeposit_dev{nullptr};
-  double *fChargedTrackLength_dev{nullptr};
-  ScoringPerVolume *fScoringPerVolume_dev{nullptr};
-  GlobalScoring *fGlobalScoring_dev{nullptr};
-
-  double *fChargedTrackLength{nullptr}; ///< Array[fNumSensitive] for host
-  double *fEnergyDeposit{nullptr};      ///< Array[fNumSensitive] for host
-  ScoringPerVolume fScoringPerVolume;
-  GlobalScoring fGlobalScoring;
-
-  BasicScoring(int numSensitive);
-  BasicScoring(const BasicScoring &);
-  BasicScoring(BasicScoring &&);
-
-  ~BasicScoring();
-
-  __device__ __forceinline__ VolAuxData const &GetAuxData_dev(int volId) const { return fAuxData_dev[volId]; }
-
-  /// @brief Simple step+edep scoring interface.
-  __device__ void Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep);
-
-  /// @brief Account for a single hit
-  __device__ void AccountHit();
-
-  /// @brief Account for a charged step
-  __device__ void AccountChargedStep(int charge);
-
-  /// @brief Account for the number of produced secondaries
-  __device__ void AccountProduced(int num_ele, int num_pos, int num_gam);
-
-  /// Count a gamma interaction
-  __device__ void AccountGammaInteraction(unsigned int interactionType);
-
-  /// @brief Initialize hit data structures on device at given location
-  /// @param BasicScoring_dev Device location where to construct the scoring
-  void InitializeOnGPU(BasicScoring *const BasicScoring_dev);
+  PerEventScoring(PerEventScoring *gpuScoring) : fScoring_dev{gpuScoring} { ClearGPU(); }
+  PerEventScoring(PerEventScoring &&other) = default;
+  ~PerEventScoring()                       = default;
 
   /// @brief Copy hits to host for a single event
-  void CopyHitsToHost();
+  void CopyToHost(cudaStream_t cudaStream = 0);
 
   /// @brief Clear hits on device to reuse for next event
-  void ClearGPU();
-
-  /// @brief Free data structures allocated on GPU
-  void FreeGPU();
+  void ClearGPU(cudaStream_t cudaStream = 0);
 
   /// @brief Print scoring info
-  void Print() { fGlobalScoring.Print(); };
+  void Print() { fGlobalCounters.Print(); };
 };
+
+} // namespace AsyncAdePT
+
+namespace adept_scoring {
+
+/// @brief Record a hit
+template <>
+__device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, char aParticleType, double aStepLength,
+                          double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
+                          vecgeom::Vector3D<Precision> const *aPrePosition,
+                          vecgeom::Vector3D<Precision> const *aPreMomentumDirection,
+                          vecgeom::Vector3D<Precision> const * /*aPrePolarization*/, double aPreEKin, double aPreCharge,
+                          vecgeom::NavigationState const *aPostState, vecgeom::Vector3D<Precision> const *aPostPosition,
+                          vecgeom::Vector3D<Precision> const *aPostMomentumDirection,
+                          vecgeom::Vector3D<Precision> const * /*aPostPolarization*/, double aPostEKin,
+                          double aPostCharge, unsigned int eventID, short threadID);
+
+/// @brief Account for the number of produced secondaries
+/// @details Atomically increase the number of produced secondaries.
+template <>
+__device__ void AccountProduced(AsyncAdePT::PerEventScoring *scoring, int num_ele, int num_pos, int num_gam);
+
+} // namespace adept_scoring
 
 #endif

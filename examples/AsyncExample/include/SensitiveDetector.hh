@@ -28,11 +28,12 @@
 #ifndef SENSITIVEDETECTOR_HH
 #define SENSITIVEDETECTOR_HH
 
-#include <unordered_map>
+#include "G4VSensitiveDetector.hh"
+
 #include "SimpleHit.hh"
 
-#include "G4VFastSimSensitiveDetector.hh"
-#include "G4VSensitiveDetector.hh"
+#include <set>
+#include <unordered_map>
 
 class G4HCofThisEvent;
 class G4TouchableHistory;
@@ -41,35 +42,29 @@ class G4TouchableHistory;
  * @brief Sensitive detector.
  *
  * Describes how to store the energy deposited within the detector.
- * It derives from two classes: G4VSensitiveDetector and
- * G4VFastSimSensitiveDetector. Addition of G4VFastSimSensitiveDetector is
- * necessary in order to handle the energy deposits from the fast simulation.
- *
- * Two ProcessHits() methods are introduced to handle energy deposited from full
- * (detailed) simulation, and from fast simulation. The common part is handled
- * by RetrieveAdnSetupHit() method.
  *
  */
 class G4VPhysicalVolume;
 
-class SensitiveDetector : public G4VSensitiveDetector, public G4VFastSimSensitiveDetector {
+class SensitiveDetector : public G4VSensitiveDetector {
 public:
   SensitiveDetector(G4String aName);
-  SensitiveDetector(G4String aName, G4int numSensitive);
-  virtual ~SensitiveDetector();
+  SensitiveDetector(G4String aName, std::set<const G4VPhysicalVolume *> *aSensitivePhysicalVolumes);
+  ~SensitiveDetector() = default;
   /// Create hit collection
   virtual void Initialize(G4HCofThisEvent *HCE) final;
   /// Process energy deposit from the full simulation.
   virtual G4bool ProcessHits(G4Step *aStep, G4TouchableHistory *aROhist) final;
-  /// Process energy deposit from the fast simulation.
-  virtual G4bool ProcessHits(const G4FastHit *aHit, const G4FastTrack *aTrack, G4TouchableHistory *aROhist) final;
 
   virtual G4bool ProcessHits(int hitID, double energy) final;
 
   SimpleHit *RetrieveAndSetupHit(G4TouchableHistory *aTouchable);
 
-  std::unordered_map<std::string, int> fSensitive_volume_index;
-  std::unordered_map<const G4VPhysicalVolume *, int> *fScoringMap;
+  std::vector<G4LogicalVolume *> fSensitiveLogicalVolumes;
+  /// Physical Volumes where we want to score
+  std::set<const G4VPhysicalVolume *> fSensitivePhysicalVolumes;
+
+  std::unordered_map<size_t, size_t> fScoringMap;
 
 private:
   /// Collection of hits

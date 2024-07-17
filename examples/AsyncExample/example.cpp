@@ -9,12 +9,30 @@
 #include "G4Types.hh"
 #include "G4UImanager.hh"
 #include "FTFP_BERT_HepEm.hh"
+#include "FTFP_BERT_AdePT.hh"
 #include "G4HadronicProcessStore.hh"
 #include "G4EmParameters.hh"
 #include "G4FastSimulationPhysics.hh"
 #include "G4VisExecutive.hh"
 #include "G4UIExecutive.hh"
+
+#include "AdeptIntegration.h"
+#include <AdePT/core/AdePTConfiguration.hh>
+
+#include <memory>
 #include <sstream>
+
+namespace {
+std::shared_ptr<AdePTTransportInterface> AdePTFactory(unsigned int nThread, unsigned int nTrackSlot,
+                                                      unsigned int nHitSlot, int verbosity,
+                                                      std::vector<std::string> const *GPURegionNames,
+                                                      bool trackInAllRegions)
+{
+  static std::shared_ptr<AsyncAdePT::AdeptIntegration> adePT{
+      new AsyncAdePT::AdeptIntegration(nThread, nTrackSlot, nHitSlot, verbosity, GPURegionNames, trackInAllRegions)};
+  return adePT;
+}
+} // namespace
 
 int main(int argc, char **argv)
 {
@@ -24,6 +42,7 @@ int main(int argc, char **argv)
                    " [option(s)] \n No additional arguments triggers an interactive mode "
                    "executing vis.mac macro. \n Options:\n\t-h\t\tdisplay this help "
                    "message\n\t-m MACRO\ttriggers a batch mode executing MACRO\n");
+  bool AdePT = true;
   for (G4int i = 1; i < argc; ++i) {
     G4String argument(argv[i]);
     if (argument == "-h" || argument == "--help") {
@@ -32,6 +51,8 @@ int main(int argc, char **argv)
     } else if (argument == "-m") {
       batchMacroName = G4String(argv[i + 1]);
       ++i;
+    } else if (argument == "--no-adept") {
+      AdePT = false;
     } else {
       G4Exception("main", "Unknown argument", FatalErrorInArgument,
                   ("Unknown argument passed to " + G4String(argv[0]) + " : " + argument + "\n" + helpMsg).c_str());
@@ -39,33 +60,36 @@ int main(int argc, char **argv)
   }
 
   // Initialization of default Run manager
-  auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);
-  // auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial);
+  std::unique_ptr<G4RunManager> runManager{G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default)};
 
   // Detector geometry:
   auto detector = new DetectorConstruction();
   runManager->SetUserInitialization(detector);
 
-  // Physics list
-  auto physicsList = new FTFP_BERT_HepEm();
+  // Statically set AdePT factory:
+  AdePTConfiguration::SetAdePTFactoryFunction(&AdePTFactory);
+  std::unique_ptr<AdePTConfiguration> adeptConfig;
 
-  // Add fast simulation physics
-  auto fastSimulationPhysics = new G4FastSimulationPhysics();
-  fastSimulationPhysics->BeVerbose();
-  fastSimulationPhysics->ActivateFastSimulation("e-");
-  fastSimulationPhysics->ActivateFastSimulation("e+");
-  fastSimulationPhysics->ActivateFastSimulation("gamma");
-  physicsList->RegisterPhysics(fastSimulationPhysics);
+  // Physics list
+  G4VUserPhysicsList *physicsList = nullptr;
+  if (AdePT) {
+    physicsList = new FTFP_BERT_AdePT();
+  } else {
+    physicsList = new FTFP_BERT_HepEm();
+    // Create a dummy config instance, so the AdePT-specific macros don't lead to errors:
+    adeptConfig.reset(new AdePTConfiguration());
+  }
+
+  runManager->SetUserInitialization(physicsList);
 
   // reduce verbosity of physics lists
   G4EmParameters::Instance()->SetVerbose(0);
-  runManager->SetUserInitialization(physicsList);
   G4HadronicProcessStore::Instance()->SetVerbose(0);
 
   //-------------------------------
   // UserAction classes
   //-------------------------------
-  runManager->SetUserInitialization(new ActionInitialisation(detector));
+  runManager->SetUserInitialization(new ActionInitialisation());
 
   G4UImanager *UImanager = G4UImanager::GetUIpointer();
   G4String command       = "/control/execute ";
@@ -74,9 +98,6 @@ int main(int argc, char **argv)
   // Free the store: user actions, physics_list and detector_description are
   //                 owned and deleted by the run manager, so they should not
   //                 be deleted in the main() program !
-
-  // delete visManager;
-  delete runManager;
 
   return err;
 }

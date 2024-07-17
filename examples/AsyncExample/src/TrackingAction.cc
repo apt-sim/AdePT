@@ -33,16 +33,6 @@
 
 #include "TrackingAction.hh"
 
-#include "G4RunManager.hh"
-#include "G4Track.hh"
-#include "G4Gamma.hh"
-#include "G4Electron.hh"
-#include "G4Positron.hh"
-
-#include "G4SystemOfUnits.hh"
-#include "G4UnitsTable.hh"
-#include "EventAction.hh"
-
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 TrackingAction::TrackingAction() : G4UserTrackingAction() {}
@@ -53,21 +43,6 @@ void TrackingAction::PreUserTrackingAction(const G4Track *) {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
-{
-  // skip tracks coming from AdePT
-  if (aTrack->GetParentID() == -99) return;
-
-  // increase nb of processed tracks
-  auto eventAction = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
-
-  if (aTrack->GetDefinition() == G4Gamma::Gamma()) {
-    eventAction->number_gammas++;
-  } else if (aTrack->GetDefinition() == G4Electron::Electron()) {
-    eventAction->number_electrons++;
-  } else if (aTrack->GetDefinition() == G4Positron::Positron()) {
-    eventAction->number_positrons++;
-  }
-}
+void TrackingAction::PostUserTrackingAction(const G4Track *) {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

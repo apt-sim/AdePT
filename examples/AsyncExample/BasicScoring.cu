@@ -1,157 +1,241 @@
-// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 #include "BasicScoring.h"
-#include "AdeptIntegration.h"
+// #include "AdeptIntegration.h"
 
 #include <AdePT/copcore/Global.h>
-#include <AdePT/copcore/PhysicalConstants.h>
 
-#include "Track.cuh" // not nice - we expose the track model here, interface of DepositEnergy to be changed
+#include <cub/device/device_merge_sort.cuh>
 
-#include <iostream>
-#include <iomanip>
-#include <stdio.h>
+#include <chrono>
+#include <mutex>
+#include <thread>
 
-void BasicScoring::InitializeOnGPU(BasicScoring *const BasicScoring_dev)
+// Comparison for sorting tracks into events on device:
+struct CompareGPUHits {
+  __device__ bool operator()(const GPUHit &lhs, const GPUHit &rhs) const { return lhs.fEventId < rhs.fEventId; }
+};
+
+namespace AsyncAdePT {
+
+__device__ HitScoringBuffer gHitScoringBuffer_dev;
+
+__device__ GPUHit &HitScoringBuffer::GetNextSlot()
 {
-  fAuxData_dev = AdeptIntegration::VolAuxArray::GetInstance().fAuxData_dev;
-  // Allocate memory to score charged track length and energy deposit per volume.
-  COPCORE_CUDA_CHECK(cudaMalloc(&fChargedTrackLength_dev, sizeof(double) * fNumSensitive));
-  COPCORE_CUDA_CHECK(cudaMalloc(&fEnergyDeposit_dev, sizeof(double) * fNumSensitive));
+  const auto slotIndex = atomicAdd(&fSlotCounter, 1);
+  if (slotIndex >= fNSlot) {
+    printf("Trying to score hit #%d with only %d slots\n", slotIndex, fNSlot);
+    COPCORE_EXCEPTION("Out of slots in HitScoringBuffer::NextSlot");
+  }
 
-  // Allocate and initialize scoring and statistics.
-  COPCORE_CUDA_CHECK(cudaMalloc(&fGlobalScoring_dev, sizeof(GlobalScoring)));
+  return hitBuffer_dev[slotIndex];
+}
 
-  ScoringPerVolume scoringPerVolume_devPtrs;
-  scoringPerVolume_devPtrs.chargedTrackLength = fChargedTrackLength_dev;
-  scoringPerVolume_devPtrs.energyDeposit      = fEnergyDeposit_dev;
-  COPCORE_CUDA_CHECK(cudaMalloc(&fScoringPerVolume_dev, sizeof(ScoringPerVolume)));
+HitScoring::HitScoring(unsigned int hitCapacity, unsigned int nThread)
+    : fGPUHitBuffer_dev{nullptr, cudaDeleter}, fGPUHitBuffer_host{nullptr, cudaHostDeleter},
+      fGPUSortAuxMemory{nullptr, cudaDeleter}, fHitCapacity{hitCapacity}, fHitQueues(nThread)
+{
+  GPUHit *gpuHits = nullptr;
+  COPCORE_CUDA_CHECK(cudaMallocHost(&gpuHits, sizeof(GPUHit) * 2 * fHitCapacity));
+  fGPUHitBuffer_host.reset(gpuHits);
+  COPCORE_CUDA_CHECK(cudaMalloc(&gpuHits, sizeof(GPUHit) * 2 * fHitCapacity));
+  fGPUHitBuffer_dev.reset(gpuHits);
+
+  // Determine device storage requirements for on-device sorting
+  cub::DeviceMergeSort::SortKeys(nullptr, fGPUSortAuxMemorySize, fGPUHitBuffer_dev.get(), fHitCapacity,
+                                 CompareGPUHits{});
+  std::byte *gpuSortingMem;
+  COPCORE_CUDA_CHECK(cudaMalloc(&gpuSortingMem, fGPUSortAuxMemorySize));
+  fGPUSortAuxMemory.reset(gpuSortingMem);
+
+  fBuffers[0].hitScoring = HitScoringBuffer{fGPUHitBuffer_dev.get(), 0, fHitCapacity};
+  fBuffers[0].hostBuffer = fGPUHitBuffer_host.get();
+  fBuffers[0].state      = BufferHandle::State::OnDevice;
+  fBuffers[1].hitScoring = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, 0, fHitCapacity};
+  fBuffers[1].hostBuffer = fGPUHitBuffer_host.get() + fHitCapacity;
+  fBuffers[1].state      = BufferHandle::State::Free;
+
+  COPCORE_CUDA_CHECK(cudaGetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
+  assert(fHitScoringBuffer_deviceAddress != nullptr);
+  COPCORE_CUDA_CHECK(cudaMemcpy(fHitScoringBuffer_deviceAddress, &fBuffers[0].hitScoring, sizeof(HitScoringBuffer),
+                                cudaMemcpyHostToDevice));
+}
+
+/// Place a new empty buffer on the GPU.
+/// The caller has to ensure that all scoring work on the device completes by making the cuda
+/// stream wait for all transport on the device.
+/// The function will block while the swap is running.
+void HitScoring::SwapDeviceBuffers(cudaStream_t cudaStream)
+{
+  // Ensure that host side has been processed:
+  auto &currentBuffer = fBuffers[fActiveBuffer];
+  if (currentBuffer.state != BufferHandle::State::OnDevice)
+    throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": On-device buffer in wrong state");
+
+  // Get new buffer info from device:
+  auto &currentHitInfo = currentBuffer.hitScoring;
+  COPCORE_CUDA_CHECK(cudaMemcpyAsync(&currentHitInfo, fHitScoringBuffer_deviceAddress, sizeof(HitScoringBuffer),
+                                     cudaMemcpyDefault, cudaStream));
+
+  // Execute the swap:
+  fActiveBuffer          = (fActiveBuffer + 1) % fBuffers.size();
+  auto &nextDeviceBuffer = fBuffers[fActiveBuffer];
+  while (nextDeviceBuffer.state != BufferHandle::State::Free) {
+    std::cerr << __func__ << " Warning: Another thread should have processed the hits.\n";
+  }
+  assert(nextDeviceBuffer.state == BufferHandle::State::Free && nextDeviceBuffer.hitScoring.fSlotCounter == 0);
+
+  nextDeviceBuffer.state = BufferHandle::State::OnDevice;
+  COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &nextDeviceBuffer.hitScoring,
+                                     sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
+  COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
+  currentBuffer.state = BufferHandle::State::OnDeviceNeedTransferToHost;
+}
+
+/// Copy the current contents of the GPU hit buffer to host.
+void HitScoring::TransferHitsToHost(cudaStream_t cudaStreamForHitCopy)
+{
+  for (auto &buffer : fBuffers) {
+    if (buffer.state != BufferHandle::State::OnDeviceNeedTransferToHost) continue;
+
+    buffer.state = BufferHandle::State::TransferToHost;
+    assert(buffer.hitScoring.fSlotCounter < fHitCapacity);
+
+    auto bufferBegin = buffer.hitScoring.hitBuffer_dev;
+
+    cub::DeviceMergeSort::SortKeys(fGPUSortAuxMemory.get(), fGPUSortAuxMemorySize, bufferBegin,
+                                   buffer.hitScoring.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
+
+    COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer, bufferBegin, sizeof(GPUHit) * buffer.hitScoring.fSlotCounter,
+                                       cudaMemcpyDefault, cudaStreamForHitCopy));
+    COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+        cudaStreamForHitCopy,
+        [](void *arg) { static_cast<BufferHandle *>(arg)->state = BufferHandle::State::NeedHostProcessing; }, &buffer));
+  }
+}
+
+bool HitScoring::ProcessHits()
+{
+  std::unique_lock lock{fProcessingHitsMutex, std::defer_lock};
+  bool haveNewHits = false;
+
+  while (std::any_of(fBuffers.begin(), fBuffers.end(),
+                     [](auto &buffer) { return buffer.state >= BufferHandle::State::TransferToHost; })) {
+    for (auto &handle : fBuffers) {
+      if (handle.state == BufferHandle::State::NeedHostProcessing) {
+        if (!lock) lock.lock();
+        haveNewHits = true;
+        ProcessBuffer(handle);
+      }
+    }
+  }
+
+  return haveNewHits;
+}
+
+void HitScoring::ProcessBuffer(BufferHandle &handle)
+{
+  // We are assuming that the caller holds a lock on fProcessingHitsMutex.
+  if (handle.state == BufferHandle::State::NeedHostProcessing) {
+    auto hitVector = std::make_shared<std::vector<GPUHit>>();
+    hitVector->assign(handle.hostBuffer, handle.hostBuffer + handle.hitScoring.fSlotCounter);
+    handle.hitScoring.fSlotCounter = 0;
+    handle.state                   = BufferHandle::State::Free;
+
+    for (auto &hitQueue : fHitQueues) {
+      hitQueue.push_back(hitVector);
+    }
+  }
+}
+
+std::shared_ptr<const std::vector<GPUHit>> HitScoring::GetNextHitsVector(unsigned int threadId)
+{
+  assert(threadId < fHitQueues.size());
+  std::shared_lock lock{fProcessingHitsMutex};
+
+  if (fHitQueues[threadId].empty())
+    return nullptr;
+  else {
+    auto ret = fHitQueues[threadId].front();
+    fHitQueues[threadId].pop_front();
+    return ret;
+  }
+}
+
+/// Clear the device hits content
+void PerEventScoring::ClearGPU(cudaStream_t cudaStream)
+{
+  COPCORE_CUDA_CHECK(cudaMemsetAsync(fScoring_dev, 0, sizeof(GlobalCounters), cudaStream));
+  COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
+}
+
+/// Transfer scoring counters into host instance. Blocks until the operation completes.
+void PerEventScoring::CopyToHost(cudaStream_t cudaStream)
+{
+  const auto oldPointer = fScoring_dev;
   COPCORE_CUDA_CHECK(
-      cudaMemcpy(fScoringPerVolume_dev, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume), cudaMemcpyHostToDevice));
-
-  // Now copy host instance to device
-  COPCORE_CUDA_CHECK(cudaMemcpy(BasicScoring_dev, this, sizeof(BasicScoring), cudaMemcpyHostToDevice));
-
-  ClearGPU();
+      cudaMemcpyAsync(&fGlobalCounters, fScoring_dev, sizeof(GlobalCounters), cudaMemcpyDeviceToHost, cudaStream));
+  COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
+  assert(oldPointer == fScoring_dev);
+  (void)oldPointer;
 }
 
-BasicScoring::BasicScoring(int numSensitive)
-    : fNumSensitive{numSensitive}, fChargedTrackLength{new double[numSensitive]},
-      fEnergyDeposit{new double[numSensitive]}, fScoringPerVolume{fEnergyDeposit, fChargedTrackLength}
+} // namespace AsyncAdePT
+
+namespace {
+/// @brief Utility function to copy a 3D vector, used for filling the Step Points
+__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const &source,
+                                             vecgeom::Vector3D<Precision> &destination)
 {
+  destination = source;
 }
+} // namespace
 
-/// @brief Copy the host side of the scoring. The device side will remain uninitialised.
-BasicScoring::BasicScoring(const BasicScoring &other)
-    : fNumSensitive{other.fNumSensitive}, fChargedTrackLength{new double[fNumSensitive]},
-      fEnergyDeposit{new double[fNumSensitive]}, fScoringPerVolume{fEnergyDeposit, fChargedTrackLength},
-      fGlobalScoring{other.fGlobalScoring}
+namespace adept_scoring {
+
+/// @brief Record a hit
+template <>
+__device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, char aParticleType, double aStepLength,
+                          double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
+                          vecgeom::Vector3D<Precision> const *aPrePosition,
+                          vecgeom::Vector3D<Precision> const *aPreMomentumDirection,
+                          vecgeom::Vector3D<Precision> const * /*aPrePolarization*/, double aPreEKin, double aPreCharge,
+                          vecgeom::NavigationState const *aPostState, vecgeom::Vector3D<Precision> const *aPostPosition,
+                          vecgeom::Vector3D<Precision> const *aPostMomentumDirection,
+                          vecgeom::Vector3D<Precision> const * /*aPostPolarization*/, double aPostEKin,
+                          double aPostCharge, unsigned int eventID, short threadID)
 {
-  std::copy(other.fChargedTrackLength, other.fChargedTrackLength + fNumSensitive, fChargedTrackLength);
-  std::copy(other.fEnergyDeposit, other.fEnergyDeposit + fNumSensitive, fEnergyDeposit);
-  // Only one instance can own the device pointers:
-  fEnergyDeposit_dev      = nullptr;
-  fChargedTrackLength_dev = nullptr;
-  fScoringPerVolume_dev   = nullptr;
-  fGlobalScoring_dev      = nullptr;
+  // Acquire a hit slot
+  GPUHit &aGPUHit  = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot();
+  aGPUHit.fEventId = eventID;
+  aGPUHit.threadId = threadID;
+
+  // Fill the required data
+  aGPUHit.fParticleType       = aParticleType;
+  aGPUHit.fStepLength         = aStepLength;
+  aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;
+  // Pre step point
+  aGPUHit.fPreStepPoint.fNavigationStateIndex = aPreState->GetNavIndex();
+  Copy3DVector(*aPrePosition, aGPUHit.fPreStepPoint.fPosition);
+  Copy3DVector(*aPreMomentumDirection, aGPUHit.fPreStepPoint.fMomentumDirection);
+  // Copy3DVector(aPrePolarization, aGPUHit.fPreStepPoint.fPolarization);
+  aGPUHit.fPreStepPoint.fEKin   = aPreEKin;
+  aGPUHit.fPreStepPoint.fCharge = aPreCharge;
+  // Post step point
+  aGPUHit.fPostStepPoint.fNavigationStateIndex = aPostState->GetNavIndex();
+  Copy3DVector(*aPostPosition, aGPUHit.fPostStepPoint.fPosition);
+  Copy3DVector(*aPostMomentumDirection, aGPUHit.fPostStepPoint.fMomentumDirection);
+  // Copy3DVector(aPostPolarization, aGPUHit.fPostStepPoint.fPolarization);
+  aGPUHit.fPostStepPoint.fEKin   = aPostEKin;
+  aGPUHit.fPostStepPoint.fCharge = aPostCharge;
 }
 
-/// @brief Move the scoring. The moved-to instance will own the device pointers.
-BasicScoring::BasicScoring(BasicScoring &&other)
-    : fNumSensitive{other.fNumSensitive}, fAuxData_dev{other.fAuxData_dev},
-      fEnergyDeposit_dev{other.fEnergyDeposit_dev}, fChargedTrackLength_dev{other.fChargedTrackLength_dev},
-      fScoringPerVolume_dev{other.fScoringPerVolume_dev}, fGlobalScoring_dev{other.fGlobalScoring_dev},
-      fChargedTrackLength{std::move(other.fChargedTrackLength)}, fEnergyDeposit{std::move(other.fEnergyDeposit)},
-      fScoringPerVolume{std::move(other.fScoringPerVolume)}, fGlobalScoring{std::move(other.fGlobalScoring)}
+template <>
+__device__ void AccountProduced(AsyncAdePT::PerEventScoring *scoring, int num_ele, int num_pos, int num_gam)
 {
-  // Only one instance can own the device pointers:
-  other.fEnergyDeposit_dev      = nullptr;
-  other.fChargedTrackLength_dev = nullptr;
-  other.fScoringPerVolume_dev   = nullptr;
-  other.fGlobalScoring_dev      = nullptr;
-  other.fChargedTrackLength     = nullptr;
-  other.fEnergyDeposit          = nullptr;
+  atomicAdd(&scoring->fGlobalCounters.numElectrons, num_ele);
+  atomicAdd(&scoring->fGlobalCounters.numPositrons, num_pos);
+  atomicAdd(&scoring->fGlobalCounters.numGammas, num_gam);
 }
-
-BasicScoring::~BasicScoring()
-{
-  FreeGPU();
-  delete[] fChargedTrackLength;
-  delete[] fEnergyDeposit;
 }
-
-void BasicScoring::FreeGPU()
-{
-  // Free resources.
-  COPCORE_CUDA_CHECK(cudaFree(fChargedTrackLength_dev));
-  COPCORE_CUDA_CHECK(cudaFree(fEnergyDeposit_dev));
-
-  COPCORE_CUDA_CHECK(cudaFree(fGlobalScoring_dev));
-  COPCORE_CUDA_CHECK(cudaFree(fScoringPerVolume_dev));
-}
-
-void BasicScoring::ClearGPU()
-{
-  // Clear the device hits content
-  COPCORE_CUDA_CHECK(cudaMemset(fGlobalScoring_dev, 0, sizeof(GlobalScoring)));
-  COPCORE_CUDA_CHECK(cudaMemset(fChargedTrackLength_dev, 0, sizeof(double) * fNumSensitive));
-  COPCORE_CUDA_CHECK(cudaMemset(fEnergyDeposit_dev, 0, sizeof(double) * fNumSensitive));
-}
-
-void BasicScoring::CopyHitsToHost()
-{
-  // Transfer back scoring.
-  COPCORE_CUDA_CHECK(cudaMemcpy(&fGlobalScoring, fGlobalScoring_dev, sizeof(GlobalScoring), cudaMemcpyDeviceToHost));
-
-  // Transfer back the scoring per volume (charged track length and energy deposit).
-  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.chargedTrackLength, fChargedTrackLength_dev,
-                                sizeof(double) * fNumSensitive, cudaMemcpyDeviceToHost));
-  COPCORE_CUDA_CHECK(cudaMemcpy(fScoringPerVolume.energyDeposit, fEnergyDeposit_dev, sizeof(double) * fNumSensitive,
-                                cudaMemcpyDeviceToHost));
-}
-
-__device__ void BasicScoring::Score(vecgeom::NavStateIndex const &crt_state, int charge, double geomStep, double edep)
-{
-  assert(fGlobalScoring_dev && "Scoring not initialized on device");
-  auto volume  = crt_state.Top();
-  int volumeID = volume->id();
-  int charged  = abs(charge);
-
-  int lvolID = volume->GetLogicalVolume()->id();
-
-  // Add to charged track length, global energy deposit and deposit per volume
-  atomicAdd(&fScoringPerVolume_dev->chargedTrackLength[volumeID], charged * geomStep);
-  atomicAdd(&fGlobalScoring_dev->energyDeposit, edep);
-  atomicAdd(&fScoringPerVolume_dev->energyDeposit[volumeID], edep);
-}
-
-__device__ void BasicScoring::AccountHit()
-{
-  // Increment hit counter
-  atomicAdd(&fGlobalScoring_dev->hits, 1);
-}
-
-__device__ void BasicScoring::AccountChargedStep(int charge)
-{
-  // Increase counters for charged/neutral steps
-  int charged = abs(charge);
-  // Increment global number of steps
-  atomicAdd(&fGlobalScoring_dev->chargedSteps, charged);
-  atomicAdd(&fGlobalScoring_dev->neutralSteps, 1 - charged);
-}
-
-__device__ void BasicScoring::AccountProduced(int num_ele, int num_pos, int num_gam)
-{
-  // Increment number of secondaries
-  atomicAdd(&fGlobalScoring_dev->numElectrons, num_ele);
-  atomicAdd(&fGlobalScoring_dev->numPositrons, num_pos);
-  atomicAdd(&fGlobalScoring_dev->numGammas, num_gam);
-}
-
-__device__ void BasicScoring::AccountGammaInteraction(unsigned int interactionType)
-{
-  // Increment number of secondaries
-  if (interactionType < 3) atomicAdd(&fGlobalScoring_dev->gammaInteractions[interactionType], 1);
-}
-

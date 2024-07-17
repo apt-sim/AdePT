@@ -9,10 +9,7 @@
 class DetectorConstruction;
 class G4UIdirectory;
 class G4UIcmdWithoutParameter;
-class G4UIcmdWithAnInteger;
-class G4UIcmdWithADoubleAndUnit;
 class G4UIcmdWithAString;
-class G4UIcmdWithABool;
 class G4UIcmdWith3VectorAndUnit;
 
 /**
@@ -35,29 +32,14 @@ public:
 private:
   /// Detector construction to setup
   DetectorConstruction *fDetector = nullptr;
-  /// Command to set the directory common to all messengers in this example
-  G4UIdirectory *fExampleDir = nullptr;
-  /// Command to set the directory for detector settings /adeptint/detector
-  G4UIdirectory *fDetectorDir = nullptr;
-  /// Command to set the directory for AdePT integration settings /adeptint/adept
-  G4UIdirectory *fAdeptDir = nullptr;
+  /// Command to set the directory for detector settings /example22/detector
+  G4UIdirectory *fDir = nullptr;
   /// Command printing current settings
   G4UIcmdWithoutParameter *fPrintCmd = nullptr;
 
-  G4UIcmdWithAString *fFileNameCmd    = nullptr;
-  G4UIcmdWithAString *fRegionNameCmd  = nullptr;
-  G4UIcmdWithAString *fSensVolNameCmd = nullptr;
-  G4UIcmdWithAString *fSensVolGroupCmd  = nullptr;
+  G4UIcmdWithAString *fFileNameCmd = nullptr;
 
   G4UIcmdWith3VectorAndUnit *fFieldCmd = nullptr;
-  /// Activation of AdePT
-  G4UIcmdWithABool *fActivationCmd = nullptr;
-  /// Verbosity for AdeptIntegration (should it be here?)
-  G4UIcmdWithAnInteger *fVerbosityCmd = nullptr;
-  /// Buffer threshold for injecting into AdePT
-  G4UIcmdWithAnInteger *fBufferThresholdCmd = nullptr;
-  /// Total number of track slots for the gpu
-  G4UIcmdWithAnInteger *fTrackSlotsCmd = nullptr;
 };
 
 #endif

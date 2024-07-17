@@ -30,8 +30,6 @@ set(sources_g4
   src/ActionInitialisation.cc
   src/DetectorConstruction.cc
   src/DetectorMessenger.cc
-  src/EMShowerMessenger.cc
-  src/EMShowerModel.cc
   src/EventAction.cc
   src/EventActionMessenger.cc
   src/SimpleHit.cc
@@ -45,6 +43,7 @@ add_library(ExamplesCommon OBJECT
     ../common/src/ParticleGun.cc
     ../common/src/ParticleGunMessenger.cc
     ../common/src/FTFP_BERT_HepEm.cc
+    ../common/src/FTFP_BERT_AdePT.cc
 )
 
 target_include_directories(ExamplesCommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../common/include)

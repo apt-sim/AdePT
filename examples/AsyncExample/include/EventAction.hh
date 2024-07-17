@@ -29,7 +29,9 @@
 #define EVENTACTION_HH
 
 #include "G4UserEventAction.hh"
-#include "G4Timer.hh"
+#include "G4Types.hh"
+
+#include <memory>
 
 class DetectorConstruction;
 class EventActionMessenger;
@@ -45,7 +47,7 @@ class EventActionMessenger;
 
 class EventAction : public G4UserEventAction {
 public:
-  EventAction(DetectorConstruction *aDetector);
+  EventAction();
   virtual ~EventAction();
 
   /// Timer is started
@@ -55,22 +57,13 @@ public:
 
   void SetVerbosity(G4int verbosity) { fVerbosity = verbosity; }
 
-  G4int number_electrons;
-  G4int number_positrons;
-  G4int number_gammas;
-  G4int number_killed;
-
 private:
-  /// Detector construction
-  DetectorConstruction *fDetector{nullptr};
   /// Verbosity
   G4int fVerbosity{0};
   /// ID of a hit collection to analyse
   G4int fHitCollectionID;
-  /// Timer measurement
-  G4Timer fTimer;
   /// Messenger for this
-  EventActionMessenger *fMessenger{nullptr};
+  std::unique_ptr<EventActionMessenger> fMessenger;
 };
 
 #endif /* EVENTACTION_HH */

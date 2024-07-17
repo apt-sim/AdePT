@@ -28,21 +28,16 @@
 #include "EventAction.hh"
 #include "EventActionMessenger.hh"
 #include "SimpleHit.hh"
-#include "DetectorConstruction.hh"
 
 #include "G4SDManager.hh"
 #include "G4HCofThisEvent.hh"
 #include "G4Event.hh"
 #include "G4EventManager.hh"
+#include "G4SystemOfUnits.hh"
 
-#include "G4GlobalFastSimulationManager.hh"
+#include <sstream>
 
-#include <vector>
-
-EventAction::EventAction(DetectorConstruction *aDetector) : G4UserEventAction(), fDetector(aDetector), fHitCollectionID(-1), fTimer()
-{
-  fMessenger = new EventActionMessenger(this);
-}
+EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1), fMessenger{new EventActionMessenger(this)} {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -50,23 +45,15 @@ EventAction::~EventAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void EventAction::BeginOfEventAction(const G4Event *)
-{
-  fTimer.Start();
-
-  // zero the counters
-  number_electrons = 0;
-  number_positrons = 0;
-  number_gammas    = 0;
-  number_killed    = 0;
-}
+void EventAction::BeginOfEventAction(const G4Event *) {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void EventAction::EndOfEventAction(const G4Event *aEvent)
 {
+  if (fVerbosity == 0) return;
 
-  fTimer.Stop();
+  const auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   // Get hits collection ID (only once)
   if (fHitCollectionID == -1) {
@@ -81,58 +68,20 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4Exception("EventAction::GetHitsCollection()", "MyCode0001", FatalException, msg);
   }
 
-  SimpleHit *hit       = nullptr;
-  G4double hitEn       = 0;
   G4double totalEnergy = 0;
-  auto eventId         = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
-
-  // print number of secondares std::setw(24) << std::fixed
-  if (fVerbosity > 0) {
-    G4cout << "\nEndOfEventAction " << eventId << ": electrons " << std::setw(9) << std::right << number_electrons
-           << "\n";
-    G4cout << "EndOfEventAction " << eventId << ": positrons " << std::setw(9) << std::right << number_positrons
-           << "\n";
-    G4cout << "EndOfEventAction " << eventId << ": gammas    " << std::setw(9) << std::right << number_gammas << "\n";
-    G4cout << "EndOfEventAction " << eventId << ": killed    " << std::setw(9) << std::right << number_killed << "\n";
-  }
-
-  auto &groups = fDetector->GetSensitiveGroups();
-  int ngroups = groups.size();
-  std::vector<double> edep_groups(ngroups, 0.);
+  std::stringstream msg;
 
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
-    hit   = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
-    hitEn = hit->GetEdep();
+    SimpleHit const *hit = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
+    const double hitEn   = hit->GetEdep();
     totalEnergy += hitEn;
-
-    G4String vol_name = vecgeom::GeoManager::Instance().FindPlacedVolume(iHit)->GetLogicalVolume()->GetName();
-    bool group_found = false;
-    for (int igroup = 0; igroup < ngroups; ++igroup) {
-      if (vol_name.rfind(groups[igroup], 0) == 0) {
-        edep_groups[igroup] += hitEn;
-        group_found = true;
-        break;
-      }
-    }
-    if (group_found) continue;
+    G4String vol_name = hit->GetPhysicalVolumeName();
 
     if (hitEn > 1 && fVerbosity > 1)
-      G4cout << "EndOfEventAction " << eventId << ": id " << std::setw(5) << iHit << "  edep " << std::setprecision(3)
-             << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << "\n";
+      msg << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
+          << std::setw(12) << std::fixed << hitEn / MeV << " [MeV] logical " << vol_name << "\n";
   }
 
-  if (fVerbosity > 1) {
-    for (int igroup = 0; igroup < ngroups; ++igroup) {
-      std::stringstream str;
-      str << "group " << groups[igroup] << " edep ";
-      G4cout << "EndOfEventAction " << eventId << ": " << std::setw(25) << str.str() << std::setprecision(3)
-             << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " MeV\n";
-    }
-  }
-
-  if (fVerbosity > 0) {
-    G4cout << "EndOfEventAction " << eventId << ": " << std::setw(25)
-           << "Total energy deposited: " << std::setprecision(3) << std::setw(12) << totalEnergy / GeV << " GeV"
-           << G4endl;
-  }
+  msg << "EndOfEventAction " << eventId << " : Total " << std::setw(12) << totalEnergy / GeV << " GeV";
+  G4cout << "\n" << msg.str() << "\n" << G4endl;
 }
