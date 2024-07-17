@@ -13,8 +13,6 @@
 /process/verbose 0
 /tracking/verbose 0
 /event/verbose 0
-##
-/adept/setSeed 1
 
 /detector/filename cms2018_sd.gdml
 # Temporary workaround since we don't have a G4 to VecGeom converter
@@ -58,8 +56,6 @@
 ## -----------------------------------------------------------------------------
 ## Run the simulation with the given number of events and print list of processes
 ## -----------------------------------------------------------------------------
-
-/adept/setSeed 1
 
 # run events with parametrised simulation
 # by default all created models are active
