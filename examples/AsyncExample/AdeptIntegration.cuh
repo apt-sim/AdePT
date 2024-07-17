@@ -7,12 +7,15 @@
 #include "AdeptIntegration.h"
 
 #include "Track.cuh"
+#include "TrackTransfer.h"
 #include "SlotManager.cuh"
 #include "ResourceManagement.h"
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmRandomEngine.hh>
+
+namespace AsyncAdePT {
 
 #ifdef __CUDA_ARCH__
 // Define inline implementations of the RNG methods for the device.
@@ -67,7 +70,7 @@ struct GammaInteractions {
     double PEmxSec; // Only used for photoelectric process
     unsigned int slot;
   };
-  adept::MParrayT<Data> * queues[Interaction::NInt];
+  adept::MParrayT<Data> *queues[Interaction::NInt];
 };
 
 // A bundle of generators for the three particle types.
@@ -110,6 +113,7 @@ struct ParticleType {
 
     NumParticleTypes,
   };
+  static constexpr double relativeQueueSize[] = {0.35, 0.15, 0.5};
 };
 
 // Pointers to track storage for each particle type
@@ -130,6 +134,7 @@ struct Stats {
   unsigned int usedSlots[ParticleType::NumParticleTypes];
   unsigned int perEventInFlight[AdeptIntegration::kMaxThreads];
   unsigned int perEventLeaked[AdeptIntegration::kMaxThreads];
+  unsigned int hitBufferOccupancy;
 };
 
 struct QueueIndexPair {
@@ -138,28 +143,27 @@ struct QueueIndexPair {
 };
 
 struct GPUstate {
-  using TrackData = adeptint::TrackData;
-
   ParticleType particles[ParticleType::NumParticleTypes];
   GammaInteractions gammaInteractions;
 
-  std::vector<adeptint::unique_ptr_cuda<void>> allCudaPointers;
+  std::vector<AsyncAdePT::unique_ptr_cuda<void>> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
-  cudaStream_t stream;                ///< all-particle sync stream
-  unsigned int fNumToDevice{4 * 16384}; ///< number of slots in the toDevice buffer
-  unsigned int fNumFromDevice{4 * 16384};   ///< number of slots in the fromDevice buffer
-  adeptint::unique_ptr_cuda<TrackData> toDevice_host{
-      nullptr, adeptint::cudaHostDeleter}; ///< Tracks to be transported to the device
-  adeptint::unique_ptr_cuda<TrackData> toDevice_dev{nullptr, adeptint::cudaDeleter};    ///< toDevice buffer of tracks
-  adeptint::unique_ptr_cuda<TrackData> fromDevice_host{nullptr, adeptint::cudaHostDeleter}; ///< Tracks from device
-  adeptint::unique_ptr_cuda<TrackData> fromDevice_dev{nullptr, adeptint::cudaDeleter};  ///< fromDevice buffer of tracks
-  adeptint::unique_ptr_cuda<unsigned int> nFromDevice{
-      nullptr, adeptint::cudaHostDeleter}; ///< Number of tracks collected on device
+  cudaStream_t stream;                    ///< all-particle sync stream
+  unsigned int fNumToDevice{8 * 16384};   ///< number of slots in the toDevice buffer
+  unsigned int fNumFromDevice{4 * 16384}; ///< number of slots in the fromDevice buffer
+  unique_ptr_cuda<TrackDataWithIDs> toDevice_host{nullptr, cudaHostDeleter}; ///< Tracks to be transported to the device
+  unique_ptr_cuda<TrackDataWithIDs> toDevice_dev{nullptr, cudaDeleter};      ///< toDevice buffer of tracks
+  unique_ptr_cuda<TrackDataWithIDs> fromDevice_host{nullptr, cudaHostDeleter}; ///< Tracks from device
+  unique_ptr_cuda<TrackDataWithIDs> fromDevice_dev{nullptr, cudaDeleter};      ///< fromDevice buffer of tracks
+  unique_ptr_cuda<unsigned int> nFromDevice{nullptr, cudaHostDeleter};         ///< Number of tracks collected on device
 
-  Stats *stats_dev{nullptr};          ///< statistics object pointer on device
-  Stats *stats{nullptr};              ///< statistics object pointer on host
+  Stats *stats_dev{nullptr}; ///< statistics object pointer on device
+  Stats *stats{nullptr};     ///< statistics object pointer on host
 
-  adeptint::unique_ptr_cuda<adept::MParrayT<QueueIndexPair>> injectionQueue{nullptr, adeptint::cudaDeleter};
+  unique_ptr_cuda<PerEventScoring> fScoring_dev{nullptr, cudaDeleter}; ///< Device array for per-worker scoring data
+  std::unique_ptr<HitScoring> fHitScoring;
+
+  unique_ptr_cuda<adept::MParrayT<QueueIndexPair>> injectionQueue{nullptr, cudaDeleter};
 
   enum class InjectState { Idle, CreatingSlots, ReadyToEnqueue, Enqueueing };
   std::atomic<InjectState> injectState;
@@ -179,5 +183,7 @@ extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
 // constexpr float BzFieldValue = 0.1 * copcore::units::tesla;
 extern __constant__ __device__ double BzFieldValue;
 constexpr double kPush = 1.e-8 * copcore::units::cm;
+
+} // namespace AsyncAdePT
 
 #endif

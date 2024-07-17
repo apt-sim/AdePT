@@ -25,13 +25,12 @@
 // ********************************************************************
 //
 #include "RunAction.hh"
-#include "DetectorConstruction.hh"
+#include "G4Threading.hh"
 
 #include <thread>
 #include <mutex>
-#include "AdeptIntegration.h"
 
-RunAction::RunAction(DetectorConstruction * /*aDetector*/) : G4UserRunAction() {}
+RunAction::RunAction() : G4UserRunAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

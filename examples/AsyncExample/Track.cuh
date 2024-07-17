@@ -17,16 +17,21 @@ struct Track {
   using Precision = vecgeom::Precision;
   RanluxppDouble rngState;
   double energy;
-  double numIALeft[3];
-  double initialRange;
-  double dynamicRangeFactor;
-  double tlimitMin;
+  float numIALeft[3];
+  float initialRange;
+  float dynamicRangeFactor;
+  float tlimitMin;
+
+  double globalTime{0};
+  float localTime{0};
+  float properTime{0};
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
   vecgeom::NavStateIndex navState;
   unsigned int eventId;
   unsigned short threadId{65535};
+  unsigned short looperCounter{0};
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
@@ -48,6 +53,12 @@ struct Track {
     this->navState = parentNavState;
     this->eventId  = parentTrack.eventId;
     this->threadId = parentTrack.threadId;
+    this->looperCounter = 0;
+
+    this->globalTime = parentTrack.globalTime;
+    this->localTime  = 0.;
+    this->properTime = 0.;
+#warning Why are local and proper time not updated?
   }
 };
 #endif

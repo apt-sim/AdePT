@@ -106,7 +106,7 @@ void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
   // G4FastSimHitMaker that will call the sensitive detector)
   aFastStep.SetTotalEnergyDeposited(0);
 
-  auto pdg = aFastTrack.GetPrimaryTrack()->GetParticleDefinition()->GetPDGEncoding();
+  const auto pdg    = aFastTrack.GetPrimaryTrack()->GetParticleDefinition()->GetPDGEncoding();
   const auto thread = G4Threading::G4GetThreadId();
   const auto event  = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
   if (event != fLastEventId) {
@@ -115,8 +115,9 @@ void EMShowerModel::DoIt(const G4FastTrack &aFastTrack, G4FastStep &aFastStep)
     fCycleNumber  = 0;
   }
 
-  fAdept->AddTrack(thread, event, fCycleNumber, fTrackCounter++, pdg, energy, particlePosition[0], particlePosition[1],
-                   particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2]);
+  fAdept->AddTrack(pdg, energy, particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
+                   particleDirection[1], particleDirection[2], g4track->GetGlobalTime(), g4track->GetLocalTime(),
+                   g4track->GetProperTime(), thread, event, fCycleNumber, fTrackCounter);
 }
 
 void EMShowerModel::Flush()

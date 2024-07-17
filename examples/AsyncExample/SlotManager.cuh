@@ -19,7 +19,6 @@ struct alignas(64) SlotManager {
 
   value_type fSlotCounter    = 0;
   value_type fFreeCounter    = 0;
-  value_type fSlotCounterMax = 0;
 
 public:
   __host__ __device__ SlotManager(const value_type slotListSize, const value_type freeListSize)
@@ -48,25 +47,19 @@ public:
   {
     *this = std::move(other);
   }
-  SlotManager & operator=(SlotManager && other)
+  SlotManager &operator=(SlotManager &&other)
   {
     fSlotListSize = other.fSlotListSize;
     fFreeListSize = other.fFreeListSize;
     fSlotList = other.fSlotList;
     fToFreeList = other.fToFreeList;
     fSlotCounter = other.fSlotCounter;
-    fFreeCounter = other.fFreeCounter;
-    fSlotCounterMax = other.fSlotCounterMax;
+    fFreeCounter  = other.fFreeCounter;
 
     // Only one slot manager can own the device memory
     other.fSlotList = nullptr;
 
     return *this;
-  }
-
-  __device__ value_type __forceinline__ HighestOccupiedSlotIndex() const
-  {
-    return fSlotCounterMax > fSlotCounter ? fSlotCounterMax : fSlotCounter;
   }
 
   __host__ __device__ void Clear();
@@ -81,8 +74,6 @@ public:
   __host__ static void SortListOfFreeSlots(int slotMgrIndex, cudaStream_t stream);
   __host__ static std::pair<value_type *, std::byte *> MemForSorting(int slotMgrIndex, value_type numItemsToSort,
                                                                      size_t sortFuncTempMemorySize);
-
-  __device__ void __forceinline__ UpdateEndPtr();
 };
 
 __host__ __device__ void SlotManager::Clear()
@@ -92,7 +83,6 @@ __host__ __device__ void SlotManager::Clear()
     fSlotList[i] = i;
   }
   if (threadIdx.x == 0) {
-    fSlotCounterMax = 0;
     fSlotCounter    = 0;
     fFreeCounter    = 0;
   }
@@ -103,6 +93,7 @@ __device__ unsigned int SlotManager::NextSlot()
 {
   const auto slotIndex = atomicAdd(&fSlotCounter, 1);
   if (slotIndex >= fSlotListSize) {
+    printf("Out of slots (max=%d)\n", fSlotListSize);
     COPCORE_EXCEPTION("Out of slots in SlotManager::NextSlot");
   }
 
@@ -132,7 +123,7 @@ __device__ void SlotManager::FreeMarkedSlots()
       printf("%d ", fToFreeList[i]);
     }
     printf("\n");
-    // COPCORE_EXCEPTION("Error: Trying to free too many slots.");
+    COPCORE_EXCEPTION("Error: Trying to free too many slots.");
   }
 
   const auto begin = oldSlotCounter - fFreeCounter;
@@ -150,37 +141,46 @@ __device__ void SlotManager::FreeMarkedSlots()
       printf(__FILE__ ":%d Error: New slots were allocated while trying to free slots.\n", __LINE__);
       COPCORE_EXCEPTION("Allocating and freeing slots cannot overlap");
     }
-    fSlotCounterMax = fSlotCounterMax > fSlotCounter ? fSlotCounterMax : fSlotCounter;
     fSlotCounter    = begin;
     fFreeCounter    = 0;
   }
 }
 
-__device__ void __forceinline__ SlotManager::UpdateEndPtr()
+#ifndef NDEBUG
+__global__ void AssertConsistencyOfSlotManagers(SlotManager *mgrs, std::size_t N)
 {
-  __shared__ value_type upperBoundShared[1024];
-  auto upperBound            = fSlotCounter;
-  const auto LastSlotToVisit = fSlotCounterMax;
-  for (value_type i = fSlotCounter + threadIdx.x; i < LastSlotToVisit; i += blockDim.x) {
-    if (fSlotList[i] != i) upperBound = i;
-  }
-  upperBoundShared[threadIdx.x] = upperBound;
+  for (int i = 0; i < N; ++i) {
+    SlotManager &mgr       = mgrs[i];
+    const auto slotCounter = mgr.fSlotCounter;
+    const auto freeCounter = mgr.fFreeCounter;
 
-  __syncthreads();
-
-  if (threadIdx.x == 0) {
-    for (unsigned int i = 0; i < blockDim.x; ++i) {
-      auto max = [](auto a, auto b) __attribute__((always_inline))
-      {
-        return a > b ? a : b;
-      };
-      upperBound = max(upperBound, upperBoundShared[i]);
+    if (blockIdx.x == 0 && threadIdx.x == 0 && slotCounter < freeCounter) {
+      printf("Error %s:%d: Trying to free %d slots in manager %d whereas only %d allocated\n", __FILE__, __LINE__,
+             freeCounter, i, slotCounter);
+      for (unsigned int i = 0; i < freeCounter; ++i) {
+        printf("%d ", mgr.fToFreeList[i]);
+      }
+      printf("\n");
+      assert(false);
     }
 
-    fSlotCounterMax = upperBound + 1;
-    assert(fSlotCounterMax < fSlotListSize);
-    assert(fSlotCounterMax >= fSlotCounter);
+    bool doubleFree = false;
+    for (unsigned int j = blockIdx.x; j < mgr.fFreeCounter; j += gridDim.x) {
+      const auto slotToSearch = mgr.fToFreeList[j];
+      for (unsigned int k = j + 1 + threadIdx.x; k < freeCounter; k += blockDim.x) {
+        if (slotToSearch == mgr.fToFreeList[k]) {
+          printf("Error: Manager %d: Slot %d freed both at %d and at %d\n", i, slotToSearch, k, j);
+          doubleFree = true;
+          break;
+        }
+      }
+    }
+
+    assert(slotCounter == mgr.fSlotCounter && "Race condition while checking slots");
+    assert(freeCounter == mgr.fFreeCounter && "Race condition while checking slots");
+    assert(!doubleFree);
   }
 }
+#endif
 
 #endif //SLOTMANAGER_CUH

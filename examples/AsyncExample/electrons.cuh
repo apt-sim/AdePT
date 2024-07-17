@@ -7,6 +7,7 @@
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/core/AdePTScoringTemplate.cuh>
 
 #define NOFLUCTUATION
 
@@ -25,6 +26,21 @@
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 
+namespace {
+
+// Compute velocity based on the kinetic energy of the particle
+__device__ double GetVelocity(double eKin)
+{
+  // Taken from G4DynamicParticle::ComputeBeta
+  const double T    = eKin / copcore::units::kElectronMassC2;
+  const double beta = sqrt(T * (T + 2.)) / (T + 1.0);
+  return copcore::units::kCLight * beta;
+}
+
+} // namespace
+
+namespace AsyncAdePT {
+
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
@@ -33,7 +49,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
                                                           adept::MParray *leakedQueue, Scoring *userScoring)
 {
-  using VolAuxData = AdeptIntegration::VolAuxData;
+  using VolAuxData = adeptint::VolAuxData;
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
@@ -41,26 +57,30 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #endif
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Charge               = IsElectron ? -1 : 1;
-  constexpr double Mass              = copcore::units::kElectronMassC2;
+  constexpr double restMass          = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
   const int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
-    auto energy         = currentTrack.energy;
+    auto eKin                = currentTrack.energy;
+    const auto preStepEnergy = eKin;
     auto pos            = currentTrack.pos;
+    const auto preStepPos{pos};
     auto dir            = currentTrack.dir;
+    vecgeom::Vector3D<Precision> preStepDir(dir);
     auto navState       = currentTrack.navState;
     const auto volume   = navState.Top();
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = volume->GetLogicalVolume()->id();
-    VolAuxData const &auxData = userScoring[currentTrack.threadId].GetAuxData_dev(lvolID);
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     auto survive = [&](bool leak = false) {
-      currentTrack.energy   = energy;
+      currentTrack.energy   = eKin;
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
       currentTrack.navState = navState;
@@ -85,7 +105,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
     G4HepEmTrack *theTrack = elTrack.GetTrack();
-    theTrack->SetEKin(energy);
+    theTrack->SetEKin(eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
     theTrack->SetOnBoundary(navState.IsOnBoundary());
     theTrack->SetCharge(Charge);
@@ -118,8 +138,30 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
-    // Call G4HepEm to compute the physics step limit.
-    G4HepEmElectronManager::HowFar(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+    G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
+
+    bool restrictedPhysicalStepLength = false;
+    if (BzFieldValue != 0) {
+      const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
+      // Distance along the track direction to reach the maximum allowed error
+      const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
+
+      constexpr int MaxSafeLength = 10;
+      double limit                = MaxSafeLength * safeLength;
+      limit                       = safety > limit ? safety : limit;
+
+      double physicalStepLength = elTrack.GetPStepLength();
+      if (physicalStepLength > limit) {
+        physicalStepLength           = limit;
+        restrictedPhysicalStepLength = true;
+        elTrack.SetPStepLength(physicalStepLength);
+        // Note: We are limiting the true step length, which is converted to
+        // a shorter geometry step length in HowFarToMSC. In that sense, the
+        // limit is an over-approximation, but that is fine for our purpose.
+      }
+    }
+
+    G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
     // Remember MSC values for the next step(s).
     currentTrack.initialRange       = mscData->fInitialRange;
@@ -127,13 +169,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     currentTrack.tlimitMin          = mscData->fTlimitMin;
 
     // Get result into variables.
-    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
+    const double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
     // The phyiscal step length is the amount that the particle experiences
     // which might be longer than the geometrical step length due to MSC. As
     // long as we call PerformContinuous in the same kernel we don't need to
     // care, but we need to make this available when splitting the operations.
     // double physicalStepLength = elTrack.GetPStepLength();
-    int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+    const int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
 
@@ -143,7 +185,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     vecgeom::NavStateIndex nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety);
+          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety);
     } else {
       geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPush);
@@ -201,12 +243,35 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    energy               = theTrack->GetEKin();
-    double energyDeposit = theTrack->GetEnergyDeposit();
+    eKin                       = theTrack->GetEKin();
+    const double energyDeposit = theTrack->GetEnergyDeposit();
 
-    userScoring[currentTrack.threadId].AccountChargedStep(Charge);
+    // Update the flight times of the particle
+    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
+    // the velocity depends on the remaining energy
+    const double deltaTime = elTrack.GetPStepLength() / GetVelocity(eKin);
+    currentTrack.globalTime += deltaTime;
+    currentTrack.localTime += deltaTime;
+    currentTrack.properTime += deltaTime * (restMass / eKin);
+
     if (auxData.fSensIndex >= 0)
-      userScoring[currentTrack.threadId].Score(navState, Charge, elTrack.GetPStepLength(), energyDeposit);
+      adept_scoring::RecordHit(&userScoring[currentTrack.threadId],
+                               static_cast<char>(IsElectron ? 0 : 1), // Particle type
+                               elTrack.GetPStepLength(),              // Step length
+                               energyDeposit,                         // Total Edep
+                               &navState,                             // Pre-step point navstate
+                               &preStepPos,                           // Pre-step point position
+                               &preStepDir,                           // Pre-step point momentum direction
+                               nullptr,                               // Pre-step point polarization
+                               preStepEnergy,                         // Pre-step point kinetic energy
+                               IsElectron ? -1 : 1,                   // Pre-step point charge
+                               &nextState,                            // Post-step point navstate
+                               &pos,                                  // Post-step point position
+                               &dir,                                  // Post-step point momentum direction
+                               nullptr,                               // Post-step point polarization
+                               eKin,                                  // Post-step point kinetic energy
+                               IsElectron ? -1 : 1,                   // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId);
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
@@ -221,7 +286,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         Track &gamma1 = secondaries.gammas.NextTrack();
         Track &gamma2 = secondaries.gammas.NextTrack();
 
-        userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+        adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 0, /*numPositrons*/ 0,
+                                       /*numGammas*/ 2);
 
         const double cost = 2 * currentTrack.Uniform() - 1;
         const double sint = sqrt(1 - cost * cost);
@@ -247,11 +313,18 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     if (nextState.IsOnBoundary()) {
-      // For now, just count that we hit something.
-      userScoring[currentTrack.threadId].AccountHit();
-
-      // Kill the particle if it left the world.
-      if (nextState.Top() != nullptr) {
+      if (currentTrack.looperCounter++ > 1000) {
+        // Kill loopers that are scraping a boundary
+        printf("Looper scraping a boundary going to G4: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+               "physicsStepLength=%E "
+               "safety=%E\n",
+               eKin, currentTrack.eventId, currentTrack.looperCounter++, energyDeposit, geometryStepLength,
+               geometricalStepLengthFromPhysics, safety);
+        atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
+        survive(/*leak=*/true);
+        continue;
+      } else if (nextState.Top() != nullptr) {
+        // Go to next volume
         BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
@@ -259,7 +332,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
-        VolAuxData const &nextauxData = userScoring[currentTrack.threadId].GetAuxData_dev(nextlvolID);
+        VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
         if (nextauxData.fGPUregion > 0)
           survive();
         else {
@@ -269,19 +342,33 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           survive(/*leak*/ true);
         }
       } else {
+        // Kill the particle if it left the world.
         slotManager.MarkSlotForFreeing(slot);
       }
       continue;
-    } else if (!propagated) {
+    } else if (!propagated || restrictedPhysicalStepLength) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      survive();
+      if (currentTrack.looperCounter++ > 1000) {
+        // Kill loopers that are failing to propagate
+        printf("Looper with trouble in field propagation going to G4: E=%E event=%d loop=%d energyDeposit=%E "
+               "geoStepLength=%E physicsStepLength=%E "
+               "safety=%E\n",
+               eKin, currentTrack.eventId, currentTrack.looperCounter++, energyDeposit, geometryStepLength,
+               geometricalStepLengthFromPhysics, safety);
+        atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
+        survive(/*leak=*/true);
+      } else {
+        survive();
+      }
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
+      currentTrack.looperCounter = 0;
       survive();
       continue;
     }
+    currentTrack.looperCounter = 0;
 
     // Reset number of interaction left for the winner discrete process.
     // (Will be resampled in the next iteration.)
@@ -306,49 +393,51 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke ionization (for e-/e+):
-      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, energy, &rnge)
-                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, energy, &rnge);
+      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, eKin, &rnge)
+                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
 
       double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondary[3];
-      G4HepEmElectronInteractionIoni::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &secondary = secondaries.electrons.NextTrack();
 
-      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+      adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
+                                     /*numGammas*/ 0);
 
       secondary.InitAsSecondary(pos, navState, currentTrack);
       secondary.rngState = newRNG;
       secondary.energy   = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      energy -= deltaEkin;
+      eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
       break;
     }
     case 1: {
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-      double logEnergy = std::log(energy);
-      double deltaEkin = energy < g4HepEmPars.fElectronBremModelLim
-                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, energy, logEnergy,
+      double logEnergy = std::log(eKin);
+      double deltaEkin = eKin < g4HepEmPars.fElectronBremModelLim
+                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, eKin, logEnergy,
                                                                                  auxData.fMCIndex, &rnge, IsElectron)
-                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, energy, logEnergy,
+                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, eKin, logEnergy,
                                                                                  auxData.fMCIndex, &rnge, IsElectron);
 
       double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirSecondary[3];
-      G4HepEmElectronInteractionBrem::SampleDirections(energy, deltaEkin, dirSecondary, dirPrimary, &rnge);
+      G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &gamma = secondaries.gammas.NextTrack();
-      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
+      adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 0, /*numPositrons*/ 0,
+                                     /*numGammas*/ 1);
 
       gamma.InitAsSecondary(pos, navState, currentTrack);
       gamma.rngState = newRNG;
       gamma.energy   = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
-      energy -= deltaEkin;
+      eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
       break;
@@ -359,11 +448,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       double theGamma1Ekin, theGamma2Ekin;
       double theGamma1Dir[3], theGamma2Dir[3];
       G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
-          energy, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
+          eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
       Track &gamma1 = secondaries.gammas.NextTrack();
       Track &gamma2 = secondaries.gammas.NextTrack();
-      userScoring[currentTrack.threadId].AccountProduced(/*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+      adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 0, /*numPositrons*/ 0,
+                                     /*numGammas*/ 2);
 
       gamma1.InitAsSecondary(pos, navState, currentTrack);
       gamma1.rngState = newRNG;
@@ -399,3 +489,5 @@ __global__ void TransportPositrons(Track *positrons, const adept::MParray *activ
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, activeQueue, leakedQueue,
                                                     userScoring);
 }
+
+} // namespace AsyncAdePT

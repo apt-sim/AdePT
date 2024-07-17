@@ -42,17 +42,12 @@ class DetectorConstruction;
 
 class ActionInitialisation : public G4VUserActionInitialization {
 public:
-  ActionInitialisation(DetectorConstruction *aDetector);
+  ActionInitialisation();
   ~ActionInitialisation();
   /// Create all user actions.
   virtual void Build() const final;
   /// Create run action in the master thread to allow analysis merging.
   virtual void BuildForMaster() const final;
-
-private:
-  /// Pointer to detector to be passed to event and run actions in order to
-  /// retrieve detector dimensions
-  DetectorConstruction *fDetector;
 };
 
 #endif /* ACTIONINITIALISATION_HH */

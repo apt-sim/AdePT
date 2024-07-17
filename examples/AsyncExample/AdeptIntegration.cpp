@@ -3,6 +3,10 @@
 
 #include "AdeptIntegration.h"
 
+#include "TrackTransfer.h"
+
+#include <AdePT/integration/AdePTGeant4Integration.hh>
+
 #include <VecGeom/management/BVHManager.h>
 #include "VecGeom/management/GeoManager.h"
 
@@ -28,8 +32,9 @@
 
 #include <iomanip>
 
-namespace adeptint {
-TrackBuffer::TrackHandle adeptint::TrackBuffer::createToDeviceSlot()
+namespace AsyncAdePT {
+
+TrackBuffer::TrackHandle TrackBuffer::createToDeviceSlot()
 {
   bool warningIssued = false;
   while (true) {
@@ -49,42 +54,42 @@ TrackBuffer::TrackHandle adeptint::TrackBuffer::createToDeviceSlot()
     }
   }
 }
-} // namespace adeptint
 
 namespace {
 template <typename T>
 std::size_t countTracks(int pdgToSelect, T const &container)
 {
   return std::count_if(container.begin(), container.end(),
-                       [pdgToSelect](adeptint::TrackData const &track) { return track.pdg == pdgToSelect; });
+                       [pdgToSelect](TrackDataWithIDs const &track) { return track.pdg == pdgToSelect; });
 }
 
-std::ostream &operator<<(std::ostream &stream, adeptint::TrackData const &track)
+std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 {
   const auto flags = stream.flags();
-  stream << std::setw(5) << track.pdg << std::scientific << std::setw(15) << std::setprecision(6) << track.energy
-         << " (" << std::setprecision(2) << std::setw(9) << track.position[0] << std::setw(9) << track.position[1]
+  stream << std::setw(5) << track.pdg << std::scientific << std::setw(15) << std::setprecision(6) << track.eKin << " ("
+         << std::setprecision(2) << std::setw(9) << track.position[0] << std::setw(9) << track.position[1]
          << std::setw(9) << track.position[2] << ")";
   stream.flags(flags);
   return stream;
 }
 } // namespace
 
-void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned short cycleNumber, unsigned int trackId,
-                                int pdg, double energy, double x, double y, double z, double dirx, double diry,
-                                double dirz)
+void AdeptIntegration::AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry,
+                                double dirz, double globalTime, double localTime, double properTime, int threadId,
+                                unsigned int eventId, unsigned int trackId)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
     return;
   }
 
-  adeptint::TrackData track{threadId, eventId, trackId, pdg, energy, x, y, z, dirx, diry, dirz};
+  TrackDataWithIDs track{pdg,  energy,     x,         y,          z,       dirx,    diry,
+                         dirz, globalTime, localTime, properTime, eventId, trackId, static_cast<short>(threadId)};
   if (fDebugLevel >= 2) {
     fGPUNetEnergy[threadId] += energy;
-    if (fDebugLevel >= 5) {
-      G4cout << "\n[_in," << eventId << "," << cycleNumber << "," << trackId << "]: " << track << "\tGPU net energy "
-             << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
+    if (fDebugLevel >= 6) {
+      G4cout << "\n[_in," << eventId << "," << trackId << "]: " << track << "\tGPU net energy " << std::setprecision(6)
+             << fGPUNetEnergy[threadId] << G4endl;
     }
   }
 
@@ -97,304 +102,141 @@ void AdeptIntegration::AddTrack(G4int threadId, G4int eventId, unsigned short cy
   fEventStates[threadId].store(EventState::NewTracksFromG4, std::memory_order_release);
 }
 
-void AdeptIntegration::Initialize()
+void AdeptIntegration::FullInit()
 {
-  fNumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  // We set the number of sensitive volumes equal to the number of placed volumes. This is temporary
-  fNumSensitive = vecgeom::GeoManager::Instance().GetPlacedVolumesCount();
-  if (fNumVolumes == 0) throw std::runtime_error("AdeptIntegration::Initialize: Number of geometry volumes is zero.");
+  const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  if (numVolumes == 0) throw std::runtime_error("AdeptIntegration::Initialize: Number of geometry volumes is zero.");
 
-    G4cout << "=== AdeptIntegration: initializing geometry and physics\n";
-    // Initialize geometry on device
-    if (!vecgeom::GeoManager::Instance().IsClosed())
-      throw std::runtime_error("AdeptIntegration::Initialize: VecGeom geometry not closed.");
+  G4cout << "=== AdeptIntegration: initializing geometry and physics\n";
+  // Initialize geometry on device
+  if (!vecgeom::GeoManager::Instance().IsClosed())
+    throw std::runtime_error("AdeptIntegration::Initialize: VecGeom geometry not closed.");
 
-    const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
-    if (!InitializeGeometry(world))
-      throw std::runtime_error("AdeptIntegration::Initialize: Cannot initialize geometry on GPU");
+  const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
+  if (!InitializeGeometry(world))
+    throw std::runtime_error("AdeptIntegration::Initialize: Cannot initialize geometry on GPU");
 
-    // Initialize G4HepEm
-    if (!InitializePhysics()) throw std::runtime_error("AdeptIntegration::Initialize cannot initialize physics on GPU");
+  // Initialize G4HepEm
+  if (!InitializePhysics()) throw std::runtime_error("AdeptIntegration::Initialize cannot initialize physics on GPU");
 
-    // Do the material-cut couple index mapping once
-    // as well as set flags for sensitive volumes and region
-    VolAuxData *auxData = CreateVolAuxData(
-        G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume(),
-        vecgeom::GeoManager::Instance().GetWorld(), *fg4hepem_state);
+  // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
+  fG4Integrations.front().CheckGeometry(fg4hepem_state.get());
+  adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+  fG4Integrations.front().InitVolAuxData(auxData, fg4hepem_state.get(), fTrackInAllRegions, fGPURegionNames);
 
-    // Initialize volume auxiliary data on device
-    VolAuxArray::GetInstance().fNumVolumes = fNumVolumes;
-    VolAuxArray::GetInstance().fAuxData    = auxData;
-    VolAuxArray::GetInstance().InitializeOnGPU();
+  // Initialize volume auxiliary data on device
+  auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
+  volAuxArray.fNumVolumes = numVolumes;
+  volAuxArray.fAuxData    = auxData;
+  AsyncAdePT::InitVolAuxArray(volAuxArray);
 
-    G4cout << "=== AdeptIntegration: initializing transport engine for thread: " << G4Threading::G4GetThreadId()
-           << G4endl;
+  for (auto &g4int : fG4Integrations) {
+    g4int.InitScoringData(volAuxArray.fAuxData);
+  }
 
-    // Initialize user scoring data
-    fScoring = std::vector<AdeptScoring>(fNThread, fNumSensitive);
+  // Initialize the transport engine for the current thread
+  InitializeGPU();
 
-    // Initialize the transport engine for the current thread
-    InitializeGPU();
-
-    fGPUWorker = std::thread{&AdeptIntegration::TransportLoop, this};
+  fGPUWorker = std::thread{&AdeptIntegration::TransportLoop, this};
 }
+
 void AdeptIntegration::InitBVH()
 {
   vecgeom::cxx::BVHManager::Init();
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 
-void AdeptIntegration::Flush(G4int threadId, G4int eventId, unsigned short cycleNumber)
+void AdeptIntegration::Flush(G4int threadId, G4int eventId)
 {
   if (fDebugLevel >= 3) {
-      G4cout << "\nFlushing AdePT for event " << eventId << " wave " << cycleNumber << G4endl;
+    G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
   }
 
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
   fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
 
-  std::vector<adeptint::TrackData> tracks;
-  if (fEventStates[threadId].load(std::memory_order_acquire) < EventState::LeakedTracksRetrieved) {
-      std::unique_lock lock{fBuffer->fromDeviceMutex};
-      fBuffer->cv_fromDevice.wait(lock, [this, threadId]() {
-        return fEventStates[threadId].load(std::memory_order_acquire) == EventState::DeviceFlushed;
-      });
-      tracks = std::move(fBuffer->fromDeviceBuffers[threadId]);
+  AdePTGeant4Integration &g4Integration = fG4Integrations[threadId];
+
+  while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
+    {
+      std::unique_lock lock{fMutex_G4Workers};
+      fCV_G4Workers.wait(lock);
+    }
+
+    std::shared_ptr<const std::vector<GPUHit>> gpuHits;
+    while ((gpuHits = GetGPUHits(threadId)) != nullptr) {
+      GPUHit dummy;
+      dummy.fEventId = eventId;
+      auto range     = std::equal_range(gpuHits->begin(), gpuHits->end(), dummy,
+                                        [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
+      for (auto it = range.first; it != range.second; ++it) {
+        assert(it->threadId == threadId);
+        g4Integration.ProcessGPUHit(*it);
+      }
+    }
   }
-  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
+
+  // Now device should be flushed, so retrieve the tracks:
+  std::vector<TrackDataWithIDs> tracks;
+  {
+    auto handle = fBuffer->getTracksFromDevice(threadId);
+    tracks.swap(handle.tracks);
+    fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
+  }
 
   // TODO: Sort tracks on device?
-  assert(std::all_of(tracks.begin(), tracks.end(),
-                     [threadId](adeptint::TrackData const &a) { return a.threadId == threadId; }));
+#ifndef NDEBUG
+  for (auto const &track : tracks) {
+    bool error = false;
+    if (track.threadId != threadId || track.eventId != static_cast<unsigned int>(eventId)) error = true;
+    if (!(track.pdg == -11 || track.pdg == 11 || track.pdg == 22)) error = true;
+    if (error)
+      std::cerr << "Error in returning track: threadId=" << track.threadId << " eventId=" << track.eventId
+                << " pdg=" << track.pdg << "\n";
+    assert(!error);
+  }
+#endif
   std::sort(tracks.begin(), tracks.end());
 
-  constexpr double tolerance = 10. * vecgeom::kTolerance;
-
-  // Build the secondaries and put them back on the Geant4 stack
   const auto oldEnergyTransferred = fGPUNetEnergy[threadId];
-  unsigned int trackId            = 0;
-  for (const auto &track : tracks) {
-      assert(eventId == track.eventId);
+  if (fDebugLevel >= 2) {
+    unsigned int trackId = 0;
+    for (const auto &track : tracks) {
 
-      if (fDebugLevel >= 2) {
-      fGPUNetEnergy[threadId] -= track.energy;
+      fGPUNetEnergy[threadId] -= track.eKin;
       if (fDebugLevel >= 5) {
-        G4cout << "\n[out," << track.eventId << "," << cycleNumber << "," << trackId++ << "]: " << track
-               << "\tGPU net energy " << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
+        G4cout << "\n[out," << track.eventId << "," << trackId++ << "]: " << track << "\tGPU net energy "
+               << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
       }
-      }
-
-      G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
-
-      G4DynamicParticle *dynamique =
-          new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.energy);
-
-      G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
-      // The returned track will be located by Geant4. For now we need to
-      // push it to make sure it is not relocated again in the GPU region
-      posi += tolerance * direction;
-
-      G4Track *secondary = new G4Track(dynamique, 0, posi);
-      secondary->SetParentID(-99);
-
-      G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
+    }
   }
 
   if (fDebugLevel >= 2) {
-      std::stringstream str;
-      str << "\n[" << eventId << "," << cycleNumber << "]: Pushed " << tracks.size() << " tracks to G4";
-      str << "\tEnergy back to G4: " << std::setprecision(6)
-          << (oldEnergyTransferred - fGPUNetEnergy[threadId]) / CLHEP::GeV << "\tGPU net energy "
-          << std::setprecision(6) << fGPUNetEnergy[threadId] / CLHEP::GeV << " GeV";
-      str << "\t(" << countTracks(11, tracks) << ", " << countTracks(-11, tracks) << ", " << countTracks(22, tracks)
-          << ")";
-      G4cout << str.str() << G4endl;
+    std::stringstream str;
+    str << "\n[" << eventId << "]: Pushed " << tracks.size() << " tracks to G4";
+    str << "\tEnergy back to G4: " << std::setprecision(6)
+        << (oldEnergyTransferred - fGPUNetEnergy[threadId]) / CLHEP::GeV << "\tGPU net energy " << std::setprecision(6)
+        << fGPUNetEnergy[threadId] / CLHEP::GeV << " GeV";
+    str << "\t(" << countTracks(11, tracks) << ", " << countTracks(-11, tracks) << ", " << countTracks(22, tracks)
+        << ")";
+    G4cout << str.str() << G4endl;
   }
 
   if (tracks.empty()) {
-      AdeptScoring &scoring = fScoring[threadId];
-      scoring.CopyHitsToHost();
-      scoring.ClearGPU();
-      fGPUNetEnergy[threadId] = 0.;
+    AsyncAdePT::PerEventScoring &scoring = fScoring[threadId];
+    scoring.CopyToHost();
+    scoring.ClearGPU();
+    fGPUNetEnergy[threadId] = 0.;
 
-      if (fDebugLevel >= 2) {
-      G4cout << "\n\tScoring for event " << eventId << " cycle " << cycleNumber << G4endl;
+    if (fDebugLevel >= 2) {
+      G4cout << "\n\tScoring for event " << eventId << G4endl;
       scoring.Print();
-      }
+    }
 
-      // Create energy deposit in the detector
-      auto *sd                            = G4SDManager::GetSDMpointer()->FindSensitiveDetector("AdePTDetector");
-      SensitiveDetector *fastSimSensitive = static_cast<SensitiveDetector *>(sd);
-
-      for (auto id = 0; id != fNumSensitive; id++) {
-        // here I add the energy deposition to the pre-existing Geant4 hit based on id
-      fastSimSensitive->ProcessHits(id, scoring.fScoringPerVolume.energyDeposit[id] / copcore::units::MeV);
-      }
-
-      EventAction *evAct = static_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction());
-      evAct->number_gammas += scoring.fGlobalScoring.numGammas;
-      evAct->number_electrons += scoring.fGlobalScoring.numElectrons;
-      evAct->number_positrons += scoring.fGlobalScoring.numPositrons;
-      evAct->number_killed += scoring.fGlobalScoring.numKilled;
-
-      fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
+    fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
   }
+
+  g4Integration.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel);
 }
 
-namespace {
-
-bool isInRegion(G4LogicalVolume const *volume, G4Region const *const region,
-                std::unordered_map<G4LogicalVolume const *, bool> &resultCache)
-{
-  if (volume->GetRegion() == region) {
-      return true;
-  }
-  // Maybe the volume is already known:
-  if (auto resultIt = resultCache.find(volume); resultIt != resultCache.end()) {
-      return resultIt->second;
-  }
-
-  // Visit all parent regions:
-  for (const auto parent : *G4LogicalVolumeStore::GetInstance()) {
-      const auto nDaughter = parent->GetNoDaughters();
-      for (unsigned int i = 0; i < nDaughter; ++i) {
-      if (parent->GetDaughter(i)->GetLogicalVolume() == volume) {
-        if (isInRegion(parent, region, resultCache)) {
-          std::cout << "Adding volume " << volume->GetName() << " to GPU region because parent is " << parent->GetName()
-                    << " in region " << parent->GetRegion()->GetName() << "\n";
-          resultCache[volume] = true;
-          return true;
-        }
-      }
-      }
-  }
-
-  resultCache[volume] = false;
-  return false;
-};
-
-struct VisitHelpers {
-  int nphysical      = 0;
-  int nlogical_sens  = 0;
-  int nphysical_sens = 0;
-  int ninregion      = 0;
-  std::unordered_map<G4LogicalVolume const *, bool> regionCache;
-};
-void visitAndSetMCIndex(G4VPhysicalVolume const *g4pvol, vecgeom::VPlacedVolume const *pvol, VisitHelpers &helpers,
-                        const G4HepEmState &hepEmState, adeptint::VolAuxData *auxData, G4Region const *adeptRegion,
-                        std::unordered_map<std::string, int> const &sensitive_volume_index,
-                        std::unordered_map<const G4VPhysicalVolume *, int> &fScoringMap)
-{
-  const int *g4tohepmcindex = hepEmState.fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
-  const auto nvolumes       = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  const auto g4vol          = g4pvol->GetLogicalVolume();
-  const auto vol            = pvol->GetLogicalVolume();
-  const int nd              = g4vol->GetNoDaughters();
-  auto daughters            = vol->GetDaughters();
-  if (static_cast<std::size_t>(nd) != daughters.size())
-      throw std::runtime_error("Fatal: CreateVolAuxData: Mismatch in number of daughters");
-  // Check if transformations are matching
-  auto g4trans = g4pvol->GetTranslation();
-  auto g4rot   = g4pvol->GetRotation();
-  G4RotationMatrix idrot;
-  auto vgtransformation  = pvol->GetTransformation();
-  constexpr double epsil = 1.e-8;
-  for (int i = 0; i < 3; ++i) {
-      if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
-        throw std::runtime_error(
-            std::string("Fatal: CreateVolAuxData: Mismatch between Geant4 translation for physical volume") +
-            pvol->GetName());
-  }
-
-  // check if VecGeom and Geant4 (local) transformations are matching. Not optimized, this will re-check
-  // already checked placed volumes when re-visiting the same volumes in different branches
-  if (!g4rot) g4rot = &idrot;
-  for (int row = 0; row < 3; ++row) {
-      for (int col = 0; col < 3; ++col) {
-        int i = row + 3 * col;
-        if (std::abs((*g4rot)(row, col) - vgtransformation->Rotation(i)) > epsil)
-          throw std::runtime_error(
-              std::string("Fatal: CreateVolAuxData: Mismatch between Geant4 rotation for physical volume") +
-              pvol->GetName());
-      }
-  }
-
-  // Check the couples
-  if (g4vol->GetMaterialCutsCouple() == nullptr)
-      throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4vol->GetName()) +
-                               std::string(" has no material-cuts couple"));
-  int g4mcindex    = g4vol->GetMaterialCutsCouple()->GetIndex();
-  int hepemmcindex = g4tohepmcindex[g4mcindex];
-  // Check consistency with G4HepEm data
-  if (hepEmState.fData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
-      throw std::runtime_error(
-          "Fatal: CreateVolAuxData: Mismatch between Geant4 mcindex and corresponding G4HepEm index");
-  if (vol->id() >= nvolumes)
-      throw std::runtime_error("Fatal: CreateVolAuxData: Volume id larger than number of volumes");
-
-  // All OK, now fill the MCC index in the array
-  auxData[vol->id()].fMCIndex = hepemmcindex;
-  helpers.nphysical++;
-
-  // Check if the volume belongs to the interesting region
-  if (isInRegion(g4vol, adeptRegion, helpers.regionCache)) {
-      auxData[vol->id()].fGPUregion = 1;
-      helpers.ninregion++;
-  }
-
-  // Check if the logical volume is sensitive
-  bool sens = false;
-  for (auto sensvol : sensitive_volume_index) {
-      if (vol->GetName() == sensvol.first || std::string(vol->GetName()).rfind(sensvol.first + "0x", 0) == 0) {
-        sens = true;
-        if (g4vol->GetSensitiveDetector() == nullptr)
-          throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4vol->GetName()) +
-                                   " not sensitive while VecGeom one " + std::string(vol->GetName()) + " is.");
-        if (auxData[vol->id()].fSensIndex < 0) helpers.nlogical_sens++;
-        auxData[vol->id()].fSensIndex = sensvol.second;
-        fScoringMap.insert(std::pair<const G4VPhysicalVolume *, int>(g4pvol, pvol->id()));
-        helpers.nphysical_sens++;
-        break;
-      }
-  }
-
-  if (!sens && g4vol->GetSensitiveDetector() != nullptr)
-      throw std::runtime_error("Fatal: CreateVolAuxData: G4LogicalVolume " + std::string(g4vol->GetName()) +
-                               " sensitive while VecGeom one " + std::string(vol->GetName()) + " isn't.");
-
-  // Now do the daughters
-  for (int id = 0; id < nd; ++id) {
-      auto g4pvol_d = g4vol->GetDaughter(id);
-      auto pvol_d   = daughters[id];
-
-      // VecGeom does not strip pointers from logical volume names
-      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
-        throw std::runtime_error("Fatal: CreateVolAuxData: Volume names " +
-                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
-                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
-      visitAndSetMCIndex(g4pvol_d, pvol_d, helpers, hepEmState, auxData, adeptRegion, sensitive_volume_index,
-                         fScoringMap);
-  }
-}
-} // namespace
-
-adeptint::VolAuxData *AdeptIntegration::CreateVolAuxData(const G4VPhysicalVolume *g4world,
-                                                         const vecgeom::VPlacedVolume *world,
-                                                         const G4HepEmState &hepEmState)
-{
-  // - FIND vecgeom::LogicalVolume corresponding to each and every G4LogicalVolume
-  VisitHelpers counters;
-
-  const auto nvolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  VolAuxData *auxData = new VolAuxData[nvolumes];
-
-  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
-  // (we need to make sure we set the right MCC index to the right volume)
-  visitAndSetMCIndex(g4world, world, counters, hepEmState, auxData, fRegion, sensitive_volume_index, fScoringMap);
-
-  G4cout << "Visited " << counters.nphysical << " matching physical volumes\n";
-  G4cout << "Number of logical sensitive:      " << counters.nlogical_sens << "\n";
-  G4cout << "Number of physical sensitive:     " << counters.nphysical_sens << "\n";
-  G4cout << "Number of physical in GPU region: " << counters.ninregion << "\n";
-  return auxData;
-}
+} // namespace AsyncAdePT

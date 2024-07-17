@@ -24,7 +24,6 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-/// \file electromagnetic/TestEm1/include/TrackingAction.hh
 /// \brief Definition of the TrackingAction class
 //
 //
@@ -35,6 +34,8 @@
 #define TRACKINGACTION_HH
 
 #include "G4UserTrackingAction.hh"
+#include "SteppingAction.hh"
+#include "G4Region.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

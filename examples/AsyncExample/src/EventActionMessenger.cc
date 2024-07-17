@@ -10,10 +10,10 @@
 
 EventActionMessenger::EventActionMessenger(EventAction *aEventAction) : G4UImessenger(), fEventAction(aEventAction)
 {
-  fEventActionDir = new G4UIdirectory("/adeptint/event/");
-  fEventActionDir->SetGuidance("UI commands for event actions");
+  fDir = new G4UIdirectory("/eventAction/");
+  fDir->SetGuidance("UI commands for event actions");
   //
-  fVerbosityCmd = new G4UIcmdWithAnInteger("/adeptint/event/verbose", this);
+  fVerbosityCmd = new G4UIcmdWithAnInteger("/eventAction/verbose", this);
   fVerbosityCmd->SetGuidance("Scoring verbosity");
 }
 
@@ -21,7 +21,7 @@ EventActionMessenger::EventActionMessenger(EventAction *aEventAction) : G4UImess
 
 EventActionMessenger::~EventActionMessenger()
 {
-  delete fEventActionDir;
+  delete fDir;
   delete fVerbosityCmd;
 }
 
