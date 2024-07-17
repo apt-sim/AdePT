@@ -27,7 +27,6 @@ class AdePTConfiguration {
 public:
   AdePTConfiguration();
   ~AdePTConfiguration();
-  void SetRandomSeed(int randomSeed) { fRandomSeed = randomSeed; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
@@ -59,7 +58,6 @@ public:
 private:
   bool fTrackInAllRegions{false};
   bool fAdePTActivated{true};
-  int fRandomSeed;
   int fVerbosity{0};
   int fTransportBufferThreshold{200};
   int fCUDAStackLimit{0};
