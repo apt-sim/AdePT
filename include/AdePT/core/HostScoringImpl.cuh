@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-// This file contains the specialization of the methods defined on AdePTScoringTemplate.cuh 
+// This file contains the specialization of the methods defined on AdePTScoringTemplate.cuh
 // for doing scoring on the Host, calling the user-defined sensitive detector code
 
 #include <AdePT/core/HostScoringStruct.cuh>

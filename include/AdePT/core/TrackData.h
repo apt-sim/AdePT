@@ -15,20 +15,22 @@ struct TrackData {
   double position[3];
   double direction[3];
   double eKin{0};
-  int pdg{0};
   double globalTime{0};
   double localTime{0};
   double properTime{0};
+  int pdg{0};
 
   TrackData() = default;
   TrackData(int pdg_id, double ene, double x, double y, double z, double dirx, double diry, double dirz, double gTime,
             double lTime, double pTime)
-      : position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, pdg{pdg_id}, globalTime{gTime}, localTime{lTime},
-        properTime{pTime}
+      : position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime}, localTime{lTime},
+        properTime{pTime}, pdg{pdg_id}
   {
   }
 
-  inline bool operator<(TrackData const &t)
+  friend bool operator==(TrackData const &a, TrackData const &b) { return !(a < b && b < a); }
+  friend bool operator!=(TrackData const &a, TrackData const &b) { return !(a == b); }
+  inline bool operator<(TrackData const &t) const
   {
     if (pdg != t.pdg) return pdg < t.pdg;
     if (eKin != t.eKin) return eKin < t.eKin;

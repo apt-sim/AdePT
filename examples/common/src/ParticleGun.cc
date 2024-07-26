@@ -15,7 +15,10 @@
 #include "HepMC3G4AsciiReader.hh"
 #endif
 
+#include <algorithm>
+#include <iomanip>
 #include <numeric>
+#include <sstream>
 
 ParticleGun::ParticleGun() : G4ParticleGun()
 {
@@ -38,39 +41,36 @@ void ParticleGun::GeneratePrimaries(G4Event *aEvent)
   // this function is called at the begining of event
   //
 
-  if (fRandomizeGun) {
-    if (!fInitializationDone) {
-      // We only need to do this for the first run
-      fInitializationDone = true;
-      // Re-balance the user-provided weights if needed
-      ReWeight();
-      // Make sure all particles have a user-defined energy
-      for (unsigned int i = 0; i < fParticleEnergies.size(); i++) {
-        if (fParticleEnergies[i] < 0) {
-          G4Exception("PrimaryGeneratorAction::GeneratePrimaries()", "Notification", FatalErrorInArgument,
-                      ("Energy undefined for  " + fParticleList[i]->GetParticleName()).c_str());
-        }
+  if (!fUseHepMC && fRandomizeGun && !fInitializationDone) {
+    // We only need to do this for the first run
+    fInitializationDone = true;
+    // Re-balance the user-provided weights if needed
+    ReWeight();
+    // Make sure all particles have a user-defined energy
+    for (unsigned int i = 0; i < fParticleEnergies.size(); i++) {
+      if (fParticleEnergies[i] < 0) {
+        G4Exception("PrimaryGeneratorAction::GeneratePrimaries()", "Notification", FatalErrorInArgument,
+                    ("Energy undefined for  " + fParticleList[i]->GetParticleName()).c_str());
       }
-      // In case the upper range for Phi or Theta was not defined, or is lower than the
-      // lower range
-      if (fMaxPhi < fMinPhi) {
-        fMaxPhi = fMinPhi;
-      }
-      if (fMaxTheta < fMinTheta) {
-        fMaxTheta = fMinTheta;
-      }
+    }
+    // In case the upper range for Phi or Theta was not defined, or is lower than the
+    // lower range
+    if (fMaxPhi < fMinPhi) {
+      fMaxPhi = fMinPhi;
+    }
+    if (fMaxTheta < fMinTheta) {
+      fMaxTheta = fMinTheta;
     }
   }
 
-  if (fUseHepMC && fHepmcAscii) {
+  if (fUseHepMC) {
+    if (!fHepmcAscii) throw std::logic_error("ParticleGun: HepMC3 reader is not available.");
     fHepmcAscii->GeneratePrimaryVertex(aEvent);
+  } else if (fRandomizeGun) {
+    GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, &fParticleList, &fParticleWeights,
+                                &fParticleEnergies);
   } else {
-    if (fRandomizeGun) {
-      GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, &fParticleList, &fParticleWeights,
-                                  &fParticleEnergies);
-    } else {
-      GeneratePrimaryVertex(aEvent);
-    }
+    GeneratePrimaryVertex(aEvent);
   }
 
   // Print the particle gun info if requested
@@ -220,21 +220,48 @@ void ParticleGun::Print()
 
 void ParticleGun::PrintPrimaries(G4Event *aEvent) const
 {
-  std::map<G4String, G4int> aParticleCounts             = {};
-  std::map<G4String, G4double> aParticleAverageEnergies = {};
-
-  for (int i = 0; i < aEvent->GetPrimaryVertex()->GetNumberOfParticle(); i++) {
-    G4String aParticleName   = aEvent->GetPrimaryVertex()->GetPrimary(i)->GetParticleDefinition()->GetParticleName();
-    G4double aParticleEnergy = aEvent->GetPrimaryVertex()->GetPrimary(i)->GetKineticEnergy();
-    if (!aParticleCounts.count(aParticleName)) {
-      aParticleCounts[aParticleName]          = 0;
-      aParticleAverageEnergies[aParticleName] = 0;
+  struct ParticleData {
+    std::string name;
+    unsigned int count{0};
+    double energy{0.};
+    bool operator<(const ParticleData &other) const
+    {
+      if (energy != other.energy) return energy > other.energy;
+      if (count != other.count) return count > other.count;
+      return name < other.name;
     }
-    aParticleCounts[aParticleName] += 1;
-    aParticleAverageEnergies[aParticleName] += aParticleEnergy;
+  };
+  std::map<G4String, ParticleData> aParticleCounts;
+
+  const auto nVtx = aEvent->GetNumberOfPrimaryVertex();
+  for (int vtx = 0; vtx < nVtx; ++vtx) {
+    const G4PrimaryVertex *vertex = aEvent->GetPrimaryVertex(vtx);
+    const auto nParticle          = vertex->GetNumberOfParticle();
+    for (int i = 0; i < nParticle; i++) {
+      const G4PrimaryParticle *particle = vertex->GetPrimary(i);
+      G4String aParticleName            = particle->GetParticleDefinition()->GetParticleName();
+      G4double aParticleEnergy          = particle->GetKineticEnergy();
+      auto &particleTuple               = aParticleCounts[aParticleName];
+      particleTuple.name                = aParticleName;
+      particleTuple.count++;
+      particleTuple.energy += aParticleEnergy;
+    }
   }
 
-  for (auto pd : aParticleCounts) {
-    G4cout << pd.first << ": " << pd.second << ", " << aParticleAverageEnergies[pd.first] / pd.second << G4endl;
+  std::vector<ParticleData> vec(aParticleCounts.size());
+  std::transform(aParticleCounts.begin(), aParticleCounts.end(), vec.begin(), [](auto &pair) { return pair.second; });
+  std::sort(vec.begin(), vec.end());
+
+  std::stringstream message;
+  message << "Event: " << aEvent->GetEventID() << " NVertex: " << nVtx << "\n";
+  for (auto const &pd : vec) {
+    message << std::setw(20) << pd.name << ": " << std::setw(9) << pd.count << " eKin (GeV): " << std::setw(15)
+            << pd.energy / GeV << " (total) " << std::setw(15) << pd.energy / pd.count / GeV << " (avg)\n";
   }
+  message << "Total energy: " << std::setw(9)
+          << std::accumulate(vec.begin(), vec.end(), 0.,
+                             [](double sum, auto const &data) { return sum + data.energy; }) /
+                 GeV
+          << " GeV\n";
+  G4cout << message.str() << G4endl;
 }

@@ -48,77 +48,88 @@ void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
   }
 }
 
+namespace {
+struct VisitContext {
+  const int *g4tohepmcindex;
+  std::size_t nvolumes;
+  G4HepEmState const *hepEmState;
+};
+
+/// Recursive geometry visitor matching one by one Geant4 and VecGeom logical volumes
+void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol, const VisitContext &context)
+{
+  const auto g4_lvol = g4_pvol->GetLogicalVolume();
+  const auto vg_lvol = vg_pvol->GetLogicalVolume();
+
+  const int nd         = g4_lvol->GetNoDaughters();
+  const auto daughters = vg_lvol->GetDaughters();
+
+  if (nd != daughters.size()) throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
+  // Check if transformations are matching
+  const auto g4trans            = g4_pvol->GetTranslation();
+  const G4RotationMatrix *g4rot = g4_pvol->GetRotation();
+  G4RotationMatrix idrot;
+  const auto vgtransformation = vg_pvol->GetTransformation();
+  constexpr double epsil = 1.e-8;
+  for (int i = 0; i < 3; ++i) {
+    if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
+      throw std::runtime_error(
+          std::string("Fatal: CheckGeometry: Mismatch between Geant4 translation for physical volume") +
+          vg_pvol->GetName());
+  }
+
+  // check if VecGeom and Geant4 (local) transformations are matching. Not optimized, this will re-check
+  // already checked placed volumes when re-visiting the same volumes in different branches
+  if (!g4rot) g4rot = &idrot;
+  for (int row = 0; row < 3; ++row) {
+    for (int col = 0; col < 3; ++col) {
+      int i = row + 3 * col;
+      if (std::abs((*g4rot)(row, col) - vgtransformation->Rotation(i)) > epsil)
+        throw std::runtime_error(
+            std::string("Fatal: CheckGeometry: Mismatch between Geant4 rotation for physical volume") +
+            vg_pvol->GetName());
+    }
+  }
+
+  // Check the couples
+  if (g4_lvol->GetMaterialCutsCouple() == nullptr)
+    throw std::runtime_error("Fatal: CheckGeometry: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
+                             std::string(" has no material-cuts couple"));
+  const int g4mcindex    = g4_lvol->GetMaterialCutsCouple()->GetIndex();
+  const int hepemmcindex = context.g4tohepmcindex[g4mcindex];
+  // Check consistency with G4HepEm data
+  if (context.hepEmState->fData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
+    throw std::runtime_error("Fatal: CheckGeometry: Mismatch between Geant4 mcindex and corresponding G4HepEm index");
+  if (vg_lvol->id() >= context.nvolumes)
+    throw std::runtime_error("Fatal: CheckGeometry: Volume id larger than number of volumes");
+
+  // Now do the daughters
+  for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+    const auto g4pvol_d = g4_lvol->GetDaughter(id);
+    const auto pvol_d   = vg_lvol->GetDaughters()[id];
+
+    // VecGeom does not strip pointers from logical volume names
+    if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
+      throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
+                               std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
+                               std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
+    visitGeometry(g4pvol_d, pvol_d, context);
+  }
+}
+} // namespace
+
 void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
 {
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
   const int *g4tohepmcindex                  = hepEmState->fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
-  int nvolumes                               = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  const auto nvolumes                        = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
 
-  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
-  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
-  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
-    const auto g4_lvol = g4_pvol->GetLogicalVolume();
-    const auto vg_lvol = vg_pvol->GetLogicalVolume();
-
-    int nd         = g4_lvol->GetNoDaughters();
-    auto daughters = vg_lvol->GetDaughters();
-
-    if (nd != daughters.size()) throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
-    // Check if transformations are matching
-    auto g4trans = g4_pvol->GetTranslation();
-    auto g4rot   = g4_pvol->GetRotation();
-    G4RotationMatrix idrot;
-    auto vgtransformation  = vg_pvol->GetTransformation();
-    constexpr double epsil = 1.e-8;
-    for (int i = 0; i < 3; ++i) {
-      if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
-        throw std::runtime_error(
-            std::string("Fatal: CheckGeometry: Mismatch between Geant4 translation for physical volume") +
-            vg_pvol->GetName());
-    }
-
-    // check if VecGeom and Geant4 (local) transformations are matching. Not optimized, this will re-check
-    // already checked placed volumes when re-visiting the same volumes in different branches
-    if (!g4rot) g4rot = &idrot;
-    for (int row = 0; row < 3; ++row) {
-      for (int col = 0; col < 3; ++col) {
-        int i = row + 3 * col;
-        if (std::abs((*g4rot)(row, col) - vgtransformation->Rotation(i)) > epsil)
-          throw std::runtime_error(
-              std::string("Fatal: CheckGeometry: Mismatch between Geant4 rotation for physical volume") +
-              vg_pvol->GetName());
-      }
-    }
-
-    // Check the couples
-    if (g4_lvol->GetMaterialCutsCouple() == nullptr)
-      throw std::runtime_error("Fatal: CheckGeometry: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
-                               std::string(" has no material-cuts couple"));
-    int g4mcindex    = g4_lvol->GetMaterialCutsCouple()->GetIndex();
-    int hepemmcindex = g4tohepmcindex[g4mcindex];
-    // Check consistency with G4HepEm data
-    if (hepEmState->fData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
-      throw std::runtime_error("Fatal: CheckGeometry: Mismatch between Geant4 mcindex and corresponding G4HepEm index");
-    if (vg_lvol->id() >= nvolumes)
-      throw std::runtime_error("Fatal: CheckGeometry: Volume id larger than number of volumes");
-
-    // Now do the daughters
-    for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-      auto g4pvol_d = g4_lvol->GetDaughter(id);
-      auto pvol_d   = vg_lvol->GetDaughters()[id];
-
-      // VecGeom does not strip pointers from logical volume names
-      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
-        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
-                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
-                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
-      visitGeometry(g4pvol_d, pvol_d);
-    }
-  };
-
-  visitGeometry(g4world, vecgeomWorld);
+  std::cout << "Visiting geometry ...\n";
+  const VisitContext context{g4tohepmcindex, nvolumes, hepEmState};
+  visitGeometry(g4world, vecgeomWorld, context);
+  std::cout << "Visiting geometry done\n";
 }
 
 void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
