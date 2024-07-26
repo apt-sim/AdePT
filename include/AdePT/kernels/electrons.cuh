@@ -243,21 +243,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     if (auxData.fSensIndex >= 0)
       adept_scoring::RecordHit(userScoring,
-                             IsElectron ? 0 : 1,       // Particle type
-                             elTrack.GetPStepLength(), // Step length
-                             energyDeposit,            // Total Edep
-                             &navState,                // Pre-step point navstate
-                             &preStepPos,              // Pre-step point position
-                             &preStepDir,              // Pre-step point momentum direction
-                             nullptr,                  // Pre-step point polarization
-                             preStepEnergy,            // Pre-step point kinetic energy
-                             IsElectron ? -1 : 1,      // Pre-step point charge
-                             &nextState,               // Post-step point navstate
-                             &pos,                     // Post-step point position
-                             &dir,                     // Post-step point momentum direction
-                             nullptr,                  // Post-step point polarization
-                             eKin,                     // Post-step point kinetic energy
-                             IsElectron ? -1 : 1);     // Post-step point charge
+                               IsElectron ? 0 : 1,       // Particle type
+                               elTrack.GetPStepLength(), // Step length
+                               energyDeposit,            // Total Edep
+                               &navState,                // Pre-step point navstate
+                               &preStepPos,              // Pre-step point position
+                               &preStepDir,              // Pre-step point momentum direction
+                               nullptr,                  // Pre-step point polarization
+                               preStepEnergy,            // Pre-step point kinetic energy
+                               IsElectron ? -1 : 1,      // Pre-step point charge
+                               &nextState,               // Post-step point navstate
+                               &pos,                     // Post-step point position
+                               &dir,                     // Post-step point momentum direction
+                               nullptr,                  // Post-step point polarization
+                               eKin,                     // Post-step point kinetic energy
+                               IsElectron ? -1 : 1,      // Post-step point charge
+                               0, -1);
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {

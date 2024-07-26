@@ -19,12 +19,14 @@ namespace adept_scoring
 
   template <typename Scoring>
   __device__ void RecordHit(Scoring *scoring_dev, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
-                          vecgeom::NavigationState const *aPreState, vecgeom::Vector3D<Precision> *aPrePosition,
-                          vecgeom::Vector3D<Precision> *aPreMomentumDirection,
-                          vecgeom::Vector3D<Precision> *aPrePolarization, double aPreEKin, double aPreCharge,
-                          vecgeom::NavigationState const *aPostState, vecgeom::Vector3D<Precision> *aPostPosition,
-                          vecgeom::Vector3D<Precision> *aPostMomentumDirection,
-                          vecgeom::Vector3D<Precision> *aPostPolarization, double aPostEKin, double aPostCharge){}
+                            vecgeom::NavigationState const *aPreState, vecgeom::Vector3D<Precision> const *aPrePosition,
+                            vecgeom::Vector3D<Precision> const *aPreMomentumDirection,
+                            vecgeom::Vector3D<Precision> const *aPrePolarization, double aPreEKin, double aPreCharge,
+                            vecgeom::NavigationState const *aPostState,
+                            vecgeom::Vector3D<Precision> const *aPostPosition,
+                            vecgeom::Vector3D<Precision> const *aPostMomentumDirection,
+                            vecgeom::Vector3D<Precision> const *aPostPolarization, double aPostEKin, double aPostCharge,
+                            unsigned int eventId, short threadId);
 
 template <typename Scoring>
 __device__ void AccountProduced(Scoring *scoring_dev, int num_ele, int num_pos, int num_gam);

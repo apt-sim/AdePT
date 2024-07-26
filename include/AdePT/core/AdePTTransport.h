@@ -8,6 +8,8 @@
 #ifndef ADEPT_INTEGRATION_H
 #define ADEPT_INTEGRATION_H
 
+#include "AdePTTransportInterface.hh"
+
 #include <unordered_map>
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
@@ -28,7 +30,7 @@ template <class TTag>
 class TestManager;
 
 template <typename IntegrationLayer>
-class AdePTTransport {
+class AdePTTransport : public AdePTTransportInterface {
 public:
   static constexpr int kMaxThreads = 256;
   using TrackBuffer                = adeptint::TrackBuffer;
@@ -44,7 +46,8 @@ public:
 
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz,
-                double globalTime, double localTime, double properTime);
+                double globalTime, double localTime, double properTime, int threadId, unsigned int eventId,
+                unsigned int trackIndex);
 
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
   /// @brief Get the track capacity on GPU
@@ -61,17 +64,17 @@ public:
   void SetDebugLevel(int level) { fDebugLevel = level; }
   /// @brief Set whether AdePT should transport particles across the whole geometry
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
-  bool GetTrackInAllRegions() { return fTrackInAllRegions; }
+  bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
   /// @brief Set Geant4 region to which it applies
-  void SetGPURegionNames(std::vector<std::string> *regionNames) { fGPURegionNames = regionNames; }
-  std::vector<std::string> *GetGPURegionNames() { return fGPURegionNames; }
+  void SetGPURegionNames(std::vector<std::string> const *regionNames) { fGPURegionNames = regionNames; }
+  std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize(bool common_data = false);
   /// @brief Final cleanup
   void Cleanup();
   /// @brief Interface for transporting a buffer of tracks in AdePT.
-  void Shower(int event);
+  void Shower(int event, int threadId);
 
 private:
   static inline G4HepEmState *fg4hepem_state{nullptr};       ///< The HepEm state singleton
@@ -87,7 +90,7 @@ private:
   AdeptScoring *fScoring{nullptr};             ///< User scoring object
   AdeptScoring *fScoring_dev{nullptr};         ///< Device ptr for scoring data
   TrackBuffer fBuffer;                         ///< Vector of buffers of tracks to/from device (per thread)
-  std::vector<std::string> *fGPURegionNames{}; ///< Region to which applies
+  std::vector<std::string> const *fGPURegionNames{}; ///< Region to which applies
   IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
   bool fInit{false};                  ///< Service initialized flag
   bool fTrackInAllRegions;            ///< Whether the whole geometry is a GPU region

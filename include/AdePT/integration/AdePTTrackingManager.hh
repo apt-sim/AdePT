@@ -8,11 +8,12 @@
 #include "G4RegionStore.hh"
 
 #include "globals.hh"
-#include <AdePT/core/AdePTTransport.h>
+#include <AdePT/core/AdePTTransportInterface.hh>
 #include "AdePT/copcore/SystemOfUnits.h"
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/core/AdePTConfiguration.hh>
 
+#include <memory>
 #include <vector>
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -35,12 +36,6 @@ public:
   /// Set verbosity for integration
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
 
-  // Set the AdePTTransport instance, also initializes the GPU region list
-  void SetAdePTTransport(AdePTTransport<AdePTGeant4Integration> *adeptTransport)
-  {
-    fAdeptTransport = adeptTransport;
-  }
-
   void SetAdePTConfiguration(AdePTConfiguration *aAdePTConfiguration) { fAdePTConfiguration = aAdePTConfiguration; }
 
 private:
@@ -54,13 +49,13 @@ private:
   /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
   void StepInHostRegion(G4Track *aTrack);
 
-  std::set<G4Region *> fGPURegions{};
+  std::set<G4Region const *> fGPURegions{};
   int fVerbosity{0};
-  G4double ProductionCut = 0.7 * copcore::units::mm;
-  int MCIndex[100];
-  
-  AdePTTransport<AdePTGeant4Integration> *fAdeptTransport;
+
+  std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
   AdePTConfiguration *fAdePTConfiguration;
+  unsigned int fTrackCounter{0};
+  int fCurrentEventID{0};
   bool fAdePTInitialized{false};
 };
 
