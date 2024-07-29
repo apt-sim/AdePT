@@ -69,6 +69,7 @@ public:
   __device__ void MarkSlotForFreeing(unsigned int toBeFreed);
 
   __device__ value_type OccupiedSlots() const { return fSlotCounter - fFreeCounter; }
+  __device__ float FillLevel() const { return float(fSlotCounter) / fSlotListSize; }
 
   __device__ void FreeMarkedSlots();
   __host__ static void SortListOfFreeSlots(int slotMgrIndex, cudaStream_t stream);
