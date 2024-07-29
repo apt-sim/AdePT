@@ -35,6 +35,7 @@
 #include "G4EventManager.hh"
 #include "G4SystemOfUnits.hh"
 
+#include <mutex>
 #include <sstream>
 
 EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1), fMessenger{new EventActionMessenger(this)} {}
@@ -83,5 +84,8 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   }
 
   msg << "EndOfEventAction " << eventId << " : Total " << std::setw(12) << totalEnergy / GeV << " GeV";
-  G4cout << "\n" << msg.str() << "\n" << G4endl;
+
+  static std::mutex eventActionPrinterMutex;
+  std::scoped_lock lock{eventActionPrinterMutex};
+  std::cout << "\n" << msg.str() << "\n";
 }
