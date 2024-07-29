@@ -328,7 +328,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       all.queues[i].currentlyActive->clear();
       stats->inFlight[i]     = all.queues[i].nextActive->size();
       stats->leakedTracks[i] = all.queues[i].leakedTracksCurrent->size() + all.queues[i].leakedTracksNext->size();
-      stats->usedSlots[i]    = tracksAndSlots.slotManagers[i]->OccupiedSlots();
+      stats->queueFillLevel[i] = tracksAndSlots.slotManagers[i]->FillLevel();
     }
   } else if (blockIdx.x == 1) {
     // Assert that there is enough slots allocated:
@@ -961,7 +961,7 @@ void AdeptIntegration::TransportLoop()
       if (gpuState.injectState != InjectState::CreatingSlots) {
         bool needSlotFree = false;
         for (unsigned int i = 0; i < ParticleType::NumParticleTypes; ++i) {
-          needSlotFree |= gpuState.stats->usedSlots[i] >= fTrackCapacity * ParticleType::relativeQueueSize[i] / 2;
+          needSlotFree |= gpuState.stats->queueFillLevel[i] >= 0.5;
         }
         if (needSlotFree) {
           // Freeing of slots has to run exclusively
@@ -1035,10 +1035,10 @@ void AdeptIntegration::TransportLoop()
         std::cerr << inFlight << " in flight ";
         std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
                   << gpuState.stats->inFlight[ParticleType::Positron] << " "
-                  << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tSlots:("
-                  << gpuState.stats->usedSlots[ParticleType::Electron] << " "
-                  << gpuState.stats->usedSlots[ParticleType::Positron] << " "
-                  << gpuState.stats->usedSlots[ParticleType::Gamma] << ")";
+                  << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tSlots:(" << std::setprecision(3)
+                  << gpuState.stats->queueFillLevel[ParticleType::Electron] << " "
+                  << gpuState.stats->queueFillLevel[ParticleType::Positron] << " "
+                  << gpuState.stats->queueFillLevel[ParticleType::Gamma] << ")";
         std::cerr << ", " << numLeaked << " leaked."
                   << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
                   << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load())
