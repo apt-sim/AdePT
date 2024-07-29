@@ -131,7 +131,7 @@ struct AllParticleQueues {
 struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
-  unsigned int usedSlots[ParticleType::NumParticleTypes];
+  float queueFillLevel[ParticleType::NumParticleTypes];
   unsigned int perEventInFlight[AdeptIntegration::kMaxThreads];
   unsigned int perEventLeaked[AdeptIntegration::kMaxThreads];
   unsigned int hitBufferOccupancy;
