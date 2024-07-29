@@ -38,12 +38,13 @@ __global__ void __launch_bounds__(256, 1)
     const int slot            = (*active)[i];
     Track &currentTrack       = gammas[slot];
     const auto energy         = currentTrack.energy;
-    // const auto preStepEnergy  = energy;
+    const auto preStepEnergy  = energy;
     auto pos = currentTrack.pos;
-    // const auto preStepPos{pos};
+    const auto preStepPos{pos};
     const auto dir            = currentTrack.dir;
-    // const auto preStepDir{dir};
+    const auto preStepDir{dir};
     auto navState             = currentTrack.navState;
+    const auto preStepNavState = navState;
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     auto &slotManager = *secondaries.gammas.fSlotManager;
@@ -145,11 +146,13 @@ __global__ void __launch_bounds__(256, 1)
 
     // Enqueue track in special interaction queue
     survive(nullptr);
-    GammaInteractions::Data si{
-        geometryStepLength,
-        gammaTrack.GetPEmxSec(),
-        static_cast<unsigned int>(slot),
-    };
+    GammaInteractions::Data si{geometryStepLength,
+                               gammaTrack.GetPEmxSec(),
+                               static_cast<unsigned int>(slot),
+                               preStepNavState,
+                               preStepPos,
+                               preStepDir,
+                               preStepEnergy};
     gammaInteractions.queues[winnerProcessIndex]->push_back(std::move(si));
   }
 }
@@ -173,12 +176,6 @@ __global__ void __launch_bounds__(256, 1)
       auto &slotManager               = *secondaries.gammas.fSlotManager;
       const auto energy               = currentTrack.energy;
       const auto &dir                 = currentTrack.dir;
-
-#warning Implement the transfer of these quantities:
-      const auto &preStepNavState = currentTrack.navState;
-      const auto &preStepPos      = currentTrack.pos;
-      const auto &preStepDir      = currentTrack.dir;
-      const auto preStepEnergy    = currentTrack.energy;
 
       VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
 
@@ -255,21 +252,21 @@ __global__ void __launch_bounds__(256, 1)
         } else {
           if (auxData.fSensIndex >= 0)
             adept_scoring::RecordHit(&userScoring[currentTrack.threadId],
-                                     ParticleType::Electron, // Particle type
-                                     geometryStepLength,     // Step length
-                                     0,                      // Total Edep
-                                     &preStepNavState,       // Pre-step point navstate
-                                     &preStepPos,            // Pre-step point position
-                                     &preStepDir,            // Pre-step point momentum direction
-                                     nullptr,                // Pre-step point polarization
-                                     0,                      // Pre-step point kinetic energy
-                                     -1,                     // Pre-step point charge
-                                     &currentTrack.navState, // Post-step point navstate
-                                     &currentTrack.pos,      // Post-step point position
-                                     &currentTrack.dir,      // Post-step point momentum direction
-                                     nullptr,                // Post-step point polarization
-                                     energyEl,               // Post-step point kinetic energy
-                                     -1,                     // Post-step point charge
+                                     ParticleType::Gamma,       // Particle type
+                                     geometryStepLength,        // Step length
+                                     0,                         // Total Edep
+                                     &queue[i].preStepNavState, // Pre-step point navstate
+                                     &queue[i].preStepPos,      // Pre-step point position
+                                     &queue[i].preStepDir,      // Pre-step point momentum direction
+                                     nullptr,                   // Pre-step point polarization
+                                     queue[i].preStepEnergy,    // Pre-step point kinetic energy
+                                     0,                         // Pre-step point charge
+                                     &currentTrack.navState,    // Post-step point navstate
+                                     &currentTrack.pos,         // Post-step point position
+                                     &currentTrack.dir,         // Post-step point momentum direction
+                                     nullptr,                   // Post-step point polarization
+                                     newEnergyGamma,            // Post-step point kinetic energy
+                                     0,                         // Post-step point charge
                                      currentTrack.eventId, currentTrack.threadId);
         }
 
@@ -281,21 +278,21 @@ __global__ void __launch_bounds__(256, 1)
         } else {
           if (auxData.fSensIndex >= 0)
             adept_scoring::RecordHit(userScoring + currentTrack.threadId,
-                                     2,                      // Particle type
-                                     geometryStepLength,     // Step length
-                                     0,                      // Total Edep
-                                     &preStepNavState,       // Pre-step point navstate
-                                     &preStepPos,            // Pre-step point position
-                                     &preStepDir,            // Pre-step point momentum direction
-                                     nullptr,                // Pre-step point polarization
-                                     preStepEnergy,          // Pre-step point kinetic energy
-                                     0,                      // Pre-step point charge
-                                     &currentTrack.navState, // Post-step point navstate
-                                     &currentTrack.pos,      // Post-step point position
-                                     &currentTrack.dir,      // Post-step point momentum direction
-                                     nullptr,                // Post-step point polarization
-                                     newEnergyGamma,         // Post-step point kinetic energy
-                                     0,                      // Post-step point charge
+                                     ParticleType::Gamma,       // Particle type
+                                     geometryStepLength,        // Step length
+                                     0,                         // Total Edep
+                                     &queue[i].preStepNavState, // Pre-step point navstate
+                                     &queue[i].preStepPos,      // Pre-step point position
+                                     &queue[i].preStepDir,      // Pre-step point momentum direction
+                                     nullptr,                   // Pre-step point polarization
+                                     queue[i].preStepEnergy,    // Pre-step point kinetic energy
+                                     0,                         // Pre-step point charge
+                                     &currentTrack.navState,    // Post-step point navstate
+                                     &currentTrack.pos,         // Post-step point position
+                                     &currentTrack.dir,         // Post-step point momentum direction
+                                     nullptr,                   // Post-step point polarization
+                                     newEnergyGamma,            // Post-step point kinetic energy
+                                     0,                         // Post-step point charge
                                      currentTrack.eventId, currentTrack.threadId);
 
           // The current track is killed by not enqueuing into the next activeQueue.
@@ -331,21 +328,21 @@ __global__ void __launch_bounds__(256, 1)
         }
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring + currentTrack.threadId,
-                                   2,                      // Particle type
-                                   geometryStepLength,     // Step length
-                                   edep,                   // Total Edep
-                                   &preStepNavState,       // Pre-step point navstate
-                                   &preStepPos,            // Pre-step point position
-                                   &preStepDir,            // Pre-step point momentum direction
-                                   nullptr,                // Pre-step point polarization
-                                   preStepEnergy,          // Pre-step point kinetic energy
-                                   0,                      // Pre-step point charge
-                                   &currentTrack.navState, // Post-step point navstate
-                                   &currentTrack.pos,      // Post-step point position
-                                   &currentTrack.dir,      // Post-step point momentum direction
-                                   nullptr,                // Post-step point polarization
-                                   0,                      // Post-step point kinetic energy
-                                   0,                      // Post-step point charge
+                                   ParticleType::Gamma,       // Particle type
+                                   geometryStepLength,        // Step length
+                                   edep,                      // Total Edep
+                                   &queue[i].preStepNavState, // Pre-step point navstate
+                                   &queue[i].preStepPos,      // Pre-step point position
+                                   &queue[i].preStepDir,      // Pre-step point momentum direction
+                                   nullptr,                   // Pre-step point polarization
+                                   queue[i].preStepEnergy,    // Pre-step point kinetic energy
+                                   0,                         // Pre-step point charge
+                                   &currentTrack.navState,    // Post-step point navstate
+                                   &currentTrack.pos,         // Post-step point position
+                                   &currentTrack.dir,         // Post-step point momentum direction
+                                   nullptr,                   // Post-step point polarization
+                                   0,                         // Post-step point kinetic energy
+                                   0,                         // Post-step point charge
                                    currentTrack.eventId, currentTrack.threadId);
         // The current track is killed by not enqueuing into the next activeQueue.
         slotManager.MarkSlotForFreeing(slot);
