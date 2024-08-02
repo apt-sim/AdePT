@@ -40,11 +40,11 @@ bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
 }
 
 template <typename IntegrationLayer>
-void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, double energy, double x, double y, double z, double dirx,
-                                                double diry, double dirz, double globalTime, double localTime,
-                                                double properTime)
+void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, int id, double energy, double x, double y, double z,
+                                                double dirx, double diry, double dirz, double globalTime,
+                                                double localTime, double properTime)
 {
-  fBuffer.toDevice.emplace_back(pdg, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime);
+  fBuffer.toDevice.emplace_back(pdg, id, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime);
   if (pdg == 11)
     fBuffer.nelectrons++;
   else if (pdg == -11)
@@ -139,10 +139,10 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
             << std::endl;
 
   // Initialize user scoring data on Host
-  fScoring     = new AdeptScoring(fHitBufferCapacity);
+  fScoring = new AdeptScoring(fHitBufferCapacity);
 
   // Initialize the transport engine for the current thread
-  fGPUstate = adept_impl::InitializeGPU(fBuffer, fCapacity, fMaxBatch);
+  fGPUstate    = adept_impl::InitializeGPU(fBuffer, fCapacity, fMaxBatch);
   fScoring_dev = adept_impl::InitializeScoringGPU(fScoring);
 
   fInit = true;

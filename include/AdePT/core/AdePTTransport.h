@@ -43,7 +43,7 @@ public:
   int GetNfromDevice() const { return fBuffer.fromDevice.size(); }
 
   /// @brief Adds a track to the buffer
-  void AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry, double dirz,
+  void AddTrack(int pdg, int id, double energy, double x, double y, double z, double dirx, double diry, double dirz,
                 double globalTime, double localTime, double properTime);
 
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
@@ -74,20 +74,20 @@ public:
   void Shower(int event);
 
 private:
-  static inline G4HepEmState *fg4hepem_state{nullptr};       ///< The HepEm state singleton
-  static inline int fCapacity{1024 * 1024};                  ///< Track container capacity on GPU
-  static inline int fHitBufferCapacity{1024 * 1024};         ///< Capacity of hit buffers
-  int fNthreads{0};                            ///< Number of cpu threads
-  int fMaxBatch{0};                            ///< Max batch size for allocating GPU memory
-  int fNumVolumes{0};                          ///< Total number of active logical volumes
-  int fNumSensitive{0};                        ///< Total number of sensitive volumes
-  int fBufferThreshold{20};                    ///< Buffer threshold for flushing AdePT transport buffer
-  int fDebugLevel{1};                          ///< Debug level
-  GPUstate *fGPUstate{nullptr};                ///< CUDA state placeholder
-  AdeptScoring *fScoring{nullptr};             ///< User scoring object
-  AdeptScoring *fScoring_dev{nullptr};         ///< Device ptr for scoring data
-  TrackBuffer fBuffer;                         ///< Vector of buffers of tracks to/from device (per thread)
-  std::vector<std::string> *fGPURegionNames{}; ///< Region to which applies
+  static inline G4HepEmState *fg4hepem_state{nullptr}; ///< The HepEm state singleton
+  static inline int fCapacity{1024 * 1024};            ///< Track container capacity on GPU
+  static inline int fHitBufferCapacity{1024 * 1024};   ///< Capacity of hit buffers
+  int fNthreads{0};                                    ///< Number of cpu threads
+  int fMaxBatch{0};                                    ///< Max batch size for allocating GPU memory
+  int fNumVolumes{0};                                  ///< Total number of active logical volumes
+  int fNumSensitive{0};                                ///< Total number of sensitive volumes
+  int fBufferThreshold{20};                            ///< Buffer threshold for flushing AdePT transport buffer
+  int fDebugLevel{1};                                  ///< Debug level
+  GPUstate *fGPUstate{nullptr};                        ///< CUDA state placeholder
+  AdeptScoring *fScoring{nullptr};                     ///< User scoring object
+  AdeptScoring *fScoring_dev{nullptr};                 ///< Device ptr for scoring data
+  TrackBuffer fBuffer;                                 ///< Vector of buffers of tracks to/from device (per thread)
+  std::vector<std::string> *fGPURegionNames{};         ///< Region to which applies
   IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
   bool fInit{false};                  ///< Service initialized flag
   bool fTrackInAllRegions;            ///< Whether the whole geometry is a GPU region

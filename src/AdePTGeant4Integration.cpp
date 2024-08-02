@@ -70,7 +70,7 @@ void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume cons
   const G4RotationMatrix *g4rot = g4_pvol->GetRotation();
   G4RotationMatrix idrot;
   const auto vgtransformation = vg_pvol->GetTransformation();
-  constexpr double epsil = 1.e-8;
+  constexpr double epsil      = 1.e-8;
   for (int i = 0; i < 3; ++i) {
     if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
       throw std::runtime_error(
@@ -381,7 +381,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
 
   // G4Track
   G4Track *aTrack = aG4Step->GetTrack();
-  // aTrack->SetTrackID(0);                                                                   // Missing data
+  aTrack->SetTrackID(aGPUHit->fTrackID); // ID of the initial particle that entered AdePT
   // aTrack->SetParentID(0);                                                                  // Missing data
   aTrack->SetPosition(*aPostStepPointPosition); // Real data
   // aTrack->SetGlobalTime(0);                                                                // Missing data
@@ -470,10 +470,10 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
   int i = 0;
   for (auto const &track : *tracksFromDevice) {
     if (debugLevel > 1) {
-      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " kinetic energy " << track.eKin
-                << " position " << track.position[0] << " " << track.position[1] << " " << track.position[2]
-                << " direction " << track.direction[0] << " " << track.direction[1] << " " << track.direction[2]
-                << " global time, local time, proper time: "
+      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " id " << track.id
+                << " kinetic energy " << track.eKin << " position " << track.position[0] << " " << track.position[1]
+                << " " << track.position[2] << " direction " << track.direction[0] << " " << track.direction[1] << " "
+                << track.direction[2] << " global time, local time, proper time: "
                 << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << std::endl;
     }
     G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
@@ -489,7 +489,7 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
     G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
     secondary->SetLocalTime(track.localTime);
     secondary->SetProperTime(track.properTime);
-    secondary->SetParentID(-99);
+    secondary->SetParentID(track.id);
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }

@@ -100,22 +100,6 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
       aTestManager->removeTimer(Run::timers::NONEM);
     }
   }
-
-  // skip tracks coming from AdePT
-  if (aTrack->GetParentID() == -99) return;
-
-  // increase nb of processed tracks
-  // count nb of steps of this track
-  G4int nbSteps   = aTrack->GetCurrentStepNumber();
-  G4double Trleng = aTrack->GetTrackLength();
-
-  if (aTrack->GetDefinition() == G4Gamma::Gamma()) {
-    dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction())->number_gammas++;
-  } else if (aTrack->GetDefinition() == G4Electron::Electron()) {
-    dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction())->number_electrons++;
-  } else if (aTrack->GetDefinition() == G4Positron::Positron()) {
-    dynamic_cast<EventAction *>(G4EventManager::GetEventManager()->GetUserEventAction())->number_positrons++;
-  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
