@@ -19,12 +19,13 @@ struct TrackData {
   double localTime{0};
   double properTime{0};
   int pdg{0};
+  int id{0};
 
   TrackData() = default;
-  TrackData(int pdg_id, double ene, double x, double y, double z, double dirx, double diry, double dirz, double gTime,
-            double lTime, double pTime)
+  TrackData(int pdg_id, int id, double ene, double x, double y, double z, double dirx, double diry, double dirz,
+            double gTime, double lTime, double pTime)
       : position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime}, localTime{lTime},
-        properTime{pTime}, pdg{pdg_id}
+        properTime{pTime}, pdg{pdg_id}, id{id}
   {
   }
 

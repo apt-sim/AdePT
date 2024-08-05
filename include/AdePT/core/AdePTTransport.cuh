@@ -40,7 +40,8 @@ bool InitializeVolAuxArray(adeptint::VolAuxArray &array)
 {
   // Transfer volume auxiliary data
   COPCORE_CUDA_CHECK(cudaMalloc(&array.fAuxData_dev, sizeof(VolAuxData) * array.fNumVolumes));
-  COPCORE_CUDA_CHECK(cudaMemcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes, cudaMemcpyHostToDevice));
+  COPCORE_CUDA_CHECK(
+      cudaMemcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes, cudaMemcpyHostToDevice));
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
   return true;
 }
@@ -108,6 +109,8 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     assert(trackmgr != nullptr && "Unsupported pdg type");
 
     Track &track = trackmgr->NextTrack();
+    track.id     = trackinfo[i].id;
+
     track.rngState.SetSeed(1234567 * event + startTrack + i);
     track.eKin         = trackinfo[i].eKin;
     track.numIALeft[0] = -1.0;
@@ -198,7 +201,7 @@ bool InitializeField(double bz)
 void PrepareLeakedBuffers(int numLeaked, adeptint::TrackBuffer &buffer, GPUstate &gpuState)
 {
   // Make sure the size of the allocated track array is large enough
-  using TrackData    = adeptint::TrackData;
+  using TrackData = adeptint::TrackData;
   if (buffer.buffSize < numLeaked) {
     if (buffer.buffSize) {
       delete[] buffer.fromDeviceBuff;
@@ -213,9 +216,9 @@ void PrepareLeakedBuffers(int numLeaked, adeptint::TrackBuffer &buffer, GPUstate
 
 GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatch)
 {
-  using TrackData    = adeptint::TrackData;
-  auto gpuState_ptr  = new GPUstate;
-  auto &gpuState      = *gpuState_ptr;
+  using TrackData   = adeptint::TrackData;
+  auto gpuState_ptr = new GPUstate;
+  auto &gpuState    = *gpuState_ptr;
 
   // Allocate track managers, streams and synchronization events.
   const size_t kQueueSize = MParrayTracks::SizeOfInstance(capacity);
@@ -275,12 +278,12 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
 }
 
 template <typename IntegrationLayer>
-void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &buffer,
-               GPUstate &gpuState, AdeptScoring *scoring, AdeptScoring *scoring_dev)
+void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &buffer, GPUstate &gpuState,
+               AdeptScoring *scoring, AdeptScoring *scoring_dev)
 {
-  using TrackData = adeptint::TrackData;
+  using TrackData   = adeptint::TrackData;
   using VolAuxArray = adeptint::VolAuxArray;
-  auto &config = adeptint::CommonConfig::GetInstance();
+  auto &config      = adeptint::CommonConfig::GetInstance();
   // Capacity of the different containers aka the maximum number of particles.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
 
@@ -432,6 +435,8 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
 
   // Transfer the leaked tracks from GPU
   if (numLeaked) {
+    // for(int i=0; i<numLeaked; i++)
+    //   printf("%d\n", electrons.leakedTracks[i].id);
     copyLeakedTracksFromGPU(numLeaked);
     // Sort by energy the tracks coming from device to ensure reproducibility
     std::sort(buffer.fromDevice.begin(), buffer.fromDevice.end());
@@ -455,4 +460,4 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
 
   adept_scoring::EndOfTransport<IntegrationLayer>(*scoring, scoring_dev, gpuState.stream, integration);
 }
-} /// namespace adept_impl
+} // namespace adept_impl

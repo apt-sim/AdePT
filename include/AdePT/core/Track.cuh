@@ -15,6 +15,9 @@
 // by the queue and not stored in memory.
 struct Track {
   using Precision = vecgeom::Precision;
+
+  int id{0}; // Stores the track id of the initial particle given to AdePT
+
   RanluxppDouble rngState;
   double eKin;
   double numIALeft[3];
@@ -56,6 +59,7 @@ struct Track {
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
     tdata.pdg          = pdg;
+    tdata.id           = id;
     tdata.position[0]  = pos[0];
     tdata.position[1]  = pos[1];
     tdata.position[2]  = pos[2];
