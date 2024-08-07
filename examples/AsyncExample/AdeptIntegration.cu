@@ -77,9 +77,9 @@ struct HitProcessingContext {
 
 AdeptIntegration::AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int hitBufferCapacity,
                                    int debugLevel, std::vector<std::string> const *GPURegionNames,
-                                   bool trackInAllRegions)
+                                   bool trackInAllRegions, uint64_t seed)
     : fNThread{nThread}, fTrackCapacity{trackCapacity}, fScoringCapacity{hitBufferCapacity}, fDebugLevel{debugLevel},
-      fG4Integrations(nThread), fEventStates(nThread), fGPUNetEnergy(nThread, 0.),
+      fAdePTSeed{seed}, fG4Integrations(nThread), fEventStates(nThread), fGPUNetEnergy(nThread, 0.),
       fTrackInAllRegions{trackInAllRegions}, fGPURegionNames{GPURegionNames}
 {
   if (nThread > kMaxThreads)
@@ -150,7 +150,8 @@ __global__ void InitQueue(adept::MParrayT<T> *queue, size_t Capacity)
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
 __global__ void InjectTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks, Secondaries secondaries,
-                             const vecgeom::VPlacedVolume *world, adept::MParrayT<QueueIndexPair> *toBeEnqueued)
+                             const vecgeom::VPlacedVolume *world, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
+                             uint64_t initialSeed)
 {
   constexpr double tolerance = 10. * vecgeom::kTolerance;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < ntracks; i += blockDim.x * gridDim.x) {
@@ -182,7 +183,7 @@ __global__ void InjectTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntrack
 #endif
     toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
     Track &track = generator->fTracks[slot];
-    track.rngState.SetSeed(1234567 * trackInfo.eventId + trackInfo.trackId);
+    track.rngState.SetSeed(initialSeed * trackInfo.eventId + trackInfo.trackId);
     track.energy       = trackInfo.eKin;
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
@@ -808,7 +809,7 @@ void AdeptIntegration::TransportLoop()
           constexpr auto injectThreads = 128u;
           const auto injectBlocks      = (nInject + injectThreads - 1) / injectThreads;
           InjectTracks<<<injectBlocks, injectThreads, 0, transferStream>>>(
-              gpuState.toDevice_dev.get(), nInject, secondaries, world_dev, gpuState.injectionQueue.get());
+              gpuState.toDevice_dev.get(), nInject, secondaries, world_dev, gpuState.injectionQueue.get(), fAdePTSeed);
           COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
               transferStream,
               [](void *arg) { (*static_cast<decltype(GPUstate::injectState) *>(arg)) = InjectState::ReadyToEnqueue; },
