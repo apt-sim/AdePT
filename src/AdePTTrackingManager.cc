@@ -23,7 +23,7 @@ AdePTTrackingManager::AdePTTrackingManager() {}
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
-  fAdeptTransport->Cleanup();
+  if (fAdeptTransport) fAdeptTransport->Cleanup();
 }
 
 void AdePTTrackingManager::InitializeAdePT()
