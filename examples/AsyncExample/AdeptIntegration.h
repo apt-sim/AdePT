@@ -60,6 +60,7 @@ private:
   unsigned int fTrackCapacity{0};   ///< Number of track slots to allocate on device
   unsigned int fScoringCapacity{0}; ///< Number of hit slots to allocate on device
   int fDebugLevel{1};               ///< Debug level
+  uint64_t fAdePTSeed{1234567};     ///< Seed multiplier for tracks going to GPU
   std::vector<AdePTGeant4Integration> fG4Integrations;
   std::unique_ptr<GPUstate> fGPUstate;               ///< CUDA state placeholder
   std::vector<PerEventScoring> fScoring;             ///< User scoring objects per G4 worker
@@ -88,7 +89,7 @@ private:
 
 public:
   AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int hitBufferCapacity, int debugLevel,
-                   std::vector<std::string> const *GPURegionNames, bool trackInAllRegions);
+                   std::vector<std::string> const *GPURegionNames, bool trackInAllRegions, uint64_t seed = 1234567);
   AdeptIntegration(const AdeptIntegration &other) = delete;
   ~AdeptIntegration();
 
