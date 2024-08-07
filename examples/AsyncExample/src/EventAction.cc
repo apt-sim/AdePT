@@ -28,12 +28,15 @@
 #include "EventAction.hh"
 #include "EventActionMessenger.hh"
 #include "SimpleHit.hh"
+#include "Histograms.h"
 
 #include "G4SDManager.hh"
 #include "G4HCofThisEvent.hh"
 #include "G4Event.hh"
 #include "G4EventManager.hh"
 #include "G4SystemOfUnits.hh"
+
+#include <TProfile.h>
 
 #include <mutex>
 #include <sstream>
@@ -46,7 +49,11 @@ EventAction::~EventAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void EventAction::BeginOfEventAction(const G4Event *) {}
+void EventAction::BeginOfEventAction(const G4Event *)
+{
+  // Prevent crashes in MT mode
+  TH1::AddDirectory(false);
+}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -71,12 +78,26 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   G4double totalEnergy = 0;
   std::stringstream msg;
+  auto energyPerVol = std::make_shared<TH1D>(("Event_" + std::to_string(eventId) + "_energyPerVol").c_str(),
+                                             "Total Energy deposited per Volume;E / GeV", 250, 1, 501);
+  std::map<std::string, double> energyPerLogicalVolume;
 
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
     SimpleHit const *hit = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
     const double hitEn   = hit->GetEdep();
     totalEnergy += hitEn;
     G4String vol_name = hit->GetPhysicalVolumeName();
+
+    energyPerVol->Fill(hitEn / GeV);
+    std::string newName = vol_name;
+    if (newName.find("RPC") != std::string::npos) newName = "RPC";
+    if (const auto pos = newName.find("Part"); pos != std::string::npos) newName = newName.substr(0, pos);
+    if (const auto pos = newName.find("Layer"); pos != std::string::npos) newName = newName.substr(0, pos);
+    if (const auto pos = newName.find("Bundle"); pos != std::string::npos) newName = newName.substr(0, pos);
+    if (const auto pos = newName.find("Module"); pos != std::string::npos) newName = newName.substr(0, pos);
+    if (const auto pos = newName.find("GHA"); pos != std::string::npos) newName = newName.substr(0, pos + 3);
+    if (const auto pos = newName.find("HTS"); pos != std::string::npos) newName = newName.substr(0, pos + 4);
+    energyPerLogicalVolume[newName] += hitEn / GeV;
 
     if (hitEn > 1 && fVerbosity > 1)
       msg << "EndOfEventAction " << eventId << " : id " << std::setw(5) << iHit << "  edep " << std::setprecision(2)
@@ -88,4 +109,17 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   static std::mutex eventActionPrinterMutex;
   std::scoped_lock lock{eventActionPrinterMutex};
   std::cout << "\n" << msg.str() << "\n";
+
+  auto totalE = std::make_shared<TH1D>("TotalE", "Total Energy deposition per event;E / GeV", 200, 0, 5000);
+  totalE->Fill(totalEnergy / GeV);
+  auto energyPerLVol = std::make_shared<TProfile>(("Event_" + std::to_string(eventId) + "_energyPerLVol").c_str(),
+                                                  "Total Energy deposited per Volume;Volume name;E / GeV",
+                                                  energyPerLogicalVolume.size(), 0, energyPerLogicalVolume.size(), "s");
+  for (const auto &[name, energy] : energyPerLogicalVolume) {
+    energyPerLVol->Fill(name.c_str(), energy);
+  }
+
+  AsyncExHistos::registerHisto(totalE);
+  AsyncExHistos::registerHisto(energyPerVol);
+  AsyncExHistos::registerHisto(energyPerLVol);
 }

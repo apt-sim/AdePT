@@ -69,12 +69,18 @@ target_include_directories(AsyncExample PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR})
 
+find_package(ROOT REQUIRED COMPONENTS Hist RIO)
+
 target_link_libraries(AsyncExample
   PRIVATE
     AdePT_G4_integration
     ExamplesCommon
     CUDA::cudart
-    NVTX)
+    NVTX
+    ROOT::Core
+    ROOT::Hist
+    ROOT::RIO
+)
 
 set_target_properties(AsyncExample PROPERTIES
   CUDA_SEPARABLE_COMPILATION ON
