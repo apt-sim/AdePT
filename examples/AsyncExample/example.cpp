@@ -4,6 +4,7 @@
 
 #include "DetectorConstruction.hh"
 #include "ActionInitialisation.hh"
+#include "Histograms.h"
 
 #include "G4RunManagerFactory.hh"
 #include "G4Types.hh"
@@ -55,6 +56,8 @@ int main(int argc, char **argv)
       ++i;
     } else if (argument == "--no-adept") {
       AdePT = false;
+    } else if (argument == "--output") {
+      AsyncExHistos::HistoWriter::GetInstance().SetFilename(argv[++i]);
     } else if (argument == "--seed") {
       AdePTSeed = std::stoll(argv[++i]);
     } else {
