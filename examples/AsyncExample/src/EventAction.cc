@@ -106,9 +106,11 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
 
   msg << "EndOfEventAction " << eventId << " : Total " << std::setw(12) << totalEnergy / GeV << " GeV";
 
-  static std::mutex eventActionPrinterMutex;
-  std::scoped_lock lock{eventActionPrinterMutex};
-  std::cout << "\n" << msg.str() << "\n";
+  {
+    static std::mutex eventActionPrinterMutex;
+    std::scoped_lock lock{eventActionPrinterMutex};
+    std::cout << "\n" << msg.str() << "\n";
+  }
 
   auto totalE = std::make_shared<TH1D>("TotalE", "Total Energy deposition per event;E / GeV", 200, 0, 5000);
   totalE->Fill(totalEnergy / GeV);
