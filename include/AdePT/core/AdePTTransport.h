@@ -43,7 +43,7 @@ public:
   int GetNfromDevice() const { return fBuffer.fromDevice.size(); }
 
   /// @brief Adds a track to the buffer
-  void AddTrack(int pdg, int id, double energy, double x, double y, double z, double dirx, double diry, double dirz,
+  void AddTrack(int pdg, int parentID, double energy, double x, double y, double z, double dirx, double diry, double dirz,
                 double globalTime, double localTime, double properTime);
 
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }

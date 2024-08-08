@@ -16,7 +16,7 @@
 struct Track {
   using Precision = vecgeom::Precision;
 
-  int id{0}; // Stores the track id of the initial particle given to AdePT
+  int parentID{0}; // Stores the track id of the initial particle given to AdePT
 
   RanluxppDouble rngState;
   double eKin;
@@ -59,7 +59,7 @@ struct Track {
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
     tdata.pdg          = pdg;
-    tdata.id           = id;
+    tdata.parentID     = parentID;
     tdata.position[0]  = pos[0];
     tdata.position[1]  = pos[1];
     tdata.position[2]  = pos[2];

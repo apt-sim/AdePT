@@ -381,8 +381,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
 
   // G4Track
   G4Track *aTrack = aG4Step->GetTrack();
-  aTrack->SetTrackID(aGPUHit->fTrackID); // ID of the initial particle that entered AdePT
-  // aTrack->SetParentID(0);                                                                  // Missing data
+  // aTrack->SetTrackID(0);                                                                   // Missing data
+  aTrack->SetParentID(aGPUHit->fParentID); // ID of the initial particle that entered AdePT
   aTrack->SetPosition(*aPostStepPointPosition); // Real data
   // aTrack->SetGlobalTime(0);                                                                // Missing data
   // aTrack->SetLocalTime(0);                                                                 // Missing data
@@ -470,7 +470,7 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
   int i = 0;
   for (auto const &track : *tracksFromDevice) {
     if (debugLevel > 1) {
-      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " id " << track.id
+      std::cout << "[" << tid << "] fromDevice[ " << i++ << "]: pdg " << track.pdg << " parent id " << track.parentID
                 << " kinetic energy " << track.eKin << " position " << track.position[0] << " " << track.position[1]
                 << " " << track.position[2] << " direction " << track.direction[0] << " " << track.direction[1] << " "
                 << track.direction[2] << " global time, local time, proper time: "
@@ -489,7 +489,10 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
     G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
     secondary->SetLocalTime(track.localTime);
     secondary->SetProperTime(track.properTime);
-    secondary->SetParentID(track.id);
+    secondary->SetParentID(track.parentID);
+
+    printf("%d\n", secondary->GetParentID());
+
 
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }

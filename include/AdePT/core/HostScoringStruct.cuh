@@ -21,7 +21,7 @@ struct GPUStepPoint {
 // Stores the necessary data to reconstruct GPU hits on the host , and
 // call the user-defined Geant4 sensitive detector code
 struct GPUHit {
-  int fTrackID{0}; // Track ID
+  int fParentID{0}; // Track ID
   char fParticleType{0}; // Particle type ID
   // Data needed to reconstruct G4 Step
   double fStepLength{0};
