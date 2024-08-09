@@ -242,8 +242,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     properTime += deltaTime * (restMass / eKin);
 
     if (auxData.fSensIndex >= 0)
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.id,
+      adept_scoring::RecordHit(userScoring, currentTrack.parentID,
                                IsElectron ? 0 : 1,       // Particle type
                                elTrack.GetPStepLength(), // Step length
                                energyDeposit,            // Total Edep
@@ -283,14 +282,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
         gamma1.InitAsSecondary(pos, navState, globalTime);
         newRNG.Advance();
-        gamma1.id       = currentTrack.id;
+        gamma1.parentID = currentTrack.parentID;
         gamma1.rngState = newRNG;
         gamma1.eKin     = copcore::units::kElectronMassC2;
         gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
         gamma2.InitAsSecondary(pos, navState, globalTime);
         // Reuse the RNG state of the dying track.
-        gamma2.id       = currentTrack.id;
+        gamma2.parentID = currentTrack.parentID;
         gamma2.rngState = currentTrack.rngState;
         gamma2.eKin     = copcore::units::kElectronMassC2;
         gamma2.dir      = -gamma1.dir;
@@ -368,7 +367,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
       secondary.InitAsSecondary(pos, navState, globalTime);
-      secondary.id       = currentTrack.id;
+      secondary.parentID = currentTrack.parentID;
       secondary.rngState = newRNG;
       secondary.eKin     = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
@@ -395,7 +394,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
       gamma.InitAsSecondary(pos, navState, globalTime);
-      gamma.id       = currentTrack.id;
+      gamma.parentID = currentTrack.parentID;
       gamma.rngState = newRNG;
       gamma.eKin     = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
@@ -418,14 +417,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
       gamma1.InitAsSecondary(pos, navState, globalTime);
-      gamma1.id       = currentTrack.id;
+      gamma1.parentID = currentTrack.parentID;
       gamma1.rngState = newRNG;
       gamma1.eKin     = theGamma1Ekin;
       gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 
       gamma2.InitAsSecondary(pos, navState, globalTime);
       // Reuse the RNG state of the dying track.
-      gamma2.id       = currentTrack.id;
+      gamma2.parentID = currentTrack.parentID;
       gamma2.rngState = currentTrack.rngState;
       gamma2.eKin     = theGamma2Ekin;
       gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);

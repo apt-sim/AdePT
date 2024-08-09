@@ -151,7 +151,7 @@ namespace adept_scoring
 
   /// @brief Record a hit
   template <>
-  __device__ void RecordHit(HostScoring *hostScoring_dev, int aTrackID, char aParticleType, double aStepLength,
+  __device__ void RecordHit(HostScoring *hostScoring_dev, int aParentID, char aParticleType, double aStepLength,
                           double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
                           vecgeom::Vector3D<Precision> *aPrePosition,
                           vecgeom::Vector3D<Precision> *aPreMomentumDirection,
@@ -164,7 +164,7 @@ namespace adept_scoring
     GPUHit *aGPUHit = GetNextFreeHit(hostScoring_dev);
 
     // Fill the required data
-    aGPUHit->fTrackID            = aTrackID;
+    aGPUHit->fParentID           = aParentID;
     aGPUHit->fParticleType       = aParticleType;
     aGPUHit->fStepLength         = aStepLength;
     aGPUHit->fTotalEnergyDeposit = aTotalEnergyDeposit;

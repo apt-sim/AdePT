@@ -180,14 +180,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
       electron.InitAsSecondary(pos, navState, globalTime);
-      electron.id       = currentTrack.id;
+      electron.parentID = currentTrack.parentID;
       electron.rngState = newRNG;
       electron.eKin     = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
       positron.InitAsSecondary(pos, navState, globalTime);
       // Reuse the RNG state of the dying track.
-      positron.id       = currentTrack.id;
+      positron.parentID = currentTrack.parentID;
       positron.rngState = currentTrack.rngState;
       positron.eKin     = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
@@ -215,7 +215,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
         electron.InitAsSecondary(pos, navState, globalTime);
-        electron.id       = currentTrack.id;
+        electron.parentID = currentTrack.parentID;
         electron.rngState = newRNG;
         electron.eKin     = energyEl;
         electron.dir      = eKin * dir - newEnergyGamma * newDirGamma;
@@ -223,22 +223,22 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       } else {
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.id,    // Track ID
-                                   2,                  // Particle type
-                                   geometryStepLength, // Step length
-                                   0,                  // Total Edep
-                                   &navState,          // Pre-step point navstate
-                                   &preStepPos,        // Pre-step point position
-                                   &preStepDir,        // Pre-step point momentum direction
-                                   nullptr,            // Pre-step point polarization
-                                   preStepEnergy,      // Pre-step point kinetic energy
-                                   0,                  // Pre-step point charge
-                                   &nextState,         // Post-step point navstate
-                                   &pos,               // Post-step point position
-                                   &dir,               // Post-step point momentum direction
-                                   nullptr,            // Post-step point polarization
-                                   newEnergyGamma,     // Post-step point kinetic energy
-                                   0);                 // Post-step point charge
+                                   currentTrack.parentID, // Track ID
+                                   2,                     // Particle type
+                                   geometryStepLength,    // Step length
+                                   0,                     // Total Edep
+                                   &navState,             // Pre-step point navstate
+                                   &preStepPos,           // Pre-step point position
+                                   &preStepDir,           // Pre-step point momentum direction
+                                   nullptr,               // Pre-step point polarization
+                                   preStepEnergy,         // Pre-step point kinetic energy
+                                   0,                     // Pre-step point charge
+                                   &nextState,            // Post-step point navstate
+                                   &pos,                  // Post-step point position
+                                   &dir,                  // Post-step point momentum direction
+                                   nullptr,               // Post-step point polarization
+                                   newEnergyGamma,        // Post-step point kinetic energy
+                                   0);                    // Post-step point charge
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -249,22 +249,22 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       } else {
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.id,    // Track ID
-                                   2,                  // Particle type
-                                   geometryStepLength, // Step length
-                                   0,                  // Total Edep
-                                   &navState,          // Pre-step point navstate
-                                   &preStepPos,        // Pre-step point position
-                                   &preStepDir,        // Pre-step point momentum direction
-                                   nullptr,            // Pre-step point polarization
-                                   preStepEnergy,      // Pre-step point kinetic energy
-                                   0,                  // Pre-step point charge
-                                   &nextState,         // Post-step point navstate
-                                   &pos,               // Post-step point position
-                                   &dir,               // Post-step point momentum direction
-                                   nullptr,            // Post-step point polarization
-                                   newEnergyGamma,     // Post-step point kinetic energy
-                                   0);                 // Post-step point charge
+                                   currentTrack.parentID, // Track ID
+                                   2,                     // Particle type
+                                   geometryStepLength,    // Step length
+                                   0,                     // Total Edep
+                                   &navState,             // Pre-step point navstate
+                                   &preStepPos,           // Pre-step point position
+                                   &preStepDir,           // Pre-step point momentum direction
+                                   nullptr,               // Pre-step point polarization
+                                   preStepEnergy,         // Pre-step point kinetic energy
+                                   0,                     // Pre-step point charge
+                                   &nextState,            // Post-step point navstate
+                                   &pos,                  // Post-step point position
+                                   &dir,                  // Post-step point momentum direction
+                                   nullptr,               // Post-step point polarization
+                                   newEnergyGamma,        // Post-step point kinetic energy
+                                   0);                    // Post-step point charge
         // The current track is killed by not enqueuing into the next activeQueue.
       }
       break;
@@ -288,7 +288,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
         electron.InitAsSecondary(pos, navState, globalTime);
-        electron.id       = currentTrack.id;
+        electron.parentID = currentTrack.parentID;
         electron.rngState = newRNG;
         electron.eKin     = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
@@ -297,22 +297,22 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       }
       if (auxData.fSensIndex >= 0)
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.id,    // Track ID
-                                 2,                  // Particle type
-                                 geometryStepLength, // Step length
-                                 edep,               // Total Edep
-                                 &navState,          // Pre-step point navstate
-                                 &preStepPos,        // Pre-step point position
-                                 &preStepDir,        // Pre-step point momentum direction
-                                 nullptr,            // Pre-step point polarization
-                                 preStepEnergy,      // Pre-step point kinetic energy
-                                 0,                  // Pre-step point charge
-                                 &nextState,         // Post-step point navstate
-                                 &pos,               // Post-step point position
-                                 &dir,               // Post-step point momentum direction
-                                 nullptr,            // Post-step point polarization
-                                 0,                  // Post-step point kinetic energy
-                                 0);                 // Post-step point charge
+                                 currentTrack.parentID, // Track ID
+                                 2,                     // Particle type
+                                 geometryStepLength,    // Step length
+                                 edep,                  // Total Edep
+                                 &navState,             // Pre-step point navstate
+                                 &preStepPos,           // Pre-step point position
+                                 &preStepDir,           // Pre-step point momentum direction
+                                 nullptr,               // Pre-step point polarization
+                                 preStepEnergy,         // Pre-step point kinetic energy
+                                 0,                     // Pre-step point charge
+                                 &nextState,            // Post-step point navstate
+                                 &pos,                  // Post-step point position
+                                 &dir,                  // Post-step point momentum direction
+                                 nullptr,               // Post-step point polarization
+                                 0,                     // Post-step point kinetic energy
+                                 0);                    // Post-step point charge
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }
