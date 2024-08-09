@@ -365,9 +365,15 @@ void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4N
 void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle)
 {
-  const G4ThreeVector *aPostStepPointMomentumDirection = new G4ThreeVector(aGPUHit->fPostStepPoint.fMomentumDirection);
-  const G4ThreeVector *aPostStepPointPolarization      = new G4ThreeVector(aGPUHit->fPostStepPoint.fPolarization);
-  const G4ThreeVector *aPostStepPointPosition          = new G4ThreeVector(aGPUHit->fPostStepPoint.fPosition);
+  const G4ThreeVector *aPostStepPointMomentumDirection = new G4ThreeVector(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
+                                                                           aGPUHit->fPostStepPoint.fMomentumDirection.y(),
+                                                                           aGPUHit->fPostStepPoint.fMomentumDirection.z());
+  const G4ThreeVector *aPostStepPointPolarization      = new G4ThreeVector(aGPUHit->fPostStepPoint.fPolarization.x(),
+                                                                           aGPUHit->fPostStepPoint.fPolarization.y(),
+                                                                           aGPUHit->fPostStepPoint.fPolarization.z());
+  const G4ThreeVector *aPostStepPointPosition          = new G4ThreeVector(aGPUHit->fPostStepPoint.fPosition.x(),
+                                                                           aGPUHit->fPostStepPoint.fPosition.y(),
+                                                                           aGPUHit->fPostStepPoint.fPosition.z());
 
   // G4Step
   aG4Step->SetStepLength(aGPUHit->fStepLength);                 // Real data
