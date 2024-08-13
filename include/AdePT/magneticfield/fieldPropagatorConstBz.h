@@ -9,7 +9,7 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 
 #include <AdePT/base/BlockData.h>
-#include <AdePT/navigation/LoopNavigator.h>
+#include <AdePT/navigation/AdePTNavigator.h>
 
 #include <AdePT/magneticfield/ConstBzFieldStepper.h>
 
@@ -28,7 +28,7 @@ public:
 
   __host__ __device__ Precision ComputeSafeLength(Precision momentumMag, int charge, const Vector3D &direction);
 
-  template <class Navigator = LoopNavigator>
+  template <class Navigator = AdePTNavigator>
   __host__ __device__ Precision ComputeStepAndNextVolume(double kinE, double mass, int charge, Precision physicsStep,
                                                          Vector3D &position, Vector3D &direction,
                                                          vecgeom::NavigationState const &current_state,

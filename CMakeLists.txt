@@ -47,6 +47,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 #----------------------------------------------------------------------------#
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
+option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -83,7 +84,12 @@ endif()
 # Check for surface model support in VecGeom
 if(ADEPT_USE_SURF)
   if(VecGeom_SURF_FOUND)
-    message(STATUS "Surface model in VecGeom is enabled")
+    if (ADEPT_USE_SURF_SINGLE)
+      message(STATUS "Surface model in VecGeom uses single precision")
+      add_compile_definitions(ADEPT_USE_SURF_SINGLE)
+    else()
+      message(STATUS "Surface model in VecGeom uses double precision")
+    endif()
     add_compile_definitions(ADEPT_USE_SURF)
   else()
     message(STATUS "Forcing ADEPT_USE_SURF to OFF (surface support not found in VecGeom)")

@@ -5,7 +5,7 @@
 #include "testField.cuh"
 
 #include <AdePT/base/Atomic.h>
-#include <AdePT/navigation/BVHNavigator.h>
+#include <AdePT/navigation/AdePTNavigator.h>
 #include <AdePT/base/MParray.h>
 
 #include <AdePT/copcore/Global.h>
@@ -132,7 +132,7 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
       track.dir = {1.0, 0, 0};
     }
     track.navState.Clear();
-    BVHNavigator::LocatePointIn(world, track.pos, track.navState, true);
+    AdePTNavigator::LocatePointIn(world, track.pos, track.navState, true);
 
     atomicAdd(&globalScoring->numElectrons, 1);
   }

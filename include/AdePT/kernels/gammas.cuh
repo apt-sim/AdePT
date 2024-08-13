@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/core/AdePTTransportStruct.cuh>
-#include <AdePT/navigation/BVHNavigator.h>
+#include <AdePT/navigation/AdePTNavigator.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 
@@ -92,8 +92,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     // Check if there's a volume boundary in between.
     vecgeom::NavigationState nextState;
-    double geometryStepLength =
-        BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
+    double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                         navState, nextState, kPush);
     pos += geometryStepLength * dir;
 
     // Set boundary state in navState so the next step and secondaries get the
@@ -118,7 +118,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+        AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
         navState = nextState;
