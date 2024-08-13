@@ -3,7 +3,7 @@
 
 #include "testField.cuh"
 
-#include <AdePT/navigation/BVHNavigator.h>
+#include <AdePT/navigation/AdePTNavigator.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 
@@ -76,7 +76,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Check if there's a volume boundary in between.
     vecgeom::NavigationState nextState;
     double geometryStepLength =
-        BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
+        AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
@@ -103,7 +103,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+        AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
         navState = nextState;

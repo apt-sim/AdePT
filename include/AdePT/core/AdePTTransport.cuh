@@ -7,7 +7,7 @@
 
 #include <AdePT/core/AdePTTransportStruct.cuh>
 #include <AdePT/base/Atomic.h>
-#include <AdePT/navigation/BVHNavigator.h>
+#include <AdePT/navigation/AdePTNavigator.h>
 #include <AdePT/base/MParray.h>
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
@@ -15,6 +15,9 @@
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
+#endif
+#ifdef ADEPT_USE_SURF
+#include <VecGeom/surfaces/cuda/BrepCudaManager.h>
 #endif
 
 #include <AdePT/copcore/Global.h>
@@ -131,7 +134,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.navState.Clear();
     // We locate the pushed point because we run the risk that the
     // point is not located in the GPU region
-    BVHNavigator::LocatePointIn(world, track.pos + tolerance * track.dir, track.navState, true);
+    AdePTNavigator::LocatePointIn(world, track.pos + tolerance * track.dir, track.navState, true);
     // The track must be on boundary at this point
     track.navState.SetBoundaryState(true);
     // nextState is initialized as needed.
@@ -220,6 +223,18 @@ GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatc
   auto gpuState_ptr = new GPUstate;
   auto &gpuState    = *gpuState_ptr;
 
+  // Copy surface data to GPU
+#ifdef ADEPT_USE_SURF
+#ifdef ADEPT_USE_SURF_SINGLE
+  using SurfData        = vgbrep::SurfData<float>;
+  using BrepCudaManager = vgbrep::BrepCudaManager<float>;
+#else
+  using SurfData        = vgbrep::SurfData<double>;
+  using BrepCudaManager = vgbrep::BrepCudaManager<double>;
+#endif
+  BrepCudaManager::Instance().TransferSurfData(SurfData::Instance());
+  printf("== Surface data transferred to GPU\n");
+#endif
   // Allocate track managers, streams and synchronization events.
   const size_t kQueueSize = MParrayTracks::SizeOfInstance(capacity);
   // Create a stream to synchronize kernels of all particle types.

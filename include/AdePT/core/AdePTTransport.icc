@@ -8,6 +8,10 @@
 #include <VecGeom/management/BVHManager.h>
 #include "VecGeom/management/GeoManager.h"
 #include <VecGeom/gdml/Frontend.h>
+#include <VecGeom/base/Stopwatch.h>
+#ifdef ADEPT_USE_SURF
+#include <VecGeom/surfaces/BrepHelper.h>
+#endif
 
 #include "AdePT/copcore/SystemOfUnits.h"
 
@@ -62,6 +66,18 @@ void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parent_id, double e
 template <typename IntegrationLayer>
 bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
+#ifdef ADEPT_USE_SURF
+#ifdef ADEPT_USE_SURF_SINGLE
+  using BrepHelper = vgbrep::BrepHelper<float>;
+#else
+  using BrepHelper = vgbrep::BrepHelper<double>;
+#endif
+  vecgeom::Stopwatch timer;
+  timer.Start();
+  if (!BrepHelper::Instance().Convert()) return 1;
+  BrepHelper::Instance().PrintSurfData();
+  std::cout << "== Conversion to surface model done in " << timer.Stop() << " [s]\n";
+#endif
   // Upload geometry to GPU.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
