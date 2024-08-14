@@ -327,10 +327,13 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   gpuState.allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight    = buffer.ngammas;
 
   constexpr float compactThreshold = 0.9;
-  constexpr int MaxBlocks          = 1024;
-  constexpr int TransportThreads   = 32;
-  int transportBlocks;
-
+#ifdef DEBUG_SINGLE_THREAD
+  constexpr int TransportThreads = 1;
+#else
+  constexpr int MaxBlocks        = 1024;
+  constexpr int TransportThreads = 32;
+#endif
+  int transportBlocks   = 1;
   int inFlight          = 0;
   int killed            = 0;
   int numLeaked         = 0;
@@ -361,9 +364,10 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     // *** ELECTRONS ***
     int numElectrons = gpuState.allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
     if (numElectrons > 0) {
+#ifndef DEBUG_SINGLE_THREAD
       transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
-
+#endif
       TransportElectrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
           electrons.trackmgr, secondaries, electrons.leakedTracks, scoring_dev,
           VolAuxArray::GetInstance().fAuxData_dev);
@@ -375,9 +379,10 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     // *** POSITRONS ***
     int numPositrons = gpuState.allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
     if (numPositrons > 0) {
+#ifndef DEBUG_SINGLE_THREAD
       transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
-
+#endif
       TransportPositrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
           positrons.trackmgr, secondaries, positrons.leakedTracks, scoring_dev,
           VolAuxArray::GetInstance().fAuxData_dev);
@@ -389,9 +394,10 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     // *** GAMMAS ***
     int numGammas = gpuState.allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight;
     if (numGammas > 0) {
+#ifndef DEBUG_SINGLE_THREAD
       transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
-
+#endif
       TransportGammas<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
           gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
 

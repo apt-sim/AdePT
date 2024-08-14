@@ -50,7 +50,7 @@ target_link_libraries(test_copcore_link PRIVATE CopCore)
 
 # - Check G4VG links as expected 
 if(VecGeom_SURF_FOUND)
-  message(STATUS "Disabled g4vg when using VecGeom surface model")
+  message(STATUS "${Magenta}Disabled g4vg when using VecGeom surface model${ColorReset}")
 else()
   message(STATUS "Fetching and compiling g4vg ...")
   include(FetchContent)

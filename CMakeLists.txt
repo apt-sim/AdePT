@@ -48,6 +48,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
+option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -59,7 +60,7 @@ find_package(CUDAToolkit REQUIRED)
 set(VecCore_VERSION 0.5.2)
 set(VecCore_BACKEND CUDA)
 find_package(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
-message(STATUS "Using VecCore version ${VecCore_VERSION}")
+message(STATUS "Using VecCore version ${Cyan}${VecCore_VERSION}${ColorReset}")
 
 # Before looking for other packages, try to find XercesC explicitly to avoid
 # problems with G4HepEm not finding Geant4 11.1 even though we find it here.
@@ -75,24 +76,29 @@ endif()
 if(VecGeom_VERSION_STRING STRLESS VecGeom_VERSION_REQ)
   message(FATAL_ERROR "AdePT requires at least VecGeom ${VecGeom_VERSION_REQ}, found ${VecGeom_VERSION_STRING}" )
 else()
-  message(STATUS "Using VecGeom version ${VecGeom_VERSION_STRING}")
+  message(STATUS "Using VecGeom version ${Cyan}${VecGeom_VERSION_STRING}${ColorReset}")
 endif()
 # Make sure VecGeom::vgdml is enabled
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
 endif()
+# Debugging in single-thread mode
+if (DEBUG_SINGLE_THREAD)
+  add_compile_definitions("$<$<CONFIG:Debug>:DEBUG_SINGLE_THREAD>")
+  message(STATUS "${Magenta}Transport is running in single-thread mode${ColorReset}")
+endif()
 # Check for surface model support in VecGeom
 if(ADEPT_USE_SURF)
   if(VecGeom_SURF_FOUND)
     if (ADEPT_USE_SURF_SINGLE)
-      message(STATUS "Surface model in VecGeom uses single precision")
+      message(STATUS "${Green}Surface model in VecGeom uses single precision${ColorReset}")
       add_compile_definitions(ADEPT_USE_SURF_SINGLE)
     else()
-      message(STATUS "Surface model in VecGeom uses double precision")
+      message(STATUS "${Green}Surface model in VecGeom uses double precision${ColorReset}")
     endif()
     add_compile_definitions(ADEPT_USE_SURF)
   else()
-    message(STATUS "Forcing ADEPT_USE_SURF to OFF (surface support not found in VecGeom)")
+    message(STATUS "${Magenta}No VecGeom surface support. Forcing ADEPT_USE_SURF to OFF${ColorReset}")
     set(ADEPT_USE_SURF OFF CACHE BOOL "Disable using the surface model" FORCE)
   endif()
 endif()
@@ -100,7 +106,7 @@ endif()
 # Find Geant4, optional for now
 find_package(Geant4 QUIET)
 if(Geant4_FOUND)
-  message(STATUS "Using Geant4 version ${Geant4_VERSION} from ${Geant4_INCLUDE_DIRS}")
+  message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from ${Geant4_INCLUDE_DIRS}")
   set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
   set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
   check_cxx_source_compiles("
