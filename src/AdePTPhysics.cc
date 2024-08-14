@@ -62,7 +62,8 @@ AdePTPhysics::AdePTPhysics(const G4String &name) : G4VPhysicsConstructor(name)
 AdePTPhysics::~AdePTPhysics()
 {
   delete fAdePTConfiguration;
-  delete fTrackingManager;
+  // the delete below causes a crash with G4.10.7
+  //delete fTrackingManager;
 }
 
 void AdePTPhysics::ConstructProcess()

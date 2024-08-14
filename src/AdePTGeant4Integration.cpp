@@ -497,9 +497,6 @@ void AdePTGeant4Integration::ReturnTracks(std::vector<adeptint::TrackData> *trac
     secondary->SetProperTime(track.properTime);
     secondary->SetParentID(track.parentID);
 
-    printf("%d\n", secondary->GetParentID());
-
-
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
   }
 }
