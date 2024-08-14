@@ -18,7 +18,7 @@ namespace adept_scoring
   void FreeGPU(Scoring *scoring, Scoring *scoring_dev){}
 
   template <typename Scoring>
-  __device__ void RecordHit(Scoring *scoring_dev, int aTrackID, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
+  __device__ void RecordHit(Scoring *scoring_dev, int aParentID, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
                           vecgeom::NavigationState const *aPreState, vecgeom::Vector3D<Precision> *aPrePosition,
                           vecgeom::Vector3D<Precision> *aPreMomentumDirection,
                           vecgeom::Vector3D<Precision> *aPrePolarization, double aPreEKin, double aPreCharge,
