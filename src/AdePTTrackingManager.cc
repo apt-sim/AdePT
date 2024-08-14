@@ -131,6 +131,19 @@ void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 {
+  if (fGPURegions.empty() && !fAdeptTransport->GetTrackInAllRegions()) {
+    G4EventManager *eventManager       = G4EventManager::GetEventManager();
+    G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
+    // If there are no GPU regions, track until the end in Geant4
+    trackManager->ProcessOneTrack(aTrack);
+    if (aTrack->GetTrackStatus() != fStopAndKill) {
+      G4Exception("AdePTTrackingManager::HandOverOneTrack", "NotStopped", FatalException, "track was not stopped");
+    }
+    G4TrackVector* secondaries = trackManager->GimmeSecondaries();
+    eventManager->StackTracks(secondaries);
+    delete aTrack;
+    return;
+  }
   ProcessTrack(aTrack);
 }
 
@@ -207,18 +220,9 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);
 
-    } else {
-      // If the particle is not in a GPU region, track it on CPU
-      if (fGPURegions.empty()) {
-        // If there are no GPU regions, track until the end in Geant4
-        trackManager->ProcessOneTrack(aTrack);
-        if (aTrack->GetTrackStatus() != fStopAndKill) {
-          G4Exception("AdePTTrackingManager::HandOverOneTrack", "NotStopped", FatalException, "track was not stopped");
-        }
-      } else {
-        // Track the particle step by step until it dies or enters a GPU region
-        StepInHostRegion(aTrack);
-      }
+    } else { // If the particle is not in a GPU region, track it on CPU
+      // Track the particle step by step until it dies or enters a GPU region
+      StepInHostRegion(aTrack);
     }
   }
   // Inform end of tracking to physics processes
