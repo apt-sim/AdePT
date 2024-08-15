@@ -58,12 +58,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Charge               = IsElectron ? -1 : 1;
   constexpr double restMass          = copcore::units::kElectronMassC2;
+  constexpr unsigned short maxSteps  = 20'000;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
   const int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
+    currentTrack.stepCounter++;
     auto eKin                = currentTrack.energy;
     const auto preStepEnergy = eKin;
     auto pos            = currentTrack.pos;
@@ -100,6 +102,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       // pos += kPushOutRegion * dir;
       // survive(true);
       // continue;
+    }
+
+    if (++currentTrack.stepCounter >= maxSteps) {
+      printf("Killing e-/+ event %d E=%f vol=%d lvol=%d after %d steps.\n", currentTrack.eventId, eKin, volume->id(),
+             lvolID, currentTrack.stepCounter);
+      continue;
     }
 
     // Init a track with the needed data to call into G4HepEm.
@@ -313,12 +321,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     if (nextState.IsOnBoundary()) {
-      if (currentTrack.looperCounter++ > 1000) {
+      if (++currentTrack.looperCounter > 256) {
         // Kill loopers that are scraping a boundary
         printf("Looper scraping a boundary going to G4: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
                "physicsStepLength=%E "
                "safety=%E\n",
-               eKin, currentTrack.eventId, currentTrack.looperCounter++, energyDeposit, geometryStepLength,
+               eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                geometricalStepLengthFromPhysics, safety);
         atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
         survive(/*leak=*/true);
@@ -329,6 +337,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
         // Move to the next boundary.
         navState = nextState;
+        currentTrack.looperCounter = 0;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
@@ -349,12 +358,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     } else if (!propagated || restrictedPhysicalStepLength) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      if (currentTrack.looperCounter++ > 1000) {
+      if (++currentTrack.looperCounter > 1024) {
         // Kill loopers that are failing to propagate
         printf("Looper with trouble in field propagation going to G4: E=%E event=%d loop=%d energyDeposit=%E "
                "geoStepLength=%E physicsStepLength=%E "
                "safety=%E\n",
-               eKin, currentTrack.eventId, currentTrack.looperCounter++, energyDeposit, geometryStepLength,
+               eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                geometricalStepLengthFromPhysics, safety);
         atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
         survive(/*leak=*/true);

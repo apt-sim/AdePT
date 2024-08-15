@@ -31,6 +31,7 @@ struct Track {
   vecgeom::NavStateIndex navState;
   unsigned int eventId;
   unsigned short threadId{65535};
+  unsigned short stepCounter{0};
   unsigned short looperCounter{0};
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
@@ -53,7 +54,8 @@ struct Track {
     this->navState = parentNavState;
     this->eventId  = parentTrack.eventId;
     this->threadId = parentTrack.threadId;
-    this->looperCounter = 0;
+    stepCounter    = 0;
+    looperCounter  = 0;
 
     this->globalTime = parentTrack.globalTime;
     this->localTime  = 0.;
