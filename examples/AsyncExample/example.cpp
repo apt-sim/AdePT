@@ -23,19 +23,7 @@
 #include <memory>
 #include <sstream>
 
-namespace {
-uint64_t AdePTSeed = 1234567;
-
-std::shared_ptr<AdePTTransportInterface> AdePTFactory(unsigned int nThread, unsigned int nTrackSlot,
-                                                      unsigned int nHitSlot, int verbosity,
-                                                      std::vector<std::string> const *GPURegionNames,
-                                                      bool trackInAllRegions)
-{
-  static std::shared_ptr<AsyncAdePT::AdeptIntegration> adePT{new AsyncAdePT::AdeptIntegration(
-      nThread, nTrackSlot, nHitSlot, verbosity, GPURegionNames, trackInAllRegions, AdePTSeed)};
-  return adePT;
-}
-} // namespace
+#include <cuda_runtime.h>
 
 int main(int argc, char **argv)
 {
@@ -59,7 +47,7 @@ int main(int argc, char **argv)
     } else if (argument == "--output") {
       AsyncExHistos::HistoWriter::GetInstance().SetFilename(argv[++i]);
     } else if (argument == "--seed") {
-      AdePTSeed = std::stoll(argv[++i]);
+      AsyncAdePT::AdeptIntegration::fAdePTSeed = std::stoll(argv[++i]);
     } else {
       G4Exception("main", "Unknown argument", FatalErrorInArgument,
                   ("Unknown argument passed to " + G4String(argv[0]) + " : " + argument + "\n" + helpMsg).c_str());
@@ -73,8 +61,6 @@ int main(int argc, char **argv)
   auto detector = new DetectorConstruction();
   runManager->SetUserInitialization(detector);
 
-  // Statically set AdePT factory:
-  AdePTConfiguration::SetAdePTFactoryFunction(&AdePTFactory);
   std::unique_ptr<AdePTConfiguration> adeptConfig;
 
   // Physics list

@@ -60,31 +60,45 @@ if(HepMC3_FOUND)
   target_compile_definitions(ExamplesCommon PRIVATE HEPMC3_FOUND)
 endif()
 
-add_executable(AsyncExample
-    example.cpp AdeptIntegration.cpp
-    AdeptIntegration.cu BasicScoring.cu ResourceManagement.cu
-    ${sources_g4})
+add_library(AdePTAsyncTransport SHARED
+  AdeptIntegration.cpp
+  AdeptIntegration.cu
+  BasicScoring.cu
+  ResourceManagement.cu)
+target_link_libraries(AdePTAsyncTransport
+  PUBLIC
+    AdePT_G4_integration
+    VecGeom::vecgeomcuda_static
+    )
+set_target_properties(AdePTAsyncTransport PROPERTIES
+  CUDA_SEPARABLE_COMPILATION ON
+  CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
+option(AsyncTransport "Link to AdePTAsyncTransport" ON)
+
+find_package(ROOT REQUIRED COMPONENTS Hist RIO)
+
+add_executable(AsyncExample
+    example.cpp
+    ${sources_g4})
 target_include_directories(AsyncExample PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR})
 
-find_package(ROOT REQUIRED COMPONENTS Hist RIO)
-
 target_link_libraries(AsyncExample
   PRIVATE
-    AdePT_G4_integration
     ExamplesCommon
-    CUDA::cudart
     NVTX
     ROOT::Core
     ROOT::Hist
     ROOT::RIO
 )
 
-set_target_properties(AsyncExample PROPERTIES
-  CUDA_SEPARABLE_COMPILATION ON
-  CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+if(AsyncTransport)
+  target_link_libraries(AsyncExample PRIVATE AdePTAsyncTransport)
+else()
+  target_link_libraries(AsyncExample PRIVATE AdePTTransport)
+endif()
 
 target_compile_options(AsyncExample PRIVATE -Wall -Wextra)
 
