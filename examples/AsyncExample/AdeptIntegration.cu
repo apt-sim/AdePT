@@ -14,7 +14,7 @@
 #include <AdePT/base/Atomic.h>
 #include <AdePT/base/MParray.h>
 #include <AdePT/navigation/BVHNavigator.h>
-#include "AdePT/integration/AdePTGeant4Integration.hh"
+#include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include <AdePT/copcore/Global.h>
 #include <AdePT/copcore/PhysicalConstants.h>
@@ -77,9 +77,9 @@ struct HitProcessingContext {
 
 AdeptIntegration::AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int hitBufferCapacity,
                                    int debugLevel, std::vector<std::string> const *GPURegionNames,
-                                   bool trackInAllRegions, uint64_t seed)
+                                   bool trackInAllRegions)
     : fNThread{nThread}, fTrackCapacity{trackCapacity}, fScoringCapacity{hitBufferCapacity}, fDebugLevel{debugLevel},
-      fAdePTSeed{seed}, fG4Integrations(nThread), fEventStates(nThread), fGPUNetEnergy(nThread, 0.),
+      fG4Integrations(nThread), fEventStates(nThread), fGPUNetEnergy(nThread, 0.),
       fTrackInAllRegions{trackInAllRegions}, fGPURegionNames{GPURegionNames}
 {
   if (nThread > kMaxThreads)
@@ -472,13 +472,12 @@ bool AdeptIntegration::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *wor
   return (world_dev != nullptr);
 }
 
-bool AdeptIntegration::InitializePhysics()
+bool AdeptIntegration::InitializePhysics(double bz)
 {
   // Initialize shared physics data
   fg4hepem_state.reset(InitG4HepEm());
 
   // Initialize field
-  const double bz = fG4Integrations.front().GetUniformFieldZ();
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(BzFieldValue, &bz, sizeof(double)));
 
   return true;

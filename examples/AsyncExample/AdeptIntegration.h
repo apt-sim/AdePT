@@ -27,7 +27,7 @@
 
 class G4Region;
 class G4VPhysicalVolume;
-class G4HepEmState;
+struct G4HepEmState;
 class AdePTGeant4Integration;
 namespace AsyncAdePT {
 struct TrackBuffer;
@@ -38,6 +38,7 @@ void InitVolAuxArray(adeptint::VolAuxArray &array);
 class AdeptIntegration : public AdePTTransportInterface {
 public:
   static constexpr int kMaxThreads = 256;
+  static inline uint64_t fAdePTSeed = 1234567;
 
 private:
   enum class EventState : unsigned char {
@@ -60,7 +61,6 @@ private:
   unsigned int fTrackCapacity{0};   ///< Number of track slots to allocate on device
   unsigned int fScoringCapacity{0}; ///< Number of hit slots to allocate on device
   int fDebugLevel{1};               ///< Debug level
-  uint64_t fAdePTSeed{1234567};     ///< Seed multiplier for tracks going to GPU
   std::vector<AdePTGeant4Integration> fG4Integrations;
   std::unique_ptr<GPUstate> fGPUstate;               ///< CUDA state placeholder
   std::vector<PerEventScoring> fScoring;             ///< User scoring objects per G4 worker
@@ -77,7 +77,7 @@ private:
   void FullInit();
   void InitBVH();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
-  bool InitializePhysics();
+  bool InitializePhysics(double bz);
   void InitializeGPU();
   void FreeGPU();
   /// @brief Asynchronous loop for transporting particles on GPU.
@@ -89,7 +89,7 @@ private:
 
 public:
   AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int hitBufferCapacity, int debugLevel,
-                   std::vector<std::string> const *GPURegionNames, bool trackInAllRegions, uint64_t seed = 1234567);
+                   std::vector<std::string> const *GPURegionNames, bool trackInAllRegions);
   AdeptIntegration(const AdeptIntegration &other) = delete;
   ~AdeptIntegration();
 
