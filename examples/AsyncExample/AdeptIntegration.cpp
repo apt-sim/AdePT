@@ -28,10 +28,17 @@
 #include <G4HepEmMatCutData.hh>
 #include <G4LogicalVolumeStore.hh>
 
-#include "SensitiveDetector.hh"
-#include "EventAction.hh"
-
 #include <iomanip>
+
+std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
+                                                               unsigned int nHitSlot, int verbosity,
+                                                               std::vector<std::string> const *GPURegionNames,
+                                                               bool trackInAllRegions)
+{
+  static std::shared_ptr<AsyncAdePT::AdeptIntegration> adePT{
+      new AsyncAdePT::AdeptIntegration(nThread, nTrackSlot, nHitSlot, verbosity, GPURegionNames, trackInAllRegions)};
+  return adePT;
+}
 
 namespace AsyncAdePT {
 
@@ -118,7 +125,8 @@ void AdeptIntegration::FullInit()
     throw std::runtime_error("AdeptIntegration::Initialize: Cannot initialize geometry on GPU");
 
   // Initialize G4HepEm
-  if (!InitializePhysics()) throw std::runtime_error("AdeptIntegration::Initialize cannot initialize physics on GPU");
+  const double bz = fG4Integrations.front().GetUniformFieldZ();
+  if (!InitializePhysics(bz)) throw std::runtime_error("AdeptIntegration::Initialize cannot initialize physics on GPU");
 
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
   fG4Integrations.front().CheckGeometry(fg4hepem_state.get());
