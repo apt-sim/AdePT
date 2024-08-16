@@ -190,7 +190,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     // Check if the particle is in a GPU region
     const bool isGPURegion = trackInAllRegions || fGPURegions.find(region) != fGPURegions.end();
 
-    if (isGPURegion) {
+    if (isGPURegion &&
+        aTrack->GetTrackID() != AdePTGeant4Integration::kAdePTTrackID /*track didn't come back from AdePT*/) {
       // If the track is in a GPU region, hand it over to AdePT
 
       auto particlePosition  = aTrack->GetPosition();
@@ -240,12 +241,15 @@ void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   G4Region const *previousRegion       = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
   G4UserSteppingAction *steppingAction = steppingManager->GetUserAction();
+  const bool stayOnHost                = aTrack->GetParentID() == AdePTGeant4Integration::kAdePTTrackID;
 
   // Track the particle Step-by-Step while it is alive and outside of a GPU region
   while ((aTrack->GetTrackStatus() == fAlive || aTrack->GetTrackStatus() == fStopButAlive)) {
     aTrack->IncrementCurrentStepNumber();
     steppingManager->Stepping();
     if (steppingAction) steppingAction->UserSteppingAction(aTrack->GetStep());
+
+    if (stayOnHost) continue;
 
     if (aTrack->GetTrackStatus() != fStopAndKill) {
       // Switch the touchable to update the volume, which is checked in the
