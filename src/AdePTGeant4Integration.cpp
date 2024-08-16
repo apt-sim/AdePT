@@ -513,6 +513,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
   secondary->SetLocalTime(track.localTime);
   secondary->SetProperTime(track.properTime);
+  secondary->SetTrackID(kAdePTTrackID);
   secondary->SetParentID(track.parentID);
 
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
