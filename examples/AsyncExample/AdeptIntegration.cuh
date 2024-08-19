@@ -46,11 +46,24 @@ public:
   {
   }
 
-  __device__ Track &NextTrack()
+  /// Obtain a slot for a track, but don't enqueue.
+  __device__ auto NextSlot() { return fSlotManager->NextSlot(); }
+
+  /// Construct a track at the given location, forwarding all arguments to the constructor.
+  template <typename... Ts>
+  __device__ Track &InitTrack(SlotManager::value_type slot, Ts &&...args)
   {
-    const auto slot = fSlotManager->NextSlot();
+    return *new (fTracks + slot) Track{std::forward<Ts>(args)...};
+  }
+
+  /// Obtain a slot and construct a track, forwarding args to the track constructor.
+  template <typename... Ts>
+  __device__ Track &NextTrack(Ts &&...args)
+  {
+    const auto slot = NextSlot();
     fActiveQueue->push_back(slot);
-    return fTracks[slot];
+    auto &track = InitTrack(slot, std::forward<Ts>(args)...);
+    return track;
   }
 
   void SetActiveQueue(adept::MParray *queue) { fActiveQueue = queue; }

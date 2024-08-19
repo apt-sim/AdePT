@@ -203,22 +203,18 @@ __global__ void __launch_bounds__(256, 1)
         G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                             posKinEnergy, &rnge);
 
-        Track &electron = secondaries.electrons.NextTrack();
-        Track &positron = secondaries.positrons.NextTrack();
-
         adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 1,
                                        /*numGammas*/ 0);
 
-        electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
-        electron.rngState = newRNG;
-        electron.energy   = elKinEnergy;
-        electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
-
-        positron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
+        secondaries.electrons.NextTrack(
+            newRNG, elKinEnergy, currentTrack.pos,
+            vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]},
+            currentTrack.navState, currentTrack);
         // Reuse the RNG state of the dying track.
-        positron.rngState = currentTrack.rngState;
-        positron.energy   = posKinEnergy;
-        positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
+        secondaries.positrons.NextTrack(
+            currentTrack.rngState, posKinEnergy, currentTrack.pos,
+            vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
+            currentTrack.navState, currentTrack);
 
         // Kill the original track.
         slotManager.MarkSlotForFreeing(slot);
@@ -240,18 +236,16 @@ __global__ void __launch_bounds__(256, 1)
         const double energyEl = energy - newEnergyGamma;
         if (energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
-          Track &electron = secondaries.electrons.NextTrack();
           adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
                                          /*numGammas*/ 0);
 
-          electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
-          electron.rngState = newRNG;
-          electron.energy   = energyEl;
-          electron.dir      = energy * dir - newEnergyGamma * newDirGamma;
+          Track &electron = secondaries.electrons.NextTrack(newRNG, energyEl, currentTrack.pos,
+                                                            energy * dir - newEnergyGamma * newDirGamma,
+                                                            currentTrack.navState, currentTrack);
           electron.dir.Normalize();
         } else {
           if (auxData.fSensIndex >= 0)
-            adept_scoring::RecordHit(&userScoring[currentTrack.threadId],
+            adept_scoring::RecordHit(&userScoring[currentTrack.threadId], currentTrack.parentId,
                                      ParticleType::Gamma,       // Particle type
                                      geometryStepLength,        // Step length
                                      0,                         // Total Edep
@@ -277,7 +271,7 @@ __global__ void __launch_bounds__(256, 1)
           survive();
         } else {
           if (auxData.fSensIndex >= 0)
-            adept_scoring::RecordHit(userScoring + currentTrack.threadId,
+            adept_scoring::RecordHit(userScoring + currentTrack.threadId, currentTrack.parentId,
                                      ParticleType::Gamma,       // Particle type
                                      geometryStepLength,        // Step length
                                      0,                         // Total Edep
@@ -311,7 +305,6 @@ __global__ void __launch_bounds__(256, 1)
         const double photoElecE = energy - edep;
         if (photoElecE > theLowEnergyThreshold) {
           // Create a secondary electron and sample directions.
-          Track &electron = secondaries.electrons.NextTrack();
           adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
                                          /*numGammas*/ 0);
 
@@ -319,15 +312,15 @@ __global__ void __launch_bounds__(256, 1)
           double dirPhotoElec[3];
           G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-          electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack);
-          electron.rngState = newRNG;
-          electron.energy   = photoElecE;
-          electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
+          secondaries.electrons.NextTrack(
+              newRNG, photoElecE, currentTrack.pos,
+              vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
+              currentTrack);
         } else {
           edep = energy;
         }
         if (auxData.fSensIndex >= 0)
-          adept_scoring::RecordHit(userScoring + currentTrack.threadId,
+          adept_scoring::RecordHit(userScoring + currentTrack.threadId, currentTrack.parentId,
                                    ParticleType::Gamma,       // Particle type
                                    geometryStepLength,        // Step length
                                    edep,                      // Total Edep

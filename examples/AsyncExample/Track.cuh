@@ -16,51 +16,52 @@
 struct Track {
   using Precision = vecgeom::Precision;
   RanluxppDouble rngState;
-  double energy;
-  float numIALeft[3];
-  float initialRange;
-  float dynamicRangeFactor;
-  float tlimitMin;
+  double energy            = 0;
+  float numIALeft[3]       = {-1., -1., -1.};
+  float initialRange       = -1.f;
+  float dynamicRangeFactor = -1.f;
+  float tlimitMin          = -1.f;
 
-  double globalTime{0};
-  float localTime{0};
-  float properTime{0};
+  double globalTime = 0.;
+  float localTime   = 0.f;
+  float properTime  = 0.f;
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
   vecgeom::NavStateIndex navState;
-  unsigned int eventId;
-  unsigned short threadId{65535};
+  unsigned int eventId{0};
+  int parentId{-1};
+  short threadId{-1};
   unsigned short stepCounter{0};
   unsigned short looperCounter{0};
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
-  __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
-                                           const vecgeom::NavStateIndex &parentNavState, const Track &parentTrack)
+  /// Construct a new track for GPU transport.
+  /// NB: The navState remains uninitialised.
+  __device__ Track(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
+                   double const position[3], double const direction[3], unsigned int eventId, int parentId,
+                   short threadId)
+      : energy{eKin}, globalTime{globalTime}, localTime{localTime}, properTime{properTime}, eventId{eventId},
+        parentId{parentId}, threadId{threadId}
   {
-    // The caller is responsible to branch a new RNG state and to set the energy.
-    this->numIALeft[0] = -1.0;
-    this->numIALeft[1] = -1.0;
-    this->numIALeft[2] = -1.0;
+    rngState.SetSeed(rngSeed);
 
-    this->initialRange       = -1.0;
-    this->dynamicRangeFactor = -1.0;
-    this->tlimitMin          = -1.0;
-
-    // A secondary inherits the position of its parent; the caller is responsible
-    // to update the directions.
-    this->pos      = parentPos;
-    this->navState = parentNavState;
-    this->eventId  = parentTrack.eventId;
-    this->threadId = parentTrack.threadId;
-    stepCounter    = 0;
-    looperCounter  = 0;
-
-    this->globalTime = parentTrack.globalTime;
-    this->localTime  = 0.;
-    this->properTime = 0.;
-#warning Why are local and proper time not updated?
+    pos = {position[0], position[1], position[2]};
+    dir = {direction[0], direction[1], direction[2]};
   }
+
+  /// Construct a secondary from a parent track.
+  /// NB: The caller is responsible to branch a new RNG state.
+  __device__ Track(RanluxppDouble const &rngState, double energy, const vecgeom::Vector3D<Precision> &parentPos,
+                   const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavStateIndex &newNavState,
+                   const Track &parentTrack)
+      : rngState{rngState}, energy{energy}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
+        navState{newNavState}, eventId{parentTrack.eventId}, parentId{parentTrack.parentId},
+        threadId{parentTrack.threadId}
+  {
+  }
+
+  Track const &operator=(Track const &other) = delete;
 };
 #endif

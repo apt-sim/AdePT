@@ -174,30 +174,12 @@ __global__ void InjectTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntrack
     assert(generator != nullptr && "Unsupported pdg type");
 
     // TODO: Delay when not enough slots?
-    const auto slot = generator->fSlotManager->NextSlot();
-#if false
-    printf("\t%d,%d: Obtained slot %d for track %d/%d (%d, %d, %d, %d). Slots: (%d %d %d)\n", blockIdx.x, threadIdx.x,
-           slot, i, ntracks, trackInfo.eventId, trackInfo.threadId, trackInfo.trackId, trackInfo.pdg,
-           secondaries.electrons.fSlotManager->OccupiedSlots(), secondaries.positrons.fSlotManager->OccupiedSlots(),
-           secondaries.gammas.fSlotManager->OccupiedSlots());
-#endif
+    const auto slot = generator->NextSlot();
+    Track &track    = generator->InitTrack(slot, initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin,
+                                           trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+                                           static_cast<float>(trackInfo.properTime), trackInfo.position,
+                                           trackInfo.direction, trackInfo.eventId, trackInfo.parentID, trackInfo.threadId);
     toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
-    Track &track = generator->fTracks[slot];
-    track.rngState.SetSeed(initialSeed * trackInfo.eventId + trackInfo.trackId);
-    track.energy       = trackInfo.eKin;
-    track.numIALeft[0] = -1.0;
-    track.numIALeft[1] = -1.0;
-    track.numIALeft[2] = -1.0;
-
-    track.initialRange       = -1.0;
-    track.dynamicRangeFactor = -1.0;
-    track.tlimitMin          = -1.0;
-
-    track.pos = {trackInfo.position[0], trackInfo.position[1], trackInfo.position[2]};
-    track.dir = {trackInfo.direction[0], trackInfo.direction[1], trackInfo.direction[2]};
-
-    track.eventId  = trackInfo.eventId;
-    track.threadId = trackInfo.threadId;
 
     // We locate the pushed point because we run the risk that the
     // point is not located in the GPU region
