@@ -18,13 +18,13 @@ struct Track {
   RanluxppDouble rngState;
   double energy            = 0;
   float numIALeft[3]       = {-1., -1., -1.};
-  float initialRange       = -1.f;
-  float dynamicRangeFactor = -1.f;
-  float tlimitMin          = -1.f;
+  float initialRange       = -1.f; // Only for e-?
+  float dynamicRangeFactor = -1.f; // Only for e-?
+  float tlimitMin          = -1.f; // Only for e-?
 
   double globalTime = 0.;
-  float localTime   = 0.f;
-  float properTime  = 0.f;
+  float localTime   = 0.f; // Only for e-?
+  float properTime  = 0.f; // Only for e-?
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
