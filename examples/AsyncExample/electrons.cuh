@@ -263,7 +263,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     currentTrack.properTime += deltaTime * (restMass / eKin);
 
     if (auxData.fSensIndex >= 0)
-      adept_scoring::RecordHit(&userScoring[currentTrack.threadId],
+      adept_scoring::RecordHit(&userScoring[currentTrack.threadId], currentTrack.parentId,
                                static_cast<char>(IsElectron ? 0 : 1), // Particle type
                                elTrack.GetPStepLength(),              // Step length
                                energyDeposit,                         // Total Edep
@@ -291,9 +291,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
-        Track &gamma1 = secondaries.gammas.NextTrack();
-        Track &gamma2 = secondaries.gammas.NextTrack();
-
         adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 0, /*numPositrons*/ 0,
                                        /*numGammas*/ 2);
 
@@ -303,17 +300,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         double sinPhi, cosPhi;
         sincos(phi, &sinPhi, &cosPhi);
 
-        gamma1.InitAsSecondary(pos, navState, currentTrack);
         newRNG.Advance();
-        gamma1.rngState = newRNG;
-        gamma1.energy   = copcore::units::kElectronMassC2;
-        gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
+        Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, pos,
+                                                     vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                     navState, currentTrack);
 
-        gamma2.InitAsSecondary(pos, navState, currentTrack);
         // Reuse the RNG state of the dying track.
-        gamma2.rngState = currentTrack.rngState;
-        gamma2.energy   = copcore::units::kElectronMassC2;
-        gamma2.dir      = -gamma1.dir;
+        Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                     pos, -gamma1.dir, navState, currentTrack);
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
       slotManager.MarkSlotForFreeing(slot);
@@ -409,15 +403,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       double dirSecondary[3];
       G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-      Track &secondary = secondaries.electrons.NextTrack();
+      Track &secondary = secondaries.electrons.NextTrack(
+          newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+          navState, currentTrack);
 
       adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
                                      /*numGammas*/ 0);
-
-      secondary.InitAsSecondary(pos, navState, currentTrack);
-      secondary.rngState = newRNG;
-      secondary.energy   = deltaEkin;
-      secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
       eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
@@ -437,14 +428,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       double dirSecondary[3];
       G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-      Track &gamma = secondaries.gammas.NextTrack();
       adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 0, /*numPositrons*/ 0,
                                      /*numGammas*/ 1);
 
-      gamma.InitAsSecondary(pos, navState, currentTrack);
-      gamma.rngState = newRNG;
-      gamma.energy   = deltaEkin;
-      gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+      secondaries.gammas.NextTrack(newRNG, deltaEkin, pos,
+                                   vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                                   navState, currentTrack);
 
       eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
@@ -459,21 +448,16 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
           eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
-      Track &gamma1 = secondaries.gammas.NextTrack();
-      Track &gamma2 = secondaries.gammas.NextTrack();
       adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 0, /*numPositrons*/ 0,
                                      /*numGammas*/ 2);
 
-      gamma1.InitAsSecondary(pos, navState, currentTrack);
-      gamma1.rngState = newRNG;
-      gamma1.energy   = theGamma1Ekin;
-      gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
-
-      gamma2.InitAsSecondary(pos, navState, currentTrack);
+      secondaries.gammas.NextTrack(newRNG, theGamma1Ekin, pos,
+                                   vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
+                                   navState, currentTrack);
       // Reuse the RNG state of the dying track.
-      gamma2.rngState = currentTrack.rngState;
-      gamma2.energy   = theGamma2Ekin;
-      gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
+      secondaries.gammas.NextTrack(currentTrack.rngState, theGamma2Ekin, pos,
+                                   vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
+                                   navState, currentTrack);
 
       // The current track is killed by not enqueuing into the next activeQueue.
       slotManager.MarkSlotForFreeing(slot);
