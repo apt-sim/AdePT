@@ -82,17 +82,18 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 }
 } // namespace
 
-void AdeptIntegration::AddTrack(int pdg, double energy, double x, double y, double z, double dirx, double diry,
-                                double dirz, double globalTime, double localTime, double properTime, int threadId,
-                                unsigned int eventId, unsigned int trackId)
+void AdeptIntegration::AddTrack(int pdg, int parentID, double energy, double x, double y, double z, double dirx,
+                                double diry, double dirz, double globalTime, double localTime, double properTime,
+                                int threadId, unsigned int eventId, unsigned int trackId)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
     return;
   }
 
-  TrackDataWithIDs track{pdg,  energy,     x,         y,          z,       dirx,    diry,
-                         dirz, globalTime, localTime, properTime, eventId, trackId, static_cast<short>(threadId)};
+  TrackDataWithIDs track{pdg,       parentID,   energy,  x,       y,
+                         z,         dirx,       diry,    dirz,    globalTime,
+                         localTime, properTime, eventId, trackId, static_cast<short>(threadId)};
   if (fDebugLevel >= 2) {
     fGPUNetEnergy[threadId] += energy;
     if (fDebugLevel >= 6) {

@@ -196,8 +196,8 @@ namespace adept_scoring {
 
 /// @brief Record a hit
 template <>
-__device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
+__device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParentID, char aParticleType,
+                          double aStepLength, double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
                           vecgeom::Vector3D<Precision> const *aPrePosition,
                           vecgeom::Vector3D<Precision> const *aPreMomentumDirection,
                           vecgeom::Vector3D<Precision> const * /*aPrePolarization*/, double aPreEKin, double aPreCharge,
@@ -208,6 +208,7 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, char aParti
 {
   // Acquire a hit slot
   GPUHit &aGPUHit  = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot();
+  aGPUHit.fParentID = aParentID;
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
 
