@@ -14,7 +14,7 @@
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavigationState.h>
-#include <VecGeom/surfaces/Navigator.h>
+#include <VecGeom/surfaces/BVHSurfNavigator.h>
 
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
@@ -22,13 +22,15 @@
 
 inline namespace COPCORE_IMPL {
 
+template <typename Real_t>
 class SurfNavigator {
 
 public:
   using Precision          = vecgeom::Precision;
   using Vector3D           = vecgeom::Vector3D<vecgeom::Precision>;
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
-  using SurfData           = vgbrep::SurfData<Precision>;
+  using SurfData           = vgbrep::SurfData<Real_t>;
+  using Real_b             = typename SurfData::Real_b;
 
   static constexpr Precision kBoundaryPush = 10 * vecgeom::kTolerance;
 
@@ -64,8 +66,9 @@ public:
       return step_limit;
     }
 
-    int exit_surf = 0;
-    auto step = vgbrep::protonav::ComputeStepAndHit(globalpoint, globaldir, in_state, out_state, exit_surf, step_limit);
+    vgbrep::CrossedSurface crossed_surf;
+    auto step =
+        vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeStepAndHit(globalpoint, globaldir, in_state, out_state, crossed_surf, step_limit);
     return step;
   }
 
@@ -73,6 +76,7 @@ public:
   // into globaldir, taking step_limit into account. If a volume is hit, the
   // function calls out_state.SetBoundaryState(true) and relocates the state to
   // the next volume.
+
   __host__ __device__ static Precision ComputeStepAndPropagatedState(Vector3D const &globalpoint,
                                                                      Vector3D const &globaldir, Precision step_limit,
                                                                      vecgeom::NavigationState const &in_state,

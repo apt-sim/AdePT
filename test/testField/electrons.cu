@@ -3,7 +3,7 @@
 
 #include "testField.cuh"
 
-#include <AdePT/navigation/BVHNavigator.h>
+#include <AdePT/navigation/AdePTNavigator.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 
@@ -129,7 +129,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // Compute safety, needed for MSC step limit.
     double safety = 0;
     if (!navState.IsOnBoundary()) {
-      safety = BVHNavigator::ComputeSafety(pos, navState);
+      safety = AdePTNavigator::ComputeSafety(pos, navState);
     }
     theTrack->SetSafety(safety);
 
@@ -195,7 +195,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       bool propagatedHx;
 
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
-      Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
+      Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           energy, Mass, Charge, geometricalStepLengthFromPhysics, positionHx, directionHx, navState, nextStateHx,
           propagatedHx, safety, max_iterations);
       // activeSize < 100 ? max_iterations : max_iters_tail );
@@ -203,7 +203,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #endif
       int iterDone = -1;
       geometryStepLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, BVHNavigator>::ComputeStepAndNextVolume(
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
               propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
@@ -247,7 +247,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       }
 #endif
     } else {
-      geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
+      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPush);
       pos += geometryStepLength * dir;
     }
@@ -287,7 +287,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           pos += displacement;
         } else {
           // Recompute safety.
-          safety        = BVHNavigator::ComputeSafety(pos, navState);
+          safety        = AdePTNavigator::ComputeSafety(pos, navState);
           reducedSafety = sFact * safety;
 
           // 1b. Far away from geometry boundary:
@@ -354,7 +354,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
-        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+        AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
         navState = nextState;
