@@ -47,6 +47,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 #----------------------------------------------------------------------------#
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
+option(WITH_FLUCT "Switch on the energy loss fluctuations" OFF)
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -132,6 +133,10 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecog
 find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
+endif()
+
+if(NOT WITH_FLUCT)
+  add_compile_definitions(NOFLUCTUATION)
 endif()
 
 #----------------------------------------------------------------------------#

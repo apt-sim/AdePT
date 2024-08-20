@@ -7,8 +7,6 @@
 
 #include <AdePT/copcore/PhysicalConstants.h>
 
-//#define NOFLUCTUATION
-
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
