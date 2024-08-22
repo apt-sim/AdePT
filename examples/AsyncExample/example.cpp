@@ -54,6 +54,8 @@ int main(int argc, char **argv)
     }
   }
 
+  cudaDeviceSetLimit(cudaLimitStackSize, 16384);
+
   // Initialization of default Run manager
   std::unique_ptr<G4RunManager> runManager{G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default)};
 
