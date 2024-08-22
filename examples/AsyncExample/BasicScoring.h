@@ -27,15 +27,17 @@ struct HitScoringBuffer {
 
 extern __device__ HitScoringBuffer gHitScoringBuffer_dev;
 
+struct BufferHandle {
+  HitScoringBuffer hitScoringInfo;
+  GPUHit *hostBuffer;
+  enum class State { Free, OnDevice, OnDeviceNeedTransferToHost, TransferToHost, NeedHostProcessing };
+  std::atomic<State> state;
+};
+
 class HitScoring {
   unique_ptr_cuda<GPUHit> fGPUHitBuffer_dev;
-  unique_ptr_cuda<GPUHit> fGPUHitBuffer_host;
-  struct BufferHandle {
-    HitScoringBuffer hitScoring;
-    GPUHit *hostBuffer;
-    enum class State { Free, OnDevice, OnDeviceNeedTransferToHost, TransferToHost, NeedHostProcessing };
-    std::atomic<State> state;
-  };
+  unique_ptr_cuda<GPUHit, CudaHostDeleter<GPUHit>> fGPUHitBuffer_host;
+
   std::array<BufferHandle, 2> fBuffers;
   void *fHitScoringBuffer_deviceAddress = nullptr;
   unsigned int fHitCapacity;

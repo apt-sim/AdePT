@@ -6,18 +6,33 @@
 #include <memory>
 
 namespace AsyncAdePT {
-void cudaDeleter(void *ptr);
-void cudaHostDeleter(void *ptr);
-void cudaStreamDeleter(void *stream);
-void cudaEventDeleter(void *event);
+void freeCuda(void *ptr);
+void freeCudaHost(void *ptr);
 
-template <typename T = void>
-using unique_ptr_cuda = std::unique_ptr<T, void (*)(void *)>;
+template <class T>
+struct CudaDeleter {
+  void operator()(T *ptr) const { freeCuda(ptr); }
+};
+template <class T>
+struct CudaHostDeleter {
+  void operator()(T *ptr) const { freeCudaHost(ptr); }
+};
+
+void freeCudaStream(void *stream);
+void freeCudaEvent(void *event);
 
 #ifdef __CUDACC__
-using unique_ptr_cudaStream = std::unique_ptr<cudaStream_t, void (*)(void *)>;
-using unique_ptr_cudaEvent  = std::unique_ptr<cudaEvent_t, void (*)(void *)>;
+template <>
+struct CudaDeleter<cudaStream_t> {
+  void operator()(cudaStream_t *stream) const { freeCudaStream(stream); }
+};
+template <>
+struct CudaDeleter<cudaEvent_t> {
+  void operator()(cudaEvent_t *event) const { freeCudaEvent(event); }
+};
 #endif
+template <typename T = void, typename Deleter = CudaDeleter<T>>
+using unique_ptr_cuda = std::unique_ptr<T, Deleter>;
 
 } // namespace AsyncAdePT
 

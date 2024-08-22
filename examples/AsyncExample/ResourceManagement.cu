@@ -6,24 +6,24 @@
 
 namespace AsyncAdePT {
 
-void cudaDeleter(void *ptr)
+void freeCuda(void *ptr)
 {
-  COPCORE_CUDA_CHECK(cudaFree(ptr));
+  if (ptr) COPCORE_CUDA_CHECK(cudaFree(ptr));
 }
 
-void cudaHostDeleter(void *ptr)
+void freeCudaHost(void *ptr)
 {
-  COPCORE_CUDA_CHECK(cudaFreeHost(ptr));
+  if (ptr) COPCORE_CUDA_CHECK(cudaFreeHost(ptr));
 }
 
-void cudaStreamDeleter(void *stream)
+void freeCudaStream(void *stream)
 {
-  COPCORE_CUDA_CHECK(cudaStreamDestroy(*static_cast<cudaStream_t *>(stream)));
+  if (stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(*static_cast<cudaStream_t *>(stream)));
 }
 
-void cudaEventDeleter(void *event)
+void freeCudaEvent(void *event)
 {
-  COPCORE_CUDA_CHECK(cudaEventDestroy(*static_cast<cudaEvent_t *>(event)));
+  if (event) COPCORE_CUDA_CHECK(cudaEventDestroy(*static_cast<cudaEvent_t *>(event)));
 }
 
 } // namespace AsyncAdePT

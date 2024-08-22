@@ -117,7 +117,6 @@ struct ParticleQueues {
 
 struct ParticleType {
   Track *tracks;
-  SlotManager slotManager_host{0, 0};
   SlotManager *slotManager;
   ParticleQueues queues;
   cudaStream_t stream;
@@ -149,6 +148,7 @@ struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
   float queueFillLevel[ParticleType::NumParticleTypes];
+  float slotFillLevel;
   unsigned int perEventInFlight[AdeptIntegration::kMaxThreads];
   unsigned int perEventLeaked[AdeptIntegration::kMaxThreads];
   unsigned int hitBufferOccupancy;
@@ -163,30 +163,41 @@ struct GPUstate {
   ParticleType particles[ParticleType::NumParticleTypes];
   GammaInteractions gammaInteractions;
 
-  std::vector<AsyncAdePT::unique_ptr_cuda<void>> allCudaPointers;
+  std::vector<void *> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
-  cudaStream_t stream;                    ///< all-particle sync stream
-  unsigned int fNumToDevice{8 * 16384};   ///< number of slots in the toDevice buffer
-  unsigned int fNumFromDevice{4 * 16384}; ///< number of slots in the fromDevice buffer
-  unique_ptr_cuda<TrackDataWithIDs> toDevice_host{nullptr, cudaHostDeleter}; ///< Tracks to be transported to the device
-  unique_ptr_cuda<TrackDataWithIDs> toDevice_dev{nullptr, cudaDeleter};      ///< toDevice buffer of tracks
-  unique_ptr_cuda<TrackDataWithIDs> fromDevice_host{nullptr, cudaHostDeleter}; ///< Tracks from device
-  unique_ptr_cuda<TrackDataWithIDs> fromDevice_dev{nullptr, cudaDeleter};      ///< fromDevice buffer of tracks
-  unique_ptr_cuda<unsigned int> nFromDevice{nullptr, cudaHostDeleter};         ///< Number of tracks collected on device
+  cudaStream_t stream; ///< all-particle sync stream
 
+  static constexpr unsigned int nSlotManager_dev = 1;
+  SlotManager slotManager_host;
+  SlotManager *slotManager_dev{nullptr};
   Stats *stats_dev{nullptr}; ///< statistics object pointer on device
   Stats *stats{nullptr};     ///< statistics object pointer on host
 
-  unique_ptr_cuda<PerEventScoring> fScoring_dev{nullptr, cudaDeleter}; ///< Device array for per-worker scoring data
+  PerEventScoring *fScoring_dev; ///< Device array for per-worker scoring data
   std::unique_ptr<HitScoring> fHitScoring;
 
-  unique_ptr_cuda<adept::MParrayT<QueueIndexPair>> injectionQueue{nullptr, cudaDeleter};
+  adept::MParrayT<QueueIndexPair> *injectionQueue;
 
   enum class InjectState { Idle, CreatingSlots, ReadyToEnqueue, Enqueueing };
   std::atomic<InjectState> injectState;
   enum class ExtractState { Idle, FreeingSlots, ReadyToCopy, CopyToHost };
   std::atomic<ExtractState> extractState;
   std::atomic_bool runTransport{true}; ///< Keep transport thread running
+
+  ~GPUstate()
+  {
+    if (stats) COPCORE_CUDA_CHECK(cudaFreeHost(stats));
+    if (stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
+
+    for (ParticleType &particleType : particles) {
+      if (particleType.stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(particleType.stream));
+      if (particleType.event) COPCORE_CUDA_CHECK(cudaEventDestroy(particleType.event));
+    }
+    for (void *ptr : allCudaPointers) {
+      COPCORE_CUDA_CHECK(cudaFree(ptr));
+    }
+    allCudaPointers.clear();
+  }
 };
 
 // Constant data structures from G4HepEm accessed by the kernels.
