@@ -144,8 +144,9 @@ void AdeptIntegration::FullInit()
     g4int.InitScoringData(volAuxArray.fAuxData);
   }
 
-  // Initialize the transport engine for the current thread
-  InitializeGPU();
+  // Allocate buffers to transport particles to/from device. Scale the size of the staging area
+  // with the number of threads.
+  fBuffer = std::make_unique<TrackBuffer>(8192 * fNThread, 1024 * fNThread, fNThread);
 
   fGPUWorker = std::thread{&AdeptIntegration::TransportLoop, this};
 }

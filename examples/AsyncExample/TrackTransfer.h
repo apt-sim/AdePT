@@ -53,14 +53,20 @@ struct TrackBuffer {
   std::array<ToDeviceBuffer, 2> toDeviceBuffer;
   std::atomic_short toDeviceIndex{0};
 
+  unsigned int fNumToDevice{0};   ///< number of slots in the toDevice buffer
+  unsigned int fNumFromDevice{0}; ///< number of slots in the fromDevice buffer
+  unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>>
+      toDevice_host;                              ///< Tracks to be transported to the device
+  unique_ptr_cuda<TrackDataWithIDs> toDevice_dev; ///< toDevice buffer of tracks
+  unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>> fromDevice_host; ///< Tracks from device
+  unique_ptr_cuda<TrackDataWithIDs> fromDevice_dev;                                     ///< fromDevice buffer of tracks
+  unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>>
+      nFromDevice_host; ///< Number of tracks collected on device
+
   std::vector<std::vector<TrackDataWithIDs>> fromDeviceBuffers;
   std::mutex fromDeviceMutex;
 
-  TrackBuffer(TrackDataWithIDs *toDevice1, unsigned int maxTracks1, TrackDataWithIDs *toDevice2,
-              unsigned int maxTracks2, unsigned short nThread)
-      : toDeviceBuffer{{{toDevice1, maxTracks1, 0, {}}, {toDevice2, maxTracks2, 0, {}}}}, fromDeviceBuffers(nThread)
-  {
-  }
+  TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, unsigned short nThread);
 
   ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex]; }
   void swapToDeviceBuffers() { toDeviceIndex = (toDeviceIndex + 1) % 2; }

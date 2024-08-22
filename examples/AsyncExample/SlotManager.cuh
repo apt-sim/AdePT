@@ -21,6 +21,7 @@ struct alignas(64) SlotManager {
   value_type fFreeCounter    = 0;
 
 public:
+  __host__ SlotManager() {}
   __host__ __device__ SlotManager(const value_type slotListSize, const value_type freeListSize)
       : fSlotListSize{slotListSize}, fFreeListSize{freeListSize}
   {
@@ -30,7 +31,10 @@ public:
     const auto memSize = sizeof(value_type) * (fSlotListSize + fFreeListSize);
     if (memSize == 0) return;
 
-    COPCORE_CUDA_CHECK(cudaMalloc(&fSlotList, memSize));
+    const auto result = cudaMalloc(&fSlotList, memSize);
+    if (result != cudaSuccess) {
+      throw std::invalid_argument{"SlotManager: Not enough memory for " + std::to_string(fSlotListSize) + " slots"};
+    }
     fToFreeList          = fSlotList + fSlotListSize;
 #endif
   }
@@ -71,7 +75,8 @@ public:
   __device__ value_type OccupiedSlots() const { return fSlotCounter - fFreeCounter; }
   __device__ float FillLevel() const { return float(fSlotCounter) / fSlotListSize; }
 
-  __device__ void FreeMarkedSlots();
+  __device__ void FreeMarkedSlotsStage1();
+  __device__ void FreeMarkedSlotsStage2();
   __host__ static void SortListOfFreeSlots(int slotMgrIndex, cudaStream_t stream);
   __host__ static std::pair<value_type *, std::byte *> MemForSorting(int slotMgrIndex, value_type numItemsToSort,
                                                                      size_t sortFuncTempMemorySize);
@@ -94,7 +99,8 @@ __device__ unsigned int SlotManager::NextSlot()
 {
   const auto slotIndex = atomicAdd(&fSlotCounter, 1);
   if (slotIndex >= fSlotListSize) {
-    printf("Out of slots (max=%d)\n", fSlotListSize);
+    printf("Out of slots: slotIndex=%d slotCounter=%d slotListSize=%d freeCounter=%d\n", slotIndex, fSlotCounter,
+           fSlotListSize, fFreeCounter);
     COPCORE_EXCEPTION("Out of slots in SlotManager::NextSlot");
   }
 
@@ -113,7 +119,9 @@ __device__ void SlotManager::MarkSlotForFreeing(unsigned int toBeFreed)
   fToFreeList[idx] = toBeFreed;
 }
 
-__device__ void SlotManager::FreeMarkedSlots()
+/// @brief Move the queue of freed slots into the queue of available slots.
+/// Note: FreeMarkedSlotsStage2 *must* run after this.
+__device__ void SlotManager::FreeMarkedSlotsStage1()
 {
   const auto oldSlotCounter = fSlotCounter;
 
@@ -128,7 +136,7 @@ __device__ void SlotManager::FreeMarkedSlots()
   }
 
   const auto begin = oldSlotCounter - fFreeCounter;
-  for (unsigned int i = threadIdx.x; i < fFreeCounter; i += blockDim.x) {
+  for (unsigned int i = blockIdx.x * blockDim.x + threadIdx.x; i < fFreeCounter; i += blockDim.x * gridDim.x) {
     const auto slotListIndex = begin + i;
     const auto toFree        = fToFreeList[i];
 
@@ -136,13 +144,20 @@ __device__ void SlotManager::FreeMarkedSlots()
   }
 
   __syncthreads();
-
   if (threadIdx.x == 0) {
     if (fSlotCounter != oldSlotCounter) {
       printf(__FILE__ ":%d Error: New slots were allocated while trying to free slots.\n", __LINE__);
       COPCORE_EXCEPTION("Allocating and freeing slots cannot overlap");
     }
-    fSlotCounter    = begin;
+  }
+}
+
+/// @brief Finish the freeing of slots by resetting the counters.
+/// Note: FreeMarkedSlotsStage1 *must* run before this.
+__device__ void SlotManager::FreeMarkedSlotsStage2()
+{
+  if (threadIdx.x == 0 && blockIdx.x == 0) {
+    fSlotCounter -= fFreeCounter;
     fFreeCounter    = 0;
   }
 }
