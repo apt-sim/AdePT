@@ -7,8 +7,6 @@
 
 #include <AdePT/copcore/PhysicalConstants.h>
 
-#define NOFLUCTUATION
-
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmElectronInteractionBrem.hh>
@@ -23,6 +21,7 @@
 #include <G4HepEmElectronInteractionIoni.icc>
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
+#include <G4HepEmElectronEnergyLossFluctuation.icc>
 
 using VolAuxData = adeptint::VolAuxData;
 
