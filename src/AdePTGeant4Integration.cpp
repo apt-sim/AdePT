@@ -364,7 +364,7 @@ void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4N
     }
   }
   // Once finished, remove the extra levels if the current state is shallower than the previous history
-  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel);
+  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel + 1);
 }
 
 void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
