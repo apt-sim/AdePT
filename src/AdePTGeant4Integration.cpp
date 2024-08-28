@@ -333,16 +333,14 @@ void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4N
     // have the correct volume in the history
     pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[vgState.At(aLevel)->id()]);
 
-    if (aLevel < aG4HistoryDepth) {
-      // In G4NavigationHistory, the initial volume has the index 1
-      pvol = aG4NavigationHistory->GetVolume(aLevel + 1);
-
+    if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
+      pvol = aG4NavigationHistory->GetVolume(aLevel);
       // If they match we do not need to update the history at this level
       if (pvol == pnewvol) continue;
       // Once we find two non-matching volumes, we need to update the touchable history from this level on
       if (aLevel) {
         // If we are not in the top level
-        aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel);
+        aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel + 1);
         // Update the current level
         aG4NavigationHistory->NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
       } else {
@@ -354,12 +352,19 @@ void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4N
       aG4HistoryDepth = aLevel;
     } else {
       // If the navigation state is deeper than the current history we need to add the new levels
-      aG4NavigationHistory->NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
-      aG4HistoryDepth++;
+      if(aLevel)
+      { 
+        aG4NavigationHistory->NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
+        aG4HistoryDepth++;
+      }
+      else
+      {
+        aG4NavigationHistory->SetFirstEntry(pnewvol);
+      }
     }
   }
   // Once finished, remove the extra levels if the current state is shallower than the previous history
-  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel);
+  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel + 1);
 }
 
 void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
@@ -428,7 +433,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
   // aPreStepPoint->SetVelocity(0);                                                                 // Missing data
   aPreStepPoint->SetTouchableHandle(aPreG4TouchableHandle);                                          // Real data
   aPreStepPoint->SetMaterial(aPreG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterial()); // Real data
-  // aPreStepPoint->SetMaterialCutsCouple(nullptr);                                                 // Missing data
+  aPreStepPoint->SetMaterialCutsCouple(aPreG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterialCutsCouple());
   // aPreStepPoint->SetSensitiveDetector(nullptr);                                                  // Missing data
   // aPreStepPoint->SetSafety(0);                                                                   // Missing data
   aPreStepPoint->SetPolarization(G4ThreeVector(aGPUHit->fPreStepPoint.fPolarization)); // Real data
@@ -450,7 +455,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data
   aPostStepPoint->SetTouchableHandle(aPostG4TouchableHandle);                                          // Real data
   aPostStepPoint->SetMaterial(aPostG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterial()); // Real data
-  // aPostStepPoint->SetMaterialCutsCouple(nullptr);                                                  // Missing data
+  aPostStepPoint->SetMaterialCutsCouple(aPostG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterialCutsCouple());
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
   aPostStepPoint->SetPolarization(*aPostStepPointPolarization); // Real data
