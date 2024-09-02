@@ -248,6 +248,14 @@ int main(int argc, char *argv[])
   // Load and synchronize the geometry on the GPU
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+#ifdef ADEPT_USE_SURF
+#ifdef ADEPT_USE_SURF_SINGLE
+  using BrepHelper = vgbrep::BrepHelper<float>;
+#else
+  using BrepHelper = vgbrep::BrepHelper<double>;
+#endif
+#endif
+
 #ifndef ADEPT_USE_SURF
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();

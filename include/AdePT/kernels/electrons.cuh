@@ -69,7 +69,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     auto navState     = currentTrack.navState;
     adeptint::TrackData trackdata;
     // the MCC vector is indexed by the logical volume id
+#ifndef ADEPT_USE_SURF
+    const int lvolID = navState.Top()->GetLogicalVolume()->id();
+#else
     const int lvolID = navState.GetLogicalId();
+#endif
+
     VolAuxData const &auxData = auxDataArray[lvolID];
 
     auto survive = [&](bool leak = false) {
@@ -306,7 +311,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // Move to the next boundary.
         navState = nextState;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
+#ifndef ADEPT_USE_SURF
+        const int nextlvolID          = navState.Top()->GetLogicalVolume()->id();
+#else
         const int nextlvolID          = navState.GetLogicalId();
+#endif
         VolAuxData const &nextauxData = auxDataArray[nextlvolID];
         if (nextauxData.fGPUregion > 0)
           survive();
