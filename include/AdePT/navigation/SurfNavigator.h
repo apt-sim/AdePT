@@ -26,27 +26,34 @@ template <typename Real_t>
 class SurfNavigator {
 
 public:
-  using Precision          = vecgeom::Precision;
-  using Vector3D           = vecgeom::Vector3D<vecgeom::Precision>;
-  using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
-  using SurfData           = vgbrep::SurfData<Real_t>;
-  using Real_b             = typename SurfData::Real_b;
+  using Precision = vecgeom::Precision;
+  using Vector3D  = vecgeom::Vector3D<vecgeom::Precision>;
+  using SurfData  = vgbrep::SurfData<Real_t>;
+  using Real_b    = typename SurfData::Real_b;
 
   static constexpr Precision kBoundaryPush = 10 * vecgeom::kTolerance;
 
-  // Locates the point in the geometry volume tree
-  __host__ __device__ static VPlacedVolumePtr_t LocatePointIn(VPlacedVolumePtr_t vol, Vector3D const &point,
-                                                              vecgeom::NavigationState &path, bool top,
-                                                              VPlacedVolumePtr_t exclude = nullptr)
+  /// @brief Locates the point in the geometry volume tree
+  /// @param pvol_id Placed volume id to be checked first
+  /// @param point Point to be checked, in the local frame of pvol
+  /// @param path Path to a parent of pvol that must contain the point
+  /// @param top Check first if pvol contains the point
+  /// @param exclude Placed volume id to exclude from the search
+  /// @return Index of the placed volume that contains the point
+  __host__ __device__ static int LocatePointIn(int pvol_id, Vector3D const &point, vecgeom::NavigationState &path,
+                                               bool top, int *exclude = nullptr)
   {
-    return vgbrep::protonav::LocatePointIn(vol, point, path, top);
+    return vgbrep::protonav::BVHSurfNavigator<Real_t>::LocatePointIn(pvol_id, point, path, top, exclude);
   }
 
-  // Computes the isotropic safety from the globalpoint.
+  /// @brief Computes the isotropic safety from the globalpoint.
+  /// @param globalpoint Point in global coordinates
+  /// @param state Path where to compute safety
+  /// @return Isotropic safe distance
   __host__ __device__ static Precision ComputeSafety(Vector3D const &globalpoint, vecgeom::NavigationState const &state)
   {
-    int closest_surf = 0;
-    return vgbrep::protonav::ComputeSafety(globalpoint, state, closest_surf);
+    auto safety = vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeSafety(globalpoint, state);
+    return safety;
   }
 
   // Computes a step from the globalpoint (which must be in the current volume)
@@ -67,8 +74,8 @@ public:
     }
 
     vgbrep::CrossedSurface crossed_surf;
-    auto step =
-        vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeStepAndHit(globalpoint, globaldir, in_state, out_state, crossed_surf, step_limit);
+    auto step = vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeStepAndHit(globalpoint, globaldir, in_state,
+                                                                              out_state, crossed_surf, step_limit);
     return step;
   }
 

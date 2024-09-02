@@ -132,7 +132,11 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
       track.dir = {1.0, 0, 0};
     }
     track.navState.Clear();
+#ifndef ADEPT_USE_SURF
     AdePTNavigator::LocatePointIn(world, track.pos, track.navState, true);
+#else
+    AdePTNavigator::LocatePointIn(vecgeom::NavigationState::WorldId(), track.pos, track.navState, true);
+#endif
 
     atomicAdd(&globalScoring->numElectrons, 1);
   }

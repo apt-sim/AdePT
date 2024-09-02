@@ -111,8 +111,8 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     };
     assert(trackmgr != nullptr && "Unsupported pdg type");
 
-    Track &track    = trackmgr->NextTrack();
-    track.parentID  = trackinfo[i].parentID;
+    Track &track   = trackmgr->NextTrack();
+    track.parentID = trackinfo[i].parentID;
 
     track.rngState.SetSeed(1234567 * event + startTrack + i);
     track.eKin         = trackinfo[i].eKin;
@@ -134,12 +134,16 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.navState.Clear();
     // We locate the pushed point because we run the risk that the
     // point is not located in the GPU region
+#ifndef ADEPT_USE_SURF
     AdePTNavigator::LocatePointIn(world, track.pos + tolerance * track.dir, track.navState, true);
+#else
+    AdePTNavigator::LocatePointIn(vecgeom::NavigationState::WorldId(), track.pos + tolerance * track.dir,
+                                  track.navState, true);
+#endif
     // The track must be on boundary at this point
     track.navState.SetBoundaryState(true);
     // nextState is initialized as needed.
-    auto volume = track.navState.Top();
-    int lvolID  = volume->GetLogicalVolume()->id();
+    int lvolID  = track.navState.GetLogicalId();
     assert(auxDataArray[lvolID].fGPUregion);
   }
 }
