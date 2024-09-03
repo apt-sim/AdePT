@@ -66,6 +66,7 @@ target_link_libraries(example1
 SET(GDML ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 configure_file("macros/example1.mac.in" "${PROJECT_BINARY_DIR}/example1.mac")
 configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
+configure_file("macros/example1_ttbar_noadept.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_noadept.mac")
 
 # Tests
 

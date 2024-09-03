@@ -149,12 +149,11 @@ void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 
 void AdePTTrackingManager::FlushEvent()
 {
-
   if (fVerbosity > 0)
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer with "
            << fAdeptTransport->GetNtoDevice() << " particles left." << G4endl;
-
-  fAdeptTransport->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+  if(fAdeptTransport->GetNtoDevice() > 0)
+    fAdeptTransport->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
 }
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
