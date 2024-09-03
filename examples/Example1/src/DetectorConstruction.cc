@@ -24,7 +24,7 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-DetectorConstruction::DetectorConstruction() : G4VUserDetectorConstruction()
+DetectorConstruction::DetectorConstruction(bool allSensitive) : fAllSensitive(allSensitive), G4VUserDetectorConstruction()
 {
   fDetectorMessenger = new DetectorMessenger(this);
 }
@@ -95,28 +95,47 @@ void DetectorConstruction::ConstructSDandField()
     int nd          = lvol->GetNoDaughters();
     numTouchables++;
 
-    // Check if the LogicalVolume is sensitive
-    auto aAuxInfoList = fParser.GetVolumeAuxiliaryInformation(lvol);
-    for (auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++) {
-      G4String str  = iaux->type;
-      G4String val  = iaux->value;
-      G4String unit = iaux->unit;
+    if(fAllSensitive) // For easier validation of geometries with no SD info, we may set all volumes as sensitive
+    {
+      // Record the PV
+      if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
+        caloSD->fSensitivePhysicalVolumes.insert(pvol);
+      }
+      // If this is the first time we see this LV
+      if (std::find(caloSD->fSensitiveLogicalVolumes.begin(), caloSD->fSensitiveLogicalVolumes.end(), lvol) ==
+          caloSD->fSensitiveLogicalVolumes.end()) {
+        // Make LogicalVolume sensitive by registering a SensitiveDetector for it
+        SetSensitiveDetector(lvol, caloSD);
+        // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport
+        caloSD->fSensitiveLogicalVolumes.push_back(lvol);
+      }
+      numSensitiveTouchables++;
+    }
+    else
+    {
+      // Check if the LogicalVolume is marked as sensitive in the geometry
+      auto aAuxInfoList = fParser.GetVolumeAuxiliaryInformation(lvol);
+      for (auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++) {
+        G4String str  = iaux->type;
+        G4String val  = iaux->value;
+        G4String unit = iaux->unit;
 
-      if (str == "SensDet") {
-        // If it is, record the PV
-        if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
-          caloSD->fSensitivePhysicalVolumes.insert(pvol);
+        if (str == "SensDet") {
+          // If it is, record the PV
+          if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
+            caloSD->fSensitivePhysicalVolumes.insert(pvol);
+          }
+          // If this is the first time we see this LV
+          if (std::find(caloSD->fSensitiveLogicalVolumes.begin(), caloSD->fSensitiveLogicalVolumes.end(), lvol) ==
+              caloSD->fSensitiveLogicalVolumes.end()) {
+            // Make LogicalVolume sensitive by registering a SensitiveDetector for it
+            SetSensitiveDetector(lvol, caloSD);
+            // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport
+            caloSD->fSensitiveLogicalVolumes.push_back(lvol);
+          }
+          numSensitiveTouchables++;
+          break;
         }
-        // If this is the first time we see this LV
-        if (std::find(caloSD->fSensitiveLogicalVolumes.begin(), caloSD->fSensitiveLogicalVolumes.end(), lvol) ==
-            caloSD->fSensitiveLogicalVolumes.end()) {
-          // Make LogicalVolume sensitive by registering a SensitiveDetector for it
-          SetSensitiveDetector(lvol, caloSD);
-          // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport
-          caloSD->fSensitiveLogicalVolumes.push_back(lvol);
-        }
-        numSensitiveTouchables++;
-        break;
       }
     }
 

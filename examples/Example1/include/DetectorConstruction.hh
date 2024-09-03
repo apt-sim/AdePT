@@ -30,7 +30,7 @@ class DetectorMessenger;
 
 class DetectorConstruction : public G4VUserDetectorConstruction {
 public:
-  DetectorConstruction();
+  DetectorConstruction(bool allSensitive = false);
   virtual ~DetectorConstruction();
 
   virtual G4VPhysicalVolume *Construct() final;
@@ -57,6 +57,7 @@ private:
   G4ThreeVector fMagFieldVector;
 
   G4GDMLParser fParser;
+  bool fAllSensitive;
 };
 
 #endif /* DETECTORCONSTRUCTION_H */
