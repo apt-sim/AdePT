@@ -28,6 +28,9 @@
 #include <VecGeom/management/BVHManager.h>
 #include <VecGeom/gdml/Frontend.h>
 #include <VecGeom/management/CudaManager.h>
+#ifdef ADEPT_USE_SURF
+#include <VecGeom/surfaces/BrepHelper.h>
+#endif
 
 #include <AdePT/copcore/SystemOfUnits.h>
 #include <AdePT/base/ArgParser.h>
@@ -171,7 +174,9 @@ void FreeG4HepEm(G4HepEmState *state)
 void InitBVH()
 {
   vecgeom::cxx::BVHManager::Init();
+#ifndef ADEPT_USE_SURF
   vecgeom::cxx::BVHManager::DeviceInit();
+#endif
 }
 
 void PrintScoringPerVolume(const vecgeom::VPlacedVolume *placed, const ScoringPerVolume *scoring, int level = 0)
@@ -243,8 +248,22 @@ int main(int argc, char *argv[])
   // Load and synchronize the geometry on the GPU
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+#ifdef ADEPT_USE_SURF
+#ifdef ADEPT_USE_SURF_SINGLE
+  using BrepHelper = vgbrep::BrepHelper<float>;
+#else
+  using BrepHelper = vgbrep::BrepHelper<double>;
+#endif
+#endif
+
+#ifndef ADEPT_USE_SURF
   cudaManager.LoadGeometry(world);
   cudaManager.Synchronize();
+#else
+  if (!BrepHelper::Instance().Convert()) return 1;
+  BrepHelper::Instance().PrintSurfData();
+  cudaManager.SynchronizeNavigationTable();
+#endif
   InitBVH();
 
   auto time_cpu = timer.Stop();

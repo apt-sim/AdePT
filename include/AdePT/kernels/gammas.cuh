@@ -45,10 +45,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     double localTime  = currentTrack.localTime;
     double properTime = currentTrack.properTime;
     auto navState     = currentTrack.navState;
-    const auto volume = navState.Top();
     adeptint::TrackData trackdata;
     // the MCC vector is indexed by the logical volume id
-    int lvolID                = volume->GetLogicalVolume()->id();
+#ifndef ADEPT_USE_SURF
+    int lvolID = navState.Top()->GetLogicalVolume()->id();
+#else
+    int lvolID = navState.GetLogicalId();
+#endif
     VolAuxData const &auxData = auxDataArray[lvolID];
 
     auto survive = [&](bool leak = false) {
@@ -117,14 +120,17 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // For now, just count that we hit something.
 
       // Kill the particle if it left the world.
-      if (nextState.Top() != nullptr) {
+      if (!nextState.IsOutside()) {
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
         navState = nextState;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        const auto nextvolume         = navState.Top();
-        const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
+#ifndef ADEPT_USE_SURF
+        const int nextlvolID          = navState.Top()->GetLogicalVolume()->id();
+#else
+        const int nextlvolID          = navState.GetLogicalId();
+#endif
         VolAuxData const &nextauxData = auxDataArray[nextlvolID];
         if (nextauxData.fGPUregion > 0)
           survive();
