@@ -65,17 +65,16 @@ public:
   __host__ __device__ static Precision ComputeStepAndNextVolume(Vector3D const &globalpoint, Vector3D const &globaldir,
                                                                 Precision step_limit,
                                                                 vecgeom::NavigationState const &in_state,
-                                                                vecgeom::NavigationState &out_state, Precision push = 0)
+                                                                vecgeom::NavigationState &out_state,
+                                                                long &hitsurf_index, Precision push = 0)
   {
     if (step_limit <= 0) {
       in_state.CopyTo(&out_state);
       out_state.SetBoundaryState(false);
       return step_limit;
     }
-
-    vgbrep::CrossedSurface crossed_surf;
-    auto step = vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeStepAndHit(globalpoint, globaldir, in_state,
-                                                                              out_state, crossed_surf, step_limit);
+    auto step = vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeStepAndNextSurface(
+        globalpoint, globaldir, in_state, out_state, hitsurf_index, step_limit);
     return step;
   }
 
@@ -88,16 +87,19 @@ public:
                                                                      Vector3D const &globaldir, Precision step_limit,
                                                                      vecgeom::NavigationState const &in_state,
                                                                      vecgeom::NavigationState &out_state,
-                                                                     Precision push = 0)
+                                                                     long &hitsurf_index, Precision push = 0)
   {
-    return ComputeStepAndNextVolume(globalpoint, globaldir, step_limit, in_state, out_state, push);
+    return ComputeStepAndNextVolume(globalpoint, globaldir, step_limit, in_state, out_state, hitsurf_index, push);
   }
 
   // Relocate a state that was returned from ComputeStepAndNextVolume: the surface
   // model does this computation within ComputeStepAndNextVolume, so the relocation does nothing
-  __host__ __device__ static void RelocateToNextVolume(Vector3D const & /*globalpoint*/, Vector3D const & /*globaldir*/,
-                                                       vecgeom::NavigationState & /*state*/)
+  __host__ __device__ static void RelocateToNextVolume(Vector3D const &globalpoint, Vector3D const &globaldir,
+                                                       long hitsurf_index, vecgeom::NavigationState &out_state)
   {
+    vgbrep::CrossedSurface crossed_surf;
+    vgbrep::protonav::BVHSurfNavigator<Real_t>::RelocateToNextVolume(globalpoint, globaldir, Precision(0),
+                                                                     hitsurf_index, out_state, crossed_surf);
   }
 };
 

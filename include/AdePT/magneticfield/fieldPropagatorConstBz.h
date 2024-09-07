@@ -32,8 +32,9 @@ public:
   __host__ __device__ Precision ComputeStepAndNextVolume(double kinE, double mass, int charge, Precision physicsStep,
                                                          Vector3D &position, Vector3D &direction,
                                                          vecgeom::NavigationState const &current_state,
-                                                         vecgeom::NavigationState &new_state, bool &propagated,
-                                                         const Precision safety = 0.0, const int max_iteration = 100);
+                                                         vecgeom::NavigationState &new_state, long &hitsurf_index,
+                                                         bool &propagated, const Precision safety = 0.0,
+                                                         const int max_iteration = 100);
 
 private:
   Precision BzValue;
@@ -87,7 +88,8 @@ template <class Navigator>
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
     vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavigationState const &current_state,
-    vecgeom::NavigationState &next_state, bool &propagated, const vecgeom::Precision safetyIn, const int max_iterations)
+    vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated, const vecgeom::Precision safetyIn,
+    const int max_iterations)
 {
   using Precision = vecgeom::Precision;
 #ifdef VECGEOM_FLOAT_PRECISION
@@ -108,107 +110,107 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   const Precision epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
   int chordIters               = 0;
 
-  if (charge == 0) {
-    stepDone = Navigator::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
-    position += stepDone * direction;
-  } else {
-    bool continueIteration = false;
+  bool continueIteration = false;
 
-    Precision safety      = safetyIn;
-    Vector3D safetyOrigin = position;
-    // Prepare next_state in case we skip navigation inside the safety sphere.
-    current_state.CopyTo(&next_state);
-    next_state.SetBoundaryState(false);
+  Precision safety      = safetyIn;
+  Vector3D safetyOrigin = position;
+  // Prepare next_state in case we skip navigation inside the safety sphere.
+  current_state.CopyTo(&next_state);
+  next_state.SetBoundaryState(false);
 
-    Precision maxNextSafeMove = safeLength;
+  Precision maxNextSafeMove = safeLength;
 
-    bool lastWasZero = false;
-    //  Locate the intersection of the curved trajectory and the boundaries of the current
-    //    volume (including daughters).
-    do {
-      Vector3D endPosition  = position;
-      Vector3D endDirection = direction;
-      Precision safeMove    = min(remains, maxNextSafeMove);
+  bool lastWasZero = false;
+  //  Locate the intersection of the curved trajectory and the boundaries of the current
+  //    volume (including daughters).
+  do {
+    Vector3D endPosition  = position;
+    Vector3D endDirection = direction;
+    Precision safeMove    = min(remains, maxNextSafeMove);
 
-      helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, safeMove, endPosition,
-                                               endDirection);
+    helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, safeMove, endPosition,
+                                             endDirection);
 
-      Vector3D chordVec  = endPosition - position;
-      Precision chordLen = chordVec.Length();
-      Vector3D chordDir  = (1 / chordLen) * chordVec;
+    Vector3D chordVec  = endPosition - position;
+    Precision chordLen = chordVec.Length();
+    Vector3D chordDir  = (1 / chordLen) * chordVec;
 
-      Precision currentSafety = safety - (position - safetyOrigin).Length();
-      Precision move;
-      if (currentSafety > chordLen) {
-        move = chordLen;
+    Precision currentSafety = safety - (position - safetyOrigin).Length();
+    Precision move;
+    if (currentSafety > chordLen) {
+      move = chordLen;
+    } else {
+      Precision newSafety = 0;
+      if (stepDone > 0) {
+        newSafety = Navigator::ComputeSafety(position, current_state);
+      }
+      if (newSafety > chordLen) {
+        move         = chordLen;
+        safetyOrigin = position;
+        safety       = newSafety;
       } else {
-        Precision newSafety = 0;
-        if (stepDone > 0) {
-          newSafety = Navigator::ComputeSafety(position, current_state);
-        }
-        if (newSafety > chordLen) {
-          move         = chordLen;
-          safetyOrigin = position;
-          safety       = newSafety;
-        } else {
-          move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
-        }
+#ifdef ADEPT_USE_SURF
+        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
+                                                   hitsurf_index, kPush);
+#else
+        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
+#endif
       }
+    }
 
-      static constexpr Precision ReduceFactor = 0.1;
-      static constexpr int ReduceIters        = 6;
+    static constexpr Precision ReduceFactor = 0.1;
+    static constexpr int ReduceIters        = 6;
 
-      if (lastWasZero && chordIters >= ReduceIters) {
-        lastWasZero = false;
+    if (lastWasZero && chordIters >= ReduceIters) {
+      lastWasZero = false;
+    }
+
+    if (move == chordLen) {
+      position  = endPosition;
+      direction = endDirection;
+      move      = safeMove;
+      // We want to try the maximum step in the next iteration.
+      maxNextSafeMove   = safeLength;
+      continueIteration = true;
+    } else if (move <= kPush + Navigator::kBoundaryPush && stepDone == 0) {
+      // FIXME: Even for zero steps, the Navigator will return kPush + possibly
+      // Navigator::kBoundaryPush instead of a real 0.
+      move        = 0;
+      lastWasZero = true;
+
+      // Reduce the step attempted in the next iteration to navigate around
+      // boundaries where the chord step may end in a volume we just left.
+      maxNextSafeMove   = ReduceFactor * safeMove;
+      continueIteration = chordIters < ReduceIters;
+
+      if (!continueIteration) {
+        // Let's move to the other side of this boundary -- this side we cannot progress !!
+        move = Navigator::kBoundaryPush;
+        // printf("fieldProp-ConstBz: pushing by %10.4g \n ", move );
       }
+    } else {
+      // Accept the intersection point on the surface.  This means that
+      //   the point at the boundary will be on the 'straight'-line chord,
+      //   not the curved trajectory.
+      // ( This involves a bias -- relevant for muons in trackers.
+      //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
+      position = position + move * chordDir;
 
-      if (move == chordLen) {
-        position  = endPosition;
-        direction = endDirection;
-        move      = safeMove;
-        // We want to try the maximum step in the next iteration.
-        maxNextSafeMove   = safeLength;
-        continueIteration = true;
-      } else if (move <= kPush + Navigator::kBoundaryPush && stepDone == 0) {
-        // FIXME: Even for zero steps, the Navigator will return kPush + possibly
-        // Navigator::kBoundaryPush instead of a real 0.
-        move        = 0;
-        lastWasZero = true;
+      // Primitive approximation of end direction and move to the crossing point ...
+      Precision fraction = chordLen > 0 ? move / chordLen : 0;
+      direction          = direction * (1.0 - fraction) + endDirection * fraction;
+      direction          = direction.Unit();
+      // safeMove is how much the track would have been moved if not hitting the boundary
+      // We approximate the actual reduction along the curved trajectory to be the same
+      // as the reduction of the full chord due to the boundary crossing.
+      move              = fraction * safeMove;
+      continueIteration = false;
+    }
+    stepDone += move;
+    remains -= move;
+    chordIters++;
 
-        // Reduce the step attempted in the next iteration to navigate around
-        // boundaries where the chord step may end in a volume we just left.
-        maxNextSafeMove   = ReduceFactor * safeMove;
-        continueIteration = chordIters < ReduceIters;
-
-        if (!continueIteration) {
-          // Let's move to the other side of this boundary -- this side we cannot progress !!
-          move = Navigator::kBoundaryPush;
-          // printf("fieldProp-ConstBz: pushing by %10.4g \n ", move );
-        }
-      } else {
-        // Accept the intersection point on the surface.  This means that
-        //   the point at the boundary will be on the 'straight'-line chord,
-        //   not the curved trajectory.
-        // ( This involves a bias -- relevant for muons in trackers.
-        //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
-        position = position + move * chordDir;
-
-        // Primitive approximation of end direction and move to the crossing point ...
-        Precision fraction = chordLen > 0 ? move / chordLen : 0;
-        direction          = direction * (1.0 - fraction) + endDirection * fraction;
-        direction          = direction.Unit();
-        // safeMove is how much the track would have been moved if not hitting the boundary
-        // We approximate the actual reduction along the curved trajectory to be the same
-        // as the reduction of the full chord due to the boundary crossing.
-        move              = fraction * safeMove;
-        continueIteration = false;
-      }
-      stepDone += move;
-      remains -= move;
-      chordIters++;
-
-    } while (continueIteration && (remains > epsilon_step) && (chordIters < max_iterations));
-  }
+  } while (continueIteration && (remains > epsilon_step) && (chordIters < max_iterations));
 
   propagated = (chordIters < max_iterations);
   return stepDone;

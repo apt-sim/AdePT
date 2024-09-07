@@ -171,14 +171,20 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     // Check if there's a volume boundary in between.
     bool propagated = true;
+    long hitsurf_index = -1;
     double geometryStepLength;
     vecgeom::NavigationState nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
-          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety);
+          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index, propagated, safety);
     } else {
-      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
-                                                                    navState, nextState, kPush);
+#ifdef ADEPT_USE_SURF
+    double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                         navState, nextState, hitsurf_index, kPush);
+#else
+    double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                         navState, nextState, kPush);
+#endif
       pos += geometryStepLength * dir;
     }
 
@@ -306,8 +312,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
+#ifdef ADEPT_USE_SURF
+        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState); 
+#else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
-
+#endif
         // Move to the next boundary.
         navState = nextState;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
