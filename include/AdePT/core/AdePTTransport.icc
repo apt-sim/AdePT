@@ -67,7 +67,7 @@ template <typename IntegrationLayer>
 bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
-  bool success = true;
+  bool success      = true;
 #ifdef ADEPT_USE_SURF
 #ifdef ADEPT_USE_SURF_SINGLE
   using BrepHelper = vgbrep::BrepHelper<float>;
@@ -83,9 +83,10 @@ bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VP
   cudaManager.SynchronizeNavigationTable();
 #else
   // Upload solid geometry to GPU.
+  cudaDeviceSetLimit(cudaLimitStackSize, 1024 * 8);
   cudaManager.LoadGeometry(world);
   auto world_dev = cudaManager.Synchronize();
-  success = world_dev != nullptr;
+  success        = world_dev != nullptr;
 #endif
   // Initialize BVH
   InitBVH();

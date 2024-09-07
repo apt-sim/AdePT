@@ -168,6 +168,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Check if there's a volume boundary in between.
     bool propagated = true;
+    long hitsurf_index = -1;
     double geometryStepLength;
     vecgeom::NavigationState nextState;
 
@@ -200,7 +201,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
       Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           energy, Mass, Charge, geometricalStepLengthFromPhysics, positionHx, directionHx, navState, nextStateHx,
-          propagatedHx, safety, max_iterations);
+          hitsurf_index, propagatedHx, safety, max_iterations);
       // activeSize < 100 ? max_iterations : max_iters_tail );
       // End   Baseline reply
 #endif
@@ -208,7 +209,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
-              propagated, /*lengthDone,*/ safety,
+              hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot);
 #ifdef CHECK_RESULTS
@@ -250,8 +251,13 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       }
 #endif
     } else {
+#ifdef ADEPT_USE_SURF
+      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                    navState, nextState, hitsurf_index, kPush);
+#else
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
                                                                     navState, nextState, kPush);
+#endif
       pos += geometryStepLength * dir;
     }
 
@@ -357,8 +363,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
+#ifdef ADEPT_USE_SURF
+        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
+#else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
-
+#endif
         // Move to the next boundary.
         navState = nextState;
         survive();

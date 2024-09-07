@@ -95,8 +95,16 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     // Check if there's a volume boundary in between.
     vecgeom::NavigationState nextState;
+#ifdef ADEPT_USE_SURF
+    long hitsurf_index = -1;
+    double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                         navState, nextState, hitsurf_index, kPush);
+#else
     double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
                                                                          navState, nextState, kPush);
+#endif
+  //  printf("pvol=%d  step=%g  onboundary=%d  pos={%g, %g, %g}  dir={%g, %g, %g}\n", navState.TopId(), geometryStepLength,
+  //         nextState.IsOnBoundary(), pos[0], pos[1], pos[2], dir[0], dir[1], dir[2]);
     pos += geometryStepLength * dir;
 
     // Set boundary state in navState so the next step and secondaries get the
@@ -121,15 +129,19 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
+#ifdef ADEPT_USE_SURF
+        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState); 
+#else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
-
+#endif
         // Move to the next boundary.
         navState = nextState;
+        //printf("  -> pvol=%d pos={%g, %g, %g} \n", navState.TopId(), pos[0], pos[1], pos[2]);
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
 #ifndef ADEPT_USE_SURF
-        const int nextlvolID          = navState.Top()->GetLogicalVolume()->id();
+        const int nextlvolID = navState.Top()->GetLogicalVolume()->id();
 #else
-        const int nextlvolID          = navState.GetLogicalId();
+        const int nextlvolID = navState.GetLogicalId();
 #endif
         VolAuxData const &nextauxData = auxDataArray[nextlvolID];
         if (nextauxData.fGPUregion > 0)

@@ -78,8 +78,14 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
     // Check if there's a volume boundary in between.
     vecgeom::NavigationState nextState;
-    double geometryStepLength =
-        AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
+#ifdef ADEPT_USE_SURF
+    long hitsurf_index = -1;
+    double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                         navState, nextState, hitsurf_index, kPush);
+#else
+    double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                         navState, nextState, kPush);
+#endif
     pos += geometryStepLength * dir;
     atomicAdd(&globalScoring->neutralSteps, 1);
 
@@ -106,8 +112,11 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
 
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
+#ifdef ADEPT_USE_SURF
+        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState); 
+#else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
-
+#endif
         // Move to the next boundary.
         navState = nextState;
         survive();
