@@ -66,6 +66,8 @@ void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parent_id, double e
 template <typename IntegrationLayer>
 bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
+  auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+  bool success = true;
 #ifdef ADEPT_USE_SURF
 #ifdef ADEPT_USE_SURF_SINGLE
   using BrepHelper = vgbrep::BrepHelper<float>;
@@ -77,14 +79,17 @@ bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VP
   if (!BrepHelper::Instance().Convert()) return 1;
   BrepHelper::Instance().PrintSurfData();
   std::cout << "== Conversion to surface model done in " << timer.Stop() << " [s]\n";
-#endif
-  // Upload geometry to GPU.
-  auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+  // Upload only navigation table to the GPU
+  cudaManager.SynchronizeNavigationTable();
+#else
+  // Upload solid geometry to GPU.
   cudaManager.LoadGeometry(world);
   auto world_dev = cudaManager.Synchronize();
+  success = world_dev != nullptr;
+#endif
   // Initialize BVH
   InitBVH();
-  return (world_dev != nullptr);
+  return success;
 }
 
 template <typename IntegrationLayer>
@@ -168,7 +173,9 @@ template <typename IntegrationLayer>
 void AdePTTransport<IntegrationLayer>::InitBVH()
 {
   vecgeom::BVHManager::Init();
+#ifndef ADEPT_USE_SURF
   vecgeom::BVHManager::DeviceInit();
+#endif
 }
 
 template <typename IntegrationLayer>

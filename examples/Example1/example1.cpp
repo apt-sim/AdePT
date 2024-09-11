@@ -22,6 +22,8 @@ int main(int argc, char **argv)
   G4String batchMacroName;
   G4bool useInteractiveMode = true;
   G4bool useAdePT           = true;
+  G4bool allSensitive = false; // If set, ignores the sensitive detector flags in the GDML and marks all volumes as
+                               // sensitive. Useful for validation of geometries with no SD info
   G4String helpMsg("Usage: " + G4String(argv[0]) +
                    " [option(s)] \n No additional arguments triggers an interactive mode "
                    "executing vis.mac macro. \n Options:\n\t-h\t\tdisplay this help "
@@ -37,6 +39,8 @@ int main(int argc, char **argv)
       ++i;
     } else if (argument == "--noadept") {
       useAdePT = false;
+    } else if (argument == "--allsensitive") {
+      allSensitive = true;
     } else {
       G4Exception("main", "Unknown argument", FatalErrorInArgument,
                   ("Unknown argument passed to " + G4String(argv[0]) + " : " + argument + "\n" + helpMsg).c_str());
@@ -45,34 +49,32 @@ int main(int argc, char **argv)
 
   // Initialization of default Run manager
   auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);
-  //auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial);
+  // auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial);
 
   // Detector geometry:
-  auto detector = new DetectorConstruction();
+  auto detector = new DetectorConstruction(allSensitive);
   runManager->SetUserInitialization(detector);
 
- // Physics list
- //
- G4VUserPhysicsList *physicsList;
+  // Physics list
+  //
+  G4VUserPhysicsList *physicsList;
 
- if(useAdePT){
-  physicsList = new FTFP_BERT_AdePT();
- }
- else{
-  physicsList = new FTFP_BERT_HepEm();
- }
+  if (useAdePT) {
+    physicsList = new FTFP_BERT_AdePT();
+  } else {
+    physicsList = new FTFP_BERT_HepEm();
+  }
 
- runManager->SetUserInitialization(physicsList);
+  runManager->SetUserInitialization(physicsList);
 
- // reduce verbosity of physics lists
- G4EmParameters::Instance()->SetVerbose(0);
- G4HadronicProcessStore::Instance()->SetVerbose(0);
+  // reduce verbosity of physics lists
+  G4EmParameters::Instance()->SetVerbose(0);
+  G4HadronicProcessStore::Instance()->SetVerbose(0);
 
   //-------------------------------
   // UserAction classes
   //-------------------------------
-  runManager->SetUserInitialization(
-    new ActionInitialisation());
+  runManager->SetUserInitialization(new ActionInitialisation());
 
   G4UImanager *UImanager = G4UImanager::GetUIpointer();
   G4String command       = "/control/execute ";

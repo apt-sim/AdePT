@@ -7,8 +7,6 @@
 
 #include <AdePT/copcore/PhysicalConstants.h>
 
-#define NOFLUCTUATION
-
 // Classes for Runge-Kutta integration
 #include <AdePT/magneticfield/MagneticFieldEquation.h>
 #include <AdePT/magneticfield/DormandPrinceRK45.h>
@@ -90,10 +88,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     auto pos            = currentTrack.pos;
     auto dir            = currentTrack.dir;
     auto navState       = currentTrack.navState;
-    const auto volume   = navState.Top();
-    const int volumeID  = volume->id();
+#ifndef ADEPT_USE_SURF
+    const int volumeID  = navState.Top()->GetLogicalVolume()->id();
+#else
+    const int volumeID  = navState.GetLogicalId();
+#endif
+
     // the MCC vector is indexed by the logical volume id
-    const int theMCIndex = MCIndex[volume->GetLogicalVolume()->id()];
+    const int theMCIndex = MCIndex[volumeID];
 
     auto survive = [&] {
       currentTrack.energy   = energy;
@@ -213,8 +215,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       constexpr Precision thresholdDiff = 3.0e-3;
       bool diffLength = false, badPosition = false, badDirection = false;
       vecgeom::NavigationState &currNavState = navState;
-      bool sameLevel                       = nextState.GetLevel() == nextStateHx.GetLevel();
-      bool sameIndex                       = nextState.GetNavIndex() == nextStateHx.GetNavIndex();
+      bool sameLevel                         = nextState.GetLevel() == nextStateHx.GetLevel();
+      bool sameIndex                         = nextState.GetNavIndex() == nextStateHx.GetNavIndex();
 
       if (std::fabs(helixStepLength - geometryStepLength) > 1.0e-4 * helixStepLength) {
         bool sameNextVol = (nextState.GetLevel() == nextStateHx.GetLevel()) &&
@@ -247,8 +249,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       }
 #endif
     } else {
-      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
-                                                                  nextState, kPush);
+      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                    navState, nextState, kPush);
       pos += geometryStepLength * dir;
     }
 
@@ -353,7 +355,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       atomicAdd(&globalScoring->hits, 1);
 
       // Kill the particle if it left the world.
-      if (nextState.Top() != nullptr) {
+      if (!nextState.IsOutside()) {
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
