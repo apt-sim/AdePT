@@ -27,6 +27,7 @@
 #include <G4HepEmElectronInteractionIoni.icc>
 #include <G4HepEmElectronInteractionUMSC.icc>
 #include <G4HepEmPositronInteractionAnnihilation.icc>
+#include <G4HepEmElectronEnergyLossFluctuation.icc>
 
 #ifdef CHECK_RESULTS
 #include "CompareResponses.h"
