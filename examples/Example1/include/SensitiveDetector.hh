@@ -33,6 +33,7 @@
 #include "SimpleHit.hh"
 
 #include "G4VSensitiveDetector.hh"
+#include <set>
 
 class G4HCofThisEvent;
 class G4TouchableHistory;

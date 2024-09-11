@@ -313,7 +313,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
 #ifdef ADEPT_USE_SURF
-        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState); 
+        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
+        if (nextState.IsOutside()) continue;
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif

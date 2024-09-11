@@ -131,6 +131,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (!nextState.IsOutside()) {
 #ifdef ADEPT_USE_SURF
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState); 
+        if (nextState.IsOutside()) continue;
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif

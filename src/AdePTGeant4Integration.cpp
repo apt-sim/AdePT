@@ -280,13 +280,13 @@ void AdePTGeant4Integration::ProcessGPUHits(HostScoring &aScoring, HostScoring::
     // Get Hit index (Circular buffer)
     int aHitIdx = i % aScoring.fBufferCapacity;
 
-    int aNavindex = aScoring.fGPUHitsBuffer_host[aHitIdx].fPreStepPoint.fNavigationStateIndex;
+    vecgeom::NavigationState &aNavState = aScoring.fGPUHitsBuffer_host[aHitIdx].fPreStepPoint.fNavigationState;
     // Reconstruct Pre-Step point G4NavigationHistory
-    FillG4NavigationHistory(aNavindex, fPreG4NavigationHistory);
+    FillG4NavigationHistory(aNavState, fPreG4NavigationHistory);
     ((G4TouchableHistory *)fPreG4TouchableHistoryHandle())
         ->UpdateYourself(fPreG4NavigationHistory->GetTopVolume(), fPreG4NavigationHistory);
     // Reconstruct Post-Step point G4NavigationHistory
-    FillG4NavigationHistory(aNavindex, fPostG4NavigationHistory);
+    FillG4NavigationHistory(aNavState, fPostG4NavigationHistory);
     ((G4TouchableHistory *)fPostG4TouchableHistoryHandle())
         ->UpdateYourself(fPostG4NavigationHistory->GetTopVolume(), fPostG4NavigationHistory);
 
@@ -317,13 +317,12 @@ void AdePTGeant4Integration::ProcessGPUHits(HostScoring &aScoring, HostScoring::
   }
 }
 
-void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4NavigationHistory *aG4NavigationHistory)
+void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory *aG4NavigationHistory)
 {
   // Get the current depth of the history (corresponding to the previous reconstructed touchable)
   auto aG4HistoryDepth = aG4NavigationHistory->GetDepth();
   // Get the depth of the navigation state we want to reconstruct
-  vecgeom::NavigationState vgState(aNavIndex);
-  auto aVecGeomLevel = vgState.GetLevel();
+  auto aVecGeomLevel = aNavState.GetLevel();
 
   unsigned int aLevel{0};
   G4VPhysicalVolume *pvol{nullptr}, *pnewvol{nullptr};
@@ -331,7 +330,7 @@ void AdePTGeant4Integration::FillG4NavigationHistory(unsigned int aNavIndex, G4N
   for (aLevel = 0; aLevel <= aVecGeomLevel; aLevel++) {
     // While we are in levels shallower than the history depth, it may be that we already
     // have the correct volume in the history
-    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[vgState.At(aLevel)->id()]);
+    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[aNavState.At(aLevel)->id()]);
 
     if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
       pvol = aG4NavigationHistory->GetVolume(aLevel);
