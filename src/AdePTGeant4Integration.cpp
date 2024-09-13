@@ -202,32 +202,17 @@ void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
 
-  // Used to keep track of the current vecgeom history while visiting the tree
-  std::vector<vecgeom::VPlacedVolume const *> aCurrentVecgeomHistory;
-  // Used to keep track of the current geant4 history while visiting the tree
-  std::vector<G4VPhysicalVolume const *> aCurrentGeant4History;
-
   // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
   typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
   func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
     const auto g4_lvol = g4_pvol->GetLogicalVolume();
     const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
-    aCurrentVecgeomHistory.push_back(vg_pvol);
-    aCurrentGeant4History.push_back(g4_pvol);
+    // Initialize mapping of Vecgeom PlacedVolume IDs to G4 PhysicalVolume IDs
+    // Though we only record and reconstruct hits for sensitive volumes, this map needs to store every
+    // volume in the geometry, as a step may begin in a sensitive volume and end in a non-sensitive one
+    fglobal_vecgeom_to_g4_map.insert(std::pair<int, const G4VPhysicalVolume *>(vg_pvol->id(), g4_pvol));
 
-    // If the volume is sensitive:
-    if (volAuxData[vg_lvol->id()].fSensIndex == 1) {
-      // Initialize mapping of Vecgeom sensitive PlacedVolume IDs to G4 PhysicalVolume IDs
-      // In order to be able to reconstruct navigation histories based on a VecGeom Navigation State Index,
-      // we need to map not only the sensitive volume, but also the ones leading up to here
-      for (uint i = 0; i < aCurrentVecgeomHistory.size() - 1; i++) {
-        fglobal_vecgeom_to_g4_map.insert(
-            std::pair<int, const G4VPhysicalVolume *>(aCurrentVecgeomHistory[i]->id(), aCurrentGeant4History[i]));
-      }
-      bool new_pvol =
-          fglobal_vecgeom_to_g4_map.insert(std::pair<int, const G4VPhysicalVolume *>(vg_pvol->id(), g4_pvol)).second;
-    }
     // Now do the daughters
     for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
       auto g4pvol_d = g4_lvol->GetDaughter(id);
@@ -240,8 +225,6 @@ void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
                                  std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
       visitGeometry(g4pvol_d, pvol_d);
     }
-    aCurrentVecgeomHistory.pop_back();
-    aCurrentGeant4History.pop_back();
   };
   visitGeometry(g4world, vecgeomWorld);
 }
