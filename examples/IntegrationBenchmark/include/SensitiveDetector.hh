@@ -29,6 +29,7 @@
 #define SENSITIVEDETECTOR_HH
 
 #include <unordered_map>
+#include <set>
 #include "SimpleHit.hh"
 
 #include "G4VFastSimSensitiveDetector.hh"
