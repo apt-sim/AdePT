@@ -15,7 +15,7 @@ struct GPUStepPoint {
   double fEKin;
   double fCharge;
   // Data needed to reconstruct G4 Touchable history
-  NavIndex_t fNavigationStateIndex{0}; // VecGeom navigation state index, used to identify the touchable
+  vecgeom::NavigationState fNavigationState{0}; // VecGeom navigation state, used to identify the touchable
 };
 
 // Stores the necessary data to reconstruct GPU hits on the host , and

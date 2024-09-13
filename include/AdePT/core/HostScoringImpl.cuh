@@ -169,14 +169,14 @@ namespace adept_scoring
     aGPUHit->fStepLength         = aStepLength;
     aGPUHit->fTotalEnergyDeposit = aTotalEnergyDeposit;
     // Pre step point
-    aGPUHit->fPreStepPoint.fNavigationStateIndex = aPreState->GetNavIndex();
+    aGPUHit->fPreStepPoint.fNavigationState = *aPreState;
     Copy3DVector(aPrePosition, &(aGPUHit->fPreStepPoint.fPosition));
     Copy3DVector(aPreMomentumDirection, &(aGPUHit->fPreStepPoint.fMomentumDirection));
     // Copy3DVector(aPrePolarization, aGPUHit.fPreStepPoint.fPolarization);
     aGPUHit->fPreStepPoint.fEKin   = aPreEKin;
     aGPUHit->fPreStepPoint.fCharge = aPreCharge;
     // Post step point
-    aGPUHit->fPostStepPoint.fNavigationStateIndex = aPostState->GetNavIndex();
+    aGPUHit->fPostStepPoint.fNavigationState = *aPostState;
     Copy3DVector(aPostPosition, &(aGPUHit->fPostStepPoint.fPosition));
     Copy3DVector(aPostMomentumDirection, &(aGPUHit->fPostStepPoint.fMomentumDirection));
     // Copy3DVector(aPostPolarization, aGPUHit.fPostStepPoint.fPolarization);

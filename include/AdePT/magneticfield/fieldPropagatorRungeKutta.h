@@ -24,8 +24,8 @@ public:
   static inline __host__ __device__ __host__ __device__ Real_t ComputeStepAndNextVolume(
       Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep,
       vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
-      vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, bool &propagated,
-      const Real_t & /*safety*/, const int max_iterations, int &iterDone, int threadId);
+      vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
+      bool &propagated, const Real_t & /*safety*/, const int max_iterations, int &iterDone, int threadId);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
 protected:
@@ -192,9 +192,9 @@ inline __host__ __device__ Real_t
 fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStepAndNextVolume(
     Field_t const &magField, double kinE, double mass, int charge, double physicsStep,
     vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
-    vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, bool &propagated,
-    const Real_t & /*safety*/,               //  eventually In/Out ?
-    const int max_iterations, int &itersDone //  useful for now - to monitor and report -- unclear if needed later
+    vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
+    bool &propagated, const Real_t & /*safety*/, //  eventually In/Out ?
+    const int max_iterations, int &itersDone     //  useful for now - to monitor and report -- unclear if needed later
     ,
     int indx)
 {
@@ -225,7 +225,12 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
   bool found_end = false;
 
   if (inZeroFieldRegion) {
+#ifdef ADEPT_USE_SURF
+    stepDone = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state,
+                                                     hitsurf_index, kPush);
+#else
     stepDone = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
+#endif
     position += stepDone * direction;
   } else {
     bool continueIteration = false;
@@ -254,8 +259,13 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 
       // Check Intersection
       //-- vecgeom::Vector3D<Real_t> ChordDir= (1.0/chordDist) * ChordVec;
+#ifdef ADEPT_USE_SURF
+      Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordDist, current_state,
+                                                                next_state, hitsurf_index, kPush);
+#else
       Real_t linearStep =
           Navigator_t::ComputeStepAndNextVolume(position, chordVec, chordDist, current_state, next_state, kPush);
+#endif
       Real_t curvedStep;
 
       if (lastWasZero && chordIters >= ReduceIters) {
