@@ -64,6 +64,8 @@ public:
   bool GetTrackInAllRegions() { return fTrackInAllRegions; }
   /// @brief Set Geant4 region to which it applies
   void SetGPURegionNames(std::vector<std::string> *regionNames) { fGPURegionNames = regionNames; }
+  /// @brief Set CUDA device stack limit
+  void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   std::vector<std::string> *GetGPURegionNames() { return fGPURegionNames; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
@@ -83,6 +85,7 @@ private:
   int fNumSensitive{0};                                ///< Total number of sensitive volumes
   int fBufferThreshold{20};                            ///< Buffer threshold for flushing AdePT transport buffer
   int fDebugLevel{1};                                  ///< Debug level
+  int fCUDAStackLimit{0};                              ///< CUDA device stack limit
   GPUstate *fGPUstate{nullptr};                        ///< CUDA state placeholder
   AdeptScoring *fScoring{nullptr};                     ///< User scoring object
   AdeptScoring *fScoring_dev{nullptr};                 ///< Device ptr for scoring data

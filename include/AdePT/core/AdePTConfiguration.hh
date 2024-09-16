@@ -21,32 +21,35 @@ public:
   void SetMillionsOfTrackSlots(double millionSlots) { fMillionsOfTrackSlots = millionSlots; }
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
+  void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
 
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
 
   bool GetTrackInAllRegions() { return fTrackInAllRegions; }
-  std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetVerbosity() { return fVerbosity; };
   int GetTransportBufferThreshold() { return fTransportBufferThreshold; }
+  int GetCUDAStackLimit() { return fCUDAStackLimit; }
+  float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
-  float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
+  std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
 
   // Temporary
   std::string GetVecGeomGDML() { return fVecGeomGDML; }
 
 private:
-  int fRandomSeed;
   bool fTrackInAllRegions{false};
-  std::vector<std::string> fGPURegionNames{};
   bool fAdePTActivated{true};
+  int fRandomSeed;
   int fVerbosity{0};
   int fTransportBufferThreshold{200};
+  int fCUDAStackLimit{0};
+  float fHitBufferFlushThreshold{0.8};
   double fMillionsOfTrackSlots{1};
   double fMillionsOfHitSlots{1};
-  float fHitBufferFlushThreshold{0.8};
+  std::vector<std::string> fGPURegionNames{};
 
   std::string fVecGeomGDML{""};
 

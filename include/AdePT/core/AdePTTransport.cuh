@@ -144,9 +144,9 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.navState.SetBoundaryState(true);
     // nextState is initialized as needed.
 #ifndef ADEPT_USE_SURF
-    int lvolID  = track.navState.Top()->GetLogicalVolume()->id();
+    int lvolID = track.navState.Top()->GetLogicalVolume()->id();
 #else
-    int lvolID  = track.navState.GetLogicalId();
+    int lvolID = track.navState.GetLogicalId();
 #endif
     assert(auxDataArray[lvolID].fGPUregion);
   }
@@ -202,8 +202,6 @@ __global__ void ClearLeakedQueues(LeakedTracks all)
 
 bool InitializeField(double bz)
 {
-  // Try 16384 if debug mode is crashing
-  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(8192 * 2));
   // Initialize field
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(BzFieldValue, &bz, sizeof(double)));
   return true;
@@ -225,13 +223,9 @@ void PrepareLeakedBuffers(int numLeaked, adeptint::TrackBuffer &buffer, GPUstate
   }
 }
 
-GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatch)
+void CopySurfaceModelToGPU()
 {
-  using TrackData   = adeptint::TrackData;
-  auto gpuState_ptr = new GPUstate;
-  auto &gpuState    = *gpuState_ptr;
-
-  // Copy surface data to GPU
+// Copy surface data to GPU
 #ifdef ADEPT_USE_SURF
 #ifdef ADEPT_USE_SURF_SINGLE
   using SurfData        = vgbrep::SurfData<float>;
@@ -243,6 +237,13 @@ GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatc
   BrepCudaManager::Instance().TransferSurfData(SurfData::Instance());
   printf("== Surface data transferred to GPU\n");
 #endif
+}
+
+GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatch)
+{
+  using TrackData   = adeptint::TrackData;
+  auto gpuState_ptr = new GPUstate;
+  auto &gpuState    = *gpuState_ptr;
   // Allocate track managers, streams and synchronization events.
   const size_t kQueueSize = MParrayTracks::SizeOfInstance(capacity);
   // Create a stream to synchronize kernels of all particle types.

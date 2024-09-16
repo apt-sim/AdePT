@@ -32,6 +32,7 @@ void AdePTTrackingManager::InitializeAdePT()
   fAdeptTransport->SetMaxBatch(2 * fAdePTConfiguration->GetTransportBufferThreshold());
   fAdeptTransport->SetTrackInAllRegions(fAdePTConfiguration->GetTrackInAllRegions());
   fAdeptTransport->SetGPURegionNames(fAdePTConfiguration->GetGPURegionNames());
+  fAdeptTransport->SetCUDAStackLimit(fAdePTConfiguration->GetCUDAStackLimit());
 
   // Check if this is a sequential run
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
