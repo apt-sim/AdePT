@@ -16,22 +16,22 @@
 ##
 /adept/setSeed 1
 
-/detector/filename cms2018_sd.gdml
+/detector/filename @GDML@
 # Temporary workaround since we don't have a G4 to VecGeom converter
-/adept/setVecGeomGDML cms2018_sd.gdml
+/adept/setVecGeomGDML @GDML@
 /adept/setVerbosity 0
 ## Threshold for buffering tracks before sending to GPU
 /adept/setTransportBufferThreshold 2000
 ## Total number of GPU track slots (not per thread)
-/adept/setMillionsOfTrackSlots 8
+/adept/setMillionsOfTrackSlots 1
 /adept/setMillionsOfHitSlots 1
-# /adept/setCUDAStackLimit 4096
+/adept/setCUDAStackLimit 8192
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true
 # In order to do the GPU transport only in specific regions
-#/adept/addGPURegion EcalRegion
-#/adept/addGPURegion HcalRegion
+/adept/addGPURegion EcalRegion
+/adept/addGPURegion HcalRegion
 
 
 ## -----------------------------------------------------------------------------
@@ -49,11 +49,22 @@
 ## User-defined Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
 /eventAction/verbose 2
 
-/gun/hepmc
-/generator/hepmcAscii/maxevents 256
-/generator/hepmcAscii/firstevent 0
-/generator/hepmcAscii/open ppttbar.hepmc3
-/generator/hepmcAscii/verbose 0
+/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 200
+/gun/position 0 0 0
+/gun/print true
+
+# If false, the following parameters are ignored
+/gun/randomizeGun true
+# Usage: /gun/addParticle type ["weight" weight] ["energy" energy unit]
+/gun/addParticle e- weight 1 energy 10 GeV
+/gun/addParticle proton weight 0 energy 10 GeV
+/gun/minPhi 0 deg
+/gun/maxPhi 360 deg
+/gun/minTheta 10 deg
+/gun/maxTheta 170 deg
 
 ## -----------------------------------------------------------------------------
 ## Run the simulation with the given number of events and print list of processes
@@ -63,5 +74,5 @@
 
 # run events with parametrised simulation
 # by default all created models are active
-/run/beamOn 8
+/run/beamOn 1
 

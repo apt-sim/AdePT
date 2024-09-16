@@ -58,6 +58,9 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
 
   fSetGDMLCmd = new G4UIcmdWithAString("/adept/setVecGeomGDML", this);
   fSetGDMLCmd->SetGuidance("Temporary method for setting the geometry to use with VecGeom");
+
+  fSetCUDAStackLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAStackLimit", this);
+  fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -66,6 +69,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
 {
   delete fDir;
   delete fSetSeedCmd;
+  delete fSetCUDAStackLimitCmd;
   delete fSetTrackInAllRegionsCmd;
   delete fAddRegionCmd;
   delete fActivateAdePTCmd;
@@ -101,6 +105,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetHitBufferFlushThreshold(fSetHitBufferFlushThresholdCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetGDMLCmd) {
     fAdePTConfiguration->SetVecGeomGDML(newValue);
+  } else if (command == fSetCUDAStackLimitCmd) {
+    fAdePTConfiguration->SetCUDAStackLimit(fSetCUDAStackLimitCmd->GetNewIntValue(newValue));
   }
 }
 

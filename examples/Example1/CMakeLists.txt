@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2023 CERN
 # SPDX-License-Identifier: Apache-2.0
 
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
+
 if(NOT TARGET G4HepEm::g4HepEm)
   message(STATUS "Disabling example1 (needs G4HepEm)")
   return()
@@ -65,6 +67,7 @@ target_link_libraries(example1
 # Install macros and geometry file
 SET(GDML ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 configure_file("macros/example1.mac.in" "${PROJECT_BINARY_DIR}/example1.mac")
+configure_file("macros/example1_large_stack.mac.in" "${PROJECT_BINARY_DIR}/example1_large_stack.mac")
 configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
 configure_file("macros/example1_ttbar_LHCb.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_LHCb.mac")
 configure_file("macros/example1_ttbar_noadept.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_noadept.mac")
@@ -72,5 +75,5 @@ configure_file("macros/example1_ttbar_noadept.mac.in" "${PROJECT_BINARY_DIR}/exa
 # Tests
 
 add_test(NAME example1
-  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
+  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1_large_stack.mac
 )
