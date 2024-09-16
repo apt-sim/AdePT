@@ -25,7 +25,7 @@
 ## Total number of GPU track slots (not per thread)
 /adept/setMillionsOfTrackSlots 1
 /adept/setMillionsOfHitSlots 1
-/adept/setCUDAStackLimit 4096
+/adept/setCUDAStackLimit 8192
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true
