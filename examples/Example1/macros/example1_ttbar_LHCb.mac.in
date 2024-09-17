@@ -7,7 +7,7 @@
 ## Geant4 macro for modelling simplified sampling calorimeters
 ## =============================================================================
 ##
-/run/numberOfThreads 1
+/run/numberOfThreads 8
 /control/verbose 0
 /run/verbose 0
 /process/verbose 0
@@ -26,7 +26,7 @@
 /adept/setMillionsOfTrackSlots 8
 /adept/setMillionsOfHitSlots 1
 ## Device stack limit
-# /adept/setCUDAStackLimit 4096
+/adept/setCUDAStackLimit 4096
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true

@@ -10,7 +10,11 @@
 #include <AdePT/navigation/AdePTNavigator.h>
 #include <AdePT/base/MParray.h>
 #include <AdePT/kernels/electrons.cuh>
-#include <AdePT/kernels/gammas.cuh>
+// #include <AdePT/kernels/gammas.cuh>
+
+
+#include <AdePT/kernels/gammas_experimental.cuh>
+
 
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
@@ -407,8 +411,21 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
-      TransportGammas<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
+      Physics1<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+        gammas.trackmgr, VolAuxArray::GetInstance().fAuxData_dev
+      );
+      Transport1<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+        gammas.trackmgr, VolAuxArray::GetInstance().fAuxData_dev
+      );
+      Relocation<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+        gammas.trackmgr, gammas.leakedTracks, VolAuxArray::GetInstance().fAuxData_dev
+      );
+      Physics2<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+        gammas.trackmgr, secondaries, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev
+      );
+
+      // TransportGammas<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+      //     gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
 
       COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));

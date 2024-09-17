@@ -17,9 +17,11 @@ struct Track {
   using Precision = vecgeom::Precision;
 
   int parentID{0}; // Stores the track id of the initial particle given to AdePT
+  int hitsurfID{0};
 
   RanluxppDouble rngState;
   double eKin;
+  double preStepEKin;
   double numIALeft[3];
   double initialRange;
   double dynamicRangeFactor;
@@ -30,8 +32,22 @@ struct Track {
   double properTime{0};
 
   vecgeom::Vector3D<Precision> pos;
+  vecgeom::Vector3D<Precision> preStepPos;
   vecgeom::Vector3D<Precision> dir;
+  vecgeom::Vector3D<Precision> preStepDir;
   vecgeom::NavigationState navState;
+  vecgeom::NavigationState nextState;
+  vecgeom::NavigationState preStepNavState;
+
+  // Variables used to store navigation results
+  bool reachedInteractionPoint{false};
+  double geometryStepLength{0};
+
+  // Variables used to store physics results from G4HepEM
+  double geometricalStepLengthFromPhysics{0};
+  int winnerProcessIndex{0};
+  double preStepMFPs[3];
+  double PEmxSec{0};
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
