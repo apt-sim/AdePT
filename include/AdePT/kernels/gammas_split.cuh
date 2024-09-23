@@ -18,17 +18,20 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
-__global__ void Physics1(adept::TrackManager<Track> *gammas, VolAuxData const *auxDataArray)
+using VolAuxData = adeptint::VolAuxData;
+
+__global__ void GammaHowFar(adept::TrackManager<Track> *gammas, G4HepEmGammaTrack *hepEMTracks,
+                            VolAuxData const *auxDataArray)
 {
   int activeSize = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*gammas->fActiveTracks)[i];
     Track &currentTrack = (*gammas)[slot];
     // Save current values for scoring
-    currentTrack.preStepEKin = currentTrack.eKin;
-    currentTrack.preStepPos  = currentTrack.pos;
-    currentTrack.preStepDir  = currentTrack.dir;
-    currentTrack.preStepNavState  = currentTrack.navState;
+    currentTrack.preStepEKin     = currentTrack.eKin;
+    currentTrack.preStepPos      = currentTrack.pos;
+    currentTrack.preStepDir      = currentTrack.dir;
+    currentTrack.preStepNavState = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
 #ifndef ADEPT_USE_SURF
     int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
@@ -38,8 +41,8 @@ __global__ void Physics1(adept::TrackManager<Track> *gammas, VolAuxData const *a
     VolAuxData const &auxData = auxDataArray[lvolID];
 
     // Init a track with the needed data to call into G4HepEm.
-    G4HepEmGammaTrack gammaTrack;
-    G4HepEmTrack *theTrack = gammaTrack.GetTrack();
+    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
     theTrack->SetEKin(currentTrack.eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
 
@@ -54,50 +57,36 @@ __global__ void Physics1(adept::TrackManager<Track> *gammas, VolAuxData const *a
 
     // Call G4HepEm to compute the physics step limit.
     G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
-
-    // Save the info we need from the G4HepEM track
-    currentTrack.geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
-    currentTrack.winnerProcessIndex               = theTrack->GetWinnerProcessIndex();
-    currentTrack.PEmxSec                          = gammaTrack.GetPEmxSec();
-    currentTrack.preStepMFPs[0]                   = theTrack->GetMFP(0);
-    currentTrack.preStepMFPs[1]                   = theTrack->GetMFP(1);
-    currentTrack.preStepMFPs[2]                   = theTrack->GetMFP(2);
   }
 }
 
-__global__ void Transport1(adept::TrackManager<Track> *gammas, VolAuxData const *auxDataArray)
+__global__ void GammaPropagation(adept::TrackManager<Track> *gammas, G4HepEmGammaTrack *hepEMTracks,
+                                 VolAuxData const *auxDataArray)
 {
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
   const Precision kPush = 0.;
 #endif
-//   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-//   constexpr int Pdg                  = 22;
-  int activeSize                     = gammas->fActiveTracks->size();
+  int activeSize = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*gammas->fActiveTracks)[i];
     Track &currentTrack = (*gammas)[slot];
-
-    // auto survive = [&](bool leak = false) {
-    //   adeptint::TrackData trackdata;
-    //   currentTrack.CopyTo(trackdata, Pdg);
-    //   if (leak)
-    //     leakedQueue->push_back(trackdata);
-    //   else
-    //     gammas->fNextTracks->push_back(slot);
-    // };
+    // Retrieve the HepEM Track
+    G4HepEmTrack *theTrack = hepEMTracks[slot].GetTrack();
 
     // Check if there's a volume boundary in between.
     vecgeom::NavigationState nextState;
     double geometryStepLength;
 #ifdef ADEPT_USE_SURF
     long hitsurf_index = -1;
-    geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.geometricalStepLengthFromPhysics, currentTrack.navState,
-                                                                  nextState, hitsurf_index, kPush);
+    geometryStepLength =
+        AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
+                                                 currentTrack.navState, nextState, hitsurf_index, kPush);
+    currentTrack.hitsurfID = hitsurf_index;
 #else
-    geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.geometricalStepLengthFromPhysics, currentTrack.navState,
-                                                                  nextState, kPush);
+    geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(
+        currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(), currentTrack.navState, nextState, kPush);
 #endif
     currentTrack.pos += geometryStepLength * currentTrack.dir;
 
@@ -109,41 +98,32 @@ __global__ void Transport1(adept::TrackManager<Track> *gammas, VolAuxData const 
     // in case of a boundary; see below)
     currentTrack.navState.SetBoundaryState(nextState.IsOnBoundary());
 
-    // Now init a G4HepEM track with the info it needs to update the the number-of-interaction-left
-    G4HepEmTrack theTrack;
-    theTrack.SetGStepLength(geometryStepLength);
-    theTrack.SetOnBoundary(nextState.IsOnBoundary());
-    for (int i = 0; i < 3; i++) {
-      theTrack.SetMFP(currentTrack.preStepMFPs[i], i);
-      theTrack.SetNumIALeft(currentTrack.numIALeft[i], i);
-    }
+    // Propagate information from geometrical step to G4HepEm.
+    theTrack->SetGStepLength(geometryStepLength);
+    theTrack->SetOnBoundary(nextState.IsOnBoundary());
+
     // Update the number-of-interaction-left
-    G4HepEmGammaManager::UpdateNumIALeft(&theTrack);
+    G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft           = theTrack.GetNumIALeft(ip);
+      double numIALeft           = theTrack->GetNumIALeft(ip);
       currentTrack.numIALeft[ip] = numIALeft;
     }
 
     // Update the flight times of the particle
-    double deltaTime = theTrack.GetGStepLength() / copcore::units::kCLight;
+    double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
     currentTrack.globalTime += deltaTime;
     currentTrack.localTime += deltaTime;
-  
-    // Save the hitsurf index and the next state in the track
-    currentTrack.hitsurfID = hitsurf_index;
+
+    // Save the next state in the track
     currentTrack.nextState = nextState;
   }
 }
 
-__global__ void Relocation(adept::TrackManager<Track> *gammas, MParrayTracks *leakedQueue, VolAuxData const *auxDataArray)
+__global__ void GammaRelocation(adept::TrackManager<Track> *gammas, MParrayTracks *leakedQueue,
+                                VolAuxData const *auxDataArray)
 {
-// #ifdef VECGEOM_FLOAT_PRECISION
-//   const Precision kPush = 10 * vecgeom::kTolerance;
-// #else
-//   const Precision kPush = 0.;
-// #endif
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Pdg                  = 22;
   int activeSize                     = gammas->fActiveTracks->size();
@@ -165,11 +145,12 @@ __global__ void Relocation(adept::TrackManager<Track> *gammas, MParrayTracks *le
     // For now (experimental kernels) I just mark it in the track, and in the next kernel we just
     // return inmediately (but ideally we won't even give those tracks to the kernel)
     if (currentTrack.nextState.IsOnBoundary()) {
-      currentTrack.reachedInteractionPoint = false;
+      currentTrack.restrictedPhysicalStepLength = true;
       // Kill the particle if it left the world.
       if (!currentTrack.nextState.IsOutside()) {
 #ifdef ADEPT_USE_SURF
-        AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.hitsurfID, currentTrack.nextState);
+        AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.hitsurfID,
+                                             currentTrack.nextState);
         if (currentTrack.nextState.IsOutside()) continue;
 #else
         AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
@@ -194,19 +175,22 @@ __global__ void Relocation(adept::TrackManager<Track> *gammas, MParrayTracks *le
       }
       continue;
     } else {
-      currentTrack.reachedInteractionPoint = true;
+      currentTrack.restrictedPhysicalStepLength = false;
     }
   }
 }
 
 template <typename Scoring>
-__global__ void Physics2(adept::TrackManager<Track> *gammas, Secondaries secondaries, Scoring *userScoring,
-                   VolAuxData const *auxDataArray)
+__global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGammaTrack *hepEMTracks,
+                                  Secondaries secondaries, Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   int activeSize = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*gammas->fActiveTracks)[i];
     Track &currentTrack = (*gammas)[slot];
+    // Retrieve the HepEM Track
+    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
 #ifndef ADEPT_USE_SURF
     int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
@@ -218,20 +202,24 @@ __global__ void Physics2(adept::TrackManager<Track> *gammas, Secondaries seconda
     auto survive = [&]() { gammas->fNextTracks->push_back(slot); };
 
     // Temporary solution
-    if (!currentTrack.reachedInteractionPoint) {
+    if (currentTrack.restrictedPhysicalStepLength) {
+      continue;
+    }
+
+    if (theTrack->GetWinnerProcessIndex() < 0) {
       continue;
     }
 
     // Reset number of interaction left for the winner discrete process.
     // (Will be resampled in the next iteration.)
-    currentTrack.numIALeft[currentTrack.winnerProcessIndex] = -1.0;
+    currentTrack.numIALeft[theTrack->GetWinnerProcessIndex()] = -1.0;
 
     // Perform the discrete interaction.
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-    switch (currentTrack.winnerProcessIndex) {
+    switch (theTrack->GetWinnerProcessIndex()) {
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (currentTrack.eKin < 2 * copcore::units::kElectronMassC2) {
@@ -298,22 +286,22 @@ __global__ void Physics2(adept::TrackManager<Track> *gammas, Secondaries seconda
       } else {
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring,
-                                 currentTrack.parentID, // Track ID
-                                 2,                               // Particle type
-                                 currentTrack.geometryStepLength, // Step length
-                                 0,                               // Total Edep
-                                 &currentTrack.preStepNavState,          // Pre-step point navstate
-                                 &currentTrack.preStepPos,        // Pre-step point position
-                                 &currentTrack.preStepDir,        // Pre-step point momentum direction
-                                 nullptr,                         // Pre-step point polarization
-                                 currentTrack.preStepEKin,        // Pre-step point kinetic energy
-                                 0,                               // Pre-step point charge
-                                 &currentTrack.navState,         // Post-step point navstate
-                                 &currentTrack.pos,               // Post-step point position
-                                 &currentTrack.dir,               // Post-step point momentum direction
-                                 nullptr,                         // Post-step point polarization
-                                 newEnergyGamma,                  // Post-step point kinetic energy
-                                 0);                              // Post-step point charge
+                                   currentTrack.parentID,           // Track ID
+                                   2,                               // Particle type
+                                   currentTrack.geometryStepLength, // Step length
+                                   0,                               // Total Edep
+                                   &currentTrack.preStepNavState,   // Pre-step point navstate
+                                   &currentTrack.preStepPos,        // Pre-step point position
+                                   &currentTrack.preStepDir,        // Pre-step point momentum direction
+                                   nullptr,                         // Pre-step point polarization
+                                   currentTrack.preStepEKin,        // Pre-step point kinetic energy
+                                   0,                               // Pre-step point charge
+                                   &currentTrack.navState,          // Post-step point navstate
+                                   &currentTrack.pos,               // Post-step point position
+                                   &currentTrack.dir,               // Post-step point momentum direction
+                                   nullptr,                         // Post-step point polarization
+                                   newEnergyGamma,                  // Post-step point kinetic energy
+                                   0);                              // Post-step point charge
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -324,22 +312,22 @@ __global__ void Physics2(adept::TrackManager<Track> *gammas, Secondaries seconda
       } else {
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring,
-                                 currentTrack.parentID, // Track ID
-                                 2,                               // Particle type
-                                 currentTrack.geometryStepLength, // Step length
-                                 0,                               // Total Edep
-                                 &currentTrack.preStepNavState,          // Pre-step point navstate
-                                 &currentTrack.preStepPos,        // Pre-step point position
-                                 &currentTrack.preStepDir,        // Pre-step point momentum direction
-                                 nullptr,                         // Pre-step point polarization
-                                 currentTrack.preStepEKin,        // Pre-step point kinetic energy
-                                 0,                               // Pre-step point charge
-                                 &currentTrack.navState,         // Post-step point navstate
-                                 &currentTrack.pos,               // Post-step point position
-                                 &currentTrack.dir,               // Post-step point momentum direction
-                                 nullptr,                         // Post-step point polarization
-                                 newEnergyGamma,                  // Post-step point kinetic energy
-                                 0);                              // Post-step point charge
+                                   currentTrack.parentID,           // Track ID
+                                   2,                               // Particle type
+                                   currentTrack.geometryStepLength, // Step length
+                                   0,                               // Total Edep
+                                   &currentTrack.preStepNavState,   // Pre-step point navstate
+                                   &currentTrack.preStepPos,        // Pre-step point position
+                                   &currentTrack.preStepDir,        // Pre-step point momentum direction
+                                   nullptr,                         // Pre-step point polarization
+                                   currentTrack.preStepEKin,        // Pre-step point kinetic energy
+                                   0,                               // Pre-step point charge
+                                   &currentTrack.navState,          // Post-step point navstate
+                                   &currentTrack.pos,               // Post-step point position
+                                   &currentTrack.dir,               // Post-step point momentum direction
+                                   nullptr,                         // Post-step point polarization
+                                   newEnergyGamma,                  // Post-step point kinetic energy
+                                   0);                              // Post-step point charge
         // The current track is killed by not enqueuing into the next activeQueue.
       }
       break;
@@ -349,9 +337,9 @@ __global__ void Physics2(adept::TrackManager<Track> *gammas, Secondaries seconda
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, auxData.fMCIndex, currentTrack.PEmxSec, currentTrack.eKin, &rnge);
+          &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), currentTrack.eKin, &rnge);
+      double edep = bindingEnergy;
 
-      double edep             = bindingEnergy;
       const double photoElecE = currentTrack.eKin - edep;
       if (photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
@@ -370,24 +358,26 @@ __global__ void Physics2(adept::TrackManager<Track> *gammas, Secondaries seconda
       } else {
         edep = currentTrack.eKin;
       }
+
       if (auxData.fSensIndex >= 0)
         adept_scoring::RecordHit(userScoring,
-                               currentTrack.parentID, // Track ID
-                               2,                               // Particle type
-                               currentTrack.geometryStepLength, // Step length
-                               edep,                            // Total Edep
-                               &currentTrack.preStepNavState,          // Pre-step point navstate
-                               &currentTrack.preStepPos,        // Pre-step point position
-                               &currentTrack.preStepDir,        // Pre-step point momentum direction
-                               nullptr,                         // Pre-step point polarization
-                               currentTrack.preStepEKin,        // Pre-step point kinetic energy
-                               0,                               // Pre-step point charge
-                               &currentTrack.navState,         // Post-step point navstate
-                               &currentTrack.pos,               // Post-step point position
-                               &currentTrack.dir,               // Post-step point momentum direction
-                               nullptr,                         // Post-step point polarization
-                               0,                               // Post-step point kinetic energy
-                               0);                              // Post-step point charge
+                                 currentTrack.parentID,           // Track ID
+                                 2,                               // Particle type
+                                 currentTrack.geometryStepLength, // Step length
+                                 edep,                            // Total Edep
+                                 &currentTrack.preStepNavState,   // Pre-step point navstate
+                                 &currentTrack.preStepPos,        // Pre-step point position
+                                 &currentTrack.preStepDir,        // Pre-step point momentum direction
+                                 nullptr,                         // Pre-step point polarization
+                                 currentTrack.preStepEKin,        // Pre-step point kinetic energy
+                                 0,                               // Pre-step point charge
+                                 &currentTrack.navState,          // Post-step point navstate
+                                 &currentTrack.pos,               // Post-step point position
+                                 &currentTrack.dir,               // Post-step point momentum direction
+                                 nullptr,                         // Post-step point polarization
+                                 0,                               // Post-step point kinetic energy
+                                 0);                              // Post-step point charge
+
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }

@@ -74,8 +74,6 @@ configure_file("macros/example1_ttbar_noadept.mac.in" "${PROJECT_BINARY_DIR}/exa
 
 # Tests
 
-string(APPEND CMAKE_CUDA_FLAGS " -Xptxas=-v") 
-
 add_test(NAME example1
   COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1_large_stack.mac
 )

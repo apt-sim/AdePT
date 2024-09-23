@@ -23,10 +23,10 @@
 ## Threshold for buffering tracks before sending to GPU
 /adept/setTransportBufferThreshold 2000
 ## Total number of GPU track slots (not per thread)
-/adept/setMillionsOfTrackSlots 8
+/adept/setMillionsOfTrackSlots 4
 /adept/setMillionsOfHitSlots 1
 ## Device stack limit
-/adept/setCUDAStackLimit 4096
+# /adept/setCUDAStackLimit 4096
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true

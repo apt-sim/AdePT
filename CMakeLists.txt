@@ -48,6 +48,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
+option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 option(WITH_FLUCT "Switch on the energy loss fluctuations" OFF)
 
@@ -82,6 +83,11 @@ endif()
 # Make sure VecGeom::vgdml is enabled
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
+endif()
+# Run split kernels
+if (USE_SPLIT_KERNELS)
+  add_compile_definitions(USE_SPLIT_KERNELS)
+  message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
 endif()
 # Debugging in single-thread mode
 if (DEBUG_SINGLE_THREAD)
@@ -152,8 +158,6 @@ endif()
 if(NOT WITH_FLUCT)
   add_compile_definitions(NOFLUCTUATION)
 endif()
-
-# string(APPEND CMAKE_CUDA_FLAGS " -Xptxas=-v") 
 
 #----------------------------------------------------------------------------#
 # Build Targets

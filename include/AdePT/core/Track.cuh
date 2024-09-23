@@ -8,6 +8,8 @@
 #include <AdePT/copcore/SystemOfUnits.h>
 #include <AdePT/copcore/Ranluxpp.h>
 
+#include <G4HepEmRandomEngine.hh>
+
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavigationState.h>
 
@@ -17,11 +19,9 @@ struct Track {
   using Precision = vecgeom::Precision;
 
   int parentID{0}; // Stores the track id of the initial particle given to AdePT
-  int hitsurfID{0};
 
   RanluxppDouble rngState;
   double eKin;
-  double preStepEKin;
   double numIALeft[3];
   double initialRange;
   double dynamicRangeFactor;
@@ -32,22 +32,29 @@ struct Track {
   double properTime{0};
 
   vecgeom::Vector3D<Precision> pos;
-  vecgeom::Vector3D<Precision> preStepPos;
   vecgeom::Vector3D<Precision> dir;
-  vecgeom::Vector3D<Precision> preStepDir;
   vecgeom::NavigationState navState;
+
+#ifdef USE_SPLIT_KERNELS
+  RanluxppDouble newRNG;
+
+  // Variables used to store track info needed for scoring
+  double preStepEKin;
+  vecgeom::Vector3D<Precision> preStepPos;
+  vecgeom::Vector3D<Precision> preStepDir;
   vecgeom::NavigationState nextState;
   vecgeom::NavigationState preStepNavState;
 
   // Variables used to store navigation results
-  bool reachedInteractionPoint{false};
+  long hitsurfID{0};
+  bool propagated{false};
   double geometryStepLength{0};
+  double safety{0};
 
-  // Variables used to store physics results from G4HepEM
-  double geometricalStepLengthFromPhysics{0};
-  int winnerProcessIndex{0};
-  double preStepMFPs[3];
-  double PEmxSec{0};
+  // Variables used to store results from G4HepEM
+  bool restrictedPhysicalStepLength{false};
+  bool stopped{false};
+#endif
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
