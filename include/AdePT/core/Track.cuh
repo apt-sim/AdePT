@@ -8,17 +8,17 @@
 #include <AdePT/copcore/SystemOfUnits.h>
 #include <AdePT/copcore/Ranluxpp.h>
 
-#include <G4HepEmRandomEngine.hh>
-
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavigationState.h>
+
+#ifdef USE_SPLIT_KERNELS
+#include <G4HepEmRandomEngine.hh>
+#endif
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
   using Precision = vecgeom::Precision;
-
-  int parentID{0}; // Stores the track id of the initial particle given to AdePT
 
   RanluxppDouble rngState;
   double eKin;
@@ -36,25 +36,30 @@ struct Track {
   vecgeom::NavigationState navState;
 
 #ifdef USE_SPLIT_KERNELS
-  RanluxppDouble newRNG;
-
   // Variables used to store track info needed for scoring
-  double preStepEKin;
-  vecgeom::Vector3D<Precision> preStepPos;
-  vecgeom::Vector3D<Precision> preStepDir;
   vecgeom::NavigationState nextState;
   vecgeom::NavigationState preStepNavState;
+  vecgeom::Vector3D<Precision> preStepPos;
+  vecgeom::Vector3D<Precision> preStepDir;
+  RanluxppDouble newRNG;
+  double preStepEKin{0};
 
   // Variables used to store navigation results
-  long hitsurfID{0};
-  bool propagated{false};
   double geometryStepLength{0};
   double safety{0};
+  long hitsurfID{0};
+#endif
+
+  int parentID{0}; // Stores the track id of the initial particle given to AdePT
+
+#ifdef USE_SPLIT_KERNELS
+  bool propagated{false};
 
   // Variables used to store results from G4HepEM
   bool restrictedPhysicalStepLength{false};
   bool stopped{false};
 #endif
+
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 

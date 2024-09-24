@@ -36,8 +36,10 @@
 #include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
+#ifdef USE_SPLIT_KERNELS
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmGammaTrack.hh>
+#endif
 
 #include <iostream>
 #include <iomanip>
