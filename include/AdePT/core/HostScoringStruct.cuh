@@ -22,7 +22,6 @@ struct GPUStepPoint {
 // call the user-defined Geant4 sensitive detector code
 struct GPUHit {
   int fParentID{0}; // Track ID
-  char fParticleType{0}; // Particle type ID
   // Data needed to reconstruct G4 Step
   double fStepLength{0};
   double fTotalEnergyDeposit{0};
@@ -32,6 +31,9 @@ struct GPUHit {
   // Data needed to reconstruct pre-post step points
   GPUStepPoint fPreStepPoint;
   GPUStepPoint fPostStepPoint;
+  unsigned int fEventId{0};
+  short threadId{-1};
+  char fParticleType{0}; // Particle type ID
 };
 
 /// @brief Stores information used for comparison with Geant4 (Number of steps, Number of produced particles, etc)
@@ -65,6 +67,29 @@ struct HostScoring {
     unsigned int fBufferStart; ///< Index of first used hit slot in the buffer
   };
 
+  struct Iterator {
+    std::size_t counter;
+    std::size_t const modulus;
+    GPUHit *const storage;
+
+    GPUHit &operator*() { return storage[counter % modulus]; }
+    Iterator &operator++()
+    {
+      counter++;
+      return *this;
+    }
+    Iterator operator++(int)
+    {
+      Iterator result = *this;
+      counter++;
+      return result;
+    }
+    bool operator!=(Iterator const &other)
+    {
+      return counter != other.counter || modulus != other.modulus || storage != other.storage;
+    }
+  };
+
   HostScoring(unsigned int aBufferCapacity = 1024 * 1024, float aFlushLimit = 0.8)
       : fBufferCapacity(aBufferCapacity), fFlushLimit(aFlushLimit)
   {
@@ -79,6 +104,12 @@ struct HostScoring {
   {
     free(fGPUHitsBuffer_host);
     free(fGlobalCounters_host);
+  }
+
+  Iterator begin() const { return Iterator{fStats.fBufferStart, fBufferCapacity, fGPUHitsBuffer_host}; }
+  Iterator end() const
+  {
+    return Iterator{fStats.fBufferStart + fStats.fUsedSlots, fBufferCapacity, fGPUHitsBuffer_host};
   }
 
   /// @brief Print scoring info
