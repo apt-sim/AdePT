@@ -60,8 +60,9 @@ void EventAction::BeginOfEventAction(const G4Event *)
 
   // Get the Run object associated to this thread and start the timer for this event
   Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-  currentRun->GetTestManager()->timerStart(Run::timers::EVENT);
-
+  if (currentRun->GetDoBenchmark()) {
+    currentRun->GetTestManager()->timerStart(Run::timers::EVENT);
+  }
   // zero the counters
   number_electrons = 0;
   number_positrons = 0;
@@ -98,8 +99,6 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4Exception("EventAction::GetHitsCollection()", "MyCode0001", FatalException, msg);
   }
 
-  ////////////////////////////////////////
-
   if(fDoValidation)
   {
     // Get test manager
@@ -110,13 +109,13 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     for(auto &hit: *hitsCollection->GetVector())
     {
       // Use IDs that won't overlap with other accumulators
-      testManager->addToAccumulator(hit->GetPhysicalVolumeId() + Run::accumulators::NUM_ACCUMULATORS, hit->GetEdep());
+      auto id = hit->GetPhysicalVolumeId() + Run::accumulators::NUM_ACCUMULATORS;
+      testManager->addToAccumulator(id, hit->GetEdep());
     }
 
     // Store test manager
     TestManagerStore<int>::GetInstance()->RecordState(testManager);
   }
-  ////////////////////////////////////////
 
   SimpleHit *hit       = nullptr;
   G4double hitEn       = 0;
@@ -150,22 +149,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
   }
 
-  if (currentRun->GetDoValidation()) {
-    /*
-    //Set an accumulator for each sensitive volume, making sure the ID doesn't collide with the
-    //defined timers
-    for (int igroup = 0; igroup < ngroups; ++igroup) {
-      G4cout << "EndOfEventAction " << eventId << " : group " << std::setw(5) << groups[igroup] << "  edep "
-              << std::setprecision(2) << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " [MeV]\n";
-    }
-    for (int igroup = 0; igroup < ngroups; ++igroup) {
-      aTestManager->setAccumulator(igroup+Run::accumulators::NUM_ACCUMULATORS, edep_groups[igroup]);
-    }
-
-    //Record the current contents of the TestManager in order to be able to extract per-event data
-    TestManagerStore<int>::GetInstance()->RecordState(aTestManager);
-    */
-  } else if (currentRun->GetDoBenchmark()) {
+  if (currentRun->GetDoBenchmark()) {
     // Get the timings
     double eventTime = aTestManager->getDurationSeconds(Run::timers::EVENT);
     double nonEMTime = aTestManager->getAccumulator(Run::accumulators::NONEM_EVT);

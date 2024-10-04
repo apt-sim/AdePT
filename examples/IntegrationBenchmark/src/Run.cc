@@ -75,22 +75,16 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
   for (int i = 0; i < aBenchmarkStates->size(); i++) {
     if (fDoValidation) {
       // If we are taking validation data, export it to the specified file
-      // auto &groups = aDetector->GetSensitiveGroups();
-      // int ngroups  = groups.size();
-      // for (int igroup = 0; igroup < ngroups; ++igroup) {
-      //   aOutputTestManager.setAccumulator(groups[igroup],
-      //                                         (*aBenchmarkStates)[i][igroup + Run::accumulators::NUM_ACCUMULATORS]);
-      // }
-
       // Each benchmark state contains one counter per LogicalVolume
       // Export one CSV containing a list of volume IDs and Edep per event
       for (auto iter = (*aBenchmarkStates)[i].begin(); iter != (*aBenchmarkStates)[i].end(); ++iter) {
-        aOutputTestManager.setAccumulator(std::to_string(iter->first - Run::accumulators::NUM_ACCUMULATORS), iter->second);
+        if(iter->first >= Run::accumulators::NUM_ACCUMULATORS)
+          aOutputTestManager.setAccumulator(std::to_string(iter->first - Run::accumulators::NUM_ACCUMULATORS), iter->second);
       }
       
       aOutputTestManager.setOutputDirectory(aOutputDirectory);
-      aOutputTestManager.setOutputFilename(aOutputFilename + "_evt" + std::to_string(i));
-      aOutputTestManager.exportCSV();
+      aOutputTestManager.setOutputFilename(aOutputFilename);
+      aOutputTestManager.exportCSV(false);
 
       aOutputTestManager.reset();
     } else if (fDoBenchmark) {
