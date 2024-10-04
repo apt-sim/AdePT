@@ -58,11 +58,6 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
     double ecalMean  = fTestManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
     double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fTestManager->getAccumulator(accumulators::ECAL_SQ));
 
-    // TEMP: DELETE THIS
-    double sizeMean = fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE) / GetNumberOfEvent();
-    double sizeStdev =
-        STDEV(GetNumberOfEvent(), sizeMean, fTestManager->getAccumulator(accumulators::EVENT_HIT_COPY_SIZE_SQ));
-
     G4cout << "------------------------------------------------------------"
            << "\n";
     G4cout << "BENCHMARK: Run: " << GetRunID() << "\n";
@@ -70,32 +65,34 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
     G4cout << "BENCHMARK: Run time: " << runTime << "\n";
     G4cout << "BENCHMARK: Mean Event time: " << eventMean << "\n";
     G4cout << "BENCHMARK: Event Standard Deviation: " << eventStdev << "\n";
-
-    // TEMP: DELETE THIS
-    G4cout << "BENCHMARK: Mean size: " << sizeMean << "MB\n";
-    G4cout << "BENCHMARK: Size Standard Deviation: " << sizeStdev << "\n";
   }
 
   // Export the results per event
   std::vector<std::map<int, double>> *aBenchmarkStates = TestManagerStore<int>::GetInstance()->GetStates();
   TestManager<std::string> aOutputTestManager;
 
+  // aBenchmarkStates->size() should correspond to the number of events
   for (int i = 0; i < aBenchmarkStates->size(); i++) {
     if (fDoValidation) {
-      /*
       // If we are taking validation data, export it to the specified file
-      auto &groups = aDetector->GetSensitiveGroups();
-      int ngroups  = groups.size();
-      for (int igroup = 0; igroup < ngroups; ++igroup) {
-        aOutputTestManager.setAccumulator(groups[igroup],
-                                              (*aBenchmarkStates)[i][igroup + Run::accumulators::NUM_ACCUMULATORS]);
+      // auto &groups = aDetector->GetSensitiveGroups();
+      // int ngroups  = groups.size();
+      // for (int igroup = 0; igroup < ngroups; ++igroup) {
+      //   aOutputTestManager.setAccumulator(groups[igroup],
+      //                                         (*aBenchmarkStates)[i][igroup + Run::accumulators::NUM_ACCUMULATORS]);
+      // }
+
+      // Each benchmark state contains one counter per LogicalVolume
+      // Export one CSV containing a list of volume IDs and Edep per event
+      for (auto iter = (*aBenchmarkStates)[i].begin(); iter != (*aBenchmarkStates)[i].end(); ++iter) {
+        aOutputTestManager.setAccumulator(std::to_string(iter->first - Run::accumulators::NUM_ACCUMULATORS), iter->second);
       }
+      
       aOutputTestManager.setOutputDirectory(aOutputDirectory);
-      aOutputTestManager.setOutputFilename(aOutputFilename);
+      aOutputTestManager.setOutputFilename(aOutputFilename + "_evt" + std::to_string(i));
       aOutputTestManager.exportCSV();
 
       aOutputTestManager.reset();
-      */
     } else if (fDoBenchmark) {
       // Recover the results from each event and output them to the specified file
       double eventTime = (*aBenchmarkStates)[i][Run::timers::EVENT];

@@ -45,7 +45,7 @@ class EventActionMessenger;
 
 class EventAction : public G4UserEventAction {
 public:
-  EventAction();
+  EventAction(bool aDoValidation);
   virtual ~EventAction();
 
   /// Timer is started
@@ -69,6 +69,7 @@ private:
   G4Timer fTimer;
   /// Messenger for this
   EventActionMessenger *fMessenger{nullptr};
+  bool fDoValidation{false};
 };
 
 #endif /* EVENTACTION_HH */

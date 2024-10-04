@@ -31,7 +31,6 @@
 #include "RunAction.hh"
 #include "TrackingAction.hh"
 #include "SteppingAction.hh"
-#include <AdePT/benchmarking/TestManager.h>
 
 ActionInitialisation::ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark,
                                            bool aDoValidation)
@@ -57,13 +56,12 @@ void ActionInitialisation::BuildForMaster() const
 void ActionInitialisation::Build() const
 {
   SetUserAction(new PrimaryGeneratorAction());
-  SetUserAction(new EventAction());
+  SetUserAction(new EventAction(fDoValidation));
   RunAction *aRunAction = new RunAction(fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation);
   SetUserAction(aRunAction);
   TrackingAction *aTrackingAction = new TrackingAction();
   SetUserAction(aTrackingAction);
-
-  SteppingAction *aSteppingAction = new SteppingAction(aTrackingAction, fDoBenchmark);
+  SteppingAction *aSteppingAction = new SteppingAction();
   SetUserAction(aSteppingAction);
   aTrackingAction->setSteppingAction(aSteppingAction);
 }

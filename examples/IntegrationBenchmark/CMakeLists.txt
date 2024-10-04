@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2023 CERN
 # SPDX-License-Identifier: Apache-2.0
 
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
+
 if(NOT TARGET G4HepEm::g4HepEm)
   message(STATUS "Disabling integrationBenchmark (needs G4HepEm)")
   return()

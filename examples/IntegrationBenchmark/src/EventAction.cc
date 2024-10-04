@@ -41,7 +41,7 @@
 #include <AdePT/benchmarking/TestManagerStore.h>
 #include "Run.hh"
 
-EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1), fTimer()
+EventAction::EventAction(bool aDoValidation) : G4UserEventAction(), fHitCollectionID(-1), fTimer(), fDoValidation(aDoValidation)
 {
   fMessenger = new EventActionMessenger(this);
 }
@@ -97,6 +97,26 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     msg << "Cannot access hitsCollection ID " << fHitCollectionID;
     G4Exception("EventAction::GetHitsCollection()", "MyCode0001", FatalException, msg);
   }
+
+  ////////////////////////////////////////
+
+  if(fDoValidation)
+  {
+    // Get test manager
+    Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+    auto testManager = currentRun->GetTestManager();
+
+    // Fill test manager with PvolID : Edep
+    for(auto &hit: *hitsCollection->GetVector())
+    {
+      // Use IDs that won't overlap with other accumulators
+      testManager->addToAccumulator(hit->GetPhysicalVolumeId() + Run::accumulators::NUM_ACCUMULATORS, hit->GetEdep());
+    }
+
+    // Store test manager
+    TestManagerStore<int>::GetInstance()->RecordState(testManager);
+  }
+  ////////////////////////////////////////
 
   SimpleHit *hit       = nullptr;
   G4double hitEn       = 0;

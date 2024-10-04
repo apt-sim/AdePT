@@ -32,7 +32,6 @@
 #include <set>
 #include "SimpleHit.hh"
 
-#include "G4VFastSimSensitiveDetector.hh"
 #include "G4VSensitiveDetector.hh"
 #include <set>
 
@@ -43,13 +42,6 @@ class G4TouchableHistory;
  * @brief Sensitive detector.
  *
  * Describes how to store the energy deposited within the detector.
- * It derives from two classes: G4VSensitiveDetector and
- * G4VFastSimSensitiveDetector. Addition of G4VFastSimSensitiveDetector is
- * necessary in order to handle the energy deposits from the fast simulation.
- *
- * Two ProcessHits() methods are introduced to handle energy deposited from full
- * (detailed) simulation, and from fast simulation. The common part is handled
- * by RetrieveAdnSetupHit() method.
  *
  */
 class G4VPhysicalVolume;
