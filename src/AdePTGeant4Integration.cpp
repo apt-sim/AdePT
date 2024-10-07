@@ -353,14 +353,11 @@ void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aN
 void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle)
 {
-  const G4ThreeVector *aPostStepPointMomentumDirection =
-      new G4ThreeVector(aGPUHit->fPostStepPoint.fMomentumDirection.x(), aGPUHit->fPostStepPoint.fMomentumDirection.y(),
+  const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(), aGPUHit->fPostStepPoint.fMomentumDirection.y(),
                         aGPUHit->fPostStepPoint.fMomentumDirection.z());
-  const G4ThreeVector *aPostStepPointPolarization =
-      new G4ThreeVector(aGPUHit->fPostStepPoint.fPolarization.x(), aGPUHit->fPostStepPoint.fPolarization.y(),
+  const G4ThreeVector aPostStepPointPolarization(aGPUHit->fPostStepPoint.fPolarization.x(), aGPUHit->fPostStepPoint.fPolarization.y(),
                         aGPUHit->fPostStepPoint.fPolarization.z());
-  const G4ThreeVector *aPostStepPointPosition =
-      new G4ThreeVector(aGPUHit->fPostStepPoint.fPosition.x(), aGPUHit->fPostStepPoint.fPosition.y(),
+  const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(), aGPUHit->fPostStepPoint.fPosition.y(),
                         aGPUHit->fPostStepPoint.fPosition.z());
 
   // G4Step
@@ -377,7 +374,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
   G4Track *aTrack = aG4Step->GetTrack();
   aTrack->SetTrackID(aGPUHit->fParentID);       // Missing data
   aTrack->SetParentID(aGPUHit->fParentID);      // ID of the initial particle that entered AdePT
-  aTrack->SetPosition(*aPostStepPointPosition); // Real data
+  aTrack->SetPosition(aPostStepPointPosition); // Real data
   // aTrack->SetGlobalTime(0);                                                                // Missing data
   // aTrack->SetLocalTime(0);                                                                 // Missing data
   // aTrack->SetProperTime(0);                                                                // Missing data
@@ -385,9 +382,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
   // aTrack->SetNextTouchableHandle(nullptr);                                                 // Missing data
   // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
   // aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);                                 // Real data
-  aTrack->SetMomentumDirection(*aPostStepPointMomentumDirection); // Real data
+  aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   // aTrack->SetVelocity(0);                                                                  // Missing data
-  aTrack->SetPolarization(*aPostStepPointPolarization); // Real data
+  aTrack->SetPolarization(aPostStepPointPolarization); // Real data
   // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
   // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
   // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
@@ -434,11 +431,11 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
 
   // Post-Step Point
   G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
-  aPostStepPoint->SetPosition(*aPostStepPointPosition); // Real data
+  aPostStepPoint->SetPosition(aPostStepPointPosition); // Real data
   // aPostStepPoint->SetLocalTime(0);                                                                 // Missing data
   // aPostStepPoint->SetGlobalTime(0);                                                                // Missing data
   // aPostStepPoint->SetProperTime(0);                                                                // Missing data
-  aPostStepPoint->SetMomentumDirection(*aPostStepPointMomentumDirection); // Real data
+  aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);        // Real data
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data
   if (fPostG4TouchableHistoryHandle->GetVolume()) { // protect against nullptr if postNavState is outside
@@ -450,7 +447,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit *aGPUHit, G4Step *aG4Step, G4Touc
   }
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
-  aPostStepPoint->SetPolarization(*aPostStepPointPolarization); // Real data
+  aPostStepPoint->SetPolarization(aPostStepPointPolarization); // Real data
   // aPostStepPoint->SetStepStatus(G4StepStatus::fUndefined);                                         // Missing data
   // aPostStepPoint->SetProcessDefinedStep(nullptr);                                                  // Missing data
   // aPostStepPoint->SetMass(0);                                                                      // Missing data
