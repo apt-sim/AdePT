@@ -31,6 +31,8 @@
 #include "G4UserEventAction.hh"
 #include "G4Timer.hh"
 
+#include "RunAction.hh"
+
 class DetectorConstruction;
 class EventActionMessenger;
 
@@ -45,7 +47,7 @@ class EventActionMessenger;
 
 class EventAction : public G4UserEventAction {
 public:
-  EventAction(bool aDoValidation);
+  EventAction(RunAction *aRunAction);
   virtual ~EventAction();
 
   /// Timer is started
@@ -69,7 +71,7 @@ private:
   G4Timer fTimer;
   /// Messenger for this
   EventActionMessenger *fMessenger{nullptr};
-  bool fDoValidation{false};
+  RunAction *fRunAction{nullptr};
 };
 
 #endif /* EVENTACTION_HH */

@@ -11,16 +11,19 @@
 
 #define STDEV(N, MEAN, SUM_SQUARES) N > 1 ? sqrt((SUM_SQUARES - N * MEAN * MEAN) / N) : 0
 
-Run::Run()
+Run::Run(RunAction *aRunAction) : fRunAction(aRunAction)
 {
   fTestManager = new TestManager<TAG_TYPE>();
+  // Set output directory and filename, needed for validation where this test manager is used for output
+  fTestManager->setOutputDirectory(fRunAction->GetOutputDirectory());
+  fTestManager->setOutputFilename(fRunAction->GetOutputFilename());
 }
 
 Run::~Run() {}
 
 void Run::Merge(const G4Run *run)
 {
-  if (fDoBenchmark) {
+  if (fRunAction->GetDoBenchmark()) {
     const Run *localRun = static_cast<const Run *>(run);
 
     TestManager<TAG_TYPE> *aTestManager = localRun->GetTestManager();
@@ -46,7 +49,7 @@ void Run::Merge(const G4Run *run)
 
 void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
 {
-  if (fDoBenchmark && !fDoValidation) {
+  if (fRunAction->GetDoBenchmark() && !fRunAction->GetDoValidation()) {
     // Printout of global statistics
     double runTime    = fTestManager->getDurationSeconds(timers::TOTAL);
     double eventMean  = fTestManager->getAccumulator(accumulators::EVENT_SUM) / GetNumberOfEvent();
@@ -73,21 +76,21 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
 
   // aBenchmarkStates->size() should correspond to the number of events
   for (int i = 0; i < aBenchmarkStates->size(); i++) {
-    if (fDoValidation) {
+    if (fRunAction->GetDoValidation()) {
       // If we are taking validation data, export it to the specified file
       // Each benchmark state contains one counter per LogicalVolume
       // Export one CSV containing a list of volume IDs and Edep per event
-      for (auto iter = (*aBenchmarkStates)[i].begin(); iter != (*aBenchmarkStates)[i].end(); ++iter) {
-        if(iter->first >= Run::accumulators::NUM_ACCUMULATORS)
-          aOutputTestManager.setAccumulator(std::to_string(iter->first - Run::accumulators::NUM_ACCUMULATORS), iter->second);
-      }
+      // for (auto iter = (*aBenchmarkStates)[i].begin(); iter != (*aBenchmarkStates)[i].end(); ++iter) {
+      //   if(iter->first >= Run::accumulators::NUM_ACCUMULATORS)
+      //     aOutputTestManager.setAccumulator(std::to_string(iter->first - Run::accumulators::NUM_ACCUMULATORS), iter->second);
+      // }
       
-      aOutputTestManager.setOutputDirectory(aOutputDirectory);
-      aOutputTestManager.setOutputFilename(aOutputFilename);
-      aOutputTestManager.exportCSV(false);
+      // aOutputTestManager.setOutputDirectory(aOutputDirectory);
+      // aOutputTestManager.setOutputFilename(aOutputFilename);
+      // aOutputTestManager.exportCSV(false);
 
-      aOutputTestManager.reset();
-    } else if (fDoBenchmark) {
+      // aOutputTestManager.reset();
+    } else if (fRunAction->GetDoBenchmark()) {
       // Recover the results from each event and output them to the specified file
       double eventTime = (*aBenchmarkStates)[i][Run::timers::EVENT];
       double nonEMTime = (*aBenchmarkStates)[i][Run::accumulators::NONEM_EVT];
@@ -96,8 +99,8 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
       aOutputTestManager.setAccumulator("Non EM", nonEMTime);
       aOutputTestManager.setAccumulator("ECAL", ecalTime);
 
-      aOutputTestManager.setOutputDirectory(aOutputDirectory);
-      aOutputTestManager.setOutputFilename(aOutputFilename);
+      aOutputTestManager.setOutputDirectory(fRunAction->GetOutputDirectory());
+      aOutputTestManager.setOutputFilename(fRunAction->GetOutputFilename());
       aOutputTestManager.exportCSV();
 
       aOutputTestManager.reset();

@@ -56,9 +56,9 @@ void ActionInitialisation::BuildForMaster() const
 void ActionInitialisation::Build() const
 {
   SetUserAction(new PrimaryGeneratorAction());
-  SetUserAction(new EventAction(fDoValidation));
   RunAction *aRunAction = new RunAction(fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation);
   SetUserAction(aRunAction);
+  SetUserAction(new EventAction(aRunAction));
   TrackingAction *aTrackingAction = new TrackingAction();
   SetUserAction(aTrackingAction);
   SteppingAction *aSteppingAction = new SteppingAction();
