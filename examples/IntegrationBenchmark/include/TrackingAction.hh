@@ -24,7 +24,6 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-/// \file electromagnetic/TestEm1/include/TrackingAction.hh
 /// \brief Definition of the TrackingAction class
 //
 //
@@ -51,21 +50,9 @@ public:
   virtual void PreUserTrackingAction(const G4Track *);
   virtual void PostUserTrackingAction(const G4Track *);
 
-  void setInsideEcal(bool insideEcal) { fInsideEcal = insideEcal; }
-  bool getInsideEcal() { return fInsideEcal; }
-
-  inline G4Region *getGPURegion() { return fGPURegion; }
-  inline G4Region *getCurrentRegion() { return fCurrentRegion; }
-  inline void setCurrentRegion(G4Region *aCurrentRegion) { fCurrentRegion = aCurrentRegion; }
-  inline G4VPhysicalVolume *getCurrentVolume() { return fCurrentVolume; }
-  inline void setCurrentVolume(G4VPhysicalVolume *aCurrentVolume) { fCurrentVolume = aCurrentVolume; }
   inline void setSteppingAction(SteppingAction *aSteppingAction) { fSteppingAction = aSteppingAction; }
 
 private:
-  bool fInsideEcal;
-  G4Region *fCurrentRegion;
-  G4VPhysicalVolume *fCurrentVolume;
-  G4Region *fGPURegion;
   SteppingAction *fSteppingAction;
 };
 

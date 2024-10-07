@@ -58,6 +58,11 @@ public:
 
   G4Run *GenerateRun() override;
 
+  bool &GetDoBenchmark(){return fDoBenchmark;};
+  bool &GetDoValidation(){return fDoValidation;};
+  const G4String &GetOutputDirectory(){return fOutputDirectory;};
+  const G4String &GetOutputFilename(){return fOutputFilename;};
+
 private:
   /// Pointer to detector construction to retrieve the detector dimensions to
   /// setup the histograms

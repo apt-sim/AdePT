@@ -40,7 +40,6 @@ struct TimeInfo {
   bool counting;                                                        ///< Whether the timer is running
 };
 
-
 template <class TTag>
 class TestManager {
 
@@ -49,6 +48,7 @@ private:
   std::map<TTag, double> fAccumulators; ///< Maps a tag to a double accumulator
   std::string fOutputDir;               ///< Output directory
   std::string fOutputFilename;          ///< Output filename
+  inline static std::mutex fWriteMutex;        ///< Mutex for writing to file
 
 public:
   TestManager(){};
@@ -152,6 +152,10 @@ public:
     bool first_write = !std::filesystem::exists(path);
 
     std::ofstream output_file;
+
+    // Acquire Mutex
+    std::lock_guard<std::mutex> lock(fWriteMutex);
+
     output_file.open(path, overwrite ? std::ofstream::trunc : std::ofstream::app);
 
     // Write the header only the first time

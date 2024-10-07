@@ -30,7 +30,6 @@
 
 #include "G4HCofThisEvent.hh"
 #include "G4TouchableHistory.hh"
-#include "G4Track.hh"
 #include "G4Step.hh"
 #include "G4SDManager.hh"
 
@@ -38,7 +37,6 @@ SensitiveDetector::SensitiveDetector(G4String aName) : G4VSensitiveDetector(aNam
 {
   collectionName.insert("hits");
 }
-
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void SensitiveDetector::Initialize(G4HCofThisEvent *aHCE)
@@ -47,6 +45,7 @@ void SensitiveDetector::Initialize(G4HCofThisEvent *aHCE)
   if (fHitCollectionID < 0) {
     fHitCollectionID = G4SDManager::GetSDMpointer()->GetCollectionID(fHitsCollection);
   }
+  // Hits collection is now managed by G4
   aHCE->AddHitsCollection(fHitCollectionID, fHitsCollection);
 
   // Fill calorimeter hits with zero energy deposition
@@ -55,6 +54,7 @@ void SensitiveDetector::Initialize(G4HCofThisEvent *aHCE)
   for (auto pvol : (fSensitivePhysicalVolumes)) {
     auto hit = new SimpleHit();
     hit->SetPhysicalVolumeName(pvol->GetName());
+    hit->SetPhysicalVolumeId(pvol->GetInstanceID());
     fScoringMap.insert(std::pair<int, int>(pvol->GetInstanceID(), hitID));
     hitID++;
     fHitsCollection->insert(hit);
