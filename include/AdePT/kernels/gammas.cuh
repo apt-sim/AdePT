@@ -24,6 +24,7 @@ template <typename Scoring>
 __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,
                                 Scoring *userScoring, VolAuxData const *auxDataArray)
 {
+  using namespace adept_impl;
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
@@ -259,7 +260,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    &dir,                  // Post-step point momentum direction
                                    nullptr,               // Post-step point polarization
                                    newEnergyGamma,        // Post-step point kinetic energy
-                                   0);                    // Post-step point charge
+                                   0,                     // Post-step point charge
+                                   0, -1);                // event and thread ID
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -285,7 +287,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    &dir,                  // Post-step point momentum direction
                                    nullptr,               // Post-step point polarization
                                    newEnergyGamma,        // Post-step point kinetic energy
-                                   0);                    // Post-step point charge
+                                   0,                     // Post-step point charge
+                                   0, -1);                // event and thread ID
         // The current track is killed by not enqueuing into the next activeQueue.
       }
       break;
@@ -333,7 +336,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                  &dir,                  // Post-step point momentum direction
                                  nullptr,               // Post-step point polarization
                                  0,                     // Post-step point kinetic energy
-                                 0);                    // Post-step point charge
+                                 0,                     // Post-step point charge
+                                 0, -1);                // event and thread ID
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }

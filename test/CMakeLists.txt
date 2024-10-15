@@ -9,7 +9,7 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
+    target_link_libraries(${TARGET_NAME} AdePTTransport)
    endforeach()
 endmacro()
 
@@ -43,12 +43,12 @@ add_subdirectory(testField)
 #----------------------------------------------------------------------------#
 # Link/RDC tests
 #----------------------------------------------------------------------------#
-# - Check CopCore links as expected 
+# - Check CopCore links as expected
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(test_copcore_link PRIVATE CopCore)
 
-# - Check G4VG links as expected 
+# - Check G4VG links as expected
 if(VecGeom_SURF_FOUND)
   message(STATUS "${Magenta}Disabled g4vg when using VecGeom surface model${ColorReset}")
 else()

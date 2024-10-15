@@ -156,15 +156,6 @@ endif()
 #----------------------------------------------------------------------------#
 # Build Targets
 #----------------------------------------------------------------------------#
-set(ADEPT_G4_INTEGRATION_SRCS
-  src/AdePTTrackingManager.cc
-  src/AdePTTrackingManager.cu
-  src/AdePTPhysics.cc
-  src/HepEMPhysics.cc
-  src/AdePTGeant4Integration.cpp
-  src/AdePTConfigurationMessenger.cc
-)
-
 add_library(CopCore INTERFACE)
 target_include_directories(CopCore
   INTERFACE
@@ -172,7 +163,14 @@ target_include_directories(CopCore
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
-add_library(AdePT_G4_integration SHARED ${ADEPT_G4_INTEGRATION_SRCS})
+add_library(AdePT_G4_integration SHARED
+  src/AdePTTrackingManager.cc
+  src/AdePTPhysics.cc
+  src/HepEMPhysics.cc
+  src/AdePTGeant4Integration.cpp
+  src/AdePTConfigurationMessenger.cc
+  src/AdePTConfiguration.cc
+)
 target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -182,17 +180,30 @@ target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
+    VecGeom::vecgeomcuda
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
-    G4HepEm::g4HepEmData
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
-    CUDA::cudart
 )
 
-set_target_properties(AdePT_G4_integration
+add_library(AdePTTransport SHARED
+  src/AdePTTransport.cc
+  src/AdePTTransport.cu
+)
+target_include_directories(AdePTTransport
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
+)
+target_link_libraries(AdePTTransport
+  PUBLIC
+    AdePT_G4_integration
+    G4HepEm::g4HepEm
+  PRIVATE
+    VecGeom::vecgeomcuda_static
+)
+
+set_target_properties(AdePTTransport
   PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
@@ -223,7 +234,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT_G4_integration
+install(TARGETS CopCore AdePT_G4_integration AdePTTransport
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -241,7 +252,7 @@ install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
 )
 
 #Export the targets file
-export(TARGETS CopCore AdePT_G4_integration
+export(TARGETS CopCore AdePT_G4_integration AdePTTransport
   FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
 )
 

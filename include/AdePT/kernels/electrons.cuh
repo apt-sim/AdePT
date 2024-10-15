@@ -42,6 +42,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                                           Secondaries &secondaries, MParrayTracks *leakedQueue,
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
+  using namespace adept_impl;
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
@@ -279,7 +280,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                &dir,                     // Post-step point momentum direction
                                nullptr,                  // Post-step point polarization
                                eKin,                     // Post-step point kinetic energy
-                               IsElectron ? -1 : 1);     // Post-step point charge
+                               IsElectron ? -1 : 1,      // Post-step point charge
+                               0, -1);                   // eventID and threadID (not needed here)
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
