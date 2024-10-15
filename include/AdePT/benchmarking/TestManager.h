@@ -48,7 +48,7 @@ private:
   std::map<TTag, double> fAccumulators; ///< Maps a tag to a double accumulator
   std::string fOutputDir;               ///< Output directory
   std::string fOutputFilename;          ///< Output filename
-  inline static std::mutex fWriteMutex;        ///< Mutex for writing to file
+  inline static std::mutex fWriteMutex; ///< Mutex for writing to file
 
 public:
   TestManager(){};
