@@ -68,8 +68,6 @@ AdePTPhysics::~AdePTPhysics()
 
 void AdePTPhysics::ConstructProcess()
 {
-  G4PhysicsListHelper *ph = G4PhysicsListHelper::GetPhysicsListHelper();
-
   // Register custom tracking manager for e-/e+ and gammas.
   fTrackingManager = new AdePTTrackingManager();
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
