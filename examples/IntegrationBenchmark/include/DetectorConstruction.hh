@@ -5,7 +5,6 @@
 #define DETECTORCONSTRUCTION_H
 
 #include "G4VUserDetectorConstruction.hh"
-#include "G4SystemOfUnits.hh"
 #include "G4Material.hh"
 #include "G4ThreeVector.hh"
 
@@ -31,7 +30,7 @@ class DetectorMessenger;
 
 class DetectorConstruction : public G4VUserDetectorConstruction {
 public:
-  DetectorConstruction();
+  DetectorConstruction(bool allSensitive = false);
   virtual ~DetectorConstruction();
 
   virtual G4VPhysicalVolume *Construct() final;
@@ -58,6 +57,7 @@ private:
   G4ThreeVector fMagFieldVector;
 
   G4GDMLParser fParser;
+  bool fAllSensitive;
 };
 
 #endif /* DETECTORCONSTRUCTION_H */

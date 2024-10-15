@@ -6,6 +6,8 @@
 
 #include "G4Run.hh"
 
+#include "RunAction.hh"
+
 #define TAG_TYPE int
 
 template <class TTag>
@@ -17,20 +19,16 @@ class TestManager;
 class Run : public G4Run {
 
 public:
-  Run();
+  Run(RunAction *aRunAction);
   ~Run();
 
   /** @brief Merge the results of the worker threads */
   void Merge(const G4Run *run) override;
 
   TestManager<TAG_TYPE> *GetTestManager() const { return fTestManager; }
-  void SetDoBenchmark(bool aDoBenchmark) { fDoBenchmark = aDoBenchmark; }
-  bool GetDoBenchmark() { return fDoBenchmark; }
-  void SetDoValidation(bool aDoValidation) { fDoValidation = aDoValidation; }
-  bool GetDoValidation() { return fDoValidation; }
 
   /** @brief Compute and display collected metrics */
-  void EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename);
+  void EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilenam);
 
   /**
    * @brief Enum defining the timers that we can use for benchmarking
@@ -66,8 +64,7 @@ public:
 
 private:
   TestManager<TAG_TYPE> *fTestManager;
-  bool fDoBenchmark;
-  bool fDoValidation;
+  RunAction *fRunAction;
 };
 
 #endif

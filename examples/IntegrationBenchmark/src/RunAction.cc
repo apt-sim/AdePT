@@ -81,8 +81,6 @@ void RunAction::EndOfRunAction(const G4Run *)
 
 G4Run *RunAction::GenerateRun()
 {
-  fRun = new Run();
-  fRun->SetDoBenchmark(fDoBenchmark);
-  fRun->SetDoValidation(fDoValidation);
+  fRun = new Run(this);
   return fRun;
 }

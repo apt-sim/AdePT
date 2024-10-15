@@ -41,7 +41,8 @@
 #include <AdePT/benchmarking/TestManagerStore.h>
 #include "Run.hh"
 
-EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1), fTimer()
+EventAction::EventAction(RunAction *aRunAction)
+    : G4UserEventAction(), fHitCollectionID(-1), fTimer(), fRunAction(aRunAction)
 {
   fMessenger = new EventActionMessenger(this);
 }
@@ -60,8 +61,9 @@ void EventAction::BeginOfEventAction(const G4Event *)
 
   // Get the Run object associated to this thread and start the timer for this event
   Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-  currentRun->GetTestManager()->timerStart(Run::timers::EVENT);
-
+  if (fRunAction->GetDoBenchmark()) {
+    currentRun->GetTestManager()->timerStart(Run::timers::EVENT);
+  }
   // zero the counters
   number_electrons = 0;
   number_positrons = 0;
@@ -80,7 +82,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   // Get the Run object associated to this thread and stop the timer for this event
   Run *currentRun   = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
   auto aTestManager = currentRun->GetTestManager();
-  if (currentRun->GetDoBenchmark()) {
+  if (fRunAction->GetDoBenchmark()) {
     aTestManager->timerStop(Run::timers::EVENT);
   }
   aTestManager->addToAccumulator(Run::accumulators::NUM_PARTICLES, aEvent->GetPrimaryVertex()->GetNumberOfParticle());
@@ -130,22 +132,29 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
   }
 
-  if (currentRun->GetDoValidation()) {
-    /*
-    //Set an accumulator for each sensitive volume, making sure the ID doesn't collide with the
-    //defined timers
-    for (int igroup = 0; igroup < ngroups; ++igroup) {
-      G4cout << "EndOfEventAction " << eventId << " : group " << std::setw(5) << groups[igroup] << "  edep "
-              << std::setprecision(2) << std::setw(12) << std::fixed << edep_groups[igroup] / MeV << " [MeV]\n";
-    }
-    for (int igroup = 0; igroup < ngroups; ++igroup) {
-      aTestManager->setAccumulator(igroup+Run::accumulators::NUM_ACCUMULATORS, edep_groups[igroup]);
+  if (fRunAction->GetDoValidation()) {
+    // Get test manager
+    // Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+    // auto testManager = currentRun->GetTestManager();
+
+    // Fill test manager with PvolID : Edep
+    for (auto &hit : *hitsCollection->GetVector()) {
+      // Use IDs that won't overlap with other accumulators
+      auto id = hit->GetPhysicalVolumeId() + Run::accumulators::NUM_ACCUMULATORS;
+      // Reset the accumulator from the last event
+      // aTestManager->setAccumulator(id, 0);
+      // Set the accumulator
+      aTestManager->setAccumulator(id, hit->GetEdep());
+      // aTestManager->addToAccumulator(id, hit->GetEdep());
     }
 
-    //Record the current contents of the TestManager in order to be able to extract per-event data
-    TestManagerStore<int>::GetInstance()->RecordState(aTestManager);
-    */
-  } else if (currentRun->GetDoBenchmark()) {
+    // Write data to output file. Validation data can take a lot of memory, and we don't need to aggregate
+    // the results of multiple events at runtime, so for better performance it's easier to write the output here
+    aTestManager->exportCSV(false);
+
+    // Store test manager
+    // TestManagerStore<int>::GetInstance()->RecordState(aTestManager);
+  } else if (fRunAction->GetDoBenchmark()) {
     // Get the timings
     double eventTime = aTestManager->getDurationSeconds(Run::timers::EVENT);
     double nonEMTime = aTestManager->getAccumulator(Run::accumulators::NONEM_EVT);

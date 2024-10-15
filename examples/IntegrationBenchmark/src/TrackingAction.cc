@@ -33,26 +33,9 @@
 
 #include "TrackingAction.hh"
 
-#include "G4RunManager.hh"
-#include "G4Track.hh"
-#include "G4Gamma.hh"
-#include "G4Electron.hh"
-#include "G4Positron.hh"
-#include "Run.hh"
-#include <AdePT/benchmarking/TestManager.h>
-#include "DetectorConstruction.hh"
-#include "G4RegionStore.hh"
-
-#include "G4SystemOfUnits.hh"
-#include "G4UnitsTable.hh"
-#include "EventAction.hh"
-
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-TrackingAction::TrackingAction() : G4UserTrackingAction(), fCurrentRegion(nullptr), fCurrentVolume(nullptr)
-//, fGPURegion(G4RegionStore::GetInstance()->GetRegion(aDetector->getRegionName()))
-{
-}
+TrackingAction::TrackingAction() : G4UserTrackingAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -60,24 +43,6 @@ void TrackingAction::PreUserTrackingAction(const G4Track *aTrack)
 {
   // Reset step counter
   fSteppingAction->SetNumSteps(0);
-  // For leptons, get the Run object associated to this thread and start the timer for this track, only if it is outside
-  // the GPU region
-  Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-  if (currentRun->GetDoBenchmark()) {
-    if (aTrack->GetDefinition() == G4Gamma::Gamma() || aTrack->GetDefinition() == G4Electron::Electron() ||
-        aTrack->GetDefinition() == G4Positron::Positron()) {
-      if (aTrack->GetVolume()->GetLogicalVolume()->GetRegion() != fGPURegion) {
-        currentRun->GetTestManager()->timerStart(Run::timers::NONEM);
-        setInsideEcal(false);
-      } else {
-        setInsideEcal(true);
-      }
-    }
-    // For other particles we always count the time, get the Run object and start the timer
-    else {
-      currentRun->GetTestManager()->timerStart(Run::timers::NONEM);
-    }
-  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -86,20 +51,6 @@ void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
 {
   // Reset step counter
   fSteppingAction->SetNumSteps(0);
-  // Get the Run object associated to this thread and end the timer for this track
-  Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-  if (currentRun->GetDoBenchmark()) {
-    // Timer may have been stopped in the stepping action
-    if (!getInsideEcal()) {
-      const G4Event *currentEvent = G4EventManager::GetEventManager()->GetConstCurrentEvent();
-      auto aTestManager           = currentRun->GetTestManager();
-
-      aTestManager->timerStop(Run::timers::NONEM);
-      aTestManager->addToAccumulator(Run::accumulators::NONEM_EVT,
-                                     aTestManager->getDurationSeconds(Run::timers::NONEM));
-      aTestManager->removeTimer(Run::timers::NONEM);
-    }
-  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

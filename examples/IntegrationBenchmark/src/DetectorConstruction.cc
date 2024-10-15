@@ -7,22 +7,12 @@
 #include "DetectorMessenger.hh"
 #include "SensitiveDetector.hh"
 
-#include "G4NistManager.hh"
-#include "G4Material.hh"
-#include "G4Box.hh"
-#include "G4Tubs.hh"
 #include "G4LogicalVolume.hh"
-#include "G4PVPlacement.hh"
-#include "G4PVReplica.hh"
-#include "G4VisAttributes.hh"
-#include "G4RunManager.hh"
 #include "G4UniformMagField.hh"
 #include "G4FieldManager.hh"
 #include "G4TransportationManager.hh"
 
 #include "G4SDManager.hh"
-
-#include "G4UnitsTable.hh"
 
 #include "G4VPhysicalVolume.hh"
 #include "G4Region.hh"
@@ -30,17 +20,11 @@
 #include "G4ProductionCuts.hh"
 #include <G4ProductionCutsTable.hh>
 
-#include "G4GeometryManager.hh"
-#include "G4PhysicalVolumeStore.hh"
-#include "G4LogicalVolumeStore.hh"
-#include "G4SolidStore.hh"
-
-#include <G4EmParameters.hh>
-#include "G4Electron.hh"
+#include "G4SystemOfUnits.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-DetectorConstruction::DetectorConstruction() : G4VUserDetectorConstruction()
+DetectorConstruction::DetectorConstruction(bool allSensitive) : fAllSensitive(allSensitive), G4VUserDetectorConstruction()
 {
   fDetectorMessenger = new DetectorMessenger(this);
 }
@@ -62,25 +46,6 @@ G4VPhysicalVolume *DetectorConstruction::Construct()
     std::cerr << "Example23: World volume not set properly check your setup selection criteria or GDML input!\n";
     return world;
   }
-
-  // - REGIONS
-  if (world->GetLogicalVolume()->GetRegion() == nullptr) {
-    // Add default region if none available
-    // constexpr double DefaultCut = 0.7 * mm;
-    auto defaultRegion = G4RegionStore::GetInstance()->GetRegion("DefaultRegionForTheWorld");
-
-    defaultRegion->AddRootLogicalVolume(world->GetLogicalVolume());
-  }
-
-  for (auto region : *G4RegionStore::GetInstance()) {
-    region->UsedInMassGeometry(true); // make sure all regions are marked as used
-    region->UpdateMaterialList();
-  }
-
-  // - UPDATE COUPLES
-  G4cout << "Updating material-cut couples based on " << G4RegionStore::GetInstance()->size() << " regions ...\n";
-  G4ProductionCutsTable *theCoupleTable = G4ProductionCutsTable::GetProductionCutsTable();
-  theCoupleTable->UpdateCoupleTable(world);
 
   fWorld = world;
 
@@ -121,7 +86,7 @@ void DetectorConstruction::ConstructSDandField()
   int numTouchables          = 0;
 
   SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector");
-  // SensitiveDetector *caloSD = new SensitiveDetector("AdePTDetector", &fSensitivePhysicalVolumes);
+
   G4SDManager::GetSDMpointer()->AddNewDetector(caloSD);
   std::vector<G4LogicalVolume *> aSensitiveLogicalVolumes;
 
@@ -130,28 +95,47 @@ void DetectorConstruction::ConstructSDandField()
     int nd          = lvol->GetNoDaughters();
     numTouchables++;
 
-    // Check if the LogicalVolume is sensitive
-    auto aAuxInfoList = fParser.GetVolumeAuxiliaryInformation(lvol);
-    for (auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++) {
-      G4String str  = iaux->type;
-      G4String val  = iaux->value;
-      G4String unit = iaux->unit;
+    if(fAllSensitive) // For easier validation of geometries with no SD info, we may set all volumes as sensitive
+    {
+      // Record the PV
+      if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
+        caloSD->fSensitivePhysicalVolumes.insert(pvol);
+      }
+      // If this is the first time we see this LV
+      if (std::find(caloSD->fSensitiveLogicalVolumes.begin(), caloSD->fSensitiveLogicalVolumes.end(), lvol) ==
+          caloSD->fSensitiveLogicalVolumes.end()) {
+        // Make LogicalVolume sensitive by registering a SensitiveDetector for it
+        SetSensitiveDetector(lvol, caloSD);
+        // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport
+        caloSD->fSensitiveLogicalVolumes.push_back(lvol);
+      }
+      numSensitiveTouchables++;
+    }
+    else
+    {
+      // Check if the LogicalVolume is marked as sensitive in the geometry
+      auto aAuxInfoList = fParser.GetVolumeAuxiliaryInformation(lvol);
+      for (auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++) {
+        G4String str  = iaux->type;
+        G4String val  = iaux->value;
+        G4String unit = iaux->unit;
 
-      if (str == "SensDet") {
-        // If it is, record the PV
-        if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
-          caloSD->fSensitivePhysicalVolumes.insert(pvol);
+        if (str == "SensDet") {
+          // If it is, record the PV
+          if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
+            caloSD->fSensitivePhysicalVolumes.insert(pvol);
+          }
+          // If this is the first time we see this LV
+          if (std::find(caloSD->fSensitiveLogicalVolumes.begin(), caloSD->fSensitiveLogicalVolumes.end(), lvol) ==
+              caloSD->fSensitiveLogicalVolumes.end()) {
+            // Make LogicalVolume sensitive by registering a SensitiveDetector for it
+            SetSensitiveDetector(lvol, caloSD);
+            // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport
+            caloSD->fSensitiveLogicalVolumes.push_back(lvol);
+          }
+          numSensitiveTouchables++;
+          break;
         }
-        // If this is the first time we see this LV
-        if (std::find(caloSD->fSensitiveLogicalVolumes.begin(), caloSD->fSensitiveLogicalVolumes.end(), lvol) ==
-            caloSD->fSensitiveLogicalVolumes.end()) {
-          // Make LogicalVolume sensitive by registering a SensitiveDetector for it
-          SetSensitiveDetector(lvol, caloSD);
-          // We keep a list of Logical sensitive volumes, used for initializing AdePTTransport
-          caloSD->fSensitiveLogicalVolumes.push_back(lvol);
-        }
-        numSensitiveTouchables++;
-        break;
       }
     }
 
