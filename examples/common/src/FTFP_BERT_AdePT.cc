@@ -39,7 +39,7 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
 
   // Register the EM physics to use for tracking on CPU
   // RegisterPhysics(new G4EmStandardPhysics());
-  RegisterPhysics(new HepEMPhysics());
+  RegisterPhysics(new HepEMPhysics(ver));
 
   // Register the AdePT physics
   RegisterPhysics(new AdePTPhysics());
