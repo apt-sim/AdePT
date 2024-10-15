@@ -69,3 +69,6 @@ target_link_libraries(integrationBenchmark
 configure_file("macros/integrationbenchmark.mac.in" "${CMAKE_BINARY_DIR}/integrationbenchmark.mac")
 
 # Tests
+add_test(NAME integrationBenchmark
+  COMMAND $<TARGET_FILE:integrationBenchmark> -m ${PROJECT_BINARY_DIR}/example1_large_stack.mac
+)
