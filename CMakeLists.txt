@@ -48,6 +48,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
+option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 option(WITH_FLUCT "Switch on the energy loss fluctuations" OFF)
 
@@ -82,6 +83,11 @@ endif()
 # Make sure VecGeom::vgdml is enabled
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
+endif()
+# Run split kernels
+if (USE_SPLIT_KERNELS)
+  add_compile_definitions(USE_SPLIT_KERNELS)
+  message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
 endif()
 # Debugging in single-thread mode
 if (DEBUG_SINGLE_THREAD)
@@ -139,7 +145,7 @@ add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:
 # - For Debug, generate full debug information - this completely disables optimizations!
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Debug>>:--device-debug>")
 # - For both, interleave the source in PTX to enhance the debugging experience.
-add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:--source-in-ptx>")
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:-G>")
 
 # Disable warnings from the CUDA frontend about unknown GCC pragmas - let the compiler decide what it likes.
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma>")
