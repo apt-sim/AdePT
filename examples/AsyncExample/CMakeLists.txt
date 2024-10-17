@@ -56,8 +56,7 @@ if(HepMC3_FOUND)
     ../common/src/HepMC3G4AsciiReaderMessenger.cc
     ../common/src/HepMC3G4Interface.cc
   )
-  target_link_libraries(ExamplesCommon INTERFACE ${HEPMC3_LIBRARIES} ${HEPMC3_FIO_LIBRARIES})
-  target_compile_definitions(ExamplesCommon PRIVATE HEPMC3_FOUND)
+  target_link_libraries(ExamplesCommon PRIVATE HepMC3::HepMC3)
 endif()
 
 add_library(AdePTAsyncTransport SHARED
