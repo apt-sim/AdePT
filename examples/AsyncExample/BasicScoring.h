@@ -4,6 +4,7 @@
 #ifndef SCORING_H
 #define SCORING_H
 
+// #include "BufferHandle.h" 
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 
 #include "ResourceManagement.h"
@@ -13,6 +14,7 @@
 #include <atomic>
 #include <deque>
 #include <shared_mutex>
+#include <array>
 
 namespace AsyncAdePT {
 
@@ -39,6 +41,8 @@ class HitScoring {
   unique_ptr_cuda<GPUHit, CudaHostDeleter<GPUHit>> fGPUHitBuffer_host;
 
   std::array<BufferHandle, 2> fBuffers;
+  // BufferHandle fBuffers[2];  // Replace std::array with a raw array
+
   void *fHitScoringBuffer_deviceAddress = nullptr;
   unsigned int fHitCapacity;
   unsigned short fActiveBuffer = 0;
