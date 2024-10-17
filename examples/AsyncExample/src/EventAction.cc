@@ -28,7 +28,7 @@
 #include "EventAction.hh"
 #include "EventActionMessenger.hh"
 #include "SimpleHit.hh"
-#include "Histograms.h"
+//#include "Histograms.h"
 
 #include "G4SDManager.hh"
 #include "G4HCofThisEvent.hh"
@@ -121,7 +121,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     energyPerLVol->Fill(name.c_str(), energy);
   }
 
-  AsyncExHistos::registerHisto(totalE);
-  AsyncExHistos::registerHisto(energyPerVol);
-  AsyncExHistos::registerHisto(energyPerLVol);
+  // AsyncExHistos::registerHisto(totalE);
+  // AsyncExHistos::registerHisto(energyPerVol);
+  // AsyncExHistos::registerHisto(energyPerLVol);
 }

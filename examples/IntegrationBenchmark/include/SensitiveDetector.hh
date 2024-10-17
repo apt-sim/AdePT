@@ -35,6 +35,8 @@
 #include "G4VSensitiveDetector.hh"
 #include <set>
 
+#include <set>
+
 class G4HCofThisEvent;
 class G4TouchableHistory;
 

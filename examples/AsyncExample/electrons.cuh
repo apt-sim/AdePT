@@ -9,7 +9,7 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 
-#define NOFLUCTUATION
+//#define NOFLUCTUATION
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
