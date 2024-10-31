@@ -33,6 +33,7 @@
 #include <iomanip>
 // Output files and directories
 #include <filesystem>
+#include <mutex>
 
 struct TimeInfo {
   std::chrono::time_point<CLOCK> start;                                 ///< Start timestamp
