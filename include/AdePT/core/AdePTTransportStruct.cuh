@@ -14,6 +14,11 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmRandomEngine.hh>
 
+#ifdef USE_SPLIT_KERNELS
+#include <G4HepEmElectronTrack.hh>
+#include <G4HepEmGammaTrack.hh>
+#endif
+
 #ifdef __CUDA_ARCH__
 // Define inline implementations of the RNG methods for the device.
 // (nvcc ignores the __device__ attribute in definitions, so this is only to
@@ -65,6 +70,14 @@ struct AllTrackManagers {
   MParrayTracks *leakedTracks[ParticleType::NumParticleTypes];
 };
 
+#ifdef USE_SPLIT_KERNELS
+struct HepEmBuffers {
+  G4HepEmElectronTrack *electronsHepEm;
+  G4HepEmElectronTrack *positronsHepEm;
+  G4HepEmGammaTrack *gammasHepEm;
+};
+#endif
+
 // A data structure to transfer statistics after each iteration.
 struct Stats {
   adept::TrackManager<Track>::Stats mgr_stats[ParticleType::NumParticleTypes];
@@ -78,6 +91,9 @@ struct GPUstate {
   ParticleType particles[ParticleType::NumParticleTypes];
   AllTrackManagers allmgr_h; ///< Host pointers for track managers
   AllTrackManagers allmgr_d; ///< Device pointers for track managers
+#ifdef USE_SPLIT_KERNELS
+  HepEmBuffers hepEMBuffers_d;
+#endif
   // Create a stream to synchronize kernels of all particle types.
   cudaStream_t stream;                ///< all-particle sync stream
   TrackData *toDevice_dev{nullptr};   ///< toDevice buffer of tracks
