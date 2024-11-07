@@ -26,7 +26,7 @@
 //
 #include "RunAction.hh"
 #include "G4Threading.hh"
-//#include "Histograms.h"
+#include "Histograms.h"
 
 #include <thread>
 #include <mutex>
@@ -56,6 +56,6 @@ void RunAction::EndOfRunAction(const G4Run *)
   // Print timer just for the master thread since this is called when all workers are done
   if (tid < 0) {
     G4cout << "Run time: " << time << "\n";
-    // AsyncExHistos::HistoWriter::GetInstance().WriteHistos();
+    AsyncExHistos::HistoWriter::GetInstance().WriteHistos();
   }
 }

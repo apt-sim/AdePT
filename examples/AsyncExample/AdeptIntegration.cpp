@@ -4,7 +4,7 @@
 #include "AdeptIntegration.h"
 
 #include "TrackTransfer.h"
-//#include "Histograms.h"
+#include "Histograms.h"
 
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
@@ -163,18 +163,18 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
     G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
   }
 
-  // auto xyHisto_count     = std::make_shared<TH2L>(("Event_" + std::to_string(eventId) + "_count_xy").c_str(),
-  //                                             "Number of hits;x;y", 500, -2500, 2500, 500, -2500, 2500);
-  // auto xyHisto_e         = std::make_shared<TH2D>(("Event_" + std::to_string(eventId) + "_E_xy").c_str(),
-  //                                         "Energy deposition;x;y", 500, -2500, 2500, 500, -2500, 2500);
-  // auto etaPhiHisto_count = std::make_shared<TH2L>(("Event_" + std::to_string(eventId) + "_count_etaPhi").c_str(),
-  //                                                 "Number of hits;#phi;#eta", 100, -180, 180, 300, -15, 15);
-  // auto etaPhiHisto_e     = std::make_shared<TH2D>(("Event_" + std::to_string(eventId) + "_E_etaPhi").c_str(),
-  //                                             "Energy deposition;#phi;#eta", 100, -180, 180, 300, -15, 15);
-  // AsyncExHistos::registerHisto(xyHisto_count);
-  // AsyncExHistos::registerHisto(xyHisto_e);
-  // AsyncExHistos::registerHisto(etaPhiHisto_count);
-  // AsyncExHistos::registerHisto(etaPhiHisto_e);
+  auto xyHisto_count     = std::make_shared<TH2L>(("Event_" + std::to_string(eventId) + "_count_xy").c_str(),
+                                              "Number of hits;x;y", 500, -2500, 2500, 500, -2500, 2500);
+  auto xyHisto_e         = std::make_shared<TH2D>(("Event_" + std::to_string(eventId) + "_E_xy").c_str(),
+                                          "Energy deposition;x;y", 500, -2500, 2500, 500, -2500, 2500);
+  auto etaPhiHisto_count = std::make_shared<TH2L>(("Event_" + std::to_string(eventId) + "_count_etaPhi").c_str(),
+                                                  "Number of hits;#phi;#eta", 100, -180, 180, 300, -15, 15);
+  auto etaPhiHisto_e     = std::make_shared<TH2D>(("Event_" + std::to_string(eventId) + "_E_etaPhi").c_str(),
+                                              "Energy deposition;#phi;#eta", 100, -180, 180, 300, -15, 15);
+  AsyncExHistos::registerHisto(xyHisto_count);
+  AsyncExHistos::registerHisto(xyHisto_e);
+  AsyncExHistos::registerHisto(etaPhiHisto_count);
+  AsyncExHistos::registerHisto(etaPhiHisto_e);
 
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
   fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
@@ -196,12 +196,12 @@ void AdeptIntegration::Flush(G4int threadId, G4int eventId)
       for (auto it = range.first; it != range.second; ++it) {
         assert(it->threadId == threadId);
         const auto pos = it->fPostStepPoint.fPosition;
-        // xyHisto_e->Fill(pos.x(), pos.y(), it->fTotalEnergyDeposit);
-        // xyHisto_count->Fill(pos.x(), pos.y());
+        xyHisto_e->Fill(pos.x(), pos.y(), it->fTotalEnergyDeposit);
+        xyHisto_count->Fill(pos.x(), pos.y());
         G4ThreeVector posg4(pos.x(), pos.y(), pos.z());
         const auto phi = posg4.getPhi() / 2. / (2. * acos(0)) * 360;
-        // etaPhiHisto_e->Fill(phi, posg4.getEta(), it->fTotalEnergyDeposit);
-        // etaPhiHisto_count->Fill(phi, posg4.getEta());
+        etaPhiHisto_e->Fill(phi, posg4.getEta(), it->fTotalEnergyDeposit);
+        etaPhiHisto_count->Fill(phi, posg4.getEta());
         g4Integration.ProcessGPUHit(*it);
       }
     }

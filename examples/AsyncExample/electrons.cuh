@@ -9,7 +9,7 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 
-//#define NOFLUCTUATION
+#define NOFLUCTUATION
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -58,7 +58,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Charge               = IsElectron ? -1 : 1;
   constexpr double restMass          = copcore::units::kElectronMassC2;
-  constexpr unsigned short maxSteps  = 20'000;
+  constexpr unsigned short maxSteps  = 10'000; // same default as G4
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
   const int activeSize = active->size();
@@ -325,7 +325,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                geometricalStepLengthFromPhysics, safety);
         atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
-        survive(/*leak=*/true);
+        // survive(/*leak=*/true); // don't send particles back at this point as our current PhysicsList has a problem with looping particles in G4. To be revised
         continue;
       } else if (nextState.Top() != nullptr) {
         // Go to next volume
@@ -362,7 +362,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                geometricalStepLengthFromPhysics, safety);
         atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
-        survive(/*leak=*/true);
+        // survive(/*leak=*/true); // don't send particles back at this point as our current PhysicsList has a problem with looping particles in G4. To be revised
+
       } else {
         survive();
       }
