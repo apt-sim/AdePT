@@ -26,6 +26,15 @@ else()
   return()
 endif()
 
+find_package(ROOT REQUIRED COMPONENTS Hist RIO)
+if(ROOT_FOUND)
+  include_directories(${ROOT_INCLUDE_DIRS})
+  message(STATUS "ROOT found at: ${ROOT_INCLUDE_DIRS}")
+else()
+  message(STATUS "Disabling AsyncExample (needs ROOT)")
+  return()
+endif()
+
 set(sources_g4
   src/ActionInitialisation.cc
   src/DetectorConstruction.cc
@@ -85,8 +94,6 @@ set_target_properties(AdePT_G4_integration_async PROPERTIES
   CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 option(AsyncTransport "Link to AdePT_G4_integration_async" ON)
-
-find_package(ROOT REQUIRED COMPONENTS Hist RIO)
 
 add_executable(AsyncExample
     example.cpp
