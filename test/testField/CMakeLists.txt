@@ -41,6 +41,11 @@ target_link_libraries(testField
     ${G4HepEm_LIBRARIES}
     CUDA::cudart
 )
+if(ADEPT_USE_EXT_BFIELD)
+  # link covfie if external magnetic field usage is enabled
+  target_link_libraries(testField PRIVATE covfie::core)
+endif()
+
 set_target_properties(testField 
   PROPERTIES 
     CUDA_SEPARABLE_COMPILATION ON 

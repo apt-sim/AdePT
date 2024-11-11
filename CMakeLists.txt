@@ -34,7 +34,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
   )
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
@@ -49,6 +49,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
 option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
+option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 option(WITH_FLUCT "Switch on the energy loss fluctuations" OFF)
 
@@ -171,6 +172,18 @@ if(Geant4_FOUND)
   endif()
 endif()
 
+# Find covfie to load external fields from file. 
+if(ADEPT_USE_EXT_BFIELD)
+  find_package(covfie) # not using REQUIRED to have a clearer error message
+  if (covfie_FOUND)
+    get_target_property(COVFIE_INCLUDE_DIR covfie::core INTERFACE_INCLUDE_DIRECTORIES)
+    message(STATUS "Covfie found at: ${COVFIE_INCLUDE_DIR}")
+  else()
+    message(FATAL_ERROR "covfie is required when ADEPT_USE_EXT_BFIELD=ON. \
+    Please specify the path to covfie using CMAKE_PREFIX_PATH or set the covfie_DIR.")
+  endif()
+endif()
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
@@ -234,6 +247,10 @@ target_link_libraries(AdePT_G4_integration
     G4VG::g4vg
     CUDA::cudart
 )
+if(ADEPT_USE_EXT_BFIELD)
+  # link covfie if external magnetic field usage is enabled
+  target_link_libraries(AdePT_G4_integration PUBLIC covfie::core)
+endif()
 
 set_target_properties(AdePT_G4_integration
   PROPERTIES
