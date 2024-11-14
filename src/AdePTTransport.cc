@@ -12,11 +12,12 @@
 /// @param verbosity
 /// @param GPURegionNames
 /// @param trackInAllRegions
+/// @param cudaStackSize If != 0, change the cuda stack size.
 /// @return
 std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
                                                                unsigned int nHitSlot, int verbosity,
                                                                std::vector<std::string> const *GPURegionNames,
-                                                               bool trackInAllRegions)
+                                                               bool trackInAllRegions, int cudaStackSize)
 {
   auto adept = std::make_shared<AdePTTransport<AdePTGeant4Integration>>();
 
@@ -24,6 +25,7 @@ std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThr
   adept->SetDebugLevel(verbosity);
   adept->SetTrackInAllRegions(trackInAllRegions);
   adept->SetGPURegionNames(GPURegionNames);
+  if (cudaStackSize != 0) adept->SetCUDAStackLimit(cudaStackSize);
 
   const auto track_capacity = nTrackSlot / nThread;
   G4cout << "AdePT Allocated track capacity: " << track_capacity << " tracks" << G4endl;

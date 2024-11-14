@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2022 CERN
 # SPDX-License-Identifier: Apache-2.0
-#  adeptint.in
+#  AsyncExample.in
 #
 
 ## =============================================================================
@@ -12,147 +12,61 @@
 /run/verbose 0
 /process/verbose 0
 /tracking/verbose 0
-##
-/adeptint/detector/filename @CMS2018_GDML@
-/adeptint/detector/regionname EcalRegion
-/adeptint/adept/verbose 1
-## Threshold for buffering tracks before sending to GPU
-/adeptint/adept/threshold 200
+/event/verbose 0
+
+/detector/filename @GDML@
+# Temporary workaround since we don't have a G4 to VecGeom converter
+/adept/setVecGeomGDML @GDML@
+/adept/setVerbosity 1
 ## Total number of GPU track slots (not per thread)
-/adeptint/adept/milliontrackslots 20
+/adept/setMillionsOfTrackSlots 16
+/adept/setMillionsOfHitSlots 1
+# /adept/setCUDAStackLimit 16384
 
-/adeptint/detector/addsensitivevolume EAPD_01
-/adeptint/detector/addsensitivevolume EAPD_02
-/adeptint/detector/addsensitivevolume EAPD_03
-/adeptint/detector/addsensitivevolume EAPD_04
-/adeptint/detector/addsensitivevolume EAPD_05
-/adeptint/detector/addsensitivevolume EAPD_06
-/adeptint/detector/addsensitivevolume EAPD_07
-/adeptint/detector/addsensitivevolume EAPD_08
-/adeptint/detector/addsensitivevolume EAPD_09
-/adeptint/detector/addsensitivevolume EAPD_10
-/adeptint/detector/addsensitivevolume EAPD_11
-/adeptint/detector/addsensitivevolume EAPD_12
-/adeptint/detector/addsensitivevolume EAPD_13
-/adeptint/detector/addsensitivevolume EAPD_14
-/adeptint/detector/addsensitivevolume EAPD_15
-/adeptint/detector/addsensitivevolume EAPD_16
-/adeptint/detector/addsensitivevolume EAPD_17
+# If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
+/adept/setTrackInAllRegions true
+# In order to do the GPU transport only in specific regions
+/adept/addGPURegion EcalRegion
+/adept/addGPURegion HcalRegion
 
-/adeptint/detector/sensitivegroup EAPD
-
-/adeptint/detector/addsensitivevolume EBRY_01
-/adeptint/detector/addsensitivevolume EBRY_02
-/adeptint/detector/addsensitivevolume EBRY_03
-/adeptint/detector/addsensitivevolume EBRY_04
-/adeptint/detector/addsensitivevolume EBRY_05
-/adeptint/detector/addsensitivevolume EBRY_06
-/adeptint/detector/addsensitivevolume EBRY_07
-/adeptint/detector/addsensitivevolume EBRY_08
-/adeptint/detector/addsensitivevolume EBRY_09
-/adeptint/detector/addsensitivevolume EBRY_10
-/adeptint/detector/addsensitivevolume EBRY_11
-/adeptint/detector/addsensitivevolume EBRY_12
-/adeptint/detector/addsensitivevolume EBRY_13
-/adeptint/detector/addsensitivevolume EBRY_14
-/adeptint/detector/addsensitivevolume EBRY_15
-/adeptint/detector/addsensitivevolume EBRY_16
-/adeptint/detector/addsensitivevolume EBRY_17
-
-/adeptint/detector/sensitivegroup EBRY_01
-/adeptint/detector/sensitivegroup EBRY_02
-/adeptint/detector/sensitivegroup EBRY_03
-/adeptint/detector/sensitivegroup EBRY_04
-/adeptint/detector/sensitivegroup EBRY_05
-/adeptint/detector/sensitivegroup EBRY_06
-/adeptint/detector/sensitivegroup EBRY_07
-/adeptint/detector/sensitivegroup EBRY_08
-/adeptint/detector/sensitivegroup EBRY_09
-/adeptint/detector/sensitivegroup EBRY_10
-/adeptint/detector/sensitivegroup EBRY_11
-/adeptint/detector/sensitivegroup EBRY_12
-/adeptint/detector/sensitivegroup EBRY_13
-/adeptint/detector/sensitivegroup EBRY_14
-/adeptint/detector/sensitivegroup EBRY_15
-/adeptint/detector/sensitivegroup EBRY_16
-/adeptint/detector/sensitivegroup EBRY_17
-
-/adeptint/detector/addsensitivevolume EATJ_01
-/adeptint/detector/addsensitivevolume EATJ_02
-/adeptint/detector/addsensitivevolume EATJ_03
-/adeptint/detector/addsensitivevolume EATJ_04
-/adeptint/detector/addsensitivevolume EATJ_05
-/adeptint/detector/addsensitivevolume EATJ_06
-/adeptint/detector/addsensitivevolume EATJ_07
-/adeptint/detector/addsensitivevolume EATJ_08
-/adeptint/detector/addsensitivevolume EATJ_09
-/adeptint/detector/addsensitivevolume EATJ_10
-/adeptint/detector/addsensitivevolume EATJ_11
-/adeptint/detector/addsensitivevolume EATJ_12
-/adeptint/detector/addsensitivevolume EATJ_13
-/adeptint/detector/addsensitivevolume EATJ_14
-/adeptint/detector/addsensitivevolume EATJ_15
-/adeptint/detector/addsensitivevolume EATJ_16
-/adeptint/detector/addsensitivevolume EATJ_17
-
-/adeptint/detector/sensitivegroup EATJ
-
-/adeptint/detector/addsensitivevolume EFRY
-
-/adeptint/detector/sensitivegroup EFRY
 
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic filed:
 ## -----------------------------------------------------------------------------
-#/adeptint/detector/setField 0 0 3.8 tesla
-/adeptint/detector/setField 0 0 0 tesla
+/detector/setField 0 0 0 tesla
+#/detector/setField 0 0 3.8 tesla
 
-##
-## -----------------------------------------------------------------------------
-## Set the physics list (more exactly, the EM physics constructor):
-##   = 'HepEm'           : the G4HepEm EM physics c.t.r.
-##   =  'G4Em'           : the G4 EM physics c.t.r. that corresponds to G4HepEm
-##   = 'emstandard_opt0' : the original, G4 EM-Opt0 physics c.t.r.
-## -----------------------------------------------------------------------------
-##/testem/phys/addPhysics   HepEm
-##/testem/phys/addPhysics   G4Em
-##
 ## -----------------------------------------------------------------------------
 ## Set secondary production threshold, init. the run and set primary properties
 ## -----------------------------------------------------------------------------
 /run/setCut 0.7 mm
-
-# Do or don't initialise AdePT (consumes GPU memory)
-/adeptint/adept/activate true
-
 /run/initialize
 
-## Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
-/adeptint/event/verbose 2
+## User-defined Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/eventAction/verbose 2
 
 /gun/setDefault
 /gun/particle e-
 /gun/energy 10 GeV
 /gun/number 200
 /gun/position 0 0 0
-/gun/randomizeGun false
-/gun/addParticle e- weight 1 energy 10 GeV
-/gun/print false
+/gun/print true
 
-##
+# If false, the following parameters are ignored
+/gun/randomizeGun true
+# Usage: /gun/addParticle type ["weight" weight] ["energy" energy unit]
+/gun/addParticle e- weight 1 energy 10 GeV
+/gun/addParticle proton weight 0 energy 10 GeV
+/gun/minPhi 0 deg
+/gun/maxPhi 360 deg
+/gun/minTheta 10 deg
+/gun/maxTheta 170 deg
+
 ## -----------------------------------------------------------------------------
 ## Run the simulation with the given number of events and print list of processes
 ## -----------------------------------------------------------------------------
-##/tracking/verbose 1
-##/process/list
 
 # run events with parametrised simulation
 # by default all created models are active
-/param/ActivateModel AdePT
-#/analysis/setFileName adeptint_fastsim_100events.root
 /run/beamOn 4
 
-# run events with full (detailed) simulation
-/param/InActivateModel AdePT
-#/analysis/setFileName adeptint_fullsim_100events.root
-/run/beamOn 4

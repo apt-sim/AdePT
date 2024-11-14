@@ -33,10 +33,10 @@
 std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
                                                                unsigned int nHitSlot, int verbosity,
                                                                std::vector<std::string> const *GPURegionNames,
-                                                               bool trackInAllRegions)
+                                                               bool trackInAllRegions, int cudaStackSize)
 {
-  static std::shared_ptr<AsyncAdePT::AdeptIntegration> adePT{
-      new AsyncAdePT::AdeptIntegration(nThread, nTrackSlot, nHitSlot, verbosity, GPURegionNames, trackInAllRegions)};
+  static std::shared_ptr<AsyncAdePT::AdeptIntegration> adePT{new AsyncAdePT::AdeptIntegration(
+      nThread, nTrackSlot, nHitSlot, verbosity, GPURegionNames, trackInAllRegions, cudaStackSize)};
   return adePT;
 }
 

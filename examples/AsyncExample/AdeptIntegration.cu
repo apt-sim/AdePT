@@ -107,7 +107,7 @@ TrackBuffer::TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, u
 
 AdeptIntegration::AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int hitBufferCapacity,
                                    int debugLevel, std::vector<std::string> const *GPURegionNames,
-                                   bool trackInAllRegions)
+                                   bool trackInAllRegions, int cudaStackSize)
     : fNThread{nThread}, fTrackCapacity{trackCapacity}, fScoringCapacity{hitBufferCapacity}, fDebugLevel{debugLevel},
       fG4Integrations(nThread), fEventStates(nThread), fGPUNetEnergy(nThread, 0.),
       fTrackInAllRegions{trackInAllRegions}, fGPURegionNames{GPURegionNames}
@@ -117,6 +117,11 @@ AdeptIntegration::AdeptIntegration(unsigned short nThread, unsigned int trackCap
 
   for (auto &eventState : fEventStates) {
     std::atomic_init(&eventState, EventState::ScoringRetrieved);
+  }
+
+  if (cudaStackSize > 0) {
+    G4cout << "Instantiate AdePT with cuda stack size " << cudaStackSize << "\n";
+    COPCORE_CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, cudaStackSize));
   }
 
   AdeptIntegration::FullInit();
@@ -476,12 +481,6 @@ __global__ void InitSlotManagers(SlotManager *mgr, std::size_t N)
 
 bool AdeptIntegration::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
-#ifndef NDEBUG
-  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(16384 * 2));
-#else
-  COPCORE_CUDA_CHECK(vecgeom::cxx::CudaDeviceSetStackLimit(16384));
-#endif
-
   // Upload geometry to GPU.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   cudaManager.LoadGeometry(world);
