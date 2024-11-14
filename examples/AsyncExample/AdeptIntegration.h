@@ -89,7 +89,7 @@ private:
 
 public:
   AdeptIntegration(unsigned short nThread, unsigned int trackCapacity, unsigned int hitBufferCapacity, int debugLevel,
-                   std::vector<std::string> const *GPURegionNames, bool trackInAllRegions);
+                   std::vector<std::string> const *GPURegionNames, bool trackInAllRegions, int cudaStackSize);
   AdeptIntegration(const AdeptIntegration &other) = delete;
   ~AdeptIntegration();
 
@@ -110,6 +110,7 @@ public:
   void SetTrackInAllRegions(bool trackInAllRegions) override { fTrackInAllRegions = trackInAllRegions; }
   bool GetTrackInAllRegions() const override { return fTrackInAllRegions; }
   void SetGPURegionNames(std::vector<std::string> const *regionNames) override { fGPURegionNames = regionNames; }
+  void SetCUDAStackLimit(int limit) override{};
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
   /// No effect
   void Initialize(bool) override {}

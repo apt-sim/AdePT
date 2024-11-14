@@ -59,21 +59,32 @@ if(HepMC3_FOUND)
   target_link_libraries(ExamplesCommon PRIVATE HepMC3::HepMC3)
 endif()
 
-add_library(AdePTAsyncTransport SHARED
+# Include the C++ side of the AdePT-G4 integration from core AdePT:
+list(TRANSFORM ADEPT_G4_INTEGRATION_SRCS PREPEND ../../)
+
+add_library(AdePT_G4_integration_async SHARED
+  ${ADEPT_G4_INTEGRATION_SRCS}
   AdeptIntegration.cpp
   AdeptIntegration.cu
   BasicScoring.cu
   ResourceManagement.cu)
-target_link_libraries(AdePTAsyncTransport
+target_link_libraries(AdePT_G4_integration_async
+PUBLIC
+  CopCore
+  VecGeom::vgdml
+  VecGeom::vecgeomcuda_static
+  G4HepEm::g4HepEm
+  )
+target_include_directories(AdePT_G4_integration_async
   PUBLIC
-    AdePT_G4_integration
-    VecGeom::vecgeomcuda_static
-    )
-set_target_properties(AdePTAsyncTransport PROPERTIES
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
+)
+set_target_properties(AdePT_G4_integration_async PROPERTIES
   CUDA_SEPARABLE_COMPILATION ON
   CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
-option(AsyncTransport "Link to AdePTAsyncTransport" ON)
+option(AsyncTransport "Link to AdePT_G4_integration_async" ON)
 
 find_package(ROOT REQUIRED COMPONENTS Hist RIO)
 
@@ -94,12 +105,14 @@ target_link_libraries(AsyncExample
 )
 
 if(AsyncTransport)
-  target_link_libraries(AsyncExample PRIVATE AdePTAsyncTransport)
+  target_link_libraries(AsyncExample PRIVATE AdePT_G4_integration_async)
 else()
-  target_link_libraries(AsyncExample PRIVATE AdePTTransport)
+  target_link_libraries(AsyncExample PRIVATE AdePT_G4_integration)
 endif()
 
 target_compile_options(AsyncExample PRIVATE -Wall -Wextra)
 
 # Install macros and geometry file
+SET(GDML ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 configure_file("macros/AsyncExample.mac.in" "${CMAKE_BINARY_DIR}/AsyncExample.mac")
+configure_file("macros/AsyncExample_ttbar.mac.in" "${CMAKE_BINARY_DIR}/AsyncExample_ttbar.mac")
