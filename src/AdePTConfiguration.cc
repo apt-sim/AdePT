@@ -19,12 +19,11 @@ std::shared_ptr<AdePTTransportInterface> AdePTConfiguration::CreateAdePTInstance
 
   auto adept =
       AdePTTransportFactory(fNThread, 1024 * 1024 * GetMillionsOfTrackSlots(), 1024 * 1024 * GetMillionsOfHitSlots(),
-                            GetVerbosity(), GetGPURegionNames(), GetTrackInAllRegions());
+                            GetVerbosity(), GetGPURegionNames(), GetTrackInAllRegions(), fCUDAStackLimit);
 
   // AdePT needs to be initialized here, since we know all needed Geant4 initializations are already finished
   adept->SetBufferThreshold(GetTransportBufferThreshold());
   adept->SetMaxBatch(2 * GetTransportBufferThreshold());
-  adept->SetCUDAStackLimit(GetCUDAStackLimit());
 
   return adept;
 }

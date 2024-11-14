@@ -19,7 +19,7 @@
 std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
                                                                unsigned int nHitSlot, int verbosity,
                                                                std::vector<std::string> const *GPURegionNames,
-                                                               bool trackInAllRegions);
+                                                               bool trackInAllRegions, int cudaStackSize);
 
 /// @brief Create and configure instances of an AdePT transport implementation.
 ///
