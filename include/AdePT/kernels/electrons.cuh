@@ -23,6 +23,8 @@
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 
+#define APPLY_CUTS true
+
 using VolAuxData = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
@@ -263,29 +265,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
     }
 
-    if (auxData.fSensIndex >= 0)
-      adept_scoring::RecordHit(userScoring, currentTrack.parentID,
-                               IsElectron ? 0 : 1,       // Particle type
-                               elTrack.GetPStepLength(), // Step length
-                               energyDeposit,            // Total Edep
-                               &navState,                // Pre-step point navstate
-                               &preStepPos,              // Pre-step point position
-                               &preStepDir,              // Pre-step point momentum direction
-                               nullptr,                  // Pre-step point polarization
-                               preStepEnergy,            // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,      // Pre-step point charge
-                               &nextState,               // Post-step point navstate
-                               &pos,                     // Post-step point position
-                               &dir,                     // Post-step point momentum direction
-                               nullptr,                  // Post-step point polarization
-                               eKin,                     // Post-step point kinetic energy
-                               IsElectron ? -1 : 1);     // Post-step point charge
-
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 3; ++ip) {
       double numIALeft           = theTrack->GetNumIALeft(ip);
       currentTrack.numIALeft[ip] = numIALeft;
     }
+
+    bool reached_interaction = true;
+    bool cross_boundary = false;
 
     if (stopped) {
       if (!IsElectron) {
@@ -317,145 +304,223 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         gamma2.dir      = -gamma1.dir;
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
-      continue;
+      // continue;
     }
 
-    if (nextState.IsOnBoundary()) {
-      // For now, just count that we hit something.
+    if(!stopped)
+    {
+      if (nextState.IsOnBoundary()) {
+        // For now, just count that we hit something.
+        reached_interaction = false;
+        // Kill the particle if it left the world.
+        if (!nextState.IsOutside()) {
+          // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
+          // This will happen after recordinf the step
+          cross_boundary = true;
+        }
+        // Particle left the world, don't enqueue it
+        // continue;
+      } else if (!propagated || restrictedPhysicalStepLength) {
+        // Did not yet reach the interaction point due to error in the magnetic
+        // field propagation. Try again next time.
+        survive();
+        reached_interaction = false;
+        // continue;
+      } else if (winnerProcessIndex < 0) {
+        // No discrete process, move on.
+        survive();
+        reached_interaction = false;
+        // continue;
+      }
+    }
 
-      // Kill the particle if it left the world.
-      if (!nextState.IsOutside()) {
+    if(reached_interaction && !stopped)
+    {
+      bool delta_interaction = false;
+      // Reset number of interaction left for the winner discrete process.
+      // (Will be resampled in the next iteration.)
+      currentTrack.numIALeft[winnerProcessIndex] = -1.0;
 
-        // Move to the next boundary.
-        navState = nextState;
-        // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-#ifndef ADEPT_USE_SURF
-        const int nextlvolID = navState.Top()->GetLogicalVolume()->id();
-#else
-        const int nextlvolID = navState.GetLogicalId();
-#endif
-        VolAuxData const &nextauxData = auxDataArray[nextlvolID];
-        if (nextauxData.fGPUregion > 0)
+      // Check if a delta interaction happens instead of the real discrete process.
+      if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
+        // A delta interaction happened, move on.
+        survive();
+        delta_interaction = true;
+        // continue;
+      }
+      if(!delta_interaction)
+      {
+        // Perform the discrete interaction, make sure the branched RNG state is
+        // ready to be used.
+        newRNG.Advance();
+        // Also advance the current RNG state to provide a fresh round of random
+        // numbers after MSC used up a fair share for sampling the displacement.
+        currentTrack.rngState.Advance();
+
+        const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+        const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+
+        switch (winnerProcessIndex) {
+        case 0: {
+          // Invoke ionization (for e-/e+):
+          double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, eKin, &rnge)
+                                          : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
+
+          double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+          double dirSecondary[3];
+          G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
+          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+
+          // Apply cuts
+          if (false) {
+          // if (APPLY_CUTS && (deltaEkin < theElCut)) {
+            // Deposit the energy here and kill the secondary
+            energyDeposit += deltaEkin;
+
+          }
+          else
+          {
+            Track &secondary = secondaries.electrons->NextTrack();
+            secondary.InitAsSecondary(pos, navState, globalTime);
+            secondary.parentID = currentTrack.parentID;
+            secondary.rngState = newRNG;
+            secondary.eKin     = deltaEkin;
+            secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+          }
+
+          eKin -= deltaEkin;
+          dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
           survive();
-        else {
-          // To be safe, just push a bit the track exiting the GPU region to make sure
-          // Geant4 does not relocate it again inside the same region
-          pos += kPushOutRegion * dir;
-          survive(/*leak*/ true);
+          break;
+        }
+        case 1: {
+          // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
+          double logEnergy = std::log(eKin);
+          double deltaEkin = eKin < g4HepEmPars.fElectronBremModelLim
+                                ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, eKin, logEnergy,
+                                                                                    auxData.fMCIndex, &rnge, IsElectron)
+                                : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, eKin, logEnergy,
+                                                                                    auxData.fMCIndex, &rnge, IsElectron);
+
+          double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+          double dirSecondary[3];
+          G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
+
+          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
+
+          // Apply cuts
+          if (false) {
+          // if (APPLY_CUTS && (deltaEkin < theGammaCut)) {
+            // Deposit the energy here and kill the secondary
+            energyDeposit += deltaEkin;
+            
+          }
+          else
+          {
+            Track &gamma = secondaries.gammas->NextTrack();
+            gamma.InitAsSecondary(pos, navState, globalTime);
+            gamma.parentID = currentTrack.parentID;
+            gamma.rngState = newRNG;
+            gamma.eKin     = deltaEkin;
+            gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+          }
+
+          eKin -= deltaEkin;
+          dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+          survive();
+          break;
+        }
+        case 2: {
+          // Invoke annihilation (in-flight) for e+
+          double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+          double theGamma1Ekin, theGamma2Ekin;
+          double theGamma1Dir[3], theGamma2Dir[3];
+          G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
+              eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
+
+          // TODO: In principle particles are produced, then cut before stacking them. It seems correct to count them here
+          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+          
+          // Apply cuts
+          if (false) {
+          // if (APPLY_CUTS && (theGamma1Ekin < theGammaCut)) {
+            // Deposit the energy here and kill the secondaries
+            energyDeposit += theGamma1Ekin;
+            
+          }
+          else
+          {
+            Track &gamma1 = secondaries.gammas->NextTrack();
+            gamma1.InitAsSecondary(pos, navState, globalTime);
+            gamma1.parentID = currentTrack.parentID;
+            gamma1.rngState = newRNG;
+            gamma1.eKin     = theGamma1Ekin;
+            gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
+          }
+          if (false) {
+          // if (APPLY_CUTS && (theGamma2Ekin < theGammaCut)) {
+            // Deposit the energy here and kill the secondaries
+            energyDeposit += theGamma2Ekin;
+            
+          }
+          else
+          {
+            Track &gamma2 = secondaries.gammas->NextTrack();
+            gamma2.InitAsSecondary(pos, navState, globalTime);
+            // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut 
+            // the state is not reused, but this shouldn't be an issue)
+            gamma2.parentID = currentTrack.parentID;
+            gamma2.rngState = currentTrack.rngState;
+            gamma2.eKin     = theGamma2Ekin;
+            gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
+          }
+
+          // The current track is killed by not enqueuing into the next activeQueue.
+          break;
+        }
         }
       }
-      continue;
-    } else if (!propagated || restrictedPhysicalStepLength) {
-      // Did not yet reach the interaction point due to error in the magnetic
-      // field propagation. Try again next time.
-      survive();
-      continue;
-    } else if (winnerProcessIndex < 0) {
-      // No discrete process, move on.
-      survive();
-      continue;
     }
 
-    // Reset number of interaction left for the winner discrete process.
-    // (Will be resampled in the next iteration.)
-    currentTrack.numIALeft[winnerProcessIndex] = -1.0;
+    // Redord the step. Edep includes the continuous energy loss and edep from secondaries which were cut
+    if (auxData.fSensIndex >= 0)
+      adept_scoring::RecordHit(userScoring, currentTrack.parentID,
+                               IsElectron ? 0 : 1,       // Particle type
+                               elTrack.GetPStepLength(), // Step length
+                               energyDeposit,            // Total Edep
+                               &navState,                // Pre-step point navstate
+                               &preStepPos,              // Pre-step point position
+                               &preStepDir,              // Pre-step point momentum direction
+                               nullptr,                  // Pre-step point polarization
+                               preStepEnergy,            // Pre-step point kinetic energy
+                               IsElectron ? -1 : 1,      // Pre-step point charge
+                               &nextState,               // Post-step point navstate
+                               &pos,                     // Post-step point position
+                               &dir,                     // Post-step point momentum direction
+                               nullptr,                  // Post-step point polarization
+                               eKin,                     // Post-step point kinetic energy
+                               IsElectron ? -1 : 1);     // Post-step point charge
 
-    // Check if a delta interaction happens instead of the real discrete process.
-    if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
-      // A delta interaction happened, move on.
-      survive();
-      continue;
-    }
-
-    // Perform the discrete interaction, make sure the branched RNG state is
-    // ready to be used.
-    newRNG.Advance();
-    // Also advance the current RNG state to provide a fresh round of random
-    // numbers after MSC used up a fair share for sampling the displacement.
-    currentTrack.rngState.Advance();
-
-    const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
-
-    switch (winnerProcessIndex) {
-    case 0: {
-      // Invoke ionization (for e-/e+):
-      double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, eKin, &rnge)
-                                      : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
-
-      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double dirSecondary[3];
-      G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
-      Track &secondary = secondaries.electrons->NextTrack();
-
-      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
-      secondary.InitAsSecondary(pos, navState, globalTime);
-      secondary.parentID = currentTrack.parentID;
-      secondary.rngState = newRNG;
-      secondary.eKin     = deltaEkin;
-      secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
-
-      eKin -= deltaEkin;
-      dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      survive();
-      break;
-    }
-    case 1: {
-      // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-      double logEnergy = std::log(eKin);
-      double deltaEkin = eKin < g4HepEmPars.fElectronBremModelLim
-                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, eKin, logEnergy,
-                                                                                 auxData.fMCIndex, &rnge, IsElectron)
-                             : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, eKin, logEnergy,
-                                                                                 auxData.fMCIndex, &rnge, IsElectron);
-
-      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double dirSecondary[3];
-      G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
-
-      Track &gamma = secondaries.gammas->NextTrack();
-      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
-
-      gamma.InitAsSecondary(pos, navState, globalTime);
-      gamma.parentID = currentTrack.parentID;
-      gamma.rngState = newRNG;
-      gamma.eKin     = deltaEkin;
-      gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
-
-      eKin -= deltaEkin;
-      dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      survive();
-      break;
-    }
-    case 2: {
-      // Invoke annihilation (in-flight) for e+
-      double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
-      double theGamma1Ekin, theGamma2Ekin;
-      double theGamma1Dir[3], theGamma2Dir[3];
-      G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
-          eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
-
-      Track &gamma1 = secondaries.gammas->NextTrack();
-      Track &gamma2 = secondaries.gammas->NextTrack();
-      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
-
-      gamma1.InitAsSecondary(pos, navState, globalTime);
-      gamma1.parentID = currentTrack.parentID;
-      gamma1.rngState = newRNG;
-      gamma1.eKin     = theGamma1Ekin;
-      gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
-
-      gamma2.InitAsSecondary(pos, navState, globalTime);
-      // Reuse the RNG state of the dying track.
-      gamma2.parentID = currentTrack.parentID;
-      gamma2.rngState = currentTrack.rngState;
-      gamma2.eKin     = theGamma2Ekin;
-      gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
-
-      // The current track is killed by not enqueuing into the next activeQueue.
-      break;
-    }
+    if(cross_boundary)
+    {
+      // Move to the next boundary.
+      navState = nextState;
+      // Check if the next volume belongs to the GPU region and push it to the appropriate queue
+#ifndef ADEPT_USE_SURF
+      const int nextlvolID = navState.Top()->GetLogicalVolume()->id();
+#else
+      const int nextlvolID = navState.GetLogicalId();
+#endif
+      VolAuxData const &nextauxData = auxDataArray[nextlvolID];
+      if (nextauxData.fGPUregion > 0)
+        survive();
+      else {
+        // To be safe, just push a bit the track exiting the GPU region to make sure
+        // Geant4 does not relocate it again inside the same region
+        pos += kPushOutRegion * dir;
+        survive(/*leak*/ true);
+      }
     }
   }
 }
