@@ -8,17 +8,17 @@
 #ifndef ADEPT_TRANSPORT_H
 #define ADEPT_TRANSPORT_H
 
-#include <unordered_map>
-#include <VecGeom/base/Config.h>
-#ifdef VECGEOM_ENABLE_CUDA
-#include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
-#endif
-
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AdePTTransportInterface.hh>
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 #include <AdePT/core/HostScoringStruct.cuh>
 #include <AdePT/core/AdePTConfiguration.hh>
+#include <AdePT/magneticfield/GeneralMagneticField.h>
+
+#include <VecGeom/base/Config.h>
+#ifdef VECGEOM_ENABLE_CUDA
+#include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
+#endif
 
 class G4Region;
 struct GPUstate;
@@ -65,6 +65,8 @@ public:
   bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
   /// @brief Set Geant4 region to which it applies
   void SetGPURegionNames(std::vector<std::string> const *regionNames) { fGPURegionNames = regionNames; }
+  /// @brief Set path to covfie Bfield file
+  void SetBfieldFileName(std::string fileName) { fBfieldFile = fileName; }
   /// @brief Set CUDA device stack limit
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
@@ -100,11 +102,14 @@ private:
   IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
   bool fInit{false};                  ///< Service initialized flag
   bool fTrackInAllRegions;            ///< Whether the whole geometry is a GPU region
+  std::string fBfieldFile{""};         ///< Path to magnetic field file (in the covfie format)
+  GeneralMagneticField fMagneticField; ///< arbitrary magnetic field
 
   /// @brief Used to map VecGeom to Geant4 volumes for scoring
   void InitializeSensitiveVolumeMapping(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world);
   void InitBVH();
   bool InitializeField(double bz);
+  bool InitializeGeneralField();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
 };
