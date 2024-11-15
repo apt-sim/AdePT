@@ -248,6 +248,18 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       pos += geometryStepLength * dir;
     }
 
+  // FIXME: here we can use the MagneticFieldView from Covfie
+  // // Check if the global device pointer is available
+  // if (MagneticFieldView) {
+  //   auto field = MagneticFieldView->at(pos.x(), pos.y(), pos.z());
+  
+  //   vecgeom::Vector3D<float> B(field[0], field[1], field[2]);
+
+  //   printf("Magnetic field at (%f, %f, %f) is (%f, %f, %f)\n",
+  //         pos.x(), pos.y(), pos.z(),
+  //         B.x(), B.y(), B.z());
+  // }
+
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)

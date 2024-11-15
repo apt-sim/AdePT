@@ -69,7 +69,7 @@ inline __host__ __device__ // __host__ __device_
     )
 {
   Real_t momentumMag    = sqrt(kinE * (kinE + 2.0 * mass));
-  Real_t invMomentumMag = 1.0 / momentumMag;
+  Real_t invMomentumMag = 1.0 / momentumMag; // SEVERIN used only once, can be done directly
 
   // Only charged particles ( e-, e+, any .. ) can be propagated
   vecgeom::Vector3D<Real_t> positionVec = position;
@@ -115,7 +115,7 @@ inline __host__ __device__ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, R
                             trialsPerCall);
     //   Runge-Kutta single call ( number of steps <= trialsPerCall )
 
-    lenRemains -= hAdvanced;
+    lenRemains -= hAdvanced; // SEVERIN: we are passing both lenRemains and hAdvanced to the previous function, why do this here?
     unfinished = lenRemains > 0.0; /// Was = !done  ... for debugging ????
 
     totLen += hAdvanced;
@@ -235,7 +235,6 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
   } else {
     bool continueIteration = false;
     bool fullChord         = false;
-    // vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
     const Real_t inv_momentumMag = 1.0 / momentumMag;
 
     bool lastWasZero = false; // Debug only ?  JA 2022.09.05
@@ -307,7 +306,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
         //     of the (potential) true point on the intersection of the curve and the boundary.
         // ( This involves a bias -- typically important only for muons in trackers.
         //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
-        Real_t fraction = chordDist > 0 ? linearStep / chordDist : 0.0;
+        Real_t fraction = vecCore::Max(linearStep / chordDist, 0.); // chordDist > 0 ? linearStep / chordDist : 0.0;
         curvedStep      = fraction * safeArc;
 #ifndef ENDPOINT_ON_CURVE
         // Primitive approximation of end direction and linearStep to the crossing point ...

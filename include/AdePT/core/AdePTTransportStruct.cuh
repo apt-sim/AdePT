@@ -6,6 +6,7 @@
 
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/HostScoringStruct.cuh>
+#include <AdePT/magneticfield/GeneralMagneticField.h>
 
 #include "Track.cuh"
 #include <AdePT/base/TrackManager.cuh>
@@ -92,5 +93,6 @@ extern __constant__ struct G4HepEmData g4HepEmData;
 extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
 extern __constant__ __device__ double BzFieldValue;
 extern __constant__ __device__ bool ApplyCuts;
+__constant__ __device__ typename cuda_field_t::view_t *MagneticFieldView = nullptr;
 } // namespace adept_impl
 #endif
