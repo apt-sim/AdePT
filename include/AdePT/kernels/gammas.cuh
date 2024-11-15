@@ -18,6 +18,8 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
+#define APPLY_CUTS true
+
 using VolAuxData = adeptint::VolAuxData;
 
 template <typename Scoring>
@@ -179,12 +181,16 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // We might need one branched RNG state, prepare while threads are synchronized.
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
+    const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+
     switch (winnerProcessIndex) {
     case 0: {
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (eKin < 2 * copcore::units::kElectronMassC2) {
         survive();
-        continue;
+        // continue;
+        break;
       }
 
       double logEnergy = std::log(eKin);
@@ -197,24 +203,66 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                           posKinEnergy, &rnge);
 
-      Track &electron = secondaries.electrons->NextTrack();
-      Track &positron = secondaries.positrons->NextTrack();
-
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
+      
+      // Check the cuts and deposit energy in this volume if needed
+      double edep=0;
 
-      electron.InitAsSecondary(pos, navState, globalTime);
-      electron.parentID = currentTrack.parentID;
-      electron.rngState = newRNG;
-      electron.eKin     = elKinEnergy;
-      electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
+      if (false) {
+      // if (APPLY_CUTS && elKinEnergy < theElCut) {
+        // Deposit the energy here and kill the secondary
+        edep += elKinEnergy;
+      }
+      else
+      {
+        Track &electron = secondaries.electrons->NextTrack();
+        electron.InitAsSecondary(pos, navState, globalTime);
+        electron.parentID = currentTrack.parentID;
+        electron.rngState = newRNG;
+        electron.eKin     = elKinEnergy;
+        electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
+      }
 
-      positron.InitAsSecondary(pos, navState, globalTime);
-      // Reuse the RNG state of the dying track.
-      positron.parentID = currentTrack.parentID;
-      positron.rngState = currentTrack.rngState;
-      positron.eKin     = posKinEnergy;
-      positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
+      if (false) {
+      // if (APPLY_CUTS && 
+      //       (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < theElCut)) {
+        // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
+        edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
+      }
+      else
+      {
+        Track &positron = secondaries.positrons->NextTrack();
+        positron.InitAsSecondary(pos, navState, globalTime);
+        // Reuse the RNG state of the dying track.
+        positron.parentID = currentTrack.parentID;
+        positron.rngState = currentTrack.rngState;
+        positron.eKin     = posKinEnergy;
+        positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
+      }
 
+      // If there is some edep from cutting particles, record the step
+      if(edep > 0)
+      {
+        if (auxData.fSensIndex >= 0)
+          adept_scoring::RecordHit(userScoring,
+                                    currentTrack.parentID, // Track ID
+                                    2,                     // Particle type
+                                    geometryStepLength,    // Step length
+                                    edep,                     // Total Edep
+                                    &navState,             // Pre-step point navstate
+                                    &preStepPos,           // Pre-step point position
+                                    &preStepDir,           // Pre-step point momentum direction
+                                    nullptr,               // Pre-step point polarization
+                                    preStepEnergy,         // Pre-step point kinetic energy
+                                    0,                     // Pre-step point charge
+                                    &nextState,            // Post-step point navstate
+                                    &pos,                  // Post-step point position
+                                    &dir,                  // Post-step point momentum direction
+                                    nullptr,               // Post-step point polarization
+                                    0,                     // Post-step point kinetic energy
+                                    0);                    // Post-step point charge
+      }
+      
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }
@@ -223,7 +271,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (eKin < LowEnergyThreshold) {
         survive();
-        continue;
+        // continue;
+        break;
       }
       const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirPrimary[3];
@@ -232,10 +281,17 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
 
       const double energyEl = eKin - newEnergyGamma;
+
+      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+
+      // Check the cuts and deposit energy in this volume if needed
+      double edep=0;
+
       if (energyEl > LowEnergyThreshold) {
+      // if (energyEl > LowEnergyThreshold && 
+      //     (APPLY_CUTS && (energyEl > theElCut))) {
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons->NextTrack();
-        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentID = currentTrack.parentID;
@@ -244,53 +300,42 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir      = eKin * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
-        if (auxData.fSensIndex >= 0)
-          adept_scoring::RecordHit(userScoring,
-                                   currentTrack.parentID, // Track ID
-                                   2,                     // Particle type
-                                   geometryStepLength,    // Step length
-                                   0,                     // Total Edep
-                                   &navState,             // Pre-step point navstate
-                                   &preStepPos,           // Pre-step point position
-                                   &preStepDir,           // Pre-step point momentum direction
-                                   nullptr,               // Pre-step point polarization
-                                   preStepEnergy,         // Pre-step point kinetic energy
-                                   0,                     // Pre-step point charge
-                                   &nextState,            // Post-step point navstate
-                                   &pos,                  // Post-step point position
-                                   &dir,                  // Post-step point momentum direction
-                                   nullptr,               // Post-step point polarization
-                                   newEnergyGamma,        // Post-step point kinetic energy
-                                   0,                     // Post-step point charge
-                                   0, -1);                // event and thread ID
+        edep += energyEl;
       }
 
       // Check the new gamma energy and deposit if below threshold.
+      // TODO: Why are we using this hardcoded cut here?
       if (newEnergyGamma > LowEnergyThreshold) {
         eKin = newEnergyGamma;
         dir  = newDirGamma;
         survive();
       } else {
+        edep += newEnergyGamma;
+        // The current track is killed by not enqueuing into the next activeQueue.
+      }
+
+      // If there is some edep from cutting particles, record the step
+      if(edep > 0)
+      {
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.parentID, // Track ID
-                                   2,                     // Particle type
-                                   geometryStepLength,    // Step length
-                                   0,                     // Total Edep
-                                   &navState,             // Pre-step point navstate
-                                   &preStepPos,           // Pre-step point position
-                                   &preStepDir,           // Pre-step point momentum direction
-                                   nullptr,               // Pre-step point polarization
-                                   preStepEnergy,         // Pre-step point kinetic energy
-                                   0,                     // Pre-step point charge
-                                   &nextState,            // Post-step point navstate
-                                   &pos,                  // Post-step point position
-                                   &dir,                  // Post-step point momentum direction
-                                   nullptr,               // Post-step point polarization
-                                   newEnergyGamma,        // Post-step point kinetic energy
-                                   0,                     // Post-step point charge
-                                   0, -1);                // event and thread ID
-        // The current track is killed by not enqueuing into the next activeQueue.
+                                    currentTrack.parentID, // Track ID
+                                    2,                     // Particle type
+                                    geometryStepLength,    // Step length
+                                    edep,                     // Total Edep
+                                    &navState,             // Pre-step point navstate
+                                    &preStepPos,           // Pre-step point position
+                                    &preStepDir,           // Pre-step point momentum direction
+                                    nullptr,               // Pre-step point polarization
+                                    preStepEnergy,         // Pre-step point kinetic energy
+                                    0,                     // Pre-step point charge
+                                    &nextState,            // Post-step point navstate
+                                    &pos,                  // Post-step point position
+                                    &dir,                  // Post-step point momentum direction
+                                    nullptr,               // Post-step point polarization
+                                    newEnergyGamma,        // Post-step point kinetic energy
+                                    0,                     // Post-step point charge
+                                    0, -1);                // event and thread ID
       }
       break;
     }
@@ -304,6 +349,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       double edep             = bindingEnergy;
       const double photoElecE = eKin - edep;
       if (photoElecE > theLowEnergyThreshold) {
+      // if (photoElecE > theLowEnergyThreshold && 
+      //     (APPLY_CUTS && (photoElecE > theElCut))) {
         // Create a secondary electron and sample directions.
         Track &electron = secondaries.electrons->NextTrack();
         adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
@@ -318,6 +365,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.eKin     = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
       } else {
+        // If the secondary electron is cut, deposit all the energy of the gamma in this volume
         edep = eKin;
       }
       if (auxData.fSensIndex >= 0)
