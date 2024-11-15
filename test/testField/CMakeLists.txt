@@ -43,7 +43,11 @@ target_link_libraries(testField
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
-  target_link_libraries(testField PRIVATE covfie::core)
+  target_link_libraries(testField 
+    PRIVATE
+      covfie::core
+      covfie::cuda
+  )
 endif()
 
 set_target_properties(testField 
