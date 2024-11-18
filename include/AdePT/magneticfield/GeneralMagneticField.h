@@ -15,6 +15,9 @@
 #include <covfie/cuda/backend/primitive/cuda_device_array.hpp>
 #include <covfie/cuda/error_check.hpp>
 
+
+#ifdef ADEPT_USE_EXT_BFIELD
+
 using cpu_field_t = covfie::field<
     covfie::backend::affine<covfie::backend::linear<covfie::backend::strided<
         covfie::vector::size3,
@@ -24,6 +27,8 @@ using cuda_field_t = covfie::field<
     covfie::backend::affine<covfie::backend::linear<covfie::backend::strided<
         covfie::vector::size3,
         covfie::backend::cuda_device_array<covfie::vector::float3>>>>>;
+
+#endif 
 
 class GeneralMagneticField // : public VVectorField
 {
@@ -36,7 +41,11 @@ public:
 
   GeneralMagneticField() = default;
 
+
   bool InitializeFromFile(const std::string &filePath) {
+
+#ifdef ADEPT_USE_EXT_BFIELD
+
     std::cout << "Starting read of input file..." << std::endl;
 
     std::ifstream ifs(filePath, std::ifstream::binary);
@@ -53,10 +62,11 @@ public:
     std::cout << "Casting magnetic field into CUDA array..." << std::endl;
     fFieldMap = std::make_unique<cuda_field_t>(cpuField);
     std::cout << "Done casting magnetic field into CUDA array!" << std::endl;
-
+#endif
     return true;
   }
 
+#ifdef ADEPT_USE_EXT_BFIELD
   typename cuda_field_t::view_t* GetGlobalView() {
     if (fFieldMap) {
       // Create a view from the field map
@@ -93,9 +103,13 @@ public:
 
     return vecgeom::Vector3D<Real_t>(field_value[0], field_value[1], field_value[2]);
   }
-
+#endif
 private:
+
+#ifdef ADEPT_USE_EXT_BFIELD
   std::unique_ptr<cuda_field_t> fFieldMap; 
+#endif
 };
+
 
 #endif // GeneralMagneticField_H__
