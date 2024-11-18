@@ -184,9 +184,11 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
     if (!InitializeField(bz))
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
 
+#ifdef ADEPT_USE_EXT_BFIELD
     // initialize general field
     if (!InitializeGeneralField())
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize failed to initialize general field on GPU");
+#endif
 
     // Do the material-cut couple index mapping once
     // as well as set flags for sensitive volumes and region

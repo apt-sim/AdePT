@@ -28,6 +28,11 @@ public:
       bool &propagated, const Real_t & /*safety*/, const int max_iterations, int &iterDone, int threadId);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
+  
+  // Calculate safety
+  static inline __host__ __device__ Real_t ComputeSafeLength(vecgeom::Vector3D<Real_t> &momentumVec,
+                                                               vecgeom::Vector3D<Real_t> &BfieldVec, int charge);
+
 protected:
   static inline __host__ __device__ void IntegrateTrackToEnd(
       Field_t const &magField, // RkDriver_t &integrationDriverRK,
@@ -167,9 +172,10 @@ inline __host__ __device__ bool fieldPropagatorRungeKutta<Field_t, RkDriver_t, R
   return done;
 }
 
-template <typename Real_t>
-inline __host__ __device__ Real_t inverseCurvature(vecgeom::Vector3D<Real_t> &momentumVec,
-                                                   vecgeom::Vector3D<Real_t> &BfieldVec, int charge)
+template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
+inline __host__ __device__ Real_t fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::
+    ComputeSafeLength(vecgeom::Vector3D<Real_t> &momentumVec,
+                      vecgeom::Vector3D<Real_t> &BfieldVec, int charge)
 {
   Real_t bmag2                      = BfieldVec.Mag2();
   Real_t ratioOverFld               = (bmag2 > 0) ? momentumVec.Dot(BfieldVec) / bmag2 : 0.0;
@@ -181,7 +187,10 @@ inline __host__ __device__ Real_t inverseCurvature(vecgeom::Vector3D<Real_t> &mo
 
   // Calculate inverse curvature instead - save a division
   Real_t inv_curv = fabs(PtransB.Mag() / (fieldConstants::kB2C * Real_t(charge) * bmag + 1.0e-30));
-  return inv_curv;
+  // acceptable lateral error from field ~ related to delta_chord sagital distance
+  return sqrt(Real_t(2.0) * fieldConstants::gEpsilonDeflect *
+                                 inv_curv); // max length along curve for deflectionn
+                                            // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
 }
 
 // Determine the step along curved trajectory for charged particles in a field.
@@ -206,13 +215,9 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
   vecgeom::Vector3D<Real_t> B0fieldVec = {0.0, 0.0, 0.0}; // Field value at starting point
   magField.Evaluate(position, B0fieldVec);
 
-  Real_t inv_curv = inverseCurvature /*<Real_t>*/ (momentumVec, B0fieldVec, charge);
+  const Real_t safeLength = ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, charge);
 
-  // acceptable lateral error from field ~ related to delta_chord sagital distance
-  const Real_t safeLength = sqrt(Real_t(2.0) * fieldConstants::gEpsilonDeflect *
-                                 inv_curv); // max length along curve for deflectionn
-                                            // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
-
+  // SEVERIN: CHECK THIS OTHERWISE REMOVE IT AND JUST USE safeLength
   Precision maxNextSafeMove = safeLength; // It can be reduced if, at the start, a boundary is encountered
 
   Real_t stepDone           = 0.0;

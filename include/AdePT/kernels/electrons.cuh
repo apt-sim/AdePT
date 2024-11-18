@@ -48,8 +48,18 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+#ifdef ADEPT_USE_EXT_BFIELD
+  constexpr int Nvar   = 6;
+  using Field_t        = UniformMagneticField; // ToDO:  Change to non-uniform type !!
+  using Equation_t     = MagneticFieldEquation<Field_t>;
+  using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using DoPri5Driver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  constexpr int max_iterations = 10;
 
+  Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+#else
+  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+#endif
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot           = (*active)[i];
@@ -80,7 +90,20 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
   constexpr int Pdg                 = IsElectron ? 11 : -11;
+#ifdef ADEPT_USE_EXT_BFIELD
+  constexpr int Nvar   = 6;
+  using Field_t        = UniformMagneticField; // ToDO:  Change to non-uniform type !!
+  using Equation_t     = MagneticFieldEquation<Field_t>;
+  using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using DoPri5Driver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  constexpr int max_iterations = 10;
+
+  Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+#else
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+#endif
+
+#endif
 
   int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -187,11 +210,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     if (BzFieldValue != 0) {
       const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
       // Distance along the track direction to reach the maximum allowed error
-      const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
+      double safeLength;
+      
+#ifdef ADEPT_USE_EXT_BFIELD
+      vecgeom::Vector3D<Real_t> momentumVec = momentumMag * dir;
 
+      vecgeom::Vector3D<Real_t> B0fieldVec = {0.0, 0.0, 0.0}; // Field value at starting point
+      magField.Evaluate(position, B0fieldVec);
+
+      safeLength = fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::
+                      ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, charge);
+#else 
+      safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
+#endif
       constexpr int MaxSafeLength = 10;
       double limit                = MaxSafeLength * safeLength;
-      limit                       = safety > limit ? safety : limit;
+      limit                       = safety > limit ? safety : limit; // SEVERIN: replace with branchless version by bitwise operation (or max for now)
 
       if (physicalStepLength > limit) {
         physicalStepLength           = limit;
@@ -233,6 +267,19 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     long hitsurf_index = -1;
     double geometryStepLength;
     vecgeom::NavigationState nextState;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+
+    int iterDone = -1;
+    geometryStepLength =
+        fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
+            magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
+            hitsurf_index, propagated, /*lengthDone,*/ safety,
+            // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
+            max_iterations, iterDone, slot);
+
+#else
+
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index,
@@ -247,6 +294,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
       pos += geometryStepLength * dir;
     }
+
+#endif
 
   // FIXME: here we can use the MagneticFieldView from Covfie
   // // Check if the global device pointer is available
