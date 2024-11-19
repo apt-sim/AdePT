@@ -23,8 +23,8 @@ public:
   __host__ __device__ fieldPropagatorConstBz(Precision Bz) { BzValue = Bz; }
   __host__ __device__ ~fieldPropagatorConstBz() {}
 
-  __host__ __device__ void stepInField(double kinE, double mass, int charge, Precision step, Vector3D &position,
-                                       Vector3D &direction);
+  // __host__ __device__ void stepInField(double kinE, double mass, int charge, Precision step, Vector3D &position,
+  //                                      Vector3D &direction);
 
   __host__ __device__ Precision ComputeSafeLength(Precision momentumMag, int charge, const Vector3D &direction);
 
@@ -42,27 +42,27 @@ private:
 
 // -----------------------------------------------------------------------------
 
-__host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double mass, int charge, Precision step,
-                                                             vecgeom::Vector3D<vecgeom::Precision> &position,
-                                                             vecgeom::Vector3D<vecgeom::Precision> &direction)
-{
-  if (charge != 0) {
-    Precision momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
+// __host__ __device__ void fieldPropagatorConstBz::stepInField(double kinE, double mass, int charge, Precision step,
+//                                                              vecgeom::Vector3D<vecgeom::Precision> &position,
+//                                                              vecgeom::Vector3D<vecgeom::Precision> &direction)
+// {
+//   if (charge != 0) {
+//     Precision momentumMag = sqrt(kinE * (kinE + 2.0 * mass));
 
-    // For now all particles ( e-, e+, gamma ) can be propagated using this
-    //   for gammas  charge = 0 works, and ensures that it goes straight.
-    ConstBzFieldStepper helixBz(BzValue);
+//     // For now all particles ( e-, e+, gamma ) can be propagated using this
+//     //   for gammas  charge = 0 works, and ensures that it goes straight.
+//     ConstBzFieldStepper helixBz(BzValue);
 
-    Vector3D endPosition  = position;
-    Vector3D endDirection = direction;
-    helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, step, endPosition, endDirection);
-    position  = endPosition;
-    direction = endDirection;
-  } else {
-    // Also move gammas - for now ..
-    position = position + step * direction;
-  }
-}
+//     Vector3D endPosition  = position;
+//     Vector3D endDirection = direction;
+//     helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, step, endPosition, endDirection);
+//     position  = endPosition;
+//     direction = endDirection;
+//   } else {
+//     // Also move gammas - for now ..
+//     position = position + step * direction;
+//   }
+// }
 
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precision momentumMag, int charge,
                                                                         const Vector3D &direction)
