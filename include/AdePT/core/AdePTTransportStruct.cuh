@@ -94,6 +94,7 @@ extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
 extern __constant__ __device__ double BzFieldValue;
 extern __constant__ __device__ bool ApplyCuts;
 #ifdef ADEPT_USE_EXT_BFIELD
+extern __constant__ __device__ typename cuda_field_t::view_t *MagneticFieldView;
 __constant__ __device__ typename cuda_field_t::view_t *MagneticFieldView = nullptr;
 #endif 
 } // namespace adept_impl
