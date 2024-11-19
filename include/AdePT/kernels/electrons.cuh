@@ -274,6 +274,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     bool reached_interaction = true;
     bool cross_boundary = false;
 
+    const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+
     if (stopped) {
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
@@ -289,19 +292,28 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         double sinPhi, cosPhi;
         sincos(phi, &sinPhi, &cosPhi);
 
-        gamma1.InitAsSecondary(pos, navState, globalTime);
-        newRNG.Advance();
-        gamma1.parentID = currentTrack.parentID;
-        gamma1.rngState = newRNG;
-        gamma1.eKin     = copcore::units::kElectronMassC2;
-        gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
+        // Apply cuts
+        if (APPLY_CUTS && (copcore::units::kElectronMassC2 < theGammaCut)) {
+          // Deposit the energy here and kill the secondaries
+          energyDeposit += 2 * copcore::units::kElectronMassC2;
+          
+        }
+        else
+        {
+          gamma1.InitAsSecondary(pos, navState, globalTime);
+          newRNG.Advance();
+          gamma1.parentID = currentTrack.parentID;
+          gamma1.rngState = newRNG;
+          gamma1.eKin     = copcore::units::kElectronMassC2;
+          gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
-        gamma2.InitAsSecondary(pos, navState, globalTime);
-        // Reuse the RNG state of the dying track.
-        gamma2.parentID = currentTrack.parentID;
-        gamma2.rngState = currentTrack.rngState;
-        gamma2.eKin     = copcore::units::kElectronMassC2;
-        gamma2.dir      = -gamma1.dir;
+          gamma2.InitAsSecondary(pos, navState, globalTime);
+          // Reuse the RNG state of the dying track.
+          gamma2.parentID = currentTrack.parentID;
+          gamma2.rngState = currentTrack.rngState;
+          gamma2.eKin     = copcore::units::kElectronMassC2;
+          gamma2.dir      = -gamma1.dir;
+        }
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
       // continue;
@@ -357,9 +369,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // numbers after MSC used up a fair share for sampling the displacement.
         currentTrack.rngState.Advance();
 
-        const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
-        const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
-
         switch (winnerProcessIndex) {
         case 0: {
           // Invoke ionization (for e-/e+):
@@ -373,8 +382,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
           // Apply cuts
-          if (false) {
-          // if (APPLY_CUTS && (deltaEkin < theElCut)) {
+          if (APPLY_CUTS && (deltaEkin < theElCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
 
@@ -410,8 +418,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
           // Apply cuts
-          if (false) {
-          // if (APPLY_CUTS && (deltaEkin < theGammaCut)) {
+          if (APPLY_CUTS && (deltaEkin < theGammaCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
             
@@ -443,8 +450,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
           
           // Apply cuts
-          if (false) {
-          // if (APPLY_CUTS && (theGamma1Ekin < theGammaCut)) {
+          if (APPLY_CUTS && (theGamma1Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
             energyDeposit += theGamma1Ekin;
             
@@ -458,8 +464,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma1.eKin     = theGamma1Ekin;
             gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
           }
-          if (false) {
-          // if (APPLY_CUTS && (theGamma2Ekin < theGammaCut)) {
+          if (APPLY_CUTS && (theGamma2Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
             energyDeposit += theGamma2Ekin;
             

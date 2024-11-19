@@ -206,8 +206,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // Check the cuts and deposit energy in this volume if needed
       double edep=0;
 
-      if (false) {
-      // if (APPLY_CUTS && elKinEnergy < theElCut) {
+      if (APPLY_CUTS && elKinEnergy < theElCut) {
         // Deposit the energy here and kill the secondary
         edep += elKinEnergy;
       }
@@ -221,9 +220,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
       }
 
-      if (false) {
-      // if (APPLY_CUTS && 
-      //       (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < theElCut)) {
+      if (APPLY_CUTS && 
+            (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < theElCut)) {
         // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
         edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
       }
@@ -285,9 +283,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // Check the cuts and deposit energy in this volume if needed
       double edep=0;
 
-      if (energyEl > LowEnergyThreshold) {
-      // if (energyEl > LowEnergyThreshold && 
-      //     (APPLY_CUTS && (energyEl > theElCut))) {
+      if (energyEl > LowEnergyThreshold && 
+          (APPLY_CUTS && (energyEl > theElCut))) {
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons->NextTrack();
 
@@ -345,9 +342,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       double edep             = bindingEnergy;
       const double photoElecE = eKin - edep;
-      if (photoElecE > theLowEnergyThreshold) {
-      // if (photoElecE > theLowEnergyThreshold && 
-      //     (APPLY_CUTS && (photoElecE > theElCut))) {
+      if (photoElecE > theLowEnergyThreshold && 
+          (APPLY_CUTS && (photoElecE > theElCut))) {
         // Create a secondary electron and sample directions.
         Track &electron = secondaries.electrons->NextTrack();
         adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
