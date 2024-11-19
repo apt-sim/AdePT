@@ -8,15 +8,14 @@
 
 #include <VecGeom/base/Vector3D.h>
 
+#ifdef ADEPT_USE_EXT_BFIELD
+
 #include <covfie/core/backend/transformer/affine.hpp>
 #include <covfie/core/backend/transformer/linear.hpp>
 #include <covfie/core/backend/transformer/strided.hpp>
 #include <covfie/core/field.hpp>
 #include <covfie/cuda/backend/primitive/cuda_device_array.hpp>
 #include <covfie/cuda/error_check.hpp>
-
-
-#ifdef ADEPT_USE_EXT_BFIELD
 
 using cpu_field_t = covfie::field<
     covfie::backend::affine<covfie::backend::linear<covfie::backend::strided<
