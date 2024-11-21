@@ -101,7 +101,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetHitBufferFlushThresholdCmd;
   delete fSetGDMLCmd;
   delete fSetCovfieFileCmd;
-  delete fSetCUDAStackLimitCmd;
+  // delete fSetCUDAStackLimitCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

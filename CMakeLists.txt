@@ -175,6 +175,10 @@ endif()
 
 # Find covfie to load external fields from file. 
 if(ADEPT_USE_EXT_BFIELD)
+
+  message(STATUS "Compiling with external magnetic field support via covfie")
+  add_compile_definitions(ADEPT_USE_EXT_BFIELD)
+
   find_package(covfie) # not using REQUIRED to have a clearer error message
   if (covfie_FOUND)
     get_target_property(COVFIE_INCLUDE_DIR covfie::core INTERFACE_INCLUDE_DIRECTORIES)
