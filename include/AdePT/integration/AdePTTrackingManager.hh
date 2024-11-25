@@ -9,6 +9,7 @@
 
 #include "globals.hh"
 #include <AdePT/core/AdePTTransportInterface.hh>
+#include <AdePT/core/AdePTTransport.h>
 #include "AdePT/copcore/SystemOfUnits.h"
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/core/AdePTConfiguration.hh>
@@ -49,9 +50,9 @@ private:
   /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
   void StepInHostRegion(G4Track *aTrack);
 
+  static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
   int fVerbosity{0};
-
   std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
   AdePTConfiguration *fAdePTConfiguration;
   unsigned int fTrackCounter{0};

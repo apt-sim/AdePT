@@ -39,6 +39,22 @@ void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GP
 } // namespace adept_impl
 
 template <typename IntegrationLayer>
+AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configuration)
+{
+  fDebugLevel = 0;
+  fBufferThreshold = configuration.GetTransportBufferThreshold();
+  fMaxBatch = 2 * configuration.GetTransportBufferThreshold();
+  fTrackInAllRegions = configuration.GetTrackInAllRegions();
+  fGPURegionNames = configuration.GetGPURegionNames();
+  fCUDAStackLimit = configuration.GetCUDAStackLimit();
+  fCapacity = 1024 * 1024 * configuration.GetMillionsOfTrackSlots() / configuration.GetNumThreads();
+  fHitBufferCapacity = 1024 * 1024 * configuration.GetMillionsOfHitSlots() / configuration.GetNumThreads();
+  
+  printf( "AdePT Allocated track capacity: %d tracks\n", fCapacity);
+  printf( "AdePT Allocated step buffer capacity: %d tracks\n", fHitBufferCapacity);
+}
+
+template <typename IntegrationLayer>
 bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
 {
   return adept_impl::InitializeField(bz);
