@@ -26,7 +26,7 @@ else()
   return()
 endif()
 
-find_package(ROOT REQUIRED COMPONENTS Hist RIO)
+find_package(ROOT QUIET COMPONENTS Hist RIO)
 if(ROOT_FOUND)
   include_directories(${ROOT_INCLUDE_DIRS})
   message(STATUS "ROOT found at: ${ROOT_INCLUDE_DIRS}")
