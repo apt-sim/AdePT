@@ -28,8 +28,6 @@ AdePTTrackingManager::~AdePTTrackingManager()
 
 void AdePTTrackingManager::InitializeAdePT()
 {
-  const auto num_threads = G4RunManager::GetRunManager()->GetNumberOfThreads();
-
   // Check if this is a sequential run
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
@@ -37,12 +35,18 @@ void AdePTTrackingManager::InitializeAdePT()
   // One thread initializes common elements
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
+    // Only the master thread knows the actual number of threads, the worker threads will return "1"
+    // This value is stored here by the master in a static variable, and used by each thread to pass the 
+    // correct number to their AdePTConfiguration instance
+    fNumThreads = G4RunManager::GetRunManager()->GetNumberOfThreads();
+    fAdePTConfiguration->SetNumThreads(fNumThreads);
+
     // Load the VecGeom world in memory
     AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
 
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
-    fAdeptTransport = fAdePTConfiguration->CreateAdePTInstance(num_threads);
+    fAdeptTransport = std::make_shared<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
@@ -54,7 +58,8 @@ void AdePTTrackingManager::InitializeAdePT()
   } else {
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
-    fAdeptTransport = fAdePTConfiguration->CreateAdePTInstance(num_threads);
+    fAdePTConfiguration->SetNumThreads(fNumThreads);
+    fAdeptTransport = std::make_shared<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
     // Initialize per-thread data
     fAdeptTransport->Initialize();
   }

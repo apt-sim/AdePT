@@ -164,11 +164,11 @@ endif()
 #----------------------------------------------------------------------------#
 set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTTrackingManager.cc
+  src/AdePTTrackingManager.cu
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
   src/AdePTConfigurationMessenger.cc
-  src/AdePTConfiguration.cc
 )
 
 add_library(CopCore INTERFACE)
@@ -180,8 +180,6 @@ target_include_directories(CopCore
 
 add_library(AdePT_G4_integration SHARED
   ${ADEPT_G4_INTEGRATION_SRCS}
-  src/AdePTTransport.cc
-  src/AdePTTransport.cu
 )
 target_include_directories(AdePT_G4_integration
   PUBLIC

@@ -25,8 +25,9 @@ std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThr
 ///
 class AdePTConfiguration {
 public:
-  AdePTConfiguration();
-  ~AdePTConfiguration();
+  AdePTConfiguration() : fAdePTConfigurationMessenger{new AdePTConfigurationMessenger(this)} {}
+  ~AdePTConfiguration() {}
+  void SetNumThreads(int numThreads) { fNumThreads = numThreads; }
   void SetRandomSeed(int randomSeed) { fRandomSeed = randomSeed; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
@@ -43,6 +44,7 @@ public:
 
   bool GetTrackInAllRegions() { return fTrackInAllRegions; }
   bool IsAdePTActivated() { return fAdePTActivated; }
+  int GetNumThreads() { return fNumThreads; };
   int GetVerbosity() { return fVerbosity; };
   int GetTransportBufferThreshold() { return fTransportBufferThreshold; }
   int GetCUDAStackLimit() { return fCUDAStackLimit; }
@@ -51,14 +53,13 @@ public:
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
 
-  std::shared_ptr<AdePTTransportInterface> CreateAdePTInstance(unsigned int nThread);
-
   // Temporary
   std::string GetVecGeomGDML() { return fVecGeomGDML; }
 
 private:
   bool fTrackInAllRegions{false};
   bool fAdePTActivated{true};
+  int fNumThreads;
   int fRandomSeed;
   int fVerbosity{0};
   int fTransportBufferThreshold{200};
