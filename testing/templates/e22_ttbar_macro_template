@@ -13,7 +13,6 @@
 /process/verbose 0
 /tracking/verbose 0
 ##
-/$ui_dir/setSeed 1
 
 /$ui_dir/detector/filename $gdml_file
 /$ui_dir/detector/regionname EcalRegion
@@ -142,7 +141,6 @@
 ##/tracking/verbose 1
 ##/process/list
 
-/$ui_dir/setSeed $random_seed
 
 # run events with parametrised simulation
 /run/beamOn $num_events

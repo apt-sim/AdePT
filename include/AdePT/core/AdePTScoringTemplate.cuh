@@ -11,11 +11,11 @@
 // These methods are meant to be templated on a struct containing the necessary information
 namespace adept_scoring
 {
-  template <typename Scoring>
-  Scoring* InitializeOnGPU(Scoring *scoring){}
+template <typename Scoring>
+Scoring *InitializeOnGPU(Scoring *scoring);
 
-  template <typename Scoring>
-  void FreeGPU(Scoring *scoring, Scoring *scoring_dev){}
+template <typename Scoring>
+void FreeGPU(Scoring *scoring, Scoring *scoring_dev);
 
   template <typename Scoring>
   __device__ void RecordHit(Scoring *scoring_dev, int aParentID, char aParticleType, double aStepLength,
