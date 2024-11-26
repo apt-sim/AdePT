@@ -19,6 +19,7 @@
 #include "CommonStruct.h"
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 #include <AdePT/core/HostScoringStruct.cuh>
+#include <AdePT/core/AdePTConfiguration.hh>
 
 class G4Region;
 struct GPUstate;
@@ -32,7 +33,7 @@ public:
   using TrackBuffer                = adeptint::TrackBuffer;
   using VolAuxArray                = adeptint::VolAuxArray;
 
-  AdePTTransport() = default;
+  AdePTTransport(AdePTConfiguration &configuration);
 
   ~AdePTTransport() { delete fScoring; }
 
@@ -76,8 +77,8 @@ public:
 
 private:
   static inline G4HepEmState *fg4hepem_state{nullptr}; ///< The HepEm state singleton
-  static inline int fCapacity{1024 * 1024};            ///< Track container capacity on GPU
-  static inline int fHitBufferCapacity{1024 * 1024};   ///< Capacity of hit buffers
+  int fCapacity{1024 * 1024};                          ///< Track container capacity on GPU
+  int fHitBufferCapacity{1024 * 1024};                 ///< Capacity of hit buffers
   int fNthreads{0};                                    ///< Number of cpu threads
   int fMaxBatch{0};                                    ///< Max batch size for allocating GPU memory
   int fNumVolumes{0};                                  ///< Total number of active logical volumes
