@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 CERN
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 #include <TH1.h>
 #include <TH2.h>
