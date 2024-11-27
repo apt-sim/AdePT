@@ -10,16 +10,38 @@
 #ifndef MagneticFieldEquation_H_
 #define MagneticFieldEquation_H_
 
-#include <iostream> // For cout only
+#include <AdePT/copcore/PhysicalConstants.h>
 
 // #include <VecCore/Math.h>
 #include <VecGeom/base/Vector3D.h>
 
-#include <AdePT/copcore/PhysicalConstants.h>
+#include <iostream> // For cout only
 
 template <typename MagneticField_t>
 class MagneticFieldEquation {
 public:
+  template <typename Real_t>
+  static inline __host__ __device__ void EvaluateDerivatives(MagneticField_t const &magField, const Real_t y[],
+                                                             int charge, Real_t dy_ds[])
+  {
+    // Inline evaluation to avoid redundant calls
+    const vecgeom::Vector3D<Real_t> Bvec = magField.Evaluate(y[0], y[1], y[2]);
+
+    // Directly compute the RHS
+    Real_t momentum_mag     = sqrt(y[3] * y[3] + y[4] * y[4] + y[5] * y[5]);
+    Real_t inv_momentum_mag = Real_t(1.0) / momentum_mag;
+
+    dy_ds[0] = y[3] * inv_momentum_mag;
+    dy_ds[1] = y[4] * inv_momentum_mag;
+    dy_ds[2] = y[5] * inv_momentum_mag;
+
+    Real_t cof = charge * gCof * inv_momentum_mag;
+
+    dy_ds[3] = cof * (y[4] * Bvec[2] - y[5] * Bvec[1]);
+    dy_ds[4] = cof * (y[5] * Bvec[0] - y[3] * Bvec[2]);
+    dy_ds[5] = cof * (y[3] * Bvec[1] - y[4] * Bvec[0]);
+  }
+
   // Key methods
   // -----------
   template <typename Real_t>
@@ -39,9 +61,9 @@ public:
   }
   //  Same with Vector3D arguments
 
-  template <typename Real_t>
-  static __host__ __device__ void EvaluateDerivatives(MagneticField_t const &magField, const Real_t y[], int charge,
-                                                      Real_t dy_ds[]);
+  // template <typename Real_t>
+  // static __host__ __device__ void EvaluateDerivatives(MagneticField_t const &magField, const Real_t y[], int charge,
+  //                                                     Real_t dy_ds[]);
   // Same, with MagneticField_t object, used to obtain B-field.
 
   template <typename Real_t>
@@ -184,62 +206,18 @@ MagneticFieldEquation<MagField_t>::
 
 // ------------------------------------------------------------------------------------
 
-template <typename MagField_t>
-template <typename Real_t>
-inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDerivatives(MagField_t const &magField,
-                                                                                       const Real_t y[], int charge,
-                                                                                       Real_t dy_ds[])
-{
-  float Bx, By, Bz;
-  magField.Evaluate(y[0], y[1], y[2], Bx, By, Bz);
-  Real_t Bfield[3] = {Bx, By, Bz};
-  EvaluateDerivativesGivenB(y, Bfield, charge, dy_ds);
-}
+// template <typename MagField_t>
+// template <typename Real_t>
+// inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDerivatives(MagField_t const &magField,
+//                                                                                        const Real_t y[], int charge,
+//                                                                                        Real_t dy_ds[])
+// {
+//   const vecgeom::Vector3D<Real_t> Bvec = magField.Evaluate(y[0], y[1], y[2]);
+//   EvaluateRhsGivenB<Real_t, int>(y, charge, Bvec, dy_ds);
+// }
 
 // ------------------------------------------------------------------------------------
-
-template <typename MagField_t>
-template <typename Real_t>
-inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDerivativesReturnB(
-    MagField_t const &magField, const Real_t y[], int charge, Real_t dy_ds[], vecgeom::Vector3D<float> &BfieldVec
-    // float           BfieldValue[3]
-)
-{
-  // vecgeom::Vector3D<float>  position( y[0], y[1], y[2] );
-  // magField.Evaluate( position, BfieldVec );
-  // float Bfield[3] = { BfieldVec[0], BfieldVec[1], BfieldVec[2] } ;
-  float Bx, By, Bz;
-  magField.Evaluate(y[0], y[1], y[2], Bx, By, Bz);
-  // std::cout << "EvalDerivRetB:  Bx= " << Bx << " By= " << By << " Bz=" << Bz << std::endl;
-  Real_t Bfield[3] = {Bx, By, Bz};
-  EvaluateDerivativesGivenB(y, Bfield, charge, dy_ds);
-  BfieldVec = vecgeom::Vector3D<Real_t>(Bfield[0], Bfield[1], Bfield[2]); // Bx, By, Bz);
-}
-
-// ------------------------------------------------------------------------------------
-
-template <typename MagField_t>
-template <typename Real_t>
-inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDerivativesReturnB(
-    MagField_t const &magField, vecgeom::Vector3D<float> const &position, vecgeom::Vector3D<float> const &momentum,
-    int charge, Real_t dy_ds[], vecgeom::Vector3D<float> &BfieldVec
-    // float           BfieldValue[3]
-)
-{
-  // vecgeom::Vector3D<float>  position( y[0], y[1], y[2] );
-  // magField.Evaluate( position, BfieldVec );
-  // float Bfield[3] = { BfieldVec[0], BfieldVec[1], BfieldVec[2] } ;
-  const Real_t y[Nvar] = {position[0], position[1], position[2], momentum[0], momentum[1], momentum[2]};
-  float Bx, By, Bz;
-  magField.Evaluate(y[0], y[1], y[2], Bx, By, Bz);
-  // std::cout << "EvalDerivRetB:  Bx= " << Bx << " By= " << By << " Bz=" << Bz << std::endl;
-  Real_t Bfield[3] = {Bx, By, Bz};
-  EvaluateDerivativesGivenB(y, Bfield, charge, dy_ds);
-  BfieldVec = vecgeom::Vector3D<Real_t>(Bfield[0], Bfield[1], Bfield[2]); // Bx, By, Bz);
-}
-
-// ------------------------------------------------------------------------------------
-
+// ONLY FOR DEBUGGING
 template <typename MagField_t>
 template <typename Real_t>
 inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDerivativesGivenB(const Real_t y[],
@@ -250,18 +228,34 @@ inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDeriv
   EvaluateRhsGivenB<Real_t, int>(y, charge, Bvec, dy_ds);
 }
 
-// template <typename MagField_t>
-// MagneticFieldEquation<MagField_t>::
+// ------------------------------------------------------------------------------------
+// ONLY FOR DEBUGGING
+template <typename MagField_t>
+template <typename Real_t>
+inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDerivativesReturnB(
+    MagField_t const &magField, const Real_t y[], int charge, Real_t dy_ds[], vecgeom::Vector3D<float> &BfieldVec
+    // float           BfieldValue[3]
+)
+{
+  BfieldVec = magField.Evaluate(y[0], y[1], y[2]);
+  // std::cout << "EvalDerivRetB:  Bx= " << BfieldVec[0] << " By= " << BfieldVec[1] << " Bz=" << BfieldVec[2] <<
+  // std::endl;
+  EvaluateRhsGivenB<Real_t, int>(y, charge, BfieldVec, dy_ds);
+}
 
-/******
-  template< class Real_t>
-  static __host__ __device__ void
-  EvaluateField(Real_t const & posx, Real_t const & posy, Real_t const & posz,
-                MagField_t const & magField,
-                Real_t & Bx, Real_t & By, Real_t & Bz)
-  {
-     magField.Evaluated (posx, posy, posz, Bx, By, Bz );
-  }
- ******/
+// ------------------------------------------------------------------------------------
+// ONLY FOR DEBUGGING
+template <typename MagField_t>
+template <typename Real_t>
+inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDerivativesReturnB(
+    MagField_t const &magField, vecgeom::Vector3D<float> const &position, vecgeom::Vector3D<float> const &momentum,
+    int charge, Real_t dy_ds[], vecgeom::Vector3D<float> &BfieldVec)
+{
+  const Real_t y[Nvar] = {position[0], position[1], position[2], momentum[0], momentum[1], momentum[2]};
+  BfieldVec            = magField.Evaluate(y[0], y[1], y[2]);
+  // std::cout << "EvalDerivRetB:  Bx= " << BfieldVec[0] << " By= " << BfieldVec[1] << " Bz=" << BfieldVec[2] <<
+  // std::endl;
+  EvaluateRhsGivenB<Real_t, int>(y, charge, BfieldVec, dy_ds);
+}
 
 #endif
