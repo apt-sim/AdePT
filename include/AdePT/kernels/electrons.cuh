@@ -106,7 +106,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
   Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
 #else
-  printf("I am still alive!\n");
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 #endif
 
