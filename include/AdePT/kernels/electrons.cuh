@@ -221,8 +221,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ADEPT_USE_EXT_BFIELD
       // SEVERIN: to be checked if we can use float
       vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
-      vecgeom::Vector3D<double> B0fieldVec = {0.0, 0.0, 0.0}; // Field value at starting point
-      magField.Evaluate(pos, B0fieldVec);
+      vecgeom::Vector3D<double> B0fieldVec = magField.Evaluate(pos[0], pos[1], pos[2]); // {0.0, 0.0, 0.0}; // Field value at starting point
+      // magField.Evaluate(pos, B0fieldVec);
 
       safeLength = fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::
                       ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, Charge);
