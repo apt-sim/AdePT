@@ -29,6 +29,7 @@ bool InitializeApplyCuts(bool);
 bool InitializeGeneralField(GeneralMagneticField&);
 bool InitializeVolAuxArray(adeptint::VolAuxArray &);
 void FreeVolAuxArray(adeptint::VolAuxArray &);
+void FreeGeneralField(GeneralMagneticField &);
 G4HepEmState *InitG4HepEm();
 GPUstate *InitializeGPU(TrackBuffer &, int, int);
 AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring);
