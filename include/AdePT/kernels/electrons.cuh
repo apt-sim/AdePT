@@ -305,10 +305,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
   // FIXME: here we can use the MagneticFieldView from Covfie
   // // Check if the global device pointer is available
-  // if (MagneticFieldView) {
-  //   auto field = MagneticFieldView->at(pos.x(), pos.y(), pos.z());
+  // if (gMagneticField) {
+  //   auto B = gMagneticField->Evaluate(pos.x(), pos.y(), pos.z());
   
-  //   vecgeom::Vector3D<float> B(field[0], field[1], field[2]);
+  //   // vecgeom::Vector3D<float> B(field[0], field[1], field[2]);
 
   //   printf("Magnetic field at (%f, %f, %f) is (%f, %f, %f)\n",
   //         pos.x(), pos.y(), pos.z(),
