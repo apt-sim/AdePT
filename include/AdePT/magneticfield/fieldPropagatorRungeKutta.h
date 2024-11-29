@@ -213,8 +213,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
   const Real_t momentumMag              = sqrt(kinE * (kinE + 2.0 * mass));
   vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
 
-  vecgeom::Vector3D<Real_t> B0fieldVec = {0.0, 0.0, 0.0}; // Field value at starting point
-  magField.Evaluate(position, B0fieldVec);
+  vecgeom::Vector3D<Real_t> B0fieldVec = magField.Evaluate(position); // Field value at starting point
 
   const Real_t safeLength = ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, charge);
 
