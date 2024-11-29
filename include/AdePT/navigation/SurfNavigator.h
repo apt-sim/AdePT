@@ -49,10 +49,12 @@ public:
   /// @brief Computes the isotropic safety from the globalpoint.
   /// @param globalpoint Point in global coordinates
   /// @param state Path where to compute safety
+  /// @param limit Limit to which safety should be computed accurately
   /// @return Isotropic safe distance
-  __host__ __device__ static Precision ComputeSafety(Vector3D const &globalpoint, vecgeom::NavigationState const &state)
+  __host__ __device__ static Precision ComputeSafety(Vector3D const &globalpoint, vecgeom::NavigationState const &state,
+                                                     Precision limit = vecgeom::InfinityLength<Real_t>())
   {
-    auto safety = vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeSafety(globalpoint, state);
+    auto safety = vgbrep::protonav::BVHSurfNavigator<Real_t>::ComputeSafety(globalpoint, state, limit);
     return safety;
   }
 
