@@ -142,7 +142,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     } else {
       Precision newSafety = 0;
       if (stepDone > 0) {
-        newSafety = Navigator::ComputeSafety(position, current_state);
+        newSafety = Navigator::ComputeSafety(position, current_state, remains);
       }
       if (newSafety > chordLen) {
         move         = chordLen;
