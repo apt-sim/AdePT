@@ -17,17 +17,39 @@
 #include <covfie/cuda/backend/primitive/cuda_device_array.hpp>
 #include <covfie/cuda/error_check.hpp>
 
-using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
-    covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>;
+#include <covfie/cuda/backend/primitive/cuda_texture.hpp>
 
-using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
-    covfie::backend::strided<covfie::vector::size3, covfie::backend::cuda_device_array<covfie::vector::float3>>>>>;
+// use normal GPU memory
+// using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
+//     covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>;
+
+// using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
+//     covfie::backend::strided<covfie::vector::size3, covfie::backend::cuda_device_array<covfie::vector::float3>>>>>;
+
+// use GPU texture memory
+using cpu_field_t = covfie::field<
+    covfie::backend::affine<covfie::backend::linear<covfie::backend::strided<
+        covfie::vector::size3,
+        covfie::backend::array<covfie::vector::float3>>>>>;
+
+// using linear interpolation, doesn't work, returns 0
+// using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
+//     covfie::backend::
+//         cuda_texture<covfie::vector::float3, covfie::vector::float3>>>>;
+        
+using cuda_field_t = covfie::field<covfie::backend::affine<
+    covfie::backend::
+        cuda_texture<covfie::vector::float3, covfie::vector::float3>>>;
+
 using field_view_t = typename cuda_field_t::view_t;
 #endif
 
 class GeneralMagneticField {
 public:
   GeneralMagneticField() = default;
+
+  GeneralMagneticField(const GeneralMagneticField&) = delete;
+  GeneralMagneticField& operator=(const GeneralMagneticField&) = delete;
 
   bool InitializeFromFile(const std::string &filePath)
   {
@@ -41,8 +63,16 @@ public:
     cpu_field_t cpuField(ifs);
     ifs.close();
 
-    // create device field map
-    fFieldMap = std::make_unique<cuda_field_t>(cpuField);
+    // create device field map in texture memory
+  fFieldMap = std::make_unique<cuda_field_t>(
+      covfie::make_parameter_pack(
+          cpuField.backend().get_configuration(),
+          cpuField.backend().get_backend().get_backend()
+      )
+  );
+
+    // alternative: create device field in global GPU memory
+    // fFieldMap = std::make_unique<cuda_field_t>(cpuField);
 
     // Create the field view for the device data
     field_view_t fieldView(*fFieldMap);
@@ -62,7 +92,7 @@ public:
   {
 #ifdef ADEPT_USE_EXT_BFIELD
     auto field_value = fFieldView->at(pos.x(), pos.y(), pos.z());
-    return vecgeom::Vector3D<Real_t>(field_value[0], field_value[1], field_value[2]);
+    return vecgeom::Vector3D<Real_t>(field_value[0]*0.001, field_value[1]*0.001, field_value[2]*0.001); // FIXME multiplication to get from tesla to whatever unit is used in AdePT
 #else
     return vecgeom::Vector3D<Real_t>(0, 0, 0);
 #endif
@@ -73,7 +103,7 @@ public:
   {
 #ifdef ADEPT_USE_EXT_BFIELD
     auto field_value = fFieldView->at(pos_x, pos_y, pos_z);
-    return vecgeom::Vector3D<Real_t>(field_value[0], field_value[1], field_value[2]);
+    return vecgeom::Vector3D<Real_t>(field_value[0]*0.001, field_value[1]*0.001, field_value[2]*0.001);
 #else
     return vecgeom::Vector3D<Real_t>(0, 0, 0);
 #endif

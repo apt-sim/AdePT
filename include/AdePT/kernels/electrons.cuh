@@ -98,13 +98,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   constexpr int Pdg                 = IsElectron ? 11 : -11;
 #ifdef ADEPT_USE_EXT_BFIELD
   constexpr int Nvar   = 6;
-  using Field_t        = UniformMagneticField; // ToDO:  Change to non-uniform type !!
+  using Field_t        = GeneralMagneticField; //UniformMagneticField;
   using Equation_t     = MagneticFieldEquation<Field_t>;
   using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
   using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
   constexpr int max_iterations = 10;
 
-  Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+  // Field_t magneticField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+
+  auto &magneticField = *gMagneticField;
+
 #else
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 #endif
@@ -221,9 +224,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ADEPT_USE_EXT_BFIELD
       // SEVERIN: to be checked if we can use float
       vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
-      vecgeom::Vector3D<double> B0fieldVec = magField.Evaluate(pos[0], pos[1], pos[2]); // {0.0, 0.0, 0.0}; // Field value at starting point
-      // magField.Evaluate(pos, B0fieldVec);
-
+      vecgeom::Vector3D<double> B0fieldVec = magneticField.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
+    // printf("Magnetic field at (%f, %f, %f) is (%f, %f, %f)\n",
+    //       pos[0], pos[1], pos[2],
+    //       B0fieldVec.x(), B0fieldVec.y(), B0fieldVec.z());
       safeLength = fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::
                       ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, Charge);
 #else 
@@ -279,7 +283,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     int iterDone = -1;
     geometryStepLength =
         fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
-            magField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
+            magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
             hitsurf_index, propagated, /*lengthDone,*/ safety,
             // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
             max_iterations, iterDone, slot);

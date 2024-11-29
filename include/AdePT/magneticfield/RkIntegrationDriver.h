@@ -101,7 +101,7 @@ public:
 
   static inline __host__ __device__ bool IntegrateStep(const Real_t yStart[], const Real_t dydx[], int charge,
                                                        Real_t &xCurrent, // InOut
-                                                       Real_t htry, MagField_t magField,
+                                                       Real_t htry, const MagField_t & magField,
                                                        Real_t yEnd[],      // Out - values
                                                        Real_t next_dydx[], //     - next derivative
                                                        Real_t &hnext);
@@ -249,7 +249,7 @@ template <class Stepper_t, typename Real_t, typename Int_t, class Equation_t, cl
 inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::IntegrateStep(
     const Real_t yStart[], const Real_t dydx[], int charge,
     Real_t &xCurrent, // InOut
-    Real_t htry, MagField_t magField,
+    Real_t htry, const MagField_t & magField,
     // Real_t eps_rel_max,
     Real_t yEnd[],      // Out - values
     Real_t next_dydx[], //     - next derivative
