@@ -216,7 +216,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
     theTrack->SetSafety(safety);
     bool restrictedPhysicalStepLength = false;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+    if (gMagneticField) {
+#else
     if (BzFieldValue != 0) {
+#endif
       const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
       // Distance along the track direction to reach the maximum allowed error
       double safeLength;
@@ -279,21 +284,20 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     vecgeom::NavigationState nextState;
 
 #ifdef ADEPT_USE_EXT_BFIELD
-
-    int iterDone = -1;
-    geometryStepLength =
+    if (gMagneticField) {
+      int iterDone = -1;
+      geometryStepLength =
         fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
             magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
             hitsurf_index, propagated, /*lengthDone,*/ safety,
             // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
             max_iterations, iterDone, slot);
-
 #else
-
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index,
           propagated, safety);
+#endif
     } else {
 #ifdef ADEPT_USE_SURF
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
@@ -304,20 +308,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
       pos += geometryStepLength * dir;
     }
-
-#endif
-
-  // FIXME: here we can use the MagneticFieldView from Covfie
-  // // Check if the global device pointer is available
-  // if (gMagneticField) {
-  //   auto B = gMagneticField->Evaluate(pos.x(), pos.y(), pos.z());
-  
-  //   // vecgeom::Vector3D<float> B(field[0], field[1], field[2]);
-
-  //   printf("Magnetic field at (%f, %f, %f) is (%f, %f, %f)\n",
-  //         pos.x(), pos.y(), pos.z(),
-  //         B.x(), B.y(), B.z());
-  // }
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated

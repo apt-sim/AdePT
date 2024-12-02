@@ -67,14 +67,16 @@ public:
     field_view_t fieldView(*fFieldMap);
 
     // Allocate device memory for the field view
-    cudaMalloc(&fFieldView, sizeof(field_view_t));
-    cudaMemcpy(fFieldView, &fieldView, sizeof(field_view_t), cudaMemcpyHostToDevice);
+    COPCORE_CUDA_CHECK(cudaMalloc(&fFieldView, sizeof(field_view_t)));
+    COPCORE_CUDA_CHECK(cudaMemcpy(fFieldView, &fieldView, sizeof(field_view_t), cudaMemcpyHostToDevice));
     return true;
 #endif
     return false;
   }
 
+#ifdef ADEPT_USE_EXT_BFIELD
   __host__ __device__ field_view_t *GetFieldView() const { return fFieldView; }
+#endif
 
   template <typename Real_t>
   __device__ vecgeom::Vector3D<Real_t> Evaluate(const vecgeom::Vector3D<Real_t> &pos) const
