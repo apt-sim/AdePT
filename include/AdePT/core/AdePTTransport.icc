@@ -81,7 +81,7 @@ bool AdePTTransport<IntegrationLayer>::InitializeGeneralField()
     // Delegate the setup of the global view pointer to adept_impl
     return adept_impl::InitializeGeneralField(fMagneticField);
   }
-  return false;
+  return true; // no file provided, but no error encountered, so true is returned
 }
 
 template <typename IntegrationLayer>
