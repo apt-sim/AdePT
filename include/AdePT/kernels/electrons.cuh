@@ -98,13 +98,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   constexpr int Pdg                 = IsElectron ? 11 : -11;
 #ifdef ADEPT_USE_EXT_BFIELD
   constexpr int Nvar   = 6;
-  using Field_t        = GeneralMagneticField; //UniformMagneticField;
+  using Field_t        = GeneralMagneticField; // UniformMagneticField;
   using Equation_t     = MagneticFieldEquation<Field_t>;
   using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
   using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
   constexpr int max_iterations = 10;
 
-  // Field_t magneticField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+  // Field_t magneticField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue)); // needed for UniformMagneticField
 
   auto &magneticField = *gMagneticField;
 
