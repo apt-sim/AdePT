@@ -26,13 +26,13 @@ public:
   {
     // Inline evaluation to avoid redundant calls
     const vecgeom::Vector3D<Real_t> Bvec = magField.Evaluate(y[0], y[1], y[2]);
-    // just for testing purposes if the uniform magnetic field from file is correct
-    if(Bvec[2] < 0.0037999 || Bvec[2] > 0.00380001) {
-      printf("Magnetic field seems off!! (%f, %f, %f) is (%f, %f, %f)\n",
-             y[0], y[1], y[2], Bvec.x(), Bvec.y(), Bvec.z());
-      int *null_ptr = nullptr;
-      *null_ptr = 0;
-    }
+    // just for testing purposes if the uniform magnetic field from file is correct - SLOWS DOWN THE CODE SIGNIFICANTLY
+    // if(Bvec[2] < 0.0037999 || Bvec[2] > 0.00380001) {
+    //   printf("Magnetic field seems off!! (%f, %f, %f) is (%f, %f, %f)\n",
+    //          y[0], y[1], y[2], Bvec.x(), Bvec.y(), Bvec.z());
+    //   int *null_ptr = nullptr;
+    //   *null_ptr = 0;
+    // }
 
     // Directly compute the RHS
     Real_t momentum_mag     = sqrt(y[3] * y[3] + y[4] * y[4] + y[5] * y[5]);

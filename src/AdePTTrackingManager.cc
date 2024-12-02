@@ -74,8 +74,12 @@ void AdePTTrackingManager::InitializeAdePT()
     fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration);
 #endif
 
-    std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile() << std::endl;
+#ifdef ADEPT_USE_EXT_BFIELD
+    std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile()
+              << std::endl;
     fAdeptTransport->SetBfieldFileName(fAdePTConfiguration->GetCovfieBfieldFile());
+    if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
+#endif
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
