@@ -66,7 +66,7 @@ public:
   /// @brief Set Geant4 region to which it applies
   void SetGPURegionNames(std::vector<std::string> const *regionNames) { fGPURegionNames = regionNames; }
   /// @brief Set path to covfie Bfield file
-  void SetBfieldFileName(std::string fileName) { fBfieldFile = fileName; }
+  void SetBfieldFileName(const std::string &fileName) override { fBfieldFile = fileName; }
   /// @brief Set CUDA device stack limit
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
