@@ -12,9 +12,9 @@
 #include <VecGeom/base/Global.h>
 #include <VecGeom/navigation/BVHNavigator.h>
 
-inline namespace COPCORE_IMPL {
+// inline namespace COPCORE_IMPL {
 
 using BVHNavigator = vecgeom::BVHNavigator;
 
-} // End namespace COPCORE_IMPL
+// } // End namespace COPCORE_IMPL
 #endif // RT_LOOP_NAVIGATOR_H_

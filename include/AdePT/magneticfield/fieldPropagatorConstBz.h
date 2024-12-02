@@ -13,6 +13,8 @@
 
 #include <AdePT/magneticfield/ConstBzFieldStepper.h>
 
+// #include <cuda/std/cmath>
+
 // Data structures for statistics of propagation chords
 
 class fieldPropagatorConstBz {

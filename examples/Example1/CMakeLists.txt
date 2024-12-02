@@ -71,6 +71,7 @@ configure_file("macros/example1_large_stack.mac.in" "${PROJECT_BINARY_DIR}/examp
 configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
 configure_file("macros/example1_ttbar_LHCb.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_LHCb.mac")
 configure_file("macros/example1_ttbar_noadept.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_noadept.mac")
+configure_file("macros/async_mode.mac.in" "${PROJECT_BINARY_DIR}/async_mode.mac")
 
 # Tests
 

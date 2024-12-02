@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AdeptIntegration.cuh"
+#include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 
 #include <AdePT/navigation/BVHNavigator.h>
 
@@ -37,8 +37,8 @@ __global__ void __launch_bounds__(256, 1)
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot            = (*active)[i];
     Track &currentTrack       = gammas[slot];
-    const auto energy         = currentTrack.energy;
-    const auto preStepEnergy  = energy;
+    const auto eKin         = currentTrack.eKin;
+    const auto preStepEnergy  = eKin;
     auto pos = currentTrack.pos;
     const auto preStepPos{pos};
     const auto dir            = currentTrack.dir;
@@ -60,7 +60,7 @@ __global__ void __launch_bounds__(256, 1)
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
     G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(energy);
+    theTrack->SetEKin(eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
@@ -82,7 +82,7 @@ __global__ void __launch_bounds__(256, 1)
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    vecgeom::NavStateIndex nextState;
+    vecgeom::NavigationState nextState;
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
@@ -174,7 +174,7 @@ __global__ void __launch_bounds__(256, 1)
       const double geometryStepLength = queue[i].geometryStepLength;
       Track &currentTrack             = gammas[slot];
       auto &slotManager               = *secondaries.gammas.fSlotManager;
-      const auto energy               = currentTrack.energy;
+      const auto eKin               = currentTrack.eKin;
       const auto &dir                 = currentTrack.dir;
 
       VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
@@ -188,14 +188,14 @@ __global__ void __launch_bounds__(256, 1)
 
       if (interactionType == GammaInteractions::PairCreation) {
         // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
-        if (energy < 2 * copcore::units::kElectronMassC2) {
+        if (eKin < 2 * copcore::units::kElectronMassC2) {
           survive();
           continue;
         }
 
-        const double logEnergy = std::log(energy);
+        const double logEnergy = std::log(eKin);
         double elKinEnergy, posKinEnergy;
-        G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
+        G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, eKin, logEnergy, auxData.fMCIndex,
                                                              elKinEnergy, posKinEnergy, &rnge);
 
         double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
@@ -223,24 +223,24 @@ __global__ void __launch_bounds__(256, 1)
       if (interactionType == GammaInteractions::ComptonScattering) {
         // Invoke Compton scattering of gamma.
         constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
-        if (energy < LowEnergyThreshold) {
+        if (eKin < LowEnergyThreshold) {
           survive();
           continue;
         }
         const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
         double dirPrimary[3];
         const double newEnergyGamma =
-            G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
+            G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(eKin, dirPrimary, origDirPrimary, &rnge);
         vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
 
-        const double energyEl = energy - newEnergyGamma;
+        const double energyEl = eKin - newEnergyGamma;
         if (energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
           adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
                                          /*numGammas*/ 0);
 
           Track &electron = secondaries.electrons.NextTrack(newRNG, energyEl, currentTrack.pos,
-                                                            energy * dir - newEnergyGamma * newDirGamma,
+                                                            eKin * dir - newEnergyGamma * newDirGamma,
                                                             currentTrack.navState, currentTrack);
           electron.dir.Normalize();
         } else {
@@ -266,7 +266,7 @@ __global__ void __launch_bounds__(256, 1)
 
         // Check the new gamma energy and deposit if below threshold.
         if (newEnergyGamma > LowEnergyThreshold) {
-          currentTrack.energy = newEnergyGamma;
+          currentTrack.eKin = newEnergyGamma;
           currentTrack.dir    = newDirGamma;
           survive();
         } else {
@@ -299,10 +299,10 @@ __global__ void __launch_bounds__(256, 1)
         constexpr double theLowEnergyThreshold = 1 * copcore::units::eV;
 
         const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-            &g4HepEmData, auxData.fMCIndex, queue[i].PEmxSec, energy, &rnge);
+            &g4HepEmData, auxData.fMCIndex, queue[i].PEmxSec, eKin, &rnge);
 
         double edep             = bindingEnergy;
-        const double photoElecE = energy - edep;
+        const double photoElecE = eKin - edep;
         if (photoElecE > theLowEnergyThreshold) {
           // Create a secondary electron and sample directions.
           adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
@@ -317,7 +317,7 @@ __global__ void __launch_bounds__(256, 1)
               vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
               currentTrack);
         } else {
-          edep = energy;
+          edep = eKin;
         }
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring + currentTrack.threadId, currentTrack.parentId,

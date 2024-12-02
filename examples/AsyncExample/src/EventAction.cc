@@ -53,6 +53,7 @@ void EventAction::BeginOfEventAction(const G4Event *)
 {
   // Prevent crashes in MT mode
   TH1::AddDirectory(false);
+  ;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
