@@ -83,7 +83,7 @@ public:
   {
 #ifdef ADEPT_USE_EXT_BFIELD
     auto field_value = fFieldView->at(pos.x(), pos.y(), pos.z());
-    return vecgeom::Vector3D<Real_t>(field_value[0]*0.001, field_value[1]*0.001, field_value[2]*0.001); // FIXME multiplication to get from tesla to whatever unit is used in AdePT
+    return vecgeom::Vector3D<Real_t>(field_value[0], field_value[1], field_value[2]);
 #else
     return vecgeom::Vector3D<Real_t>(0, 0, 0);
 #endif
@@ -94,7 +94,7 @@ public:
   {
 #ifdef ADEPT_USE_EXT_BFIELD
     auto field_value = fFieldView->at(pos_x, pos_y, pos_z);
-    return vecgeom::Vector3D<Real_t>(field_value[0]*0.001, field_value[1]*0.001, field_value[2]*0.001); // FIXME multiplication to get from tesla to whatever unit is used in AdePT
+    return vecgeom::Vector3D<Real_t>(field_value[0], field_value[1], field_value[2]);
 #else
     return vecgeom::Vector3D<Real_t>(0, 0, 0);
 #endif

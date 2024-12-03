@@ -34,12 +34,14 @@ public:
 class UniformField : public IField {
 public:
   UniformField(const G4ThreeVector& field) : fField(field) {}
+
   void GetFieldValue(const G4double[4], double* bField) const override {
         bField[0] = fField.x();
         bField[1] = fField.y();
         bField[2] = fField.z();
         printf("Field value %f %f %f\n", bField[0], bField[1], bField[2]);
     }
+
 private:
   G4ThreeVector fField;
 };
@@ -65,7 +67,6 @@ public:
     bField[0] = field_value[0];
     bField[1] = field_value[1];
     bField[2] = field_value[2];
-    printf("Calling evaluate correctly \n");
 #endif
   }
 
