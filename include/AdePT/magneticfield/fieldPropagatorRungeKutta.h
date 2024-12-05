@@ -13,6 +13,8 @@
 #include "UniformMagneticField.h"
 #include <AdePT/magneticfield/RkIntegrationDriver.h>
 
+#include <VecGeom/navigation/NavigationState.h>
+
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator>
 class fieldPropagatorRungeKutta {
 public:
@@ -60,8 +62,6 @@ protected:
 
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
 };
-
-#define VERBOSE_STEP_IN_THREAD 1 // 2022.09.05  14:00 -- look for failed RK integration hAdvanced = 0.0
 
 // ----------------------------------------------------------------------------
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
@@ -114,10 +114,12 @@ inline __host__ __device__ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, R
     Real_t hAdvanced = 0; //  length integrated this iteration (of do-while)
     Real_t dydx_end[Nvar];
 
-    bool done =
-        RkDriver_t::Advance(position, momentumVec, charge, lenRemains, magField, hTry, dydx_end, hAdvanced, totalTrials,
-                            // id,     // Temporary ?
-                            trialsPerCall);
+    printf("LoopCount %d before Advance. Length remains: %f hTry %f\n", loopCt, lenRemains, hTry);
+    // FIXME COMMENTED OUT DUE TO RESTRUCTURING
+    // bool done =
+    //     RkDriver_t::Advance(position, momentumVec, charge, lenRemains, magField, hTry, dydx_end, hAdvanced, totalTrials,
+    //                         // id,     // Temporary ?
+    //                         trialsPerCall);
     //   Runge-Kutta single call ( number of steps <= trialsPerCall )
 
     lenRemains -=
@@ -126,16 +128,17 @@ inline __host__ __device__ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, R
 
     totLen += hAdvanced;
     loopCt++;
+    // printf("after advance: done %d integrated length hAdvanced %f new hTry %f remaining length %f total length stepped: %f\n", done, hAdvanced, hTry, lenRemains, totLen);
 
     // sumAdvanced += hAdvanced;  // Gravy ..
 
-  } while (unfinished && (totalTrials < fMaxTrials));
+  } while (false); // unfinished && (totalTrials < fMaxTrials)); // KILL WHILE LOOP DUE TO RESTRUCTURING!
   //printf("End of IntegrateTrackToEnd: totLen %f totalTrials %d fMaxTrials %d loopCt %d\n", totLen, totalTrials, fMaxTrials, loopCt);
 
   if (loopCt > 1 && verbose) {
-      printf("End of IntegrateTrackToEnd: totLen %f totalTrials %d fMaxTrials %d loopCt %d\n", totLen, totalTrials, fMaxTrials, loopCt);
-      printf("Stuck particle? position %f %f %f momentumVec %f %f %f charge %d \n", position[0], position[1], position[2], momentumVec[0], momentumVec[1], momentumVec[2], charge);
-    printf(" fieldPropagatorRK: id %3d --- LoopCt reached %d ", id, loopCt);
+      printf("End of IntegrateTrackToEnd: stepLength %.15f totLen %f totalTrials %d fMaxTrials %d loopCt %d\n", stepLength, totLen, totalTrials, fMaxTrials, loopCt);
+      printf("Stuck particle? position %.15f %.15f %.15f momentumVec %.15f %.15f %.15f charge %d \n", position[0], position[1], position[2], momentumVec[0], momentumVec[1], momentumVec[2], charge);
+    printf(" fieldPropagatorRK: id %3d --- LoopCt reached %d \n", id, loopCt);
 
     // printf(" fieldPropagatorRK: id %3d call %4d --- LoopCt reached %d ", id, callNum, loopCt);
   }
@@ -264,7 +267,11 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       vecgeom::Vector3D<Real_t> endMomentumVec = momentumVec;                   // momentumMag * direction;
       const Real_t safeArc                     = min(remains, maxNextSafeMove); // safeLength);
 
-      IntegrateTrackToEnd(magField, endPosition, endMomentumVec, charge, safeArc, indx);
+      // IntegrateTrackToEnd(magField, endPosition, endMomentumVec, charge, safeArc, indx);
+      Real_t dydx_end[Nvar]; // not used at the moment, but could be used for FSAL between cord integrations
+      bool done =
+        RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, /*max_trials=*/30);
+
       //-----------------
       vecgeom::Vector3D<Real_t> chordDir     = endPosition - position; // not yet normalized!
       Real_t chordLen                       = chordDir.Length();
@@ -361,7 +368,12 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 #else
         // Alternative approximation of end position & direction -- calling RK again
         //  Better accuracy (e.g. for comparing with Helix) -- but the point will not be on the surface !!
-        IntegrateTrackToEnd(magField, position, momentumVec, charge, move, indx); // curvedStep
+        // IntegrateTrackToEnd(magField, position, momentumVec, charge, move, indx); // curvedStep
+        Real_t dydx_end[Nvar]; // not used at the moment, but could be used for FSAL between cord integrations
+        bool done =
+          RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, /*max_trials=*/30);
+
+
         direction = inv_momentumMag * momentumVec; // momentumVec.Unit();
 #endif
         continueIteration = false;
