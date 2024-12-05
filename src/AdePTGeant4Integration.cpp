@@ -81,10 +81,7 @@ void Deleter::operator()(ScoringObjects *ptr)
 
 } // namespace AdePTGeant4Integration_detail
 
-AdePTGeant4Integration::~AdePTGeant4Integration()
-{
-
-}
+AdePTGeant4Integration::~AdePTGeant4Integration() {}
 
 void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
 {
@@ -268,7 +265,7 @@ void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
     // Though we only record and reconstruct hits for sensitive volumes, this map needs to store every
     // volume in the geometry, as a step may begin in a sensitive volume and end in a non-sensitive one
     fglobal_vecgeom_to_g4_map.insert(std::pair<int, const G4VPhysicalVolume *>(vg_pvol->id(), g4_pvol));
-
+    std::cout << " creating fglobal_vecgeom_to_g4_map with pair and volume " << vg_pvol->id() << std::endl;
     // Now do the daughters
     for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
       auto g4pvol_d = g4_lvol->GetDaughter(id);
@@ -292,18 +289,20 @@ void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
   }
 
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
-  vecgeom::NavigationState const & preNavState = hit.fPreStepPoint.fNavigationState;
+  vecgeom::NavigationState const &preNavState = hit.fPreStepPoint.fNavigationState;
   // Reconstruct Pre-Step point G4NavigationHistory
   FillG4NavigationHistory(preNavState, &fScoringObjects->fPreG4NavigationHistory);
   (*fScoringObjects->fPreG4TouchableHistoryHandle)
       ->UpdateYourself(fScoringObjects->fPreG4NavigationHistory.GetTopVolume(),
                        &fScoringObjects->fPreG4NavigationHistory);
   // Reconstruct Post-Step point G4NavigationHistory
-  vecgeom::NavigationState const & postNavState = hit.fPostStepPoint.fNavigationState;
-  FillG4NavigationHistory(postNavState, &fScoringObjects->fPostG4NavigationHistory);
-  (*fScoringObjects->fPostG4TouchableHistoryHandle)
-      ->UpdateYourself(fScoringObjects->fPostG4NavigationHistory.GetTopVolume(),
-                       &fScoringObjects->fPostG4NavigationHistory);
+  vecgeom::NavigationState const &postNavState = hit.fPostStepPoint.fNavigationState;
+  if (!postNavState.IsOutside()) {
+    FillG4NavigationHistory(postNavState, &fScoringObjects->fPostG4NavigationHistory);
+    (*fScoringObjects->fPostG4TouchableHistoryHandle)
+        ->UpdateYourself(fScoringObjects->fPostG4NavigationHistory.GetTopVolume(),
+                         &fScoringObjects->fPostG4NavigationHistory);
+  }
 
   // Reconstruct G4Step
   switch (hit.fParticleType) {
@@ -385,12 +384,15 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
                                         G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle) const
 {
-  const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(), aGPUHit->fPostStepPoint.fMomentumDirection.y(),
-                        aGPUHit->fPostStepPoint.fMomentumDirection.z());
-  const G4ThreeVector aPostStepPointPolarization(aGPUHit->fPostStepPoint.fPolarization.x(), aGPUHit->fPostStepPoint.fPolarization.y(),
-                        aGPUHit->fPostStepPoint.fPolarization.z());
-  const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(), aGPUHit->fPostStepPoint.fPosition.y(),
-                        aGPUHit->fPostStepPoint.fPosition.z());
+  const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
+                                                      aGPUHit->fPostStepPoint.fMomentumDirection.y(),
+                                                      aGPUHit->fPostStepPoint.fMomentumDirection.z());
+  const G4ThreeVector aPostStepPointPolarization(aGPUHit->fPostStepPoint.fPolarization.x(),
+                                                 aGPUHit->fPostStepPoint.fPolarization.y(),
+                                                 aGPUHit->fPostStepPoint.fPolarization.z());
+  const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(),
+                                             aGPUHit->fPostStepPoint.fPosition.y(),
+                                             aGPUHit->fPostStepPoint.fPosition.z());
 
   // G4Step
   aG4Step->SetStepLength(aGPUHit->fStepLength);                 // Real data
@@ -404,8 +406,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
 
   // G4Track
   G4Track *aTrack = aG4Step->GetTrack();
-  aTrack->SetTrackID(aGPUHit->fParentID);       // Missing data
-  aTrack->SetParentID(aGPUHit->fParentID);      // ID of the initial particle that entered AdePT
+  aTrack->SetTrackID(aGPUHit->fParentID);      // Missing data
+  aTrack->SetParentID(aGPUHit->fParentID);     // ID of the initial particle that entered AdePT
   aTrack->SetPosition(aPostStepPointPosition); // Real data
   // aTrack->SetGlobalTime(0);                                                                // Missing data
   // aTrack->SetLocalTime(0);                                                                 // Missing data
@@ -468,7 +470,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // aPostStepPoint->SetGlobalTime(0);                                                                // Missing data
   // aPostStepPoint->SetProperTime(0);                                                                // Missing data
   aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
-  aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);        // Real data
+  aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data
   if (const auto postVolume = (*fScoringObjects->fPostG4TouchableHistoryHandle)->GetVolume();
       postVolume != nullptr) { // protect against nullptr if postNavState is outside
