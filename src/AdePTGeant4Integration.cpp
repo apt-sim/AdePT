@@ -265,7 +265,6 @@ void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
     // Though we only record and reconstruct hits for sensitive volumes, this map needs to store every
     // volume in the geometry, as a step may begin in a sensitive volume and end in a non-sensitive one
     fglobal_vecgeom_to_g4_map.insert(std::pair<int, const G4VPhysicalVolume *>(vg_pvol->id(), g4_pvol));
-    std::cout << " creating fglobal_vecgeom_to_g4_map with pair and volume " << vg_pvol->id() << std::endl;
     // Now do the daughters
     for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
       auto g4pvol_d = g4_lvol->GetDaughter(id);
