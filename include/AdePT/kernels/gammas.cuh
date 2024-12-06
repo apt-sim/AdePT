@@ -77,20 +77,24 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     theTrack->SetMCIndex(auxData.fMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft = currentTrack.numIALeft[ip];
-      if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
-      }
-      theTrack->SetNumIALeft(numIALeft, ip);
+    // Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section
+    if (theTrack->GetNumIALeft(0) <= 0.0) {
+      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
     G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
+    G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
     int winnerProcessIndex                  = theTrack->GetWinnerProcessIndex();
+
+    // disable photo-nuclear reaction that would need to be handled by G4 itself
+    if (winnerProcessIndex == 3) {
+      winnerProcessIndex = -1;
+    }
+
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
 
@@ -122,10 +126,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
     // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft           = theTrack->GetNumIALeft(ip);
-      currentTrack.numIALeft[ip] = numIALeft;
-    }
+    // Use index 0 since numIALeft stores for gammas only the total macroscopic cross section
+    double numIALeft          = theTrack->GetNumIALeft(0);
+    currentTrack.numIALeft[0] = numIALeft;
 
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
