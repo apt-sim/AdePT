@@ -126,7 +126,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
     // Save the `number-of-interaction-left` in our track.
-    // Use index 0 since numIALeft stores for gammas only the total macroscopic cross section
+    // Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section
     double numIALeft          = theTrack->GetNumIALeft(0);
     currentTrack.numIALeft[0] = numIALeft;
 
