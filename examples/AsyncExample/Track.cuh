@@ -9,7 +9,7 @@
 #include <AdePT/copcore/Ranluxpp.h>
 
 #include <VecGeom/base/Vector3D.h>
-#include <VecGeom/navigation/NavStateIndex.h>
+#include <VecGeom/navigation/NavigationState.h>
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
@@ -28,7 +28,7 @@ struct Track {
 
   vecgeom::Vector3D<Precision> pos;
   vecgeom::Vector3D<Precision> dir;
-  vecgeom::NavStateIndex navState;
+  vecgeom::NavigationState navState;
   unsigned int eventId{0};
   int parentId{-1};
   short threadId{-1};
@@ -54,7 +54,7 @@ struct Track {
   /// Construct a secondary from a parent track.
   /// NB: The caller is responsible to branch a new RNG state.
   __device__ Track(RanluxppDouble const &rngState, double energy, const vecgeom::Vector3D<Precision> &parentPos,
-                   const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavStateIndex &newNavState,
+                   const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack)
       : rngState{rngState}, energy{energy}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, eventId{parentTrack.eventId}, parentId{parentTrack.parentId},

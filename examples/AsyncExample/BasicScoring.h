@@ -8,7 +8,7 @@
 
 #include "ResourceManagement.h"
 #include <AdePT/core/HostScoringStruct.cuh>
-#include <VecGeom/navigation/NavStateIndex.h>
+#include <VecGeom/navigation/NavigationState.h>
 
 #include <atomic>
 #include <deque>

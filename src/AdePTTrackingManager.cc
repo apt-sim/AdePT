@@ -46,7 +46,8 @@ void AdePTTrackingManager::InitializeAdePT()
 
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
-    fAdeptTransport = std::make_shared<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+    fAdeptTransport = std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+    // fAdeptTransport = std::make_shared<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
@@ -59,7 +60,8 @@ void AdePTTrackingManager::InitializeAdePT()
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
     fAdePTConfiguration->SetNumThreads(fNumThreads);
-    fAdeptTransport = std::make_shared<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+    fAdeptTransport = std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+    // fAdeptTransport = std::make_shared<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
     // Initialize per-thread data
     fAdeptTransport->Initialize();
   }

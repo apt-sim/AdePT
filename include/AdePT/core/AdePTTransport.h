@@ -5,8 +5,8 @@
 ///   - filling the buffer with tracks to be transported on the GPU
 ///   - Calling the Shower method transporting a buffer on the GPU
 
-#ifndef ADEPT_INTEGRATION_H
-#define ADEPT_INTEGRATION_H
+#ifndef ADEPT_TRANSPORT_H
+#define ADEPT_TRANSPORT_H
 
 #include "AdePTTransportInterface.hh"
 

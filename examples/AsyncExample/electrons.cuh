@@ -191,10 +191,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     bool propagated = true;
     long hitsurf_index = -1;
     double geometryStepLength;
-    vecgeom::NavStateIndex nextState;
+    vecgeom::NavigationState nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety, /*max_i_in_stepper=*/10);
+          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index,
+          propagated, safety, /*max_i_in_stepper=*/10);
     } else {
       geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPush);
