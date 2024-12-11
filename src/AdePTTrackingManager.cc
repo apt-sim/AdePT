@@ -36,7 +36,7 @@ void AdePTTrackingManager::InitializeAdePT()
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
     // Only the master thread knows the actual number of threads, the worker threads will return "1"
-    // This value is stored here by the master in a static variable, and used by each thread to pass the 
+    // This value is stored here by the master in a static variable, and used by each thread to pass the
     // correct number to their AdePTConfiguration instance
     fNumThreads = G4RunManager::GetRunManager()->GetNumberOfThreads();
     fAdePTConfiguration->SetNumThreads(fNumThreads);
@@ -77,6 +77,9 @@ void AdePTTrackingManager::InitializeAdePT()
                     ("Region given to /adept/addGPURegion: " + regionName + " Not found\n").c_str());
     }
   }
+  // initialize special G4HepEmTrackingManager
+  fHepEmTrackingManager = std::make_unique<G4HepEmTrackingManagerSpecialized>();
+  fHepEmTrackingManager->SetGPURegions(fGPURegions);
 
   fAdePTInitialized = true;
 }
@@ -132,17 +135,8 @@ void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 {
   if (fGPURegions.empty() && !fAdeptTransport->GetTrackInAllRegions()) {
-    G4EventManager *eventManager       = G4EventManager::GetEventManager();
-    G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
-    // If there are no GPU regions, track until the end in Geant4
-    trackManager->ProcessOneTrack(aTrack);
-    if (aTrack->GetTrackStatus() != fStopAndKill) {
-      G4Exception("AdePTTrackingManager::HandOverOneTrack", "NotStopped", FatalException, "track was not stopped");
-    }
-    G4TrackVector* secondaries = trackManager->GimmeSecondaries();
-    eventManager->StackTracks(secondaries);
-    delete aTrack;
-    return;
+    // if no GPU regions, hand over directly to G4HepEmTrackingManager
+    fHepEmTrackingManager->HandOverOneTrack(aTrack);
   }
   ProcessTrack(aTrack);
 }
@@ -220,8 +214,9 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       aTrack->SetTrackStatus(fStopAndKill);
 
     } else { // If the particle is not in a GPU region, track it on CPU
-      // Track the particle step by step until it dies or enters a GPU region
-      StepInHostRegion(aTrack);
+             // Track the particle step by step until it dies or enters a GPU region in the (specialized)
+             // G4HepEmTrackingManager
+      fHepEmTrackingManager->HandOverOneTrack(aTrack);
     }
   }
   // Inform end of tracking to physics processes
@@ -242,7 +237,7 @@ void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
-  G4Region const *previousRegion       = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+  G4Region const *previousRegion     = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
 
   // Track the particle Step-by-Step while it is alive and outside of a GPU region
   while ((aTrack->GetTrackStatus() == fAlive || aTrack->GetTrackStatus() == fStopButAlive)) {

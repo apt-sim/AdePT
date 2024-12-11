@@ -13,6 +13,7 @@
 #include "AdePT/copcore/SystemOfUnits.h"
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/core/AdePTConfiguration.hh>
+#include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <memory>
 #include <vector>
@@ -50,6 +51,7 @@ private:
   /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
   void StepInHostRegion(G4Track *aTrack);
 
+  std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
   int fVerbosity{0};

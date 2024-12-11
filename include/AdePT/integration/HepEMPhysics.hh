@@ -4,17 +4,17 @@
 #ifndef HepEMPhysics_h
 #define HepEMPhysics_h 1
 
-#include "G4VPhysicsConstructor.hh"
+#include "G4EmStandardPhysics.hh"
 #include "globals.hh"
 
-class HepEMPhysics : public G4VPhysicsConstructor {
+class HepEMPhysics : public G4EmStandardPhysics {
 public:
-  HepEMPhysics(const G4String &name = "G4HepEm-physics-list");
+  HepEMPhysics(int ver, const G4String &name = "G4HepEm-physics-list");
   ~HepEMPhysics();
 
 public:
   // This method is dummy for physics: particles are constructed in PhysicsList
-  void ConstructParticle() override{};
+  void ConstructParticle() override {};
 
   // This method will be invoked in the Construct() method.
   // each physics process will be instantiated and
