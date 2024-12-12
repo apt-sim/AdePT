@@ -186,6 +186,7 @@ target_include_directories(AdePT_G4_integration
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
+
 target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
