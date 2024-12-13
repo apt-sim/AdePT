@@ -26,10 +26,8 @@
 // ********************************************************************
 //
 #include "SensitiveDetector.hh"
-#include "SimpleHit.hh"
 
 #include "G4HCofThisEvent.hh"
-#include "G4TouchableHistory.hh"
 #include "G4Step.hh"
 #include "G4SDManager.hh"
 
@@ -68,9 +66,9 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
   G4double edep = aStep->GetTotalEnergyDeposit();
   if (edep == 0.) return true;
 
-  G4TouchableHistory *aTouchable = (G4TouchableHistory *)(aStep->GetPreStepPoint()->GetTouchable());
+  std::size_t hitID = fScoringMap[aStep->GetPreStepPoint()->GetPhysicalVolume()->GetInstanceID()];
 
-  auto hit = RetrieveAndSetupHit(aTouchable);
+  auto hit = RetrieveAndSetupHit(hitID);
 
   // Add energy deposit from G4Step
   hit->AddEdep(edep);
@@ -82,22 +80,6 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
   // Set hit type to full simulation (only if hit is not already marked as fast sim)
   if (hit->GetType() != 1) hit->SetType(0);
-
-  return true;
-}
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-G4bool SensitiveDetector::ProcessHits(int hitID, double energy)
-{
-
-  if (energy == 0.) return true;
-
-  auto hit = (*fHitsCollection)[hitID];
-
-  // Add energy deposit from G4FastHit
-  hit->AddEdep(energy);
-  // set type to fast sim
-  hit->SetType(1);
 
   return true;
 }

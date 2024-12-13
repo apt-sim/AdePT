@@ -58,7 +58,7 @@ public:
   /// Process energy deposit from the full simulation.
   virtual G4bool ProcessHits(G4Step *aStep, G4TouchableHistory *aROhist) final;
 
-  SimpleHit *RetrieveAndSetupHit(G4TouchableHistory *aTouchable);
+  SimpleHit *RetrieveAndSetupHit(std::size_t hitID);
 
   std::vector<G4LogicalVolume *> fSensitiveLogicalVolumes;
   /// Physical Volumes where we want to score
