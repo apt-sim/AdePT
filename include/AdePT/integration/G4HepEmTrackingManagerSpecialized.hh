@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: 2024 CERN
+// SPDX-License-Identifier: Apache-2.0
+
+///   4HepEmTrackingManagerSpecialized class:
+///   The derived class from G4HepEmTrackingManager must implement HandOverOneTrack and CheckEarlyTrackingExit to allow
+///   for an early exit of the tracking loop in the G4HepEmTrackingManager
+
 #ifndef G4HepEmTrackingManagerSpecialized_h
 #define G4HepEmTrackingManagerSpecialized_h
 
