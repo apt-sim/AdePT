@@ -3,6 +3,10 @@
 
 #include "G4HepEmTrackingManager.hh"
 
+#ifndef G4HepEm_EARLY_TRACKING_EXIT
+#error "Build error: G4HepEm must be build with -DG4HepEm_EARLY_TRACKING_EXIT=ON"
+#endif
+
 class G4HepEmTrackingManagerSpecialized : public G4HepEmTrackingManager {
 public:
   G4HepEmTrackingManagerSpecialized();
