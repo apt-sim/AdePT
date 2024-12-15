@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 CERN
+// SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
