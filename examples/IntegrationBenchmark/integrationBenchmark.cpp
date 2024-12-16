@@ -78,8 +78,7 @@ int main(int argc, char **argv)
   }
 
   // Initialization of default Run manager
-  auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);
-  // auto *runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial);
+  std::unique_ptr<G4RunManager> runManager(G4RunManagerFactory::CreateRunManager());
 
   // Detector geometry:
   auto detector = new DetectorConstruction(allSensitive);
@@ -114,8 +113,6 @@ int main(int argc, char **argv)
   // Free the store: user actions, physics_list and detector_description are
   //                 owned and deleted by the run manager, so they should not
   //                 be deleted in the main() program !
-
-  delete runManager;
 
   return err;
 }
