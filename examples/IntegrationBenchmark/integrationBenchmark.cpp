@@ -24,7 +24,7 @@ int main(int argc, char **argv)
   G4String outputFilename   = "";
   bool doBenchmark          = false;
   bool doValidation         = false;
-  bool doAccumlatedEvents   = false; // whether the edep is accumulated across events in the validation csv file
+  bool doAccumulatedEvents  = false; // whether the edep is accumulated across events in the validation csv file
   G4bool useInteractiveMode = true;
   G4bool useAdePT           = true;
   G4bool allSensitive = false; // If set, ignores the sensitive detector flags in the GDML and marks all volumes as
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     } else if (argument == "--do_validation") {
       doValidation = true;
     } else if (argument == "--accumulated_events") {
-      doAccumlatedEvents = true;
+      doAccumulatedEvents = true;
     } else if (argument == "--noadept") {
       useAdePT = false;
     } else if (argument == "--allsensitive") {
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
   // UserAction classes
   //-------------------------------
   runManager->SetUserInitialization(
-      new ActionInitialisation(outputDirectory, outputFilename, doBenchmark, doValidation, doAccumlatedEvents));
+      new ActionInitialisation(outputDirectory, outputFilename, doBenchmark, doValidation, doAccumulatedEvents));
 
   G4UImanager *UImanager = G4UImanager::GetUIpointer();
   G4String command       = "/control/execute ";
