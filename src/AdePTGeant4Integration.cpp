@@ -45,9 +45,10 @@ struct ScoringObjects {
   G4Step *fG4Step = new (&stepStorage) G4Step;
 
   G4TouchableHandle *fPreG4TouchableHistoryHandle =
-      ::new (toucheableHandleStorage) G4TouchableHandle{::new (toucheableHistoryStorage) G4TouchableHistory};
+      ::new (&toucheableHandleStorage[0]) G4TouchableHandle{::new (&toucheableHistoryStorage[0]) G4TouchableHistory};
+
   G4TouchableHandle *fPostG4TouchableHistoryHandle =
-      ::new (toucheableHandleStorage) G4TouchableHandle{::new (toucheableHistoryStorage + 1) G4TouchableHistory};
+      ::new (&toucheableHandleStorage[1]) G4TouchableHandle{::new (&toucheableHistoryStorage[1]) G4TouchableHistory};
 
   // We need the dynamic particle associated to the track to have the correct particle definition, however this can
   // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
@@ -347,6 +348,8 @@ void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aN
     // have the correct volume in the history
     const auto item = fglobal_vecgeom_to_g4_map.find(aNavState.At(aLevel)->id());
     pnewvol         = item == fglobal_vecgeom_to_g4_map.end() ? nullptr : const_cast<G4VPhysicalVolume *>(item->second);
+
+    if (!pnewvol) throw std::runtime_error("VecGeom volume not found in G4 mapping!");
 
     if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
       pvol = aG4NavigationHistory->GetVolume(aLevel);

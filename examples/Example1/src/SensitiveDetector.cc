@@ -26,10 +26,8 @@
 // ********************************************************************
 //
 #include "SensitiveDetector.hh"
-#include "SimpleHit.hh"
 
 #include "G4HCofThisEvent.hh"
-#include "G4TouchableHistory.hh"
 #include "G4Step.hh"
 #include "G4SDManager.hh"
 
@@ -69,9 +67,9 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
   G4double edep = aStep->GetTotalEnergyDeposit();
   if (edep == 0.) return true;
 
-  G4TouchableHistory *aTouchable = (G4TouchableHistory *)(aStep->GetPreStepPoint()->GetTouchable());
+  std::size_t hitID = fScoringMap[aStep->GetPreStepPoint()->GetPhysicalVolume()->GetInstanceID()];
 
-  auto hit = RetrieveAndSetupHit(aTouchable);
+  auto hit = RetrieveAndSetupHit(hitID);
 
   // Add energy deposit from G4Step
   hit->AddEdep(edep);
@@ -89,9 +87,8 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-SimpleHit *SensitiveDetector::RetrieveAndSetupHit(G4TouchableHistory *aTouchable)
+SimpleHit *SensitiveDetector::RetrieveAndSetupHit(std::size_t hitID)
 {
-  std::size_t hitID = fScoringMap[aTouchable->GetHistory()->GetTopVolume()->GetInstanceID()];
 
   assert(hitID < fNumSensitive);
 

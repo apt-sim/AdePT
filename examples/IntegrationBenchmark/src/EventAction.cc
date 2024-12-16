@@ -143,14 +143,24 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
       auto id = hit->GetPhysicalVolumeId() + Run::accumulators::NUM_ACCUMULATORS;
       // Reset the accumulator from the last event
       // aTestManager->setAccumulator(id, 0);
-      // Set the accumulator
-      aTestManager->setAccumulator(id, hit->GetEdep());
-      // aTestManager->addToAccumulator(id, hit->GetEdep());
+
+      if (!fRunAction->GetDoAccumulatedEvents()) {
+        // Set the accumulator
+        aTestManager->setAccumulator(id, hit->GetEdep());
+      } else {
+        // write all events to one accumulator:
+        aTestManager->addToAccumulator(id, hit->GetEdep());
+      }
     }
 
-    // Write data to output file. Validation data can take a lot of memory, and we don't need to aggregate
-    // the results of multiple events at runtime, so for better performance it's easier to write the output here
-    aTestManager->exportCSV(false);
+    if (!fRunAction->GetDoAccumulatedEvents()) {
+      // Write data to output file. Validation data can take a lot of memory, and we don't need to aggregate
+      // the results of multiple events at runtime, so for better performance it's easier to write the output here
+      // aTestManager->exportCSV(false);
+    } else {
+      // overwrite to have all validation data written into a single line for all events
+      aTestManager->exportCSV(true);
+    }
 
     // Store test manager
     // TestManagerStore<int>::GetInstance()->RecordState(aTestManager);

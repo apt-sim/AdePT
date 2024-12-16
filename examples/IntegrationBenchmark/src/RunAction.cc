@@ -35,9 +35,10 @@
 
 RunAction::RunAction() : G4UserRunAction(), fOutputDirectory(""), fOutputFilename("") {}
 
-RunAction::RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation)
+RunAction::RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation,
+                     bool aDoAccumulatedEvents)
     : G4UserRunAction(), fOutputDirectory(aOutputDirectory), fOutputFilename(aOutputFilename),
-      fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation)
+      fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation), fDoAccumulatedEvents(aDoAccumulatedEvents)
 {
 }
 

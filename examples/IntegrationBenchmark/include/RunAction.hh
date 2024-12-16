@@ -48,7 +48,8 @@ class RunAction : public G4UserRunAction {
 public:
   /// Constructor. Defines the histograms.
   RunAction();
-  RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation);
+  RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation,
+            bool aDoAccumulatedEvents);
   virtual ~RunAction();
 
   /// Open the file for the analysis
@@ -58,10 +59,11 @@ public:
 
   G4Run *GenerateRun() override;
 
-  bool &GetDoBenchmark(){return fDoBenchmark;};
-  bool &GetDoValidation(){return fDoValidation;};
-  const G4String &GetOutputDirectory(){return fOutputDirectory;};
-  const G4String &GetOutputFilename(){return fOutputFilename;};
+  bool &GetDoBenchmark() { return fDoBenchmark; };
+  bool &GetDoValidation() { return fDoValidation; };
+  bool &GetDoAccumulatedEvents() { return fDoAccumulatedEvents; };
+  const G4String &GetOutputDirectory() { return fOutputDirectory; };
+  const G4String &GetOutputFilename() { return fOutputFilename; };
 
 private:
   /// Pointer to detector construction to retrieve the detector dimensions to
@@ -70,6 +72,7 @@ private:
   G4String fOutputFilename;
   bool fDoBenchmark;
   bool fDoValidation;
+  bool fDoAccumulatedEvents;
   vecgeom::Stopwatch fTimer;
   Run *fRun;
 };

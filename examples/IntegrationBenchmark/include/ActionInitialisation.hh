@@ -43,7 +43,8 @@ class DetectorConstruction;
 
 class ActionInitialisation : public G4VUserActionInitialization {
 public:
-  ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation);
+  ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation,
+                       bool aDoAccumulatdEvents);
   ~ActionInitialisation();
   /// Create all user actions.
   virtual void Build() const final;
@@ -57,6 +58,7 @@ private:
   G4String fOutputFilename;
   bool fDoBenchmark;
   bool fDoValidation;
+  bool fDoAccumulatedEvents;
 };
 
 #endif /* ACTIONINITIALISATION_HH */
