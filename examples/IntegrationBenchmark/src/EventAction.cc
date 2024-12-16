@@ -156,7 +156,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     if (!fRunAction->GetDoAccumulatedEvents()) {
       // Write data to output file. Validation data can take a lot of memory, and we don't need to aggregate
       // the results of multiple events at runtime, so for better performance it's easier to write the output here
-      // aTestManager->exportCSV(false);
+      aTestManager->exportCSV(false);
     } else {
       // overwrite to have all validation data written into a single line for all events
       aTestManager->exportCSV(true);
