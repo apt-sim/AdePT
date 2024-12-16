@@ -87,7 +87,7 @@ __global__ void ElectronHowFar(adept::TrackManager<Track> *electrons, G4HepEmEle
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
         numIALeft = -std::log(currentTrack.Uniform());
@@ -96,6 +96,11 @@ __global__ void ElectronHowFar(adept::TrackManager<Track> *electrons, G4HepEmEle
     }
 
     G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
+
+    // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
+    if (theTrack->GetWinnerProcessIndex() == 3) {
+      theTrack->SetWinnerProcessIndex(-1);
+    }
 
     currentTrack.restrictedPhysicalStepLength = false;
     if (BzFieldValue != 0) {
@@ -332,7 +337,7 @@ static __global__ void ElectronInteractions(adept::TrackManager<Track> *electron
                                IsElectron ? -1 : 1);          // Post-step point charge
 
     // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft           = theTrack->GetNumIALeft(ip);
       currentTrack.numIALeft[ip] = numIALeft;
     }
