@@ -53,8 +53,8 @@ __global__ void GammaHowFar(adept::TrackManager<Track> *gammas, G4HepEmGammaTrac
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
-    G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
+    G4HepEmGammaManager::HowFar(&adept_impl::g4HepEmData, &adept_impl::g4HepEmPars, &gammaTrack);
+    G4HepEmGammaManager::SampleInteraction(&adept_impl::g4HepEmData, &gammaTrack, currentTrack.Uniform());
 
     // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
     if (theTrack->GetWinnerProcessIndex() == 3) {
@@ -231,7 +231,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
 
       double logEnergy = std::log(currentTrack.eKin);
       double elKinEnergy, posKinEnergy;
-      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex,
+      G4HepEmGammaInteractionConversion::SampleKinEnergies(&adept_impl::g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex,
                                                            elKinEnergy, posKinEnergy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
@@ -303,7 +303,9 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                    &currentTrack.dir,               // Post-step point momentum direction
                                    nullptr,                         // Post-step point polarization
                                    newEnergyGamma,                  // Post-step point kinetic energy
-                                   0);                              // Post-step point charge
+                                   0,                               // Post-step point charge
+                                   0, -1);                          // eventID and threadID (not needed here)
+
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -329,7 +331,9 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                    &currentTrack.dir,               // Post-step point momentum direction
                                    nullptr,                         // Post-step point polarization
                                    newEnergyGamma,                  // Post-step point kinetic energy
-                                   0);                              // Post-step point charge
+                                   0,                               // Post-step point charge
+                                   0, -1);                          // eventID and threadID (not needed here)
+
         // The current track is killed by not enqueuing into the next activeQueue.
       }
       break;
@@ -339,7 +343,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), currentTrack.eKin, &rnge);
+          &adept_impl::g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), currentTrack.eKin, &rnge);
       double edep = bindingEnergy;
 
       const double photoElecE = currentTrack.eKin - edep;
@@ -378,7 +382,9 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                  &currentTrack.dir,               // Post-step point momentum direction
                                  nullptr,                         // Post-step point polarization
                                  0,                               // Post-step point kinetic energy
-                                 0);                              // Post-step point charge
+                                 0,                               // Post-step point charge
+                                 0, -1);                          // eventID and threadID (not needed here)
+
 
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
