@@ -40,7 +40,7 @@ __global__ void ElectronHowFar(adept::TrackManager<Track> *electrons, G4HepEmEle
 {
   constexpr int Charge      = IsElectron ? -1 : 1;
   constexpr double restMass = copcore::units::kElectronMassC2;
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+  fieldPropagatorConstBz fieldPropagatorBz(adept_impl::BzFieldValue);
 
   int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -95,7 +95,7 @@ __global__ void ElectronHowFar(adept::TrackManager<Track> *electrons, G4HepEmEle
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
-    G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
+    G4HepEmElectronManager::HowFarToDiscreteInteraction(&adept_impl::g4HepEmData, &adept_impl::g4HepEmPars, &elTrack);
 
     // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
     if (theTrack->GetWinnerProcessIndex() == 3) {
@@ -103,7 +103,7 @@ __global__ void ElectronHowFar(adept::TrackManager<Track> *electrons, G4HepEmEle
     }
 
     currentTrack.restrictedPhysicalStepLength = false;
-    if (BzFieldValue != 0) {
+    if (adept_impl::BzFieldValue != 0) {
       const double momentumMag = sqrt(currentTrack.eKin * (currentTrack.eKin + 2.0 * restMass));
       // Distance along the track direction to reach the maximum allowed error
       const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, currentTrack.dir);
@@ -123,7 +123,7 @@ __global__ void ElectronHowFar(adept::TrackManager<Track> *electrons, G4HepEmEle
       }
     }
 
-    G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+    G4HepEmElectronManager::HowFarToMSC(&adept_impl::g4HepEmData, &adept_impl::g4HepEmPars, &elTrack, &rnge);
 
     // Remember MSC values for the next step(s).
     currentTrack.initialRange       = mscData->fInitialRange;
@@ -142,7 +142,7 @@ static __global__ void ElectronPropagation(adept::TrackManager<Track> *electrons
 #endif
   constexpr int Charge      = IsElectron ? -1 : 1;
   constexpr double restMass = copcore::units::kElectronMassC2;
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+  fieldPropagatorConstBz fieldPropagatorBz(adept_impl::BzFieldValue);
 
   int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -158,7 +158,7 @@ static __global__ void ElectronPropagation(adept::TrackManager<Track> *electrons
     currentTrack.hitsurfID  = -1;
     // double geometryStepLength;
     // vecgeom::NavigationState nextState;
-    if (BzFieldValue != 0) {
+    if (adept_impl::BzFieldValue != 0) {
       currentTrack.geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           currentTrack.eKin, restMass, Charge, theTrack->GetGStepLength(), currentTrack.pos, currentTrack.dir,
           currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID, currentTrack.propagated,
@@ -206,7 +206,7 @@ static __global__ void ElectronMSC(adept::TrackManager<Track> *electrons, G4HepE
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Apply continuous effects.
-    currentTrack.stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+    currentTrack.stopped = G4HepEmElectronManager::PerformContinuous(&adept_impl::g4HepEmData, &adept_impl::g4HepEmPars, &elTrack, &rnge);
 
     // Collect the direction change and displacement by MSC.
     const double *direction = theTrack->GetDirection();
@@ -288,7 +288,7 @@ static __global__ void ElectronInteractions(adept::TrackManager<Track> *electron
 {
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Pdg                  = IsElectron ? 11 : -11;
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+  fieldPropagatorConstBz fieldPropagatorBz(adept_impl::BzFieldValue);
 
   int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -334,7 +334,8 @@ static __global__ void ElectronInteractions(adept::TrackManager<Track> *electron
                                &currentTrack.dir,             // Post-step point momentum direction
                                nullptr,                       // Post-step point polarization
                                currentTrack.eKin,             // Post-step point kinetic energy
-                               IsElectron ? -1 : 1);          // Post-step point charge
+                               IsElectron ? -1 : 1,           // Post-step point charge
+                               0, -1);                        // eventID and threadID (not needed here)
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 4; ++ip) {
@@ -416,7 +417,7 @@ static __global__ void ElectronInteractions(adept::TrackManager<Track> *electron
     currentTrack.numIALeft[theTrack->GetWinnerProcessIndex()] = -1.0;
 
     // Check if a delta interaction happens instead of the real discrete process.
-    if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
+    if (G4HepEmElectronManager::CheckDelta(&adept_impl::g4HepEmData, theTrack, currentTrack.Uniform())) {
       // A delta interaction happened, move on.
       survive();
       continue;
@@ -429,7 +430,7 @@ static __global__ void ElectronInteractions(adept::TrackManager<Track> *electron
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
 
-    const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double theElCut = adept_impl::g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
 
     switch (theTrack->GetWinnerProcessIndex()) {
     case 0: {
@@ -460,11 +461,11 @@ static __global__ void ElectronInteractions(adept::TrackManager<Track> *electron
     case 1: {
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
       double logEnergy = std::log(currentTrack.eKin);
-      double deltaEkin = currentTrack.eKin < g4HepEmPars.fElectronBremModelLim
+      double deltaEkin = currentTrack.eKin < adept_impl::g4HepEmPars.fElectronBremModelLim
                              ? G4HepEmElectronInteractionBrem::SampleETransferSB(
-                                   &g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron)
+                                   &adept_impl::g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron)
                              : G4HepEmElectronInteractionBrem::SampleETransferRB(
-                                   &g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
+                                   &adept_impl::g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];
