@@ -8,6 +8,7 @@
 #include "G4Step.hh"
 #include "G4EventManager.hh"
 #include "G4SystemOfUnits.hh"
+#include "G4Event.hh"
 
 class SteppingAction final : public G4UserSteppingAction {
 

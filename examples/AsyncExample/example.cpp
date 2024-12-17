@@ -4,7 +4,7 @@
 
 #include "DetectorConstruction.hh"
 #include "ActionInitialisation.hh"
-#include "Histograms.h"
+// #include "Histograms.h"
 
 #include "G4RunManagerFactory.hh"
 #include "G4Types.hh"
@@ -17,7 +17,7 @@
 #include "G4VisExecutive.hh"
 #include "G4UIExecutive.hh"
 
-#include "AdeptIntegration.h"
+#include <AdePT/core/AsyncAdePTTransport.hh>
 #include <AdePT/core/AdePTConfiguration.hh>
 
 #include <memory>
@@ -45,9 +45,10 @@ int main(int argc, char **argv)
     } else if (argument == "--no-adept") {
       AdePT = false;
     } else if (argument == "--output") {
-      AsyncExHistos::HistoWriter::GetInstance().SetFilename(argv[++i]);
-    } else if (argument == "--seed") {
-      AsyncAdePT::AdeptIntegration::fAdePTSeed = std::stoll(argv[++i]);
+      ;
+      // AsyncExHistos::HistoWriter::GetInstance().SetFilename(argv[++i]);
+    // } else if (argument == "--seed") {
+    //   AsyncAdePT::AdeptIntegration::fAdePTSeed = std::stoll(argv[++i]);
     } else {
       G4Exception("main", "Unknown argument", FatalErrorInArgument,
                   ("Unknown argument passed to " + G4String(argv[0]) + " : " + argument + "\n" + helpMsg).c_str());

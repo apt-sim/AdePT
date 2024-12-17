@@ -7,7 +7,6 @@
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 #include <AdePT/core/HostScoringStruct.cuh>
 #include <AdePT/core/HostScoringImpl.cuh>
-
 #include <AdePT/core/AdePTTransportStruct.cuh>
 #include <AdePT/base/Atomic.h>
 #include <AdePT/navigation/AdePTNavigator.h>

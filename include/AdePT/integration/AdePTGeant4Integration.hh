@@ -28,8 +28,6 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
-  static constexpr G4int kAdePTTrackID =
-      std::numeric_limits<G4int>::min() + 2; // TrackID to signify that the track came from AdePT
   AdePTGeant4Integration()  = default;
   ~AdePTGeant4Integration();
 

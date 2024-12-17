@@ -9,7 +9,11 @@
 
 #include "globals.hh"
 #include <AdePT/core/AdePTTransportInterface.hh>
+#ifndef ASYNC_MODE
 #include <AdePT/core/AdePTTransport.h>
+#else
+#include <AdePT/core/AsyncAdePTTransport.hh>
+#endif
 #include "AdePT/copcore/SystemOfUnits.h"
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/core/AdePTConfiguration.hh>

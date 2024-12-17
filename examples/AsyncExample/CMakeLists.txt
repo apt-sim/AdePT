@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2023 CERN
 # SPDX-License-Identifier: Apache-2.0
 
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
+
 if(HepMC3_FOUND)
   message(STATUS "HepMC3 found ${HEPMC3_INCLUDE_DIR}")
 else()
@@ -23,15 +25,6 @@ if(Geant4_FOUND)
   endif()
 else()
   message(STATUS "Disabling AsyncExample (needs Geant4)")
-  return()
-endif()
-
-find_package(ROOT QUIET COMPONENTS Hist RIO)
-if(ROOT_FOUND)
-  include_directories(${ROOT_INCLUDE_DIRS})
-  message(STATUS "ROOT found at: ${ROOT_INCLUDE_DIRS}")
-else()
-  message(STATUS "Disabling AsyncExample (needs ROOT)")
   return()
 endif()
 
@@ -71,51 +64,51 @@ endif()
 # Include the C++ side of the AdePT-G4 integration from core AdePT:
 list(TRANSFORM ADEPT_G4_INTEGRATION_SRCS PREPEND ../../)
 
-add_library(AdePT_G4_integration_async SHARED
-  ${ADEPT_G4_INTEGRATION_SRCS}
-  AdeptIntegration.cpp
-  AdeptIntegration.cu
-  BasicScoring.cu
-  ResourceManagement.cu)
-target_link_libraries(AdePT_G4_integration_async
-PUBLIC
-  CopCore
-  VecGeom::vgdml
-  VecGeom::vecgeomcuda_static
-  G4HepEm::g4HepEm
-  )
-target_include_directories(AdePT_G4_integration_async
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
-)
-set_target_properties(AdePT_G4_integration_async PROPERTIES
-  CUDA_SEPARABLE_COMPILATION ON
-  CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+# add_library(AdePT_G4_integration_async SHARED
+#   ${ADEPT_G4_INTEGRATION_SRCS}
+#   AdeptIntegration.cpp
+#   AdeptIntegration.cu
+#   BasicScoring.cu
+#   ResourceManagement.cu)
+# target_link_libraries(AdePT_G4_integration_async
+# PUBLIC
+#   CopCore
+#   VecGeom::vgdml
+#   VecGeom::vecgeomcuda_static
+#   G4HepEm::g4HepEm
+#   )
+# target_include_directories(AdePT_G4_integration_async
+#   PUBLIC
+#     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+#     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
+# )
+# set_target_properties(AdePT_G4_integration_async PROPERTIES
+#   CUDA_SEPARABLE_COMPILATION ON
+#   CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
-option(AsyncTransport "Link to AdePT_G4_integration_async" ON)
+# option(AsyncTransport "Link to AdePT_G4_integration_async" ON)
 
 add_executable(AsyncExample
     example.cpp
     ${sources_g4})
 target_include_directories(AsyncExample PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_SOURCE_DIR})
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  #TEMPORARY WORKAROUND
+  ${PROJECT_SOURCE_DIR}/include
+)
 
 target_link_libraries(AsyncExample
   PRIVATE
     ExamplesCommon
     NVTX
-    ROOT::Core
-    ROOT::Hist
-    ROOT::RIO
 )
 
-if(AsyncTransport)
-  target_link_libraries(AsyncExample PRIVATE AdePT_G4_integration_async)
-else()
+# if(AsyncTransport)
+#   target_link_libraries(AsyncExample PRIVATE AdePT_G4_integration_async)
+# else()
   target_link_libraries(AsyncExample PRIVATE AdePT_G4_integration)
-endif()
+# endif()
 
 target_compile_options(AsyncExample PRIVATE -Wall -Wextra)
 

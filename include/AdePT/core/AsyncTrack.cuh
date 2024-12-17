@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRACK_CUH
-#define ADEPT_TRACK_CUH
+#ifndef ASYNC_ADEPT_TRACK_CUH
+#define ASYNC_ADEPT_TRACK_CUH
 
 #include <AdePT/base/MParray.h>
 #include <AdePT/copcore/SystemOfUnits.h>
@@ -10,6 +10,11 @@
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavigationState.h>
+
+
+// TODO: This needs to be unified with the other Track struct, however due to the slot manager 
+// approach, this can't be done before introducing the SlotManager for all kernels
+
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.

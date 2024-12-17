@@ -56,11 +56,11 @@ HitScoring::HitScoring(unsigned int hitCapacity, unsigned int nThread) : fHitCap
 
   // Store buffer data in structs
   fBuffers[0].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get(), 0, fHitCapacity};
-  fBuffers[0].hostBuffer = fGPUHitBuffer_host.get();
-  fBuffers[0].state      = BufferHandle::State::OnDevice;
+  fBuffers[0].hostBuffer     = fGPUHitBuffer_host.get();
+  fBuffers[0].state          = BufferHandle::State::OnDevice;
   fBuffers[1].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, 0, fHitCapacity};
-  fBuffers[1].hostBuffer = fGPUHitBuffer_host.get() + fHitCapacity;
-  fBuffers[1].state      = BufferHandle::State::Free;
+  fBuffers[1].hostBuffer     = fGPUHitBuffer_host.get() + fHitCapacity;
+  fBuffers[1].state          = BufferHandle::State::Free;
 
   COPCORE_CUDA_CHECK(cudaGetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
   assert(fHitScoringBuffer_deviceAddress != nullptr);
@@ -148,7 +148,7 @@ void HitScoring::ProcessBuffer(BufferHandle &handle)
     auto hitVector = std::make_shared<std::vector<GPUHit>>();
     hitVector->assign(handle.hostBuffer, handle.hostBuffer + handle.hitScoringInfo.fSlotCounter);
     handle.hitScoringInfo.fSlotCounter = 0;
-    handle.state                   = BufferHandle::State::Free;
+    handle.state                       = BufferHandle::State::Free;
 
     for (auto &hitQueue : fHitQueues) {
       hitQueue.push_back(hitVector);
@@ -215,11 +215,11 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParent
 {
   // Acquire a hit slot
   GPUHit &aGPUHit  = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot();
-  aGPUHit.fParentID = aParentID;
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
 
   // Fill the required data
+  aGPUHit.fParentID           = aParentID;
   aGPUHit.fParticleType       = aParticleType;
   aGPUHit.fStepLength         = aStepLength;
   aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;
@@ -246,4 +246,4 @@ __device__ void AccountProduced(AsyncAdePT::PerEventScoring *scoring, int num_el
   atomicAdd(&scoring->fGlobalCounters.numPositrons, num_pos);
   atomicAdd(&scoring->fGlobalCounters.numGammas, num_gam);
 }
-}
+} // namespace adept_scoring
