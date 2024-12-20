@@ -43,6 +43,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
+  // #define DEBUG_NO_SECONDARY 1
+
 #ifdef VECGEOM_FLOAT_PRECISION
   const Precision kPush = 10 * vecgeom::kTolerance;
 #else
@@ -124,19 +126,32 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
 
     auto physicalStepLength = elTrack.GetPStepLength();
+#ifdef DEBUG_NO_SECONDARY
+    printf("== inside: ");
+    navState.Print();
+    printf("   on_boundary = %d at pos: %g, %g, %g  and dir: %g, %g, %g  ekin = %g  phys_step = %g\n",
+           navState.IsOnBoundary(), pos[0], pos[1], pos[2], dir[0], dir[1], dir[2], eKin, physicalStepLength);
+#endif
     // Compute safety, needed for MSC step limit. The accuracy range is physicalStepLength
     double safety = 0.;
     if (!navState.IsOnBoundary()) {
       // Get the remaining safety only if larger than physicalStepLength
       safety = currentTrack.GetSafety(pos, physicalStepLength);
       if (safety < physicalStepLength) {
-        // Recompute safety and update it in the track. Use maximum accuracy only if safety is samller than physicalStepLength
+        // Recompute safety and update it in the track.
+#ifdef ADEPT_USE_SURF
+        // Use maximum accuracy only if safety is samller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
-        currentTrack.SetSafety(pos, safety);
+#else
+        safety = AdePTNavigator::ComputeSafety(pos, navState);
+#endif
       }
     }
+    currentTrack.SetSafety(pos, safety);
     theTrack->SetSafety(safety);
-
+#ifdef DEBUG_NO_SECONDARY
+    printf("   safety = %g\n", safety);
+#endif
     bool restrictedPhysicalStepLength = false;
     if (BzFieldValue != 0) {
       const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
@@ -148,9 +163,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       limit                       = safety > limit ? safety : limit;
 
       if (physicalStepLength > limit) {
-        physicalStepLength           = limit;
+        physicalStepLength = limit;
+#ifdef DEBUG_NO_SECONDARY
+        printf("   physics step resticted to %g\n", limit);
+#endif
         restrictedPhysicalStepLength = true;
         elTrack.SetPStepLength(physicalStepLength);
+
         // Note: We are limiting the true step length, which is converted to
         // a shorter geometry step length in HowFarToMSC. In that sense, the
         // limit is an over-approximation, but that is fine for our purpose.
@@ -184,6 +203,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index,
           propagated, safety);
+#ifdef DEBUG_NO_SECONDARY
+      printf("   field step = %g  to pos = (%g, %g, %g)  on_boundary = %d\n", geometryStepLength, pos[0], pos[1],
+             pos[2], nextState.IsOnBoundary());
+#endif
     } else {
 #ifdef ADEPT_USE_SURF
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
@@ -199,6 +222,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
     navState.SetBoundaryState(nextState.IsOnBoundary());
+    if (nextState.IsOnBoundary()) currentTrack.SetSafety(pos, 0.);
 
     // Propagate information from geometrical step to MSC.
     theTrack->SetDirection(dir.x(), dir.y(), dir.z());
@@ -220,8 +244,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (dLength2 > kGeomMinLength2) {
         const double dispR = std::sqrt(dLength2);
         // Estimate safety by subtracting the geometrical step length.
-        //safety -= geometryStepLength;
-        safety = currentTrack.GetSafety(pos);
+        // safety -= geometryStepLength;
+        safety                 = currentTrack.GetSafety(pos);
         constexpr double sFact = 0.99;
         double reducedSafety   = sFact * safety;
 
@@ -231,7 +255,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           pos += displacement;
         } else {
           // Recompute safety.
-          safety        = AdePTNavigator::ComputeSafety(pos, navState, dispR);
+#ifdef ADEPT_USE_SURF
+          // Use maximum accuracy only if safety is samller than physicalStepLength
+          safety = AdePTNavigator::ComputeSafety(pos, navState, dispR);
+#else
+          safety = AdePTNavigator::ComputeSafety(pos, navState);
+#endif
           currentTrack.SetSafety(pos, safety);
           reducedSafety = sFact * safety;
 
@@ -250,6 +279,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
     eKin                 = theTrack->GetEKin();
     double energyDeposit = theTrack->GetEnergyDeposit();
+#ifdef DEBUG_NO_SECONDARY
+    printf("   after MSC eKin = %g eDep = %g pos = {%g, %g, %g}\n", eKin, energyDeposit, pos[0], pos[1], pos[2]);
+#endif
 
     // Update the flight times of the particle
     // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
@@ -269,6 +301,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif
       }
+#ifdef DEBUG_NO_SECONDARY
+      printf("   after relocation: ");
+      nextState.Print();
+#endif
     }
 
     if (auxData.fSensIndex >= 0)
@@ -297,6 +333,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     if (stopped) {
+#ifdef DEBUG_NO_SECONDARY
+      continue;
+#endif
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
@@ -395,6 +434,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       double dirSecondary[3];
       G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
+#ifndef DEBUG_NO_SECONDARY
       Track &secondary = secondaries.electrons->NextTrack();
 
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
@@ -404,6 +444,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       secondary.rngState = newRNG;
       secondary.eKin     = deltaEkin;
       secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+#endif
 
       eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
@@ -423,6 +464,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       double dirSecondary[3];
       G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
+#ifndef DEBUG_NO_SECONDARY
       Track &gamma = secondaries.gammas->NextTrack();
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
@@ -431,6 +473,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       gamma.rngState = newRNG;
       gamma.eKin     = deltaEkin;
       gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+#endif
 
       eKin -= deltaEkin;
       dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
