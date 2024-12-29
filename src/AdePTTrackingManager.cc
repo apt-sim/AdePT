@@ -8,6 +8,7 @@
 #include "G4EventManager.hh"
 #include "G4Event.hh"
 #include "G4RunManager.hh"
+#include "G4TransportationManager.hh"
 
 #include "G4Electron.hh"
 #include "G4Gamma.hh"
@@ -17,7 +18,10 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-AdePTTrackingManager::AdePTTrackingManager() {}
+AdePTTrackingManager::AdePTTrackingManager()
+{
+  fHepEmTrackingManager = std::make_unique<G4HepEmTrackingManagerSpecialized>();
+}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -76,9 +80,11 @@ void AdePTTrackingManager::InitializeAdePT()
         G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
                     ("Region given to /adept/addGPURegion: " + regionName + " Not found\n").c_str());
     }
+    fHepEmTrackingManager->SetTrackInAllRegions(false);
+  } else {
+    fHepEmTrackingManager->SetTrackInAllRegions(true);
   }
   // initialize special G4HepEmTrackingManager
-  fHepEmTrackingManager = std::make_unique<G4HepEmTrackingManagerSpecialized>();
   fHepEmTrackingManager->SetGPURegions(fGPURegions);
 
   fAdePTInitialized = true;
@@ -92,19 +98,8 @@ void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
     InitializeAdePT();
   }
 
-  // For tracking on CPU by Geant4, construct the physics tables for the processes of
-  // particles taken by this tracking manager, since Geant4 won't do it anymore
-  G4ProcessManager *pManager       = part.GetProcessManager();
-  G4ProcessManager *pManagerShadow = part.GetMasterProcessManager();
-
-  G4ProcessVector *pVector = pManager->GetProcessList();
-  for (std::size_t j = 0; j < pVector->size(); ++j) {
-    if (pManagerShadow == pManager) {
-      (*pVector)[j]->BuildPhysicsTable(part);
-    } else {
-      (*pVector)[j]->BuildWorkerPhysicsTable(part);
-    }
-  }
+  // Bulid PhysicsTable for G4HepEm
+  fHepEmTrackingManager->BuildPhysicsTable(part);
 
   // For tracking on GPU by AdePT
 }
@@ -113,19 +108,9 @@ void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 {
-  // For tracking on CPU by Geant4, prepare the physics tables for the processes of
-  // particles taken by this tracking manager, since Geant4 won't do it anymore
-  G4ProcessManager *pManager       = part.GetProcessManager();
-  G4ProcessManager *pManagerShadow = part.GetMasterProcessManager();
 
-  G4ProcessVector *pVector = pManager->GetProcessList();
-  for (std::size_t j = 0; j < pVector->size(); ++j) {
-    if (pManagerShadow == pManager) {
-      (*pVector)[j]->PreparePhysicsTable(part);
-    } else {
-      (*pVector)[j]->PrepareWorkerPhysicsTable(part);
-    }
-  }
+  // Prepare PhysicsTable for G4HepEm
+  fHepEmTrackingManager->PreparePhysicsTable(part);
 
   // For tracking on GPU by AdePT
 }
@@ -137,6 +122,12 @@ void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
   if (fGPURegions.empty() && !fAdeptTransport->GetTrackInAllRegions()) {
     // if no GPU regions, hand over directly to G4HepEmTrackingManager
     fHepEmTrackingManager->HandOverOneTrack(aTrack);
+    if (aTrack->GetTrackStatus() != fStopAndKill) {
+      throw std::logic_error(
+          "Error: Although there is no GPU region, the G4HepEmTrackingManager did not finish tracking.");
+    }
+    delete aTrack;
+    return;
   }
   ProcessTrack(aTrack);
 }
@@ -152,39 +143,18 @@ void AdePTTrackingManager::FlushEvent()
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 {
-  /* From G4 Example RE07 */
 
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
-  G4TrackVector *secondaries         = trackManager->GimmeSecondaries();
   const bool trackInAllRegions       = fAdeptTransport->GetTrackInAllRegions();
 
-  // Clear secondary particle vector
-  for (std::size_t itr = 0; itr < secondaries->size(); ++itr) {
-    delete (*secondaries)[itr];
-  }
-  secondaries->clear();
-
+  // setup touchable to be able to get region from GetNextVolume
   steppingManager->SetInitialStep(aTrack);
-
-  G4UserTrackingAction *userTrackingAction = trackManager->GetUserTrackingAction();
-  if (userTrackingAction != nullptr) {
-    userTrackingAction->PreUserTrackingAction(aTrack);
-  }
-
-  // Give SteppingManger the maxmimum number of processes
-  steppingManager->GetProcessNumber();
-
-  // Give track the pointer to the Step
-  aTrack->SetStep(steppingManager->GetStep());
-
-  // Inform beginning of tracking to physics processes
-  aTrack->GetDefinition()->GetProcessManager()->StartTracking(aTrack);
 
   // Track the particle Step-by-Step while it is alive
   while ((aTrack->GetTrackStatus() == fAlive) || (aTrack->GetTrackStatus() == fStopButAlive)) {
-    G4Region const *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+    G4Region const *region = aTrack->GetNextVolume()->GetLogicalVolume()->GetRegion();
 
     // Check if the particle is in a GPU region
     const bool isGPURegion = trackInAllRegions || fGPURegions.find(region) != fGPURegions.end();
@@ -208,7 +178,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
       fAdeptTransport->AddTrack(pdg, id, energy, particlePosition[0], particlePosition[1], particlePosition[2],
                                 particleDirection[0], particleDirection[1], particleDirection[2], globalTime, localTime,
-                                properTime, G4Threading::G4GetThreadId(), eventID, fTrackCounter++);
+                                properTime, G4Threading::G4GetThreadId(), eventID, fTrackCounter++,
+                                std::move(converted));
 
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);
@@ -219,44 +190,61 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       fHepEmTrackingManager->HandOverOneTrack(aTrack);
     }
   }
-  // Inform end of tracking to physics processes
-  aTrack->GetDefinition()->GetProcessManager()->EndTracking();
 
-  if (userTrackingAction != nullptr) {
-    userTrackingAction->PostUserTrackingAction(aTrack);
-  }
-
-  eventManager->StackTracks(secondaries);
+  // delete track after finishing offloading to AdePT or finished tracking in G4HepEmTrackingManager
   delete aTrack;
 }
 
-void AdePTTrackingManager::StepInHostRegion(G4Track *aTrack)
+const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const G4Track *aG4Track)
 {
-  /* From G4 Example RE07 */
 
-  G4EventManager *eventManager       = G4EventManager::GetEventManager();
-  G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
-  G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
-  G4Region const *previousRegion     = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+  // get history and depth from track
+  auto aG4NavigationHistory = aG4Track->GetNextTouchableHandle()->GetHistory();
+  auto aG4HistoryDepth      = aG4NavigationHistory->GetDepth();
 
-  // Track the particle Step-by-Step while it is alive and outside of a GPU region
-  while ((aTrack->GetTrackStatus() == fAlive || aTrack->GetTrackStatus() == fStopButAlive)) {
-    aTrack->IncrementCurrentStepNumber();
-    steppingManager->Stepping();
+  // the VecGeom NavigationState to be filled
+  vecgeom::NavigationState aNavState;
 
-    if (aTrack->GetTrackStatus() != fStopAndKill) {
-      // Switch the touchable to update the volume, which is checked in the
-      // condition below and at the call site.
-      aTrack->SetTouchableHandle(aTrack->GetNextTouchableHandle());
-      G4Region const *region = aTrack->GetVolume()->GetLogicalVolume()->GetRegion();
+  auto vecgeom_to_g4_map = fAdeptTransport->GetVecGeomG4Map();
 
-      // If the region changed, check whether the particle has entered a GPU region
-      if (region != previousRegion) {
-        previousRegion = region;
-        if (fGPURegions.find(region) != fGPURegions.end()) {
-          return;
-        }
-      }
+  // Iterate through the levels of G4NavigationHistory
+  for (unsigned int level = 0; level <= aG4HistoryDepth; ++level) {
+    // Get the current G4 volume at this level
+    const G4VPhysicalVolume *g4Volume = aG4NavigationHistory->GetVolume(level);
+
+    if (!g4Volume) {
+      throw std::runtime_error("G4NavigationHistory contains a null volume at level " + std::to_string(level));
     }
+
+    // Look up the corresponding VecGeom volume using the map
+    auto it =
+        std::find_if(vecgeom_to_g4_map.begin(), vecgeom_to_g4_map.end(),
+                     [&](const std::pair<int, const G4VPhysicalVolume *> &pair) { return pair.second == g4Volume; });
+
+    if (it == vecgeom_to_g4_map.end()) {
+      throw std::runtime_error("G4 volume not found in VecGeom mapping for level " + std::to_string(level));
+    }
+
+    // Get the corresponding VecGeom volume
+    const vecgeom::VPlacedVolume *vgVolume = vecgeom::GeoManager::Instance().FindPlacedVolume(it->first);
+    if (!vgVolume) {
+      throw std::runtime_error("VecGeom volume not found for ID " + std::to_string(it->first));
+    }
+
+    // Push the VecGeom volume to the NavigationState
+    aNavState.Push(vgVolume);
   }
+
+  // Set boundary status
+  if (aG4Track->GetStep() != nullptr) { // at initialization, the G4Step is not set yet, then we put OnBoundary to false
+    if (aG4Track->GetStep()->GetPostStepPoint()->GetStepStatus() == fGeomBoundary) {
+      aNavState.SetBoundaryState(true);
+    } else {
+      aNavState.SetBoundaryState(false);
+    }
+  } else {
+    aNavState.SetBoundaryState(false);
+  }
+
+  return aNavState;
 }

@@ -24,13 +24,15 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
                                                                G4TrackVector &secondaries) const
 {
 
-  G4Region const *region = track->GetVolume()->GetLogicalVolume()->GetRegion();
+  // GetNextVolume since when this function is called in TrackElectron/Gamma in G4HepEmTrackingManager
+  // the current volume is not yet updated
+  G4Region const *region = track->GetNextVolume()->GetLogicalVolume()->GetRegion();
 
   // TODO: for more efficient use, we only have to check for region within GPURegions, if the region changed.
   //       This can be checked from the pre- and post-steppoint
 
   // Not in the GPU region, continue normal tracking with G4HepEmTrackingManager
-  if (fGPURegions.find(region) != fGPURegions.end()) {
+  if (fGPURegions.find(region) == fGPURegions.end() || (fGPURegions.empty() && !GetTrackInAllRegions())) {
     return false; // Continue tracking with G4HepEmTrackingManager
   } else {
 
@@ -90,9 +92,9 @@ void G4HepEmTrackingManagerSpecialized::HandOverOneTrack(G4Track *aTrack)
     tracking_finished = TrackGamma(aTrack);
   }
 
-  // if G4HepEm finished the track, it can be deleted, otherwise it is kept to be transported on GPU
+  // if G4HepEm finished the track, set status to StopAndKill, the track will be deleted in AdePTTrackingManager
+  // otherwise, it is kept to be transported on GPU
   if (tracking_finished) {
     aTrack->SetTrackStatus(fStopAndKill);
-    delete aTrack;
   }
 }
