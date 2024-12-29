@@ -93,6 +93,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // disable photo-nuclear reaction that would need to be handled by G4 itself
     if (winnerProcessIndex == 3) {
       winnerProcessIndex = -1;
+      assert(0); // currently, the gamma-nuclear processes are not registered in the AdePTPhysicsList, so they should
+                 // never be hit.
     }
 
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
