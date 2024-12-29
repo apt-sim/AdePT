@@ -126,6 +126,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (numIALeft <= 0) {
         numIALeft = -std::log(currentTrack.Uniform());
       }
+      if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
@@ -173,8 +174,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
     if (winnerProcessIndex == 3) {
       winnerProcessIndex = -1;
-      assert(0); // currently, the lepton-nuclear processes are not registered in the AdePTPhysicsList, so they should
-                 // never be hit.
+      // Note, this should not be hit at the moment due to the infinite length, this is just for safety
     }
 
     // Check if there's a volume boundary in between.
