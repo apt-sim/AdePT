@@ -176,6 +176,9 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         fTrackCounter   = 0;
       }
 
+      // Get VecGeom Navigation state from G4History
+      vecgeom::NavigationState converted = GetVecGeomFromG4State(aTrack); 
+
       fAdeptTransport->AddTrack(pdg, id, energy, particlePosition[0], particlePosition[1], particlePosition[2],
                                 particleDirection[0], particleDirection[1], particleDirection[2], globalTime, localTime,
                                 properTime, G4Threading::G4GetThreadId(), eventID, fTrackCounter++,
