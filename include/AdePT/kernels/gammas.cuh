@@ -85,17 +85,21 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // Call G4HepEm to compute the physics step limit.
     G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
     G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
-
-    // Get result into variables.
-    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
-    int winnerProcessIndex                  = theTrack->GetWinnerProcessIndex();
+    int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
 
     // disable photo-nuclear reaction that would need to be handled by G4 itself
     if (winnerProcessIndex == 3) {
-      winnerProcessIndex = -1;
-      assert(0); // currently, the gamma-nuclear processes are not registered in the AdePTPhysicsList, so they should
-                 // never be hit.
+      // since we do an redundant step if gamma-nuclear is drawn, we redraw up to 3 times
+      int trials_left = 3;
+      do {
+        G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
+        trials_left--;
+        if (theTrack->GetWinnerProcessIndex() == 3 && trials_left == 0) winnerProcessIndex = -1;
+      } while (theTrack->GetWinnerProcessIndex() == 3 && trials_left > 0);
     }
+
+    // Get result into variables.
+    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
 
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
