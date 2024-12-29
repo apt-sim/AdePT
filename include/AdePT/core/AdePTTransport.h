@@ -44,7 +44,7 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, int parentID, double energy, double x, double y, double z, double dirx, double diry,
                 double dirz, double globalTime, double localTime, double properTime, int threadId, unsigned int eventId,
-                unsigned int trackIndex);
+                unsigned int trackIndex, vecgeom::NavigationState &&state);
 
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
   /// @brief Get the track capacity on GPU
@@ -74,6 +74,11 @@ public:
   void Cleanup();
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   void Shower(int event, int threadId);
+  /// @brief Gets the VecGeomToG4Map
+  std::unordered_map<size_t, const G4VPhysicalVolume *> GetVecGeomG4Map() const override
+  {
+    return fIntegrationLayer.GetVecGeomG4Map();
+  }
 
 private:
   static inline G4HepEmState *fg4hepem_state{nullptr}; ///< The HepEm state singleton

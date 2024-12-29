@@ -51,6 +51,11 @@ private:
   /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
   void StepInHostRegion(G4Track *aTrack);
 
+  /// @brief Get the corresponding VecGeom NavigationState from the G4NavigationHistory
+  /// @param aG4NavigationHistory the given G4NavigationHistory
+  /// @return the corresponding vecgeom::NavigationState
+  const vecgeom::NavigationState GetVecGeomFromG4State(const G4Track *aG4Track);
+
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};

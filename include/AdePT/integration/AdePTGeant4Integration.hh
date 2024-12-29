@@ -30,7 +30,7 @@ class AdePTGeant4Integration {
 public:
   static constexpr G4int kAdePTTrackID =
       std::numeric_limits<G4int>::min() + 2; // TrackID to signify that the track came from AdePT
-  AdePTGeant4Integration()  = default;
+  AdePTGeant4Integration() = default;
   ~AdePTGeant4Integration();
 
   /// @brief Initializes VecGeom geometry
@@ -70,6 +70,8 @@ public:
   int GetEventID() const { return G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(); }
 
   int GetThreadID() const { return G4Threading::G4GetThreadId(); }
+
+  std::unordered_map<size_t, const G4VPhysicalVolume *> GetVecGeomG4Map() const { return fglobal_vecgeom_to_g4_map; }
 
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index

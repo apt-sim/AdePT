@@ -4,9 +4,13 @@
 #ifndef ADEPT_TRANSPORT_INTERFACE_H
 #define ADEPT_TRANSPORT_INTERFACE_H
 
+#include "G4VPhysicalVolume.hh"
+#include "VecGeom/navigation/NavigationState.h"
+
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 class AdePTTransportInterface {
 public:
@@ -15,7 +19,7 @@ public:
   /// @brief Adds a track to the buffer
   virtual void AddTrack(int pdg, int parentID, double energy, double x, double y, double z, double dirx, double diry,
                         double dirz, double globalTime, double localTime, double properTime, int threadId,
-                        unsigned int eventId, unsigned int trackIndex) = 0;
+                        unsigned int eventId, unsigned int trackIndex, vecgeom::NavigationState &&state) = 0;
 
   /// @brief Set capacity of on-GPU track buffer.
   virtual void SetTrackCapacity(size_t capacity) = 0;
@@ -40,6 +44,8 @@ public:
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   virtual void Shower(int event, int threadId) = 0;
   virtual void Cleanup()                       = 0;
+  /// @brief Get VecGeom to G4 volume map
+  virtual std::unordered_map<size_t, const G4VPhysicalVolume *> GetVecGeomG4Map() const = 0;
 };
 
 #endif
