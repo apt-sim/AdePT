@@ -59,6 +59,8 @@ __global__ void GammaHowFar(adept::TrackManager<Track> *gammas, G4HepEmGammaTrac
     // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
     if (theTrack->GetWinnerProcessIndex() == 3) {
       theTrack->SetWinnerProcessIndex(-1);
+      assert(0); // currently, the gamma-nuclear processes are not registered in the AdePTPhysicsList, so they should
+                 // never be hit.
     }
   }
 }
@@ -231,8 +233,8 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
 
       double logEnergy = std::log(currentTrack.eKin);
       double elKinEnergy, posKinEnergy;
-      G4HepEmGammaInteractionConversion::SampleKinEnergies(&adept_impl::g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex,
-                                                           elKinEnergy, posKinEnergy, &rnge);
+      G4HepEmGammaInteractionConversion::SampleKinEnergies(&adept_impl::g4HepEmData, currentTrack.eKin, logEnergy,
+                                                           auxData.fMCIndex, elKinEnergy, posKinEnergy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondaryEl[3], dirSecondaryPos[3];
@@ -305,7 +307,6 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                    newEnergyGamma,                  // Post-step point kinetic energy
                                    0,                               // Post-step point charge
                                    0, -1);                          // eventID and threadID (not needed here)
-
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -384,7 +385,6 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                  0,                               // Post-step point kinetic energy
                                  0,                               // Post-step point charge
                                  0, -1);                          // eventID and threadID (not needed here)
-
 
       // The current track is killed by not enqueuing into the next activeQueue.
       break;

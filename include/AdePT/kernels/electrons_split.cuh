@@ -100,6 +100,8 @@ __global__ void ElectronHowFar(adept::TrackManager<Track> *electrons, G4HepEmEle
     // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
     if (theTrack->GetWinnerProcessIndex() == 3) {
       theTrack->SetWinnerProcessIndex(-1);
+      assert(0); // currently, the lepton-nuclear processes are not registered in the AdePTPhysicsList, so they should
+                 // never be hit.
     }
 
     currentTrack.restrictedPhysicalStepLength = false;
@@ -206,7 +208,8 @@ static __global__ void ElectronMSC(adept::TrackManager<Track> *electrons, G4HepE
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Apply continuous effects.
-    currentTrack.stopped = G4HepEmElectronManager::PerformContinuous(&adept_impl::g4HepEmData, &adept_impl::g4HepEmPars, &elTrack, &rnge);
+    currentTrack.stopped =
+        G4HepEmElectronManager::PerformContinuous(&adept_impl::g4HepEmData, &adept_impl::g4HepEmPars, &elTrack, &rnge);
 
     // Collect the direction change and displacement by MSC.
     const double *direction = theTrack->GetDirection();
@@ -461,11 +464,12 @@ static __global__ void ElectronInteractions(adept::TrackManager<Track> *electron
     case 1: {
       // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
       double logEnergy = std::log(currentTrack.eKin);
-      double deltaEkin = currentTrack.eKin < adept_impl::g4HepEmPars.fElectronBremModelLim
-                             ? G4HepEmElectronInteractionBrem::SampleETransferSB(
-                                   &adept_impl::g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron)
-                             : G4HepEmElectronInteractionBrem::SampleETransferRB(
-                                   &adept_impl::g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
+      double deltaEkin =
+          currentTrack.eKin < adept_impl::g4HepEmPars.fElectronBremModelLim
+              ? G4HepEmElectronInteractionBrem::SampleETransferSB(&adept_impl::g4HepEmData, currentTrack.eKin,
+                                                                  logEnergy, auxData.fMCIndex, &rnge, IsElectron)
+              : G4HepEmElectronInteractionBrem::SampleETransferRB(&adept_impl::g4HepEmData, currentTrack.eKin,
+                                                                  logEnergy, auxData.fMCIndex, &rnge, IsElectron);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondary[3];

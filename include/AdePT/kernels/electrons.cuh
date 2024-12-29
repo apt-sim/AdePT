@@ -173,6 +173,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
     if (winnerProcessIndex == 3) {
       winnerProcessIndex = -1;
+      assert(0); // currently, the lepton-nuclear processes are not registered in the AdePTPhysicsList, so they should
+                 // never be hit.
     }
 
     // Check if there's a volume boundary in between.
