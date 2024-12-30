@@ -71,8 +71,6 @@ public:
 
   int GetThreadID() const { return G4Threading::G4GetThreadId(); }
 
-  std::unordered_map<size_t, const G4VPhysicalVolume *> GetVecGeomG4Map() const { return fglobal_vecgeom_to_g4_map; }
-
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
   void FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory *aG4NavigationHistory) const;

@@ -44,8 +44,6 @@ public:
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   virtual void Shower(int event, int threadId) = 0;
   virtual void Cleanup()                       = 0;
-  /// @brief Get VecGeom to G4 volume map
-  virtual std::unordered_map<size_t, const G4VPhysicalVolume *> GetVecGeomG4Map() const = 0;
 };
 
 #endif
