@@ -52,10 +52,7 @@ HepEMPhysics::HepEMPhysics(int ver, const G4String &name) : G4EmStandardPhysics(
   param->SetVerbose(1);
 
   // Range factor: (can be set from the G4 macro)
-  param->SetMscRangeFactor(0.04);
-  //
-
-  SetPhysicsType(bElectromagnetic);
+  // param->SetMscRangeFactor(0.04); // 0.04 is the default set by SetDefaults
 }
 
 HepEMPhysics::~HepEMPhysics() {}

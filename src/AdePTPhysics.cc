@@ -15,7 +15,8 @@
 #include "G4EmParameters.hh"
 #include "G4BuilderType.hh"
 
-AdePTPhysics::AdePTPhysics(const G4String &name) : G4VPhysicsConstructor(name)
+AdePTPhysics::AdePTPhysics(int ver, const G4String &name)
+    : G4EmStandardPhysics(ver, name) // G4VPhysicsConstructor(name)
 {
   fAdePTConfiguration = new AdePTConfiguration();
 
@@ -24,21 +25,21 @@ AdePTPhysics::AdePTPhysics(const G4String &name) : G4VPhysicsConstructor(name)
   param->SetVerbose(1);
 
   // Range factor: (can be set from the G4 macro)
-  // param->SetMscRangeFactor(0.04);
-  //
-
-  SetPhysicsType(bUnknown);
+  // param->SetMscRangeFactor(0.04); // 0.04 is the default set by SetDefaults
 }
 
 AdePTPhysics::~AdePTPhysics()
 {
   delete fAdePTConfiguration;
   // the delete below causes a crash with G4.10.7
-  //delete fTrackingManager;
+  // delete fTrackingManager;
 }
 
 void AdePTPhysics::ConstructProcess()
 {
+
+  G4EmStandardPhysics::ConstructProcess();
+
   // Register custom tracking manager for e-/e+ and gammas.
   fTrackingManager = new AdePTTrackingManager();
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
