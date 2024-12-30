@@ -6,19 +6,20 @@
 
 #include "G4VPhysicsConstructor.hh"
 #include "globals.hh"
+#include "G4EmStandardPhysics.hh"
 
 class AdePTTrackingManager;
 class AdePTConfiguration;
 
-class AdePTPhysics : public G4VPhysicsConstructor {
+class AdePTPhysics : public G4EmStandardPhysics { // public G4VPhysicsConstructor {
 public:
-  AdePTPhysics(const G4String &name = "AdePT-physics-list");
+  AdePTPhysics(int ver, const G4String &name = "AdePT-physics-list");
   ~AdePTPhysics();
   AdePTTrackingManager *GetTrackingManager() { return fTrackingManager; }
 
 public:
   // This method is dummy for physics: particles are constructed in PhysicsList
-  void ConstructParticle() override{};
+  void ConstructParticle() override {};
 
   // This method will be invoked in the Construct() method.
   // each physics process will be instantiated and
