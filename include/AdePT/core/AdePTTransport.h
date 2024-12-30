@@ -74,11 +74,6 @@ public:
   void Cleanup();
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   void Shower(int event, int threadId);
-  /// @brief Gets the VecGeomToG4Map
-  std::unordered_map<size_t, const G4VPhysicalVolume *> GetVecGeomG4Map() const override
-  {
-    return fIntegrationLayer.GetVecGeomG4Map();
-  }
 
 private:
   static inline G4HepEmState *fg4hepem_state{nullptr}; ///< The HepEm state singleton
