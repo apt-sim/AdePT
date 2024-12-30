@@ -177,7 +177,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       }
 
       // Get VecGeom Navigation state from G4History
-      vecgeom::NavigationState converted = GetVecGeomFromG4State(aTrack); 
+      vecgeom::NavigationState converted = GetVecGeomFromG4State(aTrack);
 
       fAdeptTransport->AddTrack(pdg, id, energy, particlePosition[0], particlePosition[1], particlePosition[2],
                                 particleDirection[0], particleDirection[1], particleDirection[2], globalTime, localTime,
@@ -205,37 +205,40 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const
   auto aG4NavigationHistory = aG4Track->GetNextTouchableHandle()->GetHistory();
   auto aG4HistoryDepth      = aG4NavigationHistory->GetDepth();
 
-  // the VecGeom NavigationState to be filled
+  // Initialize the NavState to be filled and push the world to it
   vecgeom::NavigationState aNavState;
+  auto current_volume = vecgeom::GeoManager::Instance().GetWorld();
+  aNavState.Push(current_volume);
 
-  auto vecgeom_to_g4_map = fAdeptTransport->GetVecGeomG4Map();
+  bool found_volume;
+  // we pushed already the world, so we can start at level 1
+  for (unsigned int level = 1; level <= aG4HistoryDepth; ++level) {
 
-  // Iterate through the levels of G4NavigationHistory
-  for (unsigned int level = 0; level <= aG4HistoryDepth; ++level) {
-    // Get the current G4 volume at this level
-    const G4VPhysicalVolume *g4Volume = aG4NavigationHistory->GetVolume(level);
+    found_volume = false;
 
-    if (!g4Volume) {
-      throw std::runtime_error("G4NavigationHistory contains a null volume at level " + std::to_string(level));
+    // Get current G4 volume and parent volume.
+    const G4VPhysicalVolume *g4Volume_parent = aG4NavigationHistory->GetVolume(level - 1);
+    const G4VPhysicalVolume *g4Volume        = aG4NavigationHistory->GetVolume(level);
+
+    // The index of the VecGeom volume on this level (that we need to push the NavState to)
+    // is the same as the G4 volume. The index of the G4 volume is found by matching it against
+    // the daughters of the parent volume, since the G4 volume itself has no index.
+    for (int id = 0; id < g4Volume_parent->GetLogicalVolume()->GetNoDaughters(); ++id) {
+      if (g4Volume == g4Volume_parent->GetLogicalVolume()->GetDaughter(id)) {
+        auto daughter = current_volume->GetLogicalVolume()->GetDaughters()[id];
+        aNavState.Push(daughter);
+        current_volume = daughter;
+        found_volume   = true;
+        break;
+      }
     }
 
-    // Look up the corresponding VecGeom volume using the map
-    auto it =
-        std::find_if(vecgeom_to_g4_map.begin(), vecgeom_to_g4_map.end(),
-                     [&](const std::pair<int, const G4VPhysicalVolume *> &pair) { return pair.second == g4Volume; });
-
-    if (it == vecgeom_to_g4_map.end()) {
-      throw std::runtime_error("G4 volume not found in VecGeom mapping for level " + std::to_string(level));
+    if (!found_volume) {
+      throw std::runtime_error("Fatal: G4 To VecGeom Geometry matching failed: G4 Volume name " +
+                               std::string(g4Volume->GetLogicalVolume()->GetName()) +
+                               " was not found in VecGeom Parent volume " +
+                               std::string(current_volume->GetLogicalVolume()->GetName()));
     }
-
-    // Get the corresponding VecGeom volume
-    const vecgeom::VPlacedVolume *vgVolume = vecgeom::GeoManager::Instance().FindPlacedVolume(it->first);
-    if (!vgVolume) {
-      throw std::runtime_error("VecGeom volume not found for ID " + std::to_string(it->first));
-    }
-
-    // Push the VecGeom volume to the NavigationState
-    aNavState.Push(vgVolume);
   }
 
   // Set boundary status
