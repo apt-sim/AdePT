@@ -87,15 +87,19 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
     int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
 
-    // disable photo-nuclear reaction that would need to be handled by G4 itself
+    // avoid photo-nuclear reaction that would need to be handled by G4 itself
     if (winnerProcessIndex == 3) {
       // since we do an redundant step if gamma-nuclear is drawn, we redraw up to 3 times
       int trials_left = 3;
       do {
+        // reset `number-of-interaction-left` since it is always consumed by the previous call to SampleInteraction()
+        theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
         G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
         trials_left--;
-        if (theTrack->GetWinnerProcessIndex() == 3 && trials_left == 0) winnerProcessIndex = -1;
       } while (theTrack->GetWinnerProcessIndex() == 3 && trials_left > 0);
+
+      // Reset final WinnerProcessIndex
+      winnerProcessIndex = (theTrack->GetWinnerProcessIndex() == 3) ? -1 : theTrack->GetWinnerProcessIndex();
     }
 
     // Get result into variables.
