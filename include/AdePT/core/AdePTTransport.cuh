@@ -113,7 +113,6 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
                            Secondaries secondaries, const vecgeom::VPlacedVolume *world, AdeptScoring *userScoring,
                            VolAuxData const *auxDataArray)
 {
-  constexpr double tolerance = 10. * vecgeom::kTolerance;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < ntracks; i += blockDim.x * gridDim.x) {
     adept::TrackManager<Track> *trackmgr = nullptr;
     // These tracks come from Geant4, do not count them here
@@ -149,18 +148,11 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.localTime  = trackinfo->localTime;
     track.properTime = trackinfo->properTime;
 
+    // setting up the NavState
     track.navState.Clear();
-    // We locate the pushed point because we run the risk that the
-    // point is not located in the GPU region
-#ifndef ADEPT_USE_SURF
-    AdePTNavigator::LocatePointIn(world, track.pos + tolerance * track.dir, track.navState, true);
-#else
-    AdePTNavigator::LocatePointIn(vecgeom::NavigationState::WorldId(), track.pos + tolerance * track.dir,
-                                  track.navState, true);
-#endif
-    // The track must be on boundary at this point
-    track.navState.SetBoundaryState(true);
+    track.navState = trackinfo->navState;
     // nextState is initialized as needed.
+
 #ifndef ADEPT_USE_SURF
     int lvolID = track.navState.Top()->GetLogicalVolume()->id();
 #else
@@ -355,10 +347,15 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.toDevice_dev, buffer.toDevice.data(),
                                      buffer.toDevice.size() * sizeof(adeptint::TrackData), cudaMemcpyHostToDevice,
                                      gpuState.stream));
-  // Initialize AdePT tracks using the track buffer copied from CPU
-  constexpr int initThreads = 32;
-  int initBlocks            = (buffer.toDevice.size() + initThreads - 1) / initThreads;
 
+#ifndef DEBUG_SINGLE_THREAD
+  constexpr int initThreads = 32;
+#else
+  constexpr int initThreads = 1;
+#endif
+  int initBlocks = (buffer.toDevice.size() + initThreads - 1) / initThreads;
+
+  // Initialize AdePT tracks using the track buffer copied from CPU
   InitTracks<<<initBlocks, initThreads, 0, gpuState.stream>>>(gpuState.toDevice_dev, buffer.toDevice.size(),
                                                               buffer.startTrack, event, secondaries, world_dev,
                                                               scoring_dev, VolAuxArray::GetInstance().fAuxData_dev);

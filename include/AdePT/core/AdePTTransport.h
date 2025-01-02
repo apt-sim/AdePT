@@ -44,7 +44,7 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, int parentID, double energy, double x, double y, double z, double dirx, double diry,
                 double dirz, double globalTime, double localTime, double properTime, int threadId, unsigned int eventId,
-                unsigned int trackIndex);
+                unsigned int trackIndex, vecgeom::NavigationState &&state);
 
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
   /// @brief Get the track capacity on GPU

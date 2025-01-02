@@ -6,12 +6,15 @@
 
 #include <AdePT/base/MParray.h>
 
+#include "VecGeom/navigation/NavigationState.h"
+
 namespace adeptint {
 
 /// @brief Track data exchanged between Geant4 and AdePT
 /// @details This struct is initialised from an AdePT Track, either in GPU or CPU, copied to
 /// the destination, and used to reconstruct the track
 struct TrackData {
+  vecgeom::NavigationState navState;
   double position[3];
   double direction[3];
   double eKin{0};
@@ -23,12 +26,13 @@ struct TrackData {
 
   TrackData() = default;
   TrackData(int pdg_id, int parentID, double ene, double x, double y, double z, double dirx, double diry, double dirz,
-            double gTime, double lTime, double pTime)
-      : position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime}, localTime{lTime},
+            double gTime, double lTime, double pTime, vecgeom::NavigationState state)
+      : navState{state}, position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime}, localTime{lTime},
         properTime{pTime}, pdg{pdg_id}, parentID{parentID}
   {
   }
 
+  // fixme: add include navigation state in operators?
   friend bool operator==(TrackData const &a, TrackData const &b) { return !(a < b && b < a); }
   friend bool operator!=(TrackData const &a, TrackData const &b) { return !(a == b); }
   inline bool operator<(TrackData const &t) const

@@ -22,7 +22,7 @@ struct Track {
 
   RanluxppDouble rngState;
   double eKin;
-  double numIALeft[3];
+  double numIALeft[4];
   double initialRange;
   double dynamicRangeFactor;
   double tlimitMin;
@@ -59,7 +59,6 @@ struct Track {
   bool restrictedPhysicalStepLength{false};
   bool stopped{false};
 #endif
-
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 

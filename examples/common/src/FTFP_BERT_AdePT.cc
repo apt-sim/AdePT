@@ -38,15 +38,18 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
   // EM Physics
 
   // Register the EM physics to use for tracking on CPU
+  // Note: The explicit registering of physics on CPU is not needed anymore:
+  // the AdePTTrackingManager takes care of all EM particles and, on CPU, hands them over to
+  // the specialized G4HepEmTrackingManager
   // RegisterPhysics(new G4EmStandardPhysics());
-  RegisterPhysics(new HepEMPhysics());
+  // RegisterPhysics(new HepEMPhysics(ver));
 
   // Register the AdePT physics
-  RegisterPhysics(new AdePTPhysics());
+  RegisterPhysics(new AdePTPhysics(ver));
 
   // Synchroton Radiation & GN Physics
   // comenting out to remove gamma- and lepto-nuclear processes
-  // RegisterPhysics( new G4EmExtraPhysics(ver) );
+  // RegisterPhysics(new G4EmExtraPhysics(ver));
 
   // Decays
   RegisterPhysics(new G4DecayPhysics(ver));
