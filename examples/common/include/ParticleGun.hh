@@ -13,11 +13,11 @@
 class ParticleGunMessenger;
 class G4Event;
 
-class ParticleGun : public G4ParticleGun {
+class ParticleGun {
 public:
   ParticleGun();
   ~ParticleGun();
-  virtual void GeneratePrimaries(G4Event *) final;
+  void GeneratePrimaries(G4Event *);
   void GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi, G4double aMaxPhi, G4double aMinTheta,
                                    G4double aMaxTheta, std::vector<G4ParticleDefinition *> *aParticleList,
                                    std::vector<float> *aParticleWeights, std::vector<float> *aParticleEnergies);
@@ -38,6 +38,9 @@ public:
   void ReWeight();
 
 private:
+  // G4Particle gun that uses the default G4 gun commands such as /gun/position etc.
+  std::unique_ptr<G4ParticleGun> fG4ParticleGun;
+
   G4double fPrintGun = 0.;
   // Gun randomization
   bool fRandomizeGun = false;
