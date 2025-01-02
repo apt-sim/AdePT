@@ -20,9 +20,9 @@
 #include <numeric>
 #include <sstream>
 
-ParticleGun::ParticleGun() : G4ParticleGun()
+ParticleGun::ParticleGun()
 {
-  SetDefaultKinematic();
+  fG4ParticleGun = std::make_unique<G4ParticleGun>();
   // if HepMC3, create the reader
 #ifdef HEPMC3_FOUND
   fHepmcAscii = std::make_unique<HepMC3G4AsciiReader>();
@@ -31,10 +31,7 @@ ParticleGun::ParticleGun() : G4ParticleGun()
   fMessenger = std::make_unique<ParticleGunMessenger>(this);
 }
 
-ParticleGun::~ParticleGun()
-{
-
-}
+ParticleGun::~ParticleGun() {}
 
 void ParticleGun::GeneratePrimaries(G4Event *aEvent)
 {
@@ -70,7 +67,7 @@ void ParticleGun::GeneratePrimaries(G4Event *aEvent)
     GenerateRandomPrimaryVertex(aEvent, fMinPhi, fMaxPhi, fMinTheta, fMaxTheta, &fParticleList, &fParticleWeights,
                                 &fParticleEnergies);
   } else {
-    GeneratePrimaryVertex(aEvent);
+    fG4ParticleGun->GeneratePrimaryVertex(aEvent);
   }
 
   // Print the particle gun info if requested
@@ -91,35 +88,35 @@ void ParticleGun::GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi,
   for (unsigned int i = 0; i < aParticleList->size(); i++) {
     weight += (*aParticleWeights)[i];
     if (weight > choice) {
-      SetParticleDefinition((*aParticleList)[i]);
-      SetParticleEnergy((*aParticleEnergies)[i]);
+      fG4ParticleGun->SetParticleDefinition((*aParticleList)[i]);
+      fG4ParticleGun->SetParticleEnergy((*aParticleEnergies)[i]);
       break;
     }
   }
 
   // Create a new vertex
   //
-  auto *vertex = new G4PrimaryVertex(particle_position, particle_time);
+  auto *vertex = new G4PrimaryVertex(fG4ParticleGun->GetParticlePosition(), fG4ParticleGun->GetParticleTime());
 
   // Create new primaries and set them to the vertex
   //
-  G4double mass = particle_definition->GetPDGMass();
-  for (G4int i = 0; i < NumberOfParticlesToBeGenerated; ++i) {
-    auto *particle = new G4PrimaryParticle(particle_definition);
+  G4double mass = fG4ParticleGun->GetParticleDefinition()->GetPDGMass();
+  for (G4int i = 0; i < fG4ParticleGun->GetNumberOfParticles(); ++i) {
+    auto *particle = new G4PrimaryParticle(fG4ParticleGun->GetParticleDefinition());
 
     // Choose a random direction in the selected ranges, with an isotropic distribution
-    G4double phi                = (aMaxPhi - aMinPhi) * G4UniformRand() + aMinPhi;
-    G4double theta              = acos((cos(aMaxTheta) - cos(aMinTheta)) * G4UniformRand() + cos(aMinTheta));
-    G4double x                  = cos(phi) * sin(theta);
-    G4double y                  = sin(phi) * sin(theta);
-    G4double z                  = cos(theta);
-    particle_momentum_direction = G4ThreeVector(x, y, z);
+    G4double phi   = (aMaxPhi - aMinPhi) * G4UniformRand() + aMinPhi;
+    G4double theta = acos((cos(aMaxTheta) - cos(aMinTheta)) * G4UniformRand() + cos(aMinTheta));
+    G4double x     = cos(phi) * sin(theta);
+    G4double y     = sin(phi) * sin(theta);
+    G4double z     = cos(theta);
+    fG4ParticleGun->SetParticleMomentumDirection(G4ThreeVector(x, y, z));
 
-    particle->SetKineticEnergy(particle_energy);
+    particle->SetKineticEnergy(fG4ParticleGun->GetParticleEnergy());
     particle->SetMass(mass);
-    particle->SetMomentumDirection(particle_momentum_direction);
-    particle->SetCharge(particle_charge);
-    particle->SetPolarization(particle_polarization.x(), particle_polarization.y(), particle_polarization.z());
+    particle->SetMomentumDirection(fG4ParticleGun->GetParticleMomentumDirection());
+    particle->SetCharge(fG4ParticleGun->GetParticleCharge());
+    particle->SetPolarization(fG4ParticleGun->GetParticlePolarization());
     vertex->SetPrimary(particle);
 
     // Choose a new particle from the list for the next iteration
@@ -128,8 +125,8 @@ void ParticleGun::GenerateRandomPrimaryVertex(G4Event *aEvent, G4double aMinPhi,
     for (unsigned int i = 0; i < aParticleList->size(); i++) {
       weight += (*aParticleWeights)[i];
       if (weight > choice) {
-        SetParticleDefinition((*aParticleList)[i]);
-        SetParticleEnergy((*aParticleEnergies)[i]);
+        fG4ParticleGun->SetParticleDefinition((*aParticleList)[i]);
+        fG4ParticleGun->SetParticleEnergy((*aParticleEnergies)[i]);
         break;
       }
     }
@@ -142,11 +139,11 @@ void ParticleGun::SetDefaultKinematic()
   G4ParticleTable *particleTable = G4ParticleTable::GetParticleTable();
   G4String particleName;
   G4ParticleDefinition *particle = particleTable->FindParticle(particleName = "e-");
-  SetParticleDefinition(particle);
-  SetParticleMomentumDirection(G4ThreeVector(1., 1., 1.));
-  SetParticleEnergy(1. * GeV);
+  fG4ParticleGun->SetParticleDefinition(particle);
+  fG4ParticleGun->SetParticleMomentumDirection(G4ThreeVector(1., 1., 1.));
+  fG4ParticleGun->SetParticleEnergy(1. * GeV);
   G4double position = 0.0;
-  SetParticlePosition(G4ThreeVector(position, 0. * cm, 0. * cm));
+  fG4ParticleGun->SetParticlePosition(G4ThreeVector(position, 0. * cm, 0. * cm));
 }
 
 void ParticleGun::AddParticle(G4ParticleDefinition *val, float weight, double energy)
@@ -203,15 +200,15 @@ void ParticleGun::ReWeight()
 void ParticleGun::Print()
 {
   if (!fRandomizeGun) {
-    G4cout << "=== Gun shooting " << GetParticleDefinition()->GetParticleName() << " with energy "
-           << GetParticleEnergy() / GeV << "[GeV] from: " << GetParticlePosition() / mm
-           << " [mm] along direction: " << GetParticleMomentumDirection() << G4endl;
+    G4cout << "=== Gun shooting " << fG4ParticleGun->GetParticleDefinition()->GetParticleName() << " with energy "
+           << fG4ParticleGun->GetParticleEnergy() / GeV << "[GeV] from: " << fG4ParticleGun->GetParticlePosition() / mm
+           << " [mm] along direction: " << fG4ParticleGun->GetParticleMomentumDirection() << G4endl;
   } else {
     for (unsigned int i = 0; i < fParticleList.size(); i++) {
       G4cout << "=== Gun shooting " << fParticleEnergies[i] / GeV << "[GeV] " << fParticleList[i]->GetParticleName()
              << " with probability " << fParticleWeights[i] * 100 << "%" << G4endl;
     }
-    G4cout << "=== Gun shooting from: " << GetParticlePosition() / mm << " [mm]" << G4endl;
+    G4cout << "=== Gun shooting from: " << fG4ParticleGun->GetParticlePosition() / mm << " [mm]" << G4endl;
     G4cout << "=== Gun shooting in ranges: " << G4endl;
     G4cout << "Phi: [" << fMinPhi << ", " << fMaxPhi << "] (rad)" << G4endl;
     G4cout << "Theta: [" << fMinTheta << ", " << fMaxTheta << "] (rad)" << G4endl;
