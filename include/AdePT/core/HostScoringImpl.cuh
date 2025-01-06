@@ -37,13 +37,7 @@ __device__ __forceinline__ unsigned int GetNextFreeHitIndex(HostScoring *hostSco
   // Atomic addition, each GPU thread accessing concurrently gets a different slot
   unsigned int next = hostScoring_dev->fNextFreeHit_dev->fetch_add(1);
   assert(next >= hostScoring_dev->fBufferStart);
-  if (next < hostScoring_dev->fBufferStart) {
-    // if (next %1000 == 0) {
-    printf("Oh no, YOU SHOULD NEVER BE HERE!: next %u fBufferStart %u \n", next, hostScoring_dev->fBufferStart);
-  }
   if ((next - hostScoring_dev->fBufferStart) >= hostScoring_dev->fBufferCapacity) {
-    printf("Oh no, here also not: next %u BufferStart %u  next - bufferstart %u \n", next,
-           hostScoring_dev->fBufferStart, (next - hostScoring_dev->fBufferStart));
     COPCORE_EXCEPTION("No slot available in Hit Buffer");
   }
   (*hostScoring_dev->fUsedSlots_dev)++;
