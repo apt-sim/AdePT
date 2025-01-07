@@ -280,9 +280,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     bool reached_interaction = true;
-    bool cross_boundary = false;
+    bool cross_boundary      = false;
 
-    const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
 
     if (stopped) {
@@ -304,10 +304,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         if (APPLY_CUTS && (copcore::units::kElectronMassC2 < theGammaCut)) {
           // Deposit the energy here and kill the secondaries
           energyDeposit += 2 * copcore::units::kElectronMassC2;
-          
-        }
-        else
-        {
+        } else {
           gamma1.InitAsSecondary(pos, navState, globalTime);
           newRNG.Advance();
           gamma1.parentID = currentTrack.parentID;
@@ -327,8 +324,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // continue;
     }
 
-    if(!stopped)
-    {
+    if (!stopped) {
       if (nextState.IsOnBoundary()) {
         // For now, just count that we hit something.
         reached_interaction = false;
@@ -354,9 +350,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
     }
 
-    if(reached_interaction && !stopped)
-    {
-      bool delta_interaction = false;
+    if (reached_interaction && !stopped) {
       // Reset number of interaction left for the winner discrete process.
       // (Will be resampled in the next iteration.)
       currentTrack.numIALeft[winnerProcessIndex] = -1.0;
@@ -365,11 +359,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
         // A delta interaction happened, move on.
         survive();
-        delta_interaction = true;
         // continue;
-      }
-      if(!delta_interaction)
-      {
+      } else {
         // Perform the discrete interaction, make sure the branched RNG state is
         // ready to be used.
         newRNG.Advance();
@@ -380,8 +371,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         switch (winnerProcessIndex) {
         case 0: {
           // Invoke ionization (for e-/e+):
-          double deltaEkin = (IsElectron) ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, eKin, &rnge)
-                                          : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
+          double deltaEkin = (IsElectron)
+                                 ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, eKin, &rnge)
+                                 : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
 
           double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
           double dirSecondary[3];
@@ -394,9 +386,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
 
-          }
-          else
-          {
+          } else {
             Track &secondary = secondaries.electrons->NextTrack();
             secondary.InitAsSecondary(pos, navState, globalTime);
             secondary.parentID = currentTrack.parentID;
@@ -414,10 +404,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
           double logEnergy = std::log(eKin);
           double deltaEkin = eKin < g4HepEmPars.fElectronBremModelLim
-                                ? G4HepEmElectronInteractionBrem::SampleETransferSB(&g4HepEmData, eKin, logEnergy,
-                                                                                    auxData.fMCIndex, &rnge, IsElectron)
-                                : G4HepEmElectronInteractionBrem::SampleETransferRB(&g4HepEmData, eKin, logEnergy,
-                                                                                    auxData.fMCIndex, &rnge, IsElectron);
+                                 ? G4HepEmElectronInteractionBrem::SampleETransferSB(
+                                       &g4HepEmData, eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron)
+                                 : G4HepEmElectronInteractionBrem::SampleETransferRB(
+                                       &g4HepEmData, eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
 
           double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
           double dirSecondary[3];
@@ -429,10 +419,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           if (APPLY_CUTS && (deltaEkin < theGammaCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
-            
-          }
-          else
-          {
+
+          } else {
             Track &gamma = secondaries.gammas->NextTrack();
             gamma.InitAsSecondary(pos, navState, globalTime);
             gamma.parentID = currentTrack.parentID;
@@ -454,17 +442,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
               eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
 
-          // TODO: In principle particles are produced, then cut before stacking them. It seems correct to count them here
+          // TODO: In principle particles are produced, then cut before stacking them. It seems correct to count them
+          // here
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
-          
+
           // Apply cuts
           if (APPLY_CUTS && (theGamma1Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
             energyDeposit += theGamma1Ekin;
-            
-          }
-          else
-          {
+
+          } else {
             Track &gamma1 = secondaries.gammas->NextTrack();
             gamma1.InitAsSecondary(pos, navState, globalTime);
             gamma1.parentID = currentTrack.parentID;
@@ -475,13 +462,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           if (APPLY_CUTS && (theGamma2Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
             energyDeposit += theGamma2Ekin;
-            
-          }
-          else
-          {
+
+          } else {
             Track &gamma2 = secondaries.gammas->NextTrack();
             gamma2.InitAsSecondary(pos, navState, globalTime);
-            // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut 
+            // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut
             // the state is not reused, but this shouldn't be an issue)
             gamma2.parentID = currentTrack.parentID;
             gamma2.rngState = currentTrack.rngState;
@@ -516,8 +501,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                IsElectron ? -1 : 1,      // Post-step point charge
                                0, -1);                   // eventID and threadID (not needed here)
 
-    if(cross_boundary)
-    {
+    if (cross_boundary) {
       // Move to the next boundary.
       navState = nextState;
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
