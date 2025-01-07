@@ -36,11 +36,11 @@ FTFP_BERT_HepEm::FTFP_BERT_HepEm(G4int ver)
 
   // EM Physics
   // RegisterPhysics( new G4EmStandardPhysics(ver));
-  RegisterPhysics(new HepEMPhysics());
+  RegisterPhysics(new HepEMPhysics(ver));
 
   // Synchroton Radiation & GN Physics
   // comenting out to remove gamma- and lepto-nuclear processes
-  // RegisterPhysics( new G4EmExtraPhysics(ver) );
+  // RegisterPhysics(new G4EmExtraPhysics(ver));
 
   // Decays
   RegisterPhysics(new G4DecayPhysics(ver));

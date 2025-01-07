@@ -139,7 +139,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
         numIALeft = -std::log(currentTrack.Uniform());
@@ -165,6 +165,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
+
+    // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
+    if (winnerProcessIndex == 3) {
+      winnerProcessIndex = -1;
+    }
 
     // Check if there's a volume boundary in between.
     bool propagated = true;
@@ -322,7 +327,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     atomicAdd(&scoringPerVolume->energyDeposit[volumeID], energyDeposit);
 
     // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft           = theTrack->GetNumIALeft(ip);
       currentTrack.numIALeft[ip] = numIALeft;
     }

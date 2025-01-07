@@ -41,17 +41,17 @@ void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GP
 template <typename IntegrationLayer>
 AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configuration)
 {
-  fDebugLevel = 0;
-  fBufferThreshold = configuration.GetTransportBufferThreshold();
-  fMaxBatch = 2 * configuration.GetTransportBufferThreshold();
+  fDebugLevel        = 0;
+  fBufferThreshold   = configuration.GetTransportBufferThreshold();
+  fMaxBatch          = 2 * configuration.GetTransportBufferThreshold();
   fTrackInAllRegions = configuration.GetTrackInAllRegions();
-  fGPURegionNames = configuration.GetGPURegionNames();
-  fCUDAStackLimit = configuration.GetCUDAStackLimit();
-  fCapacity = 1024 * 1024 * configuration.GetMillionsOfTrackSlots() / configuration.GetNumThreads();
+  fGPURegionNames    = configuration.GetGPURegionNames();
+  fCUDAStackLimit    = configuration.GetCUDAStackLimit();
+  fCapacity          = 1024 * 1024 * configuration.GetMillionsOfTrackSlots() / configuration.GetNumThreads();
   fHitBufferCapacity = 1024 * 1024 * configuration.GetMillionsOfHitSlots() / configuration.GetNumThreads();
-  
-  printf( "AdePT Allocated track capacity: %d tracks\n", fCapacity);
-  printf( "AdePT Allocated step buffer capacity: %d tracks\n", fHitBufferCapacity);
+
+  printf("AdePT Allocated track capacity: %d tracks\n", fCapacity);
+  printf("AdePT Allocated step buffer capacity: %d tracks\n", fHitBufferCapacity);
 }
 
 template <typename IntegrationLayer>
@@ -63,10 +63,12 @@ bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
 template <typename IntegrationLayer>
 void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parent_id, double energy, double x, double y, double z,
                                                 double dirx, double diry, double dirz, double globalTime,
-                                                double localTime, double properTime, int /*threadId*/, unsigned int eventId,
-                                                unsigned int /*trackIndex*/)
+                                                double localTime, double properTime, int /*threadId*/,
+                                                unsigned int eventId, unsigned int /*trackIndex*/,
+                                                vecgeom::NavigationState &&state)
 {
-  fBuffer.toDevice.emplace_back(pdg, parent_id, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime);
+  fBuffer.toDevice.emplace_back(pdg, parent_id, energy, x, y, z, dirx, diry, dirz, globalTime, localTime, properTime,
+                                state);
   if (pdg == 11)
     fBuffer.nelectrons++;
   else if (pdg == -11)
@@ -85,9 +87,8 @@ template <typename IntegrationLayer>
 bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
-  if(fCUDAStackLimit > 0)
-  {
-    std::cout <<  "CUDA Device stack limit: " <<  fCUDAStackLimit << "\n";
+  if (fCUDAStackLimit > 0) {
+    std::cout << "CUDA Device stack limit: " << fCUDAStackLimit << "\n";
     cudaDeviceSetLimit(cudaLimitStackSize, fCUDAStackLimit);
   }
   bool success = true;
@@ -219,8 +220,9 @@ template <typename IntegrationLayer>
 void AdePTTransport<IntegrationLayer>::Shower(int event, int /*threadId*/)
 {
   int tid = fIntegrationLayer.GetThreadID();
-  if (fDebugLevel > 0 && fBuffer.toDevice.size() == 0) {
-    std::cout << "[" << tid << "] AdePTTransport<IntegrationLayer>::Shower: No more particles in buffer. Exiting.\n";
+  if (fBuffer.toDevice.size() == 0) {
+    if (fDebugLevel > 0)
+      std::cout << "[" << tid << "] AdePTTransport<IntegrationLayer>::Shower: No more particles in buffer. Exiting.\n";
     return;
   }
 

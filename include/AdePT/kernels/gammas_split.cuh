@@ -47,16 +47,22 @@ __global__ void GammaHowFar(adept::TrackManager<Track> *gammas, G4HepEmGammaTrac
     theTrack->SetMCIndex(auxData.fMCIndex);
 
     // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft = currentTrack.numIALeft[ip];
-      if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
-      }
-      theTrack->SetNumIALeft(numIALeft, ip);
+    // Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section
+    if (theTrack->GetNumIALeft(0) <= 0.0) {
+      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
-    G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
+    G4HepEmGammaManager::HowFar(&adept_impl::g4HepEmData, &adept_impl::g4HepEmPars, &gammaTrack);
+    G4HepEmGammaManager::SampleInteraction(&adept_impl::g4HepEmData, &gammaTrack, currentTrack.Uniform());
+
+    // Skip photo-nuclear reaction that would need to be handled by G4 itself
+    if (theTrack->GetWinnerProcessIndex() == 3) {
+      theTrack->SetWinnerProcessIndex(-1);
+      // NOTE: no simple re-drawing is possible, since HowFar returns now smaller steps due to the gamma-nuclear
+      // reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a reaction is needed to
+      // compensate for the smaller step size returned by HowFar.
+    }
   }
 }
 
@@ -106,10 +112,9 @@ __global__ void GammaPropagation(adept::TrackManager<Track> *gammas, G4HepEmGamm
     G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
     // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft           = theTrack->GetNumIALeft(ip);
-      currentTrack.numIALeft[ip] = numIALeft;
-    }
+    // Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section
+    double numIALeft          = theTrack->GetNumIALeft(0);
+    currentTrack.numIALeft[0] = numIALeft;
 
     // Update the flight times of the particle
     double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
@@ -229,8 +234,8 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
 
       double logEnergy = std::log(currentTrack.eKin);
       double elKinEnergy, posKinEnergy;
-      G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex,
-                                                           elKinEnergy, posKinEnergy, &rnge);
+      G4HepEmGammaInteractionConversion::SampleKinEnergies(&adept_impl::g4HepEmData, currentTrack.eKin, logEnergy,
+                                                           auxData.fMCIndex, elKinEnergy, posKinEnergy, &rnge);
 
       double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirSecondaryEl[3], dirSecondaryPos[3];
@@ -301,7 +306,8 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                    &currentTrack.dir,               // Post-step point momentum direction
                                    nullptr,                         // Post-step point polarization
                                    newEnergyGamma,                  // Post-step point kinetic energy
-                                   0);                              // Post-step point charge
+                                   0,                               // Post-step point charge
+                                   0, -1);                          // eventID and threadID (not needed here)
       }
 
       // Check the new gamma energy and deposit if below threshold.
@@ -327,7 +333,9 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                    &currentTrack.dir,               // Post-step point momentum direction
                                    nullptr,                         // Post-step point polarization
                                    newEnergyGamma,                  // Post-step point kinetic energy
-                                   0);                              // Post-step point charge
+                                   0,                               // Post-step point charge
+                                   0, -1);                          // eventID and threadID (not needed here)
+
         // The current track is killed by not enqueuing into the next activeQueue.
       }
       break;
@@ -337,7 +345,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-          &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), currentTrack.eKin, &rnge);
+          &adept_impl::g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), currentTrack.eKin, &rnge);
       double edep = bindingEnergy;
 
       const double photoElecE = currentTrack.eKin - edep;
@@ -376,7 +384,8 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
                                  &currentTrack.dir,               // Post-step point momentum direction
                                  nullptr,                         // Post-step point polarization
                                  0,                               // Post-step point kinetic energy
-                                 0);                              // Post-step point charge
+                                 0,                               // Post-step point charge
+                                 0, -1);                          // eventID and threadID (not needed here)
 
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
