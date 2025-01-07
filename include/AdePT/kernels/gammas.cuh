@@ -90,18 +90,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // avoid photo-nuclear reaction that would need to be handled by G4 itself
     if (winnerProcessIndex == 3) {
       winnerProcessIndex = -1;
-      // NOTE: re-drawing was found to change the physics slightly, thus, it is commented out for now
-      // // since we do an redundant step if gamma-nuclear is drawn, we redraw up to 3 times
-      // int trials_left = 3;
-      // do {
-      //   // reset `number-of-interaction-left` since it is always consumed by the previous call to SampleInteraction()
-      //   theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
-      //   G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
-      //   trials_left--;
-      // } while (theTrack->GetWinnerProcessIndex() == 3 && trials_left > 0);
-
-      // // Reset final WinnerProcessIndex
-      // winnerProcessIndex = (theTrack->GetWinnerProcessIndex() == 3) ? -1 : theTrack->GetWinnerProcessIndex();
+      // NOTE: no simple re-drawing is possible, since HowFar returns now smaller steps due to the gamma-nuclear
+      // reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a reaction is needed to
+      // compensate for the smaller step size returned by HowFar.
     }
 
     // Get result into variables.

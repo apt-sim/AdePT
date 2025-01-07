@@ -58,13 +58,10 @@ __global__ void GammaHowFar(adept::TrackManager<Track> *gammas, G4HepEmGammaTrac
 
     // Skip photo-nuclear reaction that would need to be handled by G4 itself
     if (theTrack->GetWinnerProcessIndex() == 3) {
-      // since we do an redundant step if gamma-nuclear is drawn, we redraw up to 3 times
-      int trials_left = 3;
-      do {
-        G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
-        trials_left--;
-        if (theTrack->GetWinnerProcessIndex() == 3 && trials_left == 0) theTrack->SetWinnerProcessIndex(-1);
-      } while (theTrack->GetWinnerProcessIndex() == 3 && trials_left > 0);
+      theTrack->SetWinnerProcessIndex(-1);
+      // NOTE: no simple re-drawing is possible, since HowFar returns now smaller steps due to the gamma-nuclear
+      // reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a reaction is needed to
+      // compensate for the smaller step size returned by HowFar.
     }
   }
 }
