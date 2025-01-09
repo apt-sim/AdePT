@@ -136,6 +136,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
+    track.numIALeft[3] = -1.0;
 
     track.initialRange       = -1.0;
     track.dynamicRangeFactor = -1.0;

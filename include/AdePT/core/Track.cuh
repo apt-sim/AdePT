@@ -69,6 +69,7 @@ struct Track {
     this->numIALeft[0] = -1.0;
     this->numIALeft[1] = -1.0;
     this->numIALeft[2] = -1.0;
+    this->numIALeft[3] = -1.0;
 
     this->initialRange       = -1.0;
     this->dynamicRangeFactor = -1.0;
