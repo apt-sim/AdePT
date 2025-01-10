@@ -46,7 +46,7 @@ public:
                              std::vector<std::string> const *gpuRegionNames);
 
   /// @brief Initializes the mapping of VecGeom to G4 volumes for sensitive volumes and their parents
-  void InitScoringData(adeptint::VolAuxData *volAuxData);
+  void InitScoringData();
 
   /// @brief Reconstructs GPU hits on host and calls the user-defined sensitive detector code
   void ProcessGPUHit(GPUHit const &hit);

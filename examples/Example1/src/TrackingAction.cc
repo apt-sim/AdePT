@@ -39,7 +39,7 @@ TrackingAction::TrackingAction() : G4UserTrackingAction() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void TrackingAction::PreUserTrackingAction(const G4Track *aTrack)
+void TrackingAction::PreUserTrackingAction(const G4Track *)
 {
   // Reset step counter
   fSteppingAction->SetNumSteps(0);
@@ -47,7 +47,7 @@ void TrackingAction::PreUserTrackingAction(const G4Track *aTrack)
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void TrackingAction::PostUserTrackingAction(const G4Track *aTrack)
+void TrackingAction::PostUserTrackingAction(const G4Track *)
 {
   // Reset step counter
   fSteppingAction->SetNumSteps(0);

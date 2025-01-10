@@ -55,8 +55,6 @@ EventAction::~EventAction() {}
 
 void EventAction::BeginOfEventAction(const G4Event *)
 {
-  auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
-
   fTimer.Start();
 
   // Get the Run object associated to this thread and start the timer for this event

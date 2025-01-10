@@ -55,11 +55,11 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
     double eventMean  = fTestManager->getAccumulator(accumulators::EVENT_SUM) / GetNumberOfEvent();
     double eventStdev = STDEV(GetNumberOfEvent(), eventMean, fTestManager->getAccumulator(accumulators::EVENT_SQ));
 
-    double nonEMMean  = fTestManager->getAccumulator(accumulators::NONEM_SUM) / GetNumberOfEvent();
-    double nonEMStdev = STDEV(GetNumberOfEvent(), nonEMMean, fTestManager->getAccumulator(accumulators::NONEM_SQ));
-
-    double ecalMean  = fTestManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
-    double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fTestManager->getAccumulator(accumulators::ECAL_SQ));
+    // currently unused:
+    // double nonEMMean  = fTestManager->getAccumulator(accumulators::NONEM_SUM) / GetNumberOfEvent();
+    // double nonEMStdev = STDEV(GetNumberOfEvent(), nonEMMean, fTestManager->getAccumulator(accumulators::NONEM_SQ));
+    // double ecalMean  = fTestManager->getAccumulator(accumulators::ECAL_SUM) / GetNumberOfEvent();
+    // double ecalStdev = STDEV(GetNumberOfEvent(), ecalMean, fTestManager->getAccumulator(accumulators::ECAL_SQ));
 
     G4cout << "------------------------------------------------------------"
            << "\n";
@@ -75,16 +75,17 @@ void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename)
   TestManager<std::string> aOutputTestManager;
 
   // aBenchmarkStates->size() should correspond to the number of events
-  for (int i = 0; i < aBenchmarkStates->size(); i++) {
+  for (size_t i = 0; i < aBenchmarkStates->size(); i++) {
     if (fRunAction->GetDoValidation()) {
       // If we are taking validation data, export it to the specified file
       // Each benchmark state contains one counter per LogicalVolume
       // Export one CSV containing a list of volume IDs and Edep per event
       // for (auto iter = (*aBenchmarkStates)[i].begin(); iter != (*aBenchmarkStates)[i].end(); ++iter) {
       //   if(iter->first >= Run::accumulators::NUM_ACCUMULATORS)
-      //     aOutputTestManager.setAccumulator(std::to_string(iter->first - Run::accumulators::NUM_ACCUMULATORS), iter->second);
+      //     aOutputTestManager.setAccumulator(std::to_string(iter->first - Run::accumulators::NUM_ACCUMULATORS),
+      //     iter->second);
       // }
-      
+
       // aOutputTestManager.setOutputDirectory(aOutputDirectory);
       // aOutputTestManager.setOutputFilename(aOutputFilename);
       // aOutputTestManager.exportCSV(false);
