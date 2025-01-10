@@ -41,7 +41,6 @@ RunAction::~RunAction() {}
 void RunAction::BeginOfRunAction(const G4Run *)
 {
   fTimer.Start();
-  auto tid = G4Threading::G4GetThreadId();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

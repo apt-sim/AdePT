@@ -123,15 +123,15 @@ int *CreateMCCindex(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolu
   // - FIND vecgeom::LogicalVolume corresponding to each and every G4LogicalVolume
   int nphysical = 0;
 
-  int nvolumes   = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  int *mcc_index = new int[nvolumes];
+  unsigned int nvolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  int *mcc_index        = new int[nvolumes];
   memset(mcc_index, 0, nvolumes * sizeof(int));
 
   // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
   // (we need to make sure we set the right MCC index to the right volume)
   typedef std::function<void(G4LogicalVolume const *, vecgeom::LogicalVolume const *)> func_t;
   func_t visitAndSetMCindex = [&](G4LogicalVolume const *g4vol, vecgeom::LogicalVolume const *vol) {
-    int nd         = g4vol->GetNoDaughters();
+    size_t nd      = g4vol->GetNoDaughters();
     auto daughters = vol->GetDaughters();
     if (nd != daughters.size()) throw std::runtime_error("Mismatch in number of daughters");
     // Check the couples
@@ -150,7 +150,7 @@ int *CreateMCCindex(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolu
     nphysical++;
 
     // Now do the daughters
-    for (int id = 0; id < nd; ++id) {
+    for (size_t id = 0; id < nd; ++id) {
       auto g4pvol = g4vol->GetDaughter(id);
       auto pvol   = daughters[id];
       // VecGeom does not strip pointers from logical volume names

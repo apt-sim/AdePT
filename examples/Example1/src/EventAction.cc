@@ -50,8 +50,6 @@ EventAction::~EventAction() {}
 
 void EventAction::BeginOfEventAction(const G4Event *)
 {
-  auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
-
   fTimer.Start();
 }
 

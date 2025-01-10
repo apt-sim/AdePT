@@ -159,8 +159,6 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
 
     // Do the material-cut couple index mapping once
     // as well as set flags for sensitive volumes and region
-    // Also set the mappings from sensitive volumes to hits and VecGeom to G4 indices
-    int *sensitive_volumes = nullptr;
 
     // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
     fIntegrationLayer.CheckGeometry(fg4hepem_state);
@@ -181,7 +179,7 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
     return;
   }
 
-  fIntegrationLayer.InitScoringData(VolAuxArray::GetInstance().fAuxData);
+  fIntegrationLayer.InitScoringData();
 
   std::cout << "=== AdePTTransport: initializing transport engine for thread: " << fIntegrationLayer.GetThreadID()
             << std::endl;

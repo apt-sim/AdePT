@@ -223,7 +223,7 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const
     // The index of the VecGeom volume on this level (that we need to push the NavState to)
     // is the same as the G4 volume. The index of the G4 volume is found by matching it against
     // the daughters of the parent volume, since the G4 volume itself has no index.
-    for (int id = 0; id < g4Volume_parent->GetLogicalVolume()->GetNoDaughters(); ++id) {
+    for (size_t id = 0; id < g4Volume_parent->GetLogicalVolume()->GetNoDaughters(); ++id) {
       if (g4Volume == g4Volume_parent->GetLogicalVolume()->GetDaughter(id)) {
         auto daughter = current_volume->GetLogicalVolume()->GetDaughters()[id];
         aNavState.Push(daughter);

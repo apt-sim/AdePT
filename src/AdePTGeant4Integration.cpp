@@ -115,7 +115,7 @@ void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume cons
   const auto g4_lvol = g4_pvol->GetLogicalVolume();
   const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
-  const int nd         = g4_lvol->GetNoDaughters();
+  const size_t nd      = g4_lvol->GetNoDaughters();
   const auto daughters = vg_lvol->GetDaughters();
 
   if (nd != daughters.size()) throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
@@ -158,7 +158,7 @@ void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume cons
     throw std::runtime_error("Fatal: CheckGeometry: Volume id larger than number of volumes");
 
   // Now do the daughters
-  for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+  for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
     const auto g4pvol_d = g4_lvol->GetDaughter(id);
     const auto pvol_d   = vg_lvol->GetDaughters()[id];
 
@@ -224,9 +224,6 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
       volAuxData[vg_lvol->id()].fGPUregion = 1;
     }
 
-    // Check if the logical volume is sensitive
-    bool sens = false;
-
     if (g4_lvol->GetSensitiveDetector() != nullptr) {
       if (volAuxData[vg_lvol->id()].fSensIndex < 0) {
         G4cout << "VecGeom: Making " << vg_lvol->GetName() << " sensitive" << G4endl;
@@ -234,7 +231,7 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
       volAuxData[vg_lvol->id()].fSensIndex = 1;
     }
     // Now do the daughters
-    for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
       auto g4pvol_d = g4_lvol->GetDaughter(id);
       auto pvol_d   = vg_lvol->GetDaughters()[id];
 
@@ -250,7 +247,7 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   visitGeometry(g4world, vecgeomWorld);
 }
 
-void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
+void AdePTGeant4Integration::InitScoringData()
 {
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
@@ -267,7 +264,7 @@ void AdePTGeant4Integration::InitScoringData(adeptint::VolAuxData *volAuxData)
     // volume in the geometry, as a step may begin in a sensitive volume and end in a non-sensitive one
     fglobal_vecgeom_to_g4_map.insert(std::pair<int, const G4VPhysicalVolume *>(vg_pvol->id(), g4_pvol));
     // Now do the daughters
-    for (int id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
       auto g4pvol_d = g4_lvol->GetDaughter(id);
       auto pvol_d   = vg_lvol->GetDaughters()[id];
 
@@ -474,10 +471,10 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data
-  if (const auto postVolume = (*fScoringObjects->fPostG4TouchableHistoryHandle)->GetVolume();
-      postVolume != nullptr) { // protect against nullptr if postNavState is outside
-    aPostStepPoint->SetTouchableHandle(*fScoringObjects->fPostG4TouchableHistoryHandle); // Real data
-    aPostStepPoint->SetMaterial(postVolume->GetLogicalVolume()->GetMaterial());          // Real data
+  if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
+      postVolume != nullptr) {                                  // protect against nullptr if postNavState is outside
+    aPostStepPoint->SetTouchableHandle(aPostG4TouchableHandle); // Real data
+    aPostStepPoint->SetMaterial(postVolume->GetLogicalVolume()->GetMaterial()); // Real data
     aPostStepPoint->SetMaterialCutsCouple(postVolume->GetLogicalVolume()->GetMaterialCutsCouple());
   }
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
