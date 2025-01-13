@@ -72,3 +72,19 @@ configure_file("macros/integrationbenchmark.mac.in" "${CMAKE_BINARY_DIR}/integra
 add_test(NAME integrationBenchmark
   COMMAND $<TARGET_FILE:integrationBenchmark> -m ${PROJECT_BINARY_DIR}/example1_large_stack.mac
 )
+
+# This test checks the reproducibility of AdePT by running 8 ttbar events and checking that the energy deposition is exactly the same.
+# NOTE: Currently not active since the results are currently NOT reproducible!! To replace the integrationBenchmark test above.
+# add_test(NAME reproducibility_cms_ttbar
+#     COMMAND bash ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark/ci_tests/reproducibility.sh
+#     "$<TARGET_FILE:integrationBenchmark>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}"
+#     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+# )
+
+# test that compares the physics output of a full AdePT run against a high-statistics Geant4 simulation using G4HepEm.
+# The energy deposition per layer error must be < 1% to pass the test
+add_test(NAME testEm3_validation
+    COMMAND bash ${PROJECT_SOURCE_DIR}/examples/IntegrationBenchmark/ci_tests/validation_testem3.sh
+    "$<TARGET_FILE:integrationBenchmark>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)

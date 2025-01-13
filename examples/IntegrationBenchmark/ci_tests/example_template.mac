@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2025 CERN
+# SPDX-License-Identifier: Apache-2.0
+#  example23.in
+#
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters
+## =============================================================================
+##
+/run/numberOfThreads $num_threads
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+/event/verbose 0
+
+/detector/filename $gdml_name
+# Temporary workaround since we don't have a G4 to VecGeom converter
+/adept/setVecGeomGDML $gdml_name
+/adept/setVerbosity 0
+## Threshold for buffering tracks before sending to GPU
+/adept/setTransportBufferThreshold 250000
+## Total number of GPU track slots (not per thread)
+/adept/setMillionsOfTrackSlots $num_trackslots
+/adept/setMillionsOfHitSlots $num_hitslots
+/adept/setCUDAStackLimit 8192
+
+# If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
+/adept/setTrackInAllRegions true
+
+
+## -----------------------------------------------------------------------------
+## Optionally, set a constant magnetic field:
+## -----------------------------------------------------------------------------
+/detector/setField 0 0 0 tesla
+
+## -----------------------------------------------------------------------------
+## Set secondary production threshold, init. the run and set primary properties
+## -----------------------------------------------------------------------------
+/run/setCut 0.7 mm
+/run/initialize
+
+## User-defined Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
+/eventAction/verbose 2
+
+/gun/$gun_type # hepmc or setDefault
+$hepmc_part
+
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 500
+/gun/position -220 0 0 mm
+/gun/direction 1 0 0
+/gun/print true
+
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+
+# run events with parametrised simulation
+# by default all created models are active
+/run/beamOn $num_events
