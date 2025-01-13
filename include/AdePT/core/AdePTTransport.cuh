@@ -145,13 +145,13 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.pos = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
     track.dir = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
 
-    track.globalTime = trackinfo->globalTime;
-    track.localTime  = trackinfo->localTime;
-    track.properTime = trackinfo->properTime;
+    track.globalTime = trackinfo[i].globalTime;
+    track.localTime  = trackinfo[i].localTime;
+    track.properTime = trackinfo[i].properTime;
 
     // setting up the NavState
     track.navState.Clear();
-    track.navState = trackinfo->navState;
+    track.navState = trackinfo[i].navState;
     // nextState is initialized as needed.
 
 #ifndef ADEPT_USE_SURF
