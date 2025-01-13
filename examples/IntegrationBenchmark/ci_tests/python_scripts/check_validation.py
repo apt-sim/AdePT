@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import numpy as np
-from matplotlib import pyplot as plt
 
 import sys
 
@@ -52,27 +51,29 @@ def compare_csv(file1, file2, n1, n2, tol=0.01, plot_file=None):
             failed_layers.append((i + 1, err, sum1_normalized[i], sum2_normalized[i]))  # layer number (1-based), error, file1 value, file2 value
 
 
-    # Generate a plot
-    layers = np.arange(1, 51)
-    fig, ax = plt.subplots(2, 1, figsize=(8, 6))
-
-    # Mean energy deposit plot
-    ax[0].plot(layers, sum2_normalized, 'o-', label="G4 + HepEm", markersize=5, markerfacecolor="none", markeredgewidth=1, markeredgecolor="C1", color="C1")
-    ax[0].plot(layers, sum1_normalized, 'o', label="AdePT + HepEm", markersize=4.5, markerfacecolor="C0", markeredgewidth=0, color="C0")
-    ax[0].text(7, 0.9 * max(sum2_normalized), f"$N_1 = {n1}, N_2 = {n2}$", fontsize=10)
-    ax[0].set_ylabel("Mean energy deposit [MeV]")
-    ax[0].legend(frameon=False)
-
-    # Relative error plot
-    ax[1].bar(layers, (sum1_normalized - sum2_normalized) / sum2_normalized * 100, label="Relative error")
-    ax[1].set_ylim(-1, max(1, tol + 1))
-    ax[1].set_xlabel("# layer")
-    ax[1].set_ylabel("err in %")
-
-    plt.tight_layout()
-
-    # Save the plot if requested
     if plot_file:
+        from matplotlib import pyplot as plt
+
+        # Generate a plot
+        layers = np.arange(1, 51)
+        fig, ax = plt.subplots(2, 1, figsize=(8, 6))
+
+        # Mean energy deposit plot
+        ax[0].plot(layers, sum2_normalized, 'o-', label="G4 + HepEm", markersize=5, markerfacecolor="none", markeredgewidth=1, markeredgecolor="C1", color="C1")
+        ax[0].plot(layers, sum1_normalized, 'o', label="AdePT + HepEm", markersize=4.5, markerfacecolor="C0", markeredgewidth=0, color="C0")
+        ax[0].text(7, 0.9 * max(sum2_normalized), f"$N_1 = {n1}, N_2 = {n2}$", fontsize=10)
+        ax[0].set_ylabel("Mean energy deposit [MeV]")
+        ax[0].legend(frameon=False)
+
+        # Relative error plot
+        ax[1].bar(layers, (sum1_normalized - sum2_normalized) / sum2_normalized * 100, label="Relative error")
+        ax[1].set_ylim(-1, max(1, tol + 1))
+        ax[1].set_xlabel("# layer")
+        ax[1].set_ylabel("err in %")
+
+        plt.tight_layout()
+
+        # Save the plot
         plt.savefig(plot_file)
         print(f"Plot saved to {plot_file}")
 
