@@ -33,7 +33,7 @@ cleanup
 $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
     --output ${CI_TEST_DIR}/validation_testem3.mac \
-    --gdml_name ${PROJECT_BINARY_DIR}/testEm3.gdml \
+    --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml \
     --num_threads 4 \
     --num_events 200 \
     --num_trackslots 10 \
