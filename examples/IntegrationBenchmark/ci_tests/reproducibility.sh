@@ -1,10 +1,7 @@
 #! /usr/bin/env bash
 
-<<<<<<< HEAD
+
 # SPDX-FileCopyrightText: 2025 CERN
-=======
-# SPDX-FileCopyrightText: 2020 CERN
->>>>>>> 838673e (add validation CI)
 # SPDX-License-Identifier: Apache-2.0
 
 # This is a CI test for reproducbility. The same 8 ttbar events are executed twice
