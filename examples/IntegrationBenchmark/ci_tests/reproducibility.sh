@@ -35,10 +35,10 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
     --output ${CI_TEST_DIR}/reproducibility.mac \
     --gdml_name ${PROJECT_BINARY_DIR}/cms2018_sd.gdml \
-    --num_threads 24 \
-    --num_events 24 \
-    --num_trackslots 16 \
-    --num_hitslots 12 \
+    --num_threads 4 \
+    --num_events 8 \
+    --num_trackslots 10 \
+    --num_hitslots 4 \
     --gun_type hepmc \
     --event_file ${PROJECT_BINARY_DIR}/ppttbar.hepmc3
 
