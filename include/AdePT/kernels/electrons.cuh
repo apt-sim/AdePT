@@ -289,22 +289,23 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
-        Track &gamma1 = secondaries.gammas->NextTrack();
-        Track &gamma2 = secondaries.gammas->NextTrack();
-
-        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
-
-        const double cost = 2 * currentTrack.Uniform() - 1;
-        const double sint = sqrt(1 - cost * cost);
-        const double phi  = k2Pi * currentTrack.Uniform();
-        double sinPhi, cosPhi;
-        sincos(phi, &sinPhi, &cosPhi);
 
         // Apply cuts
         if (APPLY_CUTS && (copcore::units::kElectronMassC2 < theGammaCut)) {
-          // Deposit the energy here and kill the secondaries
+          // Deposit the energy here and don't initialize any secondaries
           energyDeposit += 2 * copcore::units::kElectronMassC2;
         } else {
+          Track &gamma1 = secondaries.gammas->NextTrack();
+          Track &gamma2 = secondaries.gammas->NextTrack();
+
+          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+
+          const double cost = 2 * currentTrack.Uniform() - 1;
+          const double sint = sqrt(1 - cost * cost);
+          const double phi  = k2Pi * currentTrack.Uniform();
+          double sinPhi, cosPhi;
+          sincos(phi, &sinPhi, &cosPhi);
+
           gamma1.InitAsSecondary(pos, navState, globalTime);
           newRNG.Advance();
           gamma1.parentID = currentTrack.parentID;
