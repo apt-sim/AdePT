@@ -302,6 +302,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         survive();
       } else {
         edep += newEnergyGamma;
+        newEnergyGamma = 0.;
         // The current track is killed by not enqueuing into the next activeQueue.
       }
 
