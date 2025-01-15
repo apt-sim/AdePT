@@ -23,8 +23,6 @@
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 
-#define APPLY_CUTS true
-
 using VolAuxData = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
@@ -291,7 +289,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // directions (isotropic).
 
         // Apply cuts
-        if (APPLY_CUTS && (copcore::units::kElectronMassC2 < theGammaCut)) {
+        if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
           // Deposit the energy here and don't initialize any secondaries
           energyDeposit += 2 * copcore::units::kElectronMassC2;
         } else {
@@ -383,7 +381,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
           // Apply cuts
-          if (APPLY_CUTS && (deltaEkin < theElCut)) {
+          if (ApplyCuts && (deltaEkin < theElCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
 
@@ -417,7 +415,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 
           // Apply cuts
-          if (APPLY_CUTS && (deltaEkin < theGammaCut)) {
+          if (ApplyCuts && (deltaEkin < theGammaCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
 
@@ -448,7 +446,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
           // Apply cuts
-          if (APPLY_CUTS && (theGamma1Ekin < theGammaCut)) {
+          if (ApplyCuts && (theGamma1Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
             energyDeposit += theGamma1Ekin;
 
@@ -460,7 +458,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma1.eKin     = theGamma1Ekin;
             gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
           }
-          if (APPLY_CUTS && (theGamma2Ekin < theGammaCut)) {
+          if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
             energyDeposit += theGamma2Ekin;
 

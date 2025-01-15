@@ -109,5 +109,6 @@ extern __constant__ struct G4HepEmData g4HepEmData;
 
 extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
 extern __constant__ __device__ double BzFieldValue;
+extern __constant__ __device__ bool ApplyCuts;
 } // namespace adept_impl
 #endif

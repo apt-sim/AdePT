@@ -70,6 +70,8 @@ public:
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize(bool common_data = false);
+  /// @brief Initializes the ApplyCut flag. Can only be called after G4 Physics is build
+  bool InitializeApplyCuts(bool applycuts);
   /// @brief Final cleanup
   void Cleanup();
   /// @brief Interface for transporting a buffer of tracks in AdePT.

@@ -56,6 +56,7 @@ inline __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 inline __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 inline __constant__ __device__ double BzFieldValue               = 0;
+inline __constant__ __device__ bool ApplyCuts                    = false;
 
 bool InitializeVolAuxArray(adeptint::VolAuxArray &array)
 {
@@ -106,6 +107,13 @@ G4HepEmState *InitG4HepEm()
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
 
   return state;
+}
+
+bool InitializeApplyCuts(bool applycuts)
+{
+  // Initialize ApplyCut
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(ApplyCuts, &applycuts, sizeof(bool)));
+  return true;
 }
 
 // Kernel function to initialize tracks comming from a Geant4 buffer

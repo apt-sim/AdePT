@@ -18,8 +18,6 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
-#define APPLY_CUTS true
-
 using VolAuxData = adeptint::VolAuxData;
 
 template <typename Scoring>
@@ -208,7 +206,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // Check the cuts and deposit energy in this volume if needed
       double edep = 0;
 
-      if (APPLY_CUTS && elKinEnergy < theElCut) {
+      if (ApplyCuts && elKinEnergy < theElCut) {
         // Deposit the energy here and kill the secondary
         edep = elKinEnergy;
       } else {
@@ -220,7 +218,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
       }
 
-      if (APPLY_CUTS && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < theElCut)) {
+      if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < theElCut)) {
         // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
         edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
       } else {
@@ -279,7 +277,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // Check the cuts and deposit energy in this volume if needed
       double edep = 0;
 
-      if (APPLY_CUTS ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
+      if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons->NextTrack();
 
@@ -338,7 +336,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       double edep             = bindingEnergy;
       const double photoElecE = eKin - edep;
-      if (APPLY_CUTS ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
+      if (ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
         // Create a secondary electron and sample directions.
         Track &electron = secondaries.electrons->NextTrack();
         adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
