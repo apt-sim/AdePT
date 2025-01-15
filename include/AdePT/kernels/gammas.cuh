@@ -342,6 +342,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
     }
+    case 3: {
+      // Invoke gamma nuclear needs to be handled by Geant4 directly, to be implemented
+      // Just keep particle alive
+      survive();
+    }
     }
   }
 }

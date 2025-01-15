@@ -80,12 +80,12 @@ def compare_csv(file1, file2, n1, n2, tol=0.01, plot_file=None):
 
     # Print results
     if failed_layers:
-        print(f"The results are not reproducible. Relative errors exceed {100*tol}% in the following layers:")
+        print(f"The physics results are not valid. Relative errors exceed {100*tol}% in the following layers:")
         for layer, err, val1, val2 in failed_layers:
             print(f"Layer {layer}: Relative Error = {err:.6f}%, File1 = {val1:.6f}, File2 = {val2:.6f}")
         sys.exit(1)
     else:
-        print(f"The results are reproducible. All layers have relative errors within {100*tol}%.")
+        print(f"The physics results are valid. All layers have relative errors within {100*tol}%.")
 
 
 if __name__ == "__main__":
