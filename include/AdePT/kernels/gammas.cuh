@@ -210,7 +210,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       if (APPLY_CUTS && elKinEnergy < theElCut) {
         // Deposit the energy here and kill the secondary
-        edep += elKinEnergy;
+        edep = elKinEnergy;
       } else {
         Track &electron = secondaries.electrons->NextTrack();
         electron.InitAsSecondary(pos, navState, globalTime);
@@ -264,12 +264,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (eKin < LowEnergyThreshold) {
         survive();
-        // continue;
         break;
       }
       const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
       double dirPrimary[3];
-      const double newEnergyGamma =
+      double newEnergyGamma =
           G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(eKin, dirPrimary, origDirPrimary, &rnge);
       vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
 
@@ -291,7 +290,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir      = eKin * dir - newEnergyGamma * newDirGamma;
         electron.dir.Normalize();
       } else {
-        edep += energyEl;
+        edep = energyEl;
       }
 
       // Check the new gamma energy and deposit if below threshold.
