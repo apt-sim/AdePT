@@ -119,6 +119,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
+    // Update the flight times of the particle
+    double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
+    globalTime += deltaTime;
+    localTime += deltaTime;
+
     int winnerProcessIndex;
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
@@ -168,11 +173,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // resets it for theTrack), will be resampled in the next iteration.
       currentTrack.numIALeft[0] = -1.0;
     }
-
-    // Update the flight times of the particle
-    double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
-    globalTime += deltaTime;
-    localTime += deltaTime;
 
     // Perform the discrete interaction.
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
