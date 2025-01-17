@@ -1,6 +1,5 @@
 #! /usr/bin/env bash
 
-
 # SPDX-FileCopyrightText: 2025 CERN
 # SPDX-License-Identifier: Apache-2.0
 

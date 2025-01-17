@@ -168,6 +168,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
       winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+      // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the gamma-nuclear
+      // reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a reaction is needed to
+      // compensate for the smaller step size returned by HowFar.
 
       // Reset number of interaction left for the winner discrete process also in the currentTrack (SampleInteraction()
       // resets it for theTrack), will be resampled in the next iteration.
@@ -187,7 +190,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
       if (eKin < 2 * copcore::units::kElectronMassC2) {
         survive();
-        // continue;
         break;
       }
 
@@ -292,7 +294,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       }
 
       // Check the new gamma energy and deposit if below threshold.
-      // TODO: Why are we using this hardcoded cut here?
+      // Using same hardcoded very LowEnergyThreshold as G4HepEm
       if (newEnergyGamma > LowEnergyThreshold) {
         eKin = newEnergyGamma;
         dir  = newDirGamma;
