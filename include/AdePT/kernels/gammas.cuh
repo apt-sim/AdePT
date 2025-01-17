@@ -76,24 +76,17 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     theTrack->SetEKin(eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
 
-    // Sample the `number-of-interaction-left` and put it into the track.
-    // Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section
-    if (theTrack->GetNumIALeft(0) <= 0.0) {
+    // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
+    // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
+    // currentTrack.numIALeft[0] are updated later
+    if (currentTrack.numIALeft[0] <= 0.0) {
       theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
+    } else {
+      theTrack->SetNumIALeft(currentTrack.numIALeft[0], 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
     G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
-    G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
-    int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
-
-    // avoid photo-nuclear reaction that would need to be handled by G4 itself
-    if (winnerProcessIndex == 3) {
-      winnerProcessIndex = -1;
-      // NOTE: no simple re-drawing is possible, since HowFar returns now smaller steps due to the gamma-nuclear
-      // reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a reaction is needed to
-      // compensate for the smaller step size returned by HowFar.
-    }
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -126,18 +119,20 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
-    G4HepEmGammaManager::UpdateNumIALeft(theTrack);
-
-    // Save the `number-of-interaction-left` in our track.
-    // Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section
-    double numIALeft          = theTrack->GetNumIALeft(0);
-    currentTrack.numIALeft[0] = numIALeft;
-
+    int winnerProcessIndex;
     if (nextState.IsOnBoundary()) {
       // For now, just count that we hit something.
 
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
+
+        G4HepEmGammaManager::UpdateNumIALeft(theTrack);
+
+        // Save the `number-of-interaction-left` in our track.
+        // Use index 0 since numIALeft stores for gammas only the total macroscopic cross section
+        double numIALeft          = theTrack->GetNumIALeft(0);
+        currentTrack.numIALeft[0] = numIALeft;
+
 #ifdef ADEPT_USE_SURF
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
         if (nextState.IsOutside()) continue;
@@ -164,15 +159,15 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         }
       }
       continue;
-    } else if (winnerProcessIndex < 0) {
-      // No discrete process, move on.
-      survive();
-      continue;
-    }
+    } else {
 
-    // Reset number of interaction left for the winner discrete process.
-    // (Will be resampled in the next iteration.)
-    currentTrack.numIALeft[winnerProcessIndex] = -1.0;
+      G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
+      winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+
+      // Reset number of interaction left for the winner discrete process also in the currentTrack (SampleInteraction()
+      // resets it for theTrack), will be resampled in the next iteration.
+      currentTrack.numIALeft[0] = -1.0;
+    }
 
     // Update the flight times of the particle
     double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
@@ -346,6 +341,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                  0, -1);                // event and thread ID
       // The current track is killed by not enqueuing into the next activeQueue.
       break;
+    }
+    case 3: {
+      // Invoke gamma nuclear needs to be handled by Geant4 directly, to be implemented
+      // Just keep particle alive
+      survive();
     }
     }
   }
