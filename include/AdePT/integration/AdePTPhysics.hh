@@ -13,7 +13,7 @@ class AdePTConfiguration;
 
 class AdePTPhysics : public G4EmStandardPhysics { // public G4VPhysicsConstructor {
 public:
-  AdePTPhysics(int ver, const G4String &name = "AdePT-physics-list");
+  AdePTPhysics(int ver = 1, const G4String &name = "AdePT-physics-list");
   ~AdePTPhysics();
   AdePTTrackingManager *GetTrackingManager() { return fTrackingManager; }
 
