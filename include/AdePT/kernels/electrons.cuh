@@ -493,7 +493,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         }
       }
       // Particles are killed by not enqueuing them into the new activeQueue.
-      // continue;
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
