@@ -9,7 +9,7 @@
 
 class HepEMPhysics : public G4EmStandardPhysics {
 public:
-  HepEMPhysics(int ver, const G4String &name = "G4HepEm-physics-list");
+  HepEMPhysics(int ver = 1, const G4String &name = "G4HepEm-physics-list");
   ~HepEMPhysics();
 
 public:
