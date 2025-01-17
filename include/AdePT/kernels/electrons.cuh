@@ -283,46 +283,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
 
-    if (stopped) {
-      if (!IsElectron) {
-        // Annihilate the stopped positron into two gammas heading to opposite
-        // directions (isotropic).
-
-        // Apply cuts
-        if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
-          // Deposit the energy here and don't initialize any secondaries
-          energyDeposit += 2 * copcore::units::kElectronMassC2;
-        } else {
-          Track &gamma1 = secondaries.gammas->NextTrack();
-          Track &gamma2 = secondaries.gammas->NextTrack();
-
-          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
-
-          const double cost = 2 * currentTrack.Uniform() - 1;
-          const double sint = sqrt(1 - cost * cost);
-          const double phi  = k2Pi * currentTrack.Uniform();
-          double sinPhi, cosPhi;
-          sincos(phi, &sinPhi, &cosPhi);
-
-          gamma1.InitAsSecondary(pos, navState, globalTime);
-          newRNG.Advance();
-          gamma1.parentID = currentTrack.parentID;
-          gamma1.rngState = newRNG;
-          gamma1.eKin     = copcore::units::kElectronMassC2;
-          gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
-
-          gamma2.InitAsSecondary(pos, navState, globalTime);
-          // Reuse the RNG state of the dying track.
-          gamma2.parentID = currentTrack.parentID;
-          gamma2.rngState = currentTrack.rngState;
-          gamma2.eKin     = copcore::units::kElectronMassC2;
-          gamma2.dir      = -gamma1.dir;
-        }
-      }
-      // Particles are killed by not enqueuing them into the new activeQueue.
-      // continue;
-    }
-
     if (!stopped) {
       if (nextState.IsOnBoundary()) {
         // For now, just count that we hit something.
@@ -334,18 +294,15 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           cross_boundary = true;
         }
         // Particle left the world, don't enqueue it
-        // continue;
       } else if (!propagated || restrictedPhysicalStepLength) {
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
         survive();
         reached_interaction = false;
-        // continue;
       } else if (winnerProcessIndex < 0) {
         // No discrete process, move on.
         survive();
         reached_interaction = false;
-        // continue;
       }
     }
 
@@ -358,7 +315,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
         // A delta interaction happened, move on.
         survive();
-        // continue;
       } else {
         // Perform the discrete interaction, make sure the branched RNG state is
         // ready to be used.
@@ -395,6 +351,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           }
 
           eKin -= deltaEkin;
+
+          // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
+          if (eKin < g4HepEmPars.fElectronTrackingCut) {
+            if (IsElectron) {
+              energyDeposit += eKin;
+            }
+            stopped = true;
+            break;
+          }
+
           dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
           survive();
           break;
@@ -429,6 +395,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           }
 
           eKin -= deltaEkin;
+
+          // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
+          if (eKin < g4HepEmPars.fElectronTrackingCut) {
+            if (IsElectron) {
+              energyDeposit += eKin;
+            }
+            stopped = true;
+            break;
+          }
+
           dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
           survive();
           break;
@@ -480,7 +456,47 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
     }
 
-    // Redord the step. Edep includes the continuous energy loss and edep from secondaries which were cut
+    if (stopped) {
+      if (!IsElectron) {
+        // Annihilate the stopped positron into two gammas heading to opposite
+        // directions (isotropic).
+
+        // Apply cuts
+        if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
+          // Deposit the energy here and don't initialize any secondaries
+          energyDeposit += 2 * copcore::units::kElectronMassC2;
+        } else {
+          Track &gamma1 = secondaries.gammas->NextTrack();
+          Track &gamma2 = secondaries.gammas->NextTrack();
+
+          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+
+          const double cost = 2 * currentTrack.Uniform() - 1;
+          const double sint = sqrt(1 - cost * cost);
+          const double phi  = k2Pi * currentTrack.Uniform();
+          double sinPhi, cosPhi;
+          sincos(phi, &sinPhi, &cosPhi);
+
+          gamma1.InitAsSecondary(pos, navState, globalTime);
+          newRNG.Advance();
+          gamma1.parentID = currentTrack.parentID;
+          gamma1.rngState = newRNG;
+          gamma1.eKin     = copcore::units::kElectronMassC2;
+          gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
+
+          gamma2.InitAsSecondary(pos, navState, globalTime);
+          // Reuse the RNG state of the dying track.
+          gamma2.parentID = currentTrack.parentID;
+          gamma2.rngState = currentTrack.rngState;
+          gamma2.eKin     = copcore::units::kElectronMassC2;
+          gamma2.dir      = -gamma1.dir;
+        }
+      }
+      // Particles are killed by not enqueuing them into the new activeQueue.
+      // continue;
+    }
+
+    // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if (energyDeposit > 0 && auxData.fSensIndex >= 0)
       adept_scoring::RecordHit(userScoring, currentTrack.parentID,
                                IsElectron ? 0 : 1,       // Particle type
