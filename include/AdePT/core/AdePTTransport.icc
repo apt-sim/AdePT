@@ -25,6 +25,7 @@ namespace adept_impl {
 /// Forward declarations for methods implemented in AdePTTransport.cu
 using TrackBuffer = adeptint::TrackBuffer;
 bool InitializeField(double);
+bool InitializeApplyCuts(bool);
 bool InitializeVolAuxArray(adeptint::VolAuxArray &);
 void FreeVolAuxArray(adeptint::VolAuxArray &);
 G4HepEmState *InitG4HepEm();
@@ -58,6 +59,12 @@ template <typename IntegrationLayer>
 bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
 {
   return adept_impl::InitializeField(bz);
+}
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
+{
+  return adept_impl::InitializeApplyCuts(applycuts);
 }
 
 template <typename IntegrationLayer>

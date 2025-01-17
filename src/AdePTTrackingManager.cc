@@ -9,6 +9,7 @@
 #include "G4Event.hh"
 #include "G4RunManager.hh"
 #include "G4TransportationManager.hh"
+#include "G4EmParameters.hh"
 
 #include "G4Electron.hh"
 #include "G4Gamma.hh"
@@ -108,6 +109,11 @@ void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 {
+
+  if (fAdePTInitialized) {
+    // Set ApplyCuts flag on device since now G4 physics is initialized
+    fAdeptTransport->InitializeApplyCuts(G4EmParameters::Instance()->ApplyCuts());
+  }
 
   // Prepare PhysicsTable for G4HepEm
   fHepEmTrackingManager->PreparePhysicsTable(part);

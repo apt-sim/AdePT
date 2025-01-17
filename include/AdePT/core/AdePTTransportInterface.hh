@@ -41,6 +41,8 @@ public:
   virtual void SetCUDAStackLimit(int limit)                                   = 0;
   /// @brief Initialize service and copy geometry & physics data on device
   virtual void Initialize(bool common_data = false) = 0;
+  /// @brief Initialize the ApplyCuts flag on device
+  virtual bool InitializeApplyCuts(bool applycuts) = 0;
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   virtual void Shower(int event, int threadId) = 0;
   virtual void Cleanup()                       = 0;
