@@ -110,14 +110,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // used, this provides a fresh round of random numbers and reduces thread
     // divergence because the RNG state doesn't need to be advanced later.
     RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
-
-    // Compute safety, needed for MSC step limit.
-    double safety = 0;
-    if (!navState.IsOnBoundary()) {
-      safety = AdePTNavigator::ComputeSafety(pos, navState);
-    }
-    theTrack->SetSafety(safety);
-
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
@@ -132,6 +124,24 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
 
+    auto physicalStepLength = elTrack.GetPStepLength();
+    // Compute safety, needed for MSC step limit. The accuracy range is physicalStepLength
+    double safety = 0.;
+    if (!navState.IsOnBoundary()) {
+      // Get the remaining safety only if larger than physicalStepLength
+      safety = currentTrack.GetSafety(pos);
+      if (safety < physicalStepLength) {
+        // Recompute safety and update it in the track.
+#ifdef ADEPT_USE_SURF
+        // Use maximum accuracy only if safety is samller than physicalStepLength
+        safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
+#else
+        safety = AdePTNavigator::ComputeSafety(pos, navState);
+#endif
+        currentTrack.SetSafety(pos, safety);
+      }
+    }
+    theTrack->SetSafety(safety);
     bool restrictedPhysicalStepLength = false;
     if (BzFieldValue != 0) {
       const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
@@ -142,11 +152,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       double limit                = MaxSafeLength * safeLength;
       limit                       = safety > limit ? safety : limit;
 
-      double physicalStepLength = elTrack.GetPStepLength();
       if (physicalStepLength > limit) {
         physicalStepLength           = limit;
         restrictedPhysicalStepLength = true;
         elTrack.SetPStepLength(physicalStepLength);
+
         // Note: We are limiting the true step length, which is converted to
         // a shorter geometry step length in HowFarToMSC. In that sense, the
         // limit is an over-approximation, but that is fine for our purpose.
@@ -201,6 +211,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
     navState.SetBoundaryState(nextState.IsOnBoundary());
+    if (nextState.IsOnBoundary()) currentTrack.SetSafety(pos, 0.);
 
     // Propagate information from geometrical step to MSC.
     theTrack->SetDirection(dir.x(), dir.y(), dir.z());
@@ -222,7 +233,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (dLength2 > kGeomMinLength2) {
         const double dispR = std::sqrt(dLength2);
         // Estimate safety by subtracting the geometrical step length.
-        safety -= geometryStepLength;
+        safety                 = currentTrack.GetSafety(pos);
         constexpr double sFact = 0.99;
         double reducedSafety   = sFact * safety;
 
@@ -232,7 +243,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           pos += displacement;
         } else {
           // Recompute safety.
-          safety        = AdePTNavigator::ComputeSafety(pos, navState);
+#ifdef ADEPT_USE_SURF
+          // Use maximum accuracy only if safety is samller than physicalStepLength
+          safety = AdePTNavigator::ComputeSafety(pos, navState, dispR);
+#else
+          safety = AdePTNavigator::ComputeSafety(pos, navState);
+#endif
+          currentTrack.SetSafety(pos, safety);
           reducedSafety = sFact * safety;
 
           // 1b. Far away from geometry boundary:
