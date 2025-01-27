@@ -24,9 +24,7 @@
 
 // Comparison for sorting tracks into events on device:
 struct CompareGPUHits {
- __device__ bool operator()(const GPUHit &lhs, const GPUHit &rhs) const {
-    return lhs.fEventId < rhs.fEventId; 
-  }
+  __device__ bool operator()(const GPUHit &lhs, const GPUHit &rhs) const { return lhs.fEventId < rhs.fEventId; }
 };
 
 namespace AsyncAdePT {
@@ -41,8 +39,8 @@ struct HitScoringBuffer {
   {
     const auto slotIndex = atomicAdd(&fSlotCounter, 1);
     if (slotIndex >= fNSlot) {
-        printf("Trying to score hit #%d with only %d slots\n", slotIndex, fNSlot);
-        COPCORE_EXCEPTION("Out of slots in HitScoringBuffer::NextSlot");
+      printf("Trying to score hit #%d with only %d slots\n", slotIndex, fNSlot);
+      COPCORE_EXCEPTION("Out of slots in HitScoringBuffer::NextSlot");
     }
     return hitBuffer_dev[slotIndex];
   }
@@ -77,14 +75,14 @@ class HitScoring {
   {
     // We are assuming that the caller holds a lock on fProcessingHitsMutex.
     if (handle.state == BufferHandle::State::NeedHostProcessing) {
-        auto hitVector = std::make_shared<std::vector<GPUHit>>();
-        hitVector->assign(handle.hostBuffer, handle.hostBuffer + handle.hitScoringInfo.fSlotCounter);
-        handle.hitScoringInfo.fSlotCounter = 0;
-        handle.state                       = BufferHandle::State::Free;
+      auto hitVector = std::make_shared<std::vector<GPUHit>>();
+      hitVector->assign(handle.hostBuffer, handle.hostBuffer + handle.hitScoringInfo.fSlotCounter);
+      handle.hitScoringInfo.fSlotCounter = 0;
+      handle.state                       = BufferHandle::State::Free;
 
-        for (auto &hitQueue : fHitQueues) {
+      for (auto &hitQueue : fHitQueues) {
         hitQueue.push_back(hitVector);
-        }
+      }
     }
   }
 
@@ -121,58 +119,58 @@ public:
 
     COPCORE_CUDA_CHECK(cudaGetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
     assert(fHitScoringBuffer_deviceAddress != nullptr);
-    COPCORE_CUDA_CHECK(cudaMemcpy(fHitScoringBuffer_deviceAddress, &fBuffers[0].hitScoringInfo, sizeof(HitScoringBuffer),
-                                  cudaMemcpyHostToDevice));
+    COPCORE_CUDA_CHECK(cudaMemcpy(fHitScoringBuffer_deviceAddress, &fBuffers[0].hitScoringInfo,
+                                  sizeof(HitScoringBuffer), cudaMemcpyHostToDevice));
   }
 
   unsigned int HitCapacity() const { return fHitCapacity; }
-  
+
   void SwapDeviceBuffers(cudaStream_t cudaStream)
   {
     // Ensure that host side has been processed:
     auto &currentBuffer = fBuffers[fActiveBuffer];
     if (currentBuffer.state != BufferHandle::State::OnDevice)
-        throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": On-device buffer in wrong state");
+      throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": On-device buffer in wrong state");
 
     // Get new buffer info from device:
     auto &currentHitInfo = currentBuffer.hitScoringInfo;
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(&currentHitInfo, fHitScoringBuffer_deviceAddress, sizeof(HitScoringBuffer),
-                                        cudaMemcpyDefault, cudaStream));
+                                       cudaMemcpyDefault, cudaStream));
 
     // Execute the swap:
     fActiveBuffer          = (fActiveBuffer + 1) % fBuffers.size();
     auto &nextDeviceBuffer = fBuffers[fActiveBuffer];
     while (nextDeviceBuffer.state != BufferHandle::State::Free) {
-        std::cerr << __func__ << " Warning: Another thread should have processed the hits.\n";
+      std::cerr << __func__ << " Warning: Another thread should have processed the hits.\n";
     }
     assert(nextDeviceBuffer.state == BufferHandle::State::Free && nextDeviceBuffer.hitScoringInfo.fSlotCounter == 0);
 
     nextDeviceBuffer.state = BufferHandle::State::OnDevice;
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &nextDeviceBuffer.hitScoringInfo,
-                                        sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
+                                       sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
     currentBuffer.state = BufferHandle::State::OnDeviceNeedTransferToHost;
-    }
-  
+  }
+
   bool ProcessHits()
   {
     std::unique_lock lock{fProcessingHitsMutex, std::defer_lock};
     bool haveNewHits = false;
 
     while (std::any_of(fBuffers.begin(), fBuffers.end(),
-                        [](auto &buffer) { return buffer.state >= BufferHandle::State::TransferToHost; })) {
-        for (auto &handle : fBuffers) {
+                       [](auto &buffer) { return buffer.state >= BufferHandle::State::TransferToHost; })) {
+      for (auto &handle : fBuffers) {
         if (handle.state == BufferHandle::State::NeedHostProcessing) {
-            if (!lock) lock.lock();
-            haveNewHits = true;
-            ProcessBuffer(handle);
+          if (!lock) lock.lock();
+          haveNewHits = true;
+          ProcessBuffer(handle);
         }
-        }
+      }
     }
 
     return haveNewHits;
-    }
-  
+  }
+
   bool ReadyToSwapBuffers() const
   {
     return std::any_of(fBuffers.begin(), fBuffers.end(),
@@ -191,17 +189,18 @@ public:
       auto bufferBegin = buffer.hitScoringInfo.hitBuffer_dev;
 
       cub::DeviceMergeSort::SortKeys(fGPUSortAuxMemory.get(), fGPUSortAuxMemorySize, bufferBegin,
-                                    buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
+                                     buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
 
       COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer, bufferBegin,
-                                        sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
-                                        cudaStreamForHitCopy));
+                                         sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
+                                         cudaStreamForHitCopy));
       COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
           cudaStreamForHitCopy,
-          [](void *arg) { static_cast<BufferHandle *>(arg)->state = BufferHandle::State::NeedHostProcessing; }, &buffer));
+          [](void *arg) { static_cast<BufferHandle *>(arg)->state = BufferHandle::State::NeedHostProcessing; },
+          &buffer));
     }
   }
-  
+
   std::shared_ptr<const std::vector<GPUHit>> GetNextHitsVector(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
@@ -234,36 +233,6 @@ void PerEventScoring::CopyToHost(cudaStream_t cudaStream)
   assert(oldPointer == fScoring_dev);
   (void)oldPointer;
 }
-
-// struct PerEventScoring {
-//   GlobalCounters fGlobalCounters;
-//   PerEventScoring *const fScoring_dev;
-
-//   PerEventScoring(PerEventScoring *gpuScoring) : fScoring_dev{gpuScoring} { ClearGPU(); }
-//   PerEventScoring(PerEventScoring &&other) = default;
-//   ~PerEventScoring()                       = default;
-
-//   /// @brief Copy hits to host for a single event
-//   void CopyToHost(cudaStream_t cudaStream = 0)
-//   {
-//     const auto oldPointer = fScoring_dev;
-//     COPCORE_CUDA_CHECK(
-//         cudaMemcpyAsync(&fGlobalCounters, fScoring_dev, sizeof(GlobalCounters), cudaMemcpyDeviceToHost, cudaStream));
-//     COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
-//     assert(oldPointer == fScoring_dev);
-//     (void)oldPointer;
-//   }
-
-//   /// @brief Clear hits on device to reuse for next event
-//   void ClearGPU(cudaStream_t cudaStream = 0)
-//   {
-//     COPCORE_CUDA_CHECK(cudaMemsetAsync(fScoring_dev, 0, sizeof(GlobalCounters), cudaStream));
-//     COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
-//   }
-
-//   /// @brief Print scoring info
-//   void Print() { fGlobalCounters.Print(); };
-// };
 
 } // namespace AsyncAdePT
 
@@ -325,22 +294,6 @@ __device__ void AccountProduced(AsyncAdePT::PerEventScoring *scoring, int num_el
   atomicAdd(&scoring->fGlobalCounters.numPositrons, num_pos);
   atomicAdd(&scoring->fGlobalCounters.numGammas, num_gam);
 }
-
-// template <>
-// inline void EndOfTransport(AsyncAdePT::PerEventScoring &scoring, AsyncAdePT::PerEventScoring *, cudaStream_t *, IntegrationLayer *)
-// {
-//   scoring.CopyToHost();
-//   scoring.ClearGPU();
-
-//   // TODO: this needs to be done by the caller, or the net energy array moved to the scoring data
-//   // fGPUNetEnergy[threadId] = 0.;
-
-//   // TODO: This isn't critical, if needed we need to add a debug level parameter to the interface
-//   // if (fDebugLevel >= 2) {
-//   //   G4cout << "\n\tScoring for event " << eventId << G4endl;
-//   //   scoring.Print();
-//   // }
-// }
 
 } // namespace adept_scoring
 

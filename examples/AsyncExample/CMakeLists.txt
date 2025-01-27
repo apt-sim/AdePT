@@ -79,8 +79,6 @@ add_executable(AsyncExample
 target_include_directories(AsyncExample PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}
-  #TEMPORARY WORKAROUND
-  ${PROJECT_SOURCE_DIR}/include
 )
 
 target_link_libraries(AsyncExample

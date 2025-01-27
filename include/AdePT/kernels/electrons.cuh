@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#pragma message( "Compiling " __FILE__ )
-
 #include <AdePT/core/AdePTTransportStruct.cuh>
 #include <AdePT/navigation/AdePTNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>

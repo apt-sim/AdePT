@@ -20,7 +20,8 @@
 #ifdef ASYNC_MODE
 std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf)
 {
-  static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> adePT{new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf)};
+  static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> adePT{
+      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf)};
   return adePT;
 }
 #endif
@@ -57,14 +58,15 @@ void AdePTTrackingManager::InitializeAdePT()
     // Load the VecGeom world in memory
     AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
 
-    // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
-    // all threads.
-    #ifndef ASYNC_MODE
+// Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
+// all threads.
+#ifndef ASYNC_MODE
     fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
-    #else
-    // fAdeptTransport = std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+#else
+    // fAdeptTransport =
+    // std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
     fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration);
-    #endif
+#endif
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
@@ -77,12 +79,13 @@ void AdePTTrackingManager::InitializeAdePT()
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
     fAdePTConfiguration->SetNumThreads(fNumThreads);
-    #ifndef ASYNC_MODE
+#ifndef ASYNC_MODE
     fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
-    #else
-    // fAdeptTransport = std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+#else
+    // fAdeptTransport =
+    // std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
     fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration);
-    #endif
+#endif
     // Initialize per-thread data
     fAdeptTransport->Initialize();
   }

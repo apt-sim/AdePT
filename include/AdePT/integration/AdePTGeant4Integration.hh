@@ -28,7 +28,7 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
-  AdePTGeant4Integration()  = default;
+  AdePTGeant4Integration() = default;
   ~AdePTGeant4Integration();
 
   /// @brief Initializes VecGeom geometry

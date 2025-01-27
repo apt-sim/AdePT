@@ -203,6 +203,12 @@ struct GPUstate {
   }
 };
 
+// Implementation of the GPUstate deleter
+void GPUstateDeleter::operator()(GPUstate *ptr)
+{
+  delete ptr;
+}
+
 // Constant data structures from G4HepEm accessed by the kernels.
 // (defined in TestEm3.cu)
 extern __constant__ __device__ struct G4HepEmParameters g4HepEmPars;

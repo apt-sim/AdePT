@@ -239,6 +239,7 @@ inline void EndOfTransport(HostScoring &hostScoring, HostScoring *hostScoring_de
 {
   // Transfer back scoring.
   CopyHitsToHost(hostScoring, hostScoring_dev, stream);
+  ResetBufferStatsGPU<<<1, 1, 0, stream>>>(hostScoring_dev);
   // Transfer back the global counters
   // scoring->fGlobalCounters_dev->numKilled = inFlight;
   CopyGlobalCountersToHost(hostScoring, stream);

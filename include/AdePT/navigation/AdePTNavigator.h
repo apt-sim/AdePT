@@ -9,7 +9,6 @@
 #ifndef ADEPT_NAVIGATOR_H_
 #define ADEPT_NAVIGATOR_H_
 
-// #include <AdePT/navigation/LoopNavigator.h>
 #include <AdePT/navigation/BVHNavigator.h>
 #ifdef ADEPT_USE_SURF
 #include <AdePT/navigation/SurfNavigator.h>

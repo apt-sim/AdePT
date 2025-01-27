@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-// #include <cub/device/device_merge_sort.cuh>
-
 #ifndef ASYNC_MODE
 #include <AdePT/core/AdePTTransport.cuh>
 #include <AdePT/integration/AdePTGeant4Integration.hh>

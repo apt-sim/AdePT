@@ -29,21 +29,6 @@ void freeCudaEvent(void *event)
   if (event) COPCORE_CUDA_CHECK(cudaEventDestroy(*static_cast<cudaEvent_t *>(event)));
 }
 
-// template <class T>
-// void CudaDeleter<T>::operator()(T *ptr) const { freeCuda(ptr); }
-
-// template <class T>
-// void CudaHostDeleter<T>::operator()(T *ptr) const { freeCudaHost(ptr); }
-
-// template <class T>
-// struct CudaDeleter {
-//   void operator()(T *ptr) const { freeCuda(ptr); }
-// };
-// template <class T>
-// struct CudaHostDeleter {
-//   void operator()(T *ptr) const { freeCudaHost(ptr); }
-// };
-
 // Instantiate the deleters for specific types.
 #ifdef __CUDACC__
 template <>

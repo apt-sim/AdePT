@@ -18,7 +18,6 @@
 #include <vector>
 #include <thread>
 
-
 // Common data structures used by the integration with Geant4
 namespace adeptint {
 
@@ -58,9 +57,9 @@ struct VolAuxArray {
 /// re-injected in the Geant4 stack
 struct TrackBuffer {
   std::vector<TrackData> toDevice;    ///< Tracks to be transported on the device
-  std::vector<TrackData> fromDevice;  ///< Tracks coming from device to be transported on the CPU. 
+  std::vector<TrackData> fromDevice;  ///< Tracks coming from device to be transported on the CPU.
                                       ///< Initialized from "fromDeviceBuff" after the copy
-  TrackData *fromDeviceBuff{nullptr}; ///< Buffer of leaked tracks from device. 
+  TrackData *fromDeviceBuff{nullptr}; ///< Buffer of leaked tracks from device.
                                       ///< Used as the destination for the Cuda copy
   int buffSize{0};                    ///< Size of buffer collecting tracks from device
   int eventId{-1};                    ///< Index of current transported event
@@ -87,10 +86,10 @@ struct TrackDataWithIDs : public adeptint::TrackData {
   short threadId{-1};
 
   TrackDataWithIDs(int pdg_id, int parentID, double ene, double x, double y, double z, double dirx, double diry,
-                   double dirz, double gTime, double lTime, double pTime, vecgeom::NavigationState &&state, unsigned int eventId = 0,
-                   unsigned int trackId = 0, short threadId = -1)
-      : TrackData{pdg_id, parentID, ene, x, y, z, dirx, diry, dirz, gTime, lTime, pTime, std::move(state)}, eventId{eventId},
-        trackId{trackId}, threadId{threadId}
+                   double dirz, double gTime, double lTime, double pTime, vecgeom::NavigationState &&state,
+                   unsigned int eventId = 0, unsigned int trackId = 0, short threadId = -1)
+      : TrackData{pdg_id, parentID, ene, x, y, z, dirx, diry, dirz, gTime, lTime, pTime, std::move(state)},
+        eventId{eventId}, trackId{trackId}, threadId{threadId}
   {
   }
   friend bool operator==(TrackDataWithIDs const &a, TrackDataWithIDs const &b)
@@ -119,7 +118,8 @@ struct TrackBuffer {
 
   unsigned int fNumToDevice{0};   ///< number of slots in the toDevice buffer
   unsigned int fNumFromDevice{0}; ///< number of slots in the fromDevice buffer
-  unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>> toDevice_host;                              ///< Tracks to be transported to the device
+  unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>>
+      toDevice_host;                              ///< Tracks to be transported to the device
   unique_ptr_cuda<TrackDataWithIDs> toDevice_dev; ///< toDevice buffer of tracks
   unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>> fromDevice_host; ///< Tracks from device
   unique_ptr_cuda<TrackDataWithIDs> fromDevice_dev;                                     ///< fromDevice buffer of tracks

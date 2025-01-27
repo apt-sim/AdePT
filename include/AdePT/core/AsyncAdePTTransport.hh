@@ -10,8 +10,6 @@
 #define ASYNC_ADEPT_TRANSPORT_HH
 
 #define ADEPT_SAVE_IDs
-// #include "TrackTransfer.h"
-// #include "BasicScoring.h"
 
 #include <AdePT/core/AdePTTransportInterface.hh>
 #include <AdePT/core/CommonStruct.h>
@@ -28,17 +26,12 @@
 #include <thread>
 #include <unordered_map>
 
-// struct AdePTScoring;
-
 class G4Region;
 class G4VPhysicalVolume;
 struct G4HepEmState;
-// class AdePTGeant4Integration;
 namespace AsyncAdePT {
 struct TrackBuffer;
 struct GPUstate;
-// enum class EventState : unsigned char;
-// struct HitProcessingContext;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
 
@@ -52,14 +45,10 @@ private:
   unsigned int fTrackCapacity{0};   ///< Number of track slots to allocate on device
   unsigned int fScoringCapacity{0}; ///< Number of hit slots to allocate on device
   int fDebugLevel{1};               ///< Debug level
-  int fCUDAStackLimit{0};                              ///< CUDA device stack limit
+  int fCUDAStackLimit{0};           ///< CUDA device stack limit
   std::vector<IntegrationLayer> fIntegrationLayerObjects;
-  // We can't use a unique_ptr because we can't have the definition of GPUState
-  // in a file compiled by gcc
-  GPUstate *fGPUstate;               ///< CUDA state placeholder
-  // We need to use pointers to the scoring objects because we can't have the complete definition 
-  // in a file compiled by gcc
-  std::vector<AdePTScoring*> fScoring;               ///< User scoring objects per G4 worker
+  std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
+  std::vector<AdePTScoring> fScoring;                ///< User scoring objects per G4 worker
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
   std::thread fGPUWorker;                            ///< Thread to manage GPU
@@ -75,14 +64,6 @@ private:
   bool InitializeField(double bz);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
-  // void InitializeGPU();
-  void FreeGPU();
-  // /// @brief Asynchronous loop for transporting particles on GPU.
-  // void TransportLoop();
-  // void HitProcessingLoop(HitProcessingContext *const);
-  // void ReturnTracksToG4();
-  // void AdvanceEventStates(EventState oldState, EventState newState);
-  // std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int threadId) const;
 
 public:
   AsyncAdePTTransport(AdePTConfiguration &configuration);
@@ -106,16 +87,16 @@ public:
   void SetTrackInAllRegions(bool trackInAllRegions) override { fTrackInAllRegions = trackInAllRegions; }
   bool GetTrackInAllRegions() const override { return fTrackInAllRegions; }
   void SetGPURegionNames(std::vector<std::string> const *regionNames) override { fGPURegionNames = regionNames; }
-  void SetCUDAStackLimit(int limit) override{};
+  void SetCUDAStackLimit(int limit) override {};
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
   /// No effect
   void Initialize(bool) override {}
   /// @brief Initializes the ApplyCut flag. Can only be called after G4 Physics is build
   bool InitializeApplyCuts(bool applycuts);
   /// @brief Finish GPU transport, bring hits and tracks to host
-  /// @details The shower call exists to maintain the same interface as the 
-  /// synchronous AdePT mode, since in this case the transport loop is always 
-  /// running. The only call to Shower() from G4 is done when the tracking 
+  /// @details The shower call exists to maintain the same interface as the
+  /// synchronous AdePT mode, since in this case the transport loop is always
+  /// running. The only call to Shower() from G4 is done when the tracking
   /// manager needs to flush an event.
   void Shower(int event, int threadId) override { Flush(threadId, event); }
   /// Block until transport of the given event is done.
