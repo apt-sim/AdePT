@@ -11,18 +11,16 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavigationState.h>
 
-
-// TODO: This needs to be unified with the other Track struct, however due to the slot manager 
+// TODO: This needs to be unified with the other Track struct, however due to the slot manager
 // approach, this can't be done before introducing the SlotManager for all kernels
-
 
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
   using Precision = vecgeom::Precision;
   RanluxppDouble rngState;
-  double eKin            = 0;
-  float numIALeft[3]       = {-1., -1., -1.};
+  double eKin              = 0;
+  float numIALeft[4]       = {-1.f, -1.f, -1.f, -1.f};
   float initialRange       = -1.f; // Only for e-?
   float dynamicRangeFactor = -1.f; // Only for e-?
   float tlimitMin          = -1.f; // Only for e-?

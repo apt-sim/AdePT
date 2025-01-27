@@ -35,17 +35,17 @@ __global__ void __launch_bounds__(256, 1)
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   const int activeSize               = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot            = (*active)[i];
-    Track &currentTrack       = gammas[slot];
-    const auto eKin         = currentTrack.eKin;
-    const auto preStepEnergy  = eKin;
-    auto pos = currentTrack.pos;
+    const int slot           = (*active)[i];
+    Track &currentTrack      = gammas[slot];
+    const auto eKin          = currentTrack.eKin;
+    const auto preStepEnergy = eKin;
+    auto pos                 = currentTrack.pos;
     const auto preStepPos{pos};
-    const auto dir            = currentTrack.dir;
+    const auto dir = currentTrack.dir;
     const auto preStepDir{dir};
-    auto navState             = currentTrack.navState;
+    auto navState              = currentTrack.navState;
     const auto preStepNavState = navState;
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
+    VolAuxData const &auxData  = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     auto &slotManager = *secondaries.gammas.fSlotManager;
 
@@ -63,13 +63,13 @@ __global__ void __launch_bounds__(256, 1)
     theTrack->SetEKin(eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
 
-    // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft = currentTrack.numIALeft[ip];
-      if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
-      }
-      theTrack->SetNumIALeft(numIALeft, ip);
+    // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
+    // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
+    // currentTrack.numIALeft[0] are updated later
+    if (currentTrack.numIALeft[0] <= 0.0) {
+      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
+    } else {
+      theTrack->SetNumIALeft(currentTrack.numIALeft[0], 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
@@ -96,17 +96,21 @@ __global__ void __launch_bounds__(256, 1)
     theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
-    G4HepEmGammaManager::UpdateNumIALeft(theTrack);
-
-    // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft           = theTrack->GetNumIALeft(ip);
-      currentTrack.numIALeft[ip] = numIALeft;
-    }
+    // Update the flight times of the particle
+    const double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
+    currentTrack.globalTime += deltaTime;
+    currentTrack.localTime += deltaTime;
 
     if (nextState.IsOnBoundary()) {
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
+
+        G4HepEmGammaManager::UpdateNumIALeft(theTrack);
+
+        // Save the `number-of-interaction-left` in our track.
+        double numIALeft          = theTrack->GetNumIALeft(0);
+        currentTrack.numIALeft[0] = numIALeft; // double to float conversion
+
         BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
@@ -127,20 +131,24 @@ __global__ void __launch_bounds__(256, 1)
         slotManager.MarkSlotForFreeing(slot);
       }
       continue;
-    } else if (winnerProcessIndex < 0) {
-      // No discrete process, move on.
-      survive(activeQueue);
-      continue;
+    } else {
+
+      G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
+      winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+      // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
+      // gamma-nuclear reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a
+      // reaction is needed to compensate for the smaller step size returned by HowFar.
+
+      // Reset number of interaction left for the winner discrete process also in the currentTrack (SampleInteraction()
+      // resets it for theTrack), will be resampled in the next iteration.
+      currentTrack.numIALeft[0] = -1.0;
+
+      if (winnerProcessIndex == 3) {
+        // Gamma-nuclear must be handled by G4, move on.
+        survive(activeQueue);
+        continue;
+      }
     }
-
-    // Reset number of interaction left for the winner discrete process.
-    // (Will be resampled in the next iteration.)
-    currentTrack.numIALeft[winnerProcessIndex] = -1.0;
-
-    // Update the flight times of the particle
-    const double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
-    currentTrack.globalTime += deltaTime;
-    currentTrack.localTime += deltaTime;
 
     assert(winnerProcessIndex < gammaInteractions.NInt);
 
@@ -174,7 +182,7 @@ __global__ void __launch_bounds__(256, 1)
       const double geometryStepLength = queue[i].geometryStepLength;
       Track &currentTrack             = gammas[slot];
       auto &slotManager               = *secondaries.gammas.fSlotManager;
-      const auto eKin               = currentTrack.eKin;
+      const auto eKin                 = currentTrack.eKin;
       const auto &dir                 = currentTrack.dir;
 
       VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
@@ -267,7 +275,7 @@ __global__ void __launch_bounds__(256, 1)
         // Check the new gamma energy and deposit if below threshold.
         if (newEnergyGamma > LowEnergyThreshold) {
           currentTrack.eKin = newEnergyGamma;
-          currentTrack.dir    = newDirGamma;
+          currentTrack.dir  = newDirGamma;
           survive();
         } else {
           if (auxData.fSensIndex >= 0)

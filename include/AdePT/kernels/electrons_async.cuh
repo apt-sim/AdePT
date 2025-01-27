@@ -73,7 +73,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     auto navState     = currentTrack.navState;
     const auto volume = navState.Top();
     // the MCC vector is indexed by the logical volume id
-    const int lvolID          = volume->GetLogicalVolume()->id();
+    const int lvolID = volume->GetLogicalVolume()->id();
     // TODO: Why do we have a specific AsyncAdePT VolAuxData?
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
@@ -137,11 +137,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
         numIALeft = -std::log(currentTrack.Uniform());
       }
+      if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
@@ -295,7 +296,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                currentTrack.eventId, currentTrack.threadId);
 
     // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft           = theTrack->GetNumIALeft(ip);
       currentTrack.numIALeft[ip] = numIALeft;
     }
@@ -367,7 +368,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // if (nextState.IsOnBoundary()) {
-    //   // TODO: We need to return these particles to G4, also check if we 
+    //   // TODO: We need to return these particles to G4, also check if we
     //   // want to have this logic here
     //   if (++currentTrack.looperCounter > 256) {
     //     // Kill loopers that are scraping a boundary
@@ -518,6 +519,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // The current track is killed by not enqueuing into the next activeQueue.
       slotManager.MarkSlotForFreeing(slot);
+      break;
+    }
+    case 3: {
+      // leptop-nuclear needs to be handled by G4, just keep the track
+      survive();
       break;
     }
     }
