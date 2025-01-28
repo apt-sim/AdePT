@@ -13,8 +13,8 @@
 #include <AdePT/base/MParray.h>
 
 #ifndef USE_SPLIT_KERNELS
-#include <AdePT/kernels/electrons.cuh>
-#include <AdePT/kernels/gammas.cuh>
+#include <AdePT/kernels/electrons_async_new.cuh>
+#include <AdePT/kernels/gammas_async_new.cuh>
 #else
 #include <AdePT/kernels/electrons_split.cuh>
 #include <AdePT/kernels/gammas_split.cuh>
@@ -136,7 +136,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     assert(trackmgr != nullptr && "Unsupported pdg type");
 
     Track &track   = trackmgr->NextTrack();
-    track.parentID = trackinfo[i].parentID;
+    track.parentId = trackinfo[i].parentId;
 
     track.rngState.SetSeed(1234567 * event + startTrack + i);
     track.eKin         = trackinfo[i].eKin;

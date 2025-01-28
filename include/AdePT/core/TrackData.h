@@ -22,13 +22,13 @@ struct TrackData {
   double localTime{0};
   double properTime{0};
   int pdg{0};
-  int parentID{0};
+  int parentId{0};
 
   TrackData() = default;
-  TrackData(int pdg_id, int parentID, double ene, double x, double y, double z, double dirx, double diry, double dirz,
+  TrackData(int pdg_id, int parentId, double ene, double x, double y, double z, double dirx, double diry, double dirz,
             double gTime, double lTime, double pTime, vecgeom::NavigationState &&state)
       : navState{std::move(state)}, position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime},
-        localTime{lTime}, properTime{pTime}, pdg{pdg_id}, parentID{parentID}
+        localTime{lTime}, properTime{pTime}, pdg{pdg_id}, parentId{parentId}
   {
   }
 

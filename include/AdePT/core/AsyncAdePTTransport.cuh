@@ -13,8 +13,8 @@
 #include <AdePT/copcore/Global.h>
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/copcore/Ranluxpp.h>
-#include <AdePT/kernels/electrons_async.cuh>
-#include <AdePT/kernels/gammas_async.cuh>
+#include <AdePT/kernels/electrons_async_new.cuh>
+#include <AdePT/kernels/gammas_async_new.cuh>
 
 #include <AdePT/navigation/BVHNavigator.h>
 #include <AdePT/integration/AdePTGeant4Integration.hh>
@@ -100,7 +100,7 @@ __global__ void InjectTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntrack
     Track &track    = generator->InitTrack(slot, initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin,
                                            trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
                                            static_cast<float>(trackInfo.properTime), trackInfo.position,
-                                           trackInfo.direction, trackInfo.eventId, trackInfo.parentID, trackInfo.threadId);
+                                           trackInfo.direction, trackInfo.eventId, trackInfo.parentId, trackInfo.threadId);
     track.navState.Clear();
     track.navState = trackinfo[i].navState;
     toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
@@ -790,11 +790,11 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.gammaInteractions);
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev); //, gpuState.gammaInteractions);
 
-        constexpr unsigned int intThreads = 128;
-        ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
-            gammas.tracks, secondaries, gammas.queues.nextActive, gpuState.fScoring_dev, gpuState.gammaInteractions);
+        // constexpr unsigned int intThreads = 128;
+        // ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
+        //     gammas.tracks, secondaries, gammas.queues.nextActive, gpuState.fScoring_dev, gpuState.gammaInteractions);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
@@ -974,30 +974,30 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       }
 
       // TODO: get fDebugLevel correctly and put prints back in.
-      // int fDebugLevel = 0;
-      // int fNThread = numThreads;
-      // if (fDebugLevel >= 3 && inFlight > 0 || (fDebugLevel >= 2 && iteration % 500 == 0)) {
-      //   std::cerr << inFlight << " in flight ";
-      //   std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
-      //             << gpuState.stats->inFlight[ParticleType::Positron] << " "
-      //             << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tqueues:(" << std::setprecision(3)
-      //             << gpuState.stats->queueFillLevel[ParticleType::Electron] << " "
-      //             << gpuState.stats->queueFillLevel[ParticleType::Positron] << " "
-      //             << gpuState.stats->queueFillLevel[ParticleType::Gamma] << ")";
-      //   std::cerr << "\t slots:" << gpuState.stats->slotFillLevel << ", " << numLeaked << " leaked."
-      //             << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
-      //             << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load())
-      //             << "\tHitBuffer: " << gpuState.stats->hitBufferOccupancy;
-      //   if (fDebugLevel >= 4) {
-      //     std::cerr << "\n\tper event: ";
-      //     for (unsigned int i = 0; i < fNThread; ++i) {
-      //       std::cerr << i << ": " << gpuState.stats->perEventInFlight[i]
-      //                 << " (s=" << static_cast<unsigned short>(eventStates[i].load(std::memory_order_acquire))
-      //                 << ")\t";
-      //     }
-      //   }
-      //   std::cerr << std::endl;
-      // }
+      int fDebugLevel = 0;
+      int fNThread = numThreads;
+      if (fDebugLevel >= 3 && inFlight > 0 || (fDebugLevel >= 2 && iteration % 500 == 0)) {
+        std::cerr << inFlight << " in flight ";
+        std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
+                  << gpuState.stats->inFlight[ParticleType::Positron] << " "
+                  << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tqueues:(" << std::setprecision(3)
+                  << gpuState.stats->queueFillLevel[ParticleType::Electron] << " "
+                  << gpuState.stats->queueFillLevel[ParticleType::Positron] << " "
+                  << gpuState.stats->queueFillLevel[ParticleType::Gamma] << ")";
+        std::cerr << "\t slots:" << gpuState.stats->slotFillLevel << ", " << numLeaked << " leaked."
+                  << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
+                  << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load())
+                  << "\tHitBuffer: " << gpuState.stats->hitBufferOccupancy;
+        if (fDebugLevel >= 4) {
+          std::cerr << "\n\tper event: ";
+          for (unsigned int i = 0; i < fNThread; ++i) {
+            std::cerr << i << ": " << gpuState.stats->perEventInFlight[i]
+                      << " (s=" << static_cast<unsigned short>(eventStates[i].load(std::memory_order_acquire))
+                      << ")\t";
+          }
+        }
+        std::cerr << std::endl;
+      }
 
 #ifndef NDEBUG
       // *** Check slots ***

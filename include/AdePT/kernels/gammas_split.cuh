@@ -248,14 +248,14 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
 
       electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack.globalTime);
-      electron.parentID = currentTrack.parentID;
+      electron.parentId = currentTrack.parentId;
       electron.rngState = newRNG;
       electron.eKin     = elKinEnergy;
       electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 
       positron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack.globalTime);
       // Reuse the RNG state of the dying track.
-      positron.parentID = currentTrack.parentID;
+      positron.parentId = currentTrack.parentId;
       positron.rngState = currentTrack.rngState;
       positron.eKin     = posKinEnergy;
       positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
@@ -283,7 +283,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
         adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
         electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack.globalTime);
-        electron.parentID = currentTrack.parentID;
+        electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
         electron.eKin     = energyEl;
         electron.dir      = currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma;
@@ -291,7 +291,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
       } else {
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.parentID,           // Track ID
+                                   currentTrack.parentId,           // Track ID
                                    2,                               // Particle type
                                    currentTrack.geometryStepLength, // Step length
                                    0,                               // Total Edep
@@ -318,7 +318,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
       } else {
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.parentID,           // Track ID
+                                   currentTrack.parentId,           // Track ID
                                    2,                               // Particle type
                                    currentTrack.geometryStepLength, // Step length
                                    0,                               // Total Edep
@@ -359,7 +359,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
         G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
         electron.InitAsSecondary(currentTrack.pos, currentTrack.navState, currentTrack.globalTime);
-        electron.parentID = currentTrack.parentID;
+        electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
         electron.eKin     = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
@@ -369,7 +369,7 @@ __global__ void GammaInteractions(adept::TrackManager<Track> *gammas, G4HepEmGam
 
       if (auxData.fSensIndex >= 0)
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.parentID,           // Track ID
+                                 currentTrack.parentId,           // Track ID
                                  2,                               // Particle type
                                  currentTrack.geometryStepLength, // Step length
                                  edep,                            // Total Edep

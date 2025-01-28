@@ -496,7 +496,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // Build the secondaries and put them back on the Geant4 stack
   if (debugLevel > 1) {
     std::cout << "[" << GetThreadID() << "] fromDevice[ " << trackIndex << "]: pdg " << track.pdg << " parent id "
-              << track.parentID << " kinetic energy " << track.eKin << " position " << track.position[0] << " "
+              << track.parentId << " kinetic energy " << track.eKin << " position " << track.position[0] << " "
               << track.position[1] << " " << track.position[2] << " direction " << track.direction[0] << " "
               << track.direction[1] << " " << track.direction[2] << " global time, local time, proper time: "
               << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << std::endl;
@@ -514,7 +514,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
   secondary->SetLocalTime(track.localTime);
   secondary->SetProperTime(track.properTime);
-  secondary->SetParentID(track.parentID);
+  secondary->SetParentID(track.parentId);
 
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
 }
