@@ -20,7 +20,7 @@
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
-inline namespace COPCORE_IMPL {
+// inline namespace COPCORE_IMPL {
 
 template <typename Real_t>
 class SurfNavigator {
@@ -105,5 +105,5 @@ public:
   }
 };
 
-} // End namespace COPCORE_IMPL
+// } // End namespace COPCORE_IMPL
 #endif // RT_SURF_NAVIGATOR_H_
