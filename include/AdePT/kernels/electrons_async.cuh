@@ -1,15 +1,13 @@
-// SPDX-FileCopyrightText: 2022 CERN
-// SPDX-License-Identifier: Apache-2.0
+// // SPDX-FileCopyrightText: 2022 CERN
+// // SPDX-License-Identifier: Apache-2.0
 
-#include "AdeptIntegration.cuh"
+#include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 
 #include <AdePT/navigation/BVHNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/AdePTScoringTemplate.cuh>
-
-#define NOFLUCTUATION
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -66,23 +64,24 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
     currentTrack.stepCounter++; // step counter is already increased below when checking for maxSteps
-    auto eKin                = currentTrack.energy;
+    auto eKin                = currentTrack.eKin;
     const auto preStepEnergy = eKin;
-    auto pos            = currentTrack.pos;
+    auto pos                 = currentTrack.pos;
     const auto preStepPos{pos};
-    auto dir            = currentTrack.dir;
+    auto dir = currentTrack.dir;
     vecgeom::Vector3D<Precision> preStepDir(dir);
-    auto navState       = currentTrack.navState;
-    const auto volume   = navState.Top();
+    auto navState     = currentTrack.navState;
+    const auto volume = navState.Top();
     // the MCC vector is indexed by the logical volume id
-    const int lvolID          = volume->GetLogicalVolume()->id();
+    const int lvolID = volume->GetLogicalVolume()->id();
+    // TODO: Why do we have a specific AsyncAdePT VolAuxData?
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     auto survive = [&](bool leak = false) {
-      currentTrack.energy   = eKin;
+      currentTrack.eKin     = eKin;
       currentTrack.pos      = pos;
       currentTrack.dir      = dir;
       currentTrack.navState = navState;
@@ -97,7 +96,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                       "evt=%d thread=%d "
                       "e=%f safety=%f out of GPU\n",
              __LINE__, IsElectron ? -11 : 11, lvolID, pos[0], pos[1], pos[2], dir[0], dir[1], dir[2],
-             currentTrack.eventId, currentTrack.threadId, currentTrack.energy,
+             currentTrack.eventId, currentTrack.threadId, currentTrack.eKin,
              BVHNavigator::ComputeSafety(pos, navState));
       // pos += kPushOutRegion * dir;
       // survive(true);
@@ -138,11 +137,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
         numIALeft = -std::log(currentTrack.Uniform());
       }
+      if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
@@ -188,13 +188,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    bool propagated = true;
+    bool propagated    = true;
     long hitsurf_index = -1;
     double geometryStepLength;
-    vecgeom::NavStateIndex nextState;
+    vecgeom::NavigationState nextState;
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<BVHNavigator>(
-          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, propagated, safety, /*max_i_in_stepper=*/10);
+          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index,
+          propagated, safety, /*max_i_in_stepper=*/10);
     } else {
       geometryStepLength = BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPush);
@@ -263,6 +264,18 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     currentTrack.localTime += deltaTime;
     currentTrack.properTime += deltaTime * (restMass / eKin);
 
+    if (nextState.IsOnBoundary()) {
+      // if the particle hit a boundary, and is neither stopped or outside, relocate to have the correct next state
+      // before RecordHit is called
+      if (!stopped && !nextState.IsOutside()) {
+#ifdef ADEPT_USE_SURF
+        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
+#else
+        AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
+#endif
+      }
+    }
+
     if (auxData.fSensIndex >= 0)
       adept_scoring::RecordHit(&userScoring[currentTrack.threadId], currentTrack.parentId,
                                static_cast<char>(IsElectron ? 0 : 1), // Particle type
@@ -283,7 +296,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                currentTrack.eventId, currentTrack.threadId);
 
     // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
+    for (int ip = 0; ip < 4; ++ip) {
       double numIALeft           = theTrack->GetNumIALeft(ip);
       currentTrack.numIALeft[ip] = numIALeft;
     }
@@ -316,26 +329,19 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     if (nextState.IsOnBoundary()) {
-      if (++currentTrack.looperCounter > 256) {
-        // Kill loopers that are scraping a boundary
-        printf("Looper scraping a boundary going to G4: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
-               "physicsStepLength=%E "
-               "safety=%E\n",
-               eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
-               geometricalStepLengthFromPhysics, safety);
-        atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
-        // survive(/*leak=*/true); // don't send particles back at this point, G4 seems to be struggling a lot with those tracks too!
-        continue;
-      } else if (nextState.Top() != nullptr) {
-        // Go to next volume
-        BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+      // For now, just count that we hit something.
+
+      // Kill the particle if it left the world.
+      if (!nextState.IsOutside()) {
 
         // Move to the next boundary.
         navState = nextState;
-        currentTrack.looperCounter = 0;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        const auto nextvolume         = navState.Top();
-        const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
+#ifndef ADEPT_USE_SURF
+        const int nextlvolID = navState.Top()->GetLogicalVolume()->id();
+#else
+        const int nextlvolID = navState.GetLogicalId();
+#endif
         VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
         if (nextauxData.fGPUregion > 0)
           survive();
@@ -353,27 +359,77 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     } else if (!propagated || restrictedPhysicalStepLength) {
       // Did not yet reach the interaction point due to error in the magnetic
       // field propagation. Try again next time.
-      if (++currentTrack.looperCounter > 1024) {
-        // Kill loopers that are failing to propagate
-        printf("Looper with trouble in field propagation going to G4: E=%E event=%d loop=%d energyDeposit=%E "
-               "geoStepLength=%E physicsStepLength=%E "
-               "safety=%E\n",
-               eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
-               geometricalStepLengthFromPhysics, safety);
-        atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
-        // survive(/*leak=*/true);  // don't send particles back at this point, G4 seems to be struggling a lot with those tracks too!
-
-      } else {
-        survive();
-      }
+      survive();
       continue;
     } else if (winnerProcessIndex < 0) {
       // No discrete process, move on.
-      currentTrack.looperCounter = 0;
       survive();
       continue;
     }
-    currentTrack.looperCounter = 0;
+
+    // if (nextState.IsOnBoundary()) {
+    //   // TODO: We need to return these particles to G4, also check if we
+    //   // want to have this logic here
+    //   if (++currentTrack.looperCounter > 256) {
+    //     // Kill loopers that are scraping a boundary
+    //     printf("Looper scraping a boundary going to G4: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+    //            "physicsStepLength=%E "
+    //            "safety=%E\n",
+    //            eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+    //            geometricalStepLengthFromPhysics, safety);
+    //     atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
+    //     // survive(/*leak=*/true); // don't send particles back at this point, G4 seems to be struggling a lot with
+    //     // those tracks too!
+    //     continue;
+    //   } else if (nextState.Top() != nullptr) {
+    //     // Go to next volume
+    //     BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
+
+    //     // Move to the next boundary.
+    //     navState                   = nextState;
+    //     currentTrack.looperCounter = 0;
+    //     // Check if the next volume belongs to the GPU region and push it to the appropriate queue
+    //     const auto nextvolume         = navState.Top();
+    //     const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
+    //     VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+    //     if (nextauxData.fGPUregion > 0)
+    //       survive();
+    //     else {
+    //       // To be safe, just push a bit the track exiting the GPU region to make sure
+    //       // Geant4 does not relocate it again inside the same region
+    //       pos += kPushOutRegion * dir;
+    //       survive(/*leak*/ true);
+    //     }
+    //   } else {
+    //     // Kill the particle if it left the world.
+    //     slotManager.MarkSlotForFreeing(slot);
+    //   }
+    //   continue;
+    // } else if (!propagated || restrictedPhysicalStepLength) {
+    //   // Did not yet reach the interaction point due to error in the magnetic
+    //   // field propagation. Try again next time.
+    //   if (++currentTrack.looperCounter > 1024) {
+    //     // Kill loopers that are failing to propagate
+    //     printf("Looper with trouble in field propagation going to G4: E=%E event=%d loop=%d energyDeposit=%E "
+    //            "geoStepLength=%E physicsStepLength=%E "
+    //            "safety=%E\n",
+    //            eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+    //            geometricalStepLengthFromPhysics, safety);
+    //     atomicAdd(&userScoring[currentTrack.threadId].fGlobalCounters.numKilled, 1);
+    //     // survive(/*leak=*/true);  // don't send particles back at this point, G4 seems to be struggling a lot with
+    //     // those tracks too!
+
+    //   } else {
+    //     survive();
+    //   }
+    //   continue;
+    // } else if (winnerProcessIndex < 0) {
+    //   // No discrete process, move on.
+    //   currentTrack.looperCounter = 0;
+    //   survive();
+    //   continue;
+    // }
+    // currentTrack.looperCounter = 0;
 
     // Reset number of interaction left for the winner discrete process.
     // (Will be resampled in the next iteration.)
@@ -463,6 +519,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       // The current track is killed by not enqueuing into the next activeQueue.
       slotManager.MarkSlotForFreeing(slot);
+      break;
+    }
+    case 3: {
+      // leptop-nuclear needs to be handled by G4, just keep the track
+      survive();
       break;
     }
     }

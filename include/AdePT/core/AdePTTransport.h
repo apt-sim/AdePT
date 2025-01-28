@@ -5,10 +5,10 @@
 ///   - filling the buffer with tracks to be transported on the GPU
 ///   - Calling the Shower method transporting a buffer on the GPU
 
-#ifndef ADEPT_INTEGRATION_H
-#define ADEPT_INTEGRATION_H
+#ifndef ADEPT_TRANSPORT_H
+#define ADEPT_TRANSPORT_H
 
-#include "AdePTTransportInterface.hh"
+
 
 #include <unordered_map>
 #include <VecGeom/base/Config.h>
@@ -16,7 +16,8 @@
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
 #endif
 
-#include "CommonStruct.h"
+#include <AdePT/core/CommonStruct.h>
+#include <AdePT/core/AdePTTransportInterface.hh>
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 #include <AdePT/core/HostScoringStruct.cuh>
 #include <AdePT/core/AdePTConfiguration.hh>

@@ -1,0 +1,334 @@
+// SPDX-FileCopyrightText: 2022 CERN
+// SPDX-License-Identifier: Apache-2.0
+
+#include <AdePT/core/AsyncAdePTTransport.hh>
+
+#include <AdePT/integration/AdePTGeant4Integration.hh>
+
+#include <VecGeom/management/BVHManager.h>
+#include "VecGeom/management/GeoManager.h"
+
+#include <G4RunManager.hh>
+#include <G4Threading.hh>
+#include <G4Proton.hh>
+#include <G4Region.hh>
+#include <G4SDManager.hh>
+#include <G4VFastSimSensitiveDetector.hh>
+#include <G4MaterialCutsCouple.hh>
+#include <G4ProductionCutsTable.hh>
+#include <G4TransportationManager.hh>
+
+#include <G4HepEmData.hh>
+#include <G4HepEmState.hh>
+#include <G4HepEmStateInit.hh>
+#include <G4HepEmParameters.hh>
+#include <G4HepEmMatCutData.hh>
+#include <G4LogicalVolumeStore.hh>
+
+#include <iomanip>
+
+// std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
+//                                                                unsigned int nHitSlot, int verbosity,
+//                                                                std::vector<std::string> const *GPURegionNames,
+//                                                                bool trackInAllRegions, int cudaStackSize)
+// {
+//   static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport> adePT{new AsyncAdePT::AsyncAdePTTransport(
+//       nThread, nTrackSlot, nHitSlot, verbosity, GPURegionNames, trackInAllRegions, cudaStackSize)};
+//   return adePT;
+// }
+
+/// Forward declarations
+namespace async_adept_impl {
+bool InitializeField(double);
+bool InitializeApplyCuts(bool applycuts);
+G4HepEmState *InitG4HepEm();
+void FlushScoring(AdePTScoring &);
+std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
+std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
+                            std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
+                            std::vector<AdePTScoring> &, int);
+std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity,
+                                                                                 int numThreads,
+                                                                                 AsyncAdePT::TrackBuffer &trackBuffer,
+                                                                                 std::vector<AdePTScoring> &scoring);
+void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, G4HepEmState &, std::thread &);
+} // namespace async_adept_impl
+
+namespace AsyncAdePT {
+
+namespace {
+template <typename T>
+std::size_t countTracks(int pdgToSelect, T const &container)
+{
+  return std::count_if(container.begin(), container.end(),
+                       [pdgToSelect](TrackDataWithIDs const &track) { return track.pdg == pdgToSelect; });
+}
+
+std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
+{
+  const auto flags = stream.flags();
+  stream << std::setw(5) << track.pdg << std::scientific << std::setw(15) << std::setprecision(6) << track.eKin << " ("
+         << std::setprecision(2) << std::setw(9) << track.position[0] << std::setw(9) << track.position[1]
+         << std::setw(9) << track.position[2] << ")";
+  stream.flags(flags);
+  return stream;
+}
+} // namespace
+
+template <typename IntegrationLayer>
+AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration)
+    : fNThread{(ushort)configuration.GetNumThreads()},
+      fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
+      fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())}, fDebugLevel{0},
+      fIntegrationLayerObjects(fNThread), fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
+      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
+      fCUDAStackLimit{configuration.GetCUDAStackLimit()}
+{
+  if (fNThread > kMaxThreads)
+    throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
+
+  for (auto &eventState : fEventStates) {
+    std::atomic_init(&eventState, EventState::ScoringRetrieved);
+  }
+
+  AsyncAdePTTransport::Initialize();
+}
+
+template <typename IntegrationLayer>
+AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
+{
+  async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker);
+}
+
+template <typename IntegrationLayer>
+void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parentID, double energy, double x, double y, double z,
+                                                     double dirx, double diry, double dirz, double globalTime,
+                                                     double localTime, double properTime, int threadId,
+                                                     unsigned int eventId, unsigned int trackId,
+                                                     vecgeom::NavigationState &&state)
+{
+  if (pdg != 11 && pdg != -11 && pdg != 22) {
+    G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
+    return;
+  }
+
+  TrackDataWithIDs track{pdg,
+                         parentID,
+                         energy,
+                         x,
+                         y,
+                         z,
+                         dirx,
+                         diry,
+                         dirz,
+                         globalTime,
+                         localTime,
+                         properTime,
+                         std::move(state),
+                         eventId,
+                         trackId,
+                         static_cast<short>(threadId)};
+  if (fDebugLevel >= 2) {
+    fGPUNetEnergy[threadId] += energy;
+    if (fDebugLevel >= 6) {
+      G4cout << "\n[_in," << eventId << "," << trackId << "]: " << track << "\tGPU net energy " << std::setprecision(6)
+             << fGPUNetEnergy[threadId] << G4endl;
+    }
+  }
+
+  // Lock buffer and emplace the track
+  {
+    auto trackHandle  = fBuffer->createToDeviceSlot();
+    trackHandle.track = std::move(track);
+  }
+
+  fEventStates[threadId].store(EventState::NewTracksFromG4, std::memory_order_release);
+}
+
+template <typename IntegrationLayer>
+bool AsyncAdePTTransport<IntegrationLayer>::InitializeField(double bz)
+{
+  return async_adept_impl::InitializeField(bz);
+}
+
+template <typename IntegrationLayer>
+bool AsyncAdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
+{
+  return async_adept_impl::InitializeApplyCuts(applycuts);
+}
+
+template <typename IntegrationLayer>
+bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
+{
+  // Upload geometry to GPU.
+  auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
+  if (fCUDAStackLimit > 0) {
+    std::cout << "CUDA Device stack limit: " << fCUDAStackLimit << "\n";
+    cudaDeviceSetLimit(cudaLimitStackSize, fCUDAStackLimit);
+  }
+  cudaManager.LoadGeometry(world);
+  auto world_dev = cudaManager.Synchronize();
+  // Initialize BVH
+  InitBVH();
+
+  return (world_dev != nullptr);
+}
+
+template <typename IntegrationLayer>
+bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics()
+{
+  // Initialize shared physics data
+  fg4hepem_state.reset(async_adept_impl::InitG4HepEm());
+  return true;
+}
+
+template <typename IntegrationLayer>
+void AsyncAdePTTransport<IntegrationLayer>::Initialize()
+{
+  const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
+
+  G4cout << "=== AsyncAdePTTransport: initializing geometry and physics\n";
+  // Initialize geometry on device
+  if (!vecgeom::GeoManager::Instance().IsClosed())
+    throw std::runtime_error("AsyncAdePTTransport::Initialize: VecGeom geometry not closed.");
+
+  const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
+  if (!InitializeGeometry(world))
+    throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
+
+  // Initialize G4HepEm
+  fIntegrationLayerObjects.front().GetUniformFieldZ();
+  if (!InitializePhysics())
+    throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
+
+  // Initialize field
+  const double bz =
+      fIntegrationLayerObjects[0].GetUniformFieldZ(); // Get the field value from one of the worker threads
+  if (!InitializeField(bz))
+    throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
+
+  // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
+  fIntegrationLayerObjects.front().CheckGeometry(fg4hepem_state.get());
+  adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+  fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), fTrackInAllRegions, fGPURegionNames);
+
+  // Initialize volume auxiliary data on device
+  auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
+  volAuxArray.fNumVolumes = numVolumes;
+  volAuxArray.fAuxData    = auxData;
+  AsyncAdePT::InitVolAuxArray(volAuxArray);
+
+  for (auto &g4int : fIntegrationLayerObjects) {
+    g4int.InitScoringData();
+  }
+
+  // TODO: Make this configurable or figure out a reasonable value (Currently, it seems that the
+  // to device buffer is often full)
+  // Allocate buffers to transport particles to/from device. Scale the size of the staging area
+  // with the number of threads.
+  fBuffer = std::make_unique<TrackBuffer>(8192 * fNThread, 1024 * fNThread, fNThread);
+
+  assert(fBuffer != nullptr);
+
+  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring);
+  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
+                                                 fEventStates, fCV_G4Workers, fScoring, fAdePTSeed);
+}
+
+template <typename IntegrationLayer>
+void AsyncAdePTTransport<IntegrationLayer>::InitBVH()
+{
+  vecgeom::cxx::BVHManager::Init();
+  vecgeom::cxx::BVHManager::DeviceInit();
+}
+
+template <typename IntegrationLayer>
+void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
+{
+  if (fDebugLevel >= 3) {
+    G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
+  }
+
+  assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
+  fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
+
+  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId];
+
+  while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
+    {
+      std::unique_lock lock{fMutex_G4Workers};
+      fCV_G4Workers.wait(lock);
+    }
+
+    std::shared_ptr<const std::vector<GPUHit>> gpuHits;
+    while ((gpuHits = async_adept_impl::GetGPUHits(threadId, *fGPUstate)) != nullptr) {
+      GPUHit dummy;
+      dummy.fEventId = eventId;
+      auto range     = std::equal_range(gpuHits->begin(), gpuHits->end(), dummy,
+                                        [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
+      for (auto it = range.first; it != range.second; ++it) {
+        assert(it->threadId == threadId);
+        integrationInstance.ProcessGPUHit(*it);
+      }
+    }
+  }
+
+  // Now device should be flushed, so retrieve the tracks:
+  std::vector<TrackDataWithIDs> tracks;
+  {
+    auto handle = fBuffer->getTracksFromDevice(threadId);
+    tracks.swap(handle.tracks);
+    fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
+  }
+
+  // TODO: Sort tracks on device?
+#ifndef NDEBUG
+  for (auto const &track : tracks) {
+    bool error = false;
+    if (track.threadId != threadId || track.eventId != static_cast<unsigned int>(eventId)) error = true;
+    if (!(track.pdg == -11 || track.pdg == 11 || track.pdg == 22)) error = true;
+    if (error)
+      std::cerr << "Error in returning track: threadId=" << track.threadId << " eventId=" << track.eventId
+                << " pdg=" << track.pdg << "\n";
+    assert(!error);
+  }
+#endif
+  std::sort(tracks.begin(), tracks.end());
+
+  const auto oldEnergyTransferred = fGPUNetEnergy[threadId];
+  if (fDebugLevel >= 2) {
+    unsigned int trackId = 0;
+    for (const auto &track : tracks) {
+
+      fGPUNetEnergy[threadId] -= track.eKin;
+      if (fDebugLevel >= 5) {
+        G4cout << "\n[out," << track.eventId << "," << trackId++ << "]: " << track << "\tGPU net energy "
+               << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
+      }
+    }
+  }
+
+  if (fDebugLevel >= 2) {
+    std::stringstream str;
+    str << "\n[" << eventId << "]: Pushed " << tracks.size() << " tracks to G4";
+    str << "\tEnergy back to G4: " << std::setprecision(6)
+        << (oldEnergyTransferred - fGPUNetEnergy[threadId]) / CLHEP::GeV << "\tGPU net energy " << std::setprecision(6)
+        << fGPUNetEnergy[threadId] / CLHEP::GeV << " GeV";
+    str << "\t(" << countTracks(11, tracks) << ", " << countTracks(-11, tracks) << ", " << countTracks(22, tracks)
+        << ")";
+    G4cout << str.str() << G4endl;
+  }
+
+  if (tracks.empty()) {
+    async_adept_impl::FlushScoring(fScoring[threadId]);
+
+    // TODO: Most likely this needs to go to AsyncAdePTTransport in a function that
+    // we will forward-declare here (Otherwise AdePTScoring is undefined)
+    fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
+  }
+
+  integrationInstance.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel);
+}
+
+} // namespace AsyncAdePT

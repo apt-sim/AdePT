@@ -86,10 +86,8 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-SimpleHit *SensitiveDetector::RetrieveAndSetupHit(G4TouchableHistory *aTouchable)
+SimpleHit *SensitiveDetector::RetrieveAndSetupHit(std::size_t hitID)
 {
-  std::size_t hitID = fScoringMap[aTouchable->GetHistory()->GetTopVolume()->GetInstanceID()];
-
   assert(hitID < static_cast<std::size_t>(fNumSensitive));
 
   if (hitID >= fHitsCollection->entries()) {

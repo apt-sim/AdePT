@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AdeptIntegration.cuh"
+#include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 
 #include <AdePT/navigation/BVHNavigator.h>
 
@@ -35,17 +35,17 @@ __global__ void __launch_bounds__(256, 1)
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   const int activeSize               = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot            = (*active)[i];
-    Track &currentTrack       = gammas[slot];
-    const auto energy         = currentTrack.energy;
-    const auto preStepEnergy  = energy;
-    auto pos = currentTrack.pos;
+    const int slot           = (*active)[i];
+    Track &currentTrack      = gammas[slot];
+    const auto eKin          = currentTrack.eKin;
+    const auto preStepEnergy = eKin;
+    auto pos                 = currentTrack.pos;
     const auto preStepPos{pos};
-    const auto dir            = currentTrack.dir;
+    const auto dir = currentTrack.dir;
     const auto preStepDir{dir};
-    auto navState             = currentTrack.navState;
+    auto navState              = currentTrack.navState;
     const auto preStepNavState = navState;
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
+    VolAuxData const &auxData  = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
     assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
     auto &slotManager = *secondaries.gammas.fSlotManager;
 
@@ -60,16 +60,16 @@ __global__ void __launch_bounds__(256, 1)
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
     G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(energy);
+    theTrack->SetEKin(eKin);
     theTrack->SetMCIndex(auxData.fMCIndex);
 
-    // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft = currentTrack.numIALeft[ip];
-      if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
-      }
-      theTrack->SetNumIALeft(numIALeft, ip);
+    // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
+    // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
+    // currentTrack.numIALeft[0] are updated later
+    if (currentTrack.numIALeft[0] <= 0.0) {
+      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
+    } else {
+      theTrack->SetNumIALeft(currentTrack.numIALeft[0], 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
@@ -82,7 +82,7 @@ __global__ void __launch_bounds__(256, 1)
     // also need to carry them over!
 
     // Check if there's a volume boundary in between.
-    vecgeom::NavStateIndex nextState;
+    vecgeom::NavigationState nextState;
     double geometryStepLength =
         BVHNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState, kPush);
     pos += geometryStepLength * dir;
@@ -96,17 +96,21 @@ __global__ void __launch_bounds__(256, 1)
     theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
 
-    G4HepEmGammaManager::UpdateNumIALeft(theTrack);
-
-    // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 3; ++ip) {
-      double numIALeft           = theTrack->GetNumIALeft(ip);
-      currentTrack.numIALeft[ip] = numIALeft;
-    }
+    // Update the flight times of the particle
+    const double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
+    currentTrack.globalTime += deltaTime;
+    currentTrack.localTime += deltaTime;
 
     if (nextState.IsOnBoundary()) {
       // Kill the particle if it left the world.
       if (nextState.Top() != nullptr) {
+
+        G4HepEmGammaManager::UpdateNumIALeft(theTrack);
+
+        // Save the `number-of-interaction-left` in our track.
+        double numIALeft          = theTrack->GetNumIALeft(0);
+        currentTrack.numIALeft[0] = numIALeft; // double to float conversion
+
         BVHNavigator::RelocateToNextVolume(pos, dir, nextState);
 
         // Move to the next boundary.
@@ -127,20 +131,24 @@ __global__ void __launch_bounds__(256, 1)
         slotManager.MarkSlotForFreeing(slot);
       }
       continue;
-    } else if (winnerProcessIndex < 0) {
-      // No discrete process, move on.
-      survive(activeQueue);
-      continue;
+    } else {
+
+      G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
+      winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+      // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
+      // gamma-nuclear reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a
+      // reaction is needed to compensate for the smaller step size returned by HowFar.
+
+      // Reset number of interaction left for the winner discrete process also in the currentTrack (SampleInteraction()
+      // resets it for theTrack), will be resampled in the next iteration.
+      currentTrack.numIALeft[0] = -1.0;
+
+      if (winnerProcessIndex == 3) {
+        // Gamma-nuclear must be handled by G4, move on.
+        survive(activeQueue);
+        continue;
+      }
     }
-
-    // Reset number of interaction left for the winner discrete process.
-    // (Will be resampled in the next iteration.)
-    currentTrack.numIALeft[winnerProcessIndex] = -1.0;
-
-    // Update the flight times of the particle
-    const double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
-    currentTrack.globalTime += deltaTime;
-    currentTrack.localTime += deltaTime;
 
     assert(winnerProcessIndex < gammaInteractions.NInt);
 
@@ -174,7 +182,7 @@ __global__ void __launch_bounds__(256, 1)
       const double geometryStepLength = queue[i].geometryStepLength;
       Track &currentTrack             = gammas[slot];
       auto &slotManager               = *secondaries.gammas.fSlotManager;
-      const auto energy               = currentTrack.energy;
+      const auto eKin                 = currentTrack.eKin;
       const auto &dir                 = currentTrack.dir;
 
       VolAuxData const &auxData = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
@@ -188,14 +196,14 @@ __global__ void __launch_bounds__(256, 1)
 
       if (interactionType == GammaInteractions::PairCreation) {
         // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
-        if (energy < 2 * copcore::units::kElectronMassC2) {
+        if (eKin < 2 * copcore::units::kElectronMassC2) {
           survive();
           continue;
         }
 
-        const double logEnergy = std::log(energy);
+        const double logEnergy = std::log(eKin);
         double elKinEnergy, posKinEnergy;
-        G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, energy, logEnergy, auxData.fMCIndex,
+        G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, eKin, logEnergy, auxData.fMCIndex,
                                                              elKinEnergy, posKinEnergy, &rnge);
 
         double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
@@ -223,24 +231,24 @@ __global__ void __launch_bounds__(256, 1)
       if (interactionType == GammaInteractions::ComptonScattering) {
         // Invoke Compton scattering of gamma.
         constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
-        if (energy < LowEnergyThreshold) {
+        if (eKin < LowEnergyThreshold) {
           survive();
           continue;
         }
         const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
         double dirPrimary[3];
         const double newEnergyGamma =
-            G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(energy, dirPrimary, origDirPrimary, &rnge);
+            G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(eKin, dirPrimary, origDirPrimary, &rnge);
         vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
 
-        const double energyEl = energy - newEnergyGamma;
+        const double energyEl = eKin - newEnergyGamma;
         if (energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
           adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
                                          /*numGammas*/ 0);
 
           Track &electron = secondaries.electrons.NextTrack(newRNG, energyEl, currentTrack.pos,
-                                                            energy * dir - newEnergyGamma * newDirGamma,
+                                                            eKin * dir - newEnergyGamma * newDirGamma,
                                                             currentTrack.navState, currentTrack);
           electron.dir.Normalize();
         } else {
@@ -266,8 +274,8 @@ __global__ void __launch_bounds__(256, 1)
 
         // Check the new gamma energy and deposit if below threshold.
         if (newEnergyGamma > LowEnergyThreshold) {
-          currentTrack.energy = newEnergyGamma;
-          currentTrack.dir    = newDirGamma;
+          currentTrack.eKin = newEnergyGamma;
+          currentTrack.dir  = newDirGamma;
           survive();
         } else {
           if (auxData.fSensIndex >= 0)
@@ -299,10 +307,10 @@ __global__ void __launch_bounds__(256, 1)
         constexpr double theLowEnergyThreshold = 1 * copcore::units::eV;
 
         const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-            &g4HepEmData, auxData.fMCIndex, queue[i].PEmxSec, energy, &rnge);
+            &g4HepEmData, auxData.fMCIndex, queue[i].PEmxSec, eKin, &rnge);
 
         double edep             = bindingEnergy;
-        const double photoElecE = energy - edep;
+        const double photoElecE = eKin - edep;
         if (photoElecE > theLowEnergyThreshold) {
           // Create a secondary electron and sample directions.
           adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
@@ -317,7 +325,7 @@ __global__ void __launch_bounds__(256, 1)
               vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
               currentTrack);
         } else {
-          edep = energy;
+          edep = eKin;
         }
         if (auxData.fSensIndex >= 0)
           adept_scoring::RecordHit(userScoring + currentTrack.threadId, currentTrack.parentId,

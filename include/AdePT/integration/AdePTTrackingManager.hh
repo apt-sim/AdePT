@@ -9,7 +9,11 @@
 
 #include "globals.hh"
 #include <AdePT/core/AdePTTransportInterface.hh>
+#ifndef ASYNC_MODE
 #include <AdePT/core/AdePTTransport.h>
+#else
+#include <AdePT/core/AsyncAdePTTransport.hh>
+#endif
 #include "AdePT/copcore/SystemOfUnits.h"
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/core/AdePTConfiguration.hh>
@@ -60,7 +64,12 @@ private:
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
   int fVerbosity{0};
+  // std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
+  #ifndef ASYNC_MODE
+  std::unique_ptr<AdePTTransportInterface> fAdeptTransport;
+  #else
   std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
+  #endif
   AdePTConfiguration *fAdePTConfiguration;
   unsigned int fTrackCounter{0};
   int fCurrentEventID{0};

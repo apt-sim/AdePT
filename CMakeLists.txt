@@ -165,11 +165,11 @@ endif()
 set(ADEPT_G4_INTEGRATION_SRCS
   src/G4HepEmTrackingManagerSpecialized.cc
   src/AdePTTrackingManager.cc
-  src/AdePTTrackingManager.cu
   src/AdePTPhysics.cc
   src/HepEMPhysics.cc
   src/AdePTGeant4Integration.cpp
   src/AdePTConfigurationMessenger.cc
+  src/AdePTTrackingManager.cu
 )
 
 add_library(CopCore INTERFACE)
@@ -187,6 +187,7 @@ target_include_directories(AdePT_G4_integration
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
+
 target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
@@ -206,6 +207,14 @@ set_target_properties(AdePT_G4_integration
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
 )
+
+option(ASYNC_MODE OFF "Enable the async transport backend")
+if(ASYNC_MODE)
+  add_compile_definitions(ASYNC_MODE)
+  message(STATUS "${Green}Using the asynchronous transport backend${ColorReset}")
+else()
+  message(STATUS "${Red}Async backend is disabled${ColorReset}")
+endif()
 
 # Optional library to activate NVTX annotations for profiling:
 option(NVTX OFF "Add NVTX instrumentation for profiling (only for annotated examples)")

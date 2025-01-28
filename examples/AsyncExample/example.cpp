@@ -13,11 +13,9 @@
 #include "FTFP_BERT_AdePT.hh"
 #include "G4HadronicProcessStore.hh"
 #include "G4EmParameters.hh"
-#include "G4FastSimulationPhysics.hh"
 #include "G4VisExecutive.hh"
 #include "G4UIExecutive.hh"
 
-#include "AdeptIntegration.h"
 #include <AdePT/core/AdePTConfiguration.hh>
 
 #include <memory>
@@ -46,8 +44,9 @@ int main(int argc, char **argv)
       AdePT = false;
     } else if (argument == "--output") {
       AsyncExHistos::HistoWriter::GetInstance().SetFilename(argv[++i]);
-    } else if (argument == "--seed") {
-      AsyncAdePT::AdeptIntegration::fAdePTSeed = std::stoll(argv[++i]);
+    // TODO: Properly pass the seed to AdePT with a macro command
+    // } else if (argument == "--seed") {
+    //   AsyncAdePT::AdeptIntegration::fAdePTSeed = std::stoll(argv[++i]);
     } else {
       G4Exception("main", "Unknown argument", FatalErrorInArgument,
                   ("Unknown argument passed to " + G4String(argv[0]) + " : " + argument + "\n" + helpMsg).c_str());
@@ -63,16 +62,12 @@ int main(int argc, char **argv)
   auto detector = new DetectorConstruction();
   runManager->SetUserInitialization(detector);
 
-  std::unique_ptr<AdePTConfiguration> adeptConfig;
-
   // Physics list
   G4VUserPhysicsList *physicsList = nullptr;
   if (AdePT) {
     physicsList = new FTFP_BERT_AdePT();
   } else {
     physicsList = new FTFP_BERT_HepEm();
-    // Create a dummy config instance, so the AdePT-specific macros don't lead to errors:
-    adeptConfig.reset(new AdePTConfiguration());
   }
 
   runManager->SetUserInitialization(physicsList);
