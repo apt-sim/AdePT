@@ -13,8 +13,8 @@
 #include <AdePT/base/MParray.h>
 
 #ifndef USE_SPLIT_KERNELS
-#include <AdePT/kernels/electrons_async_new.cuh>
-#include <AdePT/kernels/gammas_async_new.cuh>
+#include <AdePT/kernels/electrons.cuh>
+#include <AdePT/kernels/gammas.cuh>
 #else
 #include <AdePT/kernels/electrons_split.cuh>
 #include <AdePT/kernels/gammas_split.cuh>

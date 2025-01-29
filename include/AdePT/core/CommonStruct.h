@@ -4,11 +4,13 @@
 #ifndef ADEPT_INTEGRATION_COMMONSTRUCT_H
 #define ADEPT_INTEGRATION_COMMONSTRUCT_H
 
-#include <vector>
 #include <AdePT/base/MParray.h>
 #include <AdePT/core/TrackData.h>
 
 #include <AdePT/base/ResourceManagement.hh>
+#include <AdePT/copcore/Ranluxpp.h>
+
+#include <G4HepEmRandomEngine.hh>
 
 #include <atomic>
 #include <array>
@@ -17,6 +19,23 @@
 #include <new>
 #include <vector>
 #include <thread>
+
+#ifdef __CUDA_ARCH__
+// Define inline implementations of the RNG methods for the device.
+// (nvcc ignores the __device__ attribute in definitions, so this is only to
+// communicate the intent.)
+inline __device__ double G4HepEmRandomEngine::flat()
+{
+  return ((RanluxppDouble *)fObject)->Rndm();
+}
+
+inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *vect)
+{
+  for (int i = 0; i < size; i++) {
+    vect[i] = ((RanluxppDouble *)fObject)->Rndm();
+  }
+}
+#endif
 
 // Common data structures used by the integration with Geant4
 namespace adeptint {

@@ -12,28 +12,10 @@
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
-#include <G4HepEmRandomEngine.hh>
 
 #ifdef USE_SPLIT_KERNELS
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmGammaTrack.hh>
-#endif
-
-#ifdef __CUDA_ARCH__
-// Define inline implementations of the RNG methods for the device.
-// (nvcc ignores the __device__ attribute in definitions, so this is only to
-// communicate the intent.)
-inline __device__ double G4HepEmRandomEngine::flat()
-{
-  return ((RanluxppDouble *)fObject)->Rndm();
-}
-
-inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *vect)
-{
-  for (int i = 0; i < size; i++) {
-    vect[i] = ((RanluxppDouble *)fObject)->Rndm();
-  }
-}
 #endif
 
 // A bundle of track managers for the three particle types.

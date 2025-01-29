@@ -8,32 +8,15 @@
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 // #include <AdePT/core/AsyncAdePTTransport.hh>
 #include <AdePT/core/PerEventScoringImpl.cuh>
-#include "AsyncTrack.cuh"
+#include <AdePT/core/Track.cuh>
+
 #include <AdePT/base/SlotManager.cuh>
 #include <AdePT/base/ResourceManagement.cuh>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
-#include <G4HepEmRandomEngine.hh>
 
 namespace AsyncAdePT {
-
-#ifdef __CUDA_ARCH__
-// Define inline implementations of the RNG methods for the device.
-// (nvcc ignores the __device__ attribute in definitions, so this is only to
-// communicate the intent.)
-inline __device__ double G4HepEmRandomEngine::flat()
-{
-  return ((RanluxppDouble *)fObject)->Rndm();
-}
-
-inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *vect)
-{
-  for (int i = 0; i < size; i++) {
-    vect[i] = ((RanluxppDouble *)fObject)->Rndm();
-  }
-}
-#endif
 
 // A bundle of pointers to generate particles of an implicit type.
 struct ParticleGenerator {
@@ -77,19 +60,20 @@ struct LeakedTracks {
   SlotManager *fSlotManager;
 };
 
-struct GammaInteractions {
-  enum Interaction : unsigned int { PairCreation = 0, ComptonScattering = 1, PhotoelectricProcess = 2, NInt };
-  struct Data {
-    double geometryStepLength;
-    double PEmxSec; // Only used for photoelectric process
-    unsigned int slot;
-    vecgeom::NavigationState preStepNavState;
-    vecgeom::Vector3D<Precision> preStepPos;
-    vecgeom::Vector3D<Precision> preStepDir;
-    double preStepEnergy;
-  };
-  adept::MParrayT<Data> *queues[Interaction::NInt];
-};
+// Note: deprecated GammaInteractions for split gamma kernels
+// struct GammaInteractions {
+//   enum Interaction : unsigned int { PairCreation = 0, ComptonScattering = 1, PhotoelectricProcess = 2, NInt };
+//   struct Data {
+//     double geometryStepLength;
+//     double PEmxSec; // Only used for photoelectric process
+//     unsigned int slot;
+//     vecgeom::NavigationState preStepNavState;
+//     vecgeom::Vector3D<Precision> preStepPos;
+//     vecgeom::Vector3D<Precision> preStepDir;
+//     double preStepEnergy;
+//   };
+//   adept::MParrayT<Data> *queues[Interaction::NInt];
+// };
 
 // A bundle of generators for the three particle types.
 struct Secondaries {
@@ -164,7 +148,7 @@ struct QueueIndexPair {
 
 struct GPUstate {
   ParticleType particles[ParticleType::NumParticleTypes];
-  GammaInteractions gammaInteractions;
+  // GammaInteractions gammaInteractions; // Note: deprecated gammaInteractions for split gamma kernels
 
   std::vector<void *> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
