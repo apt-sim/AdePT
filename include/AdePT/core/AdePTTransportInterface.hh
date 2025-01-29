@@ -17,7 +17,7 @@ public:
   virtual ~AdePTTransportInterface() {}
 
   /// @brief Adds a track to the buffer
-  virtual void AddTrack(int pdg, int parentID, double energy, double x, double y, double z, double dirx, double diry,
+  virtual void AddTrack(int pdg, int parentId, double energy, double x, double y, double z, double dirx, double diry,
                         double dirz, double globalTime, double localTime, double properTime, int threadId,
                         unsigned int eventId, unsigned int trackIndex, vecgeom::NavigationState &&state) = 0;
 

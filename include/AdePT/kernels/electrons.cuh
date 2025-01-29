@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/AdePTTransportStruct.cuh>
 #include <AdePT/navigation/AdePTNavigator.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
@@ -34,20 +33,46 @@ __device__ double GetVelocity(double eKin)
   return copcore::units::kCLight * beta;
 }
 
+#ifdef ASYNC_MODE
+namespace AsyncAdePT {
+
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
+template <bool IsElectron, typename Scoring>
+static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
+                                                          Secondaries &secondaries, adept::MParray *activeQueue,
+                                                          adept::MParray *leakedQueue, Scoring *userScoring)
+{
+  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
+  constexpr int Charge               = IsElectron ? -1 : 1;
+  constexpr double restMass          = copcore::units::kElectronMassC2;
+  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+
+  int activeSize = active->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const int slot           = (*active)[i];
+    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+
+    Track &currentTrack = electrons[slot];
+    currentTrack.stepCounter++; // to be moved to common part as soon as Tracks are unified
+    auto navState = currentTrack.navState;
+    // the MCC vector is indexed by the logical volume id
+#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
+    const int lvolID = navState.Top()->GetLogicalVolume()->id();
+#else
+    const int lvolID = navState.GetLogicalId();
+#endif
+
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+
+#else
 template <bool IsElectron, typename Scoring>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
                                                           Secondaries &secondaries, MParrayTracks *leakedQueue,
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
-#ifdef VECGEOM_FLOAT_PRECISION
-  const Precision kPush = 10 * vecgeom::kTolerance;
-#else
-  const Precision kPush = 0.;
-#endif
   constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
   constexpr int Charge               = IsElectron ? -1 : 1;
   constexpr double restMass          = copcore::units::kElectronMassC2;
@@ -56,19 +81,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
   int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*electrons->fActiveTracks)[i];
-    Track &currentTrack = (*electrons)[slot];
-    auto eKin           = currentTrack.eKin;
-    auto preStepEnergy  = eKin;
-    auto pos            = currentTrack.pos;
-    vecgeom::Vector3D<Precision> preStepPos(pos);
-    auto dir = currentTrack.dir;
-    vecgeom::Vector3D<Precision> preStepDir(dir);
-    double globalTime = currentTrack.globalTime;
-    double localTime  = currentTrack.localTime;
-    double properTime = currentTrack.properTime;
-    auto navState     = currentTrack.navState;
+    const int slot = (*electrons->fActiveTracks)[i];
     adeptint::TrackData trackdata;
+    Track &currentTrack = (*electrons)[slot];
+    auto navState       = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
 #ifndef ADEPT_USE_SURF
     const int lvolID = navState.Top()->GetLogicalVolume()->id();
@@ -78,6 +94,17 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     VolAuxData const &auxData = auxDataArray[lvolID];
 
+#endif
+    auto eKin          = currentTrack.eKin;
+    auto preStepEnergy = eKin;
+    auto pos           = currentTrack.pos;
+    vecgeom::Vector3D<Precision> preStepPos(pos);
+    auto dir = currentTrack.dir;
+    vecgeom::Vector3D<Precision> preStepDir(dir);
+    double globalTime = currentTrack.globalTime;
+    double localTime  = currentTrack.localTime;
+    double properTime = currentTrack.properTime;
+
     auto survive = [&](bool leak = false) {
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
@@ -86,11 +113,18 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
+#ifdef ASYNC_MODE
+      if (leak)
+        leakedQueue->push_back(slot);
+      else
+        activeQueue->push_back(slot);
+#else
       currentTrack.CopyTo(trackdata, Pdg);
       if (leak)
         leakedQueue->push_back(trackdata);
       else
         electrons->fNextTracks->push_back(slot);
+#endif
     };
 
     // Init a track with the needed data to call into G4HepEm.
@@ -199,10 +233,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     } else {
 #ifdef ADEPT_USE_SURF
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
-                                                                    navState, nextState, hitsurf_index, kPush);
+                                                                    navState, nextState, hitsurf_index);
 #else
-      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
-                                                                    navState, nextState, kPush);
+      geometryStepLength =
+          AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
 #endif
       pos += geometryStepLength * dir;
     }
@@ -309,8 +343,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
           // This will happen after recordinf the step
           cross_boundary = true;
+        } else {
+          // Particle left the world, don't enqueue it and release the slot
+#ifdef ASYNC_MODE
+          slotManager.MarkSlotForFreeing(slot);
+#endif
         }
-        // Particle left the world, don't enqueue it
+
       } else if (!propagated || restrictedPhysicalStepLength) {
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
@@ -359,12 +398,18 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += deltaEkin;
 
           } else {
+#ifdef ASYNC_MODE
+            Track &secondary = secondaries.electrons.NextTrack(
+                newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                navState, currentTrack);
+#else
             Track &secondary = secondaries.electrons->NextTrack();
             secondary.InitAsSecondary(pos, navState, globalTime);
-            secondary.parentID = currentTrack.parentID;
+            secondary.parentId = currentTrack.parentId;
             secondary.rngState = newRNG;
             secondary.eKin     = deltaEkin;
             secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+#endif
           }
 
           eKin -= deltaEkin;
@@ -403,12 +448,18 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += deltaEkin;
 
           } else {
+#ifdef ASYNC_MODE
+            secondaries.gammas.NextTrack(
+                newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                navState, currentTrack);
+#else
             Track &gamma = secondaries.gammas->NextTrack();
             gamma.InitAsSecondary(pos, navState, globalTime);
-            gamma.parentID = currentTrack.parentID;
+            gamma.parentId = currentTrack.parentId;
             gamma.rngState = newRNG;
             gamma.eKin     = deltaEkin;
             gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+#endif
           }
 
           eKin -= deltaEkin;
@@ -444,29 +495,46 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += theGamma1Ekin;
 
           } else {
+#ifdef ASYNC_MODE
+            secondaries.gammas.NextTrack(
+                newRNG, theGamma1Ekin, pos,
+                vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState,
+                currentTrack);
+#else
             Track &gamma1 = secondaries.gammas->NextTrack();
             gamma1.InitAsSecondary(pos, navState, globalTime);
-            gamma1.parentID = currentTrack.parentID;
+            gamma1.parentId = currentTrack.parentId;
             gamma1.rngState = newRNG;
             gamma1.eKin     = theGamma1Ekin;
             gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
+#endif
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
             energyDeposit += theGamma2Ekin;
 
           } else {
+#ifdef ASYNC_MODE
+            secondaries.gammas.NextTrack(
+                currentTrack.rngState, theGamma2Ekin, pos,
+                vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState,
+                currentTrack);
+#else
             Track &gamma2 = secondaries.gammas->NextTrack();
             gamma2.InitAsSecondary(pos, navState, globalTime);
             // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut
             // the state is not reused, but this shouldn't be an issue)
-            gamma2.parentID = currentTrack.parentID;
+            gamma2.parentId = currentTrack.parentId;
             gamma2.rngState = currentTrack.rngState;
             gamma2.eKin     = theGamma2Ekin;
             gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
+#endif
           }
 
           // The current track is killed by not enqueuing into the next activeQueue.
+#ifdef ASYNC_MODE
+          slotManager.MarkSlotForFreeing(slot);
+#endif
           break;
         }
         }
@@ -483,8 +551,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // Deposit the energy here and don't initialize any secondaries
           energyDeposit += 2 * copcore::units::kElectronMassC2;
         } else {
-          Track &gamma1 = secondaries.gammas->NextTrack();
-          Track &gamma2 = secondaries.gammas->NextTrack();
 
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
@@ -494,44 +560,59 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           double sinPhi, cosPhi;
           sincos(phi, &sinPhi, &cosPhi);
 
+          newRNG.Advance();
+#ifdef ASYNC_MODE
+          Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, pos,
+                                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                       navState, currentTrack);
+
+          // Reuse the RNG state of the dying track.
+          Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                       pos, -gamma1.dir, navState, currentTrack);
+#else
+          Track &gamma1 = secondaries.gammas->NextTrack();
+          Track &gamma2 = secondaries.gammas->NextTrack();
           gamma1.InitAsSecondary(pos, navState, globalTime);
           newRNG.Advance();
-          gamma1.parentID = currentTrack.parentID;
+          gamma1.parentId = currentTrack.parentId;
           gamma1.rngState = newRNG;
           gamma1.eKin     = copcore::units::kElectronMassC2;
           gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
 
           gamma2.InitAsSecondary(pos, navState, globalTime);
           // Reuse the RNG state of the dying track.
-          gamma2.parentID = currentTrack.parentID;
+          gamma2.parentId = currentTrack.parentId;
           gamma2.rngState = currentTrack.rngState;
           gamma2.eKin     = copcore::units::kElectronMassC2;
           gamma2.dir      = -gamma1.dir;
+#endif
         }
       }
-      // Particles are killed by not enqueuing them into the new activeQueue.
+      // Particles are killed by not enqueuing them into the new activeQueue (and free the slot in async mode)
+#ifdef ASYNC_MODE
+      slotManager.MarkSlotForFreeing(slot);
+#endif
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if (energyDeposit > 0 && auxData.fSensIndex >= 0)
-      adept_scoring::RecordHit(userScoring, currentTrack.parentID,
-                               IsElectron ? 0 : 1,       // Particle type
-                               elTrack.GetPStepLength(), // Step length
-                               energyDeposit,            // Total Edep
-                               &navState,                // Pre-step point navstate
-                               &preStepPos,              // Pre-step point position
-                               &preStepDir,              // Pre-step point momentum direction
-                               nullptr,                  // Pre-step point polarization
-                               preStepEnergy,            // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,      // Pre-step point charge
-                               &nextState,               // Post-step point navstate
-                               &pos,                     // Post-step point position
-                               &dir,                     // Post-step point momentum direction
-                               nullptr,                  // Post-step point polarization
-                               eKin,                     // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,      // Post-step point charge
-                               0, -1);                   // eventID and threadID (not needed here)
-
+      adept_scoring::RecordHit(userScoring, currentTrack.parentId,
+                               static_cast<char>(IsElectron ? 0 : 1),        // Particle type
+                               elTrack.GetPStepLength(),                     // Step length
+                               energyDeposit,                                // Total Edep
+                               &navState,                                    // Pre-step point navstate
+                               &preStepPos,                                  // Pre-step point position
+                               &preStepDir,                                  // Pre-step point momentum direction
+                               nullptr,                                      // Pre-step point polarization
+                               preStepEnergy,                                // Pre-step point kinetic energy
+                               IsElectron ? -1 : 1,                          // Pre-step point charge
+                               &nextState,                                   // Post-step point navstate
+                               &pos,                                         // Post-step point position
+                               &dir,                                         // Post-step point momentum direction
+                               nullptr,                                      // Post-step point polarization
+                               eKin,                                         // Post-step point kinetic energy
+                               IsElectron ? -1 : 1,                          // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId); // eventID and threadID (not needed here)
     if (cross_boundary) {
       // Move to the next boundary.
       navState = nextState;
@@ -541,7 +622,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #else
       const int nextlvolID = navState.GetLogicalId();
 #endif
+#ifdef ASYNC_MODE
+      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+#else
       VolAuxData const &nextauxData = auxDataArray[nextlvolID];
+#endif
       if (nextauxData.fGPUregion > 0)
         survive();
       else {
@@ -555,6 +640,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 }
 
 // Instantiate kernels for electrons and positrons.
+#ifdef ASYNC_MODE
+template <typename Scoring>
+__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
+                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring)
+{
+  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, activeQueue, leakedQueue,
+                                                   userScoring);
+}
+template <typename Scoring>
+__global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
+                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring)
+{
+  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, activeQueue, leakedQueue,
+                                                    userScoring);
+}
+#else
 template <typename Scoring>
 __global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
                                    MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray)
@@ -567,3 +668,8 @@ __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Second
 {
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, secondaries, leakedQueue, userScoring, auxDataArray);
 }
+#endif
+
+#ifdef ASYNC_MODE
+} // namespace AsyncAdePT
+#endif

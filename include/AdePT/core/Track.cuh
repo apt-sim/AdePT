@@ -22,14 +22,14 @@ struct Track {
 
   RanluxppDouble rngState;
   double eKin{0.};
-  double numIALeft[4]{0., 0., 0., 0.};
-  double initialRange{0.};
-  double dynamicRangeFactor{0.};
-  double tlimitMin{0.};
+  float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
+  float initialRange{-1.f};
+  float dynamicRangeFactor{-1.f};
+  float tlimitMin{-1.f};
 
   double globalTime{0.};
-  double localTime{0.};
-  double properTime{0.};
+  float localTime{0.f};
+  float properTime{0.f};
 
   vecgeom::Vector3D<Precision> pos;   ///< track position
   vecgeom::Vector3D<Precision> dir;   ///< track direction
@@ -51,7 +51,11 @@ struct Track {
   long hitsurfID{0};
 #endif
 
-  int parentID{0}; // Stores the track id of the initial particle given to AdePT
+  unsigned int eventId{0};
+  int parentId{-1}; // Stores the track id of the initial particle given to AdePT
+  short threadId{-1};
+  unsigned short stepCounter{0};
+  unsigned short looperCounter{0};
 
 #ifdef USE_SPLIT_KERNELS
   bool propagated{false};
@@ -60,6 +64,31 @@ struct Track {
   bool restrictedPhysicalStepLength{false};
   bool stopped{false};
 #endif
+
+  /// Construct a new track for GPU transport.
+  /// NB: The navState remains uninitialised.
+  __device__ Track(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
+                   double const position[3], double const direction[3], unsigned int eventId, int parentId,
+                   short threadId)
+      : eKin{eKin}, globalTime{globalTime}, localTime{localTime}, properTime{properTime}, eventId{eventId},
+        parentId{parentId}, threadId{threadId}
+  {
+    rngState.SetSeed(rngSeed);
+
+    pos = {position[0], position[1], position[2]};
+    dir = {direction[0], direction[1], direction[2]};
+  }
+
+  /// Construct a secondary from a parent track.
+  /// NB: The caller is responsible to branch a new RNG state.
+  __device__ Track(RanluxppDouble const &rngState, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
+                   const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
+                   const Track &parentTrack)
+      : rngState{rngState}, eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
+        navState{newNavState}, eventId{parentTrack.eventId}, parentId{parentTrack.parentId},
+        threadId{parentTrack.threadId}
+  {
+  }
 
   /// @brief Get recomputed cached safety ay a given track position
   /// @param new_pos Track position
@@ -115,7 +144,7 @@ struct Track {
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
     tdata.pdg          = pdg;
-    tdata.parentID     = parentID;
+    tdata.parentId     = parentId;
     tdata.position[0]  = pos[0];
     tdata.position[1]  = pos[1];
     tdata.position[2]  = pos[2];
@@ -126,6 +155,7 @@ struct Track {
     tdata.globalTime   = globalTime;
     tdata.localTime    = localTime;
     tdata.properTime   = properTime;
+    // FIXME missing navState here
   }
 };
 #endif

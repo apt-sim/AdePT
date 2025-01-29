@@ -136,7 +136,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     assert(trackmgr != nullptr && "Unsupported pdg type");
 
     Track &track   = trackmgr->NextTrack();
-    track.parentID = trackinfo[i].parentID;
+    track.parentId = trackinfo[i].parentId;
 
     track.rngState.SetSeed(1234567 * event + startTrack + i);
     track.eKin         = trackinfo[i].eKin;
