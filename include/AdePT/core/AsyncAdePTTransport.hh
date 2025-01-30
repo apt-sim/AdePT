@@ -44,7 +44,7 @@ private:
   unsigned short fNThread{0};       ///< Number of G4 workers
   unsigned int fTrackCapacity{0};   ///< Number of track slots to allocate on device
   unsigned int fScoringCapacity{0}; ///< Number of hit slots to allocate on device
-  int fDebugLevel{1};               ///< Debug level
+  int fDebugLevel{0};               ///< Debug level
   int fCUDAStackLimit{0};           ///< CUDA device stack limit
   std::vector<IntegrationLayer> fIntegrationLayerObjects;
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder

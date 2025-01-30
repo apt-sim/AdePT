@@ -46,7 +46,7 @@ void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
-                            std::vector<AdePTScoring> &, int);
+                            std::vector<AdePTScoring> &, int, int);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity,
                                                                                  int numThreads,
                                                                                  AsyncAdePT::TrackBuffer &trackBuffer,
@@ -79,7 +79,7 @@ template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration)
     : fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
-      fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())}, fDebugLevel{0},
+      fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())}, fDebugLevel{configuration.GetVerbosity()},
       fIntegrationLayerObjects(fNThread), fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
       fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
       fCUDAStackLimit{configuration.GetCUDAStackLimit()}
@@ -233,7 +233,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
 
   fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring);
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
-                                                 fEventStates, fCV_G4Workers, fScoring, fAdePTSeed);
+                                                 fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel);
 }
 
 template <typename IntegrationLayer>
