@@ -22,6 +22,8 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
 
+#include <G4VG.hh>
+
 #include <new>
 #include <type_traits>
 
@@ -99,6 +101,24 @@ void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
   if (vecgeomWorld == nullptr) {
     std::cerr << "GeoManager vecgeomWorld volume is nullptr" << G4endl;
     return;
+  }
+}
+
+void AdePTGeant4Integration::CreateVecGeomWorld(G4VPhysicalVolume const *physvol)
+{
+  // EXPECT: a non-null input volume
+  if (physvol == nullptr) {
+    throw std::runtime_error("AdePTGeant4Integration::CreateVecGeomWorld : Input Geant4 Physical Volume is nullptr");
+  }
+
+  vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
+  auto conversion = g4vg::convert(physvol);
+  vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
+
+  // EXPECT: we finish with a non-null VecGeom host geometry
+  vecgeom::VPlacedVolume const *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
+  if (vecgeomWorld == nullptr) {
+    throw std::runtime_error("AdePTGeant4Integration::CreateVecGeomWorld : Output VecGeom Physical Volume is nullptr");
   }
 }
 

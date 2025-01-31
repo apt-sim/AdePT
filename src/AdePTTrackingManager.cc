@@ -55,8 +55,14 @@ void AdePTTrackingManager::InitializeAdePT()
     fNumThreads = G4RunManager::GetRunManager()->GetNumberOfThreads();
     fAdePTConfiguration->SetNumThreads(fNumThreads);
 
-    // Load the VecGeom world in memory
-    AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
+    // Load the VecGeom world using G4VG if we don't have a GDML file, VGDML otherwise
+    if(fAdePTConfiguration->GetVecGeomGDML().empty()) {
+      auto* tman = G4TransportationManager::GetTransportationManager();
+      auto* world = tman->GetNavigatorForTracking()->GetWorldVolume();
+      AdePTGeant4Integration::CreateVecGeomWorld(world);
+    } else {
+      AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
+    }
 
 // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
 // all threads.
