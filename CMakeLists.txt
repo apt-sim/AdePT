@@ -152,6 +152,7 @@ if(Geant4_FOUND)
       g4vg
       GIT_REPOSITORY https://github.com/sethrj/g4vg 
       GIT_TAG 7e9f3224c57b97d665d885f3a6bccb8fee1eaf54)
+    set(BUILD_SHARED_LIBS ON)
     FetchContent_MakeAvailable(g4vg)
   endif()
 endif()
@@ -216,6 +217,7 @@ target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
+    G4VG::g4vg
     CUDA::cudart
 )
 
