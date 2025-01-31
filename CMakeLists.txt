@@ -141,20 +141,16 @@ endif()
 
 # Find G4VG, optional as requires Geant4
 if(Geant4_FOUND)
-  find_package(G4VG QUIET)
-  # Note that at present, an external install seems to have issues
-  if(G4VG_FOUND)
-    include(CudaRdcUtils)
-  else()
-    # Fetch it locally
-    include(FetchContent)
-    FetchContent_Declare(
-      g4vg
-      GIT_REPOSITORY https://github.com/sethrj/g4vg 
-      GIT_TAG 7e9f3224c57b97d665d885f3a6bccb8fee1eaf54)
-    set(BUILD_SHARED_LIBS ON)
-    FetchContent_MakeAvailable(g4vg)
-  endif()
+  # Fetch it locally for now
+  include(FetchContent)
+  FetchContent_Declare(
+    g4vg
+    GIT_REPOSITORY https://github.com/sethrj/g4vg
+    GIT_TAG 7e9f3224c57b97d665d885f3a6bccb8fee1eaf54)
+  # G4VG builds static by default, so change this to shared
+  # could also configure for PIC mode static.
+  set(BUILD_SHARED_LIBS ON)
+  FetchContent_MakeAvailable(g4vg)
 endif()
 
 # Set up debugging levels for CUDA:
