@@ -24,7 +24,7 @@
 
 // Comparison for sorting tracks into events on device:
 struct CompareGPUHits {
-  __device__ bool operator()(const GPUHit &lhs, const GPUHit &rhs) const { return lhs.fEventId < rhs.fEventId; }
+  __device__ bool operator()(const GPUHit &lhs, const GPUHit &rhs) const { return lhs.threadId < rhs.threadId; }
 };
 
 namespace AsyncAdePT {
@@ -71,18 +71,56 @@ class HitScoring {
   std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
   mutable std::shared_mutex fProcessingHitsMutex;
 
+
+  using GPUHitVectorPtr = std::shared_ptr<const std::vector<GPUHit>>;
+  using HitDeque = std::deque<GPUHitVectorPtr>;
+  using HitQueueVector = std::vector<HitDeque>;
+
+  inline size_t calculateMemoryUsage(const HitQueueVector& fHitQueues) {
+    size_t totalMemory = 0;
+
+    for (const auto& dq : fHitQueues) {
+      for (const auto& ptr : dq) {
+        if (ptr) {
+          totalMemory += sizeof(*ptr);
+          totalMemory += ptr->size() * sizeof(GPUHit);  // Actual GPUHit data
+        }
+      }
+    }
+    return totalMemory;
+}
+
   void ProcessBuffer(BufferHandle &handle)
   {
     // We are assuming that the caller holds a lock on fProcessingHitsMutex.
     if (handle.state == BufferHandle::State::NeedHostProcessing) {
-      auto hitVector = std::make_shared<std::vector<GPUHit>>();
-      hitVector->assign(handle.hostBuffer, handle.hostBuffer + handle.hitScoringInfo.fSlotCounter);
+
+      // std::cout << "Total Memory Used in fHitQueues: " << calculateMemoryUsage(fHitQueues) / 1024.0 / 1024.0 / 1024.0 << " GB" << std::endl;
+      auto begin = handle.hostBuffer;
+      auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
+
+      while (begin != end) {
+        short threadId = begin->threadId;  // Get threadId of first hit in the range
+
+        // linear search, slower, doesn't require a sorted array
+        // auto threadEnd = std::find_if(begin, end, 
+        //       [threadId](const GPUHit &hit) { return threadId != hit.threadId; });
+              
+        // binary search, faster but requires a sorted array
+        auto threadEnd = std::upper_bound(begin, end, threadId, 
+            [](short id, const GPUHit &hit) { return id < hit.threadId; });
+
+        // Copy hits into a unique pointer and push it to workers queue
+        auto HitsPerThread = std::make_unique<std::vector<GPUHit>>(begin, threadEnd);
+        fHitQueues[threadId].push_back(std::move(HitsPerThread));
+
+        begin = threadEnd; // set begin to start of the threadId
+      }
+
       handle.hitScoringInfo.fSlotCounter = 0;
       handle.state                       = BufferHandle::State::Free;
 
-      for (auto &hitQueue : fHitQueues) {
-        hitQueue.push_back(hitVector);
-      }
+     // std::cout << "After pushing hitVector: Total Memory Used in fHitQueues: " << calculateMemoryUsage(fHitQueues)  / 1024.0 / 1024.0 / 1024.0 << " GB" << std::endl;
     }
   }
 
@@ -163,7 +201,15 @@ public:
         if (handle.state == BufferHandle::State::NeedHostProcessing) {
           if (!lock) lock.lock();
           haveNewHits = true;
+
+          // Possible timing
+          // auto start = std::chrono::high_resolution_clock::now();
           ProcessBuffer(handle);
+          // auto end = std::chrono::high_resolution_clock::now();
+          // std::chrono::duration<double> elapsed = end - start;
+          //     std::cout << "BUFFER Processing time: " << elapsed.count() << " seconds" << std::endl;
+
+          // lock.unlock();
         }
       }
     }

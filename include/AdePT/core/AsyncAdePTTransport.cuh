@@ -585,8 +585,17 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     std::unique_lock lock(context->mutex);
     context->cv.wait(lock);
 
+    // Possible timing
+    // auto start = std::chrono::high_resolution_clock::now();
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits();
+
+    // auto end = std::chrono::high_resolution_clock::now();
+    // std::chrono::duration<double> elapsed = end - start;
+
+    // if (haveNewHits) {
+    //     std::cout << "HIT Processing time: " << elapsed.count() << " seconds" << std::endl;
+    // }
 
     if (haveNewHits) {
       AdvanceEventStates(EventState::FlushingHits, EventState::HitsFlushed, eventStates);
@@ -961,6 +970,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
           hitProcessing->cv.notify_one();
         } else {
           if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
+              gpuState.stats->hitBufferOccupancy >= 10000 ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {

@@ -263,11 +263,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
 
     std::shared_ptr<const std::vector<GPUHit>> gpuHits;
     while ((gpuHits = async_adept_impl::GetGPUHits(threadId, *fGPUstate)) != nullptr) {
-      GPUHit dummy;
-      dummy.fEventId = eventId;
-      auto range     = std::equal_range(gpuHits->begin(), gpuHits->end(), dummy,
-                                        [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
-      for (auto it = range.first; it != range.second; ++it) {
+      for (auto it = gpuHits->begin(); it != gpuHits->end(); ++it) {
         assert(it->threadId == threadId);
         integrationInstance.ProcessGPUHit(*it);
       }
