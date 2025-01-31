@@ -139,6 +139,23 @@ if(HepMC3_FOUND)
   add_compile_definitions(HEPMC3_FOUND)
 endif()
 
+# Find G4VG, optional as requires Geant4
+if(Geant4_FOUND)
+  find_package(G4VG QUIET)
+  # Note that at present, an external install seems to have issues
+  if(G4VG_FOUND)
+    include(CudaRdcUtils)
+  else()
+    # Fetch it locally
+    include(FetchContent)
+    FetchContent_Declare(
+      g4vg
+      GIT_REPOSITORY https://github.com/sethrj/g4vg 
+      GIT_TAG 7e9f3224c57b97d665d885f3a6bccb8fee1eaf54)
+    FetchContent_MakeAvailable(g4vg)
+  endif()
+endif()
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
