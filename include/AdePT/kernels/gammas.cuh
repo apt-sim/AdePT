@@ -297,16 +297,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    2,                      // Particle type
                                    geometryStepLength,     // Step length
                                    edep,                   // Total Edep
-                                   &navState,              // Pre-step point navstate
-                                   &preStepPos,            // Pre-step point position
-                                   &preStepDir,            // Pre-step point momentum direction
-                                   nullptr,                // Pre-step point polarization
+                                   navState,              // Pre-step point navstate
+                                   preStepPos,            // Pre-step point position
+                                   preStepDir,            // Pre-step point momentum direction
                                    preStepEnergy,          // Pre-step point kinetic energy
                                    0,                      // Pre-step point charge
-                                   &nextState,             // Post-step point navstate
-                                   &pos,                   // Post-step point position
-                                   &dir,                   // Post-step point momentum direction
-                                   nullptr,                // Post-step point polarization
+                                   nextState,             // Post-step point navstate
+                                   pos,                   // Post-step point position
+                                   dir,                   // Post-step point momentum direction
                                    0,                      // Post-step point kinetic energy
                                    0,                      // Post-step point charge
                                    currentTrack.eventId,   // Event Id
@@ -381,16 +379,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    2,                                            // Particle type
                                    geometryStepLength,                           // Step length
                                    edep,                                         // Total Edep
-                                   &navState,                                    // Pre-step point navstate
-                                   &preStepPos,                                  // Pre-step point position
-                                   &preStepDir,                                  // Pre-step point momentum direction
-                                   nullptr,                                      // Pre-step point polarization
+                                   navState,                                    // Pre-step point navstate
+                                   preStepPos,                                  // Pre-step point position
+                                   preStepDir,                                  // Pre-step point momentum direction
                                    preStepEnergy,                                // Pre-step point kinetic energy
                                    0,                                            // Pre-step point charge
-                                   &nextState,                                   // Post-step point navstate
-                                   &pos,                                         // Post-step point position
-                                   &dir,                                         // Post-step point momentum direction
-                                   nullptr,                                      // Post-step point polarization
+                                   nextState,                                   // Post-step point navstate
+                                   pos,                                         // Post-step point position
+                                   dir,                                         // Post-step point momentum direction
                                    newEnergyGamma,                               // Post-step point kinetic energy
                                    0,                                            // Post-step point charge
                                    currentTrack.eventId, currentTrack.threadId); // event and thread ID
@@ -438,16 +434,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                  2,                                            // Particle type
                                  geometryStepLength,                           // Step length
                                  edep,                                         // Total Edep
-                                 &navState,                                    // Pre-step point navstate
-                                 &preStepPos,                                  // Pre-step point position
-                                 &preStepDir,                                  // Pre-step point momentum direction
-                                 nullptr,                                      // Pre-step point polarization
+                                 navState,                                    // Pre-step point navstate
+                                 preStepPos,                                  // Pre-step point position
+                                 preStepDir,                                  // Pre-step point momentum direction
                                  preStepEnergy,                                // Pre-step point kinetic energy
                                  0,                                            // Pre-step point charge
-                                 &nextState,                                   // Post-step point navstate
-                                 &pos,                                         // Post-step point position
-                                 &dir,                                         // Post-step point momentum direction
-                                 nullptr,                                      // Post-step point polarization
+                                 nextState,                                   // Post-step point navstate
+                                 pos,                                         // Post-step point position
+                                 dir,                                         // Post-step point momentum direction
                                  0,                                            // Post-step point kinetic energy
                                  0,                                            // Post-step point charge
                                  currentTrack.eventId, currentTrack.threadId); // event and thread ID

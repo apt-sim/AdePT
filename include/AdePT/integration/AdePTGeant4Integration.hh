@@ -10,7 +10,7 @@
 #define ADEPTGEANT4_INTEGRATION_H
 
 #include <AdePT/core/CommonStruct.h>
-#include <AdePT/core/HostScoringStruct.cuh>
+#include <AdePT/core/ScoringCommons.hh>
 
 #include <G4EventManager.hh>
 #include <G4Event.hh>

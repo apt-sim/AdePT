@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+// This file contains elements that can be shared between several scoring implementations
+
 #ifndef SCORING_COMMONS_HH
 #define SCORING_COMMONS_HH
 
@@ -53,6 +55,47 @@ struct GlobalCounters {
     printf("Global scoring: stpChg=%llu stpNeu=%llu hits=%llu numGam=%llu numEle=%llu numPos=%llu numKilled=%llu\n",
            chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled);
   }
+};
+
+/// @brief Utility function to copy a 3D vector, used for filling the Step Points
+__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const &source,
+                                             vecgeom::Vector3D<Precision> &destination)
+{
+  destination.x() = source.x();
+  destination.y() = source.y();
+  destination.z() = source.z();
+};
+
+/// @brief Fill the provided hit with the given data
+__device__ __forceinline__ void FillHit(GPUHit &aGPUHit, int aParentID, char aParticleType, double aStepLength,
+                                        double aTotalEnergyDeposit, vecgeom::NavigationState const &aPreState,
+                                        vecgeom::Vector3D<Precision> const &aPrePosition,
+                                        vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
+                                        double aPreCharge, vecgeom::NavigationState const &aPostState,
+                                        vecgeom::Vector3D<Precision> const &aPostPosition,
+                                        vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
+                                        double aPostCharge, unsigned int eventID, short threadID)
+{
+  aGPUHit.fEventId = eventID;
+  aGPUHit.threadId = threadID;
+
+  // Fill the required data
+  aGPUHit.fParentID           = aParentID;
+  aGPUHit.fParticleType       = aParticleType;
+  aGPUHit.fStepLength         = aStepLength;
+  aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;
+  // Pre step point
+  aGPUHit.fPreStepPoint.fNavigationState = aPreState;
+  Copy3DVector(aPrePosition, aGPUHit.fPreStepPoint.fPosition);
+  Copy3DVector(aPreMomentumDirection, aGPUHit.fPreStepPoint.fMomentumDirection);
+  aGPUHit.fPreStepPoint.fEKin   = aPreEKin;
+  aGPUHit.fPreStepPoint.fCharge = aPreCharge;
+  // Post step point
+  aGPUHit.fPostStepPoint.fNavigationState = aPostState;
+  Copy3DVector(aPostPosition, aGPUHit.fPostStepPoint.fPosition);
+  Copy3DVector(aPostMomentumDirection, aGPUHit.fPostStepPoint.fMomentumDirection);
+  aGPUHit.fPostStepPoint.fEKin   = aPostEKin;
+  aGPUHit.fPostStepPoint.fCharge = aPostCharge;
 };
 
 #endif

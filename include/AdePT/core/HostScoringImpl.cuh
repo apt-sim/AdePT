@@ -53,15 +53,6 @@ __device__ __forceinline__ GPUHit *GetNextFreeHit(HostScoring *hostScoring_dev)
   return &hostScoring_dev->fGPUHitsBuffer_dev[aHitIndex];
 }
 
-/// @brief Utility function to copy a 3D vector, used for filling the Step Points
-__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const *source,
-                                             vecgeom::Vector3D<Precision> *destination)
-{
-  destination->x() = source->x();
-  destination->y() = source->y();
-  destination->z() = source->z();
-}
-
 /// @brief Copy the hits buffer to the host
 void CopyHitsToHost(HostScoring &hostScoring, HostScoring *hostScoring_dev, cudaStream_t &stream)
 {
@@ -159,37 +150,20 @@ void FreeGPU(HostScoring *hostScoring, HostScoring *hostScoring_dev)
 /// @brief Record a hit
 template <>
 __device__ void RecordHit(HostScoring *hostScoring_dev, int aParentID, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
-                          vecgeom::Vector3D<Precision> const *aPrePosition,
-                          vecgeom::Vector3D<Precision> const *aPreMomentumDirection,
-                          vecgeom::Vector3D<Precision> const *aPrePolarization, double aPreEKin, double aPreCharge,
-                          vecgeom::NavigationState const *aPostState, vecgeom::Vector3D<Precision> const *aPostPosition,
-                          vecgeom::Vector3D<Precision> const *aPostMomentumDirection,
-                          vecgeom::Vector3D<Precision> const *aPostPolarization, double aPostEKin, double aPostCharge,
-                          unsigned int, short)
+                          double aTotalEnergyDeposit, vecgeom::NavigationState const &aPreState,
+                          vecgeom::Vector3D<Precision> const &aPrePosition,
+                          vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
+                          vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
+                          vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
+                          double aPostCharge, unsigned int, short)
 {
   // Acquire a hit slot
-  GPUHit *aGPUHit = GetNextFreeHit(hostScoring_dev);
+  GPUHit &aGPUHit = *GetNextFreeHit(hostScoring_dev);
 
   // Fill the required data
-  aGPUHit->fParentID           = aParentID;
-  aGPUHit->fParticleType       = aParticleType;
-  aGPUHit->fStepLength         = aStepLength;
-  aGPUHit->fTotalEnergyDeposit = aTotalEnergyDeposit;
-  // Pre step point
-  aGPUHit->fPreStepPoint.fNavigationState = *aPreState;
-  Copy3DVector(aPrePosition, &(aGPUHit->fPreStepPoint.fPosition));
-  Copy3DVector(aPreMomentumDirection, &(aGPUHit->fPreStepPoint.fMomentumDirection));
-  // Copy3DVector(aPrePolarization, aGPUHit.fPreStepPoint.fPolarization);
-  aGPUHit->fPreStepPoint.fEKin   = aPreEKin;
-  aGPUHit->fPreStepPoint.fCharge = aPreCharge;
-  // Post step point
-  aGPUHit->fPostStepPoint.fNavigationState = *aPostState;
-  Copy3DVector(aPostPosition, &(aGPUHit->fPostStepPoint.fPosition));
-  Copy3DVector(aPostMomentumDirection, &(aGPUHit->fPostStepPoint.fMomentumDirection));
-  // Copy3DVector(aPostPolarization, aGPUHit.fPostStepPoint.fPolarization);
-  aGPUHit->fPostStepPoint.fEKin   = aPostEKin;
-  aGPUHit->fPostStepPoint.fCharge = aPostCharge;
+  FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aPreState, aPrePosition,
+          aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
+          aPostCharge, 0, 0);
 }
 
 /// @brief Account for the number of produced secondaries

@@ -238,51 +238,23 @@ void PerEventScoring::CopyToHost(cudaStream_t cudaStream)
 
 namespace adept_scoring {
 
-/// @brief Utility function to copy a 3D vector, used for filling the Step Points
-__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const *source,
-                                             vecgeom::Vector3D<Precision> *destination)
-{
-  destination->x() = source->x();
-  destination->y() = source->y();
-  destination->z() = source->z();
-}
-
 /// @brief Record a hit
 template <>
 __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParentID, char aParticleType,
-                          double aStepLength, double aTotalEnergyDeposit, vecgeom::NavigationState const *aPreState,
-                          vecgeom::Vector3D<Precision> const *aPrePosition,
-                          vecgeom::Vector3D<Precision> const *aPreMomentumDirection,
-                          vecgeom::Vector3D<Precision> const * /*aPrePolarization*/, double aPreEKin, double aPreCharge,
-                          vecgeom::NavigationState const *aPostState, vecgeom::Vector3D<Precision> const *aPostPosition,
-                          vecgeom::Vector3D<Precision> const *aPostMomentumDirection,
-                          vecgeom::Vector3D<Precision> const * /*aPostPolarization*/, double aPostEKin,
+                          double aStepLength, double aTotalEnergyDeposit, vecgeom::NavigationState const &aPreState,
+                          vecgeom::Vector3D<Precision> const &aPrePosition,
+                          vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
+                          vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
+                          vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
                           double aPostCharge, unsigned int eventID, short threadID)
 {
   // Acquire a hit slot
-  GPUHit &aGPUHit  = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot();
-  aGPUHit.fEventId = eventID;
-  aGPUHit.threadId = threadID;
+  GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot();
 
   // Fill the required data
-  aGPUHit.fParentID           = aParentID;
-  aGPUHit.fParticleType       = aParticleType;
-  aGPUHit.fStepLength         = aStepLength;
-  aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;
-  // Pre step point
-  aGPUHit.fPreStepPoint.fNavigationState = *aPreState;
-  Copy3DVector(aPrePosition, &(aGPUHit.fPreStepPoint.fPosition));
-  Copy3DVector(aPreMomentumDirection, &(aGPUHit.fPreStepPoint.fMomentumDirection));
-  // Copy3DVector(aPrePolarization, aGPUHit.fPreStepPoint.fPolarization);
-  aGPUHit.fPreStepPoint.fEKin   = aPreEKin;
-  aGPUHit.fPreStepPoint.fCharge = aPreCharge;
-  // Post step point
-  aGPUHit.fPostStepPoint.fNavigationState = *aPostState;
-  Copy3DVector(aPostPosition, &(aGPUHit.fPostStepPoint.fPosition));
-  Copy3DVector(aPostMomentumDirection, &(aGPUHit.fPostStepPoint.fMomentumDirection));
-  // Copy3DVector(aPostPolarization, aGPUHit.fPostStepPoint.fPolarization);
-  aGPUHit.fPostStepPoint.fEKin   = aPostEKin;
-  aGPUHit.fPostStepPoint.fCharge = aPostCharge;
+  FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aPreState, aPrePosition,
+          aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
+          aPostCharge, eventID, threadID);
 }
 
 /// @brief Account for the number of produced secondaries
