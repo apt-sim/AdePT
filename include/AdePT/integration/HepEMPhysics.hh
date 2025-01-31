@@ -4,10 +4,10 @@
 #ifndef HepEMPhysics_h
 #define HepEMPhysics_h 1
 
-#include "G4EmStandardPhysics.hh"
+#include "G4VPhysicsConstructor.hh"
 #include "globals.hh"
 
-class HepEMPhysics : public G4EmStandardPhysics {
+class HepEMPhysics : public G4VPhysicsConstructor {
 public:
   HepEMPhysics(int ver = 1, const G4String &name = "G4HepEm-physics-list");
   ~HepEMPhysics();

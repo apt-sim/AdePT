@@ -6,12 +6,11 @@
 
 #include "G4VPhysicsConstructor.hh"
 #include "globals.hh"
-#include "G4EmStandardPhysics.hh"
 
 class AdePTTrackingManager;
 class AdePTConfiguration;
 
-class AdePTPhysics : public G4EmStandardPhysics { // public G4VPhysicsConstructor {
+class AdePTPhysics : public G4VPhysicsConstructor {
 public:
   AdePTPhysics(int ver = 1, const G4String &name = "AdePT-physics-list");
   ~AdePTPhysics();

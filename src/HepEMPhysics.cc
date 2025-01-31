@@ -45,7 +45,7 @@
 #include "G4ionIonisation.hh"
 #include "G4NuclearStopping.hh"
 
-HepEMPhysics::HepEMPhysics(int ver, const G4String &name) : G4EmStandardPhysics(ver, name)
+HepEMPhysics::HepEMPhysics(int ver, const G4String &name) : G4VPhysicsConstructor(name)
 {
   G4EmParameters *param = G4EmParameters::Instance();
   param->SetDefaults();
@@ -59,9 +59,6 @@ HepEMPhysics::~HepEMPhysics() {}
 
 void HepEMPhysics::ConstructProcess()
 {
-
-  G4EmStandardPhysics::ConstructProcess();
-
   // Register custom tracking manager for e-/e+ and gammas.
   auto *trackingManager = new G4HepEmTrackingManager();
   G4Electron::Definition()->SetTrackingManager(trackingManager);
