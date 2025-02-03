@@ -297,14 +297,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    2,                      // Particle type
                                    geometryStepLength,     // Step length
                                    edep,                   // Total Edep
-                                   navState,              // Pre-step point navstate
-                                   preStepPos,            // Pre-step point position
-                                   preStepDir,            // Pre-step point momentum direction
+                                   navState,               // Pre-step point navstate
+                                   preStepPos,             // Pre-step point position
+                                   preStepDir,             // Pre-step point momentum direction
                                    preStepEnergy,          // Pre-step point kinetic energy
                                    0,                      // Pre-step point charge
-                                   nextState,             // Post-step point navstate
-                                   pos,                   // Post-step point position
-                                   dir,                   // Post-step point momentum direction
+                                   nextState,              // Post-step point navstate
+                                   pos,                    // Post-step point position
+                                   dir,                    // Post-step point momentum direction
                                    0,                      // Post-step point kinetic energy
                                    0,                      // Post-step point charge
                                    currentTrack.eventId,   // Event Id
@@ -379,14 +379,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    2,                                            // Particle type
                                    geometryStepLength,                           // Step length
                                    edep,                                         // Total Edep
-                                   navState,                                    // Pre-step point navstate
-                                   preStepPos,                                  // Pre-step point position
-                                   preStepDir,                                  // Pre-step point momentum direction
+                                   navState,                                     // Pre-step point navstate
+                                   preStepPos,                                   // Pre-step point position
+                                   preStepDir,                                   // Pre-step point momentum direction
                                    preStepEnergy,                                // Pre-step point kinetic energy
                                    0,                                            // Pre-step point charge
-                                   nextState,                                   // Post-step point navstate
-                                   pos,                                         // Post-step point position
-                                   dir,                                         // Post-step point momentum direction
+                                   nextState,                                    // Post-step point navstate
+                                   pos,                                          // Post-step point position
+                                   dir,                                          // Post-step point momentum direction
                                    newEnergyGamma,                               // Post-step point kinetic energy
                                    0,                                            // Post-step point charge
                                    currentTrack.eventId, currentTrack.threadId); // event and thread ID
@@ -434,18 +434,18 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                  2,                                            // Particle type
                                  geometryStepLength,                           // Step length
                                  edep,                                         // Total Edep
-                                 navState,                                    // Pre-step point navstate
-                                 preStepPos,                                  // Pre-step point position
-                                 preStepDir,                                  // Pre-step point momentum direction
+                                 navState,                                     // Pre-step point navstate
+                                 preStepPos,                                   // Pre-step point position
+                                 preStepDir,                                   // Pre-step point momentum direction
                                  preStepEnergy,                                // Pre-step point kinetic energy
                                  0,                                            // Pre-step point charge
-                                 nextState,                                   // Post-step point navstate
-                                 pos,                                         // Post-step point position
-                                 dir,                                         // Post-step point momentum direction
+                                 nextState,                                    // Post-step point navstate
+                                 pos,                                          // Post-step point position
+                                 dir,                                          // Post-step point momentum direction
                                  0,                                            // Post-step point kinetic energy
                                  0,                                            // Post-step point charge
                                  currentTrack.eventId, currentTrack.threadId); // event and thread ID
-        // The current track is killed by not enqueuing into the next activeQueue and the slot is released
+      // The current track is killed by not enqueuing into the next activeQueue and the slot is released
 #ifdef ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
 #endif
