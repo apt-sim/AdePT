@@ -84,7 +84,41 @@ void Deleter::operator()(ScoringObjects *ptr)
 
 } // namespace AdePTGeant4Integration_detail
 
+std::vector<G4VPhysicalVolume const *> AdePTGeant4Integration::fglobal_vecgeom_to_g4_map;
+
 AdePTGeant4Integration::~AdePTGeant4Integration() {}
+
+void AdePTGeant4Integration::GetPhysicalVolumeMap(std::vector<G4VPhysicalVolume const *> &vecgeomToG4Map)
+{
+  const G4VPhysicalVolume *g4world =
+      G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
+  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
+
+  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
+  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
+  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
+    const auto g4_lvol = g4_pvol->GetLogicalVolume();
+    const auto vg_lvol = vg_pvol->GetLogicalVolume();
+
+    // Initialize mapping of Vecgeom PlacedVolume IDs to G4 PhysicalVolume IDs
+    vecgeomToG4Map.resize(std::max<std::size_t>(vecgeomToG4Map.size(), vg_pvol->id() + 1), nullptr);
+    vecgeomToG4Map[vg_pvol->id()] = g4_pvol;
+
+    // Now do the daughters
+    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+      auto g4pvol_d = g4_lvol->GetDaughter(id);
+      auto pvol_d   = vg_lvol->GetDaughters()[id];
+
+      // VecGeom does not strip pointers from logical volume names
+      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
+        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
+                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
+                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
+      visitGeometry(g4pvol_d, pvol_d);
+    }
+  };
+  visitGeometry(g4world, vecgeomWorld);
+}
 
 void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
 {
@@ -96,6 +130,9 @@ void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
     std::cerr << "Failed to read geometry from GDML file '" << filename << "'" << G4endl;
     return;
   }
+
+  // Generate the mapping of VecGeom volume IDs to Geant4 physical volumes
+  GetPhysicalVolumeMap(fglobal_vecgeom_to_g4_map);
 
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
   if (vecgeomWorld == nullptr) {
@@ -114,6 +151,14 @@ void AdePTGeant4Integration::CreateVecGeomWorld(G4VPhysicalVolume const *physvol
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
   auto conversion = g4vg::convert(physvol);
   vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
+
+  // Get the mapping of VecGeom volume IDs to Geant4 physical volumes from g4vg
+  // fglobal_vecgeom_to_g4_map = conversion.physical_volumes;
+
+  // TODO: We generate the volume map using a visitor since the one provided by the converter
+  // appears to have a small number of wrongly mapped IDs
+  // Generate the mapping of VecGeom volume IDs to Geant4 physical volumes
+  GetPhysicalVolumeMap(fglobal_vecgeom_to_g4_map);
 
   // EXPECT: we finish with a non-null VecGeom host geometry
   vecgeom::VPlacedVolume const *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
@@ -267,38 +312,6 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   visitGeometry(g4world, vecgeomWorld);
 }
 
-void AdePTGeant4Integration::InitScoringData()
-{
-  const G4VPhysicalVolume *g4world =
-      G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
-  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-
-  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
-  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
-  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
-    const auto g4_lvol = g4_pvol->GetLogicalVolume();
-    const auto vg_lvol = vg_pvol->GetLogicalVolume();
-
-    // Initialize mapping of Vecgeom PlacedVolume IDs to G4 PhysicalVolume IDs
-    // Though we only record and reconstruct hits for sensitive volumes, this map needs to store every
-    // volume in the geometry, as a step may begin in a sensitive volume and end in a non-sensitive one
-    fglobal_vecgeom_to_g4_map.insert(std::pair<int, const G4VPhysicalVolume *>(vg_pvol->id(), g4_pvol));
-    // Now do the daughters
-    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-      auto g4pvol_d = g4_lvol->GetDaughter(id);
-      auto pvol_d   = vg_lvol->GetDaughters()[id];
-
-      // VecGeom does not strip pointers from logical volume names
-      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
-        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
-                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
-                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
-      visitGeometry(g4pvol_d, pvol_d);
-    }
-  };
-  visitGeometry(g4world, vecgeomWorld);
-}
-
 void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
 {
   if (!fScoringObjects) {
@@ -363,9 +376,8 @@ void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aN
   for (aLevel = 0; aLevel <= aVecGeomLevel; aLevel++) {
     // While we are in levels shallower than the history depth, it may be that we already
     // have the correct volume in the history
-    const auto item = fglobal_vecgeom_to_g4_map.find(aNavState.At(aLevel)->id());
-    pnewvol         = item == fglobal_vecgeom_to_g4_map.end() ? nullptr : const_cast<G4VPhysicalVolume *>(item->second);
-
+    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[aNavState.At(aLevel)->id()]);
+    assert(pnewvol != nullptr);
     if (!pnewvol) throw std::runtime_error("VecGeom volume not found in G4 mapping!");
 
     if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
