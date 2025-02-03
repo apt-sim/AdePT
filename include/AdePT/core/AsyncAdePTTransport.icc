@@ -322,9 +322,6 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
 
   if (tracks.empty()) {
     async_adept_impl::FlushScoring(fScoring[threadId]);
-
-    // TODO: Most likely this needs to go to AsyncAdePTTransport in a function that
-    // we will forward-declare here (Otherwise AdePTScoring is undefined)
     fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
   }
 

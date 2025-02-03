@@ -600,16 +600,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                static_cast<char>(IsElectron ? 0 : 1),        // Particle type
                                elTrack.GetPStepLength(),                     // Step length
                                energyDeposit,                                // Total Edep
-                               &navState,                                    // Pre-step point navstate
-                               &preStepPos,                                  // Pre-step point position
-                               &preStepDir,                                  // Pre-step point momentum direction
-                               nullptr,                                      // Pre-step point polarization
+                               navState,                                     // Pre-step point navstate
+                               preStepPos,                                   // Pre-step point position
+                               preStepDir,                                   // Pre-step point momentum direction
                                preStepEnergy,                                // Pre-step point kinetic energy
                                IsElectron ? -1 : 1,                          // Pre-step point charge
-                               &nextState,                                   // Post-step point navstate
-                               &pos,                                         // Post-step point position
-                               &dir,                                         // Post-step point momentum direction
-                               nullptr,                                      // Post-step point polarization
+                               nextState,                                    // Post-step point navstate
+                               pos,                                          // Post-step point position
+                               dir,                                          // Post-step point momentum direction
                                eKin,                                         // Post-step point kinetic energy
                                IsElectron ? -1 : 1,                          // Post-step point charge
                                currentTrack.eventId, currentTrack.threadId); // eventID and threadID (not needed here)
