@@ -146,7 +146,7 @@ if(Geant4_FOUND)
   FetchContent_Declare(
     g4vg
     GIT_REPOSITORY https://github.com/celeritas-project/g4vg
-    GIT_TAG d130d8a93de63db6b50e829e4c2da378170253c8)
+    GIT_TAG v1.0.1)
   # G4VG builds static by default, so change this to shared
   # could also configure for PIC mode static.
   set(BUILD_SHARED_LIBS ON)
