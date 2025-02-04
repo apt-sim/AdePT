@@ -38,13 +38,13 @@ public:
 
     if (!first) nvtxRangeEnd(_id);
     nvtxEventAttributes_t eventAttrib;
-    eventAttrib.version               = NVTX_VERSION;
-    eventAttrib.size                  = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-    eventAttrib.colorType             = NVTX_COLOR_ARGB;
-    eventAttrib.color                 = nextColour();
-    eventAttrib.messageType           = NVTX_MESSAGE_TYPE_ASCII;
-    eventAttrib.message.ascii         = _name.c_str();
-    _id                               = nvtxRangeStartEx(&eventAttrib);
+    eventAttrib.version       = NVTX_VERSION;
+    eventAttrib.size          = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+    eventAttrib.colorType     = NVTX_COLOR_ARGB;
+    eventAttrib.color         = nextColour();
+    eventAttrib.messageType   = NVTX_MESSAGE_TYPE_ASCII;
+    eventAttrib.message.ascii = _name.c_str();
+    _id                       = nvtxRangeStartEx(&eventAttrib);
   }
 
   void setOccupancy(unsigned long occupancy)

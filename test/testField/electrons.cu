@@ -90,9 +90,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     auto dir            = currentTrack.dir;
     auto navState       = currentTrack.navState;
 #ifndef ADEPT_USE_SURF
-    const int volumeID  = navState.Top()->GetLogicalVolume()->id();
+    const int volumeID = navState.Top()->GetLogicalVolume()->id();
 #else
-    const int volumeID  = navState.GetLogicalId();
+    const int volumeID = navState.GetLogicalId();
 #endif
 
     // the MCC vector is indexed by the logical volume id
@@ -172,7 +172,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     }
 
     // Check if there's a volume boundary in between.
-    bool propagated = true;
+    bool propagated    = true;
     long hitsurf_index = -1;
     double geometryStepLength;
     vecgeom::NavigationState nextState;

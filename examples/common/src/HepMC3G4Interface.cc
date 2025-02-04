@@ -17,10 +17,7 @@
 #include <HepMC3/GenParticle.h>
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-HepMC3G4Interface::~HepMC3G4Interface()
-{
-
-}
+HepMC3G4Interface::~HepMC3G4Interface() {}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 G4bool HepMC3G4Interface::CheckVertexInsideWorld(const G4ThreeVector &pos) const

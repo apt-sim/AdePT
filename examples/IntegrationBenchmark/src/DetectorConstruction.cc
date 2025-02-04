@@ -24,7 +24,8 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-DetectorConstruction::DetectorConstruction(bool allSensitive) : fAllSensitive(allSensitive), G4VUserDetectorConstruction()
+DetectorConstruction::DetectorConstruction(bool allSensitive)
+    : fAllSensitive(allSensitive), G4VUserDetectorConstruction()
 {
   fDetectorMessenger = new DetectorMessenger(this);
 }
@@ -95,7 +96,7 @@ void DetectorConstruction::ConstructSDandField()
     int nd          = lvol->GetNoDaughters();
     numTouchables++;
 
-    if(fAllSensitive) // For easier validation of geometries with no SD info, we may set all volumes as sensitive
+    if (fAllSensitive) // For easier validation of geometries with no SD info, we may set all volumes as sensitive
     {
       // Record the PV
       if (caloSD->fSensitivePhysicalVolumes.find(pvol) == caloSD->fSensitivePhysicalVolumes.end()) {
@@ -110,9 +111,7 @@ void DetectorConstruction::ConstructSDandField()
         caloSD->fSensitiveLogicalVolumes.push_back(lvol);
       }
       numSensitiveTouchables++;
-    }
-    else
-    {
+    } else {
       // Check if the LogicalVolume is marked as sensitive in the geometry
       auto aAuxInfoList = fParser.GetVolumeAuxiliaryInformation(lvol);
       for (auto iaux = aAuxInfoList.begin(); iaux != aAuxInfoList.end(); iaux++) {

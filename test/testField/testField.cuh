@@ -68,7 +68,7 @@ struct Track {
     if (verbose) {
       auto currentLevel = navState.GetLevel();
       // NavStateTuple doesn't implement GetNavIndex( int )
-      auto currentIndex = 0; //navState.GetNavIndex(currentLevel);
+      auto currentIndex = 0; // navState.GetNavIndex(currentLevel);
       printf("  id= %3d current: (lv= %3d  ind= %8u  bnd= %1d)  ", id, currentLevel, currentIndex,
              (int)navState.IsOnBoundary());
       printf("\n");

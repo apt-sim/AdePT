@@ -17,4 +17,3 @@ template void ShowerGPU<AdePTGeant4Integration>(AdePTGeant4Integration &, int, a
 } // namespace adept_impl
 
 #endif
-

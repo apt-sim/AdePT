@@ -8,8 +8,6 @@
 #ifndef ADEPT_TRANSPORT_H
 #define ADEPT_TRANSPORT_H
 
-
-
 #include <unordered_map>
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA

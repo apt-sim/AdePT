@@ -48,7 +48,7 @@ private:
   int fCUDAStackLimit{0};           ///< CUDA device stack limit
   std::vector<IntegrationLayer> fIntegrationLayerObjects;
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
-  std::vector<AdePTScoring> fScoring;                ///< User scoring objects per G4 worker
+  std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
   std::thread fGPUWorker;                            ///< Thread to manage GPU

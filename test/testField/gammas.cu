@@ -37,9 +37,9 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     auto dir            = currentTrack.dir;
     auto navState       = currentTrack.navState;
 #ifndef ADEPT_USE_SURF
-    const int volumeID  = navState.Top()->GetLogicalVolume()->id();
+    const int volumeID = navState.Top()->GetLogicalVolume()->id();
 #else
-    const int volumeID  = navState.GetLogicalId();
+    const int volumeID = navState.GetLogicalId();
 #endif
     // the MCC vector is indexed by the logical volume id
     const int theMCIndex = MCIndex[volumeID];
@@ -71,7 +71,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
     int winnerProcessIndex                  = theTrack->GetWinnerProcessIndex();
-        // disable photo-nuclear reaction that would need to be handled by G4 itself
+    // disable photo-nuclear reaction that would need to be handled by G4 itself
     if (winnerProcessIndex == 3) {
       winnerProcessIndex = -1;
     }
@@ -81,7 +81,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
     // Check if there's a volume boundary in between.
     vecgeom::NavigationState nextState;
 #ifdef ADEPT_USE_SURF
-    long hitsurf_index = -1;
+    long hitsurf_index        = -1;
     double geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
                                                                          navState, nextState, hitsurf_index, kPush);
 #else
@@ -114,7 +114,7 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
 #ifdef ADEPT_USE_SURF
-        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState); 
+        AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif
