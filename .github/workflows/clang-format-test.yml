@@ -12,18 +12,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # 1) Add the official LLVM repository for clang-format-21
+      # 1) Add the official LLVM repository for clang-format
       - name: Add LLVM apt repo
         run: |
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21 main"
-          sudo apt-get update
+            wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+            sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main"
+            sudo apt-get update
 
-      # 2) Install clang-format-21 from that repo
-      - name: Install clang-format-21
+      # 2) Install latest version
+      - name: Install clang-format
         run: |
-          sudo apt-get install -y clang-format-21
-          clang-format-21 --version
+            sudo apt-get install -y clang-format
+            clang-format --version
 
       # 3) Check formatting
       - name: Check formatting
@@ -33,4 +33,4 @@ jobs:
           
           # '-n' checks if files need reformatting
           # '--Werror' throws an error if formatting is incorrect
-          clang-format-21 -style=file -n --Werror $FILES
+          clang-format -style=file -n --Werror $FILES
