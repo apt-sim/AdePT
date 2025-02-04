@@ -445,7 +445,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                  0,                                            // Post-step point kinetic energy
                                  0,                                            // Post-step point charge
                                  currentTrack.eventId, currentTrack.threadId); // event and thread ID
-        // The current track is killed by not enqueuing into the next activeQueue and the slot is released
+      // The current track is killed by not enqueuing into the next activeQueue and the slot is released
 #ifdef ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
 #endif

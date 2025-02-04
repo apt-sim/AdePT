@@ -462,7 +462,7 @@ int main(int argc, char **argv)
   bool okStep2Float = TestStepper<float, UniformMagneticField>(Bx);
   bool okStep3Float = TestStepper<float, UniformMagneticField>(By);
   bool okStep4Float = TestStepper<float, UniformMagneticField>(Bz);
-  allStepGood    && = okStep2Float && okStep3Float && okStep4Float;
+  allStepGood &&    = okStep2Float && okStep3Float && okStep4Float;
 #endif
   cout << endl;
 
