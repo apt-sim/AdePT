@@ -12,9 +12,7 @@ struct PerEventScoring {
   GlobalCounters fGlobalCounters;
   PerEventScoring *const fScoring_dev;
 
-  PerEventScoring(PerEventScoring *gpuScoring) : fScoring_dev{gpuScoring} { 
-    ClearGPU(); 
-  }
+  PerEventScoring(PerEventScoring *gpuScoring) : fScoring_dev{gpuScoring} { ClearGPU(); }
   PerEventScoring(PerEventScoring &&other) = default;
   ~PerEventScoring()                       = default;
 
@@ -28,7 +26,7 @@ struct PerEventScoring {
   void Print() { fGlobalCounters.Print(); };
 };
 
-}
+} // namespace AsyncAdePT
 
 using AdePTScoring = AsyncAdePT::PerEventScoring;
 

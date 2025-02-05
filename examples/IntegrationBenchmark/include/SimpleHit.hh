@@ -104,7 +104,7 @@ public:
   G4int fType = -1;
   /// These hits will be associated to PhysicalVolumes
   G4String fPhysicalVolumeName = "";
-  G4int fPhysicalVolumeId = -1;
+  G4int fPhysicalVolumeId      = -1;
 };
 
 typedef G4THitsCollection<SimpleHit> SimpleHitsCollection;

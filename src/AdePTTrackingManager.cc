@@ -56,9 +56,9 @@ void AdePTTrackingManager::InitializeAdePT()
     fAdePTConfiguration->SetNumThreads(fNumThreads);
 
     // Load the VecGeom world using G4VG if we don't have a GDML file, VGDML otherwise
-    if(fAdePTConfiguration->GetVecGeomGDML().empty()) {
-      auto* tman = G4TransportationManager::GetTransportationManager();
-      auto* world = tman->GetNavigatorForTracking()->GetWorldVolume();
+    if (fAdePTConfiguration->GetVecGeomGDML().empty()) {
+      auto *tman  = G4TransportationManager::GetTransportationManager();
+      auto *world = tman->GetNavigatorForTracking()->GetWorldVolume();
       AdePTGeant4Integration::CreateVecGeomWorld(world);
     } else {
       AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());

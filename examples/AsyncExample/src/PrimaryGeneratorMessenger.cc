@@ -147,10 +147,10 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newVa
     while ((str = tkn()) != "") {
       token_vector->push_back(str);
     }
-    //The particle type is mandatory and must be the first argument
+    // The particle type is mandatory and must be the first argument
     G4ParticleDefinition *pd = nullptr;
-    float weight = -1;
-    double energy = -1;
+    float weight             = -1;
+    double energy            = -1;
     if (token_vector->size() >= 1) {
       pd = G4ParticleTable::GetParticleTable()->FindParticle((*token_vector)[0]);
     }
@@ -160,12 +160,10 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand *command, G4String newVa
     }
 
     for (unsigned int i = 1; i < token_vector->size(); i++) {
-      if((*token_vector)[i] == "weight")
-      {
+      if ((*token_vector)[i] == "weight") {
         weight = stof((*token_vector)[++i]);
       }
-      if((*token_vector)[i] == "energy")
-      {
+      if ((*token_vector)[i] == "energy") {
         const auto value = stof((*token_vector)[++i]);
         energy           = value * G4UnitDefinition::GetValueOf((*token_vector)[++i]);
       }

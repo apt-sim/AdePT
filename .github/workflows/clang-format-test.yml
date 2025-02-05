@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2025 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+
+name: Clang-Format Check
+
+on: [pull_request, push]
+
+jobs:
+  clang-format-check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      # 1) Add the official LLVM repository for clang-format, the highest available version for ubuntu-22 is clang 19
+      - name: Add LLVM apt repo (Clang 19)
+        run: |
+            wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+            sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+            sudo apt-get update
+
+      # 2) Install latest version
+      - name: Install clang-format
+        run: |
+            sudo apt-get install -y clang-format-19
+            clang-format-19 --version
+
+      # 3) Check formatting
+      - name: Check formatting
+        run: |
+          # Specify file extensions to be checked
+          FILES=$(git ls-files '*.cpp' '*.h' '*.cu' '*.cuh' '*.hh' '*.cc' '*.icc')
+          
+          # '-n' checks if files need reformatting
+          # '--Werror' throws an error if formatting is incorrect
+          clang-format-19 -style=file -n --Werror $FILES

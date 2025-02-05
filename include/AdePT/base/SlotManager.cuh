@@ -11,14 +11,14 @@
 // - A list of slots to be freed. Slots can be marked for freeing
 //   any time, but the actual freeing has to happen at the end of an iteration when no further slots are consumed.
 struct alignas(64) SlotManager {
-  using value_type = unsigned int;
+  using value_type         = unsigned int;
   value_type fSlotListSize = 0;
   value_type fFreeListSize = 0;
-  value_type * fSlotList    = nullptr;
-  value_type * fToFreeList  = nullptr;
+  value_type *fSlotList    = nullptr;
+  value_type *fToFreeList  = nullptr;
 
-  value_type fSlotCounter    = 0;
-  value_type fFreeCounter    = 0;
+  value_type fSlotCounter = 0;
+  value_type fFreeCounter = 0;
 
 public:
   __host__ SlotManager() {}
@@ -35,29 +35,26 @@ public:
     if (result != cudaSuccess) {
       throw std::invalid_argument{"SlotManager: Not enough memory for " + std::to_string(fSlotListSize) + " slots"};
     }
-    fToFreeList          = fSlotList + fSlotListSize;
+    fToFreeList = fSlotList + fSlotListSize;
 #endif
   }
-  __host__ __device__ ~SlotManager() {
+  __host__ __device__ ~SlotManager()
+  {
 #ifndef __CUDA_ARCH__
     if (fSlotList) COPCORE_CUDA_CHECK(cudaFree(fSlotList));
 #endif
   }
 
-  SlotManager(const SlotManager &) = delete;
-  SlotManager & operator=(const SlotManager &) = delete;
-  SlotManager(SlotManager && other) :
-    SlotManager{0, 0}
-  {
-    *this = std::move(other);
-  }
+  SlotManager(const SlotManager &)            = delete;
+  SlotManager &operator=(const SlotManager &) = delete;
+  SlotManager(SlotManager &&other) : SlotManager{0, 0} { *this = std::move(other); }
   SlotManager &operator=(SlotManager &&other)
   {
     fSlotListSize = other.fSlotListSize;
     fFreeListSize = other.fFreeListSize;
-    fSlotList = other.fSlotList;
-    fToFreeList = other.fToFreeList;
-    fSlotCounter = other.fSlotCounter;
+    fSlotList     = other.fSlotList;
+    fToFreeList   = other.fToFreeList;
+    fSlotCounter  = other.fSlotCounter;
     fFreeCounter  = other.fFreeCounter;
 
     // Only one slot manager can own the device memory
@@ -89,8 +86,8 @@ __host__ __device__ void SlotManager::Clear()
     fSlotList[i] = i;
   }
   if (threadIdx.x == 0) {
-    fSlotCounter    = 0;
-    fFreeCounter    = 0;
+    fSlotCounter = 0;
+    fFreeCounter = 0;
   }
 #endif
 }
@@ -158,7 +155,7 @@ __device__ void SlotManager::FreeMarkedSlotsStage2()
 {
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     fSlotCounter -= fFreeCounter;
-    fFreeCounter    = 0;
+    fFreeCounter = 0;
   }
 }
 
@@ -199,4 +196,4 @@ __global__ void AssertConsistencyOfSlotManagers(SlotManager *mgrs, std::size_t N
 }
 #endif
 
-#endif //SLOTMANAGER_CUH
+#endif // SLOTMANAGER_CUH

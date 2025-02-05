@@ -9,7 +9,6 @@
 #include <AdePT/base/Atomic.h>
 #include <G4ios.hh>
 
-
 // Contains the necessary information for recording hits on GPU, and reconstructing them
 // on the host, in order to call the user-defined sensitive detector code
 struct HostScoring {

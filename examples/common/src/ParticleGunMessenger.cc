@@ -114,8 +114,8 @@ void ParticleGunMessenger::SetNewValue(G4UIcommand *command, G4String newValue)
     }
     // The particle type is mandatory and must be the first argument
     G4ParticleDefinition *pd = nullptr;
-    float weight  = -1;
-    double energy = -1;
+    float weight             = -1;
+    double energy            = -1;
     if (token_vector.size() >= 1) {
       pd = G4ParticleTable::GetParticleTable()->FindParticle(token_vector[0]);
     } else {

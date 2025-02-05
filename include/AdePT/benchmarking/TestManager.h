@@ -52,9 +52,9 @@ private:
   inline static std::mutex fWriteMutex; ///< Mutex for writing to file
 
 public:
-  TestManager(){};
+  TestManager() {};
 
-  ~TestManager(){};
+  ~TestManager() {};
 
   /** @brief Sets a timestamp associated to this timer tag */
   void timerStart(TTag tag)

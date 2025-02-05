@@ -47,9 +47,7 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction {
 public:
   PrimaryGeneratorAction() : G4VUserPrimaryGeneratorAction(), fParticleGun{new ParticleGun()} {}
   virtual ~PrimaryGeneratorAction() = default;
-  virtual void GeneratePrimaries(G4Event * aEvent) final {
-    fParticleGun->GeneratePrimaries(aEvent);
-  }
+  virtual void GeneratePrimaries(G4Event *aEvent) final { fParticleGun->GeneratePrimaries(aEvent); }
 
 private:
   /// Particle gun

@@ -64,12 +64,12 @@ private:
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
   int fVerbosity{0};
-  // std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
-  #ifndef ASYNC_MODE
+// std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
+#ifndef ASYNC_MODE
   std::unique_ptr<AdePTTransportInterface> fAdeptTransport;
-  #else
+#else
   std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
-  #endif
+#endif
   AdePTConfiguration *fAdePTConfiguration;
   unsigned int fTrackCounter{0};
   int fCurrentEventID{0};

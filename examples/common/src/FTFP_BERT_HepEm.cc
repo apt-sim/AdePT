@@ -35,9 +35,9 @@ FTFP_BERT_HepEm::FTFP_BERT_HepEm(G4int ver)
   SetVerboseLevel(ver);
 
   // EM Physics
-  // Note: The EM processes for e-, e+ and gammas are registered, but not used as the 
+  // Note: The EM processes for e-, e+ and gammas are registered, but not used as the
   // partices are tracked by the specialized tracking manager
-  RegisterPhysics( new G4EmStandardPhysics(ver));
+  RegisterPhysics(new G4EmStandardPhysics(ver));
 
   // Register the HepEM physics
   RegisterPhysics(new HepEMPhysics(ver));

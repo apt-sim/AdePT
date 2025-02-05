@@ -28,7 +28,7 @@ private:
 
 protected:
   TestManagerStore() { fBenchmarkStates = new std::vector<std::map<int, double>>(); };
-  ~TestManagerStore(){};
+  ~TestManagerStore() {};
 
 public:
   /** @brief Thread-safe singleton accessor */
