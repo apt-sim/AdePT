@@ -52,16 +52,8 @@ target_link_libraries(test_copcore_link PRIVATE CopCore)
 if(VecGeom_SURF_FOUND)
   message(STATUS "${Magenta}Disabled g4vg when using VecGeom surface model${ColorReset}")
 else()
-  message(STATUS "Fetching and compiling g4vg ...")
-  include(FetchContent)
-  FetchContent_Declare(
-    g4vg
-    EXCLUDE_FROM_ALL
-    URL https://github.com/celeritas-project/g4vg/archive/e034ada099132f857866949ec9ce8eadf1ff2251.zip)
-  FetchContent_MakeAvailable(g4vg)
-
   add_executable(test_g4vg_link test_g4vg_link.cpp)
-  target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
+  cuda_rdc_target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
 endif()
 
 #----------------------------------------------------------------------------#

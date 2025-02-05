@@ -32,5 +32,8 @@ if(G4HepEm_FOUND)
   message(STATUS "G4HepEm Found ${G4HepEm_INCLUDE_DIR}")
 endif()
 
+# We currently build/install G4VG ourselves, so we know exactly where it is
+find_dependency(G4VG NO_DEFAULT_PATH PATHS "${PACKAGE_PREFIX_DIR}")
+
 # Include the targets file
 include("${AdePT_CMAKE_DIR}/AdePTTargets.cmake")

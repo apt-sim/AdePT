@@ -36,6 +36,11 @@ public:
   /// however ideally this function will call the G4 to VecGeom geometry converter
   static void CreateVecGeomWorld(/*Temporary parameter*/ std::string filename);
 
+  /// @brief Construct VecGeom geometry from Geant4 physical volume
+  /// @details This calls the G4VG converter
+  /// @throws std::runtime_error if input or output volumes are nullptr
+  static void CreateVecGeomWorld(G4VPhysicalVolume const *physvol);
+
   /// @brief This function compares G4 and VecGeom geometries and reports any differences
   static void CheckGeometry(G4HepEmState *hepEmState);
 

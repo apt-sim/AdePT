@@ -139,6 +139,20 @@ if(HepMC3_FOUND)
   add_compile_definitions(HEPMC3_FOUND)
 endif()
 
+# Find G4VG, optional as requires Geant4
+if(Geant4_FOUND)
+  # Fetch it locally for now
+  include(FetchContent)
+  FetchContent_Declare(
+    g4vg
+    GIT_REPOSITORY https://github.com/celeritas-project/g4vg
+    GIT_TAG v1.0.1)
+  # G4VG builds static by default, so change this to shared
+  # could also configure for PIC mode static.
+  set(BUILD_SHARED_LIBS ON)
+  FetchContent_MakeAvailable(g4vg)
+endif()
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
@@ -199,6 +213,7 @@ target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
+    G4VG::g4vg
     CUDA::cudart
 )
 
