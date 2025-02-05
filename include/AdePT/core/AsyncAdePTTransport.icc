@@ -79,10 +79,10 @@ template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration)
     : fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
-      fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())}, fDebugLevel{configuration.GetVerbosity()},
-      fIntegrationLayerObjects(fNThread), fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
-      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
-      fCUDAStackLimit{configuration.GetCUDAStackLimit()}
+      fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
+      fDebugLevel{configuration.GetVerbosity()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
+      fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
+      fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
