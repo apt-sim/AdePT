@@ -219,10 +219,6 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
 
-  for (auto &g4int : fIntegrationLayerObjects) {
-    g4int.InitScoringData();
-  }
-
   // TODO: Make this configurable or figure out a reasonable value (Currently, it seems that the
   // to device buffer is often full)
   // Allocate buffers to transport particles to/from device. Scale the size of the staging area
