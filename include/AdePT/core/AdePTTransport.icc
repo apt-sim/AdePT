@@ -186,8 +186,6 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
     return;
   }
 
-  fIntegrationLayer.InitScoringData();
-
   std::cout << "=== AdePTTransport: initializing transport engine for thread: " << fIntegrationLayer.GetThreadID()
             << std::endl;
 
