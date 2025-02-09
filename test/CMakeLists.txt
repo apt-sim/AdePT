@@ -53,7 +53,7 @@ if(VecGeom_SURF_FOUND)
   message(STATUS "${Magenta}Disabled g4vg when using VecGeom surface model${ColorReset}")
 else()
   add_executable(test_g4vg_link test_g4vg_link.cpp)
-  cuda_rdc_target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg)
+  target_link_libraries(test_g4vg_link PRIVATE G4VG::g4vg VecGeom::vecgeomcuda)
 endif()
 
 #----------------------------------------------------------------------------#
