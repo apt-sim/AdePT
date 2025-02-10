@@ -3,6 +3,8 @@
 
 #include <AdePT/core/AsyncAdePTTransport.hh>
 
+// #include <AdePT/core/PerEventScoringImpl.cuh>
+
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include <VecGeom/management/BVHManager.h>
@@ -259,9 +261,23 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
       fCV_G4Workers.wait(lock);
     }
 
-    std::shared_ptr<const std::vector<GPUHit>> gpuHits;
-    while ((gpuHits = async_adept_impl::GetGPUHits(threadId, *fGPUstate)) != nullptr) {
-      for (auto it = gpuHits->begin(); it != gpuHits->end(); ++it) {
+    // std::shared_ptr<const std::vector<GPUHit>> gpuHits;
+    *AsyncAdePT::BufferHandle buffer_handle;
+    // while ((gpuHits = async_adept_impl::GetGPUHits(threadId, *fGPUstate)) != nullptr) {
+    // while ((gpuHits = gpuState.fHitScoring->GetNextHitsVector(threadId)) != nullptr) {
+    while ((buffer_handle = fGPUstate.fHitScoring->GetNextHitsHandle(threadId)) != nullptr) {
+
+      auto begin = buffer_handle.hostBuffer;
+      auto end   = buffer_handle.hostBuffer + buffer_handle.hitScoringInfo.fSlotCounter;
+
+      GPUHit dummy;
+      dummy.fEventId = eventId;
+      auto range     = std::equal_range(begin, end, dummy,
+                                        [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
+      // auto range     = std::equal_range(gpuHits->begin(), gpuHits->end(), dummy,
+      //                                   [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
+      for (auto it = range.first; it != range.second; ++it) {
+      // for (auto it = gpuHits->begin(); it != gpuHits->end(); ++it) {
         assert(it->threadId == threadId);
         integrationInstance.ProcessGPUHit(*it);
       }

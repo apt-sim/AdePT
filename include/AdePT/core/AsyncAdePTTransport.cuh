@@ -591,6 +591,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     // Possible timing
     // auto start = std::chrono::high_resolution_clock::now();
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
+    cvG4Workers.notify_all(); // FIXME EXPERIMENTAL TO WAKE THEM UP BEFORE
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits();
 
     // auto end = std::chrono::high_resolution_clock::now();

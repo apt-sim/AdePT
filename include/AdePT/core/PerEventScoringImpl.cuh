@@ -53,6 +53,23 @@ struct BufferHandle {
   GPUHit *hostBuffer;
   enum class State { Free, OnDevice, OnDeviceNeedTransferToHost, TransferToHost, NeedHostProcessing };
   std::atomic<State> state;
+  std::atomic<short> refcount;
+
+  void reset() {
+    hitScoringInfo.fSlotCounter = 0;
+    state.store(State::Free, std::memory_order_release);  // Mark buffer as free
+  }
+
+  void increment() {
+    refcount.fetch_add(1, std::memory_order_relaxed);
+  }
+  void decrement() {
+    if (refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      // Last worker, reset state for reuse
+      reset();
+    }
+  }
+
 };
 
 // TODO: Rename this. Maybe ScoringState? Check usage in GPUstate
@@ -68,7 +85,9 @@ class HitScoring {
   unique_ptr_cuda<std::byte> fGPUSortAuxMemory;
   std::size_t fGPUSortAuxMemorySize;
 
-  std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
+  // std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
+  std::vector<std::deque<*BufferHandle>> fHitQueues;
+
   mutable std::shared_mutex fProcessingHitsMutex;
 
   using GPUHitVectorPtr = std::shared_ptr<const std::vector<GPUHit>>;
@@ -100,26 +119,31 @@ class HitScoring {
       auto begin = handle.hostBuffer;
       auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
 
-      while (begin != end) {
-        short threadId = begin->threadId; // Get threadId of first hit in the range
-
-        // linear search, slower, doesn't require a sorted array
-        // auto threadEnd = std::find_if(begin, end,
-        //       [threadId](const GPUHit &hit) { return threadId != hit.threadId; });
-
-        // binary search, faster but requires a sorted array
-        auto threadEnd =
-            std::upper_bound(begin, end, threadId, [](short id, const GPUHit &hit) { return id < hit.threadId; });
-
-        // Copy hits into a unique pointer and push it to workers queue
-        auto HitsPerThread = std::make_unique<std::vector<GPUHit>>(begin, threadEnd);
-        fHitQueues[threadId].push_back(std::move(HitsPerThread));
-
-        begin = threadEnd; // set begin to start of the threadId
+      for (auto &queues : fHitQueues) {
+        queues.push_back(&handle);
+        handle->increment();
       }
 
-      handle.hitScoringInfo.fSlotCounter = 0;
-      handle.state                       = BufferHandle::State::Free;
+      // while (begin != end) {
+      //   short threadId = begin->threadId; // Get threadId of first hit in the range
+
+      //   // linear search, slower, doesn't require a sorted array
+      //   // auto threadEnd = std::find_if(begin, end,
+      //   //       [threadId](const GPUHit &hit) { return threadId != hit.threadId; });
+
+      //   // binary search, faster but requires a sorted array
+      //   auto threadEnd =
+      //       std::upper_bound(begin, end, threadId, [](short id, const GPUHit &hit) { return id < hit.threadId; });
+
+      //   // Copy hits into a unique pointer and push it to workers queue
+      //   auto HitsPerThread = std::make_unique<std::vector<GPUHit>>(begin, threadEnd);
+      //   fHitQueues[threadId].push_back(std::move(HitsPerThread));
+
+      //   begin = threadEnd; // set begin to start of the threadId
+      // }
+
+      // handle.hitScoringInfo.fSlotCounter = 0;
+      // handle.state                       = BufferHandle::State::Free;
 
       // std::cout << "After pushing hitVector: Total Memory Used in fHitQueues: " << calculateMemoryUsage(fHitQueues)
       // / 1024.0 / 1024.0 / 1024.0 << " GB" << std::endl;
@@ -156,6 +180,9 @@ public:
     fBuffers[1].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, 0, fHitCapacity};
     fBuffers[1].hostBuffer     = fGPUHitBuffer_host.get() + fHitCapacity;
     fBuffers[1].state          = BufferHandle::State::Free;
+    // fBuffers[2].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + 2*fHitCapacity, 0, fHitCapacity};
+    // fBuffers[2].hostBuffer     = fGPUHitBuffer_host.get() + 2*fHitCapacity;
+    // fBuffers[2].state          = BufferHandle::State::Free;
 
     COPCORE_CUDA_CHECK(cudaGetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
     assert(fHitScoringBuffer_deviceAddress != nullptr);
@@ -203,6 +230,9 @@ public:
         if (handle.state == BufferHandle::State::NeedHostProcessing) {
           if (!lock) lock.lock();
           haveNewHits = true;
+
+          auto begin = handle.hostBuffer;
+          auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
 
           // Possible timing
           // auto start = std::chrono::high_resolution_clock::now();
@@ -262,6 +292,21 @@ public:
       return ret;
     }
   }
+
+  *BufferHandle GetNextHitsHandle(unsigned int threadId)
+  {
+    assert(threadId < fHitQueues.size());
+    std::shared_lock lock{fProcessingHitsMutex};
+
+    if (fHitQueues[threadId].empty())
+      return nullptr;
+    else {
+      auto ret = fHitQueues[threadId].front();
+      fHitQueues[threadId].pop_front();
+      return ret;
+    }
+  }
+
 };
 
 // Implement Cuda-dependent functionality from PerEventScoring
