@@ -114,6 +114,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
+      // NOTE: When adapting the split kernels for async mode this won't
+      // work if we want to re-use slots on the fly. Directly copying to
+      // a trackdata struct would be better
       if (leak)
         leakedQueue->push_back(slot);
       else

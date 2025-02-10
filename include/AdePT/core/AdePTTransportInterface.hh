@@ -19,7 +19,8 @@ public:
   /// @brief Adds a track to the buffer
   virtual void AddTrack(int pdg, int parentId, double energy, double x, double y, double z, double dirx, double diry,
                         double dirz, double globalTime, double localTime, double properTime, int threadId,
-                        unsigned int eventId, unsigned int trackIndex, vecgeom::NavigationState &&state) = 0;
+                        unsigned int eventId, unsigned int trackIndex, vecgeom::NavigationState &&state,
+                        vecgeom::NavigationState &&originState) = 0;
 
   /// @brief Set capacity of on-GPU track buffer.
   virtual void SetTrackCapacity(size_t capacity) = 0;

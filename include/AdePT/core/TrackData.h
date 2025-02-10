@@ -15,6 +15,7 @@ namespace adeptint {
 /// the destination, and used to reconstruct the track
 struct TrackData {
   vecgeom::NavigationState navState;
+  vecgeom::NavigationState originNavState;
   double position[3];
   double direction[3];
   double eKin{0};
@@ -26,9 +27,11 @@ struct TrackData {
 
   TrackData() = default;
   TrackData(int pdg_id, int parentId, double ene, double x, double y, double z, double dirx, double diry, double dirz,
-            double gTime, double lTime, double pTime, vecgeom::NavigationState &&state)
-      : navState{std::move(state)}, position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime},
-        localTime{lTime}, properTime{pTime}, pdg{pdg_id}, parentId{parentId}
+            double gTime, double lTime, double pTime, vecgeom::NavigationState &&state,
+            vecgeom::NavigationState &&originState)
+      : navState{std::move(state)}, originNavState{std::move(originState)}, position{x, y, z},
+        direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime}, localTime{lTime}, properTime{pTime}, pdg{pdg_id},
+        parentId{parentId}
   {
   }
 

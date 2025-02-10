@@ -73,7 +73,8 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, int parentId, double energy, double x, double y, double z, double dirx, double diry,
                 double dirz, double globalTime, double localTime, double properTime, int threadId, unsigned int eventId,
-                unsigned int trackIndex, vecgeom::NavigationState &&state) override;
+                unsigned int trackIndex, vecgeom::NavigationState &&state,
+                vecgeom::NavigationState &&originState) override;
   /// @brief Set track capacity on GPU
   void SetTrackCapacity(size_t capacity) override { fTrackCapacity = capacity; }
   /// @brief Set Hit buffer capacity on GPU and Host

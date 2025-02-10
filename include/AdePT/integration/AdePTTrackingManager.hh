@@ -55,10 +55,17 @@ private:
   /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
   void StepInHostRegion(G4Track *aTrack);
 
-  /// @brief Get the corresponding VecGeom NavigationState from the G4NavigationHistory
+  /// @brief Get the corresponding VecGeom NavigationState from the G4NavigationHistory. The boundary status will be set
+  /// to false by default
   /// @param aG4NavigationHistory the given G4NavigationHistory
   /// @return the corresponding vecgeom::NavigationState
-  const vecgeom::NavigationState GetVecGeomFromG4State(const G4Track *aG4Track);
+  const vecgeom::NavigationState GetVecGeomFromG4State(const G4NavigationHistory &aG4NavigationHistory);
+
+  /// @brief Get the corresponding VecGeom NavigationState from the track's G4NavigationHistory, and set the boundary
+  /// status based on the track's state
+  /// @param aG4Track The G4Track from which to extract the NavigationState
+  /// @return The corresponding vecgeom::NavigationState
+  const vecgeom::NavigationState GetVecGeomFromG4State(const G4Track &aG4Track);
 
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   static inline int fNumThreads{0};

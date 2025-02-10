@@ -105,7 +105,8 @@ __global__ void InjectTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntrack
                                            static_cast<float>(trackInfo.properTime), trackInfo.position,
                                            trackInfo.direction, trackInfo.eventId, trackInfo.parentId, trackInfo.threadId);
     track.navState.Clear();
-    track.navState = trackinfo[i].navState;
+    track.navState       = trackinfo[i].navState;
+    track.originNavState = trackinfo[i].originNavState;
     toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
 
     // FIXME KEEP OLD IMPLEMENTATION SINCE THIS HAS NOT BEEN TESTED THOROUGLY, THEN REMOVE
@@ -202,19 +203,21 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       // No space to transfer it out
       leakedTracks->fLeakedQueueNext->push_back(trackSlot);
     } else {
-      fromDevice[i].position[0]  = track->pos[0];
-      fromDevice[i].position[1]  = track->pos[1];
-      fromDevice[i].position[2]  = track->pos[2];
-      fromDevice[i].direction[0] = track->dir[0];
-      fromDevice[i].direction[1] = track->dir[1];
-      fromDevice[i].direction[2] = track->dir[2];
-      fromDevice[i].eKin         = track->eKin;
-      fromDevice[i].globalTime   = track->globalTime;
-      fromDevice[i].localTime    = track->localTime;
-      fromDevice[i].properTime   = track->properTime;
-      fromDevice[i].pdg          = pdg;
-      fromDevice[i].eventId      = track->eventId;
-      fromDevice[i].threadId     = track->threadId;
+      fromDevice[i].position[0]    = track->pos[0];
+      fromDevice[i].position[1]    = track->pos[1];
+      fromDevice[i].position[2]    = track->pos[2];
+      fromDevice[i].direction[0]   = track->dir[0];
+      fromDevice[i].direction[1]   = track->dir[1];
+      fromDevice[i].direction[2]   = track->dir[2];
+      fromDevice[i].eKin           = track->eKin;
+      fromDevice[i].globalTime     = track->globalTime;
+      fromDevice[i].localTime      = track->localTime;
+      fromDevice[i].properTime     = track->properTime;
+      fromDevice[i].pdg            = pdg;
+      fromDevice[i].eventId        = track->eventId;
+      fromDevice[i].threadId       = track->threadId;
+      fromDevice[i].navState       = track->navState;
+      fromDevice[i].originNavState = track->originNavState;
 
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }

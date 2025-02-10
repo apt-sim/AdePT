@@ -209,12 +209,24 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       }
 
       // Get VecGeom Navigation state from G4History
-      vecgeom::NavigationState converted = GetVecGeomFromG4State(aTrack);
+      vecgeom::NavigationState converted = GetVecGeomFromG4State(*aTrack);
+
+      // Get the VecGeom Navigation state at the track's origin
+      vecgeom::NavigationState convertedOrigin;
+      if (aTrack->GetParentID() == 0 && aTrack->GetCurrentStepNumber() == 0) {
+        // For the first step of primary tracks, the origin touchable handle is not set,
+        // so we need to use the track's current position
+        // If the vertex is not in a GPU region, the origin touchable handle will be set by the HepEmTrackingManager
+        convertedOrigin = GetVecGeomFromG4State(*aTrack->GetTouchable()->GetHistory());
+      } else {
+        // For secondary tracks, the origin touchable handle is set when they are stacked
+        convertedOrigin = GetVecGeomFromG4State(*aTrack->GetOriginTouchableHandle()->GetHistory());
+      }
 
       fAdeptTransport->AddTrack(pdg, id, energy, particlePosition[0], particlePosition[1], particlePosition[2],
                                 particleDirection[0], particleDirection[1], particleDirection[2], globalTime, localTime,
                                 properTime, G4Threading::G4GetThreadId(), eventID, fTrackCounter++,
-                                std::move(converted));
+                                std::move(converted), std::move(convertedOrigin));
 
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);
@@ -230,12 +242,12 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   delete aTrack;
 }
 
-const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const G4Track *aG4Track)
+const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(
+    const G4NavigationHistory &aG4NavigationHistory)
 {
 
   // get history and depth from track
-  auto aG4NavigationHistory = aG4Track->GetNextTouchableHandle()->GetHistory();
-  auto aG4HistoryDepth      = aG4NavigationHistory->GetDepth();
+  auto aG4HistoryDepth = aG4NavigationHistory.GetDepth();
 
   // Initialize the NavState to be filled and push the world to it
   vecgeom::NavigationState aNavState;
@@ -249,8 +261,8 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const
     found_volume = false;
 
     // Get current G4 volume and parent volume.
-    const G4VPhysicalVolume *g4Volume_parent = aG4NavigationHistory->GetVolume(level - 1);
-    const G4VPhysicalVolume *g4Volume        = aG4NavigationHistory->GetVolume(level);
+    const G4VPhysicalVolume *g4Volume_parent = aG4NavigationHistory.GetVolume(level - 1);
+    const G4VPhysicalVolume *g4Volume        = aG4NavigationHistory.GetVolume(level);
 
     // The index of the VecGeom volume on this level (that we need to push the NavState to)
     // is the same as the G4 volume. The index of the G4 volume is found by matching it against
@@ -274,8 +286,18 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const
   }
 
   // Set boundary status
-  if (aG4Track->GetStep() != nullptr) { // at initialization, the G4Step is not set yet, then we put OnBoundary to false
-    if (aG4Track->GetStep()->GetPostStepPoint()->GetStepStatus() == fGeomBoundary) {
+  aNavState.SetBoundaryState(false);
+
+  return aNavState;
+}
+
+const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const G4Track &aG4Track)
+{
+  auto aNavState = GetVecGeomFromG4State(*aG4Track.GetNextTouchableHandle()->GetHistory());
+
+  // Set boundary status based on the track
+  if (aG4Track.GetStep() != nullptr) { // at initialization, the G4Step is not set yet, then we put OnBoundary to false
+    if (aG4Track.GetStep()->GetPostStepPoint()->GetStepStatus() == fGeomBoundary) {
       aNavState.SetBoundaryState(true);
     } else {
       aNavState.SetBoundaryState(false);
