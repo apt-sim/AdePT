@@ -76,7 +76,7 @@ public:
 
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
-  void FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory *aG4NavigationHistory) const;
+  void FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory &aG4NavigationHistory) const;
 
   void FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
                   G4TouchableHandle &aPostG4TouchableHandle) const;

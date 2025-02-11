@@ -321,14 +321,14 @@ void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
   vecgeom::NavigationState const &preNavState = hit.fPreStepPoint.fNavigationState;
   // Reconstruct Pre-Step point G4NavigationHistory
-  FillG4NavigationHistory(preNavState, &fScoringObjects->fPreG4NavigationHistory);
+  FillG4NavigationHistory(preNavState, fScoringObjects->fPreG4NavigationHistory);
   (*fScoringObjects->fPreG4TouchableHistoryHandle)
       ->UpdateYourself(fScoringObjects->fPreG4NavigationHistory.GetTopVolume(),
                        &fScoringObjects->fPreG4NavigationHistory);
   // Reconstruct Post-Step point G4NavigationHistory
   vecgeom::NavigationState const &postNavState = hit.fPostStepPoint.fNavigationState;
   if (!postNavState.IsOutside()) {
-    FillG4NavigationHistory(postNavState, &fScoringObjects->fPostG4NavigationHistory);
+    FillG4NavigationHistory(postNavState, fScoringObjects->fPostG4NavigationHistory);
     (*fScoringObjects->fPostG4TouchableHistoryHandle)
         ->UpdateYourself(fScoringObjects->fPostG4NavigationHistory.GetTopVolume(),
                          &fScoringObjects->fPostG4NavigationHistory);
@@ -362,10 +362,10 @@ void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
 }
 
 void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState,
-                                                     G4NavigationHistory *aG4NavigationHistory) const
+                                                     G4NavigationHistory &aG4NavigationHistory) const
 {
   // Get the current depth of the history (corresponding to the previous reconstructed touchable)
-  auto aG4HistoryDepth = aG4NavigationHistory->GetDepth();
+  auto aG4HistoryDepth = aG4NavigationHistory.GetDepth();
   // Get the depth of the navigation state we want to reconstruct
   auto aVecGeomLevel = aNavState.GetLevel();
 
@@ -376,39 +376,40 @@ void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aN
   for (aLevel = 0; aLevel <= aVecGeomLevel; aLevel++) {
     // While we are in levels shallower than the history depth, it may be that we already
     // have the correct volume in the history
+    assert(aNavState.At(aLevel));
     pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[aNavState.At(aLevel)->id()]);
     assert(pnewvol != nullptr);
     if (!pnewvol) throw std::runtime_error("VecGeom volume not found in G4 mapping!");
 
     if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
-      pvol = aG4NavigationHistory->GetVolume(aLevel);
+      pvol = aG4NavigationHistory.GetVolume(aLevel);
       // If they match we do not need to update the history at this level
       if (pvol == pnewvol) continue;
       // Once we find two non-matching volumes, we need to update the touchable history from this level on
       if (aLevel) {
         // If we are not in the top level
-        aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel + 1);
+        aG4NavigationHistory.BackLevel(aG4HistoryDepth - aLevel + 1);
         // Update the current level
-        aG4NavigationHistory->NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
+        aG4NavigationHistory.NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
       } else {
         // Update the top level
-        aG4NavigationHistory->BackLevel(aG4HistoryDepth);
-        aG4NavigationHistory->SetFirstEntry(pnewvol);
+        aG4NavigationHistory.BackLevel(aG4HistoryDepth);
+        aG4NavigationHistory.SetFirstEntry(pnewvol);
       }
       // Now we are overwriting the history, so set the depth to the current depth
       aG4HistoryDepth = aLevel;
     } else {
       // If the navigation state is deeper than the current history we need to add the new levels
       if (aLevel) {
-        aG4NavigationHistory->NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
+        aG4NavigationHistory.NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
         aG4HistoryDepth++;
       } else {
-        aG4NavigationHistory->SetFirstEntry(pnewvol);
+        aG4NavigationHistory.SetFirstEntry(pnewvol);
       }
     }
   }
   // Once finished, remove the extra levels if the current state is shallower than the previous history
-  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory->BackLevel(aG4HistoryDepth - aLevel + 1);
+  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory.BackLevel(aG4HistoryDepth - aLevel + 1);
 }
 
 void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
@@ -547,6 +548,20 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   secondary->SetLocalTime(track.localTime);
   secondary->SetProperTime(track.properTime);
   secondary->SetParentID(track.parentId);
+  // Reconstruct the origin touchable history and update it on the track
+  // - We can't update the track's navigation history in place as it is a const member
+  // - For the same reason, we need to fill a navigation history and then create a touchable history from it
+  auto originNavigationHistory = std::make_unique<G4NavigationHistory>();
+  FillG4NavigationHistory(track.originNavState, *originNavigationHistory);
+  // We can't use the G4TouchableHistory constructor as it does only a shallow copy of the navigation history,
+  // but UpdateYourself takes ownership of the pointer
+  auto originTouchableHistory = std::make_unique<G4TouchableHistory>();
+  auto topVolume              = originNavigationHistory->GetTopVolume();
+  originTouchableHistory->UpdateYourself(topVolume,
+                                         originNavigationHistory.release() /* Now owned by G4TouchableHistory */);
+  // Give ownership of the touchable history to the touchable handle, which will now manage its lifetime
+  G4TouchableHandle originTouchableHandle(originTouchableHistory.release() /* Now owned by G4TouchableHandle */);
+  secondary->SetOriginTouchableHandle(originTouchableHandle);
 
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
 }

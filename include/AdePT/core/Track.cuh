@@ -31,11 +31,12 @@ struct Track {
   float localTime{0.f};
   float properTime{0.f};
 
-  vecgeom::Vector3D<Precision> pos;   ///< track position
-  vecgeom::Vector3D<Precision> dir;   ///< track direction
-  vecgeom::Vector3D<float> safetyPos; ///< last position where the safety was computed
-  float safety{0.f};                  ///< last computed safety value
-  vecgeom::NavigationState navState;  ///< current navigation state
+  vecgeom::Vector3D<Precision> pos;        ///< track position
+  vecgeom::Vector3D<Precision> dir;        ///< track direction
+  vecgeom::Vector3D<float> safetyPos;      ///< last position where the safety was computed
+  float safety{0.f};                       ///< last computed safety value
+  vecgeom::NavigationState navState;       ///< current navigation state
+  vecgeom::NavigationState originNavState; ///< current navigation state
 
 #ifdef USE_SPLIT_KERNELS
   // Variables used to store track info needed for scoring
@@ -85,8 +86,8 @@ struct Track {
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack)
       : rngState{rngState}, eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, eventId{parentTrack.eventId}, parentId{parentTrack.parentId},
-        threadId{parentTrack.threadId}
+        navState{newNavState}, originNavState{newNavState}, eventId{parentTrack.eventId},
+        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}
   {
   }
 
@@ -135,6 +136,9 @@ struct Track {
     this->safety   = 0.0f;
     this->navState = parentNavState;
 
+    // Set the origin for this track
+    this->originNavState = parentNavState;
+
     // The global time is inherited from the parent
     this->globalTime = gTime;
     this->localTime  = 0.;
@@ -143,19 +147,20 @@ struct Track {
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
-    tdata.pdg          = pdg;
-    tdata.parentId     = parentId;
-    tdata.position[0]  = pos[0];
-    tdata.position[1]  = pos[1];
-    tdata.position[2]  = pos[2];
-    tdata.direction[0] = dir[0];
-    tdata.direction[1] = dir[1];
-    tdata.direction[2] = dir[2];
-    tdata.eKin         = eKin;
-    tdata.globalTime   = globalTime;
-    tdata.localTime    = localTime;
-    tdata.properTime   = properTime;
-    // FIXME missing navState here
+    tdata.pdg            = pdg;
+    tdata.parentId       = parentId;
+    tdata.position[0]    = pos[0];
+    tdata.position[1]    = pos[1];
+    tdata.position[2]    = pos[2];
+    tdata.direction[0]   = dir[0];
+    tdata.direction[1]   = dir[1];
+    tdata.direction[2]   = dir[2];
+    tdata.eKin           = eKin;
+    tdata.globalTime     = globalTime;
+    tdata.localTime      = localTime;
+    tdata.properTime     = properTime;
+    tdata.navState       = navState;
+    tdata.originNavState = originNavState;
   }
 };
 #endif
