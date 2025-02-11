@@ -46,6 +46,8 @@ bool InitializeApplyCuts(bool applycuts);
 G4HepEmState *InitG4HepEm();
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
+std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &);
+void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
                             std::vector<AdePTScoring> &, int, int);
@@ -262,25 +264,35 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     }
 
     // std::shared_ptr<const std::vector<GPUHit>> gpuHits;
-    *AsyncAdePT::BufferHandle buffer_handle;
     // while ((gpuHits = async_adept_impl::GetGPUHits(threadId, *fGPUstate)) != nullptr) {
-    // while ((gpuHits = gpuState.fHitScoring->GetNextHitsVector(threadId)) != nullptr) {
-    while ((buffer_handle = fGPUstate.fHitScoring->GetNextHitsHandle(threadId)) != nullptr) {
+    // // while ((gpuHits = gpuState.fHitScoring->GetNextHitsVector(threadId)) != nullptr) {
+    // while ((buffer_handle = fGPUstate.fHitScoring->GetNextHitsHandle(threadId)) != nullptr) {
 
-      auto begin = buffer_handle.hostBuffer;
-      auto end   = buffer_handle.hostBuffer + buffer_handle.hitScoringInfo.fSlotCounter;
+    //   auto begin = buffer_handle.hostBuffer;
+    //   auto end   = buffer_handle.hostBuffer + buffer_handle.hitScoringInfo.fSlotCounter;
 
-      GPUHit dummy;
-      dummy.fEventId = eventId;
-      auto range     = std::equal_range(begin, end, dummy,
-                                        [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
-      // auto range     = std::equal_range(gpuHits->begin(), gpuHits->end(), dummy,
-      //                                   [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
+    //   GPUHit dummy;
+    //   dummy.fEventId = eventId;
+    //   auto range     = std::equal_range(begin, end, dummy,
+    //                                     [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
+    //   // auto range     = std::equal_range(gpuHits->begin(), gpuHits->end(), dummy,
+    //   //                                   [](const GPUHit &lhs, const GPUHit &rhs) { return lhs.fEventId < rhs.fEventId; });
+    //   for (auto it = range.first; it != range.second; ++it) {
+    //   // for (auto it = gpuHits->begin(); it != gpuHits->end(); ++it) {
+    //     assert(it->threadId == threadId);
+    //     integrationInstance.ProcessGPUHit(*it);
+    //   }
+    // }
+
+    std::pair<GPUHit*, GPUHit*> range;
+    // if ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate)).first != nullptr) std::cout << " G4 WORKER WAKING UP TO DO SOME SCORING! " << async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate).first << std::endl;
+    while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate)).first != nullptr) {
+    // while ((range = fGPUstate.fHitScoring->GetNextHitsHandle(threadId, eventId)).first != nullptr) {
       for (auto it = range.first; it != range.second; ++it) {
-      // for (auto it = gpuHits->begin(); it != gpuHits->end(); ++it) {
         assert(it->threadId == threadId);
-        integrationInstance.ProcessGPUHit(*it);
+        if (it->threadId == threadId) integrationInstance.ProcessGPUHit(*it);
       }
+      async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate); // decrement refcount in buffer and last worker sets to BufferStatus::Free
     }
   }
 

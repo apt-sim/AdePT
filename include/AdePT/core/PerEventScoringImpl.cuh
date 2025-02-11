@@ -19,6 +19,7 @@
 #include <array>
 #include <chrono>
 #include <thread>
+#include <condition_variable>
 
 #include <cub/device/device_merge_sort.cuh>
 
@@ -53,7 +54,7 @@ struct BufferHandle {
   GPUHit *hostBuffer;
   enum class State { Free, OnDevice, OnDeviceNeedTransferToHost, TransferToHost, NeedHostProcessing };
   std::atomic<State> state;
-  std::atomic<short> refcount;
+  std::atomic<short> refcount = 0;
 
   void reset() {
     hitScoringInfo.fSlotCounter = 0;
@@ -62,12 +63,15 @@ struct BufferHandle {
 
   void increment() {
     refcount.fetch_add(1, std::memory_order_relaxed);
+    // std::cout << " incrementing refcount " << refcount.load() << std::endl; 
   }
-  void decrement() {
+  void decrement(unsigned int threadId) {
     if (refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
       // Last worker, reset state for reuse
+      // std::cout << std::dec << "worker " << threadId << " releasing and setting to Free " << std::endl;
       reset();
     }
+    // std::cout << std::dec << "worker " << threadId << " refcount after decreasing:  " << refcount.load() << std::endl;
   }
 
 };
@@ -86,7 +90,7 @@ class HitScoring {
   std::size_t fGPUSortAuxMemorySize;
 
   // std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
-  std::vector<std::deque<*BufferHandle>> fHitQueues;
+  std::vector<std::deque<BufferHandle*>> fHitQueues;
 
   mutable std::shared_mutex fProcessingHitsMutex;
 
@@ -109,7 +113,7 @@ class HitScoring {
     return totalMemory;
   }
 
-  void ProcessBuffer(BufferHandle &handle)
+  void ProcessBuffer(BufferHandle &handle, std::condition_variable &cvG4Workers, std::unique_lock<std::shared_mutex> &lock)
   {
     // We are assuming that the caller holds a lock on fProcessingHitsMutex.
     if (handle.state == BufferHandle::State::NeedHostProcessing) {
@@ -119,10 +123,34 @@ class HitScoring {
       auto begin = handle.hostBuffer;
       auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
 
+      // OPTIONAL: print size of buffer 
+      // size_t memoryUsed = (end - begin) * sizeof(GPUHit);
+      // std::cout << "Memory in hit buffer to be scored: " << memoryUsed / 1024. / 1024. /1024. << " GB" << std::endl;
+
+      handle.refcount.store(0, std::memory_order_relaxed);
+
+      // std::cout << " Pushing back handles to queues " << fHitQueues.size() << std::endl;
       for (auto &queues : fHitQueues) {
         queues.push_back(&handle);
-        handle->increment();
+        handle.increment();
       }
+
+      // std::cout << "Notifying G4 workers..." << std::endl;
+      cvG4Workers.notify_all();
+      lock.unlock();
+
+      while (handle.state.load()  == BufferHandle::State::NeedHostProcessing) {
+        // std::cout << " Waiting for G4 workers... State: " 
+        //           << GetStateName(handle.state.load()) 
+        //           << " Refcount: " << handle.refcount.load() << std::endl;
+        // std::atomic_thread_fence(std::memory_order_seq_cst);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+
+      // std::cout << "G4 workers seem to have done their job! Final State: " 
+      //           << GetStateName(handle.state.load()) 
+      //           << " Refcount: " << handle.refcount.load() << std::endl;
+      // PrintBufferStates();
 
       // while (begin != end) {
       //   short threadId = begin->threadId; // Get threadId of first hit in the range
@@ -219,7 +247,7 @@ public:
     currentBuffer.state = BufferHandle::State::OnDeviceNeedTransferToHost;
   }
 
-  bool ProcessHits()
+  bool ProcessHits(std::condition_variable &cvG4Workers)
   {
     std::unique_lock lock{fProcessingHitsMutex, std::defer_lock};
     bool haveNewHits = false;
@@ -231,12 +259,9 @@ public:
           if (!lock) lock.lock();
           haveNewHits = true;
 
-          auto begin = handle.hostBuffer;
-          auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
-
           // Possible timing
           // auto start = std::chrono::high_resolution_clock::now();
-          ProcessBuffer(handle);
+          ProcessBuffer(handle, cvG4Workers, lock);
           // auto end = std::chrono::high_resolution_clock::now();
           // std::chrono::duration<double> elapsed = end - start;
           //     std::cout << "BUFFER Processing time: " << elapsed.count() << " seconds" << std::endl;
@@ -255,6 +280,28 @@ public:
                        [](const auto &handle) { return handle.state == BufferHandle::State::Free; });
   }
 
+  std::string GetStateName(BufferHandle::State state) const {
+    switch (state) {
+      case BufferHandle::State::Free: return "Free";
+      case BufferHandle::State::OnDevice: return "OnDevice";
+      case BufferHandle::State::OnDeviceNeedTransferToHost: return "OnDeviceNeedTransferToHost";
+      case BufferHandle::State::TransferToHost: return "TransferToHost";
+      case BufferHandle::State::NeedHostProcessing: return "NeedHostProcessing";
+      default: return "Unknown";
+    }
+  }
+
+  void PrintBufferStates() const {
+    std::cout << "Buffer States: ";
+    
+    for (const auto &handle : fBuffers) {
+      std::cout << "[State: " << GetStateName(handle.state.load()) 
+                << ", Refcount: " << handle.refcount.load() << "] ";
+    }
+    
+    std::cout << std::endl;
+  }
+
   /// Copy the current contents of the GPU hit buffer to host.
   void TransferHitsToHost(cudaStream_t cudaStreamForHitCopy)
   {
@@ -266,8 +313,8 @@ public:
 
       auto bufferBegin = buffer.hitScoringInfo.hitBuffer_dev;
 
-      cub::DeviceMergeSort::SortKeys(fGPUSortAuxMemory.get(), fGPUSortAuxMemorySize, bufferBegin,
-                                     buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
+      // cub::DeviceMergeSort::SortKeys(fGPUSortAuxMemory.get(), fGPUSortAuxMemorySize, bufferBegin,
+      //                                buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
 
       COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer, bufferBegin,
                                          sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
@@ -279,31 +326,46 @@ public:
     }
   }
 
-  std::shared_ptr<const std::vector<GPUHit>> GetNextHitsVector(unsigned int threadId)
+  // comment out old function for now as we cannot keep both alive if we change the interface
+  // std::shared_ptr<const std::vector<GPUHit>> GetNextHitsVector(unsigned int threadId)
+  // {
+  //   assert(threadId < fHitQueues.size());
+  //   std::shared_lock lock{fProcessingHitsMutex};
+
+  //   if (fHitQueues[threadId].empty())
+  //     return nullptr;
+  //   else {
+  //     auto ret = fHitQueues[threadId].front();
+  //     fHitQueues[threadId].pop_front();
+  //     return ret;
+  //   }
+  // }
+
+  BufferHandle* GetNextHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
-    std::shared_lock lock{fProcessingHitsMutex};
+    // std::shared_lock lock{fProcessingHitsMutex}; // read only, don't need to lock?
 
     if (fHitQueues[threadId].empty())
       return nullptr;
     else {
       auto ret = fHitQueues[threadId].front();
-      fHitQueues[threadId].pop_front();
+      // fHitQueues[threadId].pop_front(); // don't pop the front, we still need to decrement before we can pop it
       return ret;
     }
   }
 
-  *BufferHandle GetNextHitsHandle(unsigned int threadId)
+  void CloseHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
     std::shared_lock lock{fProcessingHitsMutex};
 
-    if (fHitQueues[threadId].empty())
-      return nullptr;
+    if (fHitQueues[threadId].empty()) 
+      throw std::invalid_argument{"Error, no hitQueue to close"};
     else {
-      auto ret = fHitQueues[threadId].front();
+      auto& ret = fHitQueues[threadId].front();
+      ret->decrement(threadId);
       fHitQueues[threadId].pop_front();
-      return ret;
     }
   }
 
