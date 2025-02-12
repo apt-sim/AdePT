@@ -141,16 +141,19 @@ endif()
 
 # Find G4VG, optional as requires Geant4
 if(Geant4_FOUND)
-  # Fetch it locally for now
-  include(FetchContent)
-  FetchContent_Declare(
-    g4vg
-    GIT_REPOSITORY https://github.com/celeritas-project/g4vg
-    GIT_TAG v1.0.1)
-  # G4VG builds static by default, so change this to shared
-  # could also configure for PIC mode static.
-  set(BUILD_SHARED_LIBS ON)
-  FetchContent_MakeAvailable(g4vg)
+  find_package(G4VG 1.0.1 QUIET)
+  if(NOT G4VG_FOUND)
+    # Fetch it locally
+    include(FetchContent)
+    FetchContent_Declare(
+      g4vg
+      GIT_REPOSITORY https://github.com/celeritas-project/g4vg
+      GIT_TAG v1.0.1)
+    # G4VG builds static by default, so change this to shared
+    # could also configure for PIC mode static.
+    set(BUILD_SHARED_LIBS ON)
+    FetchContent_MakeAvailable(g4vg)
+  endif()
 endif()
 
 # Set up debugging levels for CUDA:
