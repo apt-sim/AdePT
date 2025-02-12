@@ -142,7 +142,9 @@ endif()
 # Find G4VG, optional as requires Geant4
 if(Geant4_FOUND)
   find_package(G4VG 1.0.1 QUIET)
-  if(NOT G4VG_FOUND)
+  if(G4VG_FOUND)
+    message(STATUS "G4VG found ${G4VG_DIR}")
+  else()
     # Fetch it locally
     include(FetchContent)
     FetchContent_Declare(
@@ -153,6 +155,7 @@ if(Geant4_FOUND)
     # could also configure for PIC mode static.
     set(BUILD_SHARED_LIBS ON)
     FetchContent_MakeAvailable(g4vg)
+    message(STATUS "Fetched G4VG locally")
   endif()
 endif()
 
