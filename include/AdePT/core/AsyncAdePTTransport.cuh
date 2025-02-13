@@ -268,7 +268,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     //   gammaInteractions.queues[threadIdx.x]->clear();
     // }
     if (threadIdx.x == 0) {
-      stats->hitBufferOccupancy = AsyncAdePT::gHitScoringBuffer_dev.fSlotCounter;
+      stats->hitBufferOccupancy = AsyncAdePT::gHitScoringBuffer_dev.GetMaxSlotCount(); // FIXME for per thread counter AsyncAdePT::gHitScoringBuffer_dev.fSlotCounter;
     }
   }
 
@@ -601,10 +601,10 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     //     std::cout << "HIT Processing time: " << elapsed.count() << " seconds" << std::endl;
     // }
 
-    // if (haveNewHits) {
+    if (haveNewHits) {
       AdvanceEventStates(EventState::FlushingHits, EventState::HitsFlushed, eventStates);
     //   cvG4Workers.notify_all();
-    // }
+    }
   }
 }
 
@@ -973,6 +973,13 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         if (!gpuState.fHitScoring->ReadyToSwapBuffers()) {
           hitProcessing->cv.notify_one();
         } else {
+          // FIXME: this is rigged, the HitCapacity() still gives the full hit capacity and not per thread.
+          // since we currently set the hitBufferOccupancy to the maximum, it still works
+          // if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
+          //     gpuState.stats->hitBufferOccupancy >= 10000 ||
+
+          std::cout << " READY TO SWAP BEFORE SWAP??? " << gpuState.fHitScoring->ReadyToSwapBuffers() << " States " << std::endl;
+          gpuState.fHitScoring->PrintBufferStates();
           if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
               gpuState.stats->hitBufferOccupancy >= 10000 ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
@@ -1091,7 +1098,12 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
   // return {range.first, range.second};
 
   // VERSION B FOR UNSORTED GPU HITS just return full buffer
-  return {buffer->hostBuffer, buffer->hostBuffer + buffer->hitScoringInfo.fSlotCounter};
+  std::cout << " Returning GPUhits : threadId " << threadId << " buffer->hitScoringInfo.fNSlot " << 
+  buffer->hitScoringInfo.fNSlot << " buffer->hostBufferCount[threadId] " << buffer->hostBufferCount[threadId] <<
+  " from " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot <<
+               " to " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId] << std::endl;
+  return {buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot, 
+          buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId]};
 }
 
 void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState)

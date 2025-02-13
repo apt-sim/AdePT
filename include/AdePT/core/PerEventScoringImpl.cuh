@@ -33,31 +33,95 @@ namespace AsyncAdePT {
 /// Struct holding GPU hits to be used both on host and device.
 struct HitScoringBuffer {
   GPUHit *hitBuffer_dev     = nullptr;
-  unsigned int fSlotCounter = 0;
+  unsigned int *fSlotCounter = nullptr;  // Array of per-thread counters
   unsigned int fNSlot       = 0;
+  unsigned int fNThreads    = 0;
 
-  __device__ GPUHit &GetNextSlot()
+  // __host__ __device__ HitScoringBuffer() = default;
+
+  // __host__ void AllocateSlotCounterMemory(unsigned int threads) {
+  //   // Allocate per-thread slot counters on device
+  //   COPCORE_CUDA_CHECK(cudaMalloc(&fSlotCounter, sizeof(unsigned int) * threads));
+  //   COPCORE_CUDA_CHECK(cudaMemset(fSlotCounter, 0, sizeof(unsigned int) * threads));
+  // }
+
+  // __host__ ~HitScoringBuffer() {
+  //   // Free device memory
+  //   if (fSlotCounter) cudaFree(fSlotCounter);
+  // }
+
+  __host__ __device__ unsigned int GetMaxSlotCount() {
+    unsigned int maxVal = 0;
+    for (unsigned int i = 0; i < fNThreads; ++i) {
+      maxVal = vecCore::math::Max(maxVal, fSlotCounter[i]);
+    }
+    return maxVal;
+  }
+
+  __device__ GPUHit &GetNextSlot(unsigned int threadId)
   {
-    const auto slotIndex = atomicAdd(&fSlotCounter, 1);
+    // printf("Thread %u accessing fSlotCounter at address: %p\n", threadId, fSlotCounter);
+    if (!fSlotCounter) {
+        printf("ERROR: SLOTCOUNTER IS NULLPTR\n");
+    }
+    const auto slotIndex = atomicAdd(&fSlotCounter[threadId], 1);
     if (slotIndex >= fNSlot) {
       printf("Trying to score hit #%d with only %d slots\n", slotIndex, fNSlot);
       COPCORE_EXCEPTION("Out of slots in HitScoringBuffer::NextSlot");
     }
-    return hitBuffer_dev[slotIndex];
+    return hitBuffer_dev[threadId * fNSlot + slotIndex];
   }
 };
 
 __device__ HitScoringBuffer gHitScoringBuffer_dev;
 
+#ifdef __SANITIZE_ADDRESS__
+#include <sanitizer/asan_interface.h>
+#endif
+
+bool isValidPointer(void* ptr) {
+#ifdef __SANITIZE_ADDRESS__
+  return !__asan_address_is_poisoned(ptr);
+#else
+  return ptr != nullptr;
+#endif
+}
+
 struct BufferHandle {
   HitScoringBuffer hitScoringInfo;
   GPUHit *hostBuffer;
+  unsigned int *hostBufferCount; 
   enum class State { Free, OnDevice, OnDeviceNeedTransferToHost, TransferToHost, NeedHostProcessing };
   std::atomic<State> state;
   std::atomic<short> refcount = 0;
 
   void reset() {
-    hitScoringInfo.fSlotCounter = 0;
+    std::cout << "Resetting buffer handle: " << this 
+              << " | Refcount: " << refcount.load() 
+              << " | State: " << static_cast<int>(state.load())
+              << " | hitScoringInfo.fSlotCounter: " << (void*)hitScoringInfo.fSlotCounter
+              << std::endl;
+
+    if (!hitScoringInfo.fSlotCounter) {
+        std::cerr << "ERROR: fSlotCounter is NULL at reset!\n";
+        return;
+    }
+
+    if (refcount.load() != 0) {
+      std::cerr << "Error: Attempting to reset a buffer with nonzero refcount!" << std::endl;
+      std::abort();
+    }
+
+  // if (!isValidPointer(hitScoringInfo.fSlotCounter)) {
+  //   std::cerr << "ERROR: Trying to reset invalid memory in BufferHandle!" << std::endl;
+  //   return;
+  // }
+
+  //   for (int i = 0; i < hitScoringInfo.fNThreads; i++) {
+  //     std::cout << "Writing to: " << (void*)&hitScoringInfo.fSlotCounter[i] 
+  //                 << " (before=" << hitScoringInfo.fSlotCounter[i] << ")" << std::endl;
+  //     hitScoringInfo.fSlotCounter[i] = 0;
+  //   }
     state.store(State::Free, std::memory_order_release);  // Mark buffer as free
   }
 
@@ -66,11 +130,20 @@ struct BufferHandle {
     // std::cout << " incrementing refcount " << refcount.load() << std::endl; 
   }
   void decrement(unsigned int threadId) {
-    if (refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+
+    int prev = refcount.load();
+    std::cout << "Before decrement: " << prev << " | Thread: " << threadId << std::endl;
+
+
+
+    refcount.fetch_sub(1, std::memory_order_acq_rel);
+    std::cout << "After decrement: " << refcount.load() << " | Thread: " << threadId << std::endl;
+
+    // if (refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
       // Last worker, reset state for reuse
       // std::cout << std::dec << "worker " << threadId << " releasing and setting to Free " << std::endl;
       // reset();
-    }
+    // }
     // std::cout << std::dec << "worker " << threadId << " refcount after decreasing:  " << refcount.load() << std::endl;
   }
 
@@ -80,6 +153,8 @@ struct BufferHandle {
 class HitScoring {
   unique_ptr_cuda<GPUHit> fGPUHitBuffer_dev;
   unique_ptr_cuda<GPUHit, CudaHostDeleter<GPUHit>> fGPUHitBuffer_host;
+  unique_ptr_cuda<unsigned int> fGPUHitBufferCount_dev;
+  unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>> fGPUHitBufferCount_host;
 
   std::array<BufferHandle, 2> fBuffers;
 
@@ -120,8 +195,10 @@ class HitScoring {
 
       // std::cout << "Total Memory Used in fHitQueues: " << calculateMemoryUsage(fHitQueues) / 1024.0 / 1024.0 / 1024.0
       // << " GB" << std::endl;
-      auto begin = handle.hostBuffer;
-      auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
+
+      // FIXME this doesn't work anymore, since the fSlotCounter is now an array!
+      // auto begin = handle.hostBuffer;
+      // auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
 
       // OPTIONAL: print size of buffer 
       // size_t memoryUsed = (end - begin) * sizeof(GPUHit);
@@ -192,24 +269,39 @@ public:
     if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit buffer."};
     fGPUHitBuffer_dev.reset(gpuHits);
 
+    unsigned int *buffer_count = nullptr;
+    COPCORE_CUDA_CHECK(cudaMallocHost(&buffer_count, sizeof(unsigned int) * 2 * nThread));
+    fGPUHitBufferCount_host.reset(buffer_count);
+
+    result = cudaMalloc(&buffer_count, sizeof(unsigned int) * 2 * nThread);
+    if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit buffer."};
+    fGPUHitBufferCount_dev.reset(buffer_count);
+
+
     // Init buffers for on-device sorting of hits:
     // Determine device storage requirements for on-device sorting.
-    result = cub::DeviceMergeSort::SortKeys(nullptr, fGPUSortAuxMemorySize, fGPUHitBuffer_dev.get(), fHitCapacity,
-                                            CompareGPUHits{});
-    if (result != cudaSuccess) throw std::invalid_argument{"No space for hit sorting on device."};
+    // result = cub::DeviceMergeSort::SortKeys(nullptr, fGPUSortAuxMemorySize, fGPUHitBuffer_dev.get(), fHitCapacity,
+    //                                         CompareGPUHits{});
+    // if (result != cudaSuccess) throw std::invalid_argument{"No space for hit sorting on device."};
 
-    std::byte *gpuSortingMem;
-    result = cudaMalloc(&gpuSortingMem, fGPUSortAuxMemorySize);
-    if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit sorting buffer."};
-    fGPUSortAuxMemory.reset(gpuSortingMem);
+    // std::byte *gpuSortingMem;
+    // result = cudaMalloc(&gpuSortingMem, fGPUSortAuxMemorySize);
+    // if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit sorting buffer."};
+    // fGPUSortAuxMemory.reset(gpuSortingMem);
 
     // Store buffer data in structs
-    fBuffers[0].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get(), 0, fHitCapacity};
+    // fBuffers[0].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get(), 0, fHitCapacity};
+    fBuffers[0].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get(), fGPUHitBufferCount_dev.get(), fHitCapacity/nThread, nThread};
     fBuffers[0].hostBuffer     = fGPUHitBuffer_host.get();
+    fBuffers[0].hostBufferCount = fGPUHitBufferCount_host.get();
     fBuffers[0].state          = BufferHandle::State::OnDevice;
-    fBuffers[1].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, 0, fHitCapacity};
+
+    // fBuffers[1].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, 0, fHitCapacity};
+    fBuffers[1].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, fGPUHitBufferCount_dev.get() + nThread, fHitCapacity/nThread, nThread};
     fBuffers[1].hostBuffer     = fGPUHitBuffer_host.get() + fHitCapacity;
+    fBuffers[1].hostBufferCount = fGPUHitBufferCount_host.get() + nThread;
     fBuffers[1].state          = BufferHandle::State::Free;
+
     // fBuffers[2].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + 2*fHitCapacity, 0, fHitCapacity};
     // fBuffers[2].hostBuffer     = fGPUHitBuffer_host.get() + 2*fHitCapacity;
     // fBuffers[2].state          = BufferHandle::State::Free;
@@ -224,6 +316,8 @@ public:
 
   void SwapDeviceBuffers(cudaStream_t cudaStream)
   {
+    printf("CALLING SWAP printing states\n");
+    PrintBufferStates();
     // Ensure that host side has been processed:
     auto &currentBuffer = fBuffers[fActiveBuffer];
     if (currentBuffer.state != BufferHandle::State::OnDevice)
@@ -234,17 +328,34 @@ public:
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(&currentHitInfo, fHitScoringBuffer_deviceAddress, sizeof(HitScoringBuffer),
                                        cudaMemcpyDefault, cudaStream));
 
+    // HitScoringBuffer* deviceBuffer = static_cast<HitScoringBuffer*>(fHitScoringBuffer_deviceAddress);
+
+    // // Copy the SlotCounterArray
+    // COPCORE_CUDA_CHECK(cudaMemcpyAsync(currentHitInfo.fSlotCounter, 
+    //                                    deviceBuffer->fSlotCounter,
+    //                                    sizeof(unsigned int) * currentHitInfo.fNThreads,
+    //                                    cudaMemcpyDeviceToDevice, cudaStream));
+
     // Execute the swap:
+    printf("Before Swap buffer 0: fSlotCounter = %p\n", fBuffers[0].hitScoringInfo.fSlotCounter);
+    printf("Before Swap buffer 1: fSlotCounter = %p\n", fBuffers[1].hitScoringInfo.fSlotCounter);
+
     fActiveBuffer          = (fActiveBuffer + 1) % fBuffers.size();
+    printf("After Swap: fSlotCounter = %p\n", fBuffers[fActiveBuffer].hitScoringInfo.fSlotCounter);
     auto &nextDeviceBuffer = fBuffers[fActiveBuffer];
     while (nextDeviceBuffer.state != BufferHandle::State::Free) {
       std::cerr << __func__ << " Warning: Another thread should have processed the hits.\n";
     }
-    assert(nextDeviceBuffer.state == BufferHandle::State::Free && nextDeviceBuffer.hitScoringInfo.fSlotCounter == 0);
+    // assert(nextDeviceBuffer.state == BufferHandle::State::Free && nextDeviceBuffer.hitScoringInfo.fSlotCounter == 0);
 
     nextDeviceBuffer.state = BufferHandle::State::OnDevice;
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &nextDeviceBuffer.hitScoringInfo,
                                        sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
+    // COPCORE_CUDA_CHECK(cudaMemcpyAsync(deviceBuffer->fSlotCounter,
+    //                                    nextDeviceBuffer.hitScoringInfo.fSlotCounter,
+    //                                    sizeof(unsigned int) * nextDeviceBuffer.hitScoringInfo.fNThreads,
+    //                                    cudaMemcpyDeviceToDevice, cudaStream));
+
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
     currentBuffer.state = BufferHandle::State::OnDeviceNeedTransferToHost;
   }
@@ -272,6 +383,9 @@ public:
         }
       }
     }
+
+      std::cout << " Finished ProcessBuffer, states :" << std::endl;
+      PrintBufferStates();
 
     return haveNewHits;
   }
@@ -311,15 +425,28 @@ public:
       if (buffer.state != BufferHandle::State::OnDeviceNeedTransferToHost) continue;
 
       buffer.state = BufferHandle::State::TransferToHost;
-      assert(buffer.hitScoringInfo.fSlotCounter < fHitCapacity);
+      // assert(buffer.hitScoringInfo.fSlotCounter[0] < fHitCapacity);
+      // if( buffer.hitScoringInfo.fSlotCounter[0] > fHitCapacity ) {
+      //   printf("Danger! buffer.hitScoringInfo.fSlotCounter[0] %u fHitCapacity %u \n", buffer.hitScoringInfo.fSlotCounter[0], fHitCapacity);
+      // }
 
       auto bufferBegin = buffer.hitScoringInfo.hitBuffer_dev;
 
       // cub::DeviceMergeSort::SortKeys(fGPUSortAuxMemory.get(), fGPUSortAuxMemorySize, bufferBegin,
       //                                buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
 
+      COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBufferCount, buffer.hitScoringInfo.fSlotCounter,
+                                        //  sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
+                                         sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, cudaMemcpyDefault, // we now always copy the full thing.
+                                         cudaStreamForHitCopy));
+
+      COPCORE_CUDA_CHECK(cudaMemsetAsync(buffer.hitScoringInfo.fSlotCounter, 0, 
+                                   sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, 
+                                   cudaStreamForHitCopy));
+
       COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer, bufferBegin,
-                                         sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
+                                        //  sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
+                                         sizeof(GPUHit) * fHitCapacity, cudaMemcpyDefault, // we now always copy the full thing.
                                          cudaStreamForHitCopy));
       COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
           cudaStreamForHitCopy,
@@ -406,7 +533,7 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParent
                           double aPostCharge, unsigned int eventID, short threadID)
 {
   // Acquire a hit slot
-  GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot();
+  GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
 
   // Fill the required data
   FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aPreState, aPrePosition,
