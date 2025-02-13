@@ -96,11 +96,11 @@ struct BufferHandle {
   std::atomic<short> refcount = 0;
 
   void reset() {
-    std::cout << "Resetting buffer handle: " << this 
-              << " | Refcount: " << refcount.load() 
-              << " | State: " << static_cast<int>(state.load())
-              << " | hitScoringInfo.fSlotCounter: " << (void*)hitScoringInfo.fSlotCounter
-              << std::endl;
+    // std::cout << "Resetting buffer handle: " << this 
+    //           << " | Refcount: " << refcount.load() 
+    //           << " | State: " << static_cast<int>(state.load())
+    //           << " | hitScoringInfo.fSlotCounter: " << (void*)hitScoringInfo.fSlotCounter
+    //           << std::endl;
 
     if (!hitScoringInfo.fSlotCounter) {
         std::cerr << "ERROR: fSlotCounter is NULL at reset!\n";
@@ -132,12 +132,12 @@ struct BufferHandle {
   void decrement(unsigned int threadId) {
 
     int prev = refcount.load();
-    std::cout << "Before decrement: " << prev << " | Thread: " << threadId << std::endl;
+    // std::cout << "Before decrement: " << prev << " | Thread: " << threadId << std::endl;
 
 
 
     refcount.fetch_sub(1, std::memory_order_acq_rel);
-    std::cout << "After decrement: " << refcount.load() << " | Thread: " << threadId << std::endl;
+    // std::cout << "After decrement: " << refcount.load() << " | Thread: " << threadId << std::endl;
 
     // if (refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
       // Last worker, reset state for reuse
@@ -316,8 +316,8 @@ public:
 
   void SwapDeviceBuffers(cudaStream_t cudaStream)
   {
-    printf("CALLING SWAP printing states\n");
-    PrintBufferStates();
+    // printf("CALLING SWAP printing states\n");
+    // PrintBufferStates();
     // Ensure that host side has been processed:
     auto &currentBuffer = fBuffers[fActiveBuffer];
     if (currentBuffer.state != BufferHandle::State::OnDevice)
@@ -337,11 +337,11 @@ public:
     //                                    cudaMemcpyDeviceToDevice, cudaStream));
 
     // Execute the swap:
-    printf("Before Swap buffer 0: fSlotCounter = %p\n", fBuffers[0].hitScoringInfo.fSlotCounter);
-    printf("Before Swap buffer 1: fSlotCounter = %p\n", fBuffers[1].hitScoringInfo.fSlotCounter);
+    // printf("Before Swap buffer 0: fSlotCounter = %p\n", fBuffers[0].hitScoringInfo.fSlotCounter);
+    // printf("Before Swap buffer 1: fSlotCounter = %p\n", fBuffers[1].hitScoringInfo.fSlotCounter);
 
     fActiveBuffer          = (fActiveBuffer + 1) % fBuffers.size();
-    printf("After Swap: fSlotCounter = %p\n", fBuffers[fActiveBuffer].hitScoringInfo.fSlotCounter);
+    // printf("After Swap: fSlotCounter = %p\n", fBuffers[fActiveBuffer].hitScoringInfo.fSlotCounter);
     auto &nextDeviceBuffer = fBuffers[fActiveBuffer];
     while (nextDeviceBuffer.state != BufferHandle::State::Free) {
       std::cerr << __func__ << " Warning: Another thread should have processed the hits.\n";
@@ -373,19 +373,19 @@ public:
           haveNewHits = true;
 
           // Possible timing
-          // auto start = std::chrono::high_resolution_clock::now();
+          auto start = std::chrono::high_resolution_clock::now();
           ProcessBuffer(handle, cvG4Workers, lock);
-          // auto end = std::chrono::high_resolution_clock::now();
-          // std::chrono::duration<double> elapsed = end - start;
-          //     std::cout << "BUFFER Processing time: " << elapsed.count() << " seconds" << std::endl;
+          auto end = std::chrono::high_resolution_clock::now();
+          std::chrono::duration<double> elapsed = end - start;
+              std::cout << "BUFFER Processing time: " << elapsed.count() << " seconds" << std::endl;
 
           // lock.unlock();
         }
       }
     }
 
-      std::cout << " Finished ProcessBuffer, states :" << std::endl;
-      PrintBufferStates();
+      // std::cout << " Finished ProcessBuffer, states :" << std::endl;
+      // PrintBufferStates();
 
     return haveNewHits;
   }
@@ -443,6 +443,12 @@ public:
       COPCORE_CUDA_CHECK(cudaMemsetAsync(buffer.hitScoringInfo.fSlotCounter, 0, 
                                    sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, 
                                    cudaStreamForHitCopy));
+
+    // std::cout << " BUFFER HIT GROESSE  " << sizeof(GPUHit) * fHitCapacity / 1024. /1024. /1024. << std::endl;
+
+      // for (int i = 0; i < buffer.hitScoringInfo.fNThreads; i++) {
+        
+      // }
 
       COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer, bufferBegin,
                                         //  sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,

@@ -285,7 +285,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     // }
 
     std::pair<GPUHit*, GPUHit*> range;
-    if ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate)).first != nullptr) std::cout << " G4 WORKER WAKING UP TO DO SOME SCORING! " << async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate).first << std::endl;
+    // if ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate)).first != nullptr) std::cout << " G4 WORKER WAKING UP TO DO SOME SCORING! " << async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate).first << std::endl;
     // while ((range = fGPUstate.fHitScoring->GetNextHitsHandle(threadId, eventId)).first != nullptr) {
     while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate)).first != nullptr) {
       for (auto it = range.first; it != range.second; ++it) {

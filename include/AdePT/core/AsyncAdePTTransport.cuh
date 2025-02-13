@@ -590,16 +590,16 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 
     // FIXME: clean this after all works
     // Possible timing
-    // auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers); // FIXME pass cvG4Workers.notify_all(); down
 
-    // auto end = std::chrono::high_resolution_clock::now();
-    // std::chrono::duration<double> elapsed = end - start;
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
 
-    // if (haveNewHits) {
-    //     std::cout << "HIT Processing time: " << elapsed.count() << " seconds" << std::endl;
-    // }
+    if (haveNewHits) {
+        std::cout << "HIT Processing time: " << elapsed.count() << " seconds" << std::endl;
+    }
 
     if (haveNewHits) {
       AdvanceEventStates(EventState::FlushingHits, EventState::HitsFlushed, eventStates);
@@ -978,8 +978,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
           // if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
           //     gpuState.stats->hitBufferOccupancy >= 10000 ||
 
-          std::cout << " READY TO SWAP BEFORE SWAP??? " << gpuState.fHitScoring->ReadyToSwapBuffers() << " States " << std::endl;
-          gpuState.fHitScoring->PrintBufferStates();
+          // std::cout << " READY TO SWAP BEFORE SWAP??? " << gpuState.fHitScoring->ReadyToSwapBuffers() << " States " << std::endl;
+          // gpuState.fHitScoring->PrintBufferStates();
           if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
               gpuState.stats->hitBufferOccupancy >= 10000 ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
@@ -1098,10 +1098,10 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
   // return {range.first, range.second};
 
   // VERSION B FOR UNSORTED GPU HITS just return full buffer
-  std::cout << " Returning GPUhits : threadId " << threadId << " buffer->hitScoringInfo.fNSlot " << 
-  buffer->hitScoringInfo.fNSlot << " buffer->hostBufferCount[threadId] " << buffer->hostBufferCount[threadId] <<
-  " from " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot <<
-               " to " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId] << std::endl;
+  // std::cout << " Returning GPUhits : threadId " << threadId << " buffer->hitScoringInfo.fNSlot " << 
+  // buffer->hitScoringInfo.fNSlot << " buffer->hostBufferCount[threadId] " << buffer->hostBufferCount[threadId] <<
+  // " from " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot <<
+  //              " to " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId] << std::endl;
   return {buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot, 
           buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId]};
 }
