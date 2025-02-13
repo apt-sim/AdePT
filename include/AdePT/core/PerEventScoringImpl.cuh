@@ -69,7 +69,7 @@ struct BufferHandle {
     if (refcount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
       // Last worker, reset state for reuse
       // std::cout << std::dec << "worker " << threadId << " releasing and setting to Free " << std::endl;
-      reset();
+      // reset();
     }
     // std::cout << std::dec << "worker " << threadId << " refcount after decreasing:  " << refcount.load() << std::endl;
   }
@@ -135,11 +135,11 @@ class HitScoring {
         handle.increment();
       }
 
+      lock.unlock();
       // std::cout << "Notifying G4 workers..." << std::endl;
       cvG4Workers.notify_all();
-      lock.unlock();
 
-      while (handle.state.load()  == BufferHandle::State::NeedHostProcessing) {
+      while (handle.refcount.load(std::memory_order_acquire)  != 0) {
         // std::cout << " Waiting for G4 workers... State: " 
         //           << GetStateName(handle.state.load()) 
         //           << " Refcount: " << handle.refcount.load() << std::endl;
@@ -147,6 +147,8 @@ class HitScoring {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
 
+      lock.lock();
+      handle.reset();
       // std::cout << "G4 workers seem to have done their job! Final State: " 
       //           << GetStateName(handle.state.load()) 
       //           << " Refcount: " << handle.refcount.load() << std::endl;
@@ -344,7 +346,7 @@ public:
   BufferHandle* GetNextHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
-    // std::shared_lock lock{fProcessingHitsMutex}; // read only, don't need to lock?
+    std::shared_lock lock{fProcessingHitsMutex}; // read only, can use shared lock
 
     if (fHitQueues[threadId].empty())
       return nullptr;
@@ -358,7 +360,7 @@ public:
   void CloseHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
-    std::shared_lock lock{fProcessingHitsMutex};
+    std::unique_lock lock{fProcessingHitsMutex}; // popping queue, requires unique lock
 
     if (fHitQueues[threadId].empty()) 
       throw std::invalid_argument{"Error, no hitQueue to close"};
