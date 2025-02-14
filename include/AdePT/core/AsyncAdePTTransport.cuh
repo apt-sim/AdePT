@@ -590,16 +590,16 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 
     // FIXME: clean this after all works
     // Possible timing
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers); // FIXME pass cvG4Workers.notify_all(); down
 
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
+    // auto end = std::chrono::high_resolution_clock::now();
+    // std::chrono::duration<double> elapsed = end - start;
 
-    if (haveNewHits) {
-        std::cout << "HIT Processing time: " << elapsed.count() << " seconds" << std::endl;
-    }
+    // if (haveNewHits) {
+    //     std::cout << "HIT Processing time: " << elapsed.count() << " seconds" << std::endl;
+    // }
 
     if (haveNewHits) {
       AdvanceEventStates(EventState::FlushingHits, EventState::HitsFlushed, eventStates);
@@ -1102,8 +1102,16 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
   // buffer->hitScoringInfo.fNSlot << " buffer->hostBufferCount[threadId] " << buffer->hostBufferCount[threadId] <<
   // " from " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot <<
   //              " to " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId] << std::endl;
-  return {buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot, 
-          buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId]};
+
+  unsigned int offset = 0;
+  for (int i = 0; i < threadId; i++) {
+    offset += buffer->hostBufferCount[i];
+  }
+
+  // std::cout << "threadId " << threadId << " EventId " << eventId << " offset " << offset << " num hits to score " << buffer->hostBufferCount[threadId] << std::endl;
+
+  return {buffer->hostBuffer + offset, 
+          buffer->hostBuffer + offset + buffer->hostBufferCount[threadId]};
 }
 
 void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState)

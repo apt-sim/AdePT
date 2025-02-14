@@ -373,11 +373,11 @@ public:
           haveNewHits = true;
 
           // Possible timing
-          auto start = std::chrono::high_resolution_clock::now();
+          // auto start = std::chrono::high_resolution_clock::now();
           ProcessBuffer(handle, cvG4Workers, lock);
-          auto end = std::chrono::high_resolution_clock::now();
-          std::chrono::duration<double> elapsed = end - start;
-              std::cout << "BUFFER Processing time: " << elapsed.count() << " seconds" << std::endl;
+          // auto end = std::chrono::high_resolution_clock::now();
+          // std::chrono::duration<double> elapsed = end - start;
+          //     std::cout << "BUFFER Processing time: " << elapsed.count() << " seconds" << std::endl;
 
           // lock.unlock();
         }
@@ -435,25 +435,34 @@ public:
       // cub::DeviceMergeSort::SortKeys(fGPUSortAuxMemory.get(), fGPUSortAuxMemorySize, bufferBegin,
       //                                buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
 
+      // Copy SlotCounterArray
       COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBufferCount, buffer.hitScoringInfo.fSlotCounter,
-                                        //  sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
-                                         sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, cudaMemcpyDefault, // we now always copy the full thing.
+                                         sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, cudaMemcpyDefault,
                                          cudaStreamForHitCopy));
+
+      // unfortunately, we need to synchronize since we need to know the offsets if we want to copy only the used data.
+      COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStreamForHitCopy));
+
+      // Copy out the hits:
+      // The start address on device is always i * fNSlot (Slots per thread), and we copy always to
+      // the offset of the previous copy, to get a compact buffer on host.
+      unsigned int offset = 0;
+      for (int i = 0; i < buffer.hitScoringInfo.fNThreads; i++) {
+        COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer + offset, bufferBegin + i * buffer.hitScoringInfo.fNSlot,
+                                   sizeof(GPUHit) * buffer.hostBufferCount[i], cudaMemcpyDefault,
+                                   cudaStreamForHitCopy));
+        offset += buffer.hostBufferCount[i];
+      }
+
+        // std::cout << " offset " << offset; 
+        // std::cout << " buffer.hostBufferCount[i]" << buffer.hostBufferCount[i];
+        // std::cout << " Adress host begin buffer.hostBuffer + offset" << buffer.hostBuffer + offset;
+        // std::cout << " address device begin bufferBegin + offset" << bufferBegin + offset;
 
       COPCORE_CUDA_CHECK(cudaMemsetAsync(buffer.hitScoringInfo.fSlotCounter, 0, 
                                    sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, 
                                    cudaStreamForHitCopy));
 
-    // std::cout << " BUFFER HIT GROESSE  " << sizeof(GPUHit) * fHitCapacity / 1024. /1024. /1024. << std::endl;
-
-      // for (int i = 0; i < buffer.hitScoringInfo.fNThreads; i++) {
-        
-      // }
-
-      COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer, bufferBegin,
-                                        //  sizeof(GPUHit) * buffer.hitScoringInfo.fSlotCounter, cudaMemcpyDefault,
-                                         sizeof(GPUHit) * fHitCapacity, cudaMemcpyDefault, // we now always copy the full thing.
-                                         cudaStreamForHitCopy));
       COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
           cudaStreamForHitCopy,
           [](void *arg) { static_cast<BufferHandle *>(arg)->state = BufferHandle::State::NeedHostProcessing; },
