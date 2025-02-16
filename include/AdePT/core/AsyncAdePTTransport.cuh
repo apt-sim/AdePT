@@ -591,6 +591,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     // FIXME: clean this after all works
     // Possible timing
     // auto start = std::chrono::high_resolution_clock::now();
+    // const bool haveNewHits = gpuState.fHitScoring->TransferAndProcessHits(context->hitTransferStream, cvG4Workers);
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers); // FIXME pass cvG4Workers.notify_all(); down
 
@@ -603,7 +604,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 
     if (haveNewHits) {
       AdvanceEventStates(EventState::FlushingHits, EventState::HitsFlushed, eventStates);
-    //   cvG4Workers.notify_all();
+      // cvG4Workers.notify_all();
     }
   }
 }
@@ -978,14 +979,23 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
           // if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
           //     gpuState.stats->hitBufferOccupancy >= 10000 ||
 
-          // std::cout << " READY TO SWAP BEFORE SWAP??? " << gpuState.fHitScoring->ReadyToSwapBuffers() << " States " << std::endl;
-          // gpuState.fHitScoring->PrintBufferStates();
-          if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
+          if ( gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2 ||
               gpuState.stats->hitBufferOccupancy >= 10000 ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {
+          // std::cout << " I WANT TO SWAP, READY? " << gpuState.fHitScoring->ReadyToSwapBuffers() << " States " << std::endl;
+          // std::cout << " WHY? >10k ?" << (gpuState.stats->hitBufferOccupancy >= 10000) << " in fact, it is " << gpuState.stats->hitBufferOccupancy <<
+          //              " > HitCapacity/2 ? " << (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / 2) <<
+          //              " State requested hitFlush? " << (std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
+          //       return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
+          //     })) << std::endl;
+          // gpuState.fHitScoring->PrintHostBufferStates();
+          // gpuState.fHitScoring->PrintDeviceBufferStates();
+
             AdvanceEventStates(EventState::RequestHitFlush, EventState::FlushingHits, eventStates);
+            // Reset hitBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted swap
+            COPCORE_CUDA_CHECK(cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
             gpuState.fHitScoring->SwapDeviceBuffers(gpuState.stream);
             hitProcessing->cv.notify_one();
           }
@@ -1007,12 +1017,13 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
                   << gpuState.stats->queueFillLevel[ParticleType::Positron] << " "
                   << gpuState.stats->queueFillLevel[ParticleType::Gamma] << ")";
         std::cerr << "\t slots:" << gpuState.stats->slotFillLevel << ", " << numLeaked << " leaked."
-                  << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
-                  << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load())
+                  // << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
+                  // << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load())
                   << "\tHitBuffer: " << gpuState.stats->hitBufferOccupancy
-                  << "\tHitBufferReadyToSwap: " << gpuState.fHitScoring->ReadyToSwapBuffers()
-                  << "\tHitBufferStates: ";
-                  gpuState.fHitScoring->PrintBufferStates();
+                  << "\tHitBufferReadyToSwap: " << gpuState.fHitScoring->ReadyToSwapBuffers();
+                  // << "\tHitBufferStates: ";
+                  gpuState.fHitScoring->PrintHostBufferStates();
+                  gpuState.fHitScoring->PrintDeviceBufferStates();
         if (debugLevel >= 4) {
           std::cerr << "\n\tper event: ";
           for (unsigned int i = 0; i < numThreads; ++i) {
@@ -1108,7 +1119,11 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
     offset += buffer->hostBufferCount[i];
   }
 
-  // std::cout << "threadId " << threadId << " EventId " << eventId << " offset " << offset << " num hits to score " << buffer->hostBufferCount[threadId] << std::endl;
+#define RED "\033[31m"
+#define RESET "\033[0m"
+#define BOLD_RED "\033[1;31m"
+
+  std::cout << BOLD_RED << "threadId " << threadId << " EventId " << eventId << " offset " << offset << " num hits to score " << buffer->hostBufferCount[threadId] << RESET << std::endl;
 
   return {buffer->hostBuffer + offset, 
           buffer->hostBuffer + offset + buffer->hostBufferCount[threadId]};
