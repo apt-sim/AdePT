@@ -1119,11 +1119,11 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
     offset += buffer->hostBufferCount[i];
   }
 
-#define RED "\033[31m"
-#define RESET "\033[0m"
-#define BOLD_RED "\033[1;31m"
+// #define RED "\033[31m"
+// #define RESET "\033[0m"
+// #define BOLD_RED "\033[1;31m"
 
-  std::cout << BOLD_RED << "threadId " << threadId << " EventId " << eventId << " offset " << offset << " num hits to score " << buffer->hostBufferCount[threadId] << RESET << std::endl;
+//   std::cout << BOLD_RED << "threadId " << threadId << " EventId " << eventId << " offset " << offset << " num hits to score " << buffer->hostBufferCount[threadId] << RESET << std::endl;
 
   return {buffer->hostBuffer + offset, 
           buffer->hostBuffer + offset + buffer->hostBufferCount[threadId]};

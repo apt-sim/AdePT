@@ -159,7 +159,7 @@ class HitScoring {
 
 
   enum class DeviceState { Free, Filling, NeedTransferToHost, TransferToHost };
-  std::array<std::atomic<DeviceState>, 2> fDeviceState;
+  std::array<DeviceState, 2> fDeviceState;
 
   void *fHitScoringBuffer_deviceAddress = nullptr;
   unsigned int fHitCapacity;
@@ -269,7 +269,7 @@ public:
     // We use a single allocation for both buffers:
     // FIXME: have size 3 for HostBuffer
     GPUHit *gpuHits = nullptr;
-    COPCORE_CUDA_CHECK(cudaMallocHost(&gpuHits, sizeof(GPUHit) * 3 * fHitCapacity));
+    COPCORE_CUDA_CHECK(cudaMallocHost(&gpuHits, sizeof(GPUHit) * fBuffers.size() * fHitCapacity)); // 4
     fGPUHitBuffer_host.reset(gpuHits);
 
     auto result = cudaMalloc(&gpuHits, sizeof(GPUHit) * 2 * fHitCapacity);
@@ -278,7 +278,7 @@ public:
 
     // FIXME: have size 3 for HostBuffer
     unsigned int *buffer_count = nullptr;
-    COPCORE_CUDA_CHECK(cudaMallocHost(&buffer_count, sizeof(unsigned int) * 3 * nThread));
+    COPCORE_CUDA_CHECK(cudaMallocHost(&buffer_count, sizeof(unsigned int) * fBuffers.size() * nThread)); // 4
     fGPUHitBufferCount_host.reset(buffer_count);
 
     result = cudaMalloc(&buffer_count, sizeof(unsigned int) * 2 * nThread);
@@ -326,6 +326,11 @@ public:
     // fBuffers[2].deviceState          = BufferHandle::DeviceState::Free;
     fBuffers[2].hostState          = BufferHandle::HostState::Free;
 
+    // fBuffers[3].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, fGPUHitBufferCount_dev.get() + nThread, fHitCapacity/nThread, nThread};
+    // fBuffers[3].hostBuffer     = fGPUHitBuffer_host.get() + 3*fHitCapacity;
+    // fBuffers[3].hostBufferCount = fGPUHitBufferCount_host.get() + 3* nThread;
+    // fBuffers[3].hostState          = BufferHandle::HostState::Free;
+
     COPCORE_CUDA_CHECK(cudaGetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
     assert(fHitScoringBuffer_deviceAddress != nullptr);
     COPCORE_CUDA_CHECK(cudaMemcpy(fHitScoringBuffer_deviceAddress, &fBuffers[0].hitScoringInfo,
@@ -345,13 +350,24 @@ public:
     // PrintBufferStates();
     // Ensure that host side has been processed:
     auto &currentBuffer = fBuffers[fActiveBuffer];
-    if (fDeviceState[fActiveDeviceBuffer].load(std::memory_order_acquire) != DeviceState::Filling)
+    if (fDeviceState[fActiveDeviceBuffer] != DeviceState::Filling)
       throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": On-device buffer in wrong state");
 
+
     // Get new buffer info from device:
-    auto &currentHitInfo = currentBuffer.hitScoringInfo;
-    COPCORE_CUDA_CHECK(cudaMemcpyAsync(&currentHitInfo, fHitScoringBuffer_deviceAddress, sizeof(HitScoringBuffer),
-                                       cudaMemcpyDefault, cudaStream));
+    // auto &currentHitInfo = currentBuffer.hitScoringInfo;
+    // // std::cout << " currentHitInfo.hitBuffer_dev " << currentHitInfo.hitBuffer_dev << std::endl;
+    // COPCORE_CUDA_CHECK(cudaMemcpyAsync(&currentHitInfo, fHitScoringBuffer_deviceAddress, sizeof(HitScoringBuffer),
+    //                                    cudaMemcpyDefault, cudaStream));
+
+
+    COPCORE_CUDA_CHECK(cudaMemcpyAsync(currentBuffer.hostBufferCount, currentBuffer.hitScoringInfo.fSlotCounter,
+                                        sizeof(unsigned int) * currentBuffer.hitScoringInfo.fNThreads, cudaMemcpyDefault,
+                                        cudaStream));
+    COPCORE_CUDA_CHECK(cudaMemsetAsync(currentBuffer.hitScoringInfo.fSlotCounter, 0, 
+                                  sizeof(unsigned int) * currentBuffer.hitScoringInfo.fNThreads, 
+                                  cudaStream));
+
 
     // HitScoringBuffer* deviceBuffer = static_cast<HitScoringBuffer*>(fHitScoringBuffer_deviceAddress);
 
@@ -373,7 +389,7 @@ public:
     auto prevActiveDeviceBuffer = fActiveDeviceBuffer;
     fActiveDeviceBuffer          = (fActiveDeviceBuffer + 1) % fDeviceState.size();
 
-    if (fDeviceState[fActiveDeviceBuffer].load(std::memory_order_acquire) != DeviceState::Free)
+    if (fDeviceState[fActiveDeviceBuffer] != DeviceState::Free)
       throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": Next on-device buffer in wrong state");
 
     // printf("After Swap: fSlotCounter = %p\n", fBuffers[fActiveBuffer].hitScoringInfo.fSlotCounter);
@@ -387,8 +403,11 @@ public:
     // }
     // assert(nextDeviceBuffer.state == BufferHandle::State::Free && nextDeviceBuffer.hitScoringInfo.fSlotCounter == 0);
 
-    fDeviceState[fActiveDeviceBuffer].store(DeviceState::Filling, std::memory_order_release);
-    fDeviceState[prevActiveDeviceBuffer].store(DeviceState::NeedTransferToHost, std::memory_order_release);
+    nextDeviceBuffer.hitScoringInfo.hitBuffer_dev = fGPUHitBuffer_dev.get() + fActiveDeviceBuffer * fHitCapacity;
+    nextDeviceBuffer.hitScoringInfo.fSlotCounter = fGPUHitBufferCount_dev.get() + fActiveDeviceBuffer * nextDeviceBuffer.hitScoringInfo.fNThreads;
+
+    fDeviceState[fActiveDeviceBuffer] = DeviceState::Filling;
+    fDeviceState[prevActiveDeviceBuffer] = DeviceState::NeedTransferToHost;
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &nextDeviceBuffer.hitScoringInfo,
                                        sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
     // COPCORE_CUDA_CHECK(cudaMemcpyAsync(deviceBuffer->fSlotCounter,
@@ -398,6 +417,7 @@ public:
 
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
     
+    // std::cout << "After copy currentHitInfo.hitBuffer_dev " << currentHitInfo.hitBuffer_dev << " fHitScoringBuffer_deviceAddress " << fHitScoringBuffer_deviceAddress << std::endl;
 
     // one could mark the currently active HostBuffer with a state like AwaitingDeviceTransfer and then check in TransferToHost that it is in that state.
 
@@ -482,7 +502,7 @@ public:
   void PrintDeviceBufferStates() const {
     std::cout << " DeviceBufferStates: active : " << fActiveDeviceBuffer;
     for (const auto &deviceState : fDeviceState) {
-      std::cout << " [DeviceState: " << GetDeviceStateName(deviceState.load()) << "] ";
+      std::cout << " [DeviceState: " << GetDeviceStateName(deviceState) << "] ";
     }
     std::cout << std::endl;
   }
@@ -525,14 +545,14 @@ public:
       //                                buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
 
       // Copy SlotCounterArray and reset it
-      COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBufferCount, buffer.hitScoringInfo.fSlotCounter,
-                                         sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, cudaMemcpyDefault,
-                                         cudaStreamForHitCopy));
-      COPCORE_CUDA_CHECK(cudaMemsetAsync(buffer.hitScoringInfo.fSlotCounter, 0, 
-                                   sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, 
-                                   cudaStreamForHitCopy));
-      // unfortunately, we need to synchronize since we need to know the offsets if we want to copy only the used data.
-      COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStreamForHitCopy));
+      // COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBufferCount, buffer.hitScoringInfo.fSlotCounter,
+      //                                    sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, cudaMemcpyDefault,
+      //                                    cudaStreamForHitCopy));
+      // COPCORE_CUDA_CHECK(cudaMemsetAsync(buffer.hitScoringInfo.fSlotCounter, 0, 
+      //                              sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, 
+      //                              cudaStreamForHitCopy));
+      // // unfortunately, we need to synchronize since we need to know the offsets if we want to copy only the used data.
+      // COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStreamForHitCopy));
 
       // Copy out the hits:
       // The start address on device is always i * fNSlot (Slots per thread), and we copy always to
