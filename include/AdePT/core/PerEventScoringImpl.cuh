@@ -149,6 +149,14 @@ struct BufferHandle {
 
 };
 
+struct HitInfo {
+  GPUHit * begin;
+  GPUHit * end;
+  std::shared_ptr<BufferHandle> hostBuffer;
+  // std::atomic_bool ScoringStarted = false;
+  // std::vector<GPUHit> holdoutBuffer;
+};
+
 // TODO: Rename this. Maybe ScoringState? Check usage in GPUstate
 class HitScoring {
   unique_ptr_cuda<GPUHit> fGPUHitBuffer_dev;
@@ -172,7 +180,9 @@ class HitScoring {
   std::size_t fGPUSortAuxMemorySize;
 
   // std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
-  std::vector<std::deque<BufferHandle*>> fHitQueues;
+  // std::vector<std::deque<BufferHandle*>> fHitQueues;
+  std::vector<std::deque<HitInfo>> fHitQueues;
+
 
   mutable std::shared_mutex fProcessingHitsMutex;
 
@@ -212,15 +222,55 @@ class HitScoring {
       // size_t memoryUsed = (end - begin) * sizeof(GPUHit);
       // std::cout << "Memory in hit buffer to be scored: " << memoryUsed / 1024. / 1024. /1024. << " GB" << std::endl;
 
-      handle.refCount = 0;
+ #define RED "\033[31m"
+#define RESET "\033[0m"
+#define BOLD_RED "\033[1;31m"
 
-      // std::cout << " Pushing back handles to queues " << fHitQueues.size() << std::endl;
-      for (auto &queues : fHitQueues) {
-        queues.push_back(&handle);
-        handle.increment();
+
+      std::shared_ptr<BufferHandle> bufferHandlePtr = std::shared_ptr<BufferHandle>(&handle, [](BufferHandle* buf) {
+        if (buf) {
+          buf->hostState.store(BufferHandle::HostState::Free, std::memory_order_release);  // Custom deleter
+        }
+      });
+
+      unsigned int offset = 0;
+      for (int i = 0; i < fHitQueues.size(); i++) {
+
+        GPUHit* begin = handle.hostBuffer + offset;
+        GPUHit* end = handle.hostBuffer + offset + handle.hostBufferCount[i];
+
+
+        HitInfo hitinfo{begin, end, bufferHandlePtr};
+
+        if (begin != end) {
+          lock.lock();
+          // handle.increment();
+          fHitQueues[i].push_back(std::move(hitinfo));
+          lock.unlock();
+        }
+  // std::cout << BOLD_RED << "threadId " << i << " EventId " << begin->fEventId << " offset " << offset << " num hits to score " << handle.hostBufferCount[i] << RESET << std::endl;
+
+        offset += handle.hostBufferCount[i];
       }
 
-      lock.unlock();
+    // handle.refCount = 0;
+
+    // GPUHit* begin = buffer->hostBuffer + offset;
+    // GPUHit* end = buffer->hostBuffer + offset + buffer->hostBufferCount[threadId];
+
+    // Create a shared pointer to the buffer handle
+
+
+    // Construct the HitInfo object
+    
+
+      // std::cout << " Pushing back handles to queues " << fHitQueues.size() << std::endl;
+      // for (auto &queues : fHitQueues) {
+      //   queues.push_back(&handle);
+      //   handle.increment();
+      // }
+
+      // lock.unlock();
       // std::cout << "Notifying G4 workers..." << std::endl;
       cvG4Workers.notify_all();
 
@@ -408,6 +458,9 @@ public:
     nextDeviceBuffer.hitScoringInfo.hitBuffer_dev = fGPUHitBuffer_dev.get() + fActiveDeviceBuffer * fHitCapacity;
     nextDeviceBuffer.hitScoringInfo.fSlotCounter = fGPUHitBufferCount_dev.get() + fActiveDeviceBuffer * nextDeviceBuffer.hitScoringInfo.fNThreads;
 
+    // COPCORE_CUDA_CHECK(cudaMemsetAsync(nextDeviceBuffer.hitScoringInfo.fSlotCounter, 0, nextDeviceBuffer.hitScoringInfo.fNThreads*sizeof(unsigned int), cudaStream));
+
+
     fDeviceState[fActiveDeviceBuffer] = DeviceState::Filling;
     fDeviceState[prevActiveDeviceBuffer] = DeviceState::NeedTransferToHost;
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &nextDeviceBuffer.hitScoringInfo,
@@ -450,13 +503,15 @@ public:
       for (auto &handle : fBuffers) {
         if (handle.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::AwaitScoring) {
           // FIXME: change state to scoring
-          if (!lock) lock.lock();
+          // if (!lock) lock.lock();
           handle.hostState = BufferHandle::HostState::Scoring;
-          haveNewHits = true;
 
           // Possible timing
           // auto start = std::chrono::high_resolution_clock::now();
           ProcessBuffer(handle, cvG4Workers, lock);
+
+          haveNewHits = true;
+
           // auto end = std::chrono::high_resolution_clock::now();
           // std::chrono::duration<double> elapsed = end - start;
           //     std::cout << "BUFFER Processing time: " << elapsed.count() << " seconds" << std::endl;
@@ -561,10 +616,12 @@ public:
       // the offset of the previous copy, to get a compact buffer on host.
       unsigned int offset = 0;
       for (int i = 0; i < buffer.hitScoringInfo.fNThreads; i++) {
-        COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer + offset, bufferBegin + i * buffer.hitScoringInfo.fNSlot,
-                                   sizeof(GPUHit) * buffer.hostBufferCount[i], cudaMemcpyDefault,
-                                   cudaStreamForHitCopy));
-        offset += buffer.hostBufferCount[i];
+        if (buffer.hostBufferCount[i] > 0) {
+          COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer + offset, bufferBegin + i * buffer.hitScoringInfo.fNSlot,
+                                    sizeof(GPUHit) * buffer.hostBufferCount[i], cudaMemcpyDefault,
+                                    cudaStreamForHitCopy));
+          offset += buffer.hostBufferCount[i];
+        }
       }
 
         // std::cout << " offset " << offset; 
@@ -624,13 +681,13 @@ public:
   //   }
   // }
 
-  BufferHandle* GetNextHitsHandle(unsigned int threadId)
+  HitInfo GetNextHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
     std::shared_lock lock{fProcessingHitsMutex}; // read only, can use shared lock
 
     if (fHitQueues[threadId].empty())
-      return nullptr;
+      return {nullptr, nullptr, nullptr};
     else {
       auto& ret = fHitQueues[threadId].front();
       // fHitQueues[threadId].pop_front(); // don't pop the front, we still need to decrement before we can pop it
@@ -646,8 +703,9 @@ public:
     if (fHitQueues[threadId].empty()) 
       throw std::invalid_argument{"Error, no hitQueue to close"};
     else {
-      auto& ret = fHitQueues[threadId].front();
-      ret->decrement(threadId);
+      // auto& ret = fHitQueues[threadId].front();
+      // ret.hostBuffer->decrement(threadId);
+      // std::cout << "Popping queue threadId "<<  threadId << " if I was the last, you now you may call the custom deleter! " << std::endl;
       fHitQueues[threadId].pop_front();
     }
   }

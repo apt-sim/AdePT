@@ -1090,13 +1090,32 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 //   return gpuState.fHitScoring->GetNextHitsVector(threadId);
 // }
 
+// #include <iostream>
+// #include <mutex>
+
+// std::mutex coutMutex;  // Global mutex to synchronize std::cout
+
+// void PrintThreadSafe(int threadId, int eventId, int offset, int numHits) {
+//     std::lock_guard<std::mutex> lock(coutMutex);  // Lock the mutex for this scope
+// #define RED "\033[31m"
+// #define RESET "\033[0m"
+// #define BOLD_RED "\033[1;31m"
+
+//     std::cout << BOLD_RED << "threadId " << threadId 
+//               << " EventId " << eventId 
+//               << " offset " << offset 
+//               << " num hits to score " << numHits 
+//               << RESET << std::endl;
+// }
+
 
 std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned int eventId, GPUstate &gpuState) {
-  auto buffer = gpuState.fHitScoring->GetNextHitsHandle(threadId);
+  auto hitinfo = gpuState.fHitScoring->GetNextHitsHandle(threadId);
 
-  if (!buffer) {
-    return {nullptr, nullptr};
-  }
+  return {hitinfo.begin, hitinfo.end};
+  // if (!buffer) {
+  //   return {nullptr, nullptr};
+  // }
     
   // VERSION A for SORTED GPU HITS
   // GPUHit dummy;
@@ -1114,19 +1133,20 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
   // " from " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot <<
   //              " to " << buffer->hostBuffer + threadId * buffer->hitScoringInfo.fNSlot + buffer->hostBufferCount[threadId] << std::endl;
 
-  unsigned int offset = 0;
-  for (int i = 0; i < threadId; i++) {
-    offset += buffer->hostBufferCount[i];
-  }
+  // unsigned int offset = 0;
+  // for (int i = 0; i < threadId; i++) {
+  //   offset += buffer->hostBufferCount[i];
+  // }
 
 // #define RED "\033[31m"
 // #define RESET "\033[0m"
 // #define BOLD_RED "\033[1;31m"
 
 //   std::cout << BOLD_RED << "threadId " << threadId << " EventId " << eventId << " offset " << offset << " num hits to score " << buffer->hostBufferCount[threadId] << RESET << std::endl;
+// PrintThreadSafe(threadId, eventId, offset, buffer->hostBufferCount[threadId] );
 
-  return {buffer->hostBuffer + offset, 
-          buffer->hostBuffer + offset + buffer->hostBufferCount[threadId]};
+//   return {buffer->hostBuffer + offset, 
+//           buffer->hostBuffer + offset + buffer->hostBufferCount[threadId]};
 }
 
 void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState)
