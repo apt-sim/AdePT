@@ -98,15 +98,15 @@ struct BufferHandle {
     //           << " | hitScoringInfo.fSlotCounter: " << (void*)hitScoringInfo.fSlotCounter
     //           << std::endl;
 
-    if (!hitScoringInfo.fSlotCounter) {
-        std::cerr << "ERROR: fSlotCounter is NULL at reset!\n";
-        return;
-    }
+    // if (!hitScoringInfo.fSlotCounter) {
+    //     std::cerr << "ERROR: fSlotCounter is NULL at reset!\n";
+    //     return;
+    // }
 
-    if (refCount.load() != 0) {
-      std::cerr << "Error: Attempting to reset a buffer with nonzero refCount!" << std::endl;
-      std::abort();
-    }
+    // if (refCount.load() != 0) {
+    //   std::cerr << "Error: Attempting to reset a buffer with nonzero refCount!" << std::endl;
+    //   std::abort();
+    // }
 
   // if (!isValidPointer(hitScoringInfo.fSlotCounter)) {
   //   std::cerr << "ERROR: Trying to reset invalid memory in BufferHandle!" << std::endl;
@@ -119,11 +119,13 @@ struct BufferHandle {
   //     hitScoringInfo.fSlotCounter[i] = 0;
   //   }
     // FIXME reset HostState
-    hostState.store(HostState::Free, std::memory_order_release);  // Mark buffer as free
+    hostState = HostState::Free;
+    // hostState.store(HostState::Free, std::memory_order_release);  // Mark buffer as free
   }
 
   void increment() {
-    refCount.fetch_add(1, std::memory_order_relaxed);
+    refCount += 1;
+    // refCount.fetch_add(1, std::memory_order_relaxed);
     // std::cout << " incrementing refCount " << refCount.load() << std::endl; 
   }
   void decrement(unsigned int threadId) {
@@ -134,8 +136,8 @@ struct BufferHandle {
 
 
     // refCount.fetch_sub(1, std::memory_order_acq_rel);
-
-    if (refCount.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+    refCount--;
+    if (refCount == 0) {
       // Last worker, reset state for reuse
       // std::cout << std::dec << "worker " << threadId << " releasing and setting to Free " << std::endl;
       reset();
@@ -210,7 +212,7 @@ class HitScoring {
       // size_t memoryUsed = (end - begin) * sizeof(GPUHit);
       // std::cout << "Memory in hit buffer to be scored: " << memoryUsed / 1024. / 1024. /1024. << " GB" << std::endl;
 
-      handle.refCount.store(0, std::memory_order_relaxed);
+      handle.refCount = 0;
 
       // std::cout << " Pushing back handles to queues " << fHitQueues.size() << std::endl;
       for (auto &queues : fHitQueues) {
@@ -630,7 +632,7 @@ public:
     if (fHitQueues[threadId].empty())
       return nullptr;
     else {
-      auto ret = fHitQueues[threadId].front();
+      auto& ret = fHitQueues[threadId].front();
       // fHitQueues[threadId].pop_front(); // don't pop the front, we still need to decrement before we can pop it
       return ret;
     }
