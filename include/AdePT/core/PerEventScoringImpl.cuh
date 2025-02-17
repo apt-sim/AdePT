@@ -153,8 +153,34 @@ struct HitInfo {
   GPUHit * begin;
   GPUHit * end;
   std::shared_ptr<BufferHandle> hostBuffer;
-  // std::atomic_bool ScoringStarted = false;
-  // std::vector<GPUHit> holdoutBuffer;
+  std::atomic_bool ScoringStarted = false;
+  std::vector<GPUHit> holdoutBuffer;
+
+  HitInfo(GPUHit* begin_, GPUHit* end_, std::shared_ptr<BufferHandle> buffer)
+    : begin(begin_), end(end_), hostBuffer(std::move(buffer)) {}
+
+  ~HitInfo() = default;
+
+  HitInfo(const HitInfo&) = delete;
+  HitInfo& operator=(const HitInfo&) = delete;
+
+  HitInfo(HitInfo&& other) noexcept
+    : begin(other.begin),
+      end(other.end),
+      hostBuffer(std::move(other.hostBuffer)),
+      ScoringStarted(other.ScoringStarted.load()), // Read atomic value safely
+      holdoutBuffer(std::move(other.holdoutBuffer)) {} // Move vector safely
+
+  HitInfo& operator=(HitInfo&& other) noexcept {
+    if (this != &other) {
+      begin = other.begin;
+      end = other.end;
+      hostBuffer = std::move(other.hostBuffer);
+      ScoringStarted.store(other.ScoringStarted.load()); // Safe atomic move
+      holdoutBuffer = std::move(other.holdoutBuffer);
+    }
+    return *this;
+  }
 };
 
 // TODO: Rename this. Maybe ScoringState? Check usage in GPUstate
@@ -227,6 +253,9 @@ class HitScoring {
 #define BOLD_RED "\033[1;31m"
 
 
+      // create shared pointer with custom deleter: the shared pointer is passed to each HitInfo,
+      // as soon as the last thread finishes scoring the range in HitInfo, the last shared pointer goes out of scope
+      // and the custom deleter sets the HostState to free. 
       std::shared_ptr<BufferHandle> bufferHandlePtr = std::shared_ptr<BufferHandle>(&handle, [](BufferHandle* buf) {
         if (buf) {
           buf->hostState.store(BufferHandle::HostState::Free, std::memory_order_release);  // Custom deleter
@@ -253,26 +282,48 @@ class HitScoring {
         offset += handle.hostBufferCount[i];
       }
 
-    // handle.refCount = 0;
-
-    // GPUHit* begin = buffer->hostBuffer + offset;
-    // GPUHit* end = buffer->hostBuffer + offset + buffer->hostBufferCount[threadId];
-
-    // Create a shared pointer to the buffer handle
-
-
-    // Construct the HitInfo object
-    
-
-      // std::cout << " Pushing back handles to queues " << fHitQueues.size() << std::endl;
-      // for (auto &queues : fHitQueues) {
-      //   queues.push_back(&handle);
-      //   handle.increment();
-      // }
-
-      // lock.unlock();
       // std::cout << "Notifying G4 workers..." << std::endl;
       cvG4Workers.notify_all();
+
+
+      // Give G4 workers time to wake up
+      using namespace std::chrono_literals;
+      std::this_thread::sleep_for(5ms);
+
+      for (int i = 0; i < fHitQueues.size(); i++) {
+
+        lock.lock();
+        if (!fHitQueues[i].empty()) {
+          auto& ret = fHitQueues[i].back(); // we just pushed to the back, so we need to check if the back is used!
+          if (ret.ScoringStarted.load(std::memory_order_acquire) == true ) {
+            lock.unlock();
+          } else {
+
+            assert(ret.begin && ret.end && ret.begin < ret.end);
+
+            size_t numHits = ret.end - ret.begin;  // Compute the number of hits
+
+            // std::cout << "G4Worker " << i << " was too slow, copying out " << numHits << " hits " << std::endl;
+
+            ret.holdoutBuffer.resize(numHits);  // Allocate correct size
+            std::copy(ret.begin, ret.end, ret.holdoutBuffer.begin());  // Copy data
+
+            // Update pointers
+            ret.begin = ret.holdoutBuffer.data();
+            ret.end = ret.holdoutBuffer.data() + ret.holdoutBuffer.size();
+
+            // Safely release the old buffer
+            ret.hostBuffer.reset();
+
+            ret.ScoringStarted.store(true, std::memory_order_release);
+
+            lock.unlock();
+          }
+        
+        } else {
+          lock.unlock();
+        }
+      }
 
       // while (handle.refCount.load(std::memory_order_acquire)  != 0) {
       //   // std::cout << " Waiting for G4 workers... State: " 
@@ -681,17 +732,18 @@ public:
   //   }
   // }
 
-  HitInfo GetNextHitsHandle(unsigned int threadId)
+  HitInfo* GetNextHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
-    std::shared_lock lock{fProcessingHitsMutex}; // read only, can use shared lock
+    std::shared_lock lock{fProcessingHitsMutex}; // read only, can use shared_lock // NOT ANYMORE, need to set boolean flag
 
     if (fHitQueues[threadId].empty())
-      return {nullptr, nullptr, nullptr};
+      return nullptr;
     else {
       auto& ret = fHitQueues[threadId].front();
+      ret.ScoringStarted.store(true, std::memory_order_release);
       // fHitQueues[threadId].pop_front(); // don't pop the front, we still need to decrement before we can pop it
-      return ret;
+      return &ret;
     }
   }
 
