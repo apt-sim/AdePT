@@ -91,62 +91,6 @@ struct BufferHandle {
 
   std::atomic<short> refCount = 0;
 
-  void reset() {
-    // std::cout << "Resetting buffer handle: " << this 
-    //           << " | refCount: " << refCount.load() 
-    //           << " | State: " << static_cast<int>(state.load())
-    //           << " | hitScoringInfo.fSlotCounter: " << (void*)hitScoringInfo.fSlotCounter
-    //           << std::endl;
-
-    // if (!hitScoringInfo.fSlotCounter) {
-    //     std::cerr << "ERROR: fSlotCounter is NULL at reset!\n";
-    //     return;
-    // }
-
-    // if (refCount.load() != 0) {
-    //   std::cerr << "Error: Attempting to reset a buffer with nonzero refCount!" << std::endl;
-    //   std::abort();
-    // }
-
-  // if (!isValidPointer(hitScoringInfo.fSlotCounter)) {
-  //   std::cerr << "ERROR: Trying to reset invalid memory in BufferHandle!" << std::endl;
-  //   return;
-  // }
-
-  //   for (int i = 0; i < hitScoringInfo.fNThreads; i++) {
-  //     std::cout << "Writing to: " << (void*)&hitScoringInfo.fSlotCounter[i] 
-  //                 << " (before=" << hitScoringInfo.fSlotCounter[i] << ")" << std::endl;
-  //     hitScoringInfo.fSlotCounter[i] = 0;
-  //   }
-    // FIXME reset HostState
-    hostState = HostState::Free;
-    // hostState.store(HostState::Free, std::memory_order_release);  // Mark buffer as free
-  }
-
-  void increment() {
-    refCount += 1;
-    // refCount.fetch_add(1, std::memory_order_relaxed);
-    // std::cout << " incrementing refCount " << refCount.load() << std::endl; 
-  }
-  void decrement(unsigned int threadId) {
-
-    // int prev = refCount.load();
-    // std::cout << "Before decrement: " << prev << " | Thread: " << threadId << std::endl;
-
-
-
-    // refCount.fetch_sub(1, std::memory_order_acq_rel);
-    refCount--;
-    if (refCount == 0) {
-      // Last worker, reset state for reuse
-      // std::cout << std::dec << "worker " << threadId << " releasing and setting to Free " << std::endl;
-      reset();
-    }
-    // std::cout << "After decrement: " << refCount.load() << " | Thread: " << threadId << std::endl;
-
-    // std::cout << std::dec << "worker " << threadId << " refCount after decreasing:  " << refCount.load() << std::endl;
-  }
-
 };
 
 struct HitQueueItem {
@@ -240,10 +184,6 @@ class HitScoring {
       // std::cout << "Total Memory Used in fHitQueues: " << calculateMemoryUsage(fHitQueues) / 1024.0 / 1024.0 / 1024.0
       // << " GB" << std::endl;
 
-      // this doesn't work anymore, since the fSlotCounter is now an array!
-      // auto begin = handle.hostBuffer;
-      // auto end   = handle.hostBuffer + handle.hitScoringInfo.fSlotCounter;
-
       // OPTIONAL: print size of buffer 
       // size_t memoryUsed = (end - begin) * sizeof(GPUHit);
       // std::cout << "Memory in hit buffer to be scored: " << memoryUsed / 1024. / 1024. /1024. << " GB" << std::endl;
@@ -324,45 +264,6 @@ class HitScoring {
           lock.unlock();
         }
       }
-
-      // while (handle.refCount.load(std::memory_order_acquire)  != 0) {
-      //   // std::cout << " Waiting for G4 workers... State: " 
-      //   //           << GetStateName(handle.state.load()) 
-      //   //           << " refCount: " << handle.refCount.load() << std::endl;
-      //   // std::atomic_thread_fence(std::memory_order_seq_cst);
-      //   std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      // }
-
-      // lock.lock();
-      // handle.reset();
-      // std::cout << "G4 workers seem to have done their job! Final State: " 
-      //           << GetStateName(handle.state.load()) 
-      //           << " refCount: " << handle.refCount.load() << std::endl;
-      // PrintBufferStates();
-
-      // while (begin != end) {
-      //   short threadId = begin->threadId; // Get threadId of first hit in the range
-
-      //   // linear search, slower, doesn't require a sorted array
-      //   // auto threadEnd = std::find_if(begin, end,
-      //   //       [threadId](const GPUHit &hit) { return threadId != hit.threadId; });
-
-      //   // binary search, faster but requires a sorted array
-      //   auto threadEnd =
-      //       std::upper_bound(begin, end, threadId, [](short id, const GPUHit &hit) { return id < hit.threadId; });
-
-      //   // Copy hits into a unique pointer and push it to workers queue
-      //   auto HitsPerThread = std::make_unique<std::vector<GPUHit>>(begin, threadEnd);
-      //   fHitQueues[threadId].push_back(std::move(HitsPerThread));
-
-      //   begin = threadEnd; // set begin to start of the threadId
-      // }
-
-      // handle.hitScoringInfo.fSlotCounter = 0;
-      // handle.state                       = BufferHandle::State::Free;
-
-      // std::cout << "After pushing hitVector: Total Memory Used in fHitQueues: " << calculateMemoryUsage(fHitQueues)
-      // / 1024.0 / 1024.0 / 1024.0 << " GB" << std::endl;
     }
   }
 
@@ -388,22 +289,6 @@ public:
     if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit buffer."};
     fGPUHitBufferCount_dev.reset(buffer_count);
 
-
-    // Init buffers for on-device sorting of hits:
-    // Determine device storage requirements for on-device sorting.
-    // result = cub::DeviceMergeSort::SortKeys(nullptr, fGPUSortAuxMemorySize, fGPUHitBuffer_dev.get(), fHitCapacity,
-    //                                         CompareGPUHits{});
-    // if (result != cudaSuccess) throw std::invalid_argument{"No space for hit sorting on device."};
-
-    // std::byte *gpuSortingMem;
-    // result = cudaMalloc(&gpuSortingMem, fGPUSortAuxMemorySize);
-    // if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit sorting buffer."};
-    // fGPUSortAuxMemory.reset(gpuSortingMem);
-
-    // Store buffer data in structs
-
-    // FIXME: have HostState and DeviceState
-
     fDeviceState[0] = DeviceState::Filling;
     fDeviceState[1] = DeviceState::Free;
 
@@ -411,28 +296,17 @@ public:
     fBuffers[0].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get(), fGPUHitBufferCount_dev.get(), fHitCapacity/nThread, nThread};
     fBuffers[0].hostBuffer     = fGPUHitBuffer_host.get();
     fBuffers[0].hostBufferCount = fGPUHitBufferCount_host.get();
-    // fBuffers[0].state          = BufferHandle::State::OnDevice;
-    // fBuffers[0].deviceState          = BufferHandle::DeviceState::Filling;
     fBuffers[0].hostState          = BufferHandle::HostState::Free;
 
     fBuffers[1].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, fGPUHitBufferCount_dev.get() + nThread, fHitCapacity/nThread, nThread};
     fBuffers[1].hostBuffer     = fGPUHitBuffer_host.get() + fHitCapacity;
     fBuffers[1].hostBufferCount = fGPUHitBufferCount_host.get() + nThread;
-    // fBuffers[1].state          = BufferHandle::State::Free;
-    // fBuffers[1].deviceState          = BufferHandle::DeviceState::Free;
     fBuffers[1].hostState          = BufferHandle::HostState::Free;
 
-    // FIXME: have third buffer, it should point to the first GPU memory so we can get into a cycle? to be seen
     fBuffers[2].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get(), fGPUHitBufferCount_dev.get(), fHitCapacity/nThread, nThread};
     fBuffers[2].hostBuffer     = fGPUHitBuffer_host.get() + 2 * fHitCapacity;
     fBuffers[2].hostBufferCount = fGPUHitBufferCount_host.get() + 2* nThread;
-    // fBuffers[2].deviceState          = BufferHandle::DeviceState::Free;
     fBuffers[2].hostState          = BufferHandle::HostState::Free;
-
-    // fBuffers[3].hitScoringInfo = HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, fGPUHitBufferCount_dev.get() + nThread, fHitCapacity/nThread, nThread};
-    // fBuffers[3].hostBuffer     = fGPUHitBuffer_host.get() + 3*fHitCapacity;
-    // fBuffers[3].hostBufferCount = fGPUHitBufferCount_host.get() + 3* nThread;
-    // fBuffers[3].hostState          = BufferHandle::HostState::Free;
 
     COPCORE_CUDA_CHECK(cudaGetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
     assert(fHitScoringBuffer_deviceAddress != nullptr);
@@ -528,18 +402,6 @@ public:
     // one could mark the currently active HostBuffer with a state like AwaitingDeviceTransfer and then check in TransferToHost that it is in that state.
 
   }
-
-  // bool TransferAndProcessHits(cudaStream_t cudaStreamForHitCopy, std::condition_variable &cvG4Workers) {
-  //   bool haveNewHits = false;
-
-  //   while (std::any_of(fDeviceState.begin(), fDeviceState.end(),
-  //                      [](auto &deviceState) { return deviceState == DeviceState::TransferFromDevice; })) {
-  //     TransferHitsToHost(context->hitTransferStream);
-  //     ProcessHits(cvG4Workers);
-  //   }
-
-  //   return haveNewHits;
-  // }
 
   bool ProcessHits(std::condition_variable &cvG4Workers)
   {
@@ -649,19 +511,6 @@ public:
 
       auto bufferBegin = buffer.hitScoringInfo.hitBuffer_dev;
 
-      // cub::DeviceMergeSort::SortKeys(fGPUSortAuxMemory.get(), fGPUSortAuxMemorySize, bufferBegin,
-      //                                buffer.hitScoringInfo.fSlotCounter, CompareGPUHits{}, cudaStreamForHitCopy);
-
-      // Copy SlotCounterArray and reset it
-      // COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBufferCount, buffer.hitScoringInfo.fSlotCounter,
-      //                                    sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, cudaMemcpyDefault,
-      //                                    cudaStreamForHitCopy));
-      // COPCORE_CUDA_CHECK(cudaMemsetAsync(buffer.hitScoringInfo.fSlotCounter, 0, 
-      //                              sizeof(unsigned int) * buffer.hitScoringInfo.fNThreads, 
-      //                              cudaStreamForHitCopy));
-      // // unfortunately, we need to synchronize since we need to know the offsets if we want to copy only the used data.
-      // COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStreamForHitCopy));
-
       // Copy out the hits:
       // The start address on device is always i * fNSlot (Slots per thread), and we copy always to
       // the offset of the previous copy, to get a compact buffer on host.
@@ -717,21 +566,6 @@ public:
     }
   }
 
-  // comment out old function for now as we cannot keep both alive if we change the interface
-  // std::shared_ptr<const std::vector<GPUHit>> GetNextHitsVector(unsigned int threadId)
-  // {
-  //   assert(threadId < fHitQueues.size());
-  //   std::shared_lock lock{fProcessingHitsMutex};
-
-  //   if (fHitQueues[threadId].empty())
-  //     return nullptr;
-  //   else {
-  //     auto ret = fHitQueues[threadId].front();
-  //     fHitQueues[threadId].pop_front();
-  //     return ret;
-  //   }
-  // }
-
   HitQueueItem* GetNextHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
@@ -755,8 +589,6 @@ public:
     if (fHitQueues[threadId].empty()) 
       throw std::invalid_argument{"Error, no hitQueue to close"};
     else {
-      // auto& ret = fHitQueues[threadId].front();
-      // ret.hostBuffer->decrement(threadId);
       // std::cout << "Popping queue threadId "<<  threadId << " if I was the last, you now you may call the custom deleter! " << std::endl;
       fHitQueues[threadId].pop_front();
     }
