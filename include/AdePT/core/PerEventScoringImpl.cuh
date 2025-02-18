@@ -149,29 +149,29 @@ struct BufferHandle {
 
 };
 
-struct HitInfo {
+struct HitQueueItem {
   GPUHit * begin;
   GPUHit * end;
   std::shared_ptr<BufferHandle> hostBuffer;
   std::atomic_bool ScoringStarted = false;
   std::vector<GPUHit> holdoutBuffer;
 
-  HitInfo(GPUHit* begin_, GPUHit* end_, std::shared_ptr<BufferHandle> buffer)
+  HitQueueItem(GPUHit* begin_, GPUHit* end_, std::shared_ptr<BufferHandle> buffer)
     : begin(begin_), end(end_), hostBuffer(std::move(buffer)) {}
 
-  ~HitInfo() = default;
+  ~HitQueueItem() = default;
 
-  HitInfo(const HitInfo&) = delete;
-  HitInfo& operator=(const HitInfo&) = delete;
+  HitQueueItem(const HitQueueItem&) = delete;
+  HitQueueItem& operator=(const HitQueueItem&) = delete;
 
-  HitInfo(HitInfo&& other) noexcept
+  HitQueueItem(HitQueueItem&& other) noexcept
     : begin(other.begin),
       end(other.end),
       hostBuffer(std::move(other.hostBuffer)),
       ScoringStarted(other.ScoringStarted.load()), // Read atomic value safely
       holdoutBuffer(std::move(other.holdoutBuffer)) {} // Move vector safely
 
-  HitInfo& operator=(HitInfo&& other) noexcept {
+  HitQueueItem& operator=(HitQueueItem&& other) noexcept {
     if (this != &other) {
       begin = other.begin;
       end = other.end;
@@ -207,7 +207,7 @@ class HitScoring {
 
   // std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
   // std::vector<std::deque<BufferHandle*>> fHitQueues;
-  std::vector<std::deque<HitInfo>> fHitQueues;
+  std::vector<std::deque<HitQueueItem>> fHitQueues;
 
 
   mutable std::shared_mutex fProcessingHitsMutex;
@@ -253,8 +253,8 @@ class HitScoring {
 #define BOLD_RED "\033[1;31m"
 
 
-      // create shared pointer with custom deleter: the shared pointer is passed to each HitInfo,
-      // as soon as the last thread finishes scoring the range in HitInfo, the last shared pointer goes out of scope
+      // create shared pointer with custom deleter: the shared pointer is passed to each HitQueueItem,
+      // as soon as the last thread finishes scoring the range in HitQueueItem, the last shared pointer goes out of scope
       // and the custom deleter sets the HostState to free. 
       std::shared_ptr<BufferHandle> bufferHandlePtr = std::shared_ptr<BufferHandle>(&handle, [](BufferHandle* buf) {
         if (buf) {
@@ -269,12 +269,12 @@ class HitScoring {
         GPUHit* end = handle.hostBuffer + offset + handle.hostBufferCount[i];
 
 
-        HitInfo hitinfo{begin, end, bufferHandlePtr};
+        HitQueueItem hitItem{begin, end, bufferHandlePtr};
 
         if (begin != end) {
           lock.lock();
           // handle.increment();
-          fHitQueues[i].push_back(std::move(hitinfo));
+          fHitQueues[i].push_back(std::move(hitItem));
           lock.unlock();
         }
   // std::cout << BOLD_RED << "threadId " << i << " EventId " << begin->fEventId << " offset " << offset << " num hits to score " << handle.hostBufferCount[i] << RESET << std::endl;
@@ -732,7 +732,7 @@ public:
   //   }
   // }
 
-  HitInfo* GetNextHitsHandle(unsigned int threadId)
+  HitQueueItem* GetNextHitsHandle(unsigned int threadId)
   {
     assert(threadId < fHitQueues.size());
     std::shared_lock lock{fProcessingHitsMutex}; // read only, can use shared_lock // NOT ANYMORE, need to set boolean flag

@@ -1110,9 +1110,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 
 
 std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned int eventId, GPUstate &gpuState) {
-  HitInfo* hitinfo = gpuState.fHitScoring->GetNextHitsHandle(threadId);
-  if (hitinfo) {
-    return {hitinfo->begin, hitinfo->end};
+  HitQueueItem* hitItem = gpuState.fHitScoring->GetNextHitsHandle(threadId);
+  if (hitItem) {
+    return {hitItem->begin, hitItem->end};
   } else {
     return {nullptr, nullptr};
   }
