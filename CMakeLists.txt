@@ -141,16 +141,33 @@ endif()
 
 # Find G4VG, optional as requires Geant4
 if(Geant4_FOUND)
-  # Fetch it locally for now
-  include(FetchContent)
-  FetchContent_Declare(
-    g4vg
-    GIT_REPOSITORY https://github.com/celeritas-project/g4vg
-    GIT_TAG v1.0.1)
-  # G4VG builds static by default, so change this to shared
-  # could also configure for PIC mode static.
-  set(BUILD_SHARED_LIBS ON)
-  FetchContent_MakeAvailable(g4vg)
+  # Default to use FetchContent'd G4VG for current ease of use and until CI
+  # includes an install. Also allows easy testing of upstream patches until
+  # fully stable across projects.
+  # NB: Though the option can be switched in a given build directory after the initial
+  # build, if you have an install of G4VG that could/would be picked up, you may get
+  # CMake-generate time warnings about safe runtime paths. Generally, you should
+  # pick one way to pickup G4VG and stick with that throughout the lifetime of
+  # the build directory.
+  # The eventual fix for this will be to move to require an external G4VG only
+  option(ADEPT_USE_BUILTIN_G4VG "Fetch and build G4VG as part of AdePT" ON)
+  if(ADEPT_USE_BUILTIN_G4VG)
+    # Fetch it locally
+    include(FetchContent)
+    FetchContent_Declare(
+      g4vg
+      GIT_REPOSITORY https://github.com/celeritas-project/g4vg
+      GIT_TAG v1.0.1)
+    # G4VG builds static by default, so change this to shared to match current
+    # way AdePT is built.
+    # could also configure for PIC mode static.
+    set(BUILD_SHARED_LIBS ON)
+    FetchContent_MakeAvailable(g4vg)
+    message(STATUS "Using FetchContent to build G4VG as part of AdePT")
+  else()
+    find_package(G4VG 1.0.1 REQUIRED)
+    message(STATUS "Found G4VG: ${G4VG_DIR}")
+  endif()
 endif()
 
 # Set up debugging levels for CUDA:
