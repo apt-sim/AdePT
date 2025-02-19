@@ -149,16 +149,13 @@ void AdePTGeant4Integration::CreateVecGeomWorld(G4VPhysicalVolume const *physvol
   }
 
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
-  auto conversion = g4vg::convert(physvol);
+  g4vg::Options options;
+  options.reflection_factory = false;
+  auto conversion            = g4vg::convert(physvol, options);
   vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
 
   // Get the mapping of VecGeom volume IDs to Geant4 physical volumes from g4vg
-  // fglobal_vecgeom_to_g4_map = conversion.physical_volumes;
-
-  // TODO: We generate the volume map using a visitor since the one provided by the converter
-  // appears to have a small number of wrongly mapped IDs
-  // Generate the mapping of VecGeom volume IDs to Geant4 physical volumes
-  GetPhysicalVolumeMap(fglobal_vecgeom_to_g4_map);
+  fglobal_vecgeom_to_g4_map = conversion.physical_volumes;
 
   // EXPECT: we finish with a non-null VecGeom host geometry
   vecgeom::VPlacedVolume const *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();

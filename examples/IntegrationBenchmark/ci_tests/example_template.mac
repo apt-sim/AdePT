@@ -15,8 +15,6 @@
 /event/verbose 0
 
 /detector/filename $gdml_name
-# Temporary workaround since we don't have a G4 to VecGeom converter
-/adept/setVecGeomGDML $gdml_name
 /adept/setVerbosity 0
 ## Threshold for buffering tracks before sending to GPU
 /adept/setTransportBufferThreshold 250000
