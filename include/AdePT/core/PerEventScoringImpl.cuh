@@ -86,24 +86,21 @@ struct BufferHandle {
   // std::atomic<State> state;
 
   // std::atomic<DeviceState> deviceState;
-  std::atomic<HostState> hostState;
+  HostState hostState; // only touched by HitProcessingThread, doesn't need to be atomic
   std::atomic_bool hostBufferSubmitted = true; // we can only swap and copy the slot counters into the hostBufferCount, 
     // after we used the counts to submit to the hitqueues
   unsigned int offsetAtCopy = 0;
-
-  std::atomic<short> refCount = 0;
 
 };
 
 struct HitQueueItem {
   GPUHit * begin;
   GPUHit * end;
-  std::shared_ptr<BufferHandle> hostBuffer;
   std::atomic_bool ScoringStarted = false;
   std::vector<GPUHit> holdoutBuffer;
 
-  HitQueueItem(GPUHit* begin_, GPUHit* end_, std::shared_ptr<BufferHandle> buffer)
-    : begin(begin_), end(end_), hostBuffer(std::move(buffer)) {}
+  HitQueueItem(GPUHit* begin_, GPUHit* end_)
+    : begin(begin_), end(end_) {}
 
   ~HitQueueItem() = default;
 
@@ -113,7 +110,6 @@ struct HitQueueItem {
   HitQueueItem(HitQueueItem&& other) noexcept
     : begin(other.begin),
       end(other.end),
-      hostBuffer(std::move(other.hostBuffer)),
       ScoringStarted(other.ScoringStarted.load()), // Read atomic value safely
       holdoutBuffer(std::move(other.holdoutBuffer)) {} // Move vector safely
 
@@ -121,7 +117,6 @@ struct HitQueueItem {
     if (this != &other) {
       begin = other.begin;
       end = other.end;
-      hostBuffer = std::move(other.hostBuffer);
       ScoringStarted.store(other.ScoringStarted.load()); // Safe atomic move
       holdoutBuffer = std::move(other.holdoutBuffer);
     }
@@ -134,97 +129,99 @@ class CircularBufferManager {
   struct Segment {
     GPUHit* begin;
     GPUHit* end;
+
+    bool operator<(const Segment& other) const {
+      return begin < other.begin;
+    }
   };
 
   CircularBufferManager(GPUHit* bufferStart, size_t capacity)
     : bufferStart(bufferStart), bufferEnd(bufferStart + capacity),
       writePtr(bufferStart), freeSpace(capacity) {}
 
+  /// Adds a segment at the provided position. Ensures segments remain sorted.
   bool addSegment(GPUHit* begin, GPUHit* end) {
     assert(begin == writePtr && "Begin pointer must match writePtr for contiguous allocation!");
+    size_t size = end - begin;
+    
+    if (size > freeSpace) return false; // Not enough total space
 
-    size_t size = end - begin; // Compute the segment size
-    GPUHit* segmentEnd = writePtr + size;
+    // Insert the segment into sorted position
+    segments.insert(
+      std::upper_bound(segments.begin(), segments.end(), Segment{begin, end}),
+      {begin, end}
+    );
 
-    // Ensure we have enough space in one contiguous block
-    if (segmentEnd <= bufferEnd) {
-      segments.push_back({writePtr, segmentEnd});
-      writePtr = segmentEnd; // Move writePtr forward
-      freeSpace -= size;
-      return true;
-    }
-
-    // Check if wrapping around is possible
-    if (!segments.empty() && segments.front().begin > bufferStart &&
-        bufferStart + size <= segments.front().begin) {
-      segments.push_back({bufferStart, bufferStart + size});
-      writePtr = bufferStart + size; // Move writePtr after wrapping
-      freeSpace -= size;
-      return true;
-    }
-
-    return false; // No sufficient space
+    writePtr = end;  // Move forward
+    freeSpace -= size;
+    return true;
   }
 
-  bool removeSegment(GPUHit* segmentPtr) {
+  /// Removes a segment based on its starting pointer and updates writePtr accordingly.
+  void removeSegment(GPUHit* segmentPtr) {
     auto it = std::find_if(segments.begin(), segments.end(),
       [segmentPtr](const Segment& seg) { return seg.begin == segmentPtr; });
 
-    if (it != segments.end()) {
-      freeSpace += (it->end - it->begin);
+    assert(it != segments() && "Trying to remove segment that doesn't exist. They should always exist!");
 
-      // If this segment is at the front, adjust writePtr for proper reuse
-      if (it->begin == bufferStart) {
-        if (!segments.empty()) {
-          writePtr = segments.front().end;
-        } else {
-          writePtr = bufferStart; // Reset if no segments are left
-        }
+    freeSpace += (it->end - it->begin);
+
+    // If writePtr is exactly at the end of the segment being removed
+    if (writePtr == it->end) {
+      // Case 1: If it is the first segment, reset writePtr to bufferStart
+      if (it == segments.begin()) {
+        writePtr = bufferStart;
       }
-
-      segments.erase(it);
-      return true;
+      // Case 2: If there's a previous segment, move writePtr to its end
+      else {
+        auto prev = std::prev(it);
+        writePtr = prev->end;
+      }
     }
-    return false;
+
+    segments.erase(it);
+    return;
   }
 
-  size_t getFreeSpace() const { return freeSpace; }
-
-  /// Returns the largest contiguous free space (either at front or back)
-  size_t getFreeContiguousMemory(unsigned int transferSize) {
+  /// Returns the contiguous free space in front of the writePtr (or at the beginning of the buffer in case of a wraparound)
+  size_t getFreeContiguousMemory(size_t transferSize) {
     if (segments.empty()) {
       return bufferEnd - bufferStart;  // Everything is free
     }
 
-    // Free space at the back (between last segment and buffer end)
-    size_t backSpace = bufferEnd - segments.back().end;
+    // Find the next segment after writePtr
+    auto nextSegment = std::lower_bound(segments.begin(), segments.end(), Segment{writePtr, nullptr}, 
+      [](const Segment& a, const Segment& b) { return a.begin < b.begin; });
 
-    if (backSpace > transferSize) {
-      // std::cout << " backSpace " << backSpace << " bufferEnd " << bufferEnd << " segments.back().end " << segments.back().end << std::endl;
-      return backSpace;
+    // Free space from `writePtr` to next segment
+    size_t forwardSpace = (nextSegment != segments.end()) ? nextSegment->begin - writePtr : bufferEnd - writePtr;
+
+    if (forwardSpace >= transferSize) {
+      return forwardSpace;  // Enough space in the current region
     }
 
-    // Free space at the front (before first segment, if wrapped)
-    size_t frontSpace = (segments.front().begin > bufferStart) 
-                        ? (segments.front().begin - bufferStart) 
-                        : 0;
+    // If wrapping is needed, check space at the front
+    size_t wrapAroundSpace = (segments.front().begin > bufferStart) 
+                              ? (segments.front().begin - bufferStart) 
+                              : 0;
 
-    if (frontSpace > transferSize) {
-      writePtr = bufferStart; // Reset since it only fits in the front
+    if (wrapAroundSpace >= transferSize) {
+      writePtr = bufferStart; // Reset writePtr since we need to wrap around
+      return wrapAroundSpace;
     }
-    return frontSpace;
+
+    return 0; // Not enough contiguous space available
   }
 
-  size_t getOffset() { return (writePtr - bufferStart); }
+  size_t getOffset() { return writePtr - bufferStart; }
 
  private:
   GPUHit* bufferStart;
   GPUHit* bufferEnd;
   GPUHit* writePtr;
   size_t freeSpace;
-  std::list<Segment> segments;
+  std::vector<Segment> segments; // **Sorted vector instead of set**
 };
-
 // TODO: Rename this. Maybe ScoringState? Check usage in GPUstate
 class HitScoring {
   unique_ptr_cuda<GPUHit> fGPUHitBuffer_dev;
@@ -238,7 +235,7 @@ class HitScoring {
   std::unique_ptr<CircularBufferManager> fBufferManager;
 
   enum class DeviceState { Free, Filling, NeedTransferToHost, TransferToHost };
-  std::array<DeviceState, 2> fDeviceState;
+  std::array<std::atomic<DeviceState>, 2> fDeviceState; // the device state must be atomic as it is touched by both the HitProcesingThread in TransferHitsToHost and by the TransportThread in SwapDeviceBuffers
 
   void *fHitScoringBuffer_deviceAddress = nullptr;
   unsigned int fHitCapacity;
@@ -281,7 +278,7 @@ class HitScoring {
 #define RED "\033[31m"
 #define RESET "\033[0m"
 #define BOLD_RED "\033[1;31m"
-// #define BOLD_BLUE    "\033[1;34m"
+#define BOLD_BLUE    "\033[1;34m"
 //   std::cout << BOLD_BLUE << "START PROCESS BUFFER" << RESET << std::endl;
     // std::cout << "Total Memory Used in fHitQueues: " << calculateMemoryUsage(fHitQueues) / 1024.0 / 1024.0 / 1024.0
     // << " GB" << std::endl;
@@ -291,16 +288,6 @@ class HitScoring {
     // std::cout << "Memory in hit buffer to be scored: " << memoryUsed / 1024. / 1024. /1024. << " GB" << std::endl;
 
 
-
-
-    // create shared pointer with custom deleter: the shared pointer is passed to each HitQueueItem,
-    // as soon as the last thread finishes scoring the range in HitQueueItem, the last shared pointer goes out of scope
-    // and the custom deleter sets the HostState to free. 
-    std::shared_ptr<BufferHandle> bufferHandlePtr = std::shared_ptr<BufferHandle>(&handle, [](BufferHandle* buf) {
-      if (buf) {
-        // buf->hostState.store(BufferHandle::HostState::Free, std::memory_order_release);  // Custom deleter
-      }
-    });
     using namespace std::chrono_literals;
     // std::this_thread::sleep_for(100ms);
 
@@ -312,7 +299,7 @@ class HitScoring {
 
 // std::cout << " handle.hostBuffer " << handle.hostBuffer << " offset " << offset << " size " << (end - begin) << " handle hostBuffercount " <<  handle.hostBufferCount[i] <<" Begin fStepLength " << begin->fStepLength << std::endl;
       // fBufferManager->getFreeSpace
-      HitQueueItem hitItem{begin, end, bufferHandlePtr};
+      HitQueueItem hitItem{begin, end};
 
       if (begin != end) {
         lock.lock();
@@ -334,7 +321,7 @@ class HitScoring {
 
     // Give G4 workers time to wake up
     using namespace std::chrono_literals;
-    std::this_thread::sleep_for(10ms);
+    std::this_thread::sleep_for(50ms); // 50 seems to be a good value
 
     for (int i = 0; i < fHitQueues.size(); i++) {
 
@@ -342,7 +329,7 @@ class HitScoring {
       if (!fHitQueues[i].empty()) {
         auto& ret = fHitQueues[i].back(); // we just pushed to the back, so we need to check if the back is used!
         if (ret.ScoringStarted.load(std::memory_order_acquire) == true ) {
-          std::cout << "G4worker " << i << " has taken their task " << std::endl;
+          std::cout << BOLD_BLUE << "G4worker " << i << " has taken their task and started working on " << (ret.end - ret.begin) << " hits " << RESET << std::endl;
           lock.unlock();
         } else {
 
@@ -355,21 +342,19 @@ class HitScoring {
           ret.holdoutBuffer.resize(numHits);  // Allocate correct size
           std::copy(ret.begin, ret.end, ret.holdoutBuffer.begin());  // Copy data
 
+          // remove the segment first, before updating the pointers to the copied out memory
+          fBufferManager->removeSegment(ret.begin);
+
           // Update pointers
           ret.begin = ret.holdoutBuffer.data();
           ret.end = ret.holdoutBuffer.data() + ret.holdoutBuffer.size();
 
-          // Safely release the old buffer
-          ret.hostBuffer.reset();
-          fBufferManager->removeSegment(ret.begin);
-
-          ret.ScoringStarted.store(true, std::memory_order_release);
+          ret.ScoringStarted = true;
 
           lock.unlock();
         }
       
       } else {
-        std::cout << " Hitqueue is empty " << std::endl;
         lock.unlock();
       }
     }
@@ -441,7 +426,7 @@ public:
     // PrintBufferStates();
     // Ensure that host side has been processed:
     auto &currentBuffer = fBuffers[fActiveBuffer];
-    if (fDeviceState[fActiveDeviceBuffer] != DeviceState::Filling)
+    if (fDeviceState[fActiveDeviceBuffer].load(std::memory_order_acquire) != DeviceState::Filling)
       throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": On-device buffer in wrong state");
 
 
@@ -480,15 +465,15 @@ public:
     auto prevActiveDeviceBuffer = fActiveDeviceBuffer;
     fActiveDeviceBuffer          = (fActiveDeviceBuffer + 1) % fDeviceState.size();
 
-    if (fDeviceState[fActiveDeviceBuffer] != DeviceState::Free)
+    if (fDeviceState[fActiveDeviceBuffer].load(std::memory_order_acquire) != DeviceState::Free)
       throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": Next on-device buffer in wrong state");
 
     // printf("After Swap: fSlotCounter = %p\n", fBuffers[fActiveBuffer].hitScoringInfo.fSlotCounter);
     // auto &nextDeviceBuffer = fBuffers[fActiveBuffer];
     // while (nextDeviceBuffer.hostState != BufferHandle::HostState::Free) {
-    if (currentBuffer.hostState.load(std::memory_order_acquire) != BufferHandle::HostState::ReadyToBeFilled) {
-      std::cerr << __func__ << " Warning: Another thread should have processed the hits.\n";
-    }
+    // if (currentBuffer.hostState.load(std::memory_order_acquire) != BufferHandle::HostState::ReadyToBeFilled) {
+    //   std::cerr << __func__ << " Warning: Another thread should have processed the hits.\n";
+    // }
 
     // currentBuffer.hostState.store(BufferHandle::HostState::AwaitDeviceTransfer, std::memory_order_release);
     // }
@@ -500,8 +485,8 @@ public:
     // COPCORE_CUDA_CHECK(cudaMemsetAsync(nextDeviceBuffer.hitScoringInfo.fSlotCounter, 0, nextDeviceBuffer.hitScoringInfo.fNThreads*sizeof(unsigned int), cudaStream));
 
 
-    fDeviceState[fActiveDeviceBuffer] = DeviceState::Filling;
-    fDeviceState[prevActiveDeviceBuffer] = DeviceState::NeedTransferToHost;
+    fDeviceState[fActiveDeviceBuffer].store(DeviceState::Filling, std::memory_order_release);
+    fDeviceState[prevActiveDeviceBuffer].store(DeviceState::NeedTransferToHost, std::memory_order_relaxed);
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &currentBuffer.hitScoringInfo[fActiveDeviceBuffer],
                                        sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
     // COPCORE_CUDA_CHECK(cudaMemcpyAsync(deviceBuffer->fSlotCounter,
@@ -511,7 +496,7 @@ public:
 
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
     // std::cout << "Setting handle.hostBufferSubmitted to false " << std::endl;
-    currentBuffer.hostBufferSubmitted = false; // now set to false. Will be true after submission, then we can swap again
+    currentBuffer.hostBufferSubmitted.store(false, std::memory_order_release); // now set to false. Will be true after submission, then we can swap again
     // std::cout << "After copy currentHitInfo.hitBuffer_dev " << currentHitInfo.hitBuffer_dev << " fHitScoringBuffer_deviceAddress " << fHitScoringBuffer_deviceAddress << std::endl;
 
     // one could mark the currently active HostBuffer with a state like AwaitingDeviceTransfer and then check in TransferToHost that it is in that state.
@@ -524,25 +509,21 @@ public:
 #define RESET "\033[0m"
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE    "\033[1;34m"
-  std::cout << BOLD_BLUE << "START PROCESS HITS" << RESET << std::endl;
+  // std::cout << BOLD_BLUE << "START PROCESS HITS" << RESET << std::endl;
     std::unique_lock lock{fProcessingHitsMutex, std::defer_lock};
     bool haveNewHits = false;
 
     // FIXME use HostState. Be careful, with state of scoring
     // While loop to wait for arrival of data? Need to understand why we use a while loop?
     while (std::any_of(fBuffers.begin(), fBuffers.end(),
-                       [](auto &buffer) { return (buffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDevice)
-                                               || (buffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDeviceFinished); })) {
+                       [](auto &buffer) { return (buffer.hostState == BufferHandle::HostState::TransferFromDevice)
+                                               || (buffer.hostState == BufferHandle::HostState::TransferFromDeviceFinished); })) {
       for (auto &handle : fBuffers) {
-        if (handle.hostState.load(std::memory_order_acquire) != BufferHandle::HostState::TransferFromDevice) {
-        //   std::cout << " State IN LOOP ";
-        // PrintHostBufferStates();
-        }
-        if (handle.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDeviceFinished) {
+        if (handle.hostState == BufferHandle::HostState::TransferFromDeviceFinished) {
           // FIXME: change state to scoring
           // if (!lock) lock.lock();
           // std::cout << " Setting it to scoring, why wouldn't I? " << std::endl;
-          handle.hostState.store(BufferHandle::HostState::ReadyToBeFilled, std::memory_order_release);
+          handle.hostState = BufferHandle::HostState::ReadyToBeFilled;
 
           // Possible timing
           // auto start = std::chrono::high_resolution_clock::now();
@@ -561,15 +542,15 @@ public:
 
       // std::cout << " Finished ProcessBuffer, states :" << std::endl;
       // PrintBufferStates();
-std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
+// std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
     return haveNewHits;
   }
 
   bool ReadyToSwapBuffers() const
   {
     return (std::any_of(fDeviceState.begin(), fDeviceState.end(),
-                       [](const auto &deviceState) { return deviceState == DeviceState::Free; }) && fBuffers[fActiveBuffer].hostBufferSubmitted); // &&
-            // fBuffers[fActiveBuffer].hostState == BufferHandle::HostState::Free);
+                       [](const auto &deviceState) { return deviceState.load(std::memory_order_acquire) == DeviceState::Free; })
+                        && fBuffers[fActiveBuffer].hostBufferSubmitted.load(std::memory_order_acquire));
 
   }
 
@@ -603,8 +584,8 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
   void PrintHostBufferStates() const {
     std::cout << " HostBufferStates: active : " << fActiveBuffer << " Buffer already submitted: " << fBuffers[fActiveBuffer].hostBufferSubmitted;
     for (const auto &handle : fBuffers) {
-      std::cout << " [HostState: " << GetHostStateName(handle.hostState.load()) 
-                << ", refCount: " << handle.refCount.load() << "] ";
+      std::cout << " [HostState: " << GetHostStateName(handle.hostState) 
+                << "] ";
     }
     std::cout << std::endl;
   }
@@ -616,15 +597,15 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
 #define RESET "\033[0m"
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE    "\033[1;34m"
-  std::cout << BOLD_BLUE << "START TRANSFERTOHOST" << RESET << std::endl;
+  // std::cout << BOLD_BLUE << "START TRANSFERTOHOST" << RESET << std::endl;
     // FIXME use device state
     // for (auto &buffer : fBuffers) {
     while (std::any_of(fDeviceState.begin(), fDeviceState.end(),
-                    [](auto &deviceState) { return deviceState == DeviceState::NeedTransferToHost; })) {
+                    [](auto &deviceState) { return deviceState.load() == DeviceState::NeedTransferToHost; })) {
       auto& buffer = fBuffers[fActiveBuffer]; //fActiveBuffer];
       // previous active device buffer.
       short prevActiveDeviceBuffer = (fActiveDeviceBuffer + fDeviceState.size() - 1) % fDeviceState.size();
-      if (fDeviceState[prevActiveDeviceBuffer] != DeviceState::NeedTransferToHost) {
+      if (fDeviceState[prevActiveDeviceBuffer].load() != DeviceState::NeedTransferToHost) {
         std::cout << " prevActiveDeviceBuffer " << prevActiveDeviceBuffer << " not in NeedTransferToHost: ";
         PrintDeviceBufferStates(); 
         continue;
@@ -635,6 +616,9 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
         transferSize += buffer.hostBufferCount[i];
       }
 
+      {
+        std::scoped_lock lock{fProcessingHitsMutex}; // need to lock the access to fBufferManager, as in the wraparound, the writePtr is moved and this needs to be locked
+
       if (fBufferManager->getFreeContiguousMemory(transferSize) <= transferSize ) {
         // std::cout << "Not enough free memory in buffer: " << fBufferManager->getFreeContiguousMemory(transferSize) <<  " cannot transfer yet hits of size " << transferSize << std::endl;
         continue;
@@ -642,8 +626,11 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
         // std::cout << "TransferHitsToHost of size " << transferSize << " Free contiguous memory in Buffer " << fBufferManager->getFreeContiguousMemory() << std::endl;
       }
 
+      }
 
-      fDeviceState[prevActiveDeviceBuffer] = DeviceState::TransferToHost;
+
+
+      fDeviceState[prevActiveDeviceBuffer].store(DeviceState::TransferToHost, std::memory_order_release);
       // assert(buffer.hostState == BufferHandle::HostState::AwaitDeviceTransfer);
       buffer.hostState = BufferHandle::HostState::TransferFromDevice;
 
@@ -699,7 +686,7 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
       COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
           cudaStreamForHitCopy,
           [](void* arg) {
-            static_cast<BufferHandle*>(arg)->hostState.store(BufferHandle::HostState::TransferFromDeviceFinished, std::memory_order_release);
+            static_cast<BufferHandle*>(arg)->hostState = BufferHandle::HostState::TransferFromDeviceFinished;
           },
           &buffer
       ));
@@ -714,10 +701,10 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
       //       static_cast<BufferHandle *>(arg)->hostState = BufferHandle::HostState::Scoring; },
       //     &buffer));
     }
-    std::cout << BOLD_BLUE << "finished transfer to host " << RESET << std::endl;
+    // std::cout << BOLD_BLUE << "finished transfer to host " << RESET << std::endl;
   }
 
-  HitQueueItem* GetNextHitsHandle(unsigned int threadId)
+  HitQueueItem* GetNextHitsHandle(unsigned int threadId, bool &dataOnBuffer)
   {
     assert(threadId < fHitQueues.size());
     std::shared_lock lock{fProcessingHitsMutex}; // read only, can use shared_lock // NOT ANYMORE, need to set boolean flag
@@ -726,13 +713,14 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
       return nullptr;
     else {
       auto& ret = fHitQueues[threadId].front();
+      dataOnBuffer = !ret.ScoringStarted.load();
       ret.ScoringStarted.store(true, std::memory_order_release);
       // fHitQueues[threadId].pop_front(); // don't pop the front, we still need to decrement before we can pop it
       return &ret;
     }
   }
 
-  void CloseHitsHandle(unsigned int threadId, GPUHit* begin)
+  void CloseHitsHandle(unsigned int threadId, GPUHit* begin, const bool dataOnBuffer)
   {
     assert(threadId < fHitQueues.size());
     std::unique_lock lock{fProcessingHitsMutex}; // popping queue, requires unique lock
@@ -742,7 +730,7 @@ std::cout << BOLD_BLUE << " finished process Hits " << RESET << std::endl;
     else {
       // std::cout << "Popping queue threadId "<<  threadId << " if I was the last, you now you may call the custom deleter! " << std::endl;
       // std::cout << "threadId " << threadId << " Popping front of hitqueue and removing segment " << begin << std::endl;
-      fBufferManager->removeSegment(begin);
+      if (dataOnBuffer) fBufferManager->removeSegment(begin); // remove used buffer memory from used-memory list
       fHitQueues[threadId].pop_front();
     }
   }

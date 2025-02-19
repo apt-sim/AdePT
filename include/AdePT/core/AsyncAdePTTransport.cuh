@@ -1109,8 +1109,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 // }
 
 
-std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned int eventId, GPUstate &gpuState) {
-  HitQueueItem* hitItem = gpuState.fHitScoring->GetNextHitsHandle(threadId);
+std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned int eventId, GPUstate &gpuState, bool &dataOnBuffer) {
+  HitQueueItem* hitItem = gpuState.fHitScoring->GetNextHitsHandle(threadId, dataOnBuffer);
   if (hitItem) {
     return {hitItem->begin, hitItem->end};
   } else {
@@ -1153,9 +1153,9 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
 //           buffer->hostBuffer + offset + buffer->hostBufferCount[threadId]};
 }
 
-void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit* begin)
+void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit* begin, const bool dataOnBuffer)
 {
-  gpuState.fHitScoring->CloseHitsHandle(threadId, begin);
+  gpuState.fHitScoring->CloseHitsHandle(threadId, begin, dataOnBuffer);
 }
 
 // TODO: Make it clear that this will initialize and return the GPUState or make a

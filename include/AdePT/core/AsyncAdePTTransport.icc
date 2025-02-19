@@ -46,8 +46,8 @@ bool InitializeApplyCuts(bool applycuts);
 G4HepEmState *InitG4HepEm();
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
-std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &);
-void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *);
+std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
+void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
                             std::vector<AdePTScoring> &, int, int);
@@ -260,12 +260,13 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
   while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
 
     std::pair<GPUHit*, GPUHit*> range;
-    while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate)).first != nullptr) {
+    bool dataOnBuffer;
+    while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first != nullptr) {
       // std::cout << " G4 WORKER WAKING UP TO DO SOME SCORING! " << std::endl;
       for (auto it = range.first; it != range.second; ++it) {
         if (it->threadId == threadId) integrationInstance.ProcessGPUHit(*it);
       }
-      async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first); // decrement refcount in buffer and last worker sets to BufferStatus::Free
+      async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer); // decrement refcount in buffer and last worker sets to BufferStatus::Free
     }
 
     {
