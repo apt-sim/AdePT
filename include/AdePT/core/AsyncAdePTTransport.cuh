@@ -1153,9 +1153,9 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
 //           buffer->hostBuffer + offset + buffer->hostBufferCount[threadId]};
 }
 
-void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState)
+void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit* begin)
 {
-  gpuState.fHitScoring->CloseHitsHandle(threadId);
+  gpuState.fHitScoring->CloseHitsHandle(threadId, begin);
 }
 
 // TODO: Make it clear that this will initialize and return the GPUState or make a
