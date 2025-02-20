@@ -582,7 +582,7 @@ __host__ void ReturnTracksToG4(TrackBuffer &trackBuffer, GPUstate &gpuState,
 }
 
 void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
-                       std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers)
+                       std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers, int debugLevel)
 {
   while (context->keepRunning) {
     std::unique_lock lock(context->mutex);
@@ -591,9 +591,8 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     // FIXME: clean this after all works
     // Possible timing
     // auto start = std::chrono::high_resolution_clock::now();
-    // const bool haveNewHits = gpuState.fHitScoring->TransferAndProcessHits(context->hitTransferStream, cvG4Workers);
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
-    const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers); // FIXME pass cvG4Workers.notify_all(); down
+    const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers, debugLevel); // FIXME pass cvG4Workers.notify_all(); down
 
     // auto end = std::chrono::high_resolution_clock::now();
     // std::chrono::duration<double> elapsed = end - start;
@@ -643,7 +642,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 
   std::unique_ptr<HitProcessingContext> hitProcessing{new HitProcessingContext{transferStream}};
   std::thread hitProcessingThread{&HitProcessingLoop, (HitProcessingContext *)hitProcessing.get(), std::ref(gpuState),
-                                  std::ref(eventStates), std::ref(cvG4Workers)};
+                                  std::ref(eventStates), std::ref(cvG4Workers), std::ref(debugLevel)};
 
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
     constexpr int TransportThreads             = 256;
