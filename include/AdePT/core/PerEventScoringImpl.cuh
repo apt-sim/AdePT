@@ -83,12 +83,10 @@ struct BufferHandle {
   std::array<HitScoringBuffer, 2> hitScoringInfo;
   GPUHit *hostBuffer;
   unsigned int *hostBufferCount; 
-  enum class HostState { ReadyToBeFilled, TransferFromDevice, TransferFromDeviceFinished };
+  enum class HostState { ReadyToBeFilled, AwaitingDeviceTransfer, TransferFromDevice, TransferFromDeviceFinished };
 
   // the hostState is changed by the HitProcessingThread but also by the cudaHostFunction launch, so it must be atomic
   std::atomic<HostState> hostState;
-  // flag whether the data in the hostBuffer has been submitted to the HitQueue - before we cannot copy in the next buffer from the GPU
-  std::atomic_bool hostBufferSubmitted = true; 
   // offset in the buffer at the time of the copy (maybe redundant now?)
   unsigned int offsetAtCopy = 0;
 
@@ -286,30 +284,9 @@ class HitScoring {
   unique_ptr_cuda<std::byte> fGPUSortAuxMemory;
   std::size_t fGPUSortAuxMemorySize;
 
-  // HitQueue 
+  // HitQueue with one lock per queue
   std::vector<std::deque<HitQueueItem>> fHitQueues;
   std::vector<std::shared_mutex> fHitQueueLocks;
-
-  // mutable std::shared_mutex fProcessingHitsMutex;
-
-  using GPUHitVectorPtr = std::shared_ptr<const std::vector<GPUHit>>;
-  using HitDeque        = std::deque<GPUHitVectorPtr>;
-  using HitQueueVector  = std::vector<HitDeque>;
-
-  inline size_t calculateMemoryUsage(const HitQueueVector &fHitQueues)
-  {
-    size_t totalMemory = 0;
-
-    for (const auto &dq : fHitQueues) {
-      for (const auto &ptr : dq) {
-        if (ptr) {
-          totalMemory += sizeof(*ptr);
-          totalMemory += ptr->size() * sizeof(GPUHit); // Actual GPUHit data
-        }
-      }
-    }
-    return totalMemory;
-  }
 
   void ProcessBuffer(BufferHandle &handle, std::condition_variable &cvG4Workers, int debugLevel)
   {
@@ -332,11 +309,9 @@ class HitScoring {
       }
       offset += handle.hostBufferCount[i];
     }
-    // release HostBuffer
-    handle.hostBufferSubmitted = true; // submitted hostBuffer to queue, can swap and overwrite now
-
+    // release HostBuffer and notify G4Workers
+    fBuffer.hostState.store(BufferHandle::HostState::ReadyToBeFilled);
     cvG4Workers.notify_all();
-
 
     // Give G4 workers time to wake up
     using namespace std::chrono_literals;
@@ -377,7 +352,6 @@ class HitScoring {
     // Copying out the hits may have taken time, we can try to wake the G4 workers again
     cvG4Workers.notify_all();
     
-
   }
 
 public:
@@ -424,8 +398,10 @@ public:
   void SwapDeviceBuffers(cudaStream_t cudaStream)
   {
 
+    assert(fBuffer.hostState.load() == BufferHandle::HostState::ReadyToBeFilled);
+
     // Ensure that host side has been processed:
-     if (fDeviceState[fActiveBuffer].load(std::memory_order_acquire) != DeviceState::Filling)
+    if (fDeviceState[fActiveBuffer].load(std::memory_order_acquire) != DeviceState::Filling)
       throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": On-device buffer in wrong state");
 
 
@@ -455,11 +431,11 @@ public:
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo[fActiveBuffer],
                                        sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
 
+    // need to set the hostState to awaiting device, this prevents the next swap until the hits in the hostBuffer are send to the HitQueue
+    fBuffer.hostState.store(BufferHandle::HostState::AwaitingDeviceTransfer, std::memory_order_release);
+
     // here we need to synchronize as the swaping of device memory must stop the transport
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
-
-    // need to set the hostBufferSubmitted flag to false, this prevents the next swap until the hits in the hostBuffer are send to the HitQueue
-    fBuffer.hostBufferSubmitted.store(false, std::memory_order_release);
 
   }
 
@@ -472,9 +448,6 @@ public:
     while (fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDevice || 
            fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDeviceFinished) {
       if (fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDeviceFinished) {
-
-
-        fBuffer.hostState.store(BufferHandle::HostState::ReadyToBeFilled);
 
         // Possible timing
         // auto start = std::chrono::high_resolution_clock::now();
@@ -500,7 +473,7 @@ public:
     // we can swap if the next device state is free and the hostBuffer has been submitted to the HitQueue
     return (std::any_of(fDeviceState.begin(), fDeviceState.end(),
                        [](const auto &deviceState) { return deviceState.load(std::memory_order_acquire) == DeviceState::Free; })
-                        && fBuffer.hostBufferSubmitted.load(std::memory_order_acquire));
+                        && fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::ReadyToBeFilled);
 
   }
 
@@ -517,6 +490,7 @@ public:
   std::string GetHostStateName(BufferHandle::HostState state) const {
     switch (state) {
       case BufferHandle::HostState::ReadyToBeFilled: return "ReadytoBeFilled";
+      case BufferHandle::HostState::AwaitingDeviceTransfer: return "AwaitingDeviceTransfer";
       case BufferHandle::HostState::TransferFromDevice: return "TransferFromDevice";
       case BufferHandle::HostState::TransferFromDeviceFinished: return "TransferFromDeviceFinished";
       default: return "Unknown";
@@ -532,7 +506,7 @@ public:
   }
 
   void PrintHostBufferStates() const {
-    std::cout << " HostBufferState: Buffer already submitted: " << fBuffer.hostBufferSubmitted;
+    std::cout << " HostBufferState: ";
     std::cout << " [HostState: " << GetHostStateName(fBuffer.hostState) 
               << "] ";
     std::cout << std::endl;
@@ -544,6 +518,9 @@ public:
 
     while (std::any_of(fDeviceState.begin(), fDeviceState.end(),
                     [](auto &deviceState) { return deviceState.load() == DeviceState::NeedTransferToHost; })) {
+
+      assert(fBuffer.hostState.load() == BufferHandle::HostState::AwaitingDeviceTransfer);
+
 
       // previous active device buffer - from this one we need to transfer the data to the host
       short prevActiveDeviceBuffer = (fActiveBuffer + fDeviceState.size() - 1) % fDeviceState.size();
