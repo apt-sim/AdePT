@@ -97,6 +97,7 @@ struct HitQueueItem {
   GPUHit * begin;
   GPUHit * end;
   std::atomic_bool ScoringStarted = false;
+  std::atomic_bool IsDataOnHostBuffer = true;
   std::vector<GPUHit> holdoutBuffer;
 
   HitQueueItem(GPUHit* begin_, GPUHit* end_)
@@ -141,10 +142,22 @@ class CircularBufferManager {
 
   /// Adds a segment at the provided position. Ensures segments remain sorted.
   bool addSegment(GPUHit* begin, GPUHit* end) {
+    std::scoped_lock lock{bufferManagerMutex};
+
     assert(begin == writePtr && "Begin pointer must match writePtr for contiguous allocation!");
     size_t size = end - begin;
-    
+
     if (size > freeSpace) return false; // Not enough total space
+
+    // 🔴 Check if this segment already exists
+    auto existing = std::find_if(segments.begin(), segments.end(),
+      [begin](const Segment& seg) { return seg.begin == begin; });
+
+    if (existing != segments.end()) {
+      std::cerr << "🚨 ERROR: Attempted to add duplicate segment! [" 
+                << begin << " - " << end << "]\n";
+      assert(false && "Duplicate segment detected!");
+    }
 
     // Insert the segment into sorted position
     segments.insert(
@@ -152,40 +165,74 @@ class CircularBufferManager {
       {begin, end}
     );
 
-    writePtr = end;  // Move forward
+    writePtr = end;  
     freeSpace -= size;
+
+    if ( !checkForOverlaps() ) {
+      std::cout << "Overlap after addSegment!!! " << std::endl;
+    }
+
+
     return true;
   }
 
   /// Removes a segment based on its starting pointer and updates writePtr accordingly.
   void removeSegment(GPUHit* segmentPtr) {
+    std::scoped_lock lock{bufferManagerMutex};
+
+    // Verify that segmentPtr is valid before removing
+    if (!segmentPtr) {
+      std::cerr << "🚨 ERROR: Attempting to remove a NULL segment!" << std::endl;
+      assert(false);
+    }
+
+    // Check if the segment actually exists
     auto it = std::find_if(segments.begin(), segments.end(),
       [segmentPtr](const Segment& seg) { return seg.begin == segmentPtr; });
 
-    assert(it != segments() && "Trying to remove segment that doesn't exist. They should always exist!");
-
-    freeSpace += (it->end - it->begin);
-
-    // If writePtr is exactly at the end of the segment being removed
-    if (writePtr == it->end) {
-      // Case 1: If it is the first segment, reset writePtr to bufferStart
-      if (it == segments.begin()) {
-        writePtr = bufferStart;
+    if (it == segments.end()) {
+      std::cerr << "🚨 ERROR: Trying to remove segment that doesn't exist! [" 
+                << segmentPtr << "]\n";
+      std::cerr << "Current segment list:\n";
+      for (const auto& seg : segments) {
+        std::cerr << "  [" << seg.begin << " - " << seg.end << "]\n";
       }
-      // Case 2: If there's a previous segment, move writePtr to its end
-      else {
-        auto prev = std::prev(it);
-        writePtr = prev->end;
-      }
+      assert(false && "Segment should always exist in the list before removing!");
     }
 
+    GPUHit* removedBegin = it->begin;
+    GPUHit* removedEnd = it->end;
+
+    freeSpace += (it->end - it->begin);
     segments.erase(it);
-    return;
+
+    // 🔴 Ensure segment was actually removed
+    auto verify = std::find_if(segments.begin(), segments.end(),
+      [removedBegin](const Segment& seg) { return seg.begin == removedBegin; });
+
+    if (verify != segments.end()) {
+      std::cerr << "🚨 ERROR: Segment still exists in list after erase!!! [" 
+                << removedBegin << " - " << removedEnd << "]\n";
+      assert(false && "Segment was NOT removed! Possible race condition?");
+    }
+
+    // Ensure no duplicate segments remain
+    if (!checkForOverlaps()) {
+      std::cerr << "❌ ERROR: Overlapping segments detected AFTER removeSegment!!!\n";
+      assert(false && "Segments should not overlap!");
+    }
   }
 
   /// Returns the contiguous free space in front of the writePtr (or at the beginning of the buffer in case of a wraparound)
   size_t getFreeContiguousMemory(size_t transferSize) {
+    std::scoped_lock lock{bufferManagerMutex};
+
+    if ( !checkForOverlaps() ) {
+      std::cout << "Overlap after getFreeContiguousMemory!!! " << std::endl;
+    }
+
     if (segments.empty()) {
+      writePtr = bufferStart;
       return bufferEnd - bufferStart;  // Everything is free
     }
 
@@ -221,7 +268,34 @@ class CircularBufferManager {
   GPUHit* writePtr;
   size_t freeSpace;
   std::vector<Segment> segments; // **Sorted vector instead of set**
+  mutable std::mutex bufferManagerMutex;
+
+  // Consistency check for debugging
+  bool checkForOverlaps() {
+    for (size_t i = 1; i < segments.size(); i++) {
+      if (segments[i - 1].end > segments[i].begin) {
+        std::cerr << "ERROR: Overlapping segments detected!\n";
+        std::cerr << " Segment 1: [" << segments[i - 1].begin << " - " << segments[i - 1].end << "]\n";
+        std::cerr << " Segment 2: [" << segments[i].begin << " - " << segments[i].end << "]\n";
+        assert(false && "Overlapping segments in CircularBufferManager!");
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void printSegments(const std::string& msg) {
+    std::cout << msg << " | Current segments: ";
+    for (const auto& seg : segments) {
+      std::cout << "[" << seg.begin << " - " << seg.end << "] ";
+    }
+    std::cout << std::endl;
+  }
+
+
+
 };
+
 // TODO: Rename this. Maybe ScoringState? Check usage in GPUstate
 class HitScoring {
   unique_ptr_cuda<GPUHit> fGPUHitBuffer_dev;
@@ -248,9 +322,9 @@ class HitScoring {
   // std::vector<std::deque<std::shared_ptr<const std::vector<GPUHit>>>> fHitQueues;
   // std::vector<std::deque<BufferHandle*>> fHitQueues;
   std::vector<std::deque<HitQueueItem>> fHitQueues;
+  std::vector<std::shared_mutex> fHitQueueLocks;
 
-
-  mutable std::shared_mutex fProcessingHitsMutex;
+  // mutable std::shared_mutex fProcessingHitsMutex;
 
   using GPUHitVectorPtr = std::shared_ptr<const std::vector<GPUHit>>;
   using HitDeque        = std::deque<GPUHitVectorPtr>;
@@ -271,7 +345,7 @@ class HitScoring {
     return totalMemory;
   }
 
-  void ProcessBuffer(BufferHandle &handle, std::condition_variable &cvG4Workers, std::unique_lock<std::shared_mutex> &lock)
+  void ProcessBuffer(BufferHandle &handle, std::condition_variable &cvG4Workers)
   {
     // We are assuming that the caller holds a lock on fProcessingHitsMutex.
     // FIXME: use HostState
@@ -297,18 +371,15 @@ class HitScoring {
       GPUHit* begin = handle.hostBuffer + offset + handle.offsetAtCopy;
       GPUHit* end = handle.hostBuffer + offset + handle.offsetAtCopy + handle.hostBufferCount[i];
 
-// std::cout << " handle.hostBuffer " << handle.hostBuffer << " offset " << offset << " size " << (end - begin) << " handle hostBuffercount " <<  handle.hostBufferCount[i] <<" Begin fStepLength " << begin->fStepLength << std::endl;
-      // fBufferManager->getFreeSpace
       HitQueueItem hitItem{begin, end};
 
       if (begin != end) {
-        lock.lock();
-        // handle.increment();
         fBufferManager->addSegment(begin, end);
+
+        std::scoped_lock lock{fHitQueueLocks[i]};
         fHitQueues[i].push_back(std::move(hitItem));
-        lock.unlock();
       }
-// std::cout << BOLD_RED << "threadId " << i << " EventId " << begin->fEventId << " offset " << offset << " num hits to score " << handle.hostBufferCount[i] << RESET << std::endl;
+      // std::cout << BOLD_RED << "threadId " << i << " EventId " << begin->fEventId << " offset " << offset << " num hits to score " << handle.hostBufferCount[i] << RESET << std::endl;
 
       offset += handle.hostBufferCount[i];
     }
@@ -321,23 +392,26 @@ class HitScoring {
 
     // Give G4 workers time to wake up
     using namespace std::chrono_literals;
-    std::this_thread::sleep_for(50ms); // 50 seems to be a good value
+    std::this_thread::sleep_for(0.1ms); // 50 seems to be a good value
 
     for (int i = 0; i < fHitQueues.size(); i++) {
 
-      lock.lock();
+      std::scoped_lock lock{fHitQueueLocks[i]};
+
       if (!fHitQueues[i].empty()) {
         auto& ret = fHitQueues[i].back(); // we just pushed to the back, so we need to check if the back is used!
         if (ret.ScoringStarted.load(std::memory_order_acquire) == true ) {
-          std::cout << BOLD_BLUE << "G4worker " << i << " has taken their task and started working on " << (ret.end - ret.begin) << " hits " << RESET << std::endl;
-          lock.unlock();
+          // std::cout << BOLD_BLUE << "G4worker " << i << " has taken their task and started working on " << (ret.end - ret.begin) << " hits " << RESET << std::endl;
         } else {
+          // change lock to exclusive lock before modifying data
+          // lock.unlock();
+          // std::unique_lock exclusiveLock{fHitQueueLocks[i]};
 
           assert(ret.begin && ret.end && ret.begin < ret.end);
 
           size_t numHits = ret.end - ret.begin;  // Compute the number of hits
 
-          std::cout << BOLD_RED << "G4Worker " << i << " was too slow, copying out " << numHits << " hits "  << RESET << std::endl;
+          // std::cout << BOLD_RED << "G4Worker " << i << " was too slow, copying out " << numHits << " hits "  << RESET << std::endl;
 
           ret.holdoutBuffer.resize(numHits);  // Allocate correct size
           std::copy(ret.begin, ret.end, ret.holdoutBuffer.begin());  // Copy data
@@ -350,18 +424,19 @@ class HitScoring {
           ret.end = ret.holdoutBuffer.data() + ret.holdoutBuffer.size();
 
           ret.ScoringStarted = true;
+          ret.IsDataOnHostBuffer = false;
 
-          lock.unlock();
         }
-      
-      } else {
-        lock.unlock();
       }
     }
+    // Copying out the hits may have taken time, we can try to wake the G4 workers again
+    cvG4Workers.notify_all();
+    
+
   }
 
 public:
-  HitScoring(unsigned int hitCapacity, unsigned int nThread) : fHitCapacity{hitCapacity}, fHitQueues(nThread)
+  HitScoring(unsigned int hitCapacity, unsigned int nThread) : fHitCapacity{hitCapacity}, fHitQueues(nThread), fHitQueueLocks(nThread)
   {
     // We use a single allocation for both buffers:
     // FIXME: have size 3 for HostBuffer
@@ -510,7 +585,7 @@ public:
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE    "\033[1;34m"
   // std::cout << BOLD_BLUE << "START PROCESS HITS" << RESET << std::endl;
-    std::unique_lock lock{fProcessingHitsMutex, std::defer_lock};
+    // std::unique_lock lock{fProcessingHitsMutex, std::defer_lock};
     bool haveNewHits = false;
 
     // FIXME use HostState. Be careful, with state of scoring
@@ -527,7 +602,7 @@ public:
 
           // Possible timing
           // auto start = std::chrono::high_resolution_clock::now();
-          ProcessBuffer(handle, cvG4Workers, lock);
+          ProcessBuffer(handle, cvG4Workers);
 
           haveNewHits = true;
 
@@ -616,18 +691,12 @@ public:
         transferSize += buffer.hostBufferCount[i];
       }
 
-      {
-        std::scoped_lock lock{fProcessingHitsMutex}; // need to lock the access to fBufferManager, as in the wraparound, the writePtr is moved and this needs to be locked
-
       if (fBufferManager->getFreeContiguousMemory(transferSize) <= transferSize ) {
         // std::cout << "Not enough free memory in buffer: " << fBufferManager->getFreeContiguousMemory(transferSize) <<  " cannot transfer yet hits of size " << transferSize << std::endl;
         continue;
       } else {
         // std::cout << "TransferHitsToHost of size " << transferSize << " Free contiguous memory in Buffer " << fBufferManager->getFreeContiguousMemory() << std::endl;
       }
-
-      }
-
 
 
       fDeviceState[prevActiveDeviceBuffer].store(DeviceState::TransferToHost, std::memory_order_release);
@@ -650,9 +719,9 @@ public:
       // The start address on device is always i * fNSlot (Slots per thread), and we copy always to
       // the offset of the previous copy, to get a compact buffer on host.
       unsigned int offset = 0;
+      // std::cout << " Calling cudaMemcpyAsync with buffer.offsetAtCopy " << buffer.offsetAtCopy << " ofSize " << transferSize << std::endl;
       for (int i = 0; i < buffer.hitScoringInfo[prevActiveDeviceBuffer].fNThreads; i++) {
         if (buffer.hostBufferCount[i] > 0) {
-          // std::cout << " Calling cudaMemcpyAsync with buffer.offsetAtCopy " << buffer.offsetAtCopy << " offset " << offset << std::endl;
           // COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer + offset, bufferBegin + i * buffer.hitScoringInfo.fNSlot,
           COPCORE_CUDA_CHECK(cudaMemcpyAsync(buffer.hostBuffer + buffer.offsetAtCopy + offset, bufferBegin + i * buffer.hitScoringInfo[prevActiveDeviceBuffer].fNSlot,
                                     sizeof(GPUHit) * buffer.hostBufferCount[i], cudaMemcpyDefault,
@@ -707,15 +776,17 @@ public:
   HitQueueItem* GetNextHitsHandle(unsigned int threadId, bool &dataOnBuffer)
   {
     assert(threadId < fHitQueues.size());
-    std::shared_lock lock{fProcessingHitsMutex}; // read only, can use shared_lock // NOT ANYMORE, need to set boolean flag
+    std::unique_lock lock{fHitQueueLocks[threadId]}; // read only, can use shared_lock // NOT ANYMORE, need to set boolean flag
 
     if (fHitQueues[threadId].empty())
       return nullptr;
     else {
       auto& ret = fHitQueues[threadId].front();
-      dataOnBuffer = !ret.ScoringStarted.load();
+      dataOnBuffer = ret.IsDataOnHostBuffer.load();
       ret.ScoringStarted.store(true, std::memory_order_release);
       // fHitQueues[threadId].pop_front(); // don't pop the front, we still need to decrement before we can pop it
+
+      lock.unlock(); // Important: Unlock before returning pointer
       return &ret;
     }
   }
@@ -723,13 +794,14 @@ public:
   void CloseHitsHandle(unsigned int threadId, GPUHit* begin, const bool dataOnBuffer)
   {
     assert(threadId < fHitQueues.size());
-    std::unique_lock lock{fProcessingHitsMutex}; // popping queue, requires unique lock
+    std::unique_lock lock{fHitQueueLocks[threadId]}; // popping queue, requires unique lock
 
     if (fHitQueues[threadId].empty()) 
       throw std::invalid_argument{"Error, no hitQueue to close"};
     else {
       // std::cout << "Popping queue threadId "<<  threadId << " if I was the last, you now you may call the custom deleter! " << std::endl;
       // std::cout << "threadId " << threadId << " Popping front of hitqueue and removing segment " << begin << std::endl;
+      // if (dataOnBuffer) std::cout << " G4Worker calling removeSegment on segment " << begin << std::endl;
       if (dataOnBuffer) fBufferManager->removeSegment(begin); // remove used buffer memory from used-memory list
       fHitQueues[threadId].pop_front();
     }
