@@ -3,8 +3,6 @@
 
 #include <AdePT/core/AsyncAdePTTransport.hh>
 
-// #include <AdePT/core/PerEventScoringImpl.cuh>
-
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include <VecGeom/management/BVHManager.h>

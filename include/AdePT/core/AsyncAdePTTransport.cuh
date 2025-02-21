@@ -268,9 +268,8 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     //   gammaInteractions.queues[threadIdx.x]->clear();
     // }
     if (threadIdx.x == 0) {
-      stats->hitBufferOccupancy =
-          AsyncAdePT::gHitScoringBuffer_dev
-              .GetMaxSlotCount(); // FIXME for per thread counter AsyncAdePT::gHitScoringBuffer_dev.fSlotCounter;
+      // Note: hitBufferOccupancy gives the maximum occupancy of all threads combined
+      stats->hitBufferOccupancy = AsyncAdePT::gHitScoringBuffer_dev.GetMaxSlotCount();
     }
   }
 

@@ -24,7 +24,7 @@
 #include <cub/device/device_merge_sort.cuh>
 
 // definitions for printouts and advanced debugging
-#define DEBUG
+// #define DEBUG
 #define RESET "\033[0m"
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE "\033[1;34m"
@@ -54,10 +54,6 @@ struct HitScoringBuffer {
 
   __device__ GPUHit &GetNextSlot(unsigned int threadId)
   {
-    // printf("Thread %u accessing fSlotCounter at address: %p\n", threadId, fSlotCounter);
-    if (!fSlotCounter) {
-      printf("ERROR: SLOTCOUNTER IS NULLPTR\n");
-    }
     const auto slotIndex = atomicAdd(&fSlotCounter[threadId], 1);
     if (slotIndex >= fNSlot) {
       printf("Trying to score hit #%d with only %d slots\n", slotIndex, fNSlot);
@@ -68,19 +64,6 @@ struct HitScoringBuffer {
 };
 
 __device__ HitScoringBuffer gHitScoringBuffer_dev;
-
-#ifdef __SANITIZE_ADDRESS__
-#include <sanitizer/asan_interface.h>
-#endif
-
-bool isValidPointer(void *ptr)
-{
-#ifdef __SANITIZE_ADDRESS__
-  return !__asan_address_is_poisoned(ptr);
-#else
-  return ptr != nullptr;
-#endif
-}
 
 struct BufferHandle {
   std::array<HitScoringBuffer, 2> hitScoringInfo;
@@ -117,17 +100,17 @@ struct HitQueueItem {
 
   // write custom move constructor and assignment operator
   HitQueueItem(HitQueueItem &&other) noexcept
-      : begin(other.begin), end(other.end), ScoringStarted(other.ScoringStarted.load()), // Read atomic value safely
+      : begin(other.begin), end(other.end), ScoringStarted(other.ScoringStarted.load()),
         holdoutBuffer(std::move(other.holdoutBuffer))
   {
-  } // Move vector safely
+  }
 
   HitQueueItem &operator=(HitQueueItem &&other) noexcept
   {
     if (this != &other) {
       begin = other.begin;
       end   = other.end;
-      ScoringStarted.store(other.ScoringStarted.load()); // Safe atomic move
+      ScoringStarted.store(other.ScoringStarted.load());
       holdoutBuffer = std::move(other.holdoutBuffer);
     }
     return *this;
