@@ -262,10 +262,6 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     std::pair<GPUHit *, GPUHit *> range;
     bool dataOnBuffer;
 
-#define RESET "\033[0m"
-#define BOLD_RED "\033[1;31m"
-#define BOLD_BLUE "\033[1;34m"
-
     {
       std::unique_lock lock{fMutex_G4Workers};
       fCV_G4Workers.wait(lock);
@@ -274,17 +270,15 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
            nullptr) {
       for (auto it = range.first; it != range.second; ++it) {
+        // important sanity check: thread should only process its own hits and only from the current event
         if (it->threadId != threadId)
-          std::cout << BOLD_RED << "Error, threadId doesn't match it->threadId " << it->threadId << " threadId "
-                    << threadId << RESET << std::endl;
-        ;
+          std::err << "Error, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
+                   << std::endl;
         if (it->fEventId != eventId) {
-          std::cout << BOLD_RED << "Error, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
-                    << RESET << std::endl;
-          std::cout << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
-                    << std::endl;
-          std::cout << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
-                    << std::endl;
+          std::err << "Error, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
+                   << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
+                   << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
+                   << std::endl;
         }
         integrationInstance.ProcessGPUHit(*it);
       }
