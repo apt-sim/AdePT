@@ -134,6 +134,11 @@ def buildAndTest() {
     set -x
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
+    export CMAKE_BINARY_DIR=BUILD_ASYNC_ON
+    export ExtraCMakeOptions="-DASYNC_MODE=ON"
+    ctest -V --output-on-failure -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+    export CMAKE_BINARY_DIR=BUILD_ASYNC_OFF
+    export ExtraCMakeOptions="-DASYNC_MODE=OFF"
     ctest -V --output-on-failure -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
 }
