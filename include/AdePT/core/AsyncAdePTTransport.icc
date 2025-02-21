@@ -270,10 +270,10 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
       for (auto it = range.first; it != range.second; ++it) {
         // important sanity check: thread should only process its own hits and only from the current event
         if (it->threadId != threadId)
-          std::err << "Error, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
+          std::cerr << "Error, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
                    << std::endl;
         if (it->fEventId != eventId) {
-          std::err << "Error, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
+          std::cerr << "Error, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
                    << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
                    << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
                    << std::endl;
