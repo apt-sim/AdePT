@@ -268,7 +268,9 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     //   gammaInteractions.queues[threadIdx.x]->clear();
     // }
     if (threadIdx.x == 0) {
-      stats->hitBufferOccupancy = AsyncAdePT::gHitScoringBuffer_dev.GetMaxSlotCount(); // FIXME for per thread counter AsyncAdePT::gHitScoringBuffer_dev.fSlotCounter;
+      stats->hitBufferOccupancy =
+          AsyncAdePT::gHitScoringBuffer_dev
+              .GetMaxSlotCount(); // FIXME for per thread counter AsyncAdePT::gHitScoringBuffer_dev.fSlotCounter;
     }
   }
 
@@ -582,7 +584,8 @@ __host__ void ReturnTracksToG4(TrackBuffer &trackBuffer, GPUstate &gpuState,
 }
 
 void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
-                       std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers, int debugLevel)
+                       std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
+                       int debugLevel)
 {
   while (context->keepRunning) {
     std::unique_lock lock(context->mutex);
@@ -595,8 +598,9 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
       AdvanceEventStates(EventState::FlushingHits, EventState::HitsFlushed, eventStates);
     }
 
-    // Notify all even without newHits because the HitProcessingThread could have been woken up because the Event finished
-    cvG4Workers.notify_all(); 
+    // Notify all even without newHits because the HitProcessingThread could have been woken up because the Event
+    // finished
+    cvG4Workers.notify_all();
   }
 }
 
@@ -633,8 +637,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
   };
 
   std::unique_ptr<HitProcessingContext> hitProcessing{new HitProcessingContext{transferStream}};
-  std::thread hitProcessingThread{&HitProcessingLoop, (HitProcessingContext *)hitProcessing.get(), std::ref(gpuState),
-                                  std::ref(eventStates), std::ref(cvG4Workers), std::ref(debugLevel)};
+  std::thread hitProcessingThread{&HitProcessingLoop,    (HitProcessingContext *)hitProcessing.get(),
+                                  std::ref(gpuState),    std::ref(eventStates),
+                                  std::ref(cvG4Workers), std::ref(debugLevel)};
 
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
     constexpr int TransportThreads             = 256;
@@ -965,14 +970,15 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         if (!gpuState.fHitScoring->ReadyToSwapBuffers()) {
           hitProcessing->cv.notify_one();
         } else {
-          if ( gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2 ||
+          if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2 ||
               gpuState.stats->hitBufferOccupancy >= 10000 ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {
             AdvanceEventStates(EventState::RequestHitFlush, EventState::FlushingHits, eventStates);
             // Reset hitBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted swap
-            COPCORE_CUDA_CHECK(cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
+            COPCORE_CUDA_CHECK(
+                cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
             gpuState.fHitScoring->SwapDeviceBuffers(gpuState.stream);
             hitProcessing->cv.notify_one();
           }
@@ -982,7 +988,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** Notify G4 workers if their events completed ***
       if (std::any_of(eventStates.begin(), eventStates.end(),
                       [](const EventState &state) { return state == EventState::DeviceFlushed; })) {
-        // Notify HitProcessingThread to notify the workers. Do not notify workers directly, as this could bypass the processing of hits
+        // Notify HitProcessingThread to notify the workers. Do not notify workers directly, as this could bypass the
+        // processing of hits
         hitProcessing->cv.notify_one();
       }
 
@@ -999,8 +1006,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
                   << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load())
                   << "\tHitBuffer: " << gpuState.stats->hitBufferOccupancy
                   << "\tHitBufferReadyToSwap: " << gpuState.fHitScoring->ReadyToSwapBuffers();
-                  gpuState.fHitScoring->PrintHostBufferState();
-                  gpuState.fHitScoring->PrintDeviceBufferStates();
+        gpuState.fHitScoring->PrintHostBufferState();
+        gpuState.fHitScoring->PrintDeviceBufferStates();
         if (debugLevel >= 4) {
           std::cerr << "\n\tper event: ";
           for (unsigned int i = 0; i < numThreads; ++i) {
@@ -1061,8 +1068,10 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
   // fGPUstate = nullptr;
 }
 
-std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned int eventId, GPUstate &gpuState, bool &dataOnBuffer) {
-  HitQueueItem* hitItem = gpuState.fHitScoring->GetNextHitsHandle(threadId, dataOnBuffer);
+std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int threadId, unsigned int eventId, GPUstate &gpuState,
+                                                   bool &dataOnBuffer)
+{
+  HitQueueItem *hitItem = gpuState.fHitScoring->GetNextHitsHandle(threadId, dataOnBuffer);
   if (hitItem) {
     return {hitItem->begin, hitItem->end};
   } else {
@@ -1070,7 +1079,7 @@ std::pair<GPUHit*, GPUHit*> GetGPUHitsFromBuffer(unsigned int threadId, unsigned
   }
 }
 
-void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit* begin, const bool dataOnBuffer)
+void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit *begin, const bool dataOnBuffer)
 {
   gpuState.fHitScoring->CloseHitsHandle(threadId, begin, dataOnBuffer);
 }
