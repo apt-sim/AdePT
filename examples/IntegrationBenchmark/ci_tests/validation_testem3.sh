@@ -35,9 +35,9 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --output ${CI_TEST_DIR}/validation_testem3.mac \
     --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml \
     --num_threads 4 \
-    --num_events 200 \
-    --num_trackslots 10 \
-    --num_hitslots 6 \
+    --num_events 1000 \
+    --num_trackslots 3 \
+    --num_hitslots 20 \
     --gun_type setDefault 
 
 

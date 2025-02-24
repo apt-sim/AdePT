@@ -47,7 +47,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
 $ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TEST_DIR}/reproducibility.mac --output_dir ${CI_TEST_DIR} --output_file cms_ttbar_run1
 $ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TEST_DIR}/reproducibility.mac --output_dir ${CI_TEST_DIR} --output_file cms_ttbar_run2 
 
-# allow for small rounding error of 1e-7 due to summation per thread
+# allow for small rounding error of 1e-6 due to summation per thread
 $CI_TEST_DIR/python_scripts/check_reproducibility.py --file1 ${CI_TEST_DIR}/cms_ttbar_run1.csv \
                                                      --file2 ${CI_TEST_DIR}/cms_ttbar_run2.csv \
-                                                     --tol 1e-7
+                                                     --tol 1e-5

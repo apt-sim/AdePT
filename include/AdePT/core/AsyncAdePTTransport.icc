@@ -44,6 +44,8 @@ bool InitializeApplyCuts(bool applycuts);
 G4HepEmState *InitG4HepEm();
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
+std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
+void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
                             std::vector<AdePTScoring> &, int, int);
@@ -254,17 +256,31 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
   AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId];
 
   while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
+
+    std::pair<GPUHit *, GPUHit *> range;
+    bool dataOnBuffer;
+
     {
       std::unique_lock lock{fMutex_G4Workers};
       fCV_G4Workers.wait(lock);
     }
 
-    std::shared_ptr<const std::vector<GPUHit>> gpuHits;
-    while ((gpuHits = async_adept_impl::GetGPUHits(threadId, *fGPUstate)) != nullptr) {
-      for (auto it = gpuHits->begin(); it != gpuHits->end(); ++it) {
-        assert(it->threadId == threadId);
+    while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
+           nullptr) {
+      for (auto it = range.first; it != range.second; ++it) {
+        // important sanity check: thread should only process its own hits and only from the current event
+        if (it->threadId != threadId)
+          std::cerr << "Error, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
+                    << std::endl;
+        if (it->fEventId != eventId) {
+          std::cerr << "Error, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
+                    << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
+                    << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
+                    << std::endl;
+        }
         integrationInstance.ProcessGPUHit(*it);
       }
+      async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
     }
   }
 
