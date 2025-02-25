@@ -103,12 +103,11 @@ AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parentId, double energy, double x, double y, double z,
-                                                     double dirx, double diry, double dirz, double globalTime,
-                                                     double localTime, double properTime, int threadId,
-                                                     unsigned int eventId, unsigned int trackId,
-                                                     vecgeom::NavigationState &&state,
-                                                     vecgeom::NavigationState &&originState)
+void AsyncAdePTTransport<IntegrationLayer>::AddTrack(
+    int pdg, int parentId, double energy, double vertexEnergy, double x, double y, double z, double dirx, double diry,
+    double dirz, double vertexX, double vertexY, double vertexZ, double vertexDirx, double vertexDiry,
+    double vertexDirz, double globalTime, double localTime, double properTime, int threadId, unsigned int eventId,
+    unsigned int trackId, vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
@@ -118,12 +117,19 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parentId, doub
   TrackDataWithIDs track{pdg,
                          parentId,
                          energy,
+                         vertexEnergy,
                          x,
                          y,
                          z,
                          dirx,
                          diry,
                          dirz,
+                         vertexX,
+                         vertexY,
+                         vertexZ,
+                         vertexDirx,
+                         vertexDiry,
+                         vertexDirz,
                          globalTime,
                          localTime,
                          properTime,

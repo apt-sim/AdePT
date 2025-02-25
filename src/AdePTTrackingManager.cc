@@ -223,10 +223,27 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         convertedOrigin = GetVecGeomFromG4State(*aTrack->GetOriginTouchableHandle()->GetHistory());
       }
 
-      fAdeptTransport->AddTrack(pdg, id, energy, particlePosition[0], particlePosition[1], particlePosition[2],
-                                particleDirection[0], particleDirection[1], particleDirection[2], globalTime, localTime,
-                                properTime, G4Threading::G4GetThreadId(), eventID, fTrackCounter++,
-                                std::move(converted), std::move(convertedOrigin));
+      // Get the vertex information
+      G4ThreeVector vertexPosition;
+      G4ThreeVector vertexDirection;
+      G4double vertexEnergy;
+      if (aTrack->GetCurrentStepNumber() == 0) {
+        // If it's the first step of the track these values are not set
+        vertexPosition  = aTrack->GetPosition();
+        vertexDirection = aTrack->GetMomentumDirection();
+        vertexEnergy    = aTrack->GetKineticEnergy();
+      } else {
+        vertexPosition  = aTrack->GetVertexPosition();
+        vertexDirection = aTrack->GetVertexMomentumDirection();
+        vertexEnergy    = aTrack->GetVertexKineticEnergy();
+      }
+
+      fAdeptTransport->AddTrack(pdg, id, energy, vertexEnergy, particlePosition[0], particlePosition[1],
+                                particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
+                                vertexPosition[0], vertexPosition[1], vertexPosition[2], vertexDirection[0],
+                                vertexDirection[1], vertexDirection[2], globalTime, localTime, properTime,
+                                G4Threading::G4GetThreadId(), eventID, fTrackCounter++, std::move(converted),
+                                std::move(convertedOrigin));
 
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);

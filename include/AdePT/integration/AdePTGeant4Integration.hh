@@ -48,8 +48,10 @@ public:
   static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState, bool trackInAllRegions,
                              std::vector<std::string> const *gpuRegionNames);
 
-  /// @brief Returns a mapping of VecGeom placed volume IDs to Geant4 physical volumes
-  static void GetPhysicalVolumeMap(std::vector<G4VPhysicalVolume const *> &vecgeomToG4Map);
+  /// @brief Returns a mapping of VecGeom placed volume IDs to Geant4 physical volumes and a mapping of VecGeom logical
+  /// volume IDs to Geant4 logical volumes
+  static void MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> &vecgeomPvToG4Map,
+                             std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map);
 
   /// @brief Reconstructs GPU hits on host and calls the user-defined sensitive detector code
   void ProcessGPUHit(GPUHit const &hit);
@@ -83,7 +85,8 @@ private:
 
   void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel) const;
 
-  static std::vector<G4VPhysicalVolume const *> fglobal_vecgeom_to_g4_map;
+  static std::vector<G4VPhysicalVolume const *> fglobal_vecgeom_pv_to_g4_map;
+  static std::vector<G4LogicalVolume const *> fglobal_vecgeom_lv_to_g4_map;
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
 };

@@ -264,8 +264,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
-        electron.eKin     = elKinEnergy;
+        electron.eKin = electron.vertexEkin = elKinEnergy;
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
+        electron.vertexMomentumDirection.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 #endif
       }
 
@@ -284,8 +285,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // Reuse the RNG state of the dying track.
         positron.parentId = currentTrack.parentId;
         positron.rngState = currentTrack.rngState;
-        positron.eKin     = posKinEnergy;
+        positron.eKin = positron.vertexEkin = posKinEnergy;
         positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
+        positron.vertexMomentumDirection.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 #endif
       }
 
@@ -347,8 +349,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
-        electron.eKin     = energyEl;
-        electron.dir      = eKin * dir - newEnergyGamma * newDirGamma;
+        electron.eKin = electron.vertexEkin = energyEl;
+        electron.dir = electron.vertexMomentumDirection = eKin * dir - newEnergyGamma * newDirGamma;
 #endif
 
         electron.dir.Normalize();
@@ -420,8 +422,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
-        electron.eKin     = photoElecE;
+        electron.eKin = electron.vertexEkin = photoElecE;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
+        electron.vertexMomentumDirection.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
 #endif
 
       } else {

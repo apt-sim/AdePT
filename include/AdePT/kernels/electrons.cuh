@@ -410,8 +410,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             secondary.InitAsSecondary(pos, navState, globalTime);
             secondary.parentId = currentTrack.parentId;
             secondary.rngState = newRNG;
-            secondary.eKin     = deltaEkin;
+            secondary.eKin = secondary.vertexEkin = deltaEkin;
             secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+            secondary.vertexMomentumDirection.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 #endif
           }
 
@@ -460,8 +461,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma.InitAsSecondary(pos, navState, globalTime);
             gamma.parentId = currentTrack.parentId;
             gamma.rngState = newRNG;
-            gamma.eKin     = deltaEkin;
+            gamma.eKin = gamma.vertexEkin = deltaEkin;
             gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+            gamma.vertexMomentumDirection.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
+
 #endif
           }
 
@@ -508,8 +511,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma1.InitAsSecondary(pos, navState, globalTime);
             gamma1.parentId = currentTrack.parentId;
             gamma1.rngState = newRNG;
-            gamma1.eKin     = theGamma1Ekin;
+            gamma1.eKin = gamma1.vertexEkin = theGamma1Ekin;
             gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
+            gamma1.vertexMomentumDirection.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 #endif
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -529,8 +533,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             // the state is not reused, but this shouldn't be an issue)
             gamma2.parentId = currentTrack.parentId;
             gamma2.rngState = currentTrack.rngState;
-            gamma2.eKin     = theGamma2Ekin;
+            gamma2.eKin = gamma2.vertexEkin = theGamma2Ekin;
             gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
+            gamma2.vertexMomentumDirection.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 #endif
           }
 
@@ -579,15 +584,17 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           newRNG.Advance();
           gamma1.parentId = currentTrack.parentId;
           gamma1.rngState = newRNG;
-          gamma1.eKin     = copcore::units::kElectronMassC2;
+          gamma1.eKin = gamma1.vertexEkin = copcore::units::kElectronMassC2;
           gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
+          gamma1.vertexMomentumDirection.Set(sint * cosPhi, sint * sinPhi, cost);
 
           gamma2.InitAsSecondary(pos, navState, globalTime);
           // Reuse the RNG state of the dying track.
           gamma2.parentId = currentTrack.parentId;
           gamma2.rngState = currentTrack.rngState;
-          gamma2.eKin     = copcore::units::kElectronMassC2;
-          gamma2.dir      = -gamma1.dir;
+          gamma2.eKin = gamma2.vertexEkin = copcore::units::kElectronMassC2;
+          gamma2.dir                      = -gamma1.dir;
+          gamma2.vertexMomentumDirection  = -gamma1.dir;
 #endif
         }
       }

@@ -84,11 +84,13 @@ void Deleter::operator()(ScoringObjects *ptr)
 
 } // namespace AdePTGeant4Integration_detail
 
-std::vector<G4VPhysicalVolume const *> AdePTGeant4Integration::fglobal_vecgeom_to_g4_map;
+std::vector<G4VPhysicalVolume const *> AdePTGeant4Integration::fglobal_vecgeom_pv_to_g4_map;
+std::vector<G4LogicalVolume const *> AdePTGeant4Integration::fglobal_vecgeom_lv_to_g4_map;
 
 AdePTGeant4Integration::~AdePTGeant4Integration() {}
 
-void AdePTGeant4Integration::GetPhysicalVolumeMap(std::vector<G4VPhysicalVolume const *> &vecgeomToG4Map)
+void AdePTGeant4Integration::MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> &vecgeomPvToG4Map,
+                                            std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map)
 {
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
@@ -100,9 +102,12 @@ void AdePTGeant4Integration::GetPhysicalVolumeMap(std::vector<G4VPhysicalVolume 
     const auto g4_lvol = g4_pvol->GetLogicalVolume();
     const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
-    // Initialize mapping of Vecgeom PlacedVolume IDs to G4 PhysicalVolume IDs
-    vecgeomToG4Map.resize(std::max<std::size_t>(vecgeomToG4Map.size(), vg_pvol->id() + 1), nullptr);
-    vecgeomToG4Map[vg_pvol->id()] = g4_pvol;
+    // Initialize mapping of Vecgeom PlacedVolume IDs to G4 PhysicalVolume*
+    vecgeomPvToG4Map.resize(std::max<std::size_t>(vecgeomPvToG4Map.size(), vg_pvol->id() + 1), nullptr);
+    vecgeomPvToG4Map[vg_pvol->id()] = g4_pvol;
+    // Initialize mapping of Vecgeom LogicalVolume IDs to G4 LogicalVolume*
+    vecgeomLvToG4Map.resize(std::max<std::size_t>(vecgeomLvToG4Map.size(), vg_lvol->id() + 1), nullptr);
+    vecgeomLvToG4Map[vg_lvol->id()] = g4_lvol;
 
     // Now do the daughters
     for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
@@ -132,7 +137,7 @@ void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
   }
 
   // Generate the mapping of VecGeom volume IDs to Geant4 physical volumes
-  GetPhysicalVolumeMap(fglobal_vecgeom_to_g4_map);
+  MapVecGeomToG4(fglobal_vecgeom_pv_to_g4_map, fglobal_vecgeom_lv_to_g4_map);
 
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
   if (vecgeomWorld == nullptr) {
@@ -155,7 +160,8 @@ void AdePTGeant4Integration::CreateVecGeomWorld(G4VPhysicalVolume const *physvol
   vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
 
   // Get the mapping of VecGeom volume IDs to Geant4 physical volumes from g4vg
-  fglobal_vecgeom_to_g4_map = conversion.physical_volumes;
+  fglobal_vecgeom_pv_to_g4_map = conversion.physical_volumes;
+  fglobal_vecgeom_lv_to_g4_map = conversion.logical_volumes;
 
   // EXPECT: we finish with a non-null VecGeom host geometry
   vecgeom::VPlacedVolume const *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
@@ -374,7 +380,7 @@ void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aN
     // While we are in levels shallower than the history depth, it may be that we already
     // have the correct volume in the history
     assert(aNavState.At(aLevel));
-    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_to_g4_map[aNavState.At(aLevel)->id()]);
+    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_pv_to_g4_map[aNavState.At(aLevel)->id()]);
     assert(pnewvol != nullptr);
     if (!pnewvol) throw std::runtime_error("VecGeom volume not found in G4 mapping!");
 
@@ -541,10 +547,23 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // push it to make sure it is not relocated again in the GPU region
   posi += tolerance * direction;
 
+  // Create track
   G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
+
+  // Set time information
   secondary->SetLocalTime(track.localTime);
   secondary->SetProperTime(track.properTime);
   secondary->SetParentID(track.parentId);
+
+  // Set vertex information
+  secondary->SetVertexPosition(
+      G4ThreeVector(track.vertexPosition[0], track.vertexPosition[1], track.vertexPosition[2]));
+  secondary->SetVertexMomentumDirection(G4ThreeVector(
+      track.vertexMomentumDirection[0], track.vertexMomentumDirection[1], track.vertexMomentumDirection[2]));
+  secondary->SetVertexKineticEnergy(track.vertexEkin);
+  secondary->SetLogicalVolumeAtVertex(
+      fglobal_vecgeom_lv_to_g4_map[track.originNavState.Top()->GetLogicalVolume()->id()]);
+
   // Reconstruct the origin touchable history and update it on the track
   // - We can't update the track's navigation history in place as it is a const member
   // - For the same reason, we need to fill a navigation history and then create a touchable history from it
@@ -560,6 +579,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   G4TouchableHandle originTouchableHandle(originTouchableHistory.release() /* Now owned by G4TouchableHandle */);
   secondary->SetOriginTouchableHandle(originTouchableHandle);
 
+  // Give the track to G4
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
 }
 
