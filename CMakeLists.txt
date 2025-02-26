@@ -157,7 +157,8 @@ if(Geant4_FOUND)
     FetchContent_Declare(
       g4vg
       GIT_REPOSITORY https://github.com/celeritas-project/g4vg
-      GIT_TAG 638c273b744c7ac0fa865ddb15c161b853a4029b)
+      GIT_TAG f4308d392a502b7bd7468938f8d9a63198d3d866 # v1.0.3
+    )
     # G4VG builds static by default, so change this to shared to match current
     # way AdePT is built.
     # could also configure for PIC mode static.
@@ -165,7 +166,7 @@ if(Geant4_FOUND)
     FetchContent_MakeAvailable(g4vg)
     message(STATUS "Using FetchContent to build G4VG as part of AdePT")
   else()
-    find_package(G4VG 1.0.1 REQUIRED)
+    find_package(G4VG 1.0.3 REQUIRED)
     message(STATUS "Found G4VG: ${G4VG_DIR}")
   endif()
 endif()
