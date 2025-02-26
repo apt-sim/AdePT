@@ -17,6 +17,8 @@
 #include <G4FieldManager.hh>
 #include <G4RegionStore.hh>
 #include <G4TouchableHandle.hh>
+#include <G4PVReplica.hh>
+#include <G4ReplicaNavigation.hh>
 
 #include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
@@ -183,16 +185,42 @@ void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume cons
   const auto g4_lvol = g4_pvol->GetLogicalVolume();
   const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
-  const size_t nd      = g4_lvol->GetNoDaughters();
+  // Geant4 Parameterised/Replica volumes are represented with direct placements in VecGeom
+  // To accurately compare the number of daughters, we need to sum multiplicity on Geant4 side
+  const size_t nd     = g4_lvol->GetNoDaughters();
+  size_t nd_converted = 0;
+  for (size_t daughter_id = 0; daughter_id < nd; ++daughter_id) {
+    const G4VPhysicalVolume *daughter_pvol = g4_lvol->GetDaughter(daughter_id);
+    nd_converted += daughter_pvol->GetMultiplicity();
+  }
+
   const auto daughters = vg_lvol->GetDaughters();
 
-  if (nd != daughters.size()) throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
+  if (nd_converted != daughters.size())
+    throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
+
   // Check if transformations are matching
+  // As above, with Parameterized/Replica volumes, we need to compare the transforms between
+  // the VG direct placement and that for the Parameterised/Replicated volume given the same copy
+  // number as that of the VG physical volume.
+  // NOTE:
+  // 1. Nasty const_cast as currently known way to get transform is to directly transform the
+  //    Geant4 phys vol before extracting, which is non-const....
+  // 2. ...this does modify the physical volume, but this is _probably_ o.k. as actual navigation
+  //    will reset things o.k.
+  if (G4VPVParameterisation *param = g4_pvol->GetParameterisation()) {
+    param->ComputeTransformation(vg_pvol->GetCopyNo(), const_cast<G4VPhysicalVolume *>(g4_pvol));
+  } else if (auto *replica = dynamic_cast<G4PVReplica *>(const_cast<G4VPhysicalVolume *>(g4_pvol))) {
+    G4ReplicaNavigation nav;
+    nav.ComputeTransformation(vg_pvol->GetCopyNo(), replica);
+  }
+
   const auto g4trans            = g4_pvol->GetTranslation();
   const G4RotationMatrix *g4rot = g4_pvol->GetRotation();
   G4RotationMatrix idrot;
   const auto vgtransformation = vg_pvol->GetTransformation();
   constexpr double epsil      = 1.e-8;
+
   for (int i = 0; i < 3; ++i) {
     if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
       throw std::runtime_error(
