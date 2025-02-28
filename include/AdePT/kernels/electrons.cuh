@@ -44,9 +44,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
                                                           adept::MParray *leakedQueue, Scoring *userScoring)
 {
-  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  constexpr int Charge               = IsElectron ? -1 : 1;
-  constexpr double restMass          = copcore::units::kElectronMassC2;
+  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr int Charge              = IsElectron ? -1 : 1;
+  constexpr double restMass         = copcore::units::kElectronMassC2;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
   int activeSize = active->size();
@@ -73,10 +73,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
-  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  constexpr int Charge               = IsElectron ? -1 : 1;
-  constexpr double restMass          = copcore::units::kElectronMassC2;
-  constexpr int Pdg                  = IsElectron ? 11 : -11;
+  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr int Charge              = IsElectron ? -1 : 1;
+  constexpr double restMass         = copcore::units::kElectronMassC2;
+  constexpr int Pdg                 = IsElectron ? 11 : -11;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
   int activeSize = electrons->fActiveTracks->size();
@@ -238,8 +238,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
                                                                     navState, nextState, hitsurf_index);
 #else
-      geometryStepLength =
-          AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
+      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
+                                                                    navState, nextState, kPushDistance);
 #endif
       pos += geometryStepLength * dir;
     }
@@ -633,7 +633,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       else {
         // To be safe, just push a bit the track exiting the GPU region to make sure
         // Geant4 does not relocate it again inside the same region
-        pos += kPushOutRegion * dir;
+        pos += kPushDistance * dir;
         survive(/*leak*/ true);
       }
     }
