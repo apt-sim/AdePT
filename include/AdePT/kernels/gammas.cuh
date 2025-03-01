@@ -27,8 +27,8 @@ __global__ void __launch_bounds__(256, 1)
     TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
                     adept::MParray *leakedQueue, Scoring *userScoring)
 {
-  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  int activeSize                     = active->size();
+  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;
@@ -49,9 +49,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                 Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
-  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  constexpr int Pdg                  = 22;
-  int activeSize                     = gammas->fActiveTracks->size();
+  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr int Pdg                 = 22;
+  int activeSize                    = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot = (*gammas->fActiveTracks)[i];
     adeptint::TrackData trackdata;
@@ -133,8 +133,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, hitsurf_index);
 #else
-    geometryStepLength =
-        AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
+    geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
+                                                                  nextState, kPushDistance);
 #endif
     //  printf("pvol=%d  step=%g  onboundary=%d  pos={%g, %g, %g}  dir={%g, %g, %g}\n", navState.TopId(),
     //  geometryStepLength,
@@ -196,7 +196,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
-          pos += kPushOutRegion * dir;
+          pos += kPushDistance * dir;
           survive(/*leak*/ true);
         }
       } else {
