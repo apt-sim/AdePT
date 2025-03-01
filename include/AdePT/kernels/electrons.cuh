@@ -107,11 +107,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   // Field_t magneticField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue)); // needed for UniformMagneticField
 
   auto &magneticField = *gMagneticField;
-
 #else
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
-#endif
-
 #endif
 
   int activeSize = electrons->fActiveTracks->size();
