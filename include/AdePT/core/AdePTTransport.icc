@@ -70,6 +70,7 @@ bool AdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
   return adept_impl::InitializeApplyCuts(applycuts);
 }
 
+template <typename IntegrationLayer>
 bool AdePTTransport<IntegrationLayer>::InitializeGeneralField()
 {
   if (!fBfieldFile.empty()) {
