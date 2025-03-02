@@ -56,13 +56,15 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr double restMass         = copcore::units::kElectronMassC2;
 #ifdef ADEPT_USE_EXT_BFIELD
   constexpr int Nvar   = 6;
-  using Field_t        = UniformMagneticField; // ToDO:  Change to non-uniform type !!
+  using Field_t        = GeneralMagneticField;
   using Equation_t     = MagneticFieldEquation<Field_t>;
   using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
   using DoPri5Driver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
   constexpr int max_iterations = 10;
 
-  Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+  // Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+  
+  auto &magneticField = *gMagneticField;
 #else
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 #endif
