@@ -39,7 +39,6 @@ public:
         bField[0] = fField.x();
         bField[1] = fField.y();
         bField[2] = fField.z();
-        printf("Field value %f %f %f\n", bField[0], bField[1], bField[2]);
     }
 
 private:
