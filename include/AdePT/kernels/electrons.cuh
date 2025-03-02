@@ -52,6 +52,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
 #ifdef ADEPT_USE_EXT_BFIELD
@@ -74,8 +75,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
-    currentTrack.stepCounter++; // to be moved to common part as soon as Tracks are unified
-    auto navState = currentTrack.navState;
+    auto navState       = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
 #ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
     const int lvolID = navState.Top()->GetLogicalVolume()->id();
@@ -95,6 +95,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   constexpr bool returnAllSteps     = false;
   bool returnLastStep               = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
   constexpr int Pdg                 = IsElectron ? 11 : -11;
@@ -138,6 +139,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double globalTime = currentTrack.globalTime;
     double localTime  = currentTrack.localTime;
     double properTime = currentTrack.properTime;
+    currentTrack.stepCounter++;
+    if (currentTrack.stepCounter >= maxSteps) {
+      printf("Killing e-/+ event %d E=%f lvol=%d after %d steps.\n", currentTrack.eventId, eKin, lvolID,
+             currentTrack.stepCounter);
+      continue;
+    }
 
     auto survive = [&](bool leak = false) {
       returnLastStep          = false; // track survived, do not force return of step
