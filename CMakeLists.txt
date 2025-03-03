@@ -174,17 +174,36 @@ endif()
 
 # Find covfie to load external fields from file. 
 if(ADEPT_USE_EXT_BFIELD)
-
+  # An 3D magnetic field map requires the covfie library.
+  # The default is to use an installed covfie version. If no covfie installation is provided,
+  # it is fetched from source and made available via FetchContent  
+  
   message(STATUS "Compiling with external magnetic field support via covfie")
   add_compile_definitions(ADEPT_USE_EXT_BFIELD)
 
-  find_package(covfie) # not using REQUIRED to have a clearer error message
+  find_package(covfie QUIET)
   if (covfie_FOUND)
     get_target_property(COVFIE_INCLUDE_DIR covfie::core INTERFACE_INCLUDE_DIRECTORIES)
-    message(STATUS "Covfie found at: ${COVFIE_INCLUDE_DIR}")
+    message(STATUS "covfie found at: ${COVFIE_INCLUDE_DIR}")
   else()
-    message(FATAL_ERROR "covfie is required when ADEPT_USE_EXT_BFIELD=ON. \
-    Please specify the path to covfie using CMAKE_PREFIX_PATH or set the covfie_DIR.")
+    set(ADEPT_COVFIE_REPO "https://github.com/SeverinDiederichs/covfie.git")
+    set(ADEPT_COVFIE_BRANCH "export_targets_for_FetchContent")  # New branch with exports
+    ## FIXME use the ones below as soon as branch is merged
+    # set(ADEPT_COVFIE_REPO "https://github.com/acts-project/covfie.git")
+    # set(ADEPT_COVFIE_BRANCH "v0.12.1")
+
+    message(STATUS "No covfie provided, fetching from: ${ADEPT_COVFIE_REPO} (branch: ${ADEPT_COVFIE_BRANCH})")
+
+    include(FetchContent)
+    FetchContent_Declare(
+      covfie
+      GIT_REPOSITORY ${ADEPT_COVFIE_REPO}
+      GIT_TAG ${ADEPT_COVFIE_BRANCH}
+    )
+
+    set(COVFIE_PLATFORM_CUDA ON CACHE BOOL "Enable CUDA support in covfie" FORCE)
+    FetchContent_MakeAvailable(covfie)
+
   endif()
 endif()
 
