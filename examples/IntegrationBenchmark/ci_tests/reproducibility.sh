@@ -37,7 +37,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml \
     --num_threads 4 \
     --num_events 8 \
-    --num_trackslots 10 \
+    --num_trackslots 8 \
     --num_hitslots 4 \
     --gun_type hepmc \
     --event_file ${PROJECT_BINARY_DIR}/ppttbar.hepmc3
