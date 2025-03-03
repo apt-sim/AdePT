@@ -100,10 +100,11 @@ __global__ void InjectTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntrack
 
     // TODO: Delay when not enough slots?
     const auto slot = generator->NextSlot();
-    Track &track    = generator->InitTrack(slot, initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin,
-                                           trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
-                                           static_cast<float>(trackInfo.properTime), trackInfo.position,
-                                           trackInfo.direction, trackInfo.eventId, trackInfo.parentId, trackInfo.threadId);
+    Track &track    = generator->InitTrack(
+        slot, initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin, trackInfo.vertexEkin,
+        trackInfo.globalTime, static_cast<float>(trackInfo.localTime), static_cast<float>(trackInfo.properTime),
+        trackInfo.position, trackInfo.direction, trackInfo.vertexPosition, trackInfo.vertexMomentumDirection,
+        trackInfo.eventId, trackInfo.parentId, trackInfo.threadId);
     track.navState.Clear();
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;
@@ -203,21 +204,31 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       // No space to transfer it out
       leakedTracks->fLeakedQueueNext->push_back(trackSlot);
     } else {
-      fromDevice[i].position[0]    = track->pos[0];
-      fromDevice[i].position[1]    = track->pos[1];
-      fromDevice[i].position[2]    = track->pos[2];
-      fromDevice[i].direction[0]   = track->dir[0];
-      fromDevice[i].direction[1]   = track->dir[1];
-      fromDevice[i].direction[2]   = track->dir[2];
-      fromDevice[i].eKin           = track->eKin;
-      fromDevice[i].globalTime     = track->globalTime;
-      fromDevice[i].localTime      = track->localTime;
-      fromDevice[i].properTime     = track->properTime;
-      fromDevice[i].pdg            = pdg;
-      fromDevice[i].eventId        = track->eventId;
-      fromDevice[i].threadId       = track->threadId;
-      fromDevice[i].navState       = track->navState;
-      fromDevice[i].originNavState = track->originNavState;
+      // NOTE: Sync transport copies data into trackData structs during transport.
+      // Async transport stores the slots and copies to trackdata structs for transfer to
+      // host here. These approaches should be unified.
+      fromDevice[i].position[0]                = track->pos[0];
+      fromDevice[i].position[1]                = track->pos[1];
+      fromDevice[i].position[2]                = track->pos[2];
+      fromDevice[i].direction[0]               = track->dir[0];
+      fromDevice[i].direction[1]               = track->dir[1];
+      fromDevice[i].direction[2]               = track->dir[2];
+      fromDevice[i].vertexPosition[0]          = track->vertexPosition[0];
+      fromDevice[i].vertexPosition[1]          = track->vertexPosition[1];
+      fromDevice[i].vertexPosition[2]          = track->vertexPosition[2];
+      fromDevice[i].vertexMomentumDirection[0] = track->vertexMomentumDirection[0];
+      fromDevice[i].vertexMomentumDirection[1] = track->vertexMomentumDirection[1];
+      fromDevice[i].vertexMomentumDirection[2] = track->vertexMomentumDirection[2];
+      fromDevice[i].eKin                       = track->eKin;
+      fromDevice[i].vertexEkin                 = track->vertexEkin;
+      fromDevice[i].globalTime                 = track->globalTime;
+      fromDevice[i].localTime                  = track->localTime;
+      fromDevice[i].properTime                 = track->properTime;
+      fromDevice[i].pdg                        = pdg;
+      fromDevice[i].eventId                    = track->eventId;
+      fromDevice[i].threadId                   = track->threadId;
+      fromDevice[i].navState                   = track->navState;
+      fromDevice[i].originNavState             = track->originNavState;
 
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }

@@ -22,6 +22,7 @@ struct Track {
 
   RanluxppDouble rngState;
   double eKin{0.};
+  double vertexEkin{0.};
   float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
   float initialRange{-1.f};
   float dynamicRangeFactor{-1.f};
@@ -31,12 +32,14 @@ struct Track {
   float localTime{0.f};
   float properTime{0.f};
 
-  vecgeom::Vector3D<Precision> pos;        ///< track position
-  vecgeom::Vector3D<Precision> dir;        ///< track direction
-  vecgeom::Vector3D<float> safetyPos;      ///< last position where the safety was computed
-  float safety{0.f};                       ///< last computed safety value
-  vecgeom::NavigationState navState;       ///< current navigation state
-  vecgeom::NavigationState originNavState; ///< current navigation state
+  vecgeom::Vector3D<Precision> pos;                     ///< track position
+  vecgeom::Vector3D<Precision> dir;                     ///< track direction
+  vecgeom::Vector3D<Precision> vertexPosition;          ///< vertex position
+  vecgeom::Vector3D<Precision> vertexMomentumDirection; ///< vertex momentum direction
+  vecgeom::Vector3D<float> safetyPos;                   ///< last position where the safety was computed
+  float safety{0.f};                                    ///< last computed safety value
+  vecgeom::NavigationState navState;                    ///< current navigation state
+  vecgeom::NavigationState originNavState;              ///< navigation state where the vertex was created
 
 #ifdef USE_SPLIT_KERNELS
   // Variables used to store track info needed for scoring
@@ -46,7 +49,6 @@ struct Track {
   vecgeom::Vector3D<Precision> preStepDir;
   RanluxppDouble newRNG;
   double preStepEKin{0};
-
   // Variables used to store navigation results
   double geometryStepLength{0};
   long hitsurfID{0};
@@ -68,16 +70,17 @@ struct Track {
 
   /// Construct a new track for GPU transport.
   /// NB: The navState remains uninitialised.
-  __device__ Track(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
-                   double const position[3], double const direction[3], unsigned int eventId, int parentId,
-                   short threadId)
-      : eKin{eKin}, globalTime{globalTime}, localTime{localTime}, properTime{properTime}, eventId{eventId},
-        parentId{parentId}, threadId{threadId}
+  __device__ Track(uint64_t rngSeed, double eKin, double vertexEkin, double globalTime, float localTime,
+                   float properTime, double const position[3], double const direction[3], double const vertexPos[3],
+                   double const vertexDir[3], unsigned int eventId, int parentId, short threadId)
+      : eKin{eKin}, vertexEkin{vertexEkin}, globalTime{globalTime}, localTime{localTime}, properTime{properTime},
+        eventId{eventId}, parentId{parentId}, threadId{threadId}
   {
     rngState.SetSeed(rngSeed);
-
-    pos = {position[0], position[1], position[2]};
-    dir = {direction[0], direction[1], direction[2]};
+    pos                     = {position[0], position[1], position[2]};
+    dir                     = {direction[0], direction[1], direction[2]};
+    vertexPosition          = {vertexPos[0], vertexPos[1], vertexPos[2]};
+    vertexMomentumDirection = {vertexDir[0], vertexDir[1], vertexDir[2]};
   }
 
   /// Construct a secondary from a parent track.
@@ -87,7 +90,8 @@ struct Track {
                    const Track &parentTrack)
       : rngState{rngState}, eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, eventId{parentTrack.eventId},
-        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}
+        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, vertexPosition{parentPos},
+        vertexMomentumDirection{newDirection}
   {
   }
 
@@ -139,6 +143,10 @@ struct Track {
     // Set the origin for this track
     this->originNavState = parentNavState;
 
+    // Set the vertex information for this track
+    this->vertexPosition = parentPos;
+    // Caller is responsible to set the vertex momentum direction and ekin
+
     // The global time is inherited from the parent
     this->globalTime = gTime;
     this->localTime  = 0.;
@@ -147,20 +155,27 @@ struct Track {
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
-    tdata.pdg            = pdg;
-    tdata.parentId       = parentId;
-    tdata.position[0]    = pos[0];
-    tdata.position[1]    = pos[1];
-    tdata.position[2]    = pos[2];
-    tdata.direction[0]   = dir[0];
-    tdata.direction[1]   = dir[1];
-    tdata.direction[2]   = dir[2];
-    tdata.eKin           = eKin;
-    tdata.globalTime     = globalTime;
-    tdata.localTime      = localTime;
-    tdata.properTime     = properTime;
-    tdata.navState       = navState;
-    tdata.originNavState = originNavState;
+    tdata.pdg                        = pdg;
+    tdata.parentId                   = parentId;
+    tdata.position[0]                = pos[0];
+    tdata.position[1]                = pos[1];
+    tdata.position[2]                = pos[2];
+    tdata.direction[0]               = dir[0];
+    tdata.direction[1]               = dir[1];
+    tdata.direction[2]               = dir[2];
+    tdata.vertexPosition[0]          = vertexPosition[0];
+    tdata.vertexPosition[1]          = vertexPosition[1];
+    tdata.vertexPosition[2]          = vertexPosition[2];
+    tdata.vertexMomentumDirection[0] = vertexMomentumDirection[0];
+    tdata.vertexMomentumDirection[1] = vertexMomentumDirection[1];
+    tdata.vertexMomentumDirection[2] = vertexMomentumDirection[2];
+    tdata.eKin                       = eKin;
+    tdata.globalTime                 = globalTime;
+    tdata.localTime                  = localTime;
+    tdata.properTime                 = properTime;
+    tdata.navState                   = navState;
+    tdata.originNavState             = originNavState;
+    tdata.vertexEkin                 = vertexEkin;
   }
 };
 #endif

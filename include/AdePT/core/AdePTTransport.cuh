@@ -140,6 +140,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
 
     track.rngState.SetSeed(1234567 * event + startTrack + i);
     track.eKin         = trackinfo[i].eKin;
+    track.vertexEkin   = trackinfo[i].vertexEkin;
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
@@ -149,8 +150,12 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.dynamicRangeFactor = -1.0;
     track.tlimitMin          = -1.0;
 
-    track.pos = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
-    track.dir = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
+    track.pos                     = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
+    track.dir                     = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
+    track.vertexPosition          = {trackinfo[i].vertexPosition[0], trackinfo[i].vertexPosition[1],
+                                     trackinfo[i].vertexPosition[2]};
+    track.vertexMomentumDirection = {trackinfo[i].vertexMomentumDirection[0], trackinfo[i].vertexMomentumDirection[1],
+                                     trackinfo[i].vertexMomentumDirection[2]};
 
     track.globalTime = trackinfo[i].globalTime;
     track.localTime  = trackinfo[i].localTime;

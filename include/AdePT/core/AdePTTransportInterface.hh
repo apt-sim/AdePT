@@ -17,10 +17,11 @@ public:
   virtual ~AdePTTransportInterface() {}
 
   /// @brief Adds a track to the buffer
-  virtual void AddTrack(int pdg, int parentId, double energy, double x, double y, double z, double dirx, double diry,
-                        double dirz, double globalTime, double localTime, double properTime, int threadId,
-                        unsigned int eventId, unsigned int trackIndex, vecgeom::NavigationState &&state,
-                        vecgeom::NavigationState &&originState) = 0;
+  virtual void AddTrack(int pdg, int parentId, double energy, double vertexEnergy, double x, double y, double z,
+                        double dirx, double diry, double dirz, double vertexX, double vertexY, double vertexZ,
+                        double vertexDirx, double vertexDiry, double vertexDirz, double globalTime, double localTime,
+                        double properTime, int threadId, unsigned int eventId, unsigned int trackIndex,
+                        vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState) = 0;
 
   /// @brief Set capacity of on-GPU track buffer.
   virtual void SetTrackCapacity(size_t capacity) = 0;
