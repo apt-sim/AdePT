@@ -567,6 +567,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     }
     if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == previousGammas) {
       loopingNo++;
+      if (loopingNo == 200) printf("Killing %d electrons %d positrons %d gammas due to looping detection %d\n", numElectrons, numPositrons, numGammas, loopingNo);
     } else {
       previousElectrons = numElectrons;
       previousPositrons = numPositrons;
