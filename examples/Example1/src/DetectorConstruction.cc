@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 //
-#include <unordered_map>
 
 #include "DetectorConstruction.hh"
 #include "DetectorMessenger.hh"
@@ -21,6 +20,8 @@
 #include <G4ProductionCutsTable.hh>
 
 #include "G4SystemOfUnits.hh"
+
+#include <unordered_map>
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
