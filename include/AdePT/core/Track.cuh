@@ -74,7 +74,7 @@ struct Track {
                    float properTime, double const position[3], double const direction[3], double const vertexPos[3],
                    double const vertexDir[3], unsigned int eventId, int parentId, short threadId)
       : eKin{eKin}, vertexEkin{vertexEkin}, globalTime{globalTime}, localTime{localTime}, properTime{properTime},
-        eventId{eventId}, parentId{parentId}, threadId{threadId}
+        eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0}, looperCounter{0}
   {
     rngState.SetSeed(rngSeed);
     pos                     = {position[0], position[1], position[2]};
@@ -91,7 +91,7 @@ struct Track {
       : rngState{rngState}, eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, eventId{parentTrack.eventId},
         parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, vertexPosition{parentPos},
-        vertexMomentumDirection{newDirection}
+        vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0}
   {
   }
 
@@ -151,6 +151,9 @@ struct Track {
     this->globalTime = gTime;
     this->localTime  = 0.;
     this->properTime = 0.;
+
+    this->stepCounter   = 0;
+    this->looperCounter = 0;
   }
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
