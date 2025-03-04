@@ -4,9 +4,10 @@
 #ifndef DETECTORCONSTRUCTION_H
 #define DETECTORCONSTRUCTION_H
 
+#include "MagneticFields.hh"
+
 #include "G4VUserDetectorConstruction.hh"
 #include "G4Material.hh"
-#include "G4ThreeVector.hh"
 
 #include <G4GDMLParser.hh>
 
@@ -42,6 +43,7 @@ public:
 
   // Set uniform magnetic field
   inline void SetMagField(const G4ThreeVector &fv) { fMagFieldVector = fv; }
+  void SetFieldFile(G4String &file) { fFieldFile = file; }
 
   // Print detector information
   void Print() const;
@@ -55,6 +57,8 @@ private:
 
   // field related members
   G4ThreeVector fMagFieldVector;
+  G4String fFieldFile;
+  std::unique_ptr<MagneticField> fMagneticField;
 
   G4GDMLParser fParser;
   bool fAllSensitive;

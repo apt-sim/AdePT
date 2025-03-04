@@ -8,7 +8,6 @@
 
 #include "G4VUserDetectorConstruction.hh"
 #include "G4Material.hh"
-#include "G4ThreeVector.hh"
 
 #include <G4GDMLParser.hh>
 
