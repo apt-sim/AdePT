@@ -188,9 +188,9 @@ if(ADEPT_USE_EXT_BFIELD)
   else()
     set(ADEPT_COVFIE_REPO "https://github.com/SeverinDiederichs/covfie.git")
     set(ADEPT_COVFIE_BRANCH "export_targets_for_FetchContent")  # New branch with exports
-    ## FIXME use the ones below as soon as branch is merged
+    ## FIXME use the ones below as soon as branch is merged and a new version is available
     # set(ADEPT_COVFIE_REPO "https://github.com/acts-project/covfie.git")
-    # set(ADEPT_COVFIE_BRANCH "v0.12.1")
+    # set(ADEPT_COVFIE_BRANCH "v0.12.1") # update version number
 
     message(STATUS "No covfie provided, fetching from: ${ADEPT_COVFIE_REPO} (branch: ${ADEPT_COVFIE_BRANCH})")
 
@@ -203,6 +203,11 @@ if(ADEPT_USE_EXT_BFIELD)
 
     set(COVFIE_PLATFORM_CUDA ON CACHE BOOL "Enable CUDA support in covfie" FORCE)
     FetchContent_MakeAvailable(covfie)
+
+    FetchContent_GetProperties(covfie)
+    if(NOT covfie_POPULATED)
+      message(FATAL_ERROR "Fetching covfie failed!")
+    endif()
 
   endif()
 endif()
