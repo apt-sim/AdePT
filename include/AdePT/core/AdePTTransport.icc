@@ -48,6 +48,7 @@ AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configurati
   fTrackInAllRegions = configuration.GetTrackInAllRegions();
   fGPURegionNames    = configuration.GetGPURegionNames();
   fCUDAStackLimit    = configuration.GetCUDAStackLimit();
+  fCUDAHeapLimit     = configuration.GetCUDAHeapLimit();
   fCapacity          = 1024 * 1024 * configuration.GetMillionsOfTrackSlots() / configuration.GetNumThreads();
   fHitBufferCapacity = 1024 * 1024 * configuration.GetMillionsOfHitSlots() / configuration.GetNumThreads();
 
@@ -98,6 +99,10 @@ bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VP
   if (fCUDAStackLimit > 0) {
     std::cout << "CUDA Device stack limit: " << fCUDAStackLimit << "\n";
     cudaDeviceSetLimit(cudaLimitStackSize, fCUDAStackLimit);
+  }
+  if (fCUDAHeapLimit > 0) {
+    std::cout << "CUDA Device heap limit: " << fCUDAHeapLimit << "\n";
+    cudaDeviceSetLimit(cudaLimitMallocHeapSize, fCUDAHeapLimit);
   }
   bool success = true;
 #ifdef ADEPT_USE_SURF

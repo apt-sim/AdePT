@@ -34,6 +34,7 @@ private:
 
   G4UIdirectory *fDir;
   G4UIcmdWithAnInteger *fSetCUDAStackLimitCmd;
+  G4UIcmdWithAnInteger *fSetCUDAHeapLimitCmd;
   G4UIcmdWithABool *fSetTrackInAllRegionsCmd;
   G4UIcmdWithAString *fAddRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;

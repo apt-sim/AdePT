@@ -67,6 +67,7 @@ public:
   void SetGPURegionNames(std::vector<std::string> const *regionNames) { fGPURegionNames = regionNames; }
   /// @brief Set CUDA device stack limit
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
+  void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
@@ -89,6 +90,7 @@ private:
   size_t fBufferThreshold{20};                         ///< Buffer threshold for flushing AdePT transport buffer
   int fDebugLevel{1};                                  ///< Debug level
   int fCUDAStackLimit{0};                              ///< CUDA device stack limit
+  int fCUDAHeapLimit{0};                               ///< CUDA device heap limit
   GPUstate *fGPUstate{nullptr};                        ///< CUDA state placeholder
   AdeptScoring *fScoring{nullptr};                     ///< User scoring object
   AdeptScoring *fScoring_dev{nullptr};                 ///< Device ptr for scoring data
