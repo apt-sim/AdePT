@@ -51,6 +51,7 @@ AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configurati
   fGPURegionNames    = configuration.GetGPURegionNames();
   fCUDAStackLimit    = configuration.GetCUDAStackLimit();
   fCUDAHeapLimit     = configuration.GetCUDAHeapLimit();
+  fBfieldFile        = configuration.GetCovfieBfieldFile();
   fCapacity          = 1024 * 1024 * configuration.GetMillionsOfTrackSlots() / configuration.GetNumThreads();
   fHitBufferCapacity = 1024 * 1024 * configuration.GetMillionsOfHitSlots() / configuration.GetNumThreads();
 
