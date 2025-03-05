@@ -46,6 +46,7 @@ private:
   unsigned int fScoringCapacity{0}; ///< Number of hit slots to allocate on device
   int fDebugLevel{0};               ///< Debug level
   int fCUDAStackLimit{0};           ///< CUDA device stack limit
+  int fCUDAHeapLimit{0};            ///< CUDA device stack limit
   std::vector<IntegrationLayer> fIntegrationLayerObjects;
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
   std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker
@@ -90,6 +91,7 @@ public:
   bool GetTrackInAllRegions() const override { return fTrackInAllRegions; }
   void SetGPURegionNames(std::vector<std::string> const *regionNames) override { fGPURegionNames = regionNames; }
   void SetCUDAStackLimit(int limit) override {};
+  void SetCUDAHeapLimit(int limit) override {};
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
   /// No effect
   void Initialize(bool) override {}

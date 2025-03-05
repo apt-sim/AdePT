@@ -84,7 +84,8 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
-      fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()}
+      fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
+      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -175,6 +176,10 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cx
   if (fCUDAStackLimit > 0) {
     std::cout << "CUDA Device stack limit: " << fCUDAStackLimit << "\n";
     cudaDeviceSetLimit(cudaLimitStackSize, fCUDAStackLimit);
+  }
+  if (fCUDAHeapLimit > 0) {
+    std::cout << "CUDA Device heap limit: " << fCUDAHeapLimit << "\n";
+    cudaDeviceSetLimit(cudaLimitMallocHeapSize, fCUDAHeapLimit);
   }
   cudaManager.LoadGeometry(world);
   auto world_dev = cudaManager.Synchronize();

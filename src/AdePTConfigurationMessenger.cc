@@ -58,6 +58,8 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
 
   fSetCUDAStackLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAStackLimit", this);
   fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
+  fSetCUDAHeapLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAHeapLimit", this);
+  fSetCUDAHeapLimitCmd->SetGuidance("Set the CUDA device heap limit");
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -66,6 +68,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
 {
   delete fDir;
   delete fSetCUDAStackLimitCmd;
+  delete fSetCUDAHeapLimitCmd;
   delete fSetTrackInAllRegionsCmd;
   delete fAddRegionCmd;
   delete fActivateAdePTCmd;
@@ -101,6 +104,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetVecGeomGDML(newValue);
   } else if (command == fSetCUDAStackLimitCmd) {
     fAdePTConfiguration->SetCUDAStackLimit(fSetCUDAStackLimitCmd->GetNewIntValue(newValue));
+  } else if (command == fSetCUDAHeapLimitCmd) {
+    fAdePTConfiguration->SetCUDAHeapLimit(fSetCUDAHeapLimitCmd->GetNewIntValue(newValue));
   }
 }
 

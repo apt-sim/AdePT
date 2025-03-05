@@ -37,6 +37,7 @@ public:
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
+  void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
 
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
@@ -47,6 +48,7 @@ public:
   int GetVerbosity() { return fVerbosity; };
   int GetTransportBufferThreshold() { return fTransportBufferThreshold; }
   int GetCUDAStackLimit() { return fCUDAStackLimit; }
+  int GetCUDAHeapLimit() { return fCUDAHeapLimit; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
@@ -62,6 +64,7 @@ private:
   int fVerbosity{0};
   int fTransportBufferThreshold{200};
   int fCUDAStackLimit{0};
+  int fCUDAHeapLimit{0};
   float fHitBufferFlushThreshold{0.8};
   double fMillionsOfTrackSlots{1};
   double fMillionsOfHitSlots{1};
