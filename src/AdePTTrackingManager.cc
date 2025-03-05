@@ -64,6 +64,12 @@ void AdePTTrackingManager::InitializeAdePT()
       AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
     }
 
+#ifdef ADEPT_USE_EXT_BFIELD
+    std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile()
+              << std::endl;
+    if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
+#endif
+
 // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
 // all threads.
 #ifndef ASYNC_MODE
@@ -72,13 +78,6 @@ void AdePTTrackingManager::InitializeAdePT()
     // fAdeptTransport =
     // std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
     fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration);
-#endif
-
-#ifdef ADEPT_USE_EXT_BFIELD
-    std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile()
-              << std::endl;
-    fAdeptTransport->SetBfieldFileName(fAdePTConfiguration->GetCovfieBfieldFile());
-    if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
 #endif
 
     // Initialize common data:
