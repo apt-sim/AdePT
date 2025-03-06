@@ -28,6 +28,7 @@ __global__ void __launch_bounds__(256, 1)
                     adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
@@ -52,6 +53,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
   constexpr bool returnAllSteps     = false;
   bool returnLastStep               = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr unsigned short maxSteps = 10'000;
   constexpr int Pdg                 = 22;
   int activeSize                    = gammas->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -79,6 +81,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     double localTime  = currentTrack.localTime;
     double properTime = currentTrack.properTime;
     // the MCC vector is indexed by the logical volume id
+
+    currentTrack.stepCounter++;
+    if (currentTrack.stepCounter >= maxSteps) {
+      printf("Killing gamma event %d E=%f lvol=%d after %d steps. This indicates a stuck particle!\n",
+             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+      continue;
+    }
 
     // Write local variables back into track and enqueue
     auto survive = [&](bool leak = false) {
