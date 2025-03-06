@@ -272,7 +272,7 @@ inline __host__ __device__ void RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
     vecgeom::Vector3D<Real_t> &endDirection)
 {
   // Debug printing of input & output
-  printf(" HelixSteper::PrintStep \n");
+  printf(" RKStepper::PrintStep \n");
   const int vectorSize = vecCore::VectorSize<Real_t>();
   Real_t x0, y0, z0, dirX0, dirY0, dirZ0;
   Real_t x, y, z, dx, dy, dz;
