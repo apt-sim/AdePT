@@ -18,10 +18,6 @@
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator>
 class fieldPropagatorRungeKutta {
 public:
-  static inline __host__ __device__ void stepInField(Field_t const &magneticField, Real_t kinE, Real_t mass, int charge,
-                                                     Real_t step, vecgeom::Vector3D<Real_t> &position,
-                                                     vecgeom::Vector3D<Real_t> &direction, int id // For debugging
-  );
 
   static inline __host__ __device__ __host__ __device__ Real_t ComputeStepAndNextVolume(
       Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep,
@@ -36,21 +32,7 @@ public:
                                                              vecgeom::Vector3D<Real_t> &BfieldVec, int charge);
 
 protected:
-  static inline __host__ __device__ void IntegrateTrackToEnd(
-      Field_t const &magField, // RkDriver_t &integrationDriverRK,
-      vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &momentumVec, int charge, Real_t stepLength,
-      int id // Temporary - for debugging
-      ,
-      bool verbose = true //    >>2
-  );
-
-  static inline __host__ __device__ bool IntegrateTrackForProgress(
-      Field_t const &magField, // RkDriver_t &integrationDriverRK,
-      vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &momentumVec, int charge,
-      Real_t &stepLength //   In/Out - In = requested; Out = last trial / next value ??
-                         // unsigned int & totalTrials
-  );
-
+  
   static constexpr unsigned int fMaxTrials = 100;
   static constexpr unsigned int Nvar       = 6; // For position (3) and momentum (3) -- invariant
 
@@ -63,123 +45,8 @@ protected:
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
 };
 
-// ----------------------------------------------------------------------------
-template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
-inline __host__ __device__ // __host__ __device_
-    void
-    fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::stepInField(
-        Field_t const &magField, // RkDriver_t &integrationDriverRK,
-        Real_t kinE, Real_t mass, int charge, Real_t step, vecgeom::Vector3D<Real_t> &position,
-        vecgeom::Vector3D<Real_t> &direction, int id // For debugging
-    )
-{
-  Real_t momentumMag    = sqrt(kinE * (kinE + 2.0 * mass));
-  Real_t invMomentumMag = 1.0 / momentumMag; // SEVERIN used only once, can be done directly
-
-  // Only charged particles ( e-, e+, any .. ) can be propagated
-  vecgeom::Vector3D<Real_t> positionVec = position;
-  vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
-  IntegrateTrackToEnd(magField, positionVec, momentumVec, charge, step, id, true // For debugging
-  );
-  position  = positionVec;
-  direction = invMomentumMag * momentumVec;
-  // Deviation of magnitude of direction from unit indicates integration error
-}
 
 // ----------------------------------------------------------------------------
-
-template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
-inline __host__ __device__ void fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::
-    IntegrateTrackToEnd(
-        // RkDriver_t & integrationDriverRK,
-        Field_t const &magField, vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &momentumVec,
-        int charge, Real_t stepLength, int id, bool verbose)
-{
-  // Version 1.  Finish the integration of lanes ...
-  // Future alternative (ToDo):  return unfinished intergration, in order to interleave loading of other 'lanes'
-
-  const unsigned int trialsPerCall = vecCore::Min(30U, fMaxTrials / 2); // Parameter that can be tuned
-  unsigned int totalTrials         = 0;
-  // static int callNum               = 0;
-  // callNum++;
-
-  Real_t lenRemains = stepLength;
-
-  Real_t hTry     = stepLength; // suggested 'good' length per integration step
-  bool unfinished = true;
-
-  Real_t totLen       = 0.0;
-  unsigned int loopCt = 0;
-  do {
-    Real_t hAdvanced = 0; //  length integrated this iteration (of do-while)
-    Real_t dydx_end[Nvar];
-
-    printf("LoopCount %d before Advance. Length remains: %f hTry %f\n", loopCt, lenRemains, hTry);
-    // FIXME COMMENTED OUT DUE TO RESTRUCTURING
-    // bool done =
-    //     RkDriver_t::Advance(position, momentumVec, charge, lenRemains, magField, hTry, dydx_end, hAdvanced, totalTrials,
-    //                         // id,     // Temporary ?
-    //                         trialsPerCall);
-    //   Runge-Kutta single call ( number of steps <= trialsPerCall )
-
-    lenRemains -=
-        hAdvanced; // SEVERIN: we are passing both lenRemains and hAdvanced to the previous function, why do this here?
-    unfinished = lenRemains > 0.0; /// Was = !done  ... for debugging ????
-
-    totLen += hAdvanced;
-    loopCt++;
-    // printf("after advance: done %d integrated length hAdvanced %f new hTry %f remaining length %f total length stepped: %f\n", done, hAdvanced, hTry, lenRemains, totLen);
-
-    // sumAdvanced += hAdvanced;  // Gravy ..
-
-  } while (false); // unfinished && (totalTrials < fMaxTrials)); // KILL WHILE LOOP DUE TO RESTRUCTURING!
-  //printf("End of IntegrateTrackToEnd: totLen %f totalTrials %d fMaxTrials %d loopCt %d\n", totLen, totalTrials, fMaxTrials, loopCt);
-
-  if (loopCt > 1 && verbose) {
-      printf("End of IntegrateTrackToEnd: stepLength %.15f totLen %f totalTrials %d fMaxTrials %d loopCt %d\n", stepLength, totLen, totalTrials, fMaxTrials, loopCt);
-      printf("Stuck particle? position %.15f %.15f %.15f momentumVec %.15f %.15f %.15f charge %d \n", position[0], position[1], position[2], momentumVec[0], momentumVec[1], momentumVec[2], charge);
-    printf(" fieldPropagatorRK: id %3d --- LoopCt reached %d \n", id, loopCt);
-
-    // printf(" fieldPropagatorRK: id %3d call %4d --- LoopCt reached %d ", id, callNum, loopCt);
-  }
-}
-
-// ----------------------------------------------------------------------------
-
-template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
-inline __host__ __device__ bool fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::
-    IntegrateTrackForProgress(Field_t const &magField, vecgeom::Vector3D<Real_t> &position,
-                              vecgeom::Vector3D<Real_t> &momentumVec, int charge,
-                              Real_t &stepLength //   In/Out - In = requested; Out = last trial / next value ??
-                                                 // , unsigned int & totalTrials
-    )
-{
-  // Version 2.  Try to get some progress in the integration of this threads - but not more than trialsPerCall ...
-  // Future alternative (ToDo):  return unfinished intergration, in order to interleave loading of other 'lanes'
-  const unsigned int trialsPerCall = vecCore::Min(6U, fMaxTrials / 2); // Parameter that can be tuned
-
-  Real_t lenRemains = stepLength;
-
-  Real_t hTry = stepLength; // suggested 'good' length per integration step
-  bool done   = false;
-
-  int totalTrials  = 0;
-  Real_t hAdvanced = 0; //  length integrated this iteration (of do-while)
-  do {
-
-    Real_t dydx_end[Nvar];
-
-    done = RkDriver_t::Advance(position, momentumVec, charge, lenRemains, magField, hTry, dydx_end, hAdvanced,
-                               totalTrials, trialsPerCall);
-    //   Runge-Kutta one call for 1+ iterations ( number of steps <= trialsPerCall )
-
-    stepLength -= hAdvanced;
-    // unfinished = !done;  // (lenRemains > 0.0);
-
-  } while (hAdvanced == 0.0 && totalTrials < fMaxTrials);
-  // printf("End of IntegrateTrackForProgress: hAdvanced %f totalTrials %d fMaxTrials %d\n", hAdvanced, totalTrials, fMaxTrials);
-  return done;
-}
 
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
 inline __host__ __device__ Real_t
@@ -203,7 +70,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeSafe
 }
 
 // Determine the step along curved trajectory for charged particles in a field.
-//  ( Same name as as navigator method. )
+//  ( Same name as the navigator method. )
 
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
 inline __host__ __device__ Real_t
@@ -267,7 +134,6 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       vecgeom::Vector3D<Real_t> endMomentumVec = momentumVec;                   // momentumMag * direction;
       const Real_t safeArc                     = min(remains, maxNextSafeMove); // safeLength);
 
-      // IntegrateTrackToEnd(magField, endPosition, endMomentumVec, charge, safeArc, indx);
       Real_t dydx_end[Nvar]; // not used at the moment, but could be used for FSAL between cord integrations
       bool done =
         RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, /*max_trials=*/30);
@@ -278,38 +144,28 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       vecgeom::Vector3D<Real_t> endDirection = inv_momentumMag * endMomentumVec;
       chordDir *= (1.0 / chordLen); // Now the normalized direction of the chord!
 
-      // Check Intersection
-      //-- vecgeom::Vector3D<Real_t> ChordDir= (1.0/chordLen) * chordDir;
-// #ifdef ADEPT_USE_SURF
-//       Real_t linearStep = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state,
-//                                                                 next_state, hitsurf_index, kPush);
-// #else
-//       Real_t linearStep =
-//           Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
-// #endif
-
-    Precision currentSafety = safety - (position - safetyOrigin).Length();
-    Precision move;
-    if (currentSafety > chordLen) {
-      move = chordLen;
-    } else {
-      Precision newSafety = 0;
-      if (stepDone > 0) {
-        newSafety = Navigator_t::ComputeSafety(position, current_state);
-      }
-      if (newSafety > chordLen) {
-        move         = chordLen;
-        safetyOrigin = position;
-        safety       = newSafety;
+      Precision currentSafety = safety - (position - safetyOrigin).Length();
+      Precision move;
+      if (currentSafety > chordLen) {
+        move = chordLen;
       } else {
+        Precision newSafety = 0;
+        if (stepDone > 0) {
+          newSafety = Navigator_t::ComputeSafety(position, current_state);
+        }
+        if (newSafety > chordLen) {
+          move         = chordLen;
+          safetyOrigin = position;
+          safety       = newSafety;
+        } else {
 #ifdef ADEPT_USE_SURF
-        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
-                                                   hitsurf_index, kPush);
+          move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
+                                                    hitsurf_index, kPush);
 #else
-        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
+          move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
 #endif
+        }
       }
-    }
 
 
       // Real_t curvedStep;
