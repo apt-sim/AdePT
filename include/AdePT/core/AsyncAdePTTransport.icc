@@ -302,10 +302,11 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
 
-  // TODO: Make this configurable or figure out a reasonable value (Currently, it seems that the
-  // to device buffer is often full)
+  // FIXME: The size of the buffer should be more explicitly configured
   // Allocate buffers to transport particles to/from device. Scale the size of the staging area
   // with the number of threads.
+  G4cout << "\nAllocating " << 8192 * fNThread << " To-device buffer slots" << G4endl;
+  G4cout << "\nAllocating " << 1024 * fNThread << " From-device buffer slots" << G4endl;
   fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread, 1024 * fNThread, fNThread);
 
   assert(fBuffer != nullptr);
