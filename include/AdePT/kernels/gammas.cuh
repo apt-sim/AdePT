@@ -88,15 +88,20 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
-      if (leak)
+      if (leak){
+        // DEBUG
+        // FIXME: Why doesn't this use the slot manager?
+        // printf("LEAK\n");
         leakedQueue->push_back(slot);
-      else
+      }else
         activeQueue->push_back(slot);
 #else
       currentTrack.CopyTo(trackdata, Pdg);
-      if (leak)
+      if (leak){
+        // DEBUG
+        // printf("LEAK\n");
         leakedQueue->push_back(trackdata);
-      else
+      }else
         gammas->fNextTracks->push_back(slot);
 #endif
     };
