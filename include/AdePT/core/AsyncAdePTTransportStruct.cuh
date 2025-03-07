@@ -58,7 +58,7 @@ public:
 struct LeakedTracks {
   Track *fTracks;
   adept::MParray *fLeakedQueue;
-  adept::MParray *fLeakedQueueNext;
+  // adept::MParray *fLeakedQueueNext;
   SlotManager *fSlotManager;
 };
 
