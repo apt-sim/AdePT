@@ -18,12 +18,11 @@
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator>
 class fieldPropagatorRungeKutta {
 public:
-
   static inline __host__ __device__ __host__ __device__ Real_t ComputeStepAndNextVolume(
       Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep,
       vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
       vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
-      bool &propagated, const Real_t & safetyIn, const int max_iterations, int &iterDone, int threadId);
+      bool &propagated, const Real_t &safetyIn, const int max_iterations, int &iterDone, int threadId);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
 
@@ -32,7 +31,6 @@ public:
                                                              vecgeom::Vector3D<Real_t> &BfieldVec, int charge);
 
 protected:
-  
   static constexpr unsigned int fMaxTrials = 100;
   static constexpr unsigned int Nvar       = 6; // For position (3) and momentum (3) -- invariant
 
@@ -44,7 +42,6 @@ protected:
 
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
 };
-
 
 // ----------------------------------------------------------------------------
 
@@ -78,8 +75,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
     Field_t const &magField, double kinE, double mass, int charge, double physicsStep,
     vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
     vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
-    bool &propagated, const Real_t & safetyIn, //  eventually In/Out ?
-    const int max_iterations, int &itersDone     //  useful for now - to monitor and report -- unclear if needed later
+    bool &propagated, const Real_t &safetyIn, //  eventually In/Out ?
+    const int max_iterations, int &itersDone  //  useful for now - to monitor and report -- unclear if needed later
     ,
     int indx)
 {
@@ -116,7 +113,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
     bool fullChord               = false;
     const Real_t inv_momentumMag = 1.0 / momentumMag;
 
-    Precision safety      = safetyIn;
+    Precision safety                       = safetyIn;
     vecgeom::Vector3D<Real_t> safetyOrigin = position;
     // Prepare next_state in case we skip navigation inside the safety sphere.
     current_state.CopyTo(&next_state);
@@ -136,11 +133,11 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 
       Real_t dydx_end[Nvar]; // not used at the moment, but could be used for FSAL between cord integrations
       bool done =
-        RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, /*max_trials=*/30);
+          RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, /*max_trials=*/30);
 
       //-----------------
       vecgeom::Vector3D<Real_t> chordDir     = endPosition - position; // not yet normalized!
-      Real_t chordLen                       = chordDir.Length();
+      Real_t chordLen                        = chordDir.Length();
       vecgeom::Vector3D<Real_t> endDirection = inv_momentumMag * endMomentumVec;
       chordDir *= (1.0 / chordLen); // Now the normalized direction of the chord!
 
@@ -151,7 +148,12 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       } else {
         Precision newSafety = 0;
         if (stepDone > 0) {
+#ifdef ADEPT_USE_SURF
+          // Use maximum accuracy only if safety is smaller than physicalStepLength
+          newSafety = Navigator_t::ComputeSafety(position, current_state, physicsStep);
+#else
           newSafety = Navigator_t::ComputeSafety(position, current_state);
+#endif
         }
         if (newSafety > chordLen) {
           move         = chordLen;
@@ -160,13 +162,12 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
         } else {
 #ifdef ADEPT_USE_SURF
           move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
-                                                    hitsurf_index, kPush);
+                                                       hitsurf_index, kPush);
 #else
           move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
 #endif
         }
       }
-
 
       // Real_t curvedStep;
 
@@ -180,8 +181,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
         position    = endPosition;
         momentumVec = endMomentumVec;
 
-        direction  = endDirection;
-        move = safeArc; // curvedStep
+        direction = endDirection;
+        move      = safeArc; // curvedStep
 
         maxNextSafeMove   = safeArc; // Reset it, once a step succeeds!!
         continueIteration = true;
@@ -190,7 +191,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
         //   volume in the first step (by reducing the attempted distance.)
         // FIXME: Even for zero steps, the Navigator will return kPush + possibly
         // Navigator::kBoundaryPush instead of a real 0.
-        move  = 0; // curvedStep
+        move        = 0; // curvedStep
         lastWasZero = true;
 
         // Reduce the step attempted in the next iteration to navigate around
@@ -211,7 +212,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
         // ( This involves a bias -- typically important only for muons in trackers.
         //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
         Real_t fraction = vecCore::Max(move / chordLen, 0.); // linearStep
-        move      = fraction * safeArc; // curvedStep
+        move            = fraction * safeArc;                // curvedStep
 #ifndef ENDPOINT_ON_CURVE
         // Primitive approximation of end direction and linearStep to the crossing point ...
         position    = position + move * chordDir; // linearStep
@@ -226,9 +227,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
         //  Better accuracy (e.g. for comparing with Helix) -- but the point will not be on the surface !!
         // IntegrateTrackToEnd(magField, position, momentumVec, charge, move, indx); // curvedStep
         Real_t dydx_end[Nvar]; // not used at the moment, but could be used for FSAL between cord integrations
-        bool done =
-          RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, /*max_trials=*/30);
-
+        bool done = RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, /*max_trials=*/30);
 
         direction = inv_momentumMag * momentumVec; // momentumVec.Unit();
 #endif
@@ -236,7 +235,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       }
 
       stepDone += move; // curvedStep
-      remains -= move; // curvedStep 
+      remains -= move;  // curvedStep
       chordIters++;
 
       found_end = ((move > 0) && next_state.IsOnBoundary()) // curvedStep Fix 2022.09.05 JA
