@@ -24,7 +24,8 @@
 /adept/setCUDAStackLimit 8192
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
-/adept/setTrackInAllRegions true
+/adept/setTrackInAllRegions $track_in_all_regions
+$regions
 
 /process/em/applyCuts true
 

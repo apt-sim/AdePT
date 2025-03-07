@@ -297,10 +297,12 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
 
-  // TODO: Make this configurable or figure out a reasonable value (Currently, it seems that the
-  // to device buffer is often full)
+  // FIXME: The size of the buffer should be more explicitly configured
+  // NOTE: Increasing the size of the leak buffer size can probably improve performance
   // Allocate buffers to transport particles to/from device. Scale the size of the staging area
   // with the number of threads.
+  G4cout << "\nAllocating " << 4 * 8192 * fNThread << " To-device buffer slots" << G4endl;
+  G4cout << "\nAllocating " << 1024 * fNThread << " From-device buffer slots" << G4endl;
   fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread, 1024 * fNThread, fNThread);
 
   assert(fBuffer != nullptr);
@@ -414,12 +416,10 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     G4cout << str.str() << G4endl;
   }
 
-  if (tracks.empty()) {
-    async_adept_impl::FlushScoring(fScoring[threadId]);
-    fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
-  }
-
   integrationInstance.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel);
+
+  async_adept_impl::FlushScoring(fScoring[threadId]);
+  fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
 }
 
 } // namespace AsyncAdePT

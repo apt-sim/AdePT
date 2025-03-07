@@ -593,6 +593,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
 void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex,
                                          int debugLevel) const
 {
+  // printf("RETURN\n");
+
   constexpr double tolerance = 10. * vecgeom::kTolerance;
 
   // Build the secondaries and put them back on the Geant4 stack
@@ -605,7 +607,9 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   }
   G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
 
-  G4DynamicParticle *dynamique =
+  // printf("%lf\n", track.eKin);
+
+  G4DynamicParticle *dynamic =
       new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.eKin);
 
   G4ThreeVector posi(track.position[0], track.position[1], track.position[2]);
@@ -614,11 +618,11 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   posi += tolerance * direction;
 
   // Create track
-  G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
+  G4Track *secondary = new G4Track(dynamic /* Now owned by G4Track */, track.globalTime, posi);
 
   // We set the status of leaked tracks to fStopButAlive to be able to distinguish them to keep
   // them on the CPU until they die!
-  secondary->SetTrackStatus(fStopButAlive);
+  // secondary->SetTrackStatus(fStopButAlive);
 
   // Set time information
   secondary->SetLocalTime(track.localTime);

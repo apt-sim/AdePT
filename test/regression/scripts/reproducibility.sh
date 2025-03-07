@@ -41,6 +41,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --num_trackslots 8 \
     --num_hitslots 4 \
     --gun_type hepmc \
+    --track_in_all_regions True\
     --event_file ${PROJECT_BINARY_DIR}/ppttbar.hepmc3
 
 

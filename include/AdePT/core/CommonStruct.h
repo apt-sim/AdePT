@@ -149,6 +149,8 @@ struct TrackBuffer {
 
   unsigned int fNumToDevice{0};   ///< number of slots in the toDevice buffer
   unsigned int fNumFromDevice{0}; ///< number of slots in the fromDevice buffer
+  unsigned int fNumLeaksTransferred{
+      0}; ///< Used to keep track of the number of tracks transferred from device during extraction
   unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>>
       toDevice_host;                              ///< Tracks to be transported to the device
   unique_ptr_cuda<TrackDataWithIDs> toDevice_dev; ///< toDevice buffer of tracks
@@ -156,6 +158,8 @@ struct TrackBuffer {
   unique_ptr_cuda<TrackDataWithIDs> fromDevice_dev;                                     ///< fromDevice buffer of tracks
   unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>>
       nFromDevice_host; ///< Number of tracks collected on device
+  unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>>
+      nRemainingLeaks_host; ///< Number of tracks still left to transfer from device during extraction
 
   std::vector<std::vector<TrackDataWithIDs>> fromDeviceBuffers;
   std::mutex fromDeviceMutex;
