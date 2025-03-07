@@ -318,6 +318,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       pos += geometryStepLength * dir;
     }
 
+    // punish miniscule steps by increasing the looperCounter by 10
+    if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
+
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
@@ -416,7 +419,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // For now, just count that we hit something.
         reached_interaction = false;
         // Kill the particle if it left the world.
-        if (!nextState.IsOutside()) {
+
+        if (++currentTrack.looperCounter > 200) {
+          // Kill loopers that are scraping a boundary
+          printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                 "physicsStepLength=%E "
+                 "safety=%E\n",
+                 eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+                 geometricalStepLengthFromPhysics, safety);
+          continue;
+        } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
           // This will happen after recording the step
           cross_boundary = true;
@@ -431,6 +443,17 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       } else if (!propagated || restrictedPhysicalStepLength) {
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
+
+        if (++currentTrack.looperCounter > 200) {
+          // Kill loopers that are not advancing in free space
+          printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                 "physicsStepLength=%E "
+                 "safety=%E\n",
+                 eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+                 geometricalStepLengthFromPhysics, safety);
+          continue;
+        }
+
         survive();
         reached_interaction = false;
       } else if (winnerProcessIndex < 0) {
@@ -439,6 +462,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         reached_interaction = false;
       }
     }
+
+    // reset Looper counter if limited by discrete interaction or MSC
+
+    //||
+    // (geometryStepLength >= geometricalStepLengthFromPhysics)
+    // (winnerProcessIndex == -2)
+
+    if (reached_interaction) currentTrack.looperCounter = 0;
+
+    // if (activeSize == 1) {
+    //   printf("Stuck particle!: E=%E event=%d loop=%d step=%d energyDeposit=%E geoStepLength=%E "
+    //     "physicsStepLength=%E safety=%E  reached_interaction %d winnerProcessIndex %d onBoundary %d propagated %d\n",
+    //     eKin, currentTrack.eventId, currentTrack.looperCounter, currentTrack.stepCounter, energyDeposit,
+    //     geometryStepLength, geometricalStepLengthFromPhysics, safety, reached_interaction, winnerProcessIndex,
+    //     nextState.IsOnBoundary(), propagated);
+    // }
 
     if (reached_interaction && !stopped) {
       // Reset number of interaction left for the winner discrete process.
