@@ -83,6 +83,10 @@ private:
   bool fAdePTInitialized{false};
 };
 
+#ifdef ASYNC_MODE
+std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> GetAdePTInstance();
+#endif
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 #endif

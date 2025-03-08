@@ -42,7 +42,8 @@ namespace AsyncAdePT {
 template <bool IsElectron, typename Scoring>
 static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
-                                                          adept::MParray *leakedQueue, Scoring *userScoring)
+                                                          adept::MParray *leakedQueue, Scoring *userScoring,
+                                                          bool returnAllSteps)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -73,6 +74,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
+  constexpr returnAllSteps          = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
@@ -605,7 +607,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if (energyDeposit > 0 && auxData.fSensIndex >= 0)
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps)
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
                                static_cast<char>(IsElectron ? 0 : 1),        // Particle type
                                elTrack.GetPStepLength(),                     // Step length
@@ -651,17 +653,19 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
 template <typename Scoring>
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring)
+                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   bool returnAllSteps)
 {
   TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, activeQueue, leakedQueue,
-                                                   userScoring);
+                                                   userScoring, returnAllSteps);
 }
 template <typename Scoring>
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring)
+                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   bool returnAllSteps)
 {
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, activeQueue, leakedQueue,
-                                                    userScoring);
+                                                    userScoring, returnAllSteps);
 }
 #else
 template <typename Scoring>

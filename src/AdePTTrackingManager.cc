@@ -18,11 +18,17 @@
 #include <algorithm>
 
 #ifdef ASYNC_MODE
+static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> globalAdePTInstance = nullptr;
 std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf)
 {
-  static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> adePT{
-      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf)};
-  return adePT;
+  if (!globalAdePTInstance) {
+    globalAdePTInstance = std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(conf);
+  }
+  return globalAdePTInstance;
+}
+std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> GetAdePTInstance()
+{
+  return globalAdePTInstance;
 }
 #endif
 
