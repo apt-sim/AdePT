@@ -74,7 +74,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
-  constexpr returnAllSteps          = false;
+  constexpr bool returnAllSteps          = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;

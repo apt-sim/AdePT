@@ -49,7 +49,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                 Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
-  constexpr returnAllSteps          = false;
+  constexpr bool returnAllSteps          = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Pdg                 = 22;
   int activeSize                    = gammas->fActiveTracks->size();
