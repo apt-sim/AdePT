@@ -88,7 +88,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()},
       fCallUserSteppingAction{configuration.GetCallUserSteppingAction()},
       fReturnAllSteps{configuration.GetCallUserSteppingAction()}
-      // ReturnAllSteps will be set to CallUserSteppingAction || CallUserTrackingAction once implemented
+// ReturnAllSteps will be set to CallUserSteppingAction || CallUserTrackingAction once implemented
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
