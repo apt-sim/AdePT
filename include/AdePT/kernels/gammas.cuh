@@ -250,6 +250,25 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep); // whether this is the last step of the track
       }
+
+      if (returnAllSteps)
+        adept_scoring::RecordHit(userScoring,
+                                 currentTrack.parentId,                        // Track ID
+                                 2,                                            // Particle type
+                                 geometryStepLength,                           // Step length
+                                 0,                                            // Total Edep
+                                 navState,                                     // Pre-step point navstate
+                                 preStepPos,                                   // Pre-step point position
+                                 preStepDir,                                   // Pre-step point momentum direction
+                                 preStepEnergy,                                // Pre-step point kinetic energy
+                                 0,                                            // Pre-step point charge
+                                 nextState,                                    // Post-step point navstate
+                                 pos,                                          // Post-step point position
+                                 dir,                                          // Post-step point momentum direction
+                                 0,                                            // Post-step point kinetic energy
+                                 0,                                            // Post-step point charge
+                                 currentTrack.eventId, currentTrack.threadId); // event and thread ID
+
       continue;
     } else {
 
