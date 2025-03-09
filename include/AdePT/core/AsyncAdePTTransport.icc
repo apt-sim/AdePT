@@ -242,17 +242,17 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
 
 #ifdef ADEPT_USE_EXT_BFIELD
-    // Try to initialize field from file, otherwise initialize from vector
-    if (!InitializeGeneralField()) {
-      throw std::runtime_error(
-          "AdePTTransport<IntegrationLayer>::Initialize cannot initialize GeneralMagneticField on GPU");
-      // NOTE: if the field option is a run-time option and not a compile time option, uncomment the code below
-      // to use uniform field in case no file was provided. ToDo: this requires changing the return of
-      // InitializeGeneralField
-      //   double bz = fIntegrationLayer.GetUniformFieldZ();
-      //   if (!InitializeField(bz))
-      //     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
-    }
+  // Try to initialize field from file, otherwise initialize from vector
+  if (!InitializeGeneralField()) {
+    throw std::runtime_error(
+        "AdePTTransport<IntegrationLayer>::Initialize cannot initialize GeneralMagneticField on GPU");
+    // NOTE: if the field option is a run-time option and not a compile time option, uncomment the code below
+    // to use uniform field in case no file was provided. ToDo: this requires changing the return of
+    // InitializeGeneralField
+    //   double bz = fIntegrationLayer.GetUniformFieldZ();
+    //   if (!InitializeField(bz))
+    //     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
+  }
 #endif
 
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.

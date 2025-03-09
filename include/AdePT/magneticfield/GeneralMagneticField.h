@@ -20,15 +20,15 @@
 #include <covfie/cuda/backend/primitive/cuda_texture.hpp>
 
 using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
-        covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>;
+    covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>;
 
 // use normal GPU memory
 // using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
 //     covfie::backend::strided<covfie::vector::size3, covfie::backend::cuda_device_array<covfie::vector::float3>>>>>;
 
 // use GPU texture memory
-  using cuda_field_t = covfie::field<covfie::backend::affine<
-    covfie::backend::cuda_texture<covfie::vector::float3, covfie::vector::float3>>>;
+using cuda_field_t = covfie::field<
+    covfie::backend::affine<covfie::backend::cuda_texture<covfie::vector::float3, covfie::vector::float3>>>;
 
 using field_view_t = typename cuda_field_t::view_t;
 #endif
@@ -37,8 +37,8 @@ class GeneralMagneticField {
 public:
   GeneralMagneticField() = default;
 
-  GeneralMagneticField(const GeneralMagneticField&) = delete;
-  GeneralMagneticField& operator=(const GeneralMagneticField&) = delete;
+  GeneralMagneticField(const GeneralMagneticField &)            = delete;
+  GeneralMagneticField &operator=(const GeneralMagneticField &) = delete;
 
   bool InitializeFromFile(const std::string &filePath)
   {
@@ -53,12 +53,8 @@ public:
     ifs.close();
 
     // create device field map in texture memory
-    fFieldMap = std::make_unique<cuda_field_t>(
-      covfie::make_parameter_pack(
-          cpuField.backend().get_configuration(),
-          cpuField.backend().get_backend().get_backend()
-      )
-    );
+    fFieldMap = std::make_unique<cuda_field_t>(covfie::make_parameter_pack(
+        cpuField.backend().get_configuration(), cpuField.backend().get_backend().get_backend()));
 
     // alternative: create device field in global GPU memory
     // fFieldMap = std::make_unique<cuda_field_t>(cpuField);

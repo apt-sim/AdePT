@@ -99,9 +99,9 @@ private:
   AdeptScoring *fScoring_dev{nullptr};                 ///< Device ptr for scoring data
   TrackBuffer fBuffer;                                 ///< Vector of buffers of tracks to/from device (per thread)
   std::vector<std::string> const *fGPURegionNames{};   ///< Region to which applies
-  IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
-  bool fInit{false};                  ///< Service initialized flag
-  bool fTrackInAllRegions;            ///< Whether the whole geometry is a GPU region
+  IntegrationLayer fIntegrationLayer;  ///< Provides functionality needed for integration with the simulation toolkit
+  bool fInit{false};                   ///< Service initialized flag
+  bool fTrackInAllRegions;             ///< Whether the whole geometry is a GPU region
   std::string fBfieldFile{""};         ///< Path to magnetic field file (in the covfie format)
   GeneralMagneticField fMagneticField; ///< arbitrary magnetic field
 

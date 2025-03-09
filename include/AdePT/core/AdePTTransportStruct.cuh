@@ -94,7 +94,7 @@ extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
 extern __constant__ __device__ double BzFieldValue;
 extern __constant__ __device__ bool ApplyCuts;
 #ifdef ADEPT_USE_EXT_BFIELD
- __device__ GeneralMagneticField* gMagneticField = nullptr;
+__device__ GeneralMagneticField *gMagneticField = nullptr;
 #endif
 
 } // namespace adept_impl

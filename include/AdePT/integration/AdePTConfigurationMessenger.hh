@@ -52,7 +52,6 @@ private:
 
   // Set the covfie file for reading in an external B field
   G4UIcmdWithAString *fSetCovfieFileCmd;
-
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
