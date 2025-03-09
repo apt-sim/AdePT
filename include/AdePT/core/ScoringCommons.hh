@@ -21,18 +21,18 @@ struct GPUStepPoint {
 // Stores the necessary data to reconstruct GPU hits on the host , and
 // call the user-defined Geant4 sensitive detector code
 struct GPUHit {
-  int fParentID{0}; // Track ID
+  // Data needed to reconstruct pre-post step points
+  GPUStepPoint fPreStepPoint;
+  GPUStepPoint fPostStepPoint;
   // Data needed to reconstruct G4 Step
   double fStepLength{0};
   double fTotalEnergyDeposit{0};
   double fNonIonizingEnergyDeposit{0};
-  // bool fFirstStepInVolume{false};
-  // bool fLastStepInVolume{false};
-  // Data needed to reconstruct pre-post step points
-  GPUStepPoint fPreStepPoint;
-  GPUStepPoint fPostStepPoint;
+  int fParentID{0}; // Track ID
   unsigned int fEventId{0};
   short threadId{-1};
+  // bool fFirstStepInVolume{false};
+  bool fLastStepOfTrack{false};
   char fParticleType{0}; // Particle type ID
 };
 
@@ -74,11 +74,12 @@ __device__ __forceinline__ void FillHit(GPUHit &aGPUHit, int aParentID, char aPa
                                         double aPreCharge, vecgeom::NavigationState const &aPostState,
                                         vecgeom::Vector3D<Precision> const &aPostPosition,
                                         vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                                        double aPostCharge, unsigned int eventID, short threadID)
+                                        double aPostCharge, unsigned int eventID, short threadID, bool isLastStep)
 {
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
 
+  aGPUHit.fLastStepOfTrack = isLastStep;
   // Fill the required data
   aGPUHit.fParentID           = aParentID;
   aGPUHit.fParticleType       = aParticleType;
