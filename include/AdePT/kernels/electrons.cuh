@@ -461,13 +461,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // reset Looper counter if limited by discrete interaction or MSC
-
-    //||
-    // (geometryStepLength >= geometricalStepLengthFromPhysics)
-    // (winnerProcessIndex == -2)
-
     if (reached_interaction) currentTrack.looperCounter = 0;
 
+    // keep debug printout for now, needed for identifying more slow particles
     // if (activeSize == 1) {
     //   printf("Stuck particle!: E=%E event=%d loop=%d step=%d energyDeposit=%E geoStepLength=%E "
     //     "physicsStepLength=%E safety=%E  reached_interaction %d winnerProcessIndex %d onBoundary %d propagated %d\n",
