@@ -19,7 +19,7 @@ template <class Field_t, class RkDriver_t, typename Real_t, class Navigator>
 class fieldPropagatorRungeKutta {
 public:
   static inline __host__ __device__ __host__ __device__ Real_t ComputeStepAndNextVolume(
-      Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep,
+      Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep, double safeLength,
       vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
       vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
       bool &propagated, const Real_t &safetyIn, const int max_iterations, int &iterDone, int threadId);
@@ -72,22 +72,17 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeSafe
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
 inline __host__ __device__ Real_t
 fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStepAndNextVolume(
-    Field_t const &magField, double kinE, double mass, int charge, double physicsStep,
+    Field_t const &magField, double kinE, double mass, int charge, double physicsStep, double safeLength,
     vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
     vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
     bool &propagated, const Real_t &safetyIn, //  eventually In/Out ?
-    const int max_iterations, int &itersDone  //  useful for now - to monitor and report -- unclear if needed later
-    ,
+    const int max_iterations, int &itersDone, //  useful for now - to monitor and report -- unclear if needed later
     int indx)
 {
   // using copcore::units::MeV;
 
   const Real_t momentumMag              = sqrt(kinE * (kinE + 2.0 * mass));
   vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
-
-  vecgeom::Vector3D<Real_t> B0fieldVec = magField.Evaluate(position); // Field value at starting point
-
-  const Real_t safeLength = ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, charge);
 
   Precision maxNextSafeMove = safeLength; // It can be reduced if, at the start, a boundary is encountered
 
