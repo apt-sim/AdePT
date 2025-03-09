@@ -434,36 +434,38 @@ bool InitializeField(double bz)
   return true;
 }
 
-bool InitializeGeneralField(GeneralMagneticField& magneticField) {
+bool InitializeGeneralField(GeneralMagneticField &magneticField)
+{
 
 #ifdef ADEPT_USE_EXT_BFIELD
 
   // Allocate and copy the GeneralMagneticField instance (not the field array itself), and set the global device pointer
-  GeneralMagneticField* dMagneticFieldInstance = nullptr;
+  GeneralMagneticField *dMagneticFieldInstance = nullptr;
   COPCORE_CUDA_CHECK(cudaMalloc(&dMagneticFieldInstance, sizeof(GeneralMagneticField)));
-  COPCORE_CUDA_CHECK(cudaMemcpy(dMagneticFieldInstance, &magneticField, sizeof(GeneralMagneticField), cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(GeneralMagneticField*)));
+  COPCORE_CUDA_CHECK(
+      cudaMemcpy(dMagneticFieldInstance, &magneticField, sizeof(GeneralMagneticField), cudaMemcpyHostToDevice));
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(GeneralMagneticField *)));
 
 #endif
   return true;
 }
 
-void FreeGeneralField() {
+void FreeGeneralField()
+{
 #ifdef ADEPT_USE_EXT_BFIELD
-  GeneralMagneticField* dMagneticFieldInstance = nullptr;
+  GeneralMagneticField *dMagneticFieldInstance = nullptr;
 
   // Retrieve the global device pointer from the symbol
-  COPCORE_CUDA_CHECK(cudaMemcpyFromSymbol(&dMagneticFieldInstance, gMagneticField, sizeof(GeneralMagneticField*)));
+  COPCORE_CUDA_CHECK(cudaMemcpyFromSymbol(&dMagneticFieldInstance, gMagneticField, sizeof(GeneralMagneticField *)));
 
   if (dMagneticFieldInstance) {
     // Free the device memory and reset global device pointer
     COPCORE_CUDA_CHECK(cudaFree(dMagneticFieldInstance));
-    GeneralMagneticField* nullPtr = nullptr;
-    COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &nullPtr, sizeof(GeneralMagneticField*)));
+    GeneralMagneticField *nullPtr = nullptr;
+    COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &nullPtr, sizeof(GeneralMagneticField *)));
   }
 #endif
 }
-
 
 bool InitializeApplyCuts(bool applycuts)
 {
@@ -1157,7 +1159,7 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
   FreeG4HepEmData(g4hepem_state.fData);
 
   // Free magnetic field map
-  FreeGeneralField();  
+  FreeGeneralField();
 }
 
 } // namespace async_adept_impl

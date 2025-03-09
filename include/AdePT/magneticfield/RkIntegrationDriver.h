@@ -79,7 +79,7 @@ public:
 
   static inline __host__ __device__ bool IntegrateStep(const Real_t yStart[], const Real_t dydx[], int charge,
                                                        Real_t &xCurrent, // InOut
-                                                       Real_t htry, const MagField_t & magField,
+                                                       Real_t htry, const MagField_t &magField,
                                                        Real_t yEnd[],      // Out - values
                                                        Real_t next_dydx[], //     - next derivative
                                                        Real_t &hnext);
@@ -102,10 +102,9 @@ template <int Verbose>
 inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::Advance(
     vecgeom::Vector3D<Real_t> &position,    //   In/Out
     vecgeom::Vector3D<Real_t> &momentumVec, //   In/Out
-    Int_t const &chargeInt,
-    Real_t const &length, MagField_t const &magField,
-    Real_t dydx_next[Nvar],    // dy_ds[] at final point (return only !! )
-    unsigned int maxTrials     // max allowed trials
+    Int_t const &chargeInt, Real_t const &length, MagField_t const &magField,
+    Real_t dydx_next[Nvar], // dy_ds[] at final point (return only !! )
+    unsigned int maxTrials  // max allowed trials
 )
 {
   using vecgeom::Vector3D;
@@ -116,11 +115,10 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 
   Equation_t::EvaluateDerivatives(magField, yStart, chargeInt, dydx);
 
-  Real_t stepAdvance     = 0.0;
-  Real_t hgood = 0.0; // Length possible with adequate accuracy -- could return this for next step!
+  Real_t stepAdvance = 0.0;
+  Real_t hgood       = 0.0; // Length possible with adequate accuracy -- could return this for next step!
 
   Real_t htry = length; // initial try doing the full cordlength in one step
-
 
   bool done    = false;
   int numSteps = 0;
@@ -143,7 +141,7 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 #endif
     htry = hgood;
     if (goodStep && !done) {
-      #pragma unroll
+#pragma unroll
       for (int i = 0; i < Nvar; i++) {
         yStart[i] = yEnd[i];
         dydx[i]   = dydx_next[i]; // Using FSAL property !
@@ -159,12 +157,12 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 #endif
 
     ++numSteps;
-      // if(numSteps > 2 && !goodStep) printf("Warning: numSteps %d  goodstep? %d htry %.10f\n", numSteps, goodStep, htry);
+    // if(numSteps > 2 && !goodStep) printf("Warning: numSteps %d  goodstep? %d htry %.10f\n", numSteps, goodStep,
+    // htry);
 
   } while (!done && numSteps < maxTrials);
 
   // if(numSteps > 10) printf("Warning: numSteps %d  goodstep? %d htry %.10f\n", numSteps, goodStep, htry);
-
 
   //  In case of failed last step, we must not use it's 'yEnd' values !!
   if (goodStep) {
@@ -182,14 +180,13 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
   return done;
 }
 
-
 // ----------------------------------------------------------------------------------------
 
 template <class Stepper_t, typename Real_t, typename Int_t, class Equation_t, class MagField_t>
 inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::IntegrateStep(
     const Real_t yStart[], const Real_t dydx[], int charge,
     Real_t &xCurrent, // InOut
-    Real_t htry, const MagField_t & magField,
+    Real_t htry, const MagField_t &magField,
     // Real_t eps_rel_max,
     Real_t yEnd[],      // Out - values
     Real_t next_dydx[], //     - next derivative
@@ -215,8 +212,8 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 
   ErrorEstimatorRK errorEstimator(fEpsilonRelativeMax);
   Real_t errmax_sq = errorEstimator.EstimateSquareError(yErr, htry, magMomentumSq);
-  // printf("magMomentumSq %.15f, yerr: %.15f %.15f %.15f %.15f %.15f %.15f\n", magMomentumSq, yErr[0], yErr[1], yErr[2], yErr[3], yErr[4], yErr[5] );
-  // printf("errmax_sq %f for htry %f\n", errmax_sq, htry);
+  // printf("magMomentumSq %.15f, yerr: %.15f %.15f %.15f %.15f %.15f %.15f\n", magMomentumSq, yErr[0], yErr[1],
+  // yErr[2], yErr[3], yErr[4], yErr[5] ); printf("errmax_sq %f for htry %f\n", errmax_sq, htry);
   bool goodStep = errmax_sq <= 1.0;
   if (goodStep) {
     xCurrent += htry;

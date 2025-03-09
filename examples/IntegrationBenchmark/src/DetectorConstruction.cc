@@ -58,24 +58,26 @@ G4VPhysicalVolume *DetectorConstruction::Construct()
 
 void DetectorConstruction::ConstructSDandField()
 {
-  
+
   std::unique_ptr<IField> field;
 
 #ifdef ADEPT_USE_EXT_BFIELD
   // Set a 3D magnetic field from file. If no file is provided, no magnetic field is used in the G4 transport
   if (fFieldFile != "") {
-    G4cout << G4endl << " *** SETTING MAGNETIC FIELD TO READ FROM FILE " <<  fFieldFile << " *** " << G4endl << G4endl;
-    
+    G4cout << G4endl << " *** SETTING MAGNETIC FIELD TO READ FROM FILE " << fFieldFile << " *** " << G4endl << G4endl;
+
     field = std::make_unique<CovfieField>(fFieldFile);
 #else
-  // Set a 3D magnetic field vector for a uniform field in Bz. If no file is provided, no magnetic field is used in the G4 transport
+  // Set a 3D magnetic field vector for a uniform field in Bz. If no file is provided, no magnetic field is used in the
+  // G4 transport
   if (std::abs(fMagFieldVector[2]) > 0.0) {
-    G4cout << G4endl << " *** SETTING CONSTANT MAGNETIC FIELD IN Z: fieldValue in z = " << fMagFieldVector[2] / kilogauss
-      << " [kilogauss] *** " << G4endl << G4endl;
-      
+    G4cout << G4endl
+           << " *** SETTING CONSTANT MAGNETIC FIELD IN Z: fieldValue in z = " << fMagFieldVector[2] / kilogauss
+           << " [kilogauss] *** " << G4endl << G4endl;
+
     field = std::make_unique<UniformField>(fMagFieldVector);
 #endif
-    MagneticField* magneticField = new MagneticField(std::move(field));
+    MagneticField *magneticField = new MagneticField(std::move(field));
 
     G4FieldManager *fieldMgr = G4TransportationManager::GetTransportationManager()->GetFieldManager();
     fieldMgr->SetDetectorField(magneticField);

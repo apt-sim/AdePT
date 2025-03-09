@@ -14,7 +14,7 @@ class ErrorEstimatorRK {
 public:
   __host__ __device__ ErrorEstimatorRK(float eps_rel_max, int noComponents = 6)
       : fEpsRelMax(eps_rel_max), fInvEpsilonRelSq(1.0 / (eps_rel_max * eps_rel_max))
-        //,fMinimumStep(minimumStep) // , fNoComponents( 6 ) 
+  //,fMinimumStep(minimumStep) // , fNoComponents( 6 )
 
   {
   }
