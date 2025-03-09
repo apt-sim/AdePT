@@ -23,7 +23,7 @@ __device__ void RecordHit(Scoring *scoring_dev, int aParentID, char aParticleTyp
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, unsigned int eventId, short threadId);
+                          double aPostCharge, unsigned int eventId, short threadId, bool isLastStep);
 
 template <typename Scoring>
 __device__ void AccountProduced(Scoring *scoring_dev, int num_ele, int num_pos, int num_gam);

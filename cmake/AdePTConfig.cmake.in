@@ -34,5 +34,9 @@ endif()
 
 find_dependency(G4VG 1.0.1 REQUIRED)
 
+if(@ADEPT_USE_EXT_BFIELD@)
+  find_dependency(covfie REQUIRED)
+endif()
+
 # Include the targets file
 include("${AdePT_CMAKE_DIR}/AdePTTargets.cmake")

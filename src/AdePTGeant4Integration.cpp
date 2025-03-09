@@ -343,7 +343,8 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   visitGeometry(g4world, vecgeomWorld);
 }
 
-void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
+void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit, bool const callUserSteppingAction,
+                                           bool const callPostUserTrackingAction)
 {
   if (!fScoringObjects) {
     fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());
@@ -386,10 +387,24 @@ void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
           ->GetLogicalVolume()
           ->GetSensitiveDetector();
 
-  // Double check, a nullptr here can indicate an issue reconstructing the navigation history
-  assert(aSensitiveDetector != nullptr);
+  // Call scoring if SD is defined
+  if (aSensitiveDetector != nullptr) {
+    aSensitiveDetector->Hit(fScoringObjects->fG4Step);
+  }
 
-  aSensitiveDetector->Hit(fScoringObjects->fG4Step);
+  // call UserSteppingAction if required
+  if (callUserSteppingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userSteppingAction = evtMgr->GetUserSteppingAction();
+    if (userSteppingAction) userSteppingAction->UserSteppingAction(fScoringObjects->fG4Step);
+  }
+
+  // call UserSteppingAction if required
+  if (hit.fLastStepOfTrack && callPostUserTrackingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
+  }
 }
 
 void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState,
@@ -613,10 +628,13 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
 
 double AdePTGeant4Integration::GetUniformFieldZ() const
 {
-  G4UniformMagField *field =
-      (G4UniformMagField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
-  if (field)
-    return field->GetConstantFieldValue()[2];
-  else
+  G4MagneticField *field =
+      (G4MagneticField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
+  if (field) {
+    G4double origin[3] = {0., 0., 0.};
+    G4double Bfield[3] = {0., 0., 0.};
+    field->GetFieldValue(origin, Bfield);
+    return Bfield[2];
+  } else
     return 0;
 }

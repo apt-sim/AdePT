@@ -674,7 +674,7 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParent
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, unsigned int eventID, short threadID)
+                          double aPostCharge, unsigned int eventID, short threadID, bool isLastStep)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
@@ -682,7 +682,7 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParent
   // Fill the required data
   FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aPreState, aPrePosition,
           aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
-          aPostCharge, eventID, threadID);
+          aPostCharge, eventID, threadID, isLastStep);
 }
 
 /// @brief Account for the number of produced secondaries

@@ -210,11 +210,21 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       // activeSize < 100 ? max_iterations : max_iters_tail );
       // End   Baseline reply
 #endif
+
+      const double momentumMag = sqrt(energy * (energy + 2.0 * Mass));
+      // Distance along the track direction to reach the maximum allowed error
+      vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
+      auto B0fieldVec = magneticFieldB.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
+
+      double safeLength =
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
+              momentumVec, B0fieldVec, Charge);
+
       int iterDone = -1;
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
-              magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState,
-              hitsurf_index, propagated, /*lengthDone,*/ safety,
+              magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
+              nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot);
 #ifdef CHECK_RESULTS

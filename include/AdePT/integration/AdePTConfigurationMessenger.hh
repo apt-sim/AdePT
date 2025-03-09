@@ -36,6 +36,8 @@ private:
   G4UIcmdWithAnInteger *fSetCUDAStackLimitCmd;
   G4UIcmdWithAnInteger *fSetCUDAHeapLimitCmd;
   G4UIcmdWithABool *fSetTrackInAllRegionsCmd;
+  G4UIcmdWithABool *fSetCallUserSteppingActionCmd;
+  G4UIcmdWithABool *fSetCallPostUserTrackingActionCmd;
   G4UIcmdWithAString *fAddRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;
   G4UIcmdWithAnInteger *fSetVerbosityCmd;
@@ -47,6 +49,9 @@ private:
   // Temporary method for setting the VecGeom geometry.
   // In the future the geometry will be converted from Geant4 rather than loaded from GDML.
   G4UIcmdWithAString *fSetGDMLCmd;
+
+  // Set the covfie file for reading in an external B field
+  G4UIcmdWithAString *fSetCovfieFileCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
