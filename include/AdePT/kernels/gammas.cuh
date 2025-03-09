@@ -25,7 +25,7 @@ namespace AsyncAdePT {
 template <typename Scoring>
 __global__ void __launch_bounds__(256, 1)
     TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-                    adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps)
+                    adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = active->size();
@@ -50,6 +50,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
+  bool returnLastStep               = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Pdg                 = 22;
   int activeSize                    = gammas->fActiveTracks->size();
@@ -81,6 +82,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     // Write local variables back into track and enqueue
     auto survive = [&](bool leak = false) {
+      returnLastStep          = false; // particle survived, do not force return of step
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
@@ -176,6 +178,28 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif
+
+        // if all steps are returned, we need to record the hit here,
+        // as now the nextState is defined, but the navState is not yet replaced
+        if (returnAllSteps)
+          adept_scoring::RecordHit(userScoring,
+                                   currentTrack.parentId,                       // Track ID
+                                   2,                                           // Particle type
+                                   geometryStepLength,                          // Step length
+                                   0,                                           // Total Edep
+                                   navState,                                    // Pre-step point navstate
+                                   preStepPos,                                  // Pre-step point position
+                                   preStepDir,                                  // Pre-step point momentum direction
+                                   preStepEnergy,                               // Pre-step point kinetic energy
+                                   0,                                           // Pre-step point charge
+                                   nextState,                                   // Post-step point navstate
+                                   pos,                                         // Post-step point position
+                                   dir,                                         // Post-step point momentum direction
+                                   0,                                           // Post-step point kinetic energy
+                                   0,                                           // Post-step point charge
+                                   currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                                   returnLastStep); // whether this is the last step of the track
+
         // Move to the next boundary.
         navState = nextState;
         // printf("  -> pvol=%d pos={%g, %g, %g} \n", navState.TopId(), pos[0], pos[1], pos[2]);
@@ -205,26 +229,27 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #ifdef ASYNC_MODE
         slotManager.MarkSlotForFreeing(slot);
 #endif
+
+        // particle has left the world, record hit if last or all steps are returned
+        if (returnAllSteps || returnLastStep)
+          adept_scoring::RecordHit(userScoring,
+                                   currentTrack.parentId,                       // Track ID
+                                   2,                                           // Particle type
+                                   geometryStepLength,                          // Step length
+                                   0,                                           // Total Edep
+                                   navState,                                    // Pre-step point navstate
+                                   preStepPos,                                  // Pre-step point position
+                                   preStepDir,                                  // Pre-step point momentum direction
+                                   preStepEnergy,                               // Pre-step point kinetic energy
+                                   0,                                           // Pre-step point charge
+                                   nextState,                                   // Post-step point navstate
+                                   pos,                                         // Post-step point position
+                                   dir,                                         // Post-step point momentum direction
+                                   0,                                           // Post-step point kinetic energy
+                                   0,                                           // Post-step point charge
+                                   currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                                   returnLastStep); // whether this is the last step of the track
       }
-
-      if (returnAllSteps)
-        adept_scoring::RecordHit(userScoring,
-                                 currentTrack.parentId,                        // Track ID
-                                 2,                                            // Particle type
-                                 geometryStepLength,                           // Step length
-                                 0,                                            // Total Edep
-                                 navState,                                     // Pre-step point navstate
-                                 preStepPos,                                   // Pre-step point position
-                                 preStepDir,                                   // Pre-step point momentum direction
-                                 preStepEnergy,                                // Pre-step point kinetic energy
-                                 0,                                            // Pre-step point charge
-                                 nextState,                                    // Post-step point navstate
-                                 pos,                                          // Post-step point position
-                                 dir,                                          // Post-step point momentum direction
-                                 0,                                            // Post-step point kinetic energy
-                                 0,                                            // Post-step point charge
-                                 currentTrack.eventId, currentTrack.threadId); // event and thread ID
-
       continue;
     } else {
 
@@ -421,23 +446,24 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     }
     }
     // If there is some edep from cutting particles, record the step
-    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps) {
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.parentId,                        // Track ID
-                               2,                                            // Particle type
-                               geometryStepLength,                           // Step length
-                               edep,                                         // Total Edep
-                               navState,                                     // Pre-step point navstate
-                               preStepPos,                                   // Pre-step point position
-                               preStepDir,                                   // Pre-step point momentum direction
-                               preStepEnergy,                                // Pre-step point kinetic energy
-                               0,                                            // Pre-step point charge
-                               nextState,                                    // Post-step point navstate
-                               pos,                                          // Post-step point position
-                               dir,                                          // Post-step point momentum direction
-                               newEnergyGamma,                               // Post-step point kinetic energy
-                               0,                                            // Post-step point charge
-                               currentTrack.eventId, currentTrack.threadId); // event and thread ID
+                               currentTrack.parentId,                       // Track ID
+                               2,                                           // Particle type
+                               geometryStepLength,                          // Step length
+                               edep,                                        // Total Edep
+                               navState,                                    // Pre-step point navstate
+                               preStepPos,                                  // Pre-step point position
+                               preStepDir,                                  // Pre-step point momentum direction
+                               preStepEnergy,                               // Pre-step point kinetic energy
+                               0,                                           // Pre-step point charge
+                               nextState,                                   // Post-step point navstate
+                               pos,                                         // Post-step point position
+                               dir,                                         // Post-step point momentum direction
+                               newEnergyGamma,                              // Post-step point kinetic energy
+                               0,                                           // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                               returnLastStep); // whether this is the last step of the track
     }
   }
 }

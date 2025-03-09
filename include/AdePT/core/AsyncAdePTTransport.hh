@@ -59,9 +59,9 @@ private:
   std::vector<double> fGPUNetEnergy;
   bool fTrackInAllRegions = false;
   std::vector<std::string> const *fGPURegionNames;
-  ///< Flag for the kernels to return all steps, needed for UserSteppingAction or UserTrackingAction
-  bool fReturnAllSteps         = false;
-  bool fCallUserSteppingAction = false;
+  // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction
+  bool fReturnAllSteps = false;
+  bool fReturnLastStep = false;
 
   void Initialize();
   void InitBVH();

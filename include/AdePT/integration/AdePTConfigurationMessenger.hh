@@ -37,6 +37,7 @@ private:
   G4UIcmdWithAnInteger *fSetCUDAHeapLimitCmd;
   G4UIcmdWithABool *fSetTrackInAllRegionsCmd;
   G4UIcmdWithABool *fSetCallUserSteppingActionCmd;
+  G4UIcmdWithABool *fSetCallPostUserTrackingActionCmd;
   G4UIcmdWithAString *fAddRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;
   G4UIcmdWithAnInteger *fSetVerbosityCmd;

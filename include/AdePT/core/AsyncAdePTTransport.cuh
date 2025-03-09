@@ -616,7 +616,8 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 
 void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
-                   std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel, bool returnAllSteps)
+                   std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel, bool returnAllSteps,
+                   bool returnLastStep)
 {
   // NVTXTracer tracer{"TransportLoop"};
 
@@ -791,7 +792,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps);
+            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -802,7 +803,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps);
+            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
@@ -813,7 +814,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps); //, gpuState.gammaInteractions);
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            returnLastStep); //, gpuState.gammaInteractions);
 
         // constexpr unsigned int intThreads = 128;
         // ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
@@ -1099,12 +1101,12 @@ void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit *begin, co
 std::thread LaunchGPUWorker(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                             std::condition_variable &cvG4Workers, std::vector<AdePTScoring> &scoring, int adeptSeed,
-                            int debugLevel, bool returnAllSteps)
+                            int debugLevel, bool returnAllSteps, bool returnLastStep)
 {
   return std::thread{
       &TransportLoop,     trackCapacity,         scoringCapacity,       numThreads,        std::ref(trackBuffer),
       std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers), std::ref(scoring), adeptSeed,
-      debugLevel,         returnAllSteps};
+      debugLevel,         returnAllSteps,        returnLastStep};
 }
 
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, G4HepEmState &g4hepem_state,

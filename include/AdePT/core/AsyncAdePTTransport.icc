@@ -48,7 +48,7 @@ std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, A
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
-                            std::vector<AdePTScoring> &, int, int, bool);
+                            std::vector<AdePTScoring> &, int, int, bool, bool);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity,
                                                                                  int numThreads,
                                                                                  AsyncAdePT::TrackBuffer &trackBuffer,
@@ -85,10 +85,8 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fDebugLevel{configuration.GetVerbosity()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
-      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()},
-      fCallUserSteppingAction{configuration.GetCallUserSteppingAction()},
-      fReturnAllSteps{configuration.GetCallUserSteppingAction()}
-// ReturnAllSteps will be set to CallUserSteppingAction || CallUserTrackingAction once implemented
+      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
+      fReturnLastStep{configuration.GetCallPostUserTrackingAction()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -245,10 +243,10 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
 
   assert(fBuffer != nullptr);
 
-  fGPUstate = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring);
-  fGPUWorker =
-      async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate, fEventStates,
-                                        fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel, fReturnAllSteps);
+  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring);
+  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
+                                                 fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel,
+                                                 fReturnAllSteps, fReturnLastStep);
 }
 
 template <typename IntegrationLayer>
@@ -279,7 +277,7 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
                   << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
                   << "\033[0m" << std::endl;
       }
-      integrationInstance.ProcessGPUHit(*it, fCallUserSteppingAction);
+      integrationInstance.ProcessGPUHit(*it, fReturnAllSteps, fReturnLastStep);
     }
     async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
   }
