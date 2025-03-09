@@ -38,6 +38,11 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
       "means that the last step of every track is recorded on GPU and send back to CPU");
 
+  fSetCallPostUserTrackingActionCmd = new G4UIcmdWithABool("/adept/CallPostUserTrackingAction", this);
+  fSetCallPostUserTrackingActionCmd->SetGuidance(
+      "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
+      "means that the last step of every track is recorded on GPU and send back to CPU");
+
   fAddRegionCmd = new G4UIcmdWithAString("/adept/addGPURegion", this);
   fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
 

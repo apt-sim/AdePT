@@ -37,10 +37,7 @@ private:
   G4UIcmdWithAnInteger *fSetCUDAHeapLimitCmd;
   G4UIcmdWithABool *fSetTrackInAllRegionsCmd;
   G4UIcmdWithABool *fSetCallUserSteppingActionCmd;
-<<<<<<< HEAD
   G4UIcmdWithABool *fSetCallPostUserTrackingActionCmd;
-=======
->>>>>>> 5dba91c (enable calling of UserSteppingAction)
   G4UIcmdWithAString *fAddRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;
   G4UIcmdWithAnInteger *fSetVerbosityCmd;
