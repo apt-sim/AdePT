@@ -26,6 +26,18 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetTrackInAllRegionsCmd = new G4UIcmdWithABool("/adept/setTrackInAllRegions", this);
   fSetTrackInAllRegionsCmd->SetGuidance("If true, particles are tracked on the GPU across the whole geometry");
 
+  fSetCallUserSteppingActionCmd = new G4UIcmdWithABool("/adept/CallUserSteppingAction", this);
+  fSetCallUserSteppingActionCmd->SetGuidance(
+      "If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that "
+      "means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the "
+      "secondary before the primary has finished its track."
+      " NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance");
+
+  fSetCallPostUserTrackingActionCmd = new G4UIcmdWithABool("/adept/CallPostUserTrackingAction", this);
+  fSetCallPostUserTrackingActionCmd->SetGuidance(
+      "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
+      "means that the last step of every track is recorded on GPU and send back to CPU");
+
   fAddRegionCmd = new G4UIcmdWithAString("/adept/addGPURegion", this);
   fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
 
@@ -70,6 +82,8 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetCUDAStackLimitCmd;
   delete fSetCUDAHeapLimitCmd;
   delete fSetTrackInAllRegionsCmd;
+  delete fSetCallUserSteppingActionCmd;
+  delete fSetCallPostUserTrackingActionCmd;
   delete fAddRegionCmd;
   delete fActivateAdePTCmd;
   delete fSetVerbosityCmd;
@@ -86,6 +100,10 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
 
   if (command == fSetTrackInAllRegionsCmd) {
     fAdePTConfiguration->SetTrackInAllRegions(fSetTrackInAllRegionsCmd->GetNewBoolValue(newValue));
+  } else if (command == fSetCallUserSteppingActionCmd) {
+    fAdePTConfiguration->SetCallUserSteppingAction(newValue);
+  } else if (command == fSetCallPostUserTrackingActionCmd) {
+    fAdePTConfiguration->SetCallPostUserTrackingAction(newValue);
   } else if (command == fAddRegionCmd) {
     fAdePTConfiguration->AddGPURegionName(newValue);
   } else if (command == fActivateAdePTCmd) {

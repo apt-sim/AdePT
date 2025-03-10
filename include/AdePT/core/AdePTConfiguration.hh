@@ -29,6 +29,11 @@ public:
   ~AdePTConfiguration() {}
   void SetNumThreads(int numThreads) { fNumThreads = numThreads; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
+  void SetCallUserSteppingAction(bool callUserSteppingAction) { fCallUserSteppingAction = callUserSteppingAction; }
+  void SetCallPostUserTrackingAction(bool callPostUserTrackingAction)
+  {
+    fCallPostUserTrackingAction = callPostUserTrackingAction;
+  }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
@@ -43,6 +48,8 @@ public:
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
 
   bool GetTrackInAllRegions() { return fTrackInAllRegions; }
+  bool GetCallUserSteppingAction() { return fCallUserSteppingAction; }
+  bool GetCallPostUserTrackingAction() { return fCallPostUserTrackingAction; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetNumThreads() { return fNumThreads; };
   int GetVerbosity() { return fVerbosity; };
@@ -59,6 +66,8 @@ public:
 
 private:
   bool fTrackInAllRegions{false};
+  bool fCallUserSteppingAction{false};
+  bool fCallPostUserTrackingAction{false};
   bool fAdePTActivated{true};
   int fNumThreads;
   int fVerbosity{0};

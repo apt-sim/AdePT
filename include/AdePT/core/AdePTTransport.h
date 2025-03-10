@@ -78,6 +78,7 @@ public:
   void Cleanup();
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   void Shower(int event, int threadId);
+  void ProcessGPUSteps(int, int) {};
 
 private:
   static inline G4HepEmState *fg4hepem_state{nullptr}; ///< The HepEm state singleton
@@ -106,7 +107,6 @@ private:
   bool InitializeField(double bz);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
-  void ProcessGPUHits();
 };
 
 #include "AdePTTransport.icc"

@@ -343,7 +343,8 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   visitGeometry(g4world, vecgeomWorld);
 }
 
-void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
+void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUserSteppingAction,
+                                            bool const callPostUserTrackingAction)
 {
   if (!fScoringObjects) {
     fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());
@@ -386,10 +387,24 @@ void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit)
           ->GetLogicalVolume()
           ->GetSensitiveDetector();
 
-  // Double check, a nullptr here can indicate an issue reconstructing the navigation history
-  assert(aSensitiveDetector != nullptr);
+  // Call scoring if SD is defined
+  if (aSensitiveDetector != nullptr) {
+    aSensitiveDetector->Hit(fScoringObjects->fG4Step);
+  }
 
-  aSensitiveDetector->Hit(fScoringObjects->fG4Step);
+  // call UserSteppingAction if required
+  if (callUserSteppingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userSteppingAction = evtMgr->GetUserSteppingAction();
+    if (userSteppingAction) userSteppingAction->UserSteppingAction(fScoringObjects->fG4Step);
+  }
+
+  // call UserSteppingAction if required
+  if (hit.fLastStepOfTrack && callPostUserTrackingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
+  }
 }
 
 void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState,

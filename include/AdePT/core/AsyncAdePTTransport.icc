@@ -48,7 +48,7 @@ std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, A
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
-                            std::vector<AdePTScoring> &, int, int);
+                            std::vector<AdePTScoring> &, int, int, bool, bool);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity,
                                                                                  int numThreads,
                                                                                  AsyncAdePT::TrackBuffer &trackBuffer,
@@ -85,7 +85,8 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fDebugLevel{configuration.GetVerbosity()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
-      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}
+      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
+      fReturnLastStep{configuration.GetCallPostUserTrackingAction()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -244,7 +245,8 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
 
   fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring);
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
-                                                 fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel);
+                                                 fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel,
+                                                 fReturnAllSteps, fReturnLastStep);
 }
 
 template <typename IntegrationLayer>
@@ -252,6 +254,33 @@ void AsyncAdePTTransport<IntegrationLayer>::InitBVH()
 {
   vecgeom::cxx::BVHManager::Init();
   vecgeom::cxx::BVHManager::DeviceInit();
+}
+
+template <typename IntegrationLayer>
+void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int eventId)
+{
+
+  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId];
+  std::pair<GPUHit *, GPUHit *> range;
+  bool dataOnBuffer;
+
+  while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
+         nullptr) {
+    for (auto it = range.first; it != range.second; ++it) {
+      // important sanity check: thread should only process its own hits and only from the current event
+      if (it->threadId != threadId)
+        std::cerr << "\033[1;31mError, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
+                  << "\033[0m" << std::endl;
+      if (it->fEventId != eventId) {
+        std::cerr << "\033[1;31mError, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
+                  << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
+                  << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
+                  << "\033[0m" << std::endl;
+      }
+      integrationInstance.ProcessGPUStep(*it, fReturnAllSteps, fReturnLastStep);
+    }
+    async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
+  }
 }
 
 template <typename IntegrationLayer>
@@ -268,31 +297,12 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
 
   while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
 
-    std::pair<GPUHit *, GPUHit *> range;
-    bool dataOnBuffer;
-
     {
       std::unique_lock lock{fMutex_G4Workers};
       fCV_G4Workers.wait(lock);
     }
 
-    while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
-           nullptr) {
-      for (auto it = range.first; it != range.second; ++it) {
-        // important sanity check: thread should only process its own hits and only from the current event
-        if (it->threadId != threadId)
-          std::cerr << "Error, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
-                    << std::endl;
-        if (it->fEventId != eventId) {
-          std::cerr << "Error, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
-                    << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
-                    << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
-                    << std::endl;
-        }
-        integrationInstance.ProcessGPUHit(*it);
-      }
-      async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
-    }
+    ProcessGPUSteps(threadId, eventId);
   }
 
   // Now device should be flushed, so retrieve the tracks:

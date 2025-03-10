@@ -47,8 +47,9 @@ public:
   /// @brief Initialize the ApplyCuts flag on device
   virtual bool InitializeApplyCuts(bool applycuts) = 0;
   /// @brief Interface for transporting a buffer of tracks in AdePT.
-  virtual void Shower(int event, int threadId) = 0;
-  virtual void Cleanup()                       = 0;
+  virtual void Shower(int event, int threadId)            = 0;
+  virtual void Cleanup()                                  = 0;
+  virtual void ProcessGPUSteps(int threadId, int eventId) = 0;
 };
 
 #endif
