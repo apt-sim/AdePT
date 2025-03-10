@@ -59,6 +59,9 @@ private:
   std::vector<double> fGPUNetEnergy;
   bool fTrackInAllRegions = false;
   std::vector<std::string> const *fGPURegionNames;
+  // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction
+  bool fReturnAllSteps = false;
+  bool fReturnLastStep = false;
 
   void Initialize();
   void InitBVH();
@@ -105,6 +108,7 @@ public:
   void Shower(int event, int threadId) override { Flush(threadId, event); }
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId);
+  void ProcessGPUSteps(int threadId, int eventId) override;
   void Cleanup() override {}
 };
 

@@ -54,7 +54,8 @@ public:
                              std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map);
 
   /// @brief Reconstructs GPU hits on host and calls the user-defined sensitive detector code
-  void ProcessGPUHit(GPUHit const &hit);
+  void ProcessGPUStep(GPUHit const &hit, bool const callUserSteppingAction = false,
+                      bool const callPostUserTrackingaction = false);
 
   /// @brief Takes a range of tracks coming from the device and gives them back to Geant4
   template <typename Iterator>

@@ -42,7 +42,8 @@ namespace AsyncAdePT {
 template <bool IsElectron, typename Scoring>
 static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
-                                                          adept::MParray *leakedQueue, Scoring *userScoring)
+                                                          adept::MParray *leakedQueue, Scoring *userScoring,
+                                                          bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -73,6 +74,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                                           Scoring *userScoring, VolAuxData const *auxDataArray)
 {
   using namespace adept_impl;
+  constexpr bool returnAllSteps     = false;
+  bool returnLastStep               = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
@@ -106,6 +109,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double properTime = currentTrack.properTime;
 
     auto survive = [&](bool leak = false) {
+      returnLastStep          = false; // track survived, do not force return of step
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
@@ -344,8 +348,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // Kill the particle if it left the world.
         if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
-          // This will happen after recordinf the step
+          // This will happen after recording the step
           cross_boundary = true;
+          returnLastStep = false; // the track survives, do not force return of step
         } else {
           // Particle left the world, don't enqueue it and release the slot
 #ifdef ASYNC_MODE
@@ -605,24 +610,25 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if (energyDeposit > 0 && auxData.fSensIndex >= 0)
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
-                               static_cast<char>(IsElectron ? 0 : 1),        // Particle type
-                               elTrack.GetPStepLength(),                     // Step length
-                               energyDeposit,                                // Total Edep
-                               navState,                                     // Pre-step point navstate
-                               preStepPos,                                   // Pre-step point position
-                               preStepDir,                                   // Pre-step point momentum direction
-                               preStepEnergy,                                // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                          // Pre-step point charge
-                               nextState,                                    // Post-step point navstate
-                               pos,                                          // Post-step point position
-                               dir,                                          // Post-step point momentum direction
-                               eKin,                                         // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                          // Post-step point charge
-                               currentTrack.eventId, currentTrack.threadId); // eventID and threadID (not needed here)
+                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               navState,                                    // Pre-step point navstate
+                               preStepPos,                                  // Pre-step point position
+                               preStepDir,                                  // Pre-step point momentum direction
+                               preStepEnergy,                               // Pre-step point kinetic energy
+                               IsElectron ? -1 : 1,                         // Pre-step point charge
+                               nextState,                                   // Post-step point navstate
+                               pos,                                         // Post-step point position
+                               dir,                                         // Post-step point momentum direction
+                               eKin,                                        // Post-step point kinetic energy
+                               IsElectron ? -1 : 1,                         // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               returnLastStep);                             // whether this was the last step
     if (cross_boundary) {
-      // Move to the next boundary.
+      // Move to the next boundary now that the Step is recorded
       navState = nextState;
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
 #ifndef ADEPT_USE_SURF
@@ -651,17 +657,19 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
 template <typename Scoring>
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring)
+                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   bool returnAllSteps, bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, activeQueue, leakedQueue,
-                                                   userScoring);
+                                                   userScoring, returnAllSteps, returnLastStep);
 }
 template <typename Scoring>
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring)
+                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   bool returnAllSteps, bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, activeQueue, leakedQueue,
-                                                    userScoring);
+                                                    userScoring, returnAllSteps, returnLastStep);
 }
 #else
 template <typename Scoring>
