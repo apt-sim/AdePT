@@ -27,8 +27,11 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetTrackInAllRegionsCmd->SetGuidance("If true, particles are tracked on the GPU across the whole geometry");
 
   fSetCallUserSteppingActionCmd = new G4UIcmdWithABool("/adept/CallUserSteppingAction", this);
-  fSetCallUserSteppingActionCmd->SetGuidance("If true, the UserSteppingAction is called for on every step. NOTE: This "
-                                             "means that every single step is recorded on GPU and send back to CPU");
+  fSetCallUserSteppingActionCmd->SetGuidance(
+      "If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that "
+      "means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the "
+      "secondary before the primary has finished its track."
+      " NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance");
 
   fSetCallPostUserTrackingActionCmd = new G4UIcmdWithABool("/adept/CallPostUserTrackingAction", this);
   fSetCallPostUserTrackingActionCmd->SetGuidance(
