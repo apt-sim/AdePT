@@ -202,7 +202,7 @@ inline void EndOfIteration(HostScoring &hostScoring, HostScoring *hostScoring_de
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
     // Process the hits on CPU
     for (const auto &hit : hostScoring) {
-      integration.ProcessGPUHit(hit);
+      integration.ProcessGPUStep(hit);
     }
   }
 }
@@ -220,7 +220,7 @@ inline void EndOfTransport(HostScoring &hostScoring, HostScoring *hostScoring_de
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
   // Process the last hits on CPU
   for (const auto &hit : hostScoring) {
-    integration.ProcessGPUHit(hit);
+    integration.ProcessGPUStep(hit);
   }
 }
 } // namespace adept_scoring

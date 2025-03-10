@@ -277,7 +277,7 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
                   << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
                   << "\033[0m" << std::endl;
       }
-      integrationInstance.ProcessGPUHit(*it, fReturnAllSteps, fReturnLastStep);
+      integrationInstance.ProcessGPUStep(*it, fReturnAllSteps, fReturnLastStep);
     }
     async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
   }

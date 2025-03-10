@@ -343,8 +343,8 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   visitGeometry(g4world, vecgeomWorld);
 }
 
-void AdePTGeant4Integration::ProcessGPUHit(GPUHit const &hit, bool const callUserSteppingAction,
-                                           bool const callPostUserTrackingAction)
+void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUserSteppingAction,
+                                            bool const callPostUserTrackingAction)
 {
   if (!fScoringObjects) {
     fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());

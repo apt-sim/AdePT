@@ -107,7 +107,6 @@ private:
   bool InitializeField(double bz);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
-  void ProcessGPUHits();
 };
 
 #include "AdePTTransport.icc"
