@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.18...3.24)
+cmake_minimum_required(VERSION 3.25.2)
 
 # Record the command line invoking the cmake command. Replay with recmake_initial.sh.
 include(cmake/RecordCmdLine.cmake)
