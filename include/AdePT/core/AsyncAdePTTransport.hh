@@ -108,7 +108,7 @@ public:
   void Shower(int event, int threadId) override { Flush(threadId, event); }
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId);
-  void ProcessGPUSteps(int threadId, int eventId);
+  void ProcessGPUSteps(int threadId, int eventId) override;
   void Cleanup() override {}
 };
 

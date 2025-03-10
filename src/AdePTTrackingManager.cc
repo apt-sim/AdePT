@@ -187,6 +187,12 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   const bool trackInAllRegions       = fAdeptTransport->GetTrackInAllRegions();
 
+  const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
+
+  // Check for GPU steps, to alleviate pressure on the GPU step buffer
+  G4int threadId = G4Threading::G4GetThreadId();
+  fAdeptTransport->ProcessGPUSteps(threadId, eventID);
+
   // setup touchable to be able to get region from GetNextVolume
   steppingManager->SetInitialStep(aTrack);
 
@@ -207,7 +213,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double properTime    = aTrack->GetProperTime();
       auto pdg               = aTrack->GetParticleDefinition()->GetPDGEncoding();
       int id                 = aTrack->GetTrackID();
-      const auto eventID     = eventManager->GetConstCurrentEvent()->GetEventID();
       if (fCurrentEventID != eventID) {
         // Do this to reproducibly seed the AdePT random numbers:
         fCurrentEventID = eventID;
