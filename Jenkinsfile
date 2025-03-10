@@ -11,7 +11,7 @@ pipeline {
   parameters {
     string(name: 'EXTERNALS', defaultValue: 'devAdePT/latest', description: 'LCG software stack in CVMFS')
     choice(name: 'MODEL', choices: ['experimental', 'nightly', 'continuous'], description: 'CDash model')
-    choice(name: 'COMPILER', choices: ['gcc11', 'gcc8', 'gcc10', 'clang10', 'native'])
+    choice(name: 'COMPILER', choices: ['gcc13', 'gcc11', 'gcc8', 'gcc10', 'clang10', 'native'])
     choice(name: 'OS', choices: ['el9', 'centos7'])
     choice(name: 'BUILDTYPE', choices: ['Release', 'Debug'])
     string(name: 'LABEL', defaultValue: 'TeslaT4', description: 'Jenkins label for physical nodes or container image for docker')
