@@ -5,8 +5,9 @@
 #define MAGNETICFIELDS_H
 
 #include "G4MagneticField.hh"
-
 #include "G4ThreeVector.hh"
+
+#include <memory>
 
 #ifdef ADEPT_USE_EXT_BFIELD
 
