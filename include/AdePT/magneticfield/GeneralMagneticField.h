@@ -42,8 +42,8 @@ public:
 
   bool InitializeFromFile(const std::string &filePath)
   {
-#ifdef ADEPT_USE_EXT_BFIELD
     std::ifstream ifs(filePath, std::ifstream::binary);
+#ifdef ADEPT_USE_EXT_BFIELD
     if (!ifs.good()) {
       std::cerr << "Failed to open input file " << filePath << "!" << std::endl;
       return false;
