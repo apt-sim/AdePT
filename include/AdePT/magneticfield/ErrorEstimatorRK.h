@@ -12,9 +12,9 @@
 
 class ErrorEstimatorRK {
 public:
-  __host__ __device__ ErrorEstimatorRK(float eps_rel_max, float minimumStep, int noComponents = 6)
-      : fEpsRelMax(eps_rel_max), fInvEpsilonRelSq(1.0 / (eps_rel_max * eps_rel_max)),
-        fMinimumStep(minimumStep) // , fNoComponents( 6 )
+  __host__ __device__ ErrorEstimatorRK(float eps_rel_max, int noComponents = 6)
+      : fEpsRelMax(eps_rel_max), fInvEpsilonRelSq(1.0 / (eps_rel_max * eps_rel_max))
+  //,fMinimumStep(minimumStep) // , fNoComponents( 6 )
 
   {
   }
@@ -39,7 +39,7 @@ public:
 private:
   const float fEpsRelMax;
   const float fInvEpsilonRelSq; // = 1.0 / (eps_rel_max * eps_rel_max);
-  const float fMinimumStep;
+  // const float fMinimumStep; minimum Step removed since the step is always >= the minimum step
   // constexpr int    fNoComponents = 6;
 };
 
@@ -54,7 +54,7 @@ ErrorEstimatorRK::EstimateSquareError(const Real_t yEstError[], // [fNoComponent
   Real_t epsPosition;
   Real_t errpos_sq, errmom_sq;
 
-  epsPosition = fEpsRelMax * vecCore::math::Max(hStep, Real_t(fMinimumStep));
+  epsPosition = fEpsRelMax * hStep;
   // Note: it uses the remaining step 'hStep'
   //       Could change it to use full step size ==> move it outside loop !! 2017.11.10 JA
 

@@ -434,6 +434,39 @@ bool InitializeField(double bz)
   return true;
 }
 
+bool InitializeGeneralField(GeneralMagneticField &magneticField)
+{
+
+#ifdef ADEPT_USE_EXT_BFIELD
+
+  // Allocate and copy the GeneralMagneticField instance (not the field array itself), and set the global device pointer
+  GeneralMagneticField *dMagneticFieldInstance = nullptr;
+  COPCORE_CUDA_CHECK(cudaMalloc(&dMagneticFieldInstance, sizeof(GeneralMagneticField)));
+  COPCORE_CUDA_CHECK(
+      cudaMemcpy(dMagneticFieldInstance, &magneticField, sizeof(GeneralMagneticField), cudaMemcpyHostToDevice));
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(GeneralMagneticField *)));
+
+#endif
+  return true;
+}
+
+void FreeGeneralField()
+{
+#ifdef ADEPT_USE_EXT_BFIELD
+  GeneralMagneticField *dMagneticFieldInstance = nullptr;
+
+  // Retrieve the global device pointer from the symbol
+  COPCORE_CUDA_CHECK(cudaMemcpyFromSymbol(&dMagneticFieldInstance, gMagneticField, sizeof(GeneralMagneticField *)));
+
+  if (dMagneticFieldInstance) {
+    // Free the device memory and reset global device pointer
+    COPCORE_CUDA_CHECK(cudaFree(dMagneticFieldInstance));
+    GeneralMagneticField *nullPtr = nullptr;
+    COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &nullPtr, sizeof(GeneralMagneticField *)));
+  }
+#endif
+}
+
 bool InitializeApplyCuts(bool applycuts)
 {
   // Initialize ApplyCut
@@ -616,7 +649,8 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 
 void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
-                   std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel)
+                   std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel, bool returnAllSteps,
+                   bool returnLastStep)
 {
   // NVTXTracer tracer{"TransportLoop"};
 
@@ -791,7 +825,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev);
+            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -802,7 +836,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev);
+            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
@@ -813,7 +847,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev); //, gpuState.gammaInteractions);
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            returnLastStep); //, gpuState.gammaInteractions);
 
         // constexpr unsigned int intThreads = 128;
         // ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
@@ -1099,12 +1134,12 @@ void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit *begin, co
 std::thread LaunchGPUWorker(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                             std::condition_variable &cvG4Workers, std::vector<AdePTScoring> &scoring, int adeptSeed,
-                            int debugLevel)
+                            int debugLevel, bool returnAllSteps, bool returnLastStep)
 {
   return std::thread{
       &TransportLoop,     trackCapacity,         scoringCapacity,       numThreads,        std::ref(trackBuffer),
       std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers), std::ref(scoring), adeptSeed,
-      debugLevel};
+      debugLevel,         returnAllSteps,        returnLastStep};
 }
 
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, G4HepEmState &g4hepem_state,
@@ -1122,6 +1157,9 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
 
   // Free G4HepEm data
   FreeG4HepEmData(g4hepem_state.fData);
+
+  // Free magnetic field map
+  FreeGeneralField();
 }
 
 } // namespace async_adept_impl
