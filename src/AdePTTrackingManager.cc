@@ -18,7 +18,6 @@
 #include <algorithm>
 
 #ifdef ASYNC_MODE
-static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> globalAdePTInstance = nullptr;
 std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf)
 {
   static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> AdePT{
