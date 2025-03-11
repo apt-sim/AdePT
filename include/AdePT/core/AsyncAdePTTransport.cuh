@@ -170,25 +170,24 @@ __global__ void EnqueueTracks(AllParticleQueues allQueues, adept::MParrayT<Queue
 }
 
 __device__ unsigned int nFromDevice_dev;
+__device__ unsigned int nRemainingLeaks_dev;
 
 
 
 __global__ void DEBUGPRINT(unsigned int msg_code,
-                adept::MParray *electrons_leakedTracksCurrent, adept::MParray *electrons_leakedTracksNext,
-               adept::MParray *positrons_leakedTracksCurrent, adept::MParray *positrons_leakedTracksNext,
-               adept::MParray *gammas_leakedTracksCurrent, adept::MParray *gammas_leakedTracksNext)
+                unsigned int numTransferred,
+                adept::MParray *electrons_leakedTracks,
+               adept::MParray *positrons_leakedTracks,
+               adept::MParray *gammas_leakedTracks)
 {
-  size_t electronsCurrentSize = electrons_leakedTracksCurrent->size();
-  size_t electronsNextSize = electrons_leakedTracksNext->size();
-  size_t positronsCurrentSize = positrons_leakedTracksCurrent->size();
-  size_t positronsNextSize = positrons_leakedTracksNext->size();
-  size_t gammasCurrentSize = gammas_leakedTracksCurrent->size();
-  size_t gammasNextSize = gammas_leakedTracksNext->size();
+  size_t electronsCurrentSize = electrons_leakedTracks->size();
+  size_t positronsCurrentSize = positrons_leakedTracks->size();
+  size_t gammasCurrentSize = gammas_leakedTracks->size();
 
   switch (msg_code)
   {
   case 0:
-    printf("AFTER KERNELS\n");
+    printf("HOST CHECK\n");
     break;
   case 1:
     printf("AFTER FILLING STAGING BUFFER\n");
@@ -207,28 +206,41 @@ __global__ void DEBUGPRINT(unsigned int msg_code,
     break;
   }
 
-  printf("Electrons: current=%p, next=%p\n", (void*)electrons_leakedTracksCurrent, (void*)electrons_leakedTracksNext);
-  printf("Positrons: current=%p, next=%p\n", (void*)positrons_leakedTracksCurrent, (void*)positrons_leakedTracksNext);
-  printf("Gammas: current=%p, next=%p\n", (void*)gammas_leakedTracksCurrent, (void*)gammas_leakedTracksNext);
-  printf("Electrons: current=%ld, next=%ld\n", electronsCurrentSize, electronsNextSize);
-  printf("Positrons: current=%ld, next=%ld\n", positronsCurrentSize, positronsNextSize);
-  printf("Gammas: current=%ld, next=%ld\n", gammasCurrentSize, gammasNextSize);
+  // printf("Electrons: current=%p, next=%p\n", (void*)electrons_leakedTracksCurrent, (void*)electrons_leakedTracksNext);
+  // printf("Positrons: current=%p, next=%p\n", (void*)positrons_leakedTracksCurrent, (void*)positrons_leakedTracksNext);
+  // printf("Gammas: current=%p, next=%p\n", (void*)gammas_leakedTracksCurrent, (void*)gammas_leakedTracksNext);
+  printf("Electrons: current=%ld\n", electronsCurrentSize);
+  printf("Positrons: current=%ld\n", positronsCurrentSize);
+  printf("Gammas: current=%ld\n", gammasCurrentSize);
+  printf("Total: %ld, Transferred: %d\n", electronsCurrentSize + positronsCurrentSize + gammasCurrentSize, numTransferred);
 }
+
+// __global__ void DEBUGTMP(AsyncAdePT::TrackDataWithIDs *fromDevice)
+// {
+//   for (unsigned int i = threadIdx.x; i < nFromDevice_dev; i += blockDim.x) {
+//     printf("Track %d: pdg=%d, threadId=%d, eventId=%d\n", i, fromDevice[i].pdg, fromDevice[i].threadId, fromDevice[i].eventId);
+//   }
+// }
 
 // Copy particles leaked from the GPU region into a compact buffer
 __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs *fromDevice,
-                                     unsigned int maxFromDeviceBuffer)
+                                     unsigned int maxFromDeviceBuffer, unsigned int nAlreadyTransferred)
 {
   const auto numElectrons = all.leakedElectrons.fLeakedQueue->size();
   const auto numPositrons = all.leakedPositrons.fLeakedQueue->size();
   const auto numGammas    = all.leakedGammas.fLeakedQueue->size();
-  const auto numElectronsNext = all.leakedElectrons.fLeakedQueueNext->size();
-  const auto numPositronsNext = all.leakedPositrons.fLeakedQueueNext->size();
-  const auto numGammasNext    = all.leakedGammas.fLeakedQueueNext->size();
-  const auto total        = numElectrons + numPositrons + numGammas;
-  if (blockIdx.x == 0 && threadIdx.x == 0) nFromDevice_dev = total < maxFromDeviceBuffer ? total : maxFromDeviceBuffer;
+  const auto total        = numElectrons + numPositrons + numGammas - nAlreadyTransferred;
+  if (blockIdx.x == 0 && threadIdx.x == 0)
+  {
+    nFromDevice_dev = total < maxFromDeviceBuffer ? total : maxFromDeviceBuffer;
+    nRemainingLeaks_dev = total - nFromDevice_dev;
+    printf("e-: %ld, e+: %ld, gammas: %ld, total: %ld, already transferred: %d, remaining after this call: %d\n", 
+            numElectrons, numPositrons, numGammas, total, nAlreadyTransferred, nRemainingLeaks_dev);
+  }
 
-  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x; i < total; i += blockDim.x * gridDim.x) {
+  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred; 
+                                      i < nAlreadyTransferred + maxFromDeviceBuffer; 
+                                      i += blockDim.x * gridDim.x) {
     LeakedTracks *leakedTracks = nullptr;
     unsigned int queueSlot     = 0;
     int pdg                    = 0;
@@ -250,43 +262,43 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
     const auto trackSlot     = (*leakedTracks->fLeakedQueue)[queueSlot];
     Track const *const track = leakedTracks->fTracks + trackSlot;
 
-    if (i >= maxFromDeviceBuffer) {
-      // No space to transfer it out
-      leakedTracks->fLeakedQueueNext->push_back(trackSlot);
-    } else {
+    if (nAlreadyTransferred <= i && i < nAlreadyTransferred + nFromDevice_dev) {
+      // Offset i by nAlreadyTransferred to get the index in the fromDevice buffer
+      auto idx = i - nAlreadyTransferred;
+
       // NOTE: Sync transport copies data into trackData structs during transport.
       // Async transport stores the slots and copies to trackdata structs for transfer to
       // host here. These approaches should be unified.
-      fromDevice[i].position[0]                = track->pos[0];
-      fromDevice[i].position[1]                = track->pos[1];
-      fromDevice[i].position[2]                = track->pos[2];
-      fromDevice[i].direction[0]               = track->dir[0];
-      fromDevice[i].direction[1]               = track->dir[1];
-      fromDevice[i].direction[2]               = track->dir[2];
-      fromDevice[i].vertexPosition[0]          = track->vertexPosition[0];
-      fromDevice[i].vertexPosition[1]          = track->vertexPosition[1];
-      fromDevice[i].vertexPosition[2]          = track->vertexPosition[2];
-      fromDevice[i].vertexMomentumDirection[0] = track->vertexMomentumDirection[0];
-      fromDevice[i].vertexMomentumDirection[1] = track->vertexMomentumDirection[1];
-      fromDevice[i].vertexMomentumDirection[2] = track->vertexMomentumDirection[2];
-      fromDevice[i].eKin                       = track->eKin;
-      fromDevice[i].vertexEkin                 = track->vertexEkin;
-      fromDevice[i].globalTime                 = track->globalTime;
-      fromDevice[i].localTime                  = track->localTime;
-      fromDevice[i].properTime                 = track->properTime;
-      fromDevice[i].weight                     = track->weight;
-      fromDevice[i].pdg                        = pdg;
-      fromDevice[i].eventId                    = track->eventId;
-      fromDevice[i].threadId                   = track->threadId;
-      fromDevice[i].navState                   = track->navState;
-      fromDevice[i].originNavState             = track->originNavState;
+      fromDevice[idx].position[0]                = track->pos[0];
+      fromDevice[idx].position[1]                = track->pos[1];
+      fromDevice[idx].position[2]                = track->pos[2];
+      fromDevice[idx].direction[0]               = track->dir[0];
+      fromDevice[idx].direction[1]               = track->dir[1];
+      fromDevice[idx].direction[2]               = track->dir[2];
+      fromDevice[idx].vertexPosition[0]          = track->vertexPosition[0];
+      fromDevice[idx].vertexPosition[1]          = track->vertexPosition[1];
+      fromDevice[idx].vertexPosition[2]          = track->vertexPosition[2];
+      fromDevice[idx].vertexMomentumDirection[0] = track->vertexMomentumDirection[0];
+      fromDevice[idx].vertexMomentumDirection[1] = track->vertexMomentumDirection[1];
+      fromDevice[idx].vertexMomentumDirection[2] = track->vertexMomentumDirection[2];
+      fromDevice[idx].eKin                       = track->eKin;
+      fromDevice[idx].vertexEkin                 = track->vertexEkin;
+      fromDevice[idx].globalTime                 = track->globalTime;
+      fromDevice[idx].localTime                  = track->localTime;
+      fromDevice[idx].properTime                 = track->properTime;
+      fromDevice[idx].weight                     = track->weight;
+      fromDevice[idx].pdg                        = pdg;
+      fromDevice[idx].eventId                    = track->eventId;
+      fromDevice[idx].threadId                   = track->threadId;
+      fromDevice[idx].navState                   = track->navState;
+      fromDevice[idx].originNavState             = track->originNavState;
 
+      // printf("Used slots on free list: %u/%u\n", 
+      //                           leakedTracks->fSlotManager->fFreeCounter,  
+      //                           leakedTracks->fSlotManager->fFreeListSize);
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }
   }
-  const auto numElectronsNextFinal = all.leakedElectrons.fLeakedQueueNext->size();
-  const auto numPositronsNextFinal = all.leakedPositrons.fLeakedQueueNext->size();
-  const auto numGammasNextFinal    = all.leakedGammas.fLeakedQueueNext->size();
 }
 
 template <typename... Ts>
@@ -316,6 +328,8 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
   } else if (blockIdx.x == 1 && threadIdx.x == 0) {
     // Assert that there are enough slots allocated:
     unsigned int particlesInFlight = 0;
+    // FIXME: This only checks the fill level for the electrons slot manager.
+    // Probably works in most cases but could be unstable
     SlotManager const &slotManager = *tracksAndSlots.slotManagers[0];
     stats->slotFillLevel           = slotManager.FillLevel();
 
@@ -673,8 +687,8 @@ __host__ void ReturnTracksToG4(TrackBuffer &trackBuffer, GPUstate &gpuState,
     trackBuffer.fromDeviceBuffers[trackIt->threadId].push_back(*trackIt);
   }
 
-  AdvanceEventStates(EventState::FlushingTracks, EventState::DeviceFlushed, eventStates);
-  gpuState.extractState = GPUstate::ExtractState::Idle;
+  // AdvanceEventStates(EventState::FlushingTracks, EventState::DeviceFlushed, eventStates);
+  // gpuState.extractState = GPUstate::ExtractState::Idle;
 
 #ifndef NDEBUG
   for (const auto &buffer : trackBuffer.fromDeviceBuffers) {
@@ -722,6 +736,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
   ParticleType &electrons = gpuState.particles[ParticleType::Electron];
   ParticleType &positrons = gpuState.particles[ParticleType::Positron];
   ParticleType &gammas    = gpuState.particles[ParticleType::Gamma];
+
+  // Auxiliary struct used to keep track of the queues that need flushing
+  AllLeaked allLeaked{nullptr, nullptr, nullptr};
 
   cudaEvent_t cudaEvent, cudaStatsEvent;
   cudaStream_t transferStream, statsStream, interactionStream;
@@ -973,8 +990,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         CountCurrentPopulation<<<ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
             allParticleQueues, gpuState.stats_dev, tracksAndSlots);
         // Count leaked tracks. Note that new tracks might be added while/after we count:
-        CountLeakedTracks<<<2 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
-            allParticleQueues, gpuState.stats_dev, tracksAndSlots);
+        // CountLeakedTracks<<<2 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
+        //     allParticleQueues, gpuState.stats_dev, tracksAndSlots);
 
         waitForOtherStream(gpuState.stream, statsStream);
 
@@ -993,68 +1010,85 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** Collect particles ***
       // -------------------------
 
+      // If not extracting tracks from a previous event, freeze the current leak queues and swap the next ones in
       if (gpuState.extractState == ExtractState::Idle &&
           std::any_of(eventStates.begin(), eventStates.end(), [](const auto &eventState) {
             return eventState.load(std::memory_order_acquire) == EventState::HitsFlushed;
           })) {
-        gpuState.extractState = ExtractState::FreeingSlots;
         AdvanceEventStates(EventState::HitsFlushed, EventState::FlushingTracks, eventStates);
-        
+        // Advance the extractState. This ensures that this code will not run again until this flush has been completed, this is 
+        // important to ensure that no events can enter the `FlushingTracks` state while an extraction is already in progress
+        gpuState.extractState = ExtractState::ExtractionRequested;
+          
+        // We need to keep track of how many tracks have already been transferred to the host
+        trackBuffer.fNumLeaksTransferred = 0;
+
         // This struct will hold the queues that need to be flushed
-        const AllLeaked allLeaked = {.leakedElectrons = {electrons.tracks, electrons.queues.leakedTracksCurrent, electrons.slotManager},
-                                     .leakedPositrons = {positrons.tracks, positrons.queues.leakedTracksCurrent, positrons.slotManager},
-                                     .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracksCurrent, gammas.slotManager}};
+        allLeaked = {.leakedElectrons = {electrons.tracks, electrons.queues.leakedTracksCurrent, electrons.slotManager},
+                    .leakedPositrons = {positrons.tracks, positrons.queues.leakedTracksCurrent, positrons.slotManager},
+                    .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracksCurrent, gammas.slotManager}};
 
         // Ensure that transport that's writing to the old queues finishes before collecting leaked tracks
         for (auto const &event : {electrons.event, positrons.event, gammas.event}) {
           COPCORE_CUDA_CHECK(cudaStreamWaitEvent(transferStream, event));
         }
 
+        // Once transport has finished, we can start extracting the leaks
+        COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+          transferStream,
+          [](void *arg) { (*static_cast<decltype(GPUstate::extractState) *>(arg)) = ExtractState::TracksNeedTransfer; },
+          &gpuState.extractState));
+
         // Swap host pointer to the leak queues. This freezes the current queues and starts filling the next
         electrons.queues.SwapLeakedQueue();
         positrons.queues.SwapLeakedQueue();
         gammas.queues.SwapLeakedQueue();
+      }
 
-        // Populate the staging buffer and copy to host
+      // When the leak queues are frozen, we can start copying the leaks to the host
+      if (gpuState.extractState == ExtractState::TracksNeedTransfer) {
+
+        // Update the state so that the staging buffer will not be modified again until tracks have been copied
+        gpuState.extractState = ExtractState::PreparingTracks;
+
+        // // Populate the staging buffer and copy to host
         constexpr unsigned int block_size = 128;
         const unsigned int grid_size      = (trackBuffer.fNumFromDevice + block_size - 1) / block_size;
         FillFromDeviceBuffer<<<grid_size, block_size, 0, transferStream>>>(allLeaked, trackBuffer.fromDevice_dev.get(),
-                                                                           trackBuffer.fNumFromDevice);
+                                                                           trackBuffer.fNumFromDevice, trackBuffer.fNumLeaksTransferred);
         // Copy the number of leaked tracks to host
         COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(trackBuffer.nFromDevice_host.get(), nFromDevice_dev,
                                                      sizeof(unsigned int), 0, cudaMemcpyDeviceToHost, transferStream));
-        // Number of tracks copied, move state to ready to copy
+        // Copy the number of tracks remaining on GPU to host
+        COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(trackBuffer.nRemainingLeaks_host.get(), nRemainingLeaks_dev,
+                                                     sizeof(unsigned int), 0, cudaMemcpyDeviceToHost, transferStream));
+        
+        // Update the state after the copy
         COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
-            transferStream,
-            [](void *arg) { (*static_cast<decltype(GPUstate::extractState) *>(arg)) = ExtractState::ReadyToCopy; },
-            &gpuState.extractState));
-
-        // The leaks have been safely copied to the fromDevice buffer, empty the per-particle leak queues
-        ClearQueues<<<1, 1, 0, transferStream>>>(electrons.queues.leakedTracksCurrent,
-                                                 positrons.queues.leakedTracksCurrent,
-                                                 gammas.queues.leakedTracksCurrent);
+          transferStream,
+          [](void *arg) { (*static_cast<decltype(GPUstate::extractState) *>(arg)) = ExtractState::TracksReadyToCopy; },
+          &gpuState.extractState));
       }
 
-      if (gpuState.extractState == ExtractState::ReadyToCopy) {
-        gpuState.extractState = ExtractState::CopyToHost;
+      if(gpuState.extractState == ExtractState::TracksReadyToCopy) {
+        gpuState.extractState = ExtractState::CopyingTracks;
         // Copy leaked tracks to host
         COPCORE_CUDA_CHECK(cudaMemcpyAsync(trackBuffer.fromDevice_host.get(), trackBuffer.fromDevice_dev.get(),
                                            (*trackBuffer.nFromDevice_host) * sizeof(TrackDataWithIDs),
                                            cudaMemcpyDeviceToHost, transferStream));
+        // Update the state after the copy
+        COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+          transferStream,
+          [](void *arg) { (*static_cast<decltype(GPUstate::extractState) *>(arg)) = ExtractState::TracksOnHost; },
+          &gpuState.extractState));
+      }
 
-        
+      if(gpuState.extractState == ExtractState::TracksOnHost) {
+        gpuState.extractState = ExtractState::SavingTracks;
+        // Update the number of tracks already transferred
+        trackBuffer.fNumLeaksTransferred += *trackBuffer.nFromDevice_host;
 
-        // On host, distribute tracks to the appropriate G4 workers
-        // NOTE: ReturnTracksToG4:
-        // 1) Iterates over the buffer of leaks on host and gives each track to the appropriate G4 worker
-        // 2) Advances the event state to DeviceFlushed, signaling the G4 worker that is flushing an event that all tracks
-        // have been returned
-        // 3) Sets the ExtractState to Idle
-        // Therefore, this function should only be called once all of the existing leaks at the moment that the track flush 
-        // started have been copied to the host
-        // As long as ExtractState is not Idle, the leak queues will not be swapped again. Once the old leak queues are empty,
-        // this function can be called.
-        
+        // Auxiliary struct to pass the necessary data to the callback
         struct CallbackData {
           TrackBuffer *trackBuffer;
           GPUstate *gpuState;
@@ -1063,17 +1097,37 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         // Needs to be dynamically allocated, since the callback may execute after
         // the current scope has ended.
         CallbackData *data = new CallbackData{&trackBuffer, &gpuState, &eventStates};
-
+        
+        // Distribute the leaked tracks on host to the appropriate G4 workers
         COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
             transferStream,
             [](void *userData) {
               CallbackData *data = static_cast<CallbackData *>(userData);
               ReturnTracksToG4(*data->trackBuffer, *data->gpuState, *data->eventStates);
+              data->gpuState->extractState = ExtractState::TracksSaved;
               delete data;
             },
             data));
       }
 
+      // Now we can re-use the host buffer for the next copy, if there are any remaining leaks on GPU
+      if(gpuState.extractState == ExtractState::TracksSaved) {
+        if(*trackBuffer.nRemainingLeaks_host == 0)
+        {
+          // Extraction finished, clear the queues and set to idle
+          ClearQueues<<<1, 1, 0, transferStream>>>(allLeaked.leakedElectrons.fLeakedQueue, allLeaked.leakedPositrons.fLeakedQueue, allLeaked.leakedGammas.fLeakedQueue);
+          // ExtraxtState is set to Idle, a new extraction can be started
+          // The events that had requested a flush are guaranteed to have all their tracks available on host
+          gpuState.extractState = ExtractState::Idle;
+          AdvanceEventStates(EventState::FlushingTracks, EventState::DeviceFlushed, eventStates);
+        }
+        else
+        {
+          // There are still tracks left on device
+          gpuState.extractState = ExtractState::TracksNeedTransfer;
+        }
+      }
+         
       // -------------------------
       // *** Finish iteration ***
       // -------------------------
@@ -1191,12 +1245,12 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 
 #ifndef NDEBUG
       // *** Check slots ***
-      if (false && iteration % 100 == 0 && gpuState.injectState != InjectState::CreatingSlots &&
-          gpuState.extractState != ExtractState::FreeingSlots) {
-        AssertConsistencyOfSlotManagers<<<120, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev,
-                                                                          gpuState.nSlotManager_dev);
-        COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
-      }
+      // if (false && iteration % 100 == 0 && gpuState.injectState != InjectState::CreatingSlots &&
+      //     gpuState.extractState != ExtractState::FreeingSlots) {
+      //   AssertConsistencyOfSlotManagers<<<120, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev,
+      //                                                                     gpuState.nSlotManager_dev);
+      //   COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+      // }
 
 #if false
       for (int i = 0; i < ParticleType::NumParticleTypes; ++i) {
@@ -1221,11 +1275,6 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       }
 #endif
 #endif
-
-      // DEBUG
-      DEBUGPRINT<<<1, 1, 0, transferStream>>>(4,electrons.queues.leakedTracksCurrent, electrons.queues.leakedTracksNext,
-              positrons.queues.leakedTracksCurrent, positrons.queues.leakedTracksNext,
-              gammas.queues.leakedTracksCurrent, gammas.queues.leakedTracksNext);
     }
 
     AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
@@ -1343,6 +1392,9 @@ TrackBuffer::TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, u
   unsigned int *nFromDevice = nullptr;
   COPCORE_CUDA_CHECK(cudaMallocHost(&nFromDevice, sizeof(unsigned int)));
   nFromDevice_host.reset(nFromDevice);
+  unsigned int *nRemainingLeaks = nullptr;
+  COPCORE_CUDA_CHECK(cudaMallocHost(&nRemainingLeaks, sizeof(unsigned int)));
+  nRemainingLeaks_host.reset(nRemainingLeaks);
 
   toDeviceBuffer[0].tracks    = toDevice_host.get();
   toDeviceBuffer[0].maxTracks = numToDevice;
