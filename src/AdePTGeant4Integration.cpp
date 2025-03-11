@@ -398,10 +398,6 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
     auto *userSteppingAction = evtMgr->GetUserSteppingAction();
     if (userSteppingAction) userSteppingAction->UserSteppingAction(fScoringObjects->fG4Step);
   }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 160056c (also enable PostUserTrackingActions)
 
   // call UserSteppingAction if required
   if (hit.fLastStepOfTrack && callPostUserTrackingAction) {
@@ -409,11 +405,6 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
   }
-<<<<<<< HEAD
-=======
->>>>>>> 5dba91c (enable calling of UserSteppingAction)
-=======
->>>>>>> 160056c (also enable PostUserTrackingActions)
 }
 
 void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState,
