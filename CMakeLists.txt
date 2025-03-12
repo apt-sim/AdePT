@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.18...3.24)
+cmake_minimum_required(VERSION 3.25.2)
 
 # Record the command line invoking the cmake command. Replay with recmake_initial.sh.
 include(cmake/RecordCmdLine.cmake)
@@ -34,7 +34,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
   )
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
@@ -49,6 +49,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
 option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
+option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 option(WITH_FLUCT "Switch on the energy loss fluctuations" OFF)
 
@@ -171,6 +172,46 @@ if(Geant4_FOUND)
   endif()
 endif()
 
+# Find covfie to load external fields from file. 
+if(ADEPT_USE_EXT_BFIELD)
+  # An 3D magnetic field map requires the covfie library.
+  # The default is to use an installed covfie version. If no covfie installation is provided,
+  # it is fetched from source and made available via FetchContent  
+  
+  message(STATUS "Compiling with external magnetic field support via covfie")
+  add_compile_definitions(ADEPT_USE_EXT_BFIELD)
+
+  find_package(covfie QUIET)
+  if (covfie_FOUND)
+    get_target_property(COVFIE_INCLUDE_DIR covfie::core INTERFACE_INCLUDE_DIRECTORIES)
+    message(STATUS "covfie found at: ${COVFIE_INCLUDE_DIR}")
+  else()
+    set(ADEPT_COVFIE_REPO "https://github.com/SeverinDiederichs/covfie.git")
+    set(ADEPT_COVFIE_BRANCH "export_targets_for_FetchContent")  # New branch with exports
+    ## FIXME use the ones below as soon as branch is merged and a new version is available
+    # set(ADEPT_COVFIE_REPO "https://github.com/acts-project/covfie.git")
+    # set(ADEPT_COVFIE_BRANCH "v0.12.1") # update version number
+
+    message(STATUS "No covfie provided, fetching from: ${ADEPT_COVFIE_REPO} (branch: ${ADEPT_COVFIE_BRANCH})")
+
+    include(FetchContent)
+    FetchContent_Declare(
+      covfie
+      GIT_REPOSITORY ${ADEPT_COVFIE_REPO}
+      GIT_TAG ${ADEPT_COVFIE_BRANCH}
+    )
+
+    set(COVFIE_PLATFORM_CUDA ON CACHE BOOL "Enable CUDA support in covfie" FORCE)
+    FetchContent_MakeAvailable(covfie)
+
+    FetchContent_GetProperties(covfie)
+    if(NOT covfie_POPULATED)
+      message(FATAL_ERROR "Fetching covfie failed!")
+    endif()
+
+  endif()
+endif()
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
@@ -234,6 +275,14 @@ target_link_libraries(AdePT_G4_integration
     G4VG::g4vg
     CUDA::cudart
 )
+if(ADEPT_USE_EXT_BFIELD)
+  # link covfie if external magnetic field usage is enabled
+  target_link_libraries(AdePT_G4_integration
+    PUBLIC
+      covfie::core
+      covfie::cuda
+  )
+endif()
 
 set_target_properties(AdePT_G4_integration
   PROPERTIES

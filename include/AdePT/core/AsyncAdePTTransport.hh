@@ -16,6 +16,7 @@
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/PerEventScoringStruct.cuh>
+#include <AdePT/magneticfield/GeneralMagneticField.h>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
@@ -62,10 +63,13 @@ private:
   // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction
   bool fReturnAllSteps = false;
   bool fReturnLastStep = false;
+  std::string fBfieldFile{""};         ///< Path to magnetic field file (in the covfie format)
+  GeneralMagneticField fMagneticField; ///< arbitrary magnetic field
 
   void Initialize();
   void InitBVH();
   bool InitializeField(double bz);
+  bool InitializeGeneralField();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
 
@@ -93,6 +97,8 @@ public:
   void SetTrackInAllRegions(bool trackInAllRegions) override { fTrackInAllRegions = trackInAllRegions; }
   bool GetTrackInAllRegions() const override { return fTrackInAllRegions; }
   void SetGPURegionNames(std::vector<std::string> const *regionNames) override { fGPURegionNames = regionNames; }
+  /// @brief Set path to covfie Bfield file
+  void SetBfieldFileName(const std::string &fileName) override { fBfieldFile = fileName; }
   void SetCUDAStackLimit(int limit) override {};
   void SetCUDAHeapLimit(int limit) override {};
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }

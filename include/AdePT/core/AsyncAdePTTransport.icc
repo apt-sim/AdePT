@@ -40,6 +40,8 @@
 /// Forward declarations
 namespace async_adept_impl {
 bool InitializeField(double);
+bool InitializeGeneralField(GeneralMagneticField &);
+void FreeGeneralField(GeneralMagneticField &);
 bool InitializeApplyCuts(bool applycuts);
 G4HepEmState *InitG4HepEm();
 void FlushScoring(AdePTScoring &);
@@ -86,7 +88,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
-      fReturnLastStep{configuration.GetCallPostUserTrackingAction()}
+      fReturnLastStep{configuration.GetCallPostUserTrackingAction()}, fBfieldFile{configuration.GetCovfieBfieldFile()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -164,6 +166,21 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeField(double bz)
 }
 
 template <typename IntegrationLayer>
+bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeneralField()
+{
+  if (!fBfieldFile.empty()) {
+    // Initialize magnetic field data from file
+    if (!fMagneticField.InitializeFromFile(fBfieldFile)) {
+      return false;
+    }
+
+    // Delegate the setup of the global view pointer to adept_impl
+    return async_adept_impl::InitializeGeneralField(fMagneticField);
+  }
+  return true; // no file provided, but no error encountered, so true is returned
+}
+
+template <typename IntegrationLayer>
 bool AsyncAdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
 {
   return async_adept_impl::InitializeApplyCuts(applycuts);
@@ -223,6 +240,20 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
       fIntegrationLayerObjects[0].GetUniformFieldZ(); // Get the field value from one of the worker threads
   if (!InitializeField(bz))
     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
+
+#ifdef ADEPT_USE_EXT_BFIELD
+  // Try to initialize field from file, otherwise initialize from vector
+  if (!InitializeGeneralField()) {
+    throw std::runtime_error(
+        "AdePTTransport<IntegrationLayer>::Initialize cannot initialize GeneralMagneticField on GPU");
+    // NOTE: if the field option is a run-time option and not a compile time option, uncomment the code below
+    // to use uniform field in case no file was provided. ToDo: this requires changing the return of
+    // InitializeGeneralField
+    //   double bz = fIntegrationLayer.GetUniformFieldZ();
+    //   if (!InitializeField(bz))
+    //     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
+  }
+#endif
 
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
   fIntegrationLayerObjects.front().CheckGeometry(fg4hepem_state.get());

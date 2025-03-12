@@ -26,6 +26,9 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction *aDetector) : G4UImess
   fFieldCmd->SetUnitCategory("Magnetic flux density");
   fFieldCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
   fFieldCmd->SetToBeBroadcasted(false);
+
+  fFieldFileNameCmd = new G4UIcmdWithAString("/detector/setCovfieBfieldFile", this);
+  fFieldFileNameCmd->SetGuidance("Set covfie magnetic field file name");
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -36,6 +39,7 @@ DetectorMessenger::~DetectorMessenger()
   delete fDir;
   delete fFieldCmd;
   delete fFileNameCmd;
+  delete fFieldFileNameCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -48,5 +52,7 @@ void DetectorMessenger::SetNewValue(G4UIcommand *aCommand, G4String aNewValue)
     fDetector->SetGDMLFile(aNewValue);
   } else if (aCommand == fFieldCmd) {
     fDetector->SetMagField(fFieldCmd->GetNew3VectorValue(aNewValue));
+  } else if (aCommand == fFieldFileNameCmd) {
+    fDetector->SetFieldFile(aNewValue);
   }
 }

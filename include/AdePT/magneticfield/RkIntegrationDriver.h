@@ -55,30 +55,8 @@ public:
                                                  vecgeom::Vector3D<Real_t> &momentumVec, Int_t const &charge,
                                                  // Real_t const &momentum,
                                                  Real_t const &step, MagField_t const &magField,
-                                                 Real_t &htry, // Suggested integration step -- from previous stages
                                                  Real_t dydx_next[], // dy_ds[Nvar] at final point (return only !! )
-                                                 Real_t &lengthDone, unsigned int &totalTrials,
                                                  unsigned int maxTrials = 5);
-  //   2.  per variable version
-  // template <class Stepper_t, class Equation_t, class MagField_t>
-  static inline __host__ __device__ bool Advance(
-      Real_t const &posx, Real_t const &posy, Real_t const &posz, Real_t const &dirx, Real_t const &diry,
-      Real_t const &dirz, Int_t const &charge, Real_t const &momentum, Real_t const &step, MagField_t const &magField,
-      Real_t &htry, // Suggested integration step -- from previous stages
-      Real_t &newposx, Real_t &newposy, Real_t &newposz, Real_t &newdirx, Real_t &newdiry, Real_t &newdirz,
-      Real_t dydx_next[], // dy_ds[] at final point (return only !! )
-      Real_t &lengthDone, unsigned int &totalTrials, unsigned int maxTrials = 5);
-
-  // Versions:
-  //   1. Original Vector3D version
-  // template <class Stepper_t, class Equation_t, class MagField_t>
-  static inline __host__ __device__ bool AdvanceV1(
-      vecgeom::Vector3D<Real_t> const &position, vecgeom::Vector3D<Real_t> const &direction, Int_t const &charge,
-      Real_t const &momentum, Real_t const &step, MagField_t const &magField,
-      Real_t &htry, // Suggested integration step, from previous stages
-      vecgeom::Vector3D<Real_t> &endPosition, vecgeom::Vector3D<Real_t> &endDirection,
-      Real_t dydx_next[], // dy_ds[Nvar] at final point (return only !! )
-      Real_t &lengthDone, unsigned int &totalTrials, unsigned int maxTrials = 5);
 
   // Invariants
   // ----------
@@ -101,7 +79,7 @@ public:
 
   static inline __host__ __device__ bool IntegrateStep(const Real_t yStart[], const Real_t dydx[], int charge,
                                                        Real_t &xCurrent, // InOut
-                                                       Real_t htry, MagField_t magField,
+                                                       Real_t htry, const MagField_t &magField,
                                                        Real_t yEnd[],      // Out - values
                                                        Real_t next_dydx[], //     - next derivative
                                                        Real_t &hnext);
@@ -124,39 +102,23 @@ template <int Verbose>
 inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::Advance(
     vecgeom::Vector3D<Real_t> &position,    //   In/Out
     vecgeom::Vector3D<Real_t> &momentumVec, //   In/Out
-    Int_t const &chargeInt,
-    // Real_t     const &momentum,
-    Real_t const &length, MagField_t const &magField,
-    Real_t &htry,              // Suggested integration step -- from previous stages
-    Real_t dydx_next[Nvar],    // dy_ds[] at final point (return only !! )
-    Real_t &lenAdvanced,       // how far it advanced
-    unsigned int &totalTrials, // total overall steps for this integration
-    unsigned int maxTrials     // max to do now
+    Int_t const &chargeInt, Real_t const &length, MagField_t const &magField,
+    Real_t dydx_next[Nvar], // dy_ds[] at final point (return only !! )
+    unsigned int maxTrials  // max allowed trials
 )
 {
   using vecgeom::Vector3D;
 
   Real_t yStart[Nvar] = {position[0], position[1], position[2], momentumVec[0], momentumVec[1], momentumVec[2]};
-
-  // vecgeom::Vector3D<Real_t> &B0fieldVal;
-  // EvaluateField( position, B0fieldVal );
-
   Real_t dydx[Nvar];
   Real_t yEnd[Nvar];
-  // Real_t charge= Real_t( chargeInt );
 
-  // Stepper_t::EquationType ??? ToDO
   Equation_t::EvaluateDerivatives(magField, yStart, chargeInt, dydx);
 
-  // std::cout << " RK: i 00 s= " << setw(10) << lenAdvanced;
-  // PrintFieldVectors::PrintLineSixvecDyDx( yStart, charge, magFieldDummy, dydx );
+  Real_t stepAdvance = 0.0;
+  Real_t hgood       = 0.0; // Length possible with adequate accuracy -- could return this for next step!
 
-  Real_t x     = 0.0;
-  Real_t hgood = 0.0; // Length possible with adequate accuracy -- could return this for next step!
-
-  if (htry <= 0.0 || htry >= length) {
-    htry = length;
-  }
+  Real_t htry = length; // initial try doing the full cordlength in one step
 
   bool done    = false;
   int numSteps = 0;
@@ -166,13 +128,12 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
   do {
     Real_t hnext; // , hdid;
 
-    goodStep = IntegrateStep(yStart, dydx, chargeInt, x, htry, magField, yEnd, dydx_next, hnext);
+    goodStep = IntegrateStep(yStart, dydx, chargeInt, stepAdvance, htry, magField, yEnd, dydx_next, hnext);
 
     Real_t hdid = goodStep ? htry : 0.0;
     allFailed   = allFailed && !goodStep;
 
-    lenAdvanced += hdid;
-    done  = (x >= length);
+    done  = (stepAdvance >= length);
     hgood = vecCore::Max(hnext, Real_t(fMinimumStep));
 
 #ifdef RK_VERBOSE
@@ -180,25 +141,28 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 #endif
     htry = hgood;
     if (goodStep && !done) {
+#pragma unroll
       for (int i = 0; i < Nvar; i++) {
         yStart[i] = yEnd[i];
         dydx[i]   = dydx_next[i]; // Using FSAL property !
       }
-      htry = vecCore::Min(hgood, length - x);
+      htry = vecCore::Min(hgood, length - stepAdvance);
     }
 #ifdef RK_VERBOSE
     if (Verbose > 1) {
-      printf(" n = %4d  x = %10.5f ltot = %10.5f ", numSteps, x, lenAdvanced);
+      printf(" n = %4d  stepAdvance = %10.5f ", numSteps, x);
       printf(" h:   suggested (input try) = %10.7f good? %1s next= %10.7f \n", // did= %10.7f  good= %10.7f
              htryOld, /* did, */ (goodStep ? "Y" : "N"), hnext /* , good */);
     }
 #endif
 
     ++numSteps;
+    // if(numSteps > 2 && !goodStep) printf("Warning: numSteps %d  goodstep? %d htry %.10f\n", numSteps, goodStep,
+    // htry);
 
   } while (!done && numSteps < maxTrials);
 
-  totalTrials += numSteps;
+  // if(numSteps > 10) printf("Warning: numSteps %d  goodstep? %d htry %.10f\n", numSteps, goodStep, htry);
 
   //  In case of failed last step, we must not use it's 'yEnd' values !!
   if (goodStep) {
@@ -218,38 +182,11 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 
 // ----------------------------------------------------------------------------------------
 
-// Versions:
-//   1. Vector3D version
-// template <class Stepper_t, class Equation_t, class MagField_t>
-
-template <class Stepper_t, typename Real_t, typename Int_t, class Equation_t, class MagField_t>
-inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::AdvanceV1(
-    vecgeom::Vector3D<Real_t> const &startPosition, vecgeom::Vector3D<Real_t> const &startDirection,
-    Int_t const &charge, Real_t const &momentum, Real_t const &step, MagField_t const &magField,
-    Real_t &htry, // Suggested integration step -- from previous stages
-    vecgeom::Vector3D<Real_t> &endPosition, vecgeom::Vector3D<Real_t> &endDirection,
-    Real_t dydx_next[], // dy_ds[Nvar] at final point (return only !! )
-    Real_t &lengthDone, unsigned int &totalTrials, unsigned int maxTrials)
-{
-  vecgeom::Vector3D<Real_t> positionVec = startPosition;
-  vecgeom::Vector3D<Real_t> momentumVec = momentum * startDirection;
-  bool done =
-      Advance(positionVec, momentumVec, charge, step, magField, htry, dydx_next, lengthDone, totalTrials, maxTrials);
-
-  Real_t invM  = 1.0 / (momentum + kSmall);
-  endPosition  = positionVec;
-  endDirection = invM * momentumVec;
-
-  return done;
-}
-
-// ----------------------------------------------------------------------------------------
-
 template <class Stepper_t, typename Real_t, typename Int_t, class Equation_t, class MagField_t>
 inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::IntegrateStep(
     const Real_t yStart[], const Real_t dydx[], int charge,
     Real_t &xCurrent, // InOut
-    Real_t htry, MagField_t magField,
+    Real_t htry, const MagField_t &magField,
     // Real_t eps_rel_max,
     Real_t yEnd[],      // Out - values
     Real_t next_dydx[], //     - next derivative
@@ -273,9 +210,10 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
                                    yErr,       //          estimated errors,
                                    next_dydx); //          next value of dydx
 
-  ErrorEstimatorRK errorEstimator(fEpsilonRelativeMax, fMinimumStep);
+  ErrorEstimatorRK errorEstimator(fEpsilonRelativeMax);
   Real_t errmax_sq = errorEstimator.EstimateSquareError(yErr, htry, magMomentumSq);
-
+  // printf("magMomentumSq %.15f, yerr: %.15f %.15f %.15f %.15f %.15f %.15f\n", magMomentumSq, yErr[0], yErr[1],
+  // yErr[2], yErr[3], yErr[4], yErr[5] ); printf("errmax_sq %f for htry %f\n", errmax_sq, htry);
   bool goodStep = errmax_sq <= 1.0;
   if (goodStep) {
     xCurrent += htry;
@@ -296,46 +234,11 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 
     if (xCurrent + hnext == xCurrent) {
       // Serious Problem --- under FLOW !!!   Report it ??????????????????????????
+      printf("This should never happen, under flow in next step\n");
       hnext = 2.0 * vecCore::math::Max(htemp, htry);
     }
   }
   return goodStep;
-}
-
-// ----------------------------------------------------------------------------------------
-
-/**
- * this function propagates the track along the "Runge-Kutta" solution by a step step
- * input: current position (x0, y0, z0), current direction ( dirX0, dirY0, dirZ0 ), some particle properties
- * output: new position, new direction of particle
- */
-template <class Stepper_t, typename Real_t, typename Int_t, class Equation_t, class MagField_t>
-inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::Advance(
-    Real_t const &x0, Real_t const &y0, Real_t const &z0, Real_t const &dirX0, Real_t const &dirY0, Real_t const &dirZ0,
-    Int_t const &charge, Real_t const &momentum, Real_t const &step, MagField_t const &magField,
-    Real_t &htry, // Suggested integration step -- from previous stages
-    Real_t &x, Real_t &y, Real_t &z, Real_t &dx, Real_t &dy, Real_t &dz, Real_t dydx_next[Nvar],
-    Real_t &lenAdvanced, // how far it advanced
-    unsigned int &totalTrials, unsigned int maxTrials)
-{
-  vecgeom::Vector3D<Real_t> position(x0, y0, z0);
-  vecgeom::Vector3D<Real_t> startDirection(dirX0, dirY0, dirZ0);
-  vecgeom::Vector3D<Real_t> endPosition, endDirection;
-
-  // position.Set( x0, y0, z0);
-  // startDirection.Set( dirX0, dirY0, dirZ0);
-
-  bool done = Advance(position, startDirection, charge, momentum, step, magField, htry, endPosition, endDirection,
-                      dydx_next, lenAdvanced, maxTrials, totalTrials);
-  x         = endPosition.x();
-  y         = endPosition.y();
-  z         = endPosition.z();
-  dx        = endDirection.x();
-  dy        = endDirection.y();
-  dz        = endDirection.z();
-
-  // PrintStep(position, startDirection, charge, momentum, step, endPosition, endDirection);
-  return done;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -366,7 +269,7 @@ inline __host__ __device__ void RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
     vecgeom::Vector3D<Real_t> &endDirection)
 {
   // Debug printing of input & output
-  printf(" HelixSteper::PrintStep \n");
+  printf(" RKStepper::PrintStep \n");
   const int vectorSize = vecCore::VectorSize<Real_t>();
   Real_t x0, y0, z0, dirX0, dirY0, dirZ0;
   Real_t x, y, z, dx, dy, dz;

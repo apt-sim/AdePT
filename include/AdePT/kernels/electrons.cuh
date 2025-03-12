@@ -2,6 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/navigation/AdePTNavigator.h>
+
+#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
+// Classes for Runge-Kutta integration
+#include <AdePT/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/magneticfield/DormandPrinceRK45.h>
+#include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
@@ -46,18 +52,30 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+#ifdef ADEPT_USE_EXT_BFIELD
+  constexpr int Nvar           = 6;
+  using Field_t                = GeneralMagneticField; // UniformMagneticField;
+  using Equation_t             = MagneticFieldEquation<Field_t>;
+  using Stepper_t              = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using RkDriver_t             = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  constexpr int max_iterations = 10;
 
+  // Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+
+  auto &magneticField = *gMagneticField;
+#else
+  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+#endif
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot           = (*active)[i];
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
-    currentTrack.stepCounter++; // to be moved to common part as soon as Tracks are unified
-    auto navState = currentTrack.navState;
+    auto navState       = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
 #ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
     const int lvolID = navState.Top()->GetLogicalVolume()->id();
@@ -77,10 +95,24 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   constexpr bool returnAllSteps     = false;
   bool returnLastStep               = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
   constexpr int Pdg                 = IsElectron ? 11 : -11;
+#ifdef ADEPT_USE_EXT_BFIELD
+  constexpr int Nvar           = 6;
+  using Field_t                = GeneralMagneticField; // UniformMagneticField;
+  using Equation_t             = MagneticFieldEquation<Field_t>;
+  using Stepper_t              = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using RkDriver_t             = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  constexpr int max_iterations = 10;
+
+  // Field_t magneticField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue)); // needed for UniformMagneticField
+
+  auto &magneticField = *gMagneticField;
+#else
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+#endif
 
   int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -107,6 +139,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double globalTime = currentTrack.globalTime;
     double localTime  = currentTrack.localTime;
     double properTime = currentTrack.properTime;
+    currentTrack.stepCounter++;
+    if (currentTrack.stepCounter >= maxSteps) {
+      printf("Killing e-/+ event %d E=%f lvol=%d after %d steps.\n", currentTrack.eventId, eKin, lvolID,
+             currentTrack.stepCounter);
+      continue;
+    }
 
     auto survive = [&](bool leak = false) {
       returnLastStep          = false; // track survived, do not force return of step
@@ -184,11 +222,28 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
     theTrack->SetSafety(safety);
     bool restrictedPhysicalStepLength = false;
+
+    double safeLength = 0.;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+    if (gMagneticField) {
+#else
     if (BzFieldValue != 0) {
+#endif
       const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
       // Distance along the track direction to reach the maximum allowed error
-      const double safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
 
+#ifdef ADEPT_USE_EXT_BFIELD
+      // SEVERIN: to be checked if we can use float
+      vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
+      vecgeom::Vector3D<double> B0fieldVec =
+          magneticField.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
+      safeLength =
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
+              momentumVec, B0fieldVec, Charge);
+#else
+      safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
+#endif
       constexpr int MaxSafeLength = 10;
       double limit                = MaxSafeLength * safeLength;
       limit                       = safety > limit ? safety : limit;
@@ -233,10 +288,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     long hitsurf_index = -1;
     double geometryStepLength;
     vecgeom::NavigationState nextState;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+    if (gMagneticField) {
+      int iterDone = -1;
+      geometryStepLength =
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
+              magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
+              nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
+              // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
+              max_iterations, iterDone, slot);
+#else
     if (BzFieldValue != 0) {
       geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index,
           propagated, safety);
+#endif
     } else {
 #ifdef ADEPT_USE_SURF
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
@@ -247,6 +314,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
       pos += geometryStepLength * dir;
     }
+
+    // punish miniscule steps by increasing the looperCounter by 10
+    if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -346,7 +416,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // For now, just count that we hit something.
         reached_interaction = false;
         // Kill the particle if it left the world.
-        if (!nextState.IsOutside()) {
+
+        if (++currentTrack.looperCounter > 200) {
+          // Kill loopers that are scraping a boundary
+          printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                 "physicsStepLength=%E "
+                 "safety=%E\n",
+                 eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+                 geometricalStepLengthFromPhysics, safety);
+          continue;
+        } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
           // This will happen after recording the step
           cross_boundary = true;
@@ -361,6 +440,17 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       } else if (!propagated || restrictedPhysicalStepLength) {
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
+
+        if (++currentTrack.looperCounter > 200) {
+          // Kill loopers that are not advancing in free space
+          printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                 "physicsStepLength=%E "
+                 "safety=%E\n",
+                 eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+                 geometricalStepLengthFromPhysics, safety);
+          continue;
+        }
+
         survive();
         reached_interaction = false;
       } else if (winnerProcessIndex < 0) {
@@ -369,6 +459,18 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         reached_interaction = false;
       }
     }
+
+    // reset Looper counter if limited by discrete interaction or MSC
+    if (reached_interaction) currentTrack.looperCounter = 0;
+
+    // keep debug printout for now, needed for identifying more slow particles
+    // if (activeSize == 1) {
+    //   printf("Stuck particle!: E=%E event=%d loop=%d step=%d energyDeposit=%E geoStepLength=%E "
+    //     "physicsStepLength=%E safety=%E  reached_interaction %d winnerProcessIndex %d onBoundary %d propagated %d\n",
+    //     eKin, currentTrack.eventId, currentTrack.looperCounter, currentTrack.stepCounter, energyDeposit,
+    //     geometryStepLength, geometricalStepLengthFromPhysics, safety, reached_interaction, winnerProcessIndex,
+    //     nextState.IsOnBoundary(), propagated);
+    // }
 
     if (reached_interaction && !stopped) {
       // Reset number of interaction left for the winner discrete process.

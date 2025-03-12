@@ -43,13 +43,17 @@ public:
   }
 
   /** @brief Templated field interface */
-  template <typename Real_tp1, typename Real_tp2>
-  __host__ __device__ void Evaluate(Real_tp1 /*x*/, Real_tp1 /*y*/, Real_tp1 /*z*/, Real_tp2 &Bx, Real_tp2 &By,
-                                    Real_tp2 &Bz) const
+  template <typename Real_t>
+  __host__ __device__ auto Evaluate(Real_t x, Real_t y, Real_t z) const -> vecgeom::Vector3D<Real_t>
   {
-    Bx = Real_tp2(fFieldComponents.x());
-    By = Real_tp2(fFieldComponents.y());
-    Bz = Real_tp2(fFieldComponents.z());
+    return {Real_t(fFieldComponents.x()), Real_t(fFieldComponents.y()), Real_t(fFieldComponents.z())};
+  }
+
+  /** @brief Templated field interface */
+  template <typename Real_t>
+  __host__ __device__ auto Evaluate(const vecgeom::Vector3D<Real_t> & /*position*/) const -> vecgeom::Vector3D<Real_t>
+  {
+    return {Real_t(fFieldComponents.x()), Real_t(fFieldComponents.y()), Real_t(fFieldComponents.z())};
   }
 
   /** @brief Interface to evaluate field at location */

@@ -43,7 +43,8 @@ private:
 
   G4UIcmdWithAString *fFileNameCmd = nullptr;
 
-  G4UIcmdWith3VectorAndUnit *fFieldCmd = nullptr;
+  G4UIcmdWith3VectorAndUnit *fFieldCmd  = nullptr;
+  G4UIcmdWithAString *fFieldFileNameCmd = nullptr;
 };
 
 #endif

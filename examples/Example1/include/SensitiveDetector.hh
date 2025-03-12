@@ -31,7 +31,6 @@
 #include "SimpleHit.hh"
 
 #include "G4VSensitiveDetector.hh"
-#include <set>
 
 #include <unordered_map>
 #include <set>

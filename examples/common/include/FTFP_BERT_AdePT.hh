@@ -4,12 +4,13 @@
 #ifndef FTFP_BERT_AdePT_h
 #define FTFP_BERT_AdePT_h 1
 
+#include <AdePT/integration/AdePTTrackingManager.hh>
+#include <AdePT/integration/AdePTPhysics.hh>
+
 #include <CLHEP/Units/SystemOfUnits.h>
 
 #include "globals.hh"
 #include "G4VModularPhysicsList.hh"
-#include <AdePT/integration/AdePTTrackingManager.hh>
-#include <AdePT/integration/AdePTPhysics.hh>
 
 class FTFP_BERT_AdePT : public G4VModularPhysicsList {
 public:

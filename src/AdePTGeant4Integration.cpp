@@ -628,10 +628,13 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
 
 double AdePTGeant4Integration::GetUniformFieldZ() const
 {
-  G4UniformMagField *field =
-      (G4UniformMagField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
-  if (field)
-    return field->GetConstantFieldValue()[2];
-  else
+  G4MagneticField *field =
+      (G4MagneticField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
+  if (field) {
+    G4double origin[3] = {0., 0., 0.};
+    G4double Bfield[3] = {0., 0., 0.};
+    field->GetFieldValue(origin, Bfield);
+    return Bfield[2];
+  } else
     return 0;
 }

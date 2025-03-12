@@ -65,6 +65,7 @@ set(ADEPT_UNIT_TESTS_BASE
   test_queue.cu                # Unit test for mpmc_bounded_queue
   test_track_block.cu          # Unit test for BlockData
   test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
+  # test_Bfield_step_debugger.cpp # experimental test to debug single stuck rays in AdePT
 )
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")

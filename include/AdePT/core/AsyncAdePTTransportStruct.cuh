@@ -9,6 +9,7 @@
 // #include <AdePT/core/AsyncAdePTTransport.hh>
 #include <AdePT/core/PerEventScoringImpl.cuh>
 #include <AdePT/core/Track.cuh>
+#include <AdePT/magneticfield/GeneralMagneticField.h>
 
 #include <AdePT/base/SlotManager.cuh>
 #include <AdePT/base/ResourceManagement.cuh>
@@ -205,6 +206,9 @@ extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
 extern __constant__ __device__ double BzFieldValue;
 extern __constant__ __device__ bool ApplyCuts;
 constexpr double kPush = 1.e-8 * copcore::units::cm;
+#ifdef ADEPT_USE_EXT_BFIELD
+__device__ GeneralMagneticField *gMagneticField = nullptr;
+#endif
 
 } // namespace AsyncAdePT
 
