@@ -148,11 +148,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       continue;
     }
 
-    if (allowFinishOffEvent[currentTrack.threadId] && InFlightStats->perEventInFlight[currentTrack.threadId] < 20 &&
-        InFlightStats->perEventInFlight[currentTrack.threadId] != 0) {
+    if (allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < 20 &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
       printf("Thread %d Killing e-/e+ when killing the %d last particles of event %d E=%f lvol=%d after %d steps.\n",
-             currentTrack.threadId, InFlightStats->perEventInFlight[currentTrack.threadId], currentTrack.eventId, eKin,
-             lvolID, currentTrack.stepCounter);
+             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
       continue;
     }
 

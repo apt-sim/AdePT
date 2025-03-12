@@ -874,10 +874,6 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         AdvanceEventStates(EventState::Transporting, EventState::WaitingForTransportToFinish, eventStates);
         AdvanceEventStates(EventState::InjectionCompleted, EventState::Transporting, eventStates);
 
-        // FIXME not so elegant, I'd like to avoid this to be able to launch the kernels asynchronously and not
-        // back-to-back
-        waitForOtherStream(statsStream, gpuState.stream);
-
         // Reset all counters count the currently flying population
         ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
         CountCurrentPopulation<<<ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
@@ -887,6 +883,10 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
             allParticleQueues, gpuState.stats_dev, tracksAndSlots);
 
         waitForOtherStream(gpuState.stream, statsStream);
+
+        COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.stats_dev->perEventInFlightPrevious,
+                                           gpuState.stats_dev->perEventInFlight, kMaxThreads * sizeof(unsigned int),
+                                           cudaMemcpyDeviceToDevice, statsStream));
 
         // Get results to host:
         COPCORE_CUDA_CHECK(
