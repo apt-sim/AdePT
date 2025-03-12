@@ -117,20 +117,19 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak)
-      {
+      if (leak) {
         // DEBUG
         // printf("LEAK\n");
         leakedQueue->push_back(slot);
-      }else
+      } else
         activeQueue->push_back(slot);
 #else
       currentTrack.CopyTo(trackdata, Pdg);
-      if (leak){
+      if (leak) {
         // DEBUG
         // printf("LEAK\n");
         leakedQueue->push_back(trackdata);
-      }else
+      } else
         electrons->fNextTracks->push_back(slot);
 #endif
     };
