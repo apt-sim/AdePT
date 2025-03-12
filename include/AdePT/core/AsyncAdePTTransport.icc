@@ -270,7 +270,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
   // to device buffer is often full)
   // Allocate buffers to transport particles to/from device. Scale the size of the staging area
   // with the number of threads.
-  fBuffer = std::make_unique<TrackBuffer>(8192 * fNThread, 1024 * fNThread, fNThread);
+  fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread, 1024 * fNThread, fNThread);
 
   assert(fBuffer != nullptr);
 

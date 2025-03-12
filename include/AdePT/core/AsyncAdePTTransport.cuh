@@ -820,12 +820,19 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** Transport ***
       // ------------------
 
+      AllowFinishOffEventArray allowFinishOffEvent;
+      for (int i = 0; i < kMaxThreads; ++i) {
+        allowFinishOffEvent.flags[i] =
+            eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish;
+      }
+
       // *** ELECTRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -836,7 +843,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
@@ -847,7 +855,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps,
             returnLastStep); //, gpuState.gammaInteractions);
 
         // constexpr unsigned int intThreads = 128;
@@ -864,6 +873,10 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       {
         AdvanceEventStates(EventState::Transporting, EventState::WaitingForTransportToFinish, eventStates);
         AdvanceEventStates(EventState::InjectionCompleted, EventState::Transporting, eventStates);
+
+        // FIXME not so elegant, I'd like to avoid this to be able to launch the kernels asynchronously and not
+        // back-to-back
+        waitForOtherStream(statsStream, gpuState.stream);
 
         // Reset all counters count the currently flying population
         ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);

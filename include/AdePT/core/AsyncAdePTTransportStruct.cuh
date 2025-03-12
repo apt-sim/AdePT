@@ -142,6 +142,13 @@ struct Stats {
   unsigned int hitBufferOccupancy;
 };
 
+/// @brief Array of flags whether the event can be finished off
+struct AllowFinishOffEventArray {
+  bool flags[kMaxThreads];
+
+  __host__ __device__ bool operator[](int idx) const { return flags[idx]; }
+};
+
 struct QueueIndexPair {
   unsigned int slot;
   short queue;
