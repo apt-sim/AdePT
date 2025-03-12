@@ -169,53 +169,6 @@ __global__ void EnqueueTracks(AllParticleQueues allQueues, adept::MParrayT<Queue
 __device__ unsigned int nFromDevice_dev;
 __device__ unsigned int nRemainingLeaks_dev;
 
-__global__ void DEBUGPRINT(unsigned int msg_code, unsigned int numTransferred, adept::MParray *electrons_leakedTracks,
-                           adept::MParray *positrons_leakedTracks, adept::MParray *gammas_leakedTracks)
-{
-  size_t electronsCurrentSize = electrons_leakedTracks->size();
-  size_t positronsCurrentSize = positrons_leakedTracks->size();
-  size_t gammasCurrentSize    = gammas_leakedTracks->size();
-
-  switch (msg_code) {
-  case 0:
-    printf("HOST CHECK\n");
-    break;
-  case 1:
-    printf("AFTER FILLING STAGING BUFFER\n");
-    break;
-  case 2:
-    printf("AFTER CLEARING QUEUES\n");
-    break;
-  case 3:
-    printf("AFTER SWAPPING QUEUES ON HOST\n");
-    break;
-  case 4:
-    printf("END OF TRANSPORT LOOP ITERATION\n");
-    break;
-  default:
-    printf("MESSAGE NOT DEFINED\n");
-    break;
-  }
-
-  // printf("Electrons: current=%p, next=%p\n", (void*)electrons_leakedTracksCurrent,
-  // (void*)electrons_leakedTracksNext); printf("Positrons: current=%p, next=%p\n",
-  // (void*)positrons_leakedTracksCurrent, (void*)positrons_leakedTracksNext); printf("Gammas: current=%p, next=%p\n",
-  // (void*)gammas_leakedTracksCurrent, (void*)gammas_leakedTracksNext);
-  printf("Electrons: current=%ld\n", electronsCurrentSize);
-  printf("Positrons: current=%ld\n", positronsCurrentSize);
-  printf("Gammas: current=%ld\n", gammasCurrentSize);
-  printf("Total: %ld, Transferred: %d\n", electronsCurrentSize + positronsCurrentSize + gammasCurrentSize,
-         numTransferred);
-}
-
-// __global__ void DEBUGTMP(AsyncAdePT::TrackDataWithIDs *fromDevice)
-// {
-//   for (unsigned int i = threadIdx.x; i < nFromDevice_dev; i += blockDim.x) {
-//     printf("Track %d: pdg=%d, threadId=%d, eventId=%d\n", i, fromDevice[i].pdg, fromDevice[i].threadId,
-//     fromDevice[i].eventId);
-//   }
-// }
-
 // Copy particles leaked from the GPU region into a compact buffer
 __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs *fromDevice,
                                      unsigned int maxFromDeviceBuffer, unsigned int nAlreadyTransferred)
