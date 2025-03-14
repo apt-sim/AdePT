@@ -169,6 +169,14 @@ __global__ void EnqueueTracks(AllParticleQueues allQueues, adept::MParrayT<Queue
 __device__ unsigned int nFromDevice_dev;
 __device__ unsigned int nRemainingLeaks_dev;
 
+// __global__ void PrintBufferStats(AllLeaked all)
+// {
+//   printf("Free list / Used slots: %u/%u (%u slots left)\n",
+//       all.leakedGammas.fSlotManager->fFreeCounter,
+//       all.leakedGammas.fSlotManager->fSlotCounter,
+//       all.leakedGammas.fSlotManager->fSlotCounter - all.leakedGammas.fSlotManager->fFreeCounter);
+// }
+
 // Copy particles leaked from the GPU region into a compact buffer
 __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs *fromDevice,
                                      unsigned int maxFromDeviceBuffer, unsigned int nAlreadyTransferred)
@@ -177,11 +185,14 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
   const auto numPositrons = all.leakedPositrons.fLeakedQueue->size();
   const auto numGammas    = all.leakedGammas.fLeakedQueue->size();
   const auto total        = numElectrons + numPositrons + numGammas - nAlreadyTransferred;
+  const auto nToCopy      = total < maxFromDeviceBuffer ? total : maxFromDeviceBuffer;
+  
   if (blockIdx.x == 0 && threadIdx.x == 0) {
-    nFromDevice_dev     = total < maxFromDeviceBuffer ? total : maxFromDeviceBuffer;
-    nRemainingLeaks_dev = total - nFromDevice_dev;
-    printf("e-: %ld, e+: %ld, gammas: %ld, total: %ld, already transferred: %d, remaining after this call: %d\n",
-           numElectrons, numPositrons, numGammas, total, nAlreadyTransferred, nRemainingLeaks_dev);
+    // Update the number of particles that will be copied in this iteration
+    nFromDevice_dev     = nToCopy;
+    // nRemainingLeaks_dev = total - nFromDevice_dev;
+    // printf("e-: %ld, e+: %ld, gammas: %ld, total: %ld, already transferred: %d, to transfer: %d, remaining after this call: %d\n",
+    //        numElectrons, numPositrons, numGammas, total, nAlreadyTransferred, nFromDevice_dev, nRemainingLeaks_dev);
   }
 
   for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred;
@@ -237,6 +248,8 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       fromDevice[idx].navState                   = track->navState;
       fromDevice[idx].originNavState             = track->originNavState;
 
+      // printf("i = %u, nAlreadyTransferred = %u, nAlreadyTransferred + nFromDevice_dev = %u\n", 
+      //           i, nAlreadyTransferred, nAlreadyTransferred + nFromDevice_dev);
       // printf("Used slots on free list: %u/%u\n",
       //                           leakedTracks->fSlotManager->fFreeCounter,
       //                           leakedTracks->fSlotManager->fFreeListSize);
@@ -599,8 +612,8 @@ void AdvanceExtractState(GPUstate::ExtractState oldState, GPUstate::ExtractState
   auto success = extractState.compare_exchange_strong(expected, newState, std::memory_order_release, std::memory_order_relaxed);
 #ifndef NDEBUG
   if (!success)
-    std::cerr << "Error: Extract state is different than expected. Expected: " << expected << 
-              " Found: " << extractState.load() << std::endl;
+    std::cerr << "Error: Extract state is different than expected. Expected: " << (uint)expected << 
+              " Found: " << (uint)extractState.load() << std::endl;
   assert(success);
 #endif
 }
@@ -946,8 +959,10 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         // // Populate the staging buffer and copy to host
         constexpr unsigned int block_size = 128;
         const unsigned int grid_size      = (trackBuffer.fNumFromDevice + block_size - 1) / block_size;
+        // PrintBufferStats<<<1, 1, 0, transferStream>>>(allLeaked);
         FillFromDeviceBuffer<<<grid_size, block_size, 0, transferStream>>>(
             allLeaked, trackBuffer.fromDevice_dev.get(), trackBuffer.fNumFromDevice, trackBuffer.fNumLeaksTransferred);
+        // PrintBufferStats<<<1, 1, 0, transferStream>>>(allLeaked);
         // Copy the number of leaked tracks to host
         COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(trackBuffer.nFromDevice_host.get(), nFromDevice_dev,
                                                      sizeof(unsigned int), 0, cudaMemcpyDeviceToHost, transferStream));
@@ -1033,7 +1048,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
           AdvanceEventStates(EventState::FlushingTracks, EventState::DeviceFlushed, eventStates);
           
           // DEBUG:
-            printf("\033[48;5;22mFLUSH FINISHED\033[0m\n");
+          printf("\033[48;5;22mFLUSH FINISHED\033[0m\n");
 
         } else {
           // There are still tracks left on device
