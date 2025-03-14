@@ -42,6 +42,12 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ${CMAKE_CXX_STANDARD_REQUIRED})
 set(CMAKE_CUDA_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
+
+# DEBUG
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -g") 
+# SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
+# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address") 
+
 #----------------------------------------------------------------------------#
 # User options
 #----------------------------------------------------------------------------#
