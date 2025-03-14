@@ -116,11 +116,6 @@ void AdePTGeant4Integration::MapVecGeomToG4(std::vector<G4VPhysicalVolume const 
       auto g4pvol_d = g4_lvol->GetDaughter(id);
       auto pvol_d   = vg_lvol->GetDaughters()[id];
 
-      // VecGeom does not strip pointers from logical volume names
-      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
-        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
-                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
-                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
       visitGeometry(g4pvol_d, pvol_d);
     }
   };
@@ -258,11 +253,6 @@ void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume cons
     const auto g4pvol_d = g4_lvol->GetDaughter(id);
     const auto pvol_d   = vg_lvol->GetDaughters()[id];
 
-    // VecGeom does not strip pointers from logical volume names
-    if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
-      throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
-                               std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
-                               std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
     visitGeometry(g4pvol_d, pvol_d, context);
   }
 }
@@ -331,11 +321,6 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
       auto g4pvol_d = g4_lvol->GetDaughter(id);
       auto pvol_d   = vg_lvol->GetDaughters()[id];
 
-      // VecGeom does not strip pointers from logical volume names
-      if (std::string(pvol_d->GetLogicalVolume()->GetName()).rfind(g4pvol_d->GetLogicalVolume()->GetName(), 0) != 0)
-        throw std::runtime_error("Fatal: CheckGeometry: Volume names " +
-                                 std::string(pvol_d->GetLogicalVolume()->GetName()) + " and " +
-                                 std::string(g4pvol_d->GetLogicalVolume()->GetName()) + " mismatch");
       visitGeometry(g4pvol_d, pvol_d);
     }
   };
