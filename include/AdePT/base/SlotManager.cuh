@@ -109,7 +109,31 @@ __device__ unsigned int SlotManager::NextSlot()
 
 __device__ void SlotManager::MarkSlotForFreeing(unsigned int toBeFreed)
 {
+  //////////////// DEBUG /////////////////
+  // for(int i=0; i<fFreeCounter; i++){
+  //   if(fToFreeList[i] == toBeFreed){
+  //     printf("ERROR: Double free. Slot: %u, FreeCounter: %d\n", toBeFreed, fFreeCounter);
+  //     return;
+  //   }
+  // }
+  ////////////////////////////////////////
+
   const auto idx = atomicAdd(&fFreeCounter, 1);
+
+  //////////////// DEBUG /////////////////
+  if(fFreeCounter > fSlotCounter){
+    printf("ERROR: Trying to free more slots than used. FreeCounter: %d, SlotCounter: %d\n", fFreeCounter, fSlotCounter);
+    // for(int i=0; i<fFreeCounter; i++){
+    //   if(fToFreeList[i] == toBeFreed){
+    //     printf("ERROR: Double free. Slot: %u, FreeCounter: %d\n", toBeFreed, fFreeCounter);
+    //     return;
+    //   }
+    // }
+    asm("trap;");
+    return;
+  }
+  ////////////////////////////////////////
+
   if (idx >= fFreeListSize) {
     COPCORE_EXCEPTION("Out of slots in freelist in SlotManager::MarkSlotForFreeing");
   }

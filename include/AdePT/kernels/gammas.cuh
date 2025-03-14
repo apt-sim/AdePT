@@ -24,7 +24,7 @@ namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
+    TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *nextActiveQueue,
                     adept::MParray *leakedQueue, Scoring *userScoring)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
@@ -94,7 +94,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // printf("LEAK\n");
         leakedQueue->push_back(slot);
       } else
-        activeQueue->push_back(slot);
+        nextActiveQueue->push_back(slot);
 #else
       currentTrack.CopyTo(trackdata, Pdg);
       if (leak) {
