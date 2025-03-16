@@ -90,14 +90,15 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       continue;
     }
 
-    if (allowFinishOffEvent[currentTrack.threadId] &&
-        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < 20 &&
+#ifdef ASYNC_MODE
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
         InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
       printf("Thread %d Killing gammas when killing the %d last particles of event %d E=%f lvol=%d after %d steps.\n",
              currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
              currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
       continue;
     }
+#endif
 
     // Write local variables back into track and enqueue
     auto survive = [&](bool leak = false) {

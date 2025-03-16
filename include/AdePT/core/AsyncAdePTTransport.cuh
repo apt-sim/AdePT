@@ -650,7 +650,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                    std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel, bool returnAllSteps,
-                   bool returnLastStep)
+                   bool returnLastStep, unsigned short lastNParticlesOnCPU)
 {
   // NVTXTracer tracer{"TransportLoop"};
 
@@ -737,6 +737,11 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     //         {EventState::ScoringRetrieved, "ScoringRetrieved"}};
     // #endif
 
+    std::chrono::steady_clock::time_point startTime;
+    if (debugLevel >= 2) {
+      startTime = std::chrono::steady_clock::now();
+    }
+
     for (unsigned int iteration = 0;
          inFlight > 0 || gpuState.injectState != InjectState::Idle || gpuState.extractState != ExtractState::Idle ||
          std::any_of(eventStates.begin(), eventStates.end(), needTransport);
@@ -822,8 +827,11 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 
       AllowFinishOffEventArray allowFinishOffEvent;
       for (int i = 0; i < kMaxThreads; ++i) {
-        allowFinishOffEvent.flags[i] =
-            eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish;
+        if (eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish) {
+          allowFinishOffEvent.flags[i] = lastNParticlesOnCPU;
+        } else {
+          allowFinishOffEvent.flags[i] = 0;
+        }
       }
 
       // *** ELECTRONS ***
@@ -1052,6 +1060,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       }
 
       if (debugLevel >= 3 && inFlight > 0 || (debugLevel >= 2 && iteration % 500 == 0)) {
+        auto elapsedTime = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count();
+        std::cerr << "Time elapsed: " << std::fixed << std::setprecision(6) << elapsedTime << "s ";
         std::cerr << inFlight << " in flight ";
         std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
                   << gpuState.stats->inFlight[ParticleType::Positron] << " "
@@ -1147,12 +1157,13 @@ void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit *begin, co
 std::thread LaunchGPUWorker(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                             std::condition_variable &cvG4Workers, std::vector<AdePTScoring> &scoring, int adeptSeed,
-                            int debugLevel, bool returnAllSteps, bool returnLastStep)
+                            int debugLevel, bool returnAllSteps, bool returnLastStep,
+                            unsigned short lastNParticlesOnCPU)
 {
   return std::thread{
-      &TransportLoop,     trackCapacity,         scoringCapacity,       numThreads,        std::ref(trackBuffer),
-      std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers), std::ref(scoring), adeptSeed,
-      debugLevel,         returnAllSteps,        returnLastStep};
+      &TransportLoop,     trackCapacity,         scoringCapacity,       numThreads,         std::ref(trackBuffer),
+      std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers), std::ref(scoring),  adeptSeed,
+      debugLevel,         returnAllSteps,        returnLastStep,        lastNParticlesOnCPU};
 }
 
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, G4HepEmState &g4hepem_state,

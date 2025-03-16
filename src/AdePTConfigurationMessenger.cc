@@ -76,6 +76,10 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetCovfieFileCmd = new G4UIcmdWithAString("/adept/setCovfieBfieldFile", this);
   fSetCovfieFileCmd->SetGuidance("Set the path the the covfie file for reading in an external magnetic field");
 
+  fSetFinishOnCpuCmd = new G4UIcmdWithAnInteger("/adept/FinishLastNParticlesOnCPU", this);
+  fSetFinishOnCpuCmd->SetGuidance("Set N, the number of last N particles per event that are finished on CPU. Default: "
+                                  "0. This is an important parameter for handling loopers in a magnetic field");
+
   fSetCUDAStackLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAStackLimit", this);
   fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
   fSetCUDAHeapLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAHeapLimit", this);
@@ -101,7 +105,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetHitBufferFlushThresholdCmd;
   delete fSetGDMLCmd;
   delete fSetCovfieFileCmd;
-  // delete fSetCUDAStackLimitCmd;
+  delete fSetFinishOnCpuCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -137,6 +141,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetCUDAStackLimit(fSetCUDAStackLimitCmd->GetNewIntValue(newValue));
   } else if (command == fSetCUDAHeapLimitCmd) {
     fAdePTConfiguration->SetCUDAHeapLimit(fSetCUDAHeapLimitCmd->GetNewIntValue(newValue));
+  } else if (command == fSetFinishOnCpuCmd) {
+    fAdePTConfiguration->SetLastNParticlesOnCPU(fSetFinishOnCpuCmd->GetNewIntValue(newValue));
   }
 }
 

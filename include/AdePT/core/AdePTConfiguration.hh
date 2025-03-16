@@ -43,6 +43,7 @@ public:
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
+  void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
 
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
@@ -59,6 +60,7 @@ public:
   int GetTransportBufferThreshold() { return fTransportBufferThreshold; }
   int GetCUDAStackLimit() { return fCUDAStackLimit; }
   int GetCUDAHeapLimit() { return fCUDAHeapLimit; }
+  unsigned short GetLastNParticlesOnCPU() { return fLastNParticlesOnCPU; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
@@ -81,6 +83,8 @@ private:
   float fHitBufferFlushThreshold{0.8};
   double fMillionsOfTrackSlots{1};
   double fMillionsOfHitSlots{1};
+  unsigned short fLastNParticlesOnCPU{0};
+
   std::vector<std::string> fGPURegionNames{};
   int fNThread = -1;
 
