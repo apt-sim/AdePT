@@ -827,6 +827,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 
       AllowFinishOffEventArray allowFinishOffEvent;
       for (int i = 0; i < kMaxThreads; ++i) {
+        // if waiting for transport to finish, the last N particles may be finished on CPU
         if (eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish) {
           allowFinishOffEvent.flags[i] = lastNParticlesOnCPU;
         } else {
@@ -892,6 +893,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 
         waitForOtherStream(gpuState.stream, statsStream);
 
+        // Copy the number of particles in flight to the previous one, which is used within the kernel
         COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.stats_dev->perEventInFlightPrevious,
                                            gpuState.stats_dev->perEventInFlight, kMaxThreads * sizeof(unsigned int),
                                            cudaMemcpyDeviceToDevice, statsStream));
