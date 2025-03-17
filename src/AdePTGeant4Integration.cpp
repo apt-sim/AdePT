@@ -578,6 +578,10 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // Create track
   G4Track *secondary = new G4Track(dynamique, track.globalTime, posi);
 
+  // FIXME temporary hack! We set the status of leaked tracks to fStopButAlive to be able to distinguish them to keep
+  // them on the CPU until they die!
+  secondary->SetTrackStatus(fStopButAlive);
+
   // Set time information
   secondary->SetLocalTime(track.localTime);
   secondary->SetProperTime(track.properTime);

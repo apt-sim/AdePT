@@ -148,16 +148,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       continue;
     }
 
-#ifdef ASYNC_MODE
-    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      printf("Thread %d Killing e-/e+ when killing the %d last particles of event %d E=%f lvol=%d after %d steps.\n",
-             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-      continue;
-    }
-#endif
-
     auto survive = [&](bool leak = false) {
       returnLastStep          = false; // track survived, do not force return of step
       currentTrack.eKin       = eKin;
@@ -183,6 +173,17 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         electrons->fNextTracks->push_back(slot);
 #endif
     };
+
+#ifdef ASYNC_MODE
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+      survive(/*leak*/ true);
+      continue;
+    }
+#endif
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
@@ -436,6 +437,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                  geometricalStepLengthFromPhysics, safety);
+          // survive(/*leak*/ true);
+          // slotManager.MarkSlotForFreeing(slot);
           continue;
         } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
@@ -460,6 +463,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                  geometricalStepLengthFromPhysics, safety);
+          // survive(/*leak*/ true);
+          // slotManager.MarkSlotForFreeing(slot);
           continue;
         }
 
