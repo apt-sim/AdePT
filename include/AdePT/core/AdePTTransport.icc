@@ -37,14 +37,14 @@ void CopySurfaceModelToGPU();
 void FreeGPU(GPUstate &, G4HepEmState *);
 template <typename IntegrationLayer>
 void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GPUstate &gpuState, AdeptScoring *scoring,
-               AdeptScoring *scoring_dev);
+               AdeptScoring *scoring_dev, int debugLevel);
 
 } // namespace adept_impl
 
 template <typename IntegrationLayer>
 AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configuration)
 {
-  fDebugLevel        = 0;
+  fDebugLevel        = configuration.GetVerbosity();
   fBufferThreshold   = configuration.GetTransportBufferThreshold();
   fMaxBatch          = 2 * configuration.GetTransportBufferThreshold();
   fTrackInAllRegions = configuration.GetTrackInAllRegions();
@@ -294,7 +294,7 @@ void AdePTTransport<IntegrationLayer>::Shower(int event, int /*threadId*/)
               << "GPU transporting event " << event << " for CPU thread " << fIntegrationLayer.GetThreadID() << ": "
               << std::flush;
   }
-  adept_impl::ShowerGPU(fIntegrationLayer, event, fBuffer, *fGPUstate, fScoring, fScoring_dev);
+  adept_impl::ShowerGPU(fIntegrationLayer, event, fBuffer, *fGPUstate, fScoring, fScoring_dev, fDebugLevel);
 
   for (auto const &track : fBuffer.fromDevice) {
     if (track.pdg == 11)

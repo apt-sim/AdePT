@@ -383,11 +383,10 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
 
 template <typename IntegrationLayer>
 void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &buffer, GPUstate &gpuState,
-               AdeptScoring *scoring, AdeptScoring *scoring_dev)
+               AdeptScoring *scoring, AdeptScoring *scoring_dev, int debugLevel)
 {
   using TrackData   = adeptint::TrackData;
   using VolAuxArray = adeptint::VolAuxArray;
-  auto &config      = adeptint::CommonConfig::GetInstance();
   // Capacity of the different containers aka the maximum number of particles.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
 
@@ -565,7 +564,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     numElectrons = gpuState.allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
     numPositrons = gpuState.allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
     numGammas    = gpuState.allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight;
-    if (config.fDebugLevel > 1) {
+    if (debugLevel > 1) {
       printf("iter %d: elec %d, pos %d, gam %d, leak %d\n", niter++, numElectrons, numPositrons, numGammas, numLeaked);
     }
     if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == previousGammas) {
@@ -582,7 +581,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
 
   } while (inFlight > 0 && loopingNo < 200);
 
-  if (config.fDebugLevel > 0) {
+  if (debugLevel > 0) {
     std::cout << inFlight << " in flight, " << numLeaked << " leaked, " << num_compact << " compacted\n";
   }
 

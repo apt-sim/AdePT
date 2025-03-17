@@ -40,17 +40,6 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
 // Common data structures used by the integration with Geant4
 namespace adeptint {
 
-/// @brief Common configuration data for AdePT transport
-struct CommonConfig {
-  int fDebugLevel; ///< Debug level
-
-  static CommonConfig &GetInstance()
-  {
-    static CommonConfig theConfig;
-    return theConfig;
-  }
-};
-
 /// @brief Auxiliary logical volume data. This stores in the same structure the material-cuts couple index,
 /// the sensitive volume handler index and the flag if the region is active for AdePT.
 struct VolAuxData {
