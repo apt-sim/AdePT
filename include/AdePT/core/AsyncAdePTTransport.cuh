@@ -28,6 +28,9 @@
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
+#ifdef ADEPT_USE_SURF
+#include <VecGeom/surfaces/cuda/BrepCudaManager.h>
+#endif
 
 #include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
@@ -391,6 +394,22 @@ __global__ void InitSlotManagers(SlotManager *mgr, std::size_t N)
 
 /// WIP: Free functions implementing the CUDA parts
 namespace async_adept_impl {
+
+void CopySurfaceModelToGPU()
+{
+// Copy surface data to GPU
+#ifdef ADEPT_USE_SURF
+#ifdef ADEPT_USE_SURF_SINGLE
+  using SurfData        = vgbrep::SurfData<float>;
+  using BrepCudaManager = vgbrep::BrepCudaManager<float>;
+#else
+  using SurfData        = vgbrep::SurfData<double>;
+  using BrepCudaManager = vgbrep::BrepCudaManager<double>;
+#endif
+  BrepCudaManager::Instance().TransferSurfData(SurfData::Instance());
+  printf("== Surface data transferred to GPU\n");
+#endif
+}
 
 G4HepEmState *InitG4HepEm()
 {
