@@ -42,12 +42,13 @@ public:
   static inline uint64_t fAdePTSeed = 1234567;
 
 private:
-  unsigned short fNThread{0};       ///< Number of G4 workers
-  unsigned int fTrackCapacity{0};   ///< Number of track slots to allocate on device
-  unsigned int fScoringCapacity{0}; ///< Number of hit slots to allocate on device
-  int fDebugLevel{0};               ///< Debug level
-  int fCUDAStackLimit{0};           ///< CUDA device stack limit
-  int fCUDAHeapLimit{0};            ///< CUDA device stack limit
+  unsigned short fNThread{0};             ///< Number of G4 workers
+  unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
+  unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
+  int fDebugLevel{0};                     ///< Debug level
+  int fCUDAStackLimit{0};                 ///< CUDA device stack limit
+  int fCUDAHeapLimit{0};                  ///< CUDA device heap limit
+  unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
   std::vector<IntegrationLayer> fIntegrationLayerObjects;
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
   std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker

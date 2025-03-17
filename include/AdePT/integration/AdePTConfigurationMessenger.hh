@@ -35,6 +35,7 @@ private:
   G4UIdirectory *fDir;
   G4UIcmdWithAnInteger *fSetCUDAStackLimitCmd;
   G4UIcmdWithAnInteger *fSetCUDAHeapLimitCmd;
+  G4UIcmdWithAnInteger *fSetFinishOnCpuCmd;
   G4UIcmdWithABool *fSetTrackInAllRegionsCmd;
   G4UIcmdWithABool *fSetCallUserSteppingActionCmd;
   G4UIcmdWithABool *fSetCallPostUserTrackingActionCmd;

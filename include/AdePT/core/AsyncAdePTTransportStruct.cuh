@@ -137,9 +137,17 @@ struct Stats {
   int leakedTracks[ParticleType::NumParticleTypes];
   float queueFillLevel[ParticleType::NumParticleTypes];
   float slotFillLevel;
-  unsigned int perEventInFlight[kMaxThreads];
+  unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
+  unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
   unsigned int perEventLeaked[kMaxThreads];
   unsigned int hitBufferOccupancy;
+};
+
+/// @brief Array of flags whether the event can be finished off
+struct AllowFinishOffEventArray {
+  unsigned short flags[kMaxThreads];
+
+  __host__ __device__ unsigned short operator[](int idx) const { return flags[idx]; }
 };
 
 struct QueueIndexPair {

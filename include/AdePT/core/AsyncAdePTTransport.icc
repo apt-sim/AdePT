@@ -50,7 +50,7 @@ std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, A
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
-                            std::vector<AdePTScoring> &, int, int, bool, bool);
+                            std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity,
                                                                                  int numThreads,
                                                                                  AsyncAdePT::TrackBuffer &trackBuffer,
@@ -88,7 +88,8 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
-      fReturnLastStep{configuration.GetCallPostUserTrackingAction()}, fBfieldFile{configuration.GetCovfieBfieldFile()}
+      fReturnLastStep{configuration.GetCallPostUserTrackingAction()}, fBfieldFile{configuration.GetCovfieBfieldFile()},
+      fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -270,14 +271,14 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
   // to device buffer is often full)
   // Allocate buffers to transport particles to/from device. Scale the size of the staging area
   // with the number of threads.
-  fBuffer = std::make_unique<TrackBuffer>(8192 * fNThread, 1024 * fNThread, fNThread);
+  fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread, 1024 * fNThread, fNThread);
 
   assert(fBuffer != nullptr);
 
   fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring);
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
                                                  fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel,
-                                                 fReturnAllSteps, fReturnLastStep);
+                                                 fReturnAllSteps, fReturnLastStep, fLastNParticlesOnCPU);
 }
 
 template <typename IntegrationLayer>

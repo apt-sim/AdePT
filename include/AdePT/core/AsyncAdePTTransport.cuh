@@ -650,7 +650,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                    std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel, bool returnAllSteps,
-                   bool returnLastStep)
+                   bool returnLastStep, unsigned short lastNParticlesOnCPU)
 {
   // NVTXTracer tracer{"TransportLoop"};
 
@@ -737,6 +737,11 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     //         {EventState::ScoringRetrieved, "ScoringRetrieved"}};
     // #endif
 
+    std::chrono::steady_clock::time_point startTime;
+    if (debugLevel >= 2) {
+      startTime = std::chrono::steady_clock::now();
+    }
+
     for (unsigned int iteration = 0;
          inFlight > 0 || gpuState.injectState != InjectState::Idle || gpuState.extractState != ExtractState::Idle ||
          std::any_of(eventStates.begin(), eventStates.end(), needTransport);
@@ -820,12 +825,23 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** Transport ***
       // ------------------
 
+      AllowFinishOffEventArray allowFinishOffEvent;
+      for (int i = 0; i < kMaxThreads; ++i) {
+        // if waiting for transport to finish, the last N particles may be finished on CPU
+        if (eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish) {
+          allowFinishOffEvent.flags[i] = lastNParticlesOnCPU;
+        } else {
+          allowFinishOffEvent.flags[i] = 0;
+        }
+      }
+
       // *** ELECTRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -836,7 +852,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
@@ -847,7 +864,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps,
             returnLastStep); //, gpuState.gammaInteractions);
 
         // constexpr unsigned int intThreads = 128;
@@ -874,6 +892,11 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
             allParticleQueues, gpuState.stats_dev, tracksAndSlots);
 
         waitForOtherStream(gpuState.stream, statsStream);
+
+        // Copy the number of particles in flight to the previous one, which is used within the kernel
+        COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.stats_dev->perEventInFlightPrevious,
+                                           gpuState.stats_dev->perEventInFlight, kMaxThreads * sizeof(unsigned int),
+                                           cudaMemcpyDeviceToDevice, statsStream));
 
         // Get results to host:
         COPCORE_CUDA_CHECK(
@@ -1039,6 +1062,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       }
 
       if (debugLevel >= 3 && inFlight > 0 || (debugLevel >= 2 && iteration % 500 == 0)) {
+        auto elapsedTime = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count();
+        std::cerr << "Time elapsed: " << std::fixed << std::setprecision(6) << elapsedTime << "s ";
         std::cerr << inFlight << " in flight ";
         std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
                   << gpuState.stats->inFlight[ParticleType::Positron] << " "
@@ -1134,12 +1159,13 @@ void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit *begin, co
 std::thread LaunchGPUWorker(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                             std::condition_variable &cvG4Workers, std::vector<AdePTScoring> &scoring, int adeptSeed,
-                            int debugLevel, bool returnAllSteps, bool returnLastStep)
+                            int debugLevel, bool returnAllSteps, bool returnLastStep,
+                            unsigned short lastNParticlesOnCPU)
 {
   return std::thread{
-      &TransportLoop,     trackCapacity,         scoringCapacity,       numThreads,        std::ref(trackBuffer),
-      std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers), std::ref(scoring), adeptSeed,
-      debugLevel,         returnAllSteps,        returnLastStep};
+      &TransportLoop,     trackCapacity,         scoringCapacity,       numThreads,         std::ref(trackBuffer),
+      std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers), std::ref(scoring),  adeptSeed,
+      debugLevel,         returnAllSteps,        returnLastStep,        lastNParticlesOnCPU};
 }
 
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, G4HepEmState &g4hepem_state,

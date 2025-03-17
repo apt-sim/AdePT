@@ -49,6 +49,8 @@ template <bool IsElectron, typename Scoring>
 static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
                                                           adept::MParray *leakedQueue, Scoring *userScoring,
+                                                          Stats *InFlightStats,
+                                                          AllowFinishOffEventArray allowFinishOffEvent,
                                                           bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
@@ -145,6 +147,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
              currentTrack.stepCounter);
       continue;
     }
+
+#ifdef ASYNC_MODE
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      printf("Thread %d Killing e-/e+ when killing the %d last particles of event %d E=%f lvol=%d after %d steps.\n",
+             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+      continue;
+    }
+#endif
 
     auto survive = [&](bool leak = false) {
       returnLastStep          = false; // track survived, do not force return of step
@@ -760,18 +772,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 template <typename Scoring>
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
                                    bool returnAllSteps, bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, activeQueue, leakedQueue,
-                                                   userScoring, returnAllSteps, returnLastStep);
+                                                   userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
+                                                   returnLastStep);
 }
 template <typename Scoring>
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
                                    bool returnAllSteps, bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, activeQueue, leakedQueue,
-                                                    userScoring, returnAllSteps, returnLastStep);
+                                                    userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
+                                                    returnLastStep);
 }
 #else
 template <typename Scoring>
