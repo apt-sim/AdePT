@@ -5,8 +5,12 @@
 
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
+#include <VecGeom/base/Stopwatch.h>
 #include <VecGeom/management/BVHManager.h>
-#include "VecGeom/management/GeoManager.h"
+#include <VecGeom/management/GeoManager.h>
+#ifdef ADEPT_USE_SURF
+#include <VecGeom/surfaces/BrepHelper.h>
+#endif
 
 #include <G4RunManager.hh>
 #include <G4Threading.hh>
@@ -39,6 +43,7 @@
 
 /// Forward declarations
 namespace async_adept_impl {
+void CopySurfaceModelToGPU();
 bool InitializeField(double);
 bool InitializeGeneralField(GeneralMagneticField &);
 void FreeGeneralField(GeneralMagneticField &);
@@ -200,12 +205,32 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cx
     std::cout << "CUDA Device heap limit: " << fCUDAHeapLimit << "\n";
     cudaDeviceSetLimit(cudaLimitMallocHeapSize, fCUDAHeapLimit);
   }
+  bool success = true;
+#ifdef ADEPT_USE_SURF
+#ifdef ADEPT_USE_SURF_SINGLE
+  using SurfData   = vgbrep::SurfData<float>;
+  using BrepHelper = vgbrep::BrepHelper<float>;
+#else
+  using SurfData   = vgbrep::SurfData<double>;
+  using BrepHelper = vgbrep::BrepHelper<double>;
+#endif
+  vecgeom::Stopwatch timer;
+  timer.Start();
+  if (!BrepHelper::Instance().Convert()) return 1;
+  BrepHelper::Instance().PrintSurfData();
+  std::cout << "== Conversion to surface model done in " << timer.Stop() << " [s]\n";
+  // Upload only navigation table to the GPU
+  cudaManager.SynchronizeNavigationTable();
+  async_adept_impl::CopySurfaceModelToGPU();
+#else
+  // Upload solid geometry to GPU.
   cudaManager.LoadGeometry(world);
   auto world_dev = cudaManager.Synchronize();
+  success        = world_dev != nullptr;
   // Initialize BVH
   InitBVH();
-
-  return (world_dev != nullptr);
+#endif
+  return success;
 }
 
 template <typename IntegrationLayer>
