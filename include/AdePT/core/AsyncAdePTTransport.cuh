@@ -193,7 +193,7 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
   if (blockIdx.x == 0 && threadIdx.x == 0) {
     // Update the number of particles that will be copied in this iteration
     nFromDevice_dev     = nToCopy;
-    // nRemainingLeaks_dev = total - nFromDevice_dev;
+    nRemainingLeaks_dev = total - nToCopy;
     // printf("e-: %ld, e+: %ld, gammas: %ld, total: %ld, already transferred: %d, to transfer: %d, remaining after this call: %d\n",
     //        numElectrons, numPositrons, numGammas, total, nAlreadyTransferred, nFromDevice_dev, nRemainingLeaks_dev);
   }
@@ -221,7 +221,7 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
     const auto trackSlot     = (*leakedTracks->fLeakedQueue)[queueSlot];
     Track const *const track = leakedTracks->fTracks + trackSlot;
 
-    if (nAlreadyTransferred <= i && i < nAlreadyTransferred + nFromDevice_dev) {
+    if (nAlreadyTransferred <= i && i < nAlreadyTransferred + nToCopy) {
       // Offset i by nAlreadyTransferred to get the index in the fromDevice buffer
       auto idx = i - nAlreadyTransferred;
 
@@ -252,8 +252,8 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       fromDevice[idx].navState                   = track->navState;
       fromDevice[idx].originNavState             = track->originNavState;
 
-      // printf("i = %u, nAlreadyTransferred = %u, nAlreadyTransferred + nFromDevice_dev = %u\n", 
-      //           i, nAlreadyTransferred, nAlreadyTransferred + nFromDevice_dev);
+      // printf("i = %u, nAlreadyTransferred = %u, nAlreadyTransferred + nToCopy = %u\n", 
+      //           i, nAlreadyTransferred, nAlreadyTransferred + nToCopy);
       // printf("Used slots on free list: %u/%u\n",
       //                           leakedTracks->fSlotManager->fFreeCounter,
       //                           leakedTracks->fSlotManager->fFreeListSize);
