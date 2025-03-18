@@ -121,6 +121,8 @@ void AdePTTrackingManager::InitializeAdePT()
   // initialize special G4HepEmTrackingManager
   fHepEmTrackingManager->SetGPURegions(fGPURegions);
 
+  fSpeedOfLight = fAdePTConfiguration->GetSpeedOfLight();
+
   fAdePTInitialized = true;
 }
 
@@ -157,6 +159,13 @@ void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 {
+
+  // Speed of light: kill all e-+/gamma immediately
+  if (fSpeedOfLight) {
+    delete aTrack;
+    return;
+  }
+
   if (fGPURegions.empty() && !fAdeptTransport->GetTrackInAllRegions()) {
     // if no GPU regions, hand over directly to G4HepEmTrackingManager
     fHepEmTrackingManager->HandOverOneTrack(aTrack);
