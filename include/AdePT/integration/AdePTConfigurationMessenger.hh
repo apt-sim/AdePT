@@ -39,6 +39,7 @@ private:
   G4UIcmdWithABool *fSetTrackInAllRegionsCmd;
   G4UIcmdWithABool *fSetCallUserSteppingActionCmd;
   G4UIcmdWithABool *fSetCallPostUserTrackingActionCmd;
+  G4UIcmdWithABool *fSetSpeedOfLightCmd;
   G4UIcmdWithAString *fAddRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;
   G4UIcmdWithAnInteger *fSetVerbosityCmd;

@@ -43,6 +43,11 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
       "means that the last step of every track is recorded on GPU and send back to CPU");
 
+  fSetSpeedOfLightCmd = new G4UIcmdWithABool("/adept/SpeedOfLight", this);
+  fSetSpeedOfLightCmd->SetGuidance(
+      "If true, all electrons, positrons, gammas handed over to AdePT are immediately killed. WARNING: Only to be used "
+      "for testing the speed and fraction of EM, all results are wrong!");
+
   fAddRegionCmd = new G4UIcmdWithAString("/adept/addGPURegion", this);
   fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
 
@@ -106,6 +111,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetGDMLCmd;
   delete fSetCovfieFileCmd;
   delete fSetFinishOnCpuCmd;
+  delete fSetSpeedOfLightCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -119,6 +125,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetCallUserSteppingAction(newValue);
   } else if (command == fSetCallPostUserTrackingActionCmd) {
     fAdePTConfiguration->SetCallPostUserTrackingAction(newValue);
+  } else if (command == fSetSpeedOfLightCmd) {
+    fAdePTConfiguration->SetSpeedOfLightCmd(newValue);
   } else if (command == fAddRegionCmd) {
     fAdePTConfiguration->AddGPURegionName(newValue);
   } else if (command == fActivateAdePTCmd) {

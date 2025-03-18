@@ -81,6 +81,7 @@ private:
   unsigned int fTrackCounter{0};
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};
+  bool fSpeedOfLight{false};
 };
 
 #ifdef ASYNC_MODE

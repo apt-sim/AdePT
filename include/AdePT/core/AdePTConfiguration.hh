@@ -44,6 +44,7 @@ public:
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
+  void SetSpeedOfLightCmd(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
 
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
@@ -54,6 +55,7 @@ public:
   bool GetTrackInAllRegions() { return fTrackInAllRegions; }
   bool GetCallUserSteppingAction() { return fCallUserSteppingAction; }
   bool GetCallPostUserTrackingAction() { return fCallPostUserTrackingAction; }
+  bool GetSpeedOfLight() { return fSpeedOfLight; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetNumThreads() { return fNumThreads; };
   int GetVerbosity() { return fVerbosity; };
@@ -74,6 +76,7 @@ private:
   bool fTrackInAllRegions{false};
   bool fCallUserSteppingAction{false};
   bool fCallPostUserTrackingAction{false};
+  bool fSpeedOfLight{false};
   bool fAdePTActivated{true};
   int fNumThreads;
   int fVerbosity{0};
