@@ -437,8 +437,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                  geometricalStepLengthFromPhysics, safety);
-          // survive(/*leak*/ true);
-          // slotManager.MarkSlotForFreeing(slot);
           continue;
         } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
@@ -463,8 +461,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                  geometricalStepLengthFromPhysics, safety);
-          // survive(/*leak*/ true);
-          // slotManager.MarkSlotForFreeing(slot);
           continue;
         }
 
