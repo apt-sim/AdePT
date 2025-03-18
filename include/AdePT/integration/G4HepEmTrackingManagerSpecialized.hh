@@ -31,9 +31,16 @@ public:
   bool CheckEarlyTrackingExit(G4Track *track, G4EventManager *evtMgr, G4UserTrackingAction *userTrackingAction,
                               G4TrackVector &secondaries) const override;
 
+  void ResetFinishEventOnCPUSize(int num_threads) { fFinishEventOnCPU.resize(num_threads, -1); }
+
+  void SetFinishEventOnCPU(int threadid, int eventid) { fFinishEventOnCPU[threadid] = eventid; }
+
+  int GetFinishEventOnCPU(int threadid) { return fFinishEventOnCPU[threadid]; }
+
 private:
   bool fTrackInAllRegions = false;          ///< Whether the whole geometry is a GPU region
   std::set<G4Region const *> fGPURegions{}; ///< List of GPU regions
+  std::vector<int> fFinishEventOnCPU;       ///< vector over number of threads to keep certain leaked tracks on GPU
 
   // G4Region const * fPreviousRegion = nullptr;
 };

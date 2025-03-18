@@ -28,11 +28,14 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
   // the current volume is not yet updated
   G4Region const *region = track->GetNextVolume()->GetLogicalVolume()->GetRegion();
 
+  G4int threadId = G4Threading::G4GetThreadId();
+
   // TODO: for more efficient use, we only have to check for region within GPURegions, if the region changed.
   //       This can be checked from the pre- and post-steppoint
 
   // Not in the GPU region, continue normal tracking with G4HepEmTrackingManager
-  if (fGPURegions.find(region) == fGPURegions.end() || (fGPURegions.empty() && !GetTrackInAllRegions())) {
+  if (fGPURegions.find(region) == fGPURegions.end() || (fGPURegions.empty() && !GetTrackInAllRegions()) ||
+      fFinishEventOnCPU[threadId] > 0) {
     return false; // Continue tracking with G4HepEmTrackingManager
   } else {
 

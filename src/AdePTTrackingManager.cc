@@ -120,6 +120,7 @@ void AdePTTrackingManager::InitializeAdePT()
   }
   // initialize special G4HepEmTrackingManager
   fHepEmTrackingManager->SetGPURegions(fGPURegions);
+  fHepEmTrackingManager->ResetFinishEventOnCPUSize(fNumThreads);
 
   fSpeedOfLight = fAdePTConfiguration->GetSpeedOfLight();
 
@@ -202,6 +203,17 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4int threadId = G4Threading::G4GetThreadId();
   fAdeptTransport->ProcessGPUSteps(threadId, eventID);
 
+  // new event detected, reset
+  if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) >= 0 &&
+      fHepEmTrackingManager->GetFinishEventOnCPU(threadId) != eventID) {
+    fHepEmTrackingManager->SetFinishEventOnCPU(threadId, -1);
+  }
+
+  // first leaked particle detected, let's finish this event on CPU
+  if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0 && aTrack->GetTrackStatus() == fStopButAlive) {
+    fHepEmTrackingManager->SetFinishEventOnCPU(threadId, eventID);
+  }
+
   // setup touchable to be able to get region from GetNextVolume
   steppingManager->SetInitialStep(aTrack);
 
@@ -212,7 +224,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     // Check if the particle is in a GPU region
     const bool isGPURegion = trackInAllRegions || fGPURegions.find(region) != fGPURegions.end();
 
-    if (isGPURegion) {
+    if (isGPURegion && (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0)) {
       // If the track is in a GPU region, hand it over to AdePT
       auto particlePosition  = aTrack->GetPosition();
       auto particleDirection = aTrack->GetMomentumDirection();

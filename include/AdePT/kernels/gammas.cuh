@@ -90,16 +90,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       continue;
     }
 
-#ifdef ASYNC_MODE
-    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      printf("Thread %d Killing gammas when killing the %d last particles of event %d E=%f lvol=%d after %d steps.\n",
-             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-      continue;
-    }
-#endif
-
     // Write local variables back into track and enqueue
     auto survive = [&](bool leak = false) {
       returnLastStep          = false; // particle survived, do not force return of step
@@ -123,6 +113,17 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         gammas->fNextTracks->push_back(slot);
 #endif
     };
+
+#ifdef ASYNC_MODE
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+      survive(/*leak*/ true);
+      continue;
+    }
+#endif
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack gammaTrack;
