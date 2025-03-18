@@ -390,6 +390,15 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   // Capacity of the different containers aka the maximum number of particles.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
 
+  static std::chrono::steady_clock::time_point startTime;
+  if (debugLevel >= 2) {
+    // Initialize startTime only on the first call
+    static bool isInitialized = false;
+    if (!isInitialized) {
+      startTime     = std::chrono::steady_clock::now();
+      isInitialized = true;
+    }
+  }
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
   Secondaries secondaries{gpuState.allmgr_d.trackmgr[0], gpuState.allmgr_d.trackmgr[1], gpuState.allmgr_d.trackmgr[2]};
   ParticleType &electrons = gpuState.particles[ParticleType::Electron];
@@ -565,7 +574,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     numPositrons = gpuState.allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
     numGammas    = gpuState.allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight;
     if (debugLevel > 1) {
-      printf("iter %d: elec %d, pos %d, gam %d, leak %d\n", niter++, numElectrons, numPositrons, numGammas, numLeaked);
+      auto elapsedTime = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count();
+      printf("Time elapsed: %.6fs eventId %d iter %d: elec %d, pos %d, gam %d, leak %d\n", elapsedTime, event, niter++,
+             numElectrons, numPositrons, numGammas, numLeaked);
     }
     if (numElectrons == previousElectrons && numPositrons == previousPositrons && numGammas == previousGammas) {
       loopingNo++;
