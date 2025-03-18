@@ -207,12 +207,10 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) >= 0 &&
       fHepEmTrackingManager->GetFinishEventOnCPU(threadId) != eventID) {
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, -1);
-    std::cout << " Resetting FinishEvent on CPU for thread " << threadId << std::endl;
   }
 
   // first leaked particle detected, let's finish this event on CPU
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0 && aTrack->GetTrackStatus() == fStopButAlive) {
-    std::cout << "Thread " << threadId << " Finishing event " << eventID << " on CPU " << std::endl;
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, eventID);
   }
 
