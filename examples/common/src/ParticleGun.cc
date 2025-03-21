@@ -260,5 +260,5 @@ void ParticleGun::PrintPrimaries(G4Event *aEvent) const
                              [](double sum, auto const &data) { return sum + data.energy; }) /
                  GeV
           << " GeV\n";
-  // G4cout << message.str() << G4endl;
+  G4cout << message.str() << G4endl;
 }
