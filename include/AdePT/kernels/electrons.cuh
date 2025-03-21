@@ -724,8 +724,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
     }
 
-    // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
+    // Record the step
+    if (auxData.fSensIndex >= 0 || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
                                static_cast<char>(IsElectron ? 0 : 1),       // Particle type
                                elTrack.GetPStepLength(),                    // Step length
