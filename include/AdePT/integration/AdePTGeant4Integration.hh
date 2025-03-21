@@ -82,7 +82,8 @@ private:
   void FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory &aG4NavigationHistory) const;
 
   void FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
-                  G4TouchableHandle &aPostG4TouchableHandle) const;
+                  G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
+                  G4StepStatus aPostStepStatus) const;
 
   void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel) const;
 
