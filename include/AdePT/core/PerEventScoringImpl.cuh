@@ -376,12 +376,12 @@ public:
     // We allocate one (circular) HostBuffer in pinned memory
     GPUHit *gpuHits = nullptr;
 
-    // The HostBuffer is set to be 2.5x the GPU buffer HitCapacity. Normally, maximally 2x of the GPU hitbuffer should
+    // The HostBuffer is set to be 3.5x the GPU buffer HitCapacity. Normally, maximally 2x of the GPU hitbuffer should
     // reside in the hostbuffer: once a full buffer that is currently processed by the G4 workers and second another
     // full buffer that is just copied from the GPU. Due to sparsity, we add another factor of .5 to prevent running out
     // of buffer. Also, the filling quota of the CPU buffer decides whether hits are processed directly by the G4
     // workers or if they are copied out
-    unsigned int hostBufferCapacity = 4 * fHitCapacity;
+    unsigned int hostBufferCapacity = 3.5 * fHitCapacity;
     COPCORE_CUDA_CHECK(cudaMallocHost(&gpuHits, sizeof(GPUHit) * hostBufferCapacity));
     fGPUHitBuffer_host.reset(gpuHits);
 
