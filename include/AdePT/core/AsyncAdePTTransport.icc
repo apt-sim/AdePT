@@ -56,10 +56,9 @@ void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
                             std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short);
-std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity,
-                                                                                 int numThreads,
-                                                                                 AsyncAdePT::TrackBuffer &trackBuffer,
-                                                                                 std::vector<AdePTScoring> &scoring);
+std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
+    int trackCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
+    std::vector<AdePTScoring> &scoring, double CPUCapacityFactor, double CPUCopyFraction);
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, G4HepEmState &, std::thread &);
 } // namespace async_adept_impl
 
@@ -94,7 +93,9 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnLastStep{configuration.GetCallPostUserTrackingAction()}, fBfieldFile{configuration.GetCovfieBfieldFile()},
-      fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()}
+      fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
+      fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
+      fCPUCapacityFactor{configuration.GetCPUCapacityFactor()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -300,7 +301,8 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
 
   assert(fBuffer != nullptr);
 
-  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring);
+  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring,
+                                               fCPUCapacityFactor, fCPUCopyFraction);
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
                                                  fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel,
                                                  fReturnAllSteps, fReturnLastStep, fLastNParticlesOnCPU);

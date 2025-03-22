@@ -54,6 +54,6 @@ void RunAction::EndOfRunAction(const G4Run *)
   const std::lock_guard<std::mutex> lock(print_mutex);
   // Print timer just for the master thread since this is called when all workers are done
   if (tid < 0) {
-    G4cout << "Run time: " << time << "\n";
+    std::cout << "Run time: " << time << "\n";
   }
 }

@@ -41,6 +41,8 @@ public:
   void SetMillionsOfTrackSlots(double millionSlots) { fMillionsOfTrackSlots = millionSlots; }
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
+  void SetCPUCapacityFactor(float CPUCapacityFactor) { fCPUCapacityFactor = CPUCapacityFactor; }
+
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
@@ -64,6 +66,7 @@ public:
   int GetCUDAHeapLimit() { return fCUDAHeapLimit; }
   unsigned short GetLastNParticlesOnCPU() { return fLastNParticlesOnCPU; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
+  float GetCPUCapacityFactor() { return fCPUCapacityFactor; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
@@ -84,6 +87,7 @@ private:
   int fCUDAStackLimit{0};
   int fCUDAHeapLimit{0};
   float fHitBufferFlushThreshold{0.8};
+  float fCPUCapacityFactor{2.5};
   double fMillionsOfTrackSlots{1};
   double fMillionsOfHitSlots{1};
   unsigned short fLastNParticlesOnCPU{0};

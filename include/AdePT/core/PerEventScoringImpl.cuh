@@ -294,6 +294,8 @@ class HitScoring {
 
   void *fHitScoringBuffer_deviceAddress = nullptr;
   unsigned int fHitCapacity;
+  double fCPUCapacityFactor;
+  double fCPUCopyFraction;
   unsigned short fActiveBuffer = 0;
   unique_ptr_cuda<std::byte> fGPUSortAuxMemory;
   std::size_t fGPUSortAuxMemorySize;
@@ -346,10 +348,11 @@ class HitScoring {
 
           // If the circular Buffer is too full and the G4Worker didn't pick up the work, we have to copy out the hits
           // to the holdoutBuffer
-          if (fBufferManager->getFillFraction() > 0.5) {
+          if (fBufferManager->getFillFraction() > fCPUCopyFraction) {
             if (debugLevel > 5) {
               std::cout << BOLD_RED << "FillFraction too high: " << fBufferManager->getFillFraction()
-                        << ", copying out " << numHits << " hits for G4Worker " << i << RESET << std::endl;
+                        << ", threshold: " << fCPUCopyFraction << " copying out " << numHits << " hits for G4Worker "
+                        << i << RESET << std::endl;
             }
             ret.holdoutBuffer.resize(numHits);                        // Allocate correct size
             std::copy(ret.begin, ret.end, ret.holdoutBuffer.begin()); // Copy data
@@ -370,18 +373,32 @@ class HitScoring {
   }
 
 public:
-  HitScoring(unsigned int hitCapacity, unsigned int nThread)
-      : fHitCapacity{hitCapacity}, fHitQueues(nThread), fHitQueueLocks(nThread)
+  HitScoring(unsigned int hitCapacity, unsigned int nThread, double CPUCapacityFactor, double CPUCopyFraction)
+      : fHitCapacity{hitCapacity}, fHitQueues(nThread), fHitQueueLocks(nThread), fCPUCapacityFactor(CPUCapacityFactor),
+        fCPUCopyFraction(CPUCopyFraction)
   {
+
+    if (fCPUCapacityFactor <= 2.0) {
+      std::ostringstream oss;
+      oss << "CPUCapacityFactor must be > 2.0 (got " << fCPUCapacityFactor << ")";
+      throw std::invalid_argument(oss.str());
+    }
+
+    if (fCPUCopyFraction < 0.0 || fCPUCopyFraction > 1.0) {
+      std::ostringstream oss;
+      oss << "CPUCopyFraction must be between 0.0 and 1.0 (got " << fCPUCopyFraction << ")";
+      throw std::invalid_argument(oss.str());
+    }
+
     // We allocate one (circular) HostBuffer in pinned memory
     GPUHit *gpuHits = nullptr;
 
-    // The HostBuffer is set to be 2.5x the GPU buffer HitCapacity. Normally, maximally 2x of the GPU hitbuffer should
-    // reside in the hostbuffer: once a full buffer that is currently processed by the G4 workers and second another
-    // full buffer that is just copied from the GPU. Due to sparsity, we add another factor of .5 to prevent running out
-    // of buffer. Also, the filling quota of the CPU buffer decides whether hits are processed directly by the G4
-    // workers or if they are copied out
-    unsigned int hostBufferCapacity = 2.5 * fHitCapacity;
+    // The HostBuffer is set to be fCPUCapacityFactor times the GPU buffer HitCapacity. Normally, maximally 2x of the
+    // GPU hitbuffer should reside in the hostbuffer: once a full buffer that is currently processed by the G4 workers
+    // and second another full buffer that is just copied from the GPU. Due to sparsity, we add another factor of .5 to
+    // prevent running out of buffer. Also, the filling quota of the CPU buffer decides whether hits are processed
+    // directly by the G4 workers or if they are copied out
+    unsigned int hostBufferCapacity = fCPUCapacityFactor * fHitCapacity;
     COPCORE_CUDA_CHECK(cudaMallocHost(&gpuHits, sizeof(GPUHit) * hostBufferCapacity));
     fGPUHitBuffer_host.reset(gpuHits);
 

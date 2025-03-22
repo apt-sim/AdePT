@@ -504,7 +504,8 @@ void FlushScoring(AdePTScoring &scoring)
 /// If memory allocation fails, an exception is thrown. In this case, the caller has to
 /// try again after some wait time or with less transport slots.
 std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity, int numThreads,
-                                                         TrackBuffer &trackBuffer, std::vector<AdePTScoring> &scoring)
+                                                         TrackBuffer &trackBuffer, std::vector<AdePTScoring> &scoring,
+                                                         double CPUCapacityFactor, double CPUCopyFraction)
 {
   auto gpuState_ptr  = std::unique_ptr<GPUstate, GPUstateDeleter>(new GPUstate());
   GPUstate &gpuState = *gpuState_ptr;
@@ -592,7 +593,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   for (unsigned int i = 0; i < numThreads; ++i) {
     scoring.emplace_back(gpuState.fScoring_dev + i);
   }
-  gpuState.fHitScoring.reset(new HitScoring(scoringCapacity, numThreads));
+  gpuState.fHitScoring.reset(new HitScoring(scoringCapacity, numThreads, CPUCapacityFactor, CPUCopyFraction));
 
   const auto injectQueueSize = adept::MParrayT<QueueIndexPair>::SizeOfInstance(trackBuffer.fNumToDevice);
   void *gpuPtr               = nullptr;
