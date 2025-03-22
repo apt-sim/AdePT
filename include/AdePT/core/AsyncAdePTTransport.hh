@@ -66,10 +66,11 @@ private:
   bool fReturnLastStep = false;
   std::string fBfieldFile{""};         ///< Path to magnetic field file (in the covfie format)
   GeneralMagneticField fMagneticField; ///< arbitrary magnetic field
-  double fCPUCapacityFactor{2.5};           ///< Factor by which the ScoringCapacity on Host is larger than on Device. Must be at least 2
-  ///< Filling fraction of the ScoringCapacity on host when the hits are copied out and not taken directly by the G4workers
+  double fCPUCapacityFactor{
+      2.5}; ///< Factor by which the ScoringCapacity on Host is larger than on Device. Must be at least 2
+  ///< Filling fraction of the ScoringCapacity on host when the hits are copied out and not taken directly by the
+  ///< G4workers
   double fCPUCopyFraction{0.5};
-
 
   void Initialize();
   void InitBVH();
