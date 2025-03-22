@@ -76,7 +76,7 @@ void RunAction::EndOfRunAction(const G4Run *)
 
   // Print timer just for the master thread since this is called when all workers are done
   if (tid < 0) {
-    G4cout << "Run time: " << time << "\n";
+    std::cout << "Run time: " << time << "\n";
     if (fDoBenchmark) {
       fRun->GetTestManager()->timerStop(Run::timers::TOTAL);
     }

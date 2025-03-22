@@ -381,7 +381,7 @@ public:
     // full buffer that is just copied from the GPU. Due to sparsity, we add another factor of .5 to prevent running out
     // of buffer. Also, the filling quota of the CPU buffer decides whether hits are processed directly by the G4
     // workers or if they are copied out
-    unsigned int hostBufferCapacity = 2.5 * fHitCapacity;
+    unsigned int hostBufferCapacity = 4 * fHitCapacity;
     COPCORE_CUDA_CHECK(cudaMallocHost(&gpuHits, sizeof(GPUHit) * hostBufferCapacity));
     fGPUHitBuffer_host.reset(gpuHits);
 

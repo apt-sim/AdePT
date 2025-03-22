@@ -430,7 +430,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         reached_interaction = false;
         // Kill the particle if it left the world.
 
-        if (++currentTrack.looperCounter > 200) {
+        if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are scraping a boundary
           printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
                  "physicsStepLength=%E "
@@ -454,7 +454,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
 
-        if (++currentTrack.looperCounter > 200) {
+        if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are not advancing in free space
           printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
                  "physicsStepLength=%E "
