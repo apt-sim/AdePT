@@ -700,6 +700,10 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     COPCORE_CUDA_CHECK(cudaStreamWaitEvent(waitingStream, cudaEvent));
   };
 
+  // needed for the HOTFIX below
+  int injectIteration[numThreads];
+  std::fill_n(injectIteration, numThreads, -1);
+
   std::unique_ptr<HitProcessingContext> hitProcessing{new HitProcessingContext{transferStream}};
   std::thread hitProcessingThread{&HitProcessingLoop,    (HitProcessingContext *)hitProcessing.get(),
                                   std::ref(gpuState),    std::ref(eventStates),
@@ -716,6 +720,15 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     }
     return {TransportThreads, transportBlocks};
   };
+
+  std::chrono::steady_clock::time_point startTime;
+  if (debugLevel >= 2) {
+    static bool isInitialized = false;
+    if (!isInitialized) {
+      startTime     = std::chrono::steady_clock::now();
+      isInitialized = true;
+    }
+  }
 
   while (gpuState.runTransport) {
     // NVTXTracer nvtx1{"Setup"}, nvtx2{"Setup2"};
@@ -757,11 +770,6 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     //         {EventState::ScoringRetrieved, "ScoringRetrieved"}};
     // #endif
 
-    std::chrono::steady_clock::time_point startTime;
-    if (debugLevel >= 2) {
-      startTime = std::chrono::steady_clock::now();
-    }
-
     for (unsigned int iteration = 0;
          inFlight > 0 || gpuState.injectState != InjectState::Idle || gpuState.extractState != ExtractState::Idle ||
          std::any_of(eventStates.begin(), eventStates.end(), needTransport);
@@ -789,20 +797,37 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** Particle injection ***
       // --------------------------
       if (gpuState.injectState == InjectState::Idle) {
-        for (auto &eventState : eventStates) {
-          if (const auto state = eventState.load(std::memory_order_acquire); state == EventState::G4RequestsFlush) {
-            eventState = EventState::Inject;
+        for (int i = 0; i < numThreads; ++i) {
+          auto &eventState = eventStates[i];
+          const auto state = eventState.load(std::memory_order_acquire);
+
+          // HOTFIX:
+          // the current problem is that the injected particle takes too long before it shows up
+          // until then, the EventState has counted up and requested a Flush of the event, before the particle was
+          // injected leading to the particle being scored in the wrong event. By not going up into the
+          // InjectionCompleted state for some hardcoded number of iterations, this is prevented. FIXME to be fixed
+          // properly
+          if (state == EventState::G4RequestsFlush) {
+            eventState.store(EventState::Inject, std::memory_order_release);
+            injectIteration[i] = iteration; // store iteration
           } else if (state == EventState::Inject) {
-            eventState = EventState::InjectionCompleted;
+            if (iteration - injectIteration[i] >= 25) {
+              eventState.store(EventState::InjectionCompleted, std::memory_order_release);
+              injectIteration[i] = -1;
+            } // else: wait more iterations
+          }
+          // If eventState leaves Inject unexpectedly, reset iteration tracking:
+          else if (injectIteration[i] != -1 && state != EventState::Inject) {
+            injectIteration[i] = -1;
           }
         }
 
-        if (auto &toDevice = trackBuffer.getActiveBuffer(); toDevice.nTrack > 0) {
+        if (auto &toDevice = trackBuffer.getActiveBuffer(); toDevice.nTrack.load(std::memory_order_acquire) > 0) {
           gpuState.injectState = InjectState::CreatingSlots;
 
           trackBuffer.swapToDeviceBuffers();
           std::scoped_lock lock{toDevice.mutex};
-          const auto nInject = std::min(toDevice.nTrack.load(), toDevice.maxTracks);
+          const auto nInject = std::min(toDevice.nTrack.load(std::memory_order_acquire), toDevice.maxTracks);
           toDevice.nTrack    = 0;
 
           if (debugLevel > 3) std::cout << "Injecting " << nInject << " to GPU\n";
@@ -1047,8 +1072,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
           if (state == EventState::WaitingForTransportToFinish && gpuState.stats->perEventInFlight[threadId] == 0) {
             eventStates[threadId] = EventState::RequestHitFlush;
           }
-          if (EventState::RequestHitFlush <= state && state < EventState::LeakedTracksRetrieved &&
-              gpuState.stats->perEventInFlight[threadId] != 0) {
+          if (state >= EventState::RequestHitFlush && gpuState.stats->perEventInFlight[threadId] != 0) {
             std::cerr << "ERROR thread " << threadId << " is in state " << static_cast<unsigned int>(state)
                       << " and occupancy is " << gpuState.stats->perEventInFlight[threadId] << "\n";
           }
@@ -1074,8 +1098,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       }
 
       // *** Notify G4 workers if their events completed ***
-      if (std::any_of(eventStates.begin(), eventStates.end(),
-                      [](const EventState &state) { return state == EventState::DeviceFlushed; })) {
+      if (std::any_of(eventStates.begin(), eventStates.end(), [](const std::atomic<EventState> &state) {
+            return state.load(std::memory_order_acquire) == EventState::DeviceFlushed;
+          })) {
         // Notify HitProcessingThread to notify the workers. Do not notify workers directly, as this could bypass the
         // processing of hits
         hitProcessing->cv.notify_one();

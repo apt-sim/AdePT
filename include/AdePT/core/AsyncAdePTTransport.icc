@@ -331,9 +331,9 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
         std::cerr << "\033[1;31mError, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
                   << "\033[0m" << std::endl;
       if (it->fEventId != eventId) {
-        std::cerr << "\033[1;31mError, eventId doesn't match it->fEventId " << it->fEventId << "eventId " << eventId
+        std::cerr << "\033[1;31mError, eventId doesn't match it->fEventId " << it->fEventId << " eventId " << eventId
                   << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
-                  << "state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
+                  << " state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
                   << "\033[0m" << std::endl;
       }
       integrationInstance.ProcessGPUStep(*it, fReturnAllSteps, fReturnLastStep);
