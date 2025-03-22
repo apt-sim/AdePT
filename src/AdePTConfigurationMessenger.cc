@@ -71,9 +71,18 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
 
   fSetHitBufferFlushThresholdCmd = new G4UIcmdWithADouble("/adept/setHitBufferThreshold", this);
   fSetHitBufferFlushThresholdCmd->SetGuidance(
-      "Set the usage threshold at which the buffer of hits is copied back to the host from GPU");
+      "In Sync AdePT: set the usage threshold at which the buffer of hits is copied back to the host from GPU "
+      "In Async AdePT: set the usage threshold at which the GPU steps are copied from the buffer and not taken "
+      "directly by the G4 workers");
   fSetHitBufferFlushThresholdCmd->SetParameterName("HitBufferThreshold", false);
   fSetHitBufferFlushThresholdCmd->SetRange("HitBufferThreshold>=0.&&HitBufferThreshold<=1.");
+
+  fSetCPUCapacityFactorCmd = new G4UIcmdWithADouble("/adept/setCPUCapacityFactor", this);
+  fSetCPUCapacityFactorCmd->SetGuidance(
+      "Sets the CPUCapacity factor for scoring with respect to the GPU (see: /adept/setMillionsOfHitSlots). "
+      "Must at least be 2.5");
+  fSetCPUCapacityFactorCmd->SetParameterName("CPUCapacityFactor", false);
+  fSetCPUCapacityFactorCmd->SetRange("CPUCapacityFactor>=2.5");
 
   fSetGDMLCmd = new G4UIcmdWithAString("/adept/setVecGeomGDML", this);
   fSetGDMLCmd->SetGuidance("Temporary method for setting the geometry to use with VecGeom");
@@ -112,6 +121,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetCovfieFileCmd;
   delete fSetFinishOnCpuCmd;
   delete fSetSpeedOfLightCmd;
+  delete fSetCPUCapacityFactorCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -141,6 +151,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetMillionsOfHitSlots(fSetMillionsOfHitSlotsCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetHitBufferFlushThresholdCmd) {
     fAdePTConfiguration->SetHitBufferFlushThreshold(fSetHitBufferFlushThresholdCmd->GetNewDoubleValue(newValue));
+  } else if (command == fSetCPUCapacityFactorCmd) {
+    fAdePTConfiguration->SetCPUCapacityFactor(fSetCPUCapacityFactorCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetGDMLCmd) {
     fAdePTConfiguration->SetVecGeomGDML(newValue);
   } else if (command == fSetCovfieFileCmd) {

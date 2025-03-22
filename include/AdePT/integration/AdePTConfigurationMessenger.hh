@@ -47,6 +47,7 @@ private:
   G4UIcmdWithADouble *fSetMillionsOfTrackSlotsCmd;
   G4UIcmdWithADouble *fSetMillionsOfHitSlotsCmd;
   G4UIcmdWithADouble *fSetHitBufferFlushThresholdCmd;
+  G4UIcmdWithADouble *fSetCPUCapacityFactorCmd;
 
   // Temporary method for setting the VecGeom geometry.
   // In the future the geometry will be converted from Geant4 rather than loaded from GDML.
