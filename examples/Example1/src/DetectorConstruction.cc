@@ -68,7 +68,7 @@ void DetectorConstruction::ConstructSDandField()
 
     field = std::make_unique<CovfieField>(fFieldFile);
 #else
-  // Set a 3D magnetic field vector for a uniform field in Bz. If no file is provided, no magnetic field is used in the
+  // Set a 3D magnetic field vector for a uniform B field. If no field is provided, no magnetic field is used in the
   // G4 transport
   if (fMagFieldVector.mag2() > 0.0) {
     G4cout << G4endl << " *** SETTING CONSTANT MAGNETIC FIELD: fieldValues = " << fMagFieldVector / kilogauss

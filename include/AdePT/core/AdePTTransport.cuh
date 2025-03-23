@@ -366,7 +366,6 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
   delete g4hepem_state;
 
 // Free magnetic field
-// Free magnetic field
 #ifdef ADEPT_USE_EXT_BFIELD
   FreeBField<GeneralMagneticField>();
 #else
