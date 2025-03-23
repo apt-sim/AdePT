@@ -14,6 +14,7 @@
 #include <AdePT/core/HostScoringStruct.cuh>
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/magneticfield/GeneralMagneticField.h>
+#include <AdePT/magneticfield/UniformMagneticField.h>
 
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
@@ -108,8 +109,8 @@ private:
   /// @brief Used to map VecGeom to Geant4 volumes for scoring
   void InitializeSensitiveVolumeMapping(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world);
   void InitBVH();
-  bool InitializeField(double bz);
-  bool InitializeGeneralField();
+  bool InitializeBField();
+  bool InitializeBField(UniformMagneticField &Bfield);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
 };

@@ -24,12 +24,13 @@
 namespace adept_impl {
 /// Forward declarations for methods implemented in AdePTTransport.cu
 using TrackBuffer = adeptint::TrackBuffer;
-bool InitializeField(double);
+template <typename FieldType>
+bool InitializeBField(FieldType &);
+template <typename FieldType>
+void FreeField();
 bool InitializeApplyCuts(bool);
-bool InitializeGeneralField(GeneralMagneticField &);
 bool InitializeVolAuxArray(adeptint::VolAuxArray &);
 void FreeVolAuxArray(adeptint::VolAuxArray &);
-void FreeGeneralField(GeneralMagneticField &);
 G4HepEmState *InitG4HepEm();
 GPUstate *InitializeGPU(TrackBuffer &, int, int);
 AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring);
@@ -60,19 +61,7 @@ AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configurati
 }
 
 template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializeField(double bz)
-{
-  return adept_impl::InitializeField(bz);
-}
-
-template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
-{
-  return adept_impl::InitializeApplyCuts(applycuts);
-}
-
-template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializeGeneralField()
+bool AdePTTransport<IntegrationLayer>::InitializeBField()
 {
   if (!fBfieldFile.empty()) {
     // Initialize magnetic field data from file
@@ -81,9 +70,31 @@ bool AdePTTransport<IntegrationLayer>::InitializeGeneralField()
     }
 
     // Delegate the setup of the global view pointer to adept_impl
-    return adept_impl::InitializeGeneralField(fMagneticField);
+    return adept_impl::InitializeBField(fMagneticField);
   }
   return true; // no file provided, but no error encountered, so true is returned
+}
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializeBField(UniformMagneticField &Bfield)
+{
+  vecgeom::Vector3D<float> position{
+      0.,
+      0.,
+      0.,
+  };
+  auto field_value = Bfield.Evaluate(position);
+  if (field_value.Mag2() > 0) {
+    // Delegate the setup of the global view pointer to adept_impl
+    return adept_impl::InitializeBField(Bfield);
+  }
+  return true; // no B field provided, but no error encountered, so true is returned
+}
+
+template <typename IntegrationLayer>
+bool AdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
+{
+  return adept_impl::InitializeApplyCuts(applycuts);
 }
 
 template <typename IntegrationLayer>
@@ -184,22 +195,17 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize physics on GPU");
 
 #ifdef ADEPT_USE_EXT_BFIELD
-    // Try to initialize field from file, otherwise initialize from vector
-    if (!InitializeGeneralField()) {
+    // Try to initialize field from file
+    if (!InitializeBField()) {
       throw std::runtime_error(
           "AdePTTransport<IntegrationLayer>::Initialize cannot initialize GeneralMagneticField on GPU");
-      // NOTE: if the field option is a run-time option and not a compile time option, uncomment the code below
-      // to use uniform field in case no file was provided. ToDo: this requires changing the return of
-      // InitializeGeneralField
-      //   double bz = fIntegrationLayer.GetUniformFieldZ();
-      //   if (!InitializeField(bz))
-      //     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
     }
-#endif
-    // Initialize field from vector
-    double bz = fIntegrationLayer.GetUniformFieldZ();
-    if (!InitializeField(bz))
+#else
+    auto field_values                            = fIntegrationLayer.GetUniformField(); // Get the field value
+    std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(field_values);
+    if (!InitializeBField(*Bfield))
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
+#endif
 
     // Do the material-cut couple index mapping once
     // as well as set flags for sensitive volumes and region

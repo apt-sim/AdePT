@@ -56,7 +56,6 @@ inline __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 inline __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 inline __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
-inline __constant__ __device__ double BzFieldValue               = 0;
 inline __constant__ __device__ bool ApplyCuts                    = false;
 
 bool InitializeVolAuxArray(adeptint::VolAuxArray &array)
@@ -228,44 +227,33 @@ __global__ void ClearLeakedQueues(LeakedTracks all)
   all.leakedGammas->clear();
 }
 
-bool InitializeField(double bz)
+template <typename FieldType>
+bool InitializeBField(FieldType &magneticField)
 {
-  // Initialize field
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(BzFieldValue, &bz, sizeof(double)));
+
+  // Allocate and copy the FieldType instance (not the field array itself), and set the global device pointer
+  FieldType *dMagneticFieldInstance = nullptr;
+  COPCORE_CUDA_CHECK(cudaMalloc(&dMagneticFieldInstance, sizeof(FieldType)));
+  COPCORE_CUDA_CHECK(cudaMemcpy(dMagneticFieldInstance, &magneticField, sizeof(FieldType), cudaMemcpyHostToDevice));
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(FieldType *)));
+
   return true;
 }
 
-bool InitializeGeneralField(GeneralMagneticField &magneticField)
+template <typename FieldType>
+void FreeBField()
 {
-
-#ifdef ADEPT_USE_EXT_BFIELD
-
-  // Allocate and copy the GeneralMagneticField instance (not the field array itself), and set the global device pointer
-  GeneralMagneticField *dMagneticFieldInstance = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&dMagneticFieldInstance, sizeof(GeneralMagneticField)));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(dMagneticFieldInstance, &magneticField, sizeof(GeneralMagneticField), cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(GeneralMagneticField *)));
-
-#endif
-  return true;
-}
-
-void FreeGeneralField()
-{
-#ifdef ADEPT_USE_EXT_BFIELD
-  GeneralMagneticField *dMagneticFieldInstance = nullptr;
+  FieldType *dMagneticFieldInstance = nullptr;
 
   // Retrieve the global device pointer from the symbol
-  COPCORE_CUDA_CHECK(cudaMemcpyFromSymbol(&dMagneticFieldInstance, gMagneticField, sizeof(GeneralMagneticField *)));
+  COPCORE_CUDA_CHECK(cudaMemcpyFromSymbol(&dMagneticFieldInstance, gMagneticField, sizeof(FieldType *)));
 
   if (dMagneticFieldInstance) {
     // Free the device memory and reset global device pointer
     COPCORE_CUDA_CHECK(cudaFree(dMagneticFieldInstance));
-    GeneralMagneticField *nullPtr = nullptr;
-    COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &nullPtr, sizeof(GeneralMagneticField *)));
+    FieldType *nullPtr = nullptr;
+    COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &nullPtr, sizeof(FieldType *)));
   }
-#endif
 }
 
 void PrepareLeakedBuffers(int numLeaked, adeptint::TrackBuffer &buffer, GPUstate &gpuState)
@@ -377,8 +365,13 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
   FreeG4HepEmData(g4hepem_state->fData);
   delete g4hepem_state;
 
-  // Free magnetic field map
-  FreeGeneralField();
+// Free magnetic field
+// Free magnetic field
+#ifdef ADEPT_USE_EXT_BFIELD
+  FreeBField<GeneralMagneticField>();
+#else
+  FreeBField<UniformMagneticField>();
+#endif
 }
 
 template <typename IntegrationLayer>
@@ -623,6 +616,11 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
 
   adept_scoring::EndOfTransport<IntegrationLayer>(*scoring, scoring_dev, gpuState.stream, integration);
 }
+
+// explicit instantiation
+template bool InitializeBField<GeneralMagneticField>(GeneralMagneticField &);
+template bool InitializeBField<UniformMagneticField>(UniformMagneticField &);
+
 } // namespace adept_impl
 
 #endif
