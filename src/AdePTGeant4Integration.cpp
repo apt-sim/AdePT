@@ -19,6 +19,7 @@
 #include <G4TouchableHandle.hh>
 #include <G4PVReplica.hh>
 #include <G4ReplicaNavigation.hh>
+#include <G4StepStatus.hh>
 
 #include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
@@ -351,6 +352,17 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
                          &fScoringObjects->fPostG4NavigationHistory);
   }
 
+  // Get step status
+  // NOTE: Currently, we only check for the geometrical boundary, other statuses are set as unknown for now
+  G4StepStatus preStepStatus{G4StepStatus::fUndefined};
+  G4StepStatus postStepStatus{G4StepStatus::fUndefined};
+  if (preNavState.IsOnBoundary()) {
+    preStepStatus = G4StepStatus::fGeomBoundary;
+  }
+  if (postNavState.IsOnBoundary()) {
+    postStepStatus = G4StepStatus::fGeomBoundary;
+  }
+
   // Reconstruct G4Step
   switch (hit.fParticleType) {
   case 0:
@@ -364,7 +376,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
     break;
   }
   FillG4Step(&hit, fScoringObjects->fG4Step, *fScoringObjects->fPreG4TouchableHistoryHandle,
-             *fScoringObjects->fPostG4TouchableHistoryHandle);
+             *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus);
 
   // Call SD code
   G4VSensitiveDetector *aSensitiveDetector =
@@ -445,7 +457,8 @@ void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aN
 
 void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
                                         G4TouchableHandle &aPreG4TouchableHandle,
-                                        G4TouchableHandle &aPostG4TouchableHandle) const
+                                        G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
+                                        G4StepStatus aPostStepStatus) const
 {
   const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
                                                       aGPUHit->fPostStepPoint.fMomentumDirection.y(),
@@ -519,7 +532,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aPreStepPoint->SetPolarization(G4ThreeVector(aGPUHit->fPreStepPoint.fPolarization.x(),
                                                aGPUHit->fPreStepPoint.fPolarization.y(),
                                                aGPUHit->fPreStepPoint.fPolarization.z())); // Real data
-  // aPreStepPoint->SetStepStatus(G4StepStatus::fUndefined);                                        // Missing data
+  aPreStepPoint->SetStepStatus(aPreStepStatus);                                            // Missing data
   // aPreStepPoint->SetProcessDefinedStep(nullptr);                                                 // Missing data
   // aPreStepPoint->SetMass(0);                                                                     // Missing data
   aPreStepPoint->SetCharge(aGPUHit->fPreStepPoint.fCharge); // Real data
@@ -544,7 +557,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
   aPostStepPoint->SetPolarization(aPostStepPointPolarization); // Real data
-  // aPostStepPoint->SetStepStatus(G4StepStatus::fUndefined);                                         // Missing data
+  aPostStepPoint->SetStepStatus(aPostStepStatus);              // Missing data
   // aPostStepPoint->SetProcessDefinedStep(nullptr);                                                  // Missing data
   // aPostStepPoint->SetMass(0);                                                                      // Missing data
   aPostStepPoint->SetCharge(aGPUHit->fPostStepPoint.fCharge); // Real data

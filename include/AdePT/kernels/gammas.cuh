@@ -466,6 +466,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       survive();
     }
     }
+
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring,
