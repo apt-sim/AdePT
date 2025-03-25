@@ -20,7 +20,6 @@
 AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *adeptConfiguration)
     : G4UImessenger(), fAdePTConfiguration(adeptConfiguration)
 {
-  std::cout << " CALLING CONFIGURATIONMESSENGER CONSTRUCTOR " << std::endl;
   fDir = new G4UIdirectory("/adept/");
   fDir->SetGuidance("adept configuration messenger");
 
@@ -100,7 +99,6 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
 
 AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
 {
-  std::cout << " CALLING CONFIGURATIONMESSENGER DESTRUCTOR" << std::endl;
   delete fDir;
   delete fSetCUDAStackLimitCmd;
   delete fSetCUDAHeapLimitCmd;
