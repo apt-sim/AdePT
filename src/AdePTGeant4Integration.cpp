@@ -628,15 +628,19 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
 }
 
-double AdePTGeant4Integration::GetUniformFieldZ() const
+vecgeom::Vector3D<float> AdePTGeant4Integration::GetUniformField() const
 {
+  vecgeom::Vector3D<float> Bfield(0., 0., 0.);
+
   G4MagneticField *field =
       (G4MagneticField *)G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField();
+
   if (field) {
     G4double origin[3] = {0., 0., 0.};
-    G4double Bfield[3] = {0., 0., 0.};
-    field->GetFieldValue(origin, Bfield);
-    return Bfield[2];
-  } else
-    return 0;
+    G4double temp[3]   = {0., 0., 0.};
+    field->GetFieldValue(origin, temp);
+    Bfield.Set(temp[0], temp[1], temp[2]);
+  }
+
+  return Bfield;
 }

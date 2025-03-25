@@ -17,6 +17,7 @@
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/PerEventScoringStruct.cuh>
 #include <AdePT/magneticfield/GeneralMagneticField.h>
+#include <AdePT/magneticfield/UniformMagneticField.h>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
@@ -74,8 +75,8 @@ private:
 
   void Initialize();
   void InitBVH();
-  bool InitializeField(double bz);
-  bool InitializeGeneralField();
+  bool InitializeBField();
+  bool InitializeBField(UniformMagneticField &Bfield);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
 

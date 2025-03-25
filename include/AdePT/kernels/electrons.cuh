@@ -3,12 +3,10 @@
 
 #include <AdePT/navigation/AdePTNavigator.h>
 
-#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 // Classes for Runge-Kutta integration
 #include <AdePT/magneticfield/MagneticFieldEquation.h>
 #include <AdePT/magneticfield/DormandPrinceRK45.h>
 #include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
-#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 
@@ -57,20 +55,20 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
-#ifdef ADEPT_USE_EXT_BFIELD
-  constexpr int Nvar           = 6;
-  using Field_t                = GeneralMagneticField; // UniformMagneticField;
-  using Equation_t             = MagneticFieldEquation<Field_t>;
-  using Stepper_t              = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t             = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
-  constexpr int max_iterations = 10;
+  constexpr int Nvar                = 6;
+  constexpr int max_iterations      = 10;
 
-  // Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
+#ifdef ADEPT_USE_EXT_BFIELD
+  using Field_t = GeneralMagneticField;
+#else
+  using Field_t = UniformMagneticField;
+#endif
+  using Equation_t = MagneticFieldEquation<Field_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
 
   auto &magneticField = *gMagneticField;
-#else
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
-#endif
+
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot           = (*active)[i];
@@ -101,20 +99,19 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
   constexpr int Pdg                 = IsElectron ? 11 : -11;
-#ifdef ADEPT_USE_EXT_BFIELD
-  constexpr int Nvar           = 6;
-  using Field_t                = GeneralMagneticField; // UniformMagneticField;
-  using Equation_t             = MagneticFieldEquation<Field_t>;
-  using Stepper_t              = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t             = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
-  constexpr int max_iterations = 10;
+  constexpr int Nvar                = 6;
+  constexpr int max_iterations      = 10;
 
-  // Field_t magneticField(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue)); // needed for UniformMagneticField
+#ifdef ADEPT_USE_EXT_BFIELD
+  using Field_t = GeneralMagneticField;
+#else
+  using Field_t = UniformMagneticField;
+#endif
+  using Equation_t = MagneticFieldEquation<Field_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
 
   auto &magneticField = *gMagneticField;
-#else
-  fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
-#endif
 
   int activeSize = electrons->fActiveTracks->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -238,15 +235,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     double safeLength = 0.;
 
-#ifdef ADEPT_USE_EXT_BFIELD
     if (gMagneticField) {
-#else
-    if (BzFieldValue != 0) {
-#endif
+
       const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
       // Distance along the track direction to reach the maximum allowed error
 
-#ifdef ADEPT_USE_EXT_BFIELD
       // SEVERIN: to be checked if we can use float
       vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
       vecgeom::Vector3D<double> B0fieldVec =
@@ -254,9 +247,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       safeLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
               momentumVec, B0fieldVec, Charge);
-#else
-      safeLength = fieldPropagatorBz.ComputeSafeLength(momentumMag, Charge, dir);
-#endif
+
       constexpr int MaxSafeLength = 10;
       double limit                = MaxSafeLength * safeLength;
       limit                       = safety > limit ? safety : limit;
@@ -302,7 +293,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double geometryStepLength;
     vecgeom::NavigationState nextState;
 
-#ifdef ADEPT_USE_EXT_BFIELD
     if (gMagneticField) {
       int iterDone = -1;
       geometryStepLength =
@@ -311,12 +301,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
               nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot);
-#else
-    if (BzFieldValue != 0) {
-      geometryStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
-          eKin, restMass, Charge, geometricalStepLengthFromPhysics, pos, dir, navState, nextState, hitsurf_index,
-          propagated, safety);
-#endif
     } else {
 #ifdef ADEPT_USE_SURF
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,

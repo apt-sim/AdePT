@@ -44,9 +44,10 @@
 /// Forward declarations
 namespace async_adept_impl {
 void CopySurfaceModelToGPU();
-bool InitializeField(double);
-bool InitializeGeneralField(GeneralMagneticField &);
-void FreeGeneralField(GeneralMagneticField &);
+template <typename FieldType>
+bool InitializeBField(FieldType &);
+template <typename FieldType>
+void FreeField();
 bool InitializeApplyCuts(bool applycuts);
 G4HepEmState *InitG4HepEm();
 void FlushScoring(AdePTScoring &);
@@ -167,13 +168,7 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(
 }
 
 template <typename IntegrationLayer>
-bool AsyncAdePTTransport<IntegrationLayer>::InitializeField(double bz)
-{
-  return async_adept_impl::InitializeField(bz);
-}
-
-template <typename IntegrationLayer>
-bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeneralField()
+bool AsyncAdePTTransport<IntegrationLayer>::InitializeBField()
 {
   if (!fBfieldFile.empty()) {
     // Initialize magnetic field data from file
@@ -182,9 +177,25 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeneralField()
     }
 
     // Delegate the setup of the global view pointer to adept_impl
-    return async_adept_impl::InitializeGeneralField(fMagneticField);
+    return async_adept_impl::InitializeBField(fMagneticField);
   }
   return true; // no file provided, but no error encountered, so true is returned
+}
+
+template <typename IntegrationLayer>
+bool AsyncAdePTTransport<IntegrationLayer>::InitializeBField(UniformMagneticField &Bfield)
+{
+  vecgeom::Vector3D<float> position{
+      0.,
+      0.,
+      0.,
+  };
+  auto field_value = Bfield.Evaluate(position);
+  if (field_value.Mag2() > 0) {
+    // Delegate the setup of the global view pointer to adept_impl
+    return async_adept_impl::InitializeBField(Bfield);
+  }
+  return true; // no B field provided, but no error encountered, so true is returned
 }
 
 template <typename IntegrationLayer>
@@ -258,28 +269,22 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
   // Initialize G4HepEm
-  fIntegrationLayerObjects.front().GetUniformFieldZ();
   if (!InitializePhysics())
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
   // Initialize field
-  const double bz =
-      fIntegrationLayerObjects[0].GetUniformFieldZ(); // Get the field value from one of the worker threads
-  if (!InitializeField(bz))
-    throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
-
 #ifdef ADEPT_USE_EXT_BFIELD
-  // Try to initialize field from file, otherwise initialize from vector
-  if (!InitializeGeneralField()) {
+  // Try to initialize field from file
+  if (!InitializeBField()) {
     throw std::runtime_error(
         "AdePTTransport<IntegrationLayer>::Initialize cannot initialize GeneralMagneticField on GPU");
-    // NOTE: if the field option is a run-time option and not a compile time option, uncomment the code below
-    // to use uniform field in case no file was provided. ToDo: this requires changing the return of
-    // InitializeGeneralField
-    //   double bz = fIntegrationLayer.GetUniformFieldZ();
-    //   if (!InitializeField(bz))
-    //     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
   }
+#else
+  auto field_values =
+      fIntegrationLayerObjects[0].GetUniformField(); // Get the field value from one of the worker threads
+  std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(field_values);
+  if (!InitializeBField(*Bfield))
+    throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
 #endif
 
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.

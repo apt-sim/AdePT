@@ -71,7 +71,7 @@ public:
 
   /// @brief Returns the Z value of the user-defined uniform magnetic field
   /// @details This function can only be called when the user-defined field is a G4UniformMagField
-  double GetUniformFieldZ() const;
+  vecgeom::Vector3D<float> GetUniformField() const;
 
   int GetEventID() const { return G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(); }
 
