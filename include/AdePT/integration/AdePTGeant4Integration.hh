@@ -55,7 +55,7 @@ public:
 
   /// @brief Reconstructs GPU hits on host and calls the user-defined sensitive detector code
   void ProcessGPUStep(GPUHit const &hit, bool const callUserSteppingAction = false,
-                      bool const callPostUserTrackingaction = false);
+                      bool const callUserTrackingaction = false);
 
   /// @brief Takes a range of tracks coming from the device and gives them back to Geant4
   template <typename Iterator>

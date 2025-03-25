@@ -30,10 +30,7 @@ public:
   void SetNumThreads(int numThreads) { fNumThreads = numThreads; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   void SetCallUserSteppingAction(bool callUserSteppingAction) { fCallUserSteppingAction = callUserSteppingAction; }
-  void SetCallPostUserTrackingAction(bool callPostUserTrackingAction)
-  {
-    fCallPostUserTrackingAction = callPostUserTrackingAction;
-  }
+  void SetCallUserTrackingAction(bool callUserTrackingAction) { fCallUserTrackingAction = callUserTrackingAction; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
@@ -56,7 +53,7 @@ public:
 
   bool GetTrackInAllRegions() { return fTrackInAllRegions; }
   bool GetCallUserSteppingAction() { return fCallUserSteppingAction; }
-  bool GetCallPostUserTrackingAction() { return fCallPostUserTrackingAction; }
+  bool GetCallUserTrackingAction() { return fCallUserTrackingAction; }
   bool GetSpeedOfLight() { return fSpeedOfLight; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetNumThreads() { return fNumThreads; };
@@ -78,7 +75,7 @@ public:
 private:
   bool fTrackInAllRegions{false};
   bool fCallUserSteppingAction{false};
-  bool fCallPostUserTrackingAction{false};
+  bool fCallUserTrackingAction{false};
   bool fSpeedOfLight{false};
   bool fAdePTActivated{true};
   int fNumThreads;

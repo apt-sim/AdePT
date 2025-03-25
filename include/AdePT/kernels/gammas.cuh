@@ -195,7 +195,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
 #ifdef ADEPT_USE_SURF
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
-        if (nextState.IsOutside()) continue;
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif
@@ -216,10 +215,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    nextState,                                   // Post-step point navstate
                                    pos,                                         // Post-step point position
                                    dir,                                         // Post-step point momentum direction
-                                   0,                                           // Post-step point kinetic energy
+                                   eKin,                                        // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                   returnLastStep); // whether this is the last step of the track
+                                   returnLastStep,
+                                   currentTrack.stepCounter == 1 ? true
+                                                                 : false); // whether this is the last step of the track
 
         // Move to the next boundary.
         navState = nextState;
@@ -266,10 +267,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    nextState,                                   // Post-step point navstate
                                    pos,                                         // Post-step point position
                                    dir,                                         // Post-step point momentum direction
-                                   0,                                           // Post-step point kinetic energy
+                                   eKin,                                        // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                   returnLastStep); // whether this is the last step of the track
+                                   returnLastStep, // whether this is the last step of the track
+                                   currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
       }
       continue;
     } else {
@@ -485,7 +487,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                newEnergyGamma,                              // Post-step point kinetic energy
                                0,                                           // Post-step point charge
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               returnLastStep); // whether this is the last step of the track
+                               returnLastStep, // whether this is the last step of the track
+                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
     }
   }
 }

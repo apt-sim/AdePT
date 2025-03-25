@@ -63,8 +63,8 @@ private:
   bool fTrackInAllRegions = false;
   std::vector<std::string> const *fGPURegionNames;
   // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction
-  bool fReturnAllSteps = false;
-  bool fReturnLastStep = false;
+  bool fReturnAllSteps         = false;
+  bool fReturnFirstAndLastStep = false;
   std::string fBfieldFile{""};         ///< Path to magnetic field file (in the covfie format)
   GeneralMagneticField fMagneticField; ///< arbitrary magnetic field
   double fCPUCapacityFactor{

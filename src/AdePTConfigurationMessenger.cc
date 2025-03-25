@@ -20,6 +20,7 @@
 AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *adeptConfiguration)
     : G4UImessenger(), fAdePTConfiguration(adeptConfiguration)
 {
+  std::cout << " CALLING CONFIGURATIONMESSENGER CONSTRUCTOR " << std::endl;
   fDir = new G4UIdirectory("/adept/");
   fDir->SetGuidance("adept configuration messenger");
 
@@ -33,13 +34,8 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "secondary before the primary has finished its track."
       " NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance");
 
-  fSetCallPostUserTrackingActionCmd = new G4UIcmdWithABool("/adept/CallPostUserTrackingAction", this);
-  fSetCallPostUserTrackingActionCmd->SetGuidance(
-      "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
-      "means that the last step of every track is recorded on GPU and send back to CPU");
-
-  fSetCallPostUserTrackingActionCmd = new G4UIcmdWithABool("/adept/CallPostUserTrackingAction", this);
-  fSetCallPostUserTrackingActionCmd->SetGuidance(
+  fSetCallUserTrackingActionCmd = new G4UIcmdWithABool("/adept/CallUserTrackingAction", this);
+  fSetCallUserTrackingActionCmd->SetGuidance(
       "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
       "means that the last step of every track is recorded on GPU and send back to CPU");
 
@@ -104,12 +100,13 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
 
 AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
 {
+  std::cout << " CALLING CONFIGURATIONMESSENGER DESTRUCTOR" << std::endl;
   delete fDir;
   delete fSetCUDAStackLimitCmd;
   delete fSetCUDAHeapLimitCmd;
   delete fSetTrackInAllRegionsCmd;
   delete fSetCallUserSteppingActionCmd;
-  delete fSetCallPostUserTrackingActionCmd;
+  delete fSetCallUserTrackingActionCmd;
   delete fAddRegionCmd;
   delete fActivateAdePTCmd;
   delete fSetVerbosityCmd;
@@ -133,8 +130,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetTrackInAllRegions(fSetTrackInAllRegionsCmd->GetNewBoolValue(newValue));
   } else if (command == fSetCallUserSteppingActionCmd) {
     fAdePTConfiguration->SetCallUserSteppingAction(newValue);
-  } else if (command == fSetCallPostUserTrackingActionCmd) {
-    fAdePTConfiguration->SetCallPostUserTrackingAction(newValue);
+  } else if (command == fSetCallUserTrackingActionCmd) {
+    fAdePTConfiguration->SetCallUserTrackingAction(newValue);
   } else if (command == fSetSpeedOfLightCmd) {
     fAdePTConfiguration->SetSpeedOfLightCmd(newValue);
   } else if (command == fAddRegionCmd) {

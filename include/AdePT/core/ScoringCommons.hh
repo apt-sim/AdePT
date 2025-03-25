@@ -32,6 +32,7 @@ struct GPUHit {
   unsigned int fEventId{0};
   short threadId{-1};
   // bool fFirstStepInVolume{false};
+  bool fFirstStepOfTrack{false};
   bool fLastStepOfTrack{false};
   char fParticleType{0}; // Particle type ID
 };
@@ -74,12 +75,14 @@ __device__ __forceinline__ void FillHit(GPUHit &aGPUHit, int aParentID, char aPa
                                         double aPreCharge, vecgeom::NavigationState const &aPostState,
                                         vecgeom::Vector3D<Precision> const &aPostPosition,
                                         vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                                        double aPostCharge, unsigned int eventID, short threadID, bool isLastStep)
+                                        double aPostCharge, unsigned int eventID, short threadID, bool isLastStep,
+                                        bool isFirstStep)
 {
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
 
-  aGPUHit.fLastStepOfTrack = isLastStep;
+  aGPUHit.fFirstStepOfTrack = isFirstStep;
+  aGPUHit.fLastStepOfTrack  = isLastStep;
   // Fill the required data
   aGPUHit.fParentID           = aParentID;
   aGPUHit.fParticleType       = aParticleType;
