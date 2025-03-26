@@ -93,8 +93,8 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
-      fReturnLastStep{configuration.GetCallPostUserTrackingAction()}, fBfieldFile{configuration.GetCovfieBfieldFile()},
-      fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
+      fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction()},
+      fBfieldFile{configuration.GetCovfieBfieldFile()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
       fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
       fCPUCapacityFactor{configuration.GetCPUCapacityFactor()}
 {
@@ -310,7 +310,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
                                                fCPUCapacityFactor, fCPUCopyFraction);
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
                                                  fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel,
-                                                 fReturnAllSteps, fReturnLastStep, fLastNParticlesOnCPU);
+                                                 fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU);
 }
 
 template <typename IntegrationLayer>
@@ -341,7 +341,7 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
                   << " state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
                   << "\033[0m" << std::endl;
       }
-      integrationInstance.ProcessGPUStep(*it, fReturnAllSteps, fReturnLastStep);
+      integrationInstance.ProcessGPUStep(*it, fReturnAllSteps, fReturnFirstAndLastStep);
     }
     async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
   }

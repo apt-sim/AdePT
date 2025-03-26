@@ -654,6 +654,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     if (stopped) {
+      eKin = 0;
       if (!IsElectron) {
         // Annihilate the stopped positron into two gammas heading to opposite
         // directions (isotropic).
@@ -711,21 +712,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
-                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
-                               elTrack.GetPStepLength(),                    // Step length
-                               energyDeposit,                               // Total Edep
-                               navState,                                    // Pre-step point navstate
-                               preStepPos,                                  // Pre-step point position
-                               preStepDir,                                  // Pre-step point momentum direction
-                               preStepEnergy,                               // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                         // Pre-step point charge
-                               nextState,                                   // Post-step point navstate
-                               pos,                                         // Post-step point position
-                               dir,                                         // Post-step point momentum direction
-                               eKin,                                        // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                         // Post-step point charge
-                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               returnLastStep);                             // whether this was the last step
+                               static_cast<char>(IsElectron ? 0 : 1),         // Particle type
+                               elTrack.GetPStepLength(),                      // Step length
+                               energyDeposit,                                 // Total Edep
+                               navState,                                      // Pre-step point navstate
+                               preStepPos,                                    // Pre-step point position
+                               preStepDir,                                    // Pre-step point momentum direction
+                               preStepEnergy,                                 // Pre-step point kinetic energy
+                               IsElectron ? -1 : 1,                           // Pre-step point charge
+                               nextState,                                     // Post-step point navstate
+                               pos,                                           // Post-step point position
+                               dir,                                           // Post-step point momentum direction
+                               eKin,                                          // Post-step point kinetic energy
+                               IsElectron ? -1 : 1,                           // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
+                               returnLastStep,                                // whether this was the last step
+                               currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
     if (cross_boundary) {
       // Move to the next boundary now that the Step is recorded
       navState = nextState;

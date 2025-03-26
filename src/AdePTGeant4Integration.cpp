@@ -330,7 +330,7 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
 }
 
 void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUserSteppingAction,
-                                            bool const callPostUserTrackingAction)
+                                            bool const callUserTrackingAction)
 {
   if (!fScoringObjects) {
     fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());
@@ -361,6 +361,10 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
   }
   if (postNavState.IsOnBoundary()) {
     postStepStatus = G4StepStatus::fGeomBoundary;
+  }
+  // if the track has left the world, set to
+  if (postNavState.IsOutside()) {
+    postStepStatus = G4StepStatus::fWorldBoundary;
   }
 
   // Reconstruct G4Step
@@ -396,8 +400,14 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
     if (userSteppingAction) userSteppingAction->UserSteppingAction(fScoringObjects->fG4Step);
   }
 
-  // call UserSteppingAction if required
-  if (hit.fLastStepOfTrack && callPostUserTrackingAction) {
+  // call UserTrackingAction if required
+  if (hit.fFirstStepOfTrack && callUserTrackingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+    if (userTrackingAction) userTrackingAction->PreUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
+  }
+
+  if (hit.fLastStepOfTrack && callUserTrackingAction) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
@@ -491,7 +501,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // aTrack->SetTouchableHandle(aTrackTouchableHistory);                                      // Missing data
   // aTrack->SetNextTouchableHandle(nullptr);                                                 // Missing data
   // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
-  // aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);                                 // Real data
+  aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   // aTrack->SetVelocity(0);                                                                  // Missing data
   aTrack->SetPolarization(aPostStepPointPolarization); // Real data
