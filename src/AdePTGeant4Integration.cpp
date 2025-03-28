@@ -610,6 +610,9 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   secondary->SetProperTime(track.properTime);
   secondary->SetParentID(track.parentId);
 
+  // Set weight
+  secondary->SetWeight(track.weight);
+
   // Set vertex information
   secondary->SetVertexPosition(
       G4ThreeVector(track.vertexPosition[0], track.vertexPosition[1], track.vertexPosition[2]));

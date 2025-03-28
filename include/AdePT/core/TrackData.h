@@ -25,18 +25,19 @@ struct TrackData {
   double globalTime{0};
   double localTime{0};
   double properTime{0};
+  float weight{0};
   int pdg{0};
   int parentId{0};
 
   TrackData() = default;
   TrackData(int pdg_id, int parentId, double ene, double vertexEne, double x, double y, double z, double dirx,
             double diry, double dirz, double vertexX, double vertexY, double vertexZ, double vertexDirx,
-            double vertexDiry, double vertexDirz, double gTime, double lTime, double pTime,
+            double vertexDiry, double vertexDirz, double gTime, double lTime, double pTime, float weight,
             vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
       : navState{std::move(state)}, originNavState{std::move(originState)}, position{x, y, z},
         vertexPosition{vertexX, vertexY, vertexZ}, direction{dirx, diry, dirz},
         vertexMomentumDirection{vertexDirx, vertexDiry, vertexDirz}, eKin{ene}, vertexEkin{vertexEne},
-        globalTime{gTime}, localTime{lTime}, properTime{pTime}, pdg{pdg_id}, parentId{parentId}
+        globalTime{gTime}, localTime{lTime}, properTime{pTime}, weight{weight}, pdg{pdg_id}, parentId{parentId}
   {
   }
 

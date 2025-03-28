@@ -515,6 +515,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             secondary.parentId = currentTrack.parentId;
             secondary.rngState = newRNG;
             secondary.eKin = secondary.vertexEkin = deltaEkin;
+            secondary.weight                      = currentTrack.weight;
             secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
             secondary.vertexMomentumDirection.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 #endif
@@ -566,6 +567,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma.parentId = currentTrack.parentId;
             gamma.rngState = newRNG;
             gamma.eKin = gamma.vertexEkin = deltaEkin;
+            gamma.weight                  = currentTrack.weight;
             gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
             gamma.vertexMomentumDirection.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 
@@ -616,6 +618,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma1.parentId = currentTrack.parentId;
             gamma1.rngState = newRNG;
             gamma1.eKin = gamma1.vertexEkin = theGamma1Ekin;
+            gamma1.weight                   = currentTrack.weight;
             gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
             gamma1.vertexMomentumDirection.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 #endif
@@ -638,6 +641,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma2.parentId = currentTrack.parentId;
             gamma2.rngState = currentTrack.rngState;
             gamma2.eKin = gamma2.vertexEkin = theGamma2Ekin;
+            gamma2.weight                   = currentTrack.weight;
             gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
             gamma2.vertexMomentumDirection.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 #endif
@@ -690,6 +694,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           gamma1.parentId = currentTrack.parentId;
           gamma1.rngState = newRNG;
           gamma1.eKin = gamma1.vertexEkin = copcore::units::kElectronMassC2;
+          gamma1.weight                   = currentTrack.weight;
           gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
           gamma1.vertexMomentumDirection.Set(sint * cosPhi, sint * sinPhi, cost);
 
@@ -698,6 +703,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           gamma2.parentId = currentTrack.parentId;
           gamma2.rngState = currentTrack.rngState;
           gamma2.eKin = gamma2.vertexEkin = copcore::units::kElectronMassC2;
+          gamma2.weight                   = currentTrack.weight;
           gamma2.dir                      = -gamma1.dir;
           gamma2.vertexMomentumDirection  = -gamma1.dir;
 #endif
