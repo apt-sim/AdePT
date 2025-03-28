@@ -20,6 +20,7 @@
 #include <chrono>
 #include <thread>
 #include <condition_variable>
+#include <sstream>
 
 #include <cub/device/device_merge_sort.cuh>
 
