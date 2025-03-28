@@ -232,6 +232,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double globalTime    = aTrack->GetGlobalTime();
       G4double localTime     = aTrack->GetLocalTime();
       G4double properTime    = aTrack->GetProperTime();
+      G4double weight        = aTrack->GetWeight();
       auto pdg               = aTrack->GetParticleDefinition()->GetPDGEncoding();
       int id                 = aTrack->GetTrackID();
       if (fCurrentEventID != eventID) {
@@ -273,7 +274,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       fAdeptTransport->AddTrack(pdg, id, energy, vertexEnergy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 vertexPosition[0], vertexPosition[1], vertexPosition[2], vertexDirection[0],
-                                vertexDirection[1], vertexDirection[2], globalTime, localTime, properTime,
+                                vertexDirection[1], vertexDirection[2], globalTime, localTime, properTime, weight,
                                 G4Threading::G4GetThreadId(), eventID, fTrackCounter++, std::move(converted),
                                 std::move(convertedOrigin));
 

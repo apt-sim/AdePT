@@ -162,6 +162,8 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.localTime  = trackinfo[i].localTime;
     track.properTime = trackinfo[i].properTime;
 
+    track.weight = trackinfo[i].weight;
+
     track.originNavState.Clear();
     track.originNavState = trackinfo[i].originNavState;
 
