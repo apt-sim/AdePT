@@ -24,7 +24,7 @@ namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
+    TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *nextActiveQueue,
                     adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
                     AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps, bool returnLastStep)
 {
@@ -101,15 +101,20 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
-      if (leak)
+      if (leak) {
+        // DEBUG
+        // FIXME: Why doesn't this use the slot manager?
+        // printf("LEAK\n");
         leakedQueue->push_back(slot);
-      else
-        activeQueue->push_back(slot);
+      } else
+        nextActiveQueue->push_back(slot);
 #else
       currentTrack.CopyTo(trackdata, Pdg);
-      if (leak)
+      if (leak) {
+        // DEBUG
+        // printf("LEAK\n");
         leakedQueue->push_back(trackdata);
-      else
+      } else
         gammas->fNextTracks->push_back(slot);
 #endif
     };
