@@ -98,14 +98,17 @@ bool AdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
 }
 
 template <typename IntegrationLayer>
-void AdePTTransport<IntegrationLayer>::AddTrack(
-    int pdg, int parent_id, double energy, double vertexEnergy, double x, double y, double z, double dirx, double diry,
-    double dirz, double vertexX, double vertexY, double vertexZ, double vertexDirx, double vertexDiry,
-    double vertexDirz, double globalTime, double localTime, double properTime, int /*threadId*/, unsigned int eventId,
-    unsigned int /*trackIndex*/, vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
+void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parent_id, double energy, double vertexEnergy, double x,
+                                                double y, double z, double dirx, double diry, double dirz,
+                                                double vertexX, double vertexY, double vertexZ, double vertexDirx,
+                                                double vertexDiry, double vertexDirz, double globalTime,
+                                                double localTime, double properTime, float weight, int /*threadId*/,
+                                                unsigned int eventId, unsigned int /*trackIndex*/,
+                                                vecgeom::NavigationState &&state,
+                                                vecgeom::NavigationState &&originState)
 {
   fBuffer.toDevice.emplace_back(pdg, parent_id, energy, vertexEnergy, x, y, z, dirx, diry, dirz, vertexX, vertexY,
-                                vertexZ, vertexDirx, vertexDiry, vertexDirz, globalTime, localTime, properTime,
+                                vertexZ, vertexDirx, vertexDiry, vertexDirz, globalTime, localTime, properTime, weight,
                                 std::move(state), std::move(originState));
   if (pdg == 11)
     fBuffer.nelectrons++;

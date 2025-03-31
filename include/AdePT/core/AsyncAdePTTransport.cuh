@@ -106,8 +106,8 @@ __global__ void InjectTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntrack
     Track &track    = generator->InitTrack(
         slot, initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin, trackInfo.vertexEkin,
         trackInfo.globalTime, static_cast<float>(trackInfo.localTime), static_cast<float>(trackInfo.properTime),
-        trackInfo.position, trackInfo.direction, trackInfo.vertexPosition, trackInfo.vertexMomentumDirection,
-        trackInfo.eventId, trackInfo.parentId, trackInfo.threadId);
+        trackInfo.weight, trackInfo.position, trackInfo.direction, trackInfo.vertexPosition,
+        trackInfo.vertexMomentumDirection, trackInfo.eventId, trackInfo.parentId, trackInfo.threadId);
     track.navState.Clear();
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;
@@ -227,6 +227,7 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       fromDevice[i].globalTime                 = track->globalTime;
       fromDevice[i].localTime                  = track->localTime;
       fromDevice[i].properTime                 = track->properTime;
+      fromDevice[i].weight                     = track->weight;
       fromDevice[i].pdg                        = pdg;
       fromDevice[i].eventId                    = track->eventId;
       fromDevice[i].threadId                   = track->threadId;

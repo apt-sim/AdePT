@@ -23,12 +23,13 @@ struct Track {
   RanluxppDouble rngState;
   double eKin{0.};
   double vertexEkin{0.};
+  double globalTime{0.};
+
+  float weight{0.};
   float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
   float initialRange{-1.f};
   float dynamicRangeFactor{-1.f};
   float tlimitMin{-1.f};
-
-  double globalTime{0.};
   float localTime{0.f};
   float properTime{0.f};
 
@@ -71,10 +72,12 @@ struct Track {
   /// Construct a new track for GPU transport.
   /// NB: The navState remains uninitialised.
   __device__ Track(uint64_t rngSeed, double eKin, double vertexEkin, double globalTime, float localTime,
-                   float properTime, double const position[3], double const direction[3], double const vertexPos[3],
-                   double const vertexDir[3], unsigned int eventId, int parentId, short threadId)
-      : eKin{eKin}, vertexEkin{vertexEkin}, globalTime{globalTime}, localTime{localTime}, properTime{properTime},
-        eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0}, looperCounter{0}
+                   float properTime, float weight, double const position[3], double const direction[3],
+                   double const vertexPos[3], double const vertexDir[3], unsigned int eventId, int parentId,
+                   short threadId)
+      : eKin{eKin}, vertexEkin{vertexEkin}, weight{weight}, globalTime{globalTime}, localTime{localTime},
+        properTime{properTime}, eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0},
+        looperCounter{0}
   {
     rngState.SetSeed(rngSeed);
     pos                     = {position[0], position[1], position[2]};
@@ -90,8 +93,8 @@ struct Track {
                    const Track &parentTrack)
       : rngState{rngState}, eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, eventId{parentTrack.eventId},
-        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, vertexPosition{parentPos},
-        vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0}
+        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
+        vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0}
   {
   }
 
@@ -147,6 +150,8 @@ struct Track {
     this->vertexPosition = parentPos;
     // Caller is responsible to set the vertex momentum direction and ekin
 
+    // Caller is responsible to set the weight of the track
+
     // The global time is inherited from the parent
     this->globalTime = gTime;
     this->localTime  = 0.;
@@ -179,6 +184,7 @@ struct Track {
     tdata.navState                   = navState;
     tdata.originNavState             = originNavState;
     tdata.vertexEkin                 = vertexEkin;
+    tdata.weight                     = weight;
   }
 };
 #endif

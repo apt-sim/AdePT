@@ -334,6 +334,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
         electron.eKin = electron.vertexEkin = elKinEnergy;
+        electron.weight                     = currentTrack.weight;
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
         electron.vertexMomentumDirection.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 #endif
@@ -355,6 +356,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         positron.parentId = currentTrack.parentId;
         positron.rngState = currentTrack.rngState;
         positron.eKin = positron.vertexEkin = posKinEnergy;
+        positron.weight                     = currentTrack.weight;
         positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
         positron.vertexMomentumDirection.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 #endif
@@ -396,6 +398,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
         electron.eKin = electron.vertexEkin = energyEl;
+        electron.weight                     = currentTrack.weight;
         electron.dir = electron.vertexMomentumDirection = eKin * dir - newEnergyGamma * newDirGamma;
 #endif
 
@@ -448,6 +451,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.parentId = currentTrack.parentId;
         electron.rngState = newRNG;
         electron.eKin = electron.vertexEkin = photoElecE;
+        electron.weight                     = currentTrack.weight;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
         electron.vertexMomentumDirection.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
 #endif
