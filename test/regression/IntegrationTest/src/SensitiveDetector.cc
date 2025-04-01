@@ -73,7 +73,8 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
   auto hit = RetrieveAndSetupHit(hitID);
 
   // Add energy deposit from G4Step
-  hit->AddEdep(edep);
+  // For validation purposes, we multiply the energy deposit by the track weight
+  hit->AddEdep(edep * aStep->GetTrack()->GetWeight());
 
   // Fill time information from G4Step
   // If it's already filled, choose hit with earliest global time
