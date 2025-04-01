@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2021 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--disable-new-dtags")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags")
 
 if(NOT TARGET G4HepEm::g4HepEm)
   message(STATUS "Disabling testField (needs G4HepEm)")
@@ -31,15 +31,13 @@ target_include_directories(testField
     $<BUILD_INTERFACE:${Geant4_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${G4HepEm_INCLUDE_DIR}>
 )
-target_link_libraries(testField
-  PRIVATE
+cuda_rdc_target_link_libraries(testField
+  #PRIVATE
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     ${G4HepEm_LIBRARIES}
-    CUDA::cudart
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
@@ -50,11 +48,11 @@ if(ADEPT_USE_EXT_BFIELD)
   )
 endif()
 
-set_target_properties(testField 
-  PROPERTIES 
-    CUDA_SEPARABLE_COMPILATION ON 
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON
-)
+#set_target_properties(testField 
+#  PROPERTIES 
+#    CUDA_SEPARABLE_COMPILATION ON 
+#    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+#)
 
 # Tests
 add_test(NAME testField
