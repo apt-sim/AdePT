@@ -31,11 +31,10 @@ target_include_directories(testField
     $<BUILD_INTERFACE:${Geant4_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${G4HepEm_INCLUDE_DIR}>
 )
-target_link_libraries(testField
+cuda_rdc_target_link_libraries(testField
   PRIVATE
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     ${G4HepEm_LIBRARIES}
