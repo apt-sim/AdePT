@@ -172,9 +172,9 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.numIALeft[2] = -1.0;
     track.numIALeft[3] = -1.0;
 
-    track.initialRange       = -1.0;
-    track.dynamicRangeFactor = -1.0;
-    track.tlimitMin          = -1.0;
+    track.initialRange       = 1.0e+21;
+    track.dynamicRangeFactor = 0.04;
+    track.tlimitMin          = 1.0E-7;
 
     track.pos                     = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
     track.dir                     = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};

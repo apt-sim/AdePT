@@ -27,9 +27,11 @@ struct Track {
 
   float weight{0.};
   float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
-  float initialRange{-1.f};
-  float dynamicRangeFactor{-1.f};
-  float tlimitMin{-1.f};
+  // default values taken from G4HepEmMSCTrackData.hh
+  float initialRange{1.0e+21};
+  float dynamicRangeFactor{0.04};
+  float tlimitMin{1.0E-7};
+
   float localTime{0.f};
   float properTime{0.f};
 
@@ -132,9 +134,9 @@ struct Track {
     this->numIALeft[2] = -1.0;
     this->numIALeft[3] = -1.0;
 
-    this->initialRange       = -1.0;
-    this->dynamicRangeFactor = -1.0;
-    this->tlimitMin          = -1.0;
+    this->initialRange       = 1.0e+21;
+    this->dynamicRangeFactor = 0.04;
+    this->tlimitMin          = 1.0E-7;
 
     // A secondary inherits the position of its parent; the caller is responsible
     // to update the directions.
