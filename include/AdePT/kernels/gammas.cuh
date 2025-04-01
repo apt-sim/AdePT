@@ -207,6 +207,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    2,                                           // Particle type
                                    geometryStepLength,                          // Step length
                                    0,                                           // Total Edep
+                                   currentTrack.weight,                         // Track weight
                                    navState,                                    // Pre-step point navstate
                                    preStepPos,                                  // Pre-step point position
                                    preStepDir,                                  // Pre-step point momentum direction
@@ -259,6 +260,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    2,                                           // Particle type
                                    geometryStepLength,                          // Step length
                                    0,                                           // Total Edep
+                                   currentTrack.weight,                         // Track weight
                                    navState,                                    // Pre-step point navstate
                                    preStepPos,                                  // Pre-step point position
                                    preStepDir,                                  // Pre-step point momentum direction
@@ -480,6 +482,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                2,                                           // Particle type
                                geometryStepLength,                          // Step length
                                edep,                                        // Total Edep
+                               currentTrack.weight,                         // Track weight
                                navState,                                    // Pre-step point navstate
                                preStepPos,                                  // Pre-step point position
                                preStepDir,                                  // Pre-step point momentum direction

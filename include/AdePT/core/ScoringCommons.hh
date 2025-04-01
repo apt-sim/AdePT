@@ -28,6 +28,7 @@ struct GPUHit {
   double fStepLength{0};
   double fTotalEnergyDeposit{0};
   double fNonIonizingEnergyDeposit{0};
+  float fTrackWeight{1};
   int fParentID{0}; // Track ID
   unsigned int fEventId{0};
   short threadId{-1};
@@ -68,15 +69,13 @@ __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const 
 };
 
 /// @brief Fill the provided hit with the given data
-__device__ __forceinline__ void FillHit(GPUHit &aGPUHit, int aParentID, char aParticleType, double aStepLength,
-                                        double aTotalEnergyDeposit, vecgeom::NavigationState const &aPreState,
-                                        vecgeom::Vector3D<Precision> const &aPrePosition,
-                                        vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
-                                        double aPreCharge, vecgeom::NavigationState const &aPostState,
-                                        vecgeom::Vector3D<Precision> const &aPostPosition,
-                                        vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                                        double aPostCharge, unsigned int eventID, short threadID, bool isLastStep,
-                                        bool isFirstStep)
+__device__ __forceinline__ void FillHit(
+    GPUHit &aGPUHit, int aParentID, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
+    float aTrackWeight, vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
+    vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
+    vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
+    vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin, double aPostCharge,
+    unsigned int eventID, short threadID, bool isLastStep, bool isFirstStep)
 {
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
@@ -88,6 +87,7 @@ __device__ __forceinline__ void FillHit(GPUHit &aGPUHit, int aParentID, char aPa
   aGPUHit.fParticleType       = aParticleType;
   aGPUHit.fStepLength         = aStepLength;
   aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;
+  aGPUHit.fTrackWeight        = aTrackWeight;
   // Pre step point
   aGPUHit.fPreStepPoint.fNavigationState = aPreState;
   Copy3DVector(aPrePosition, aGPUHit.fPreStepPoint.fPosition);
