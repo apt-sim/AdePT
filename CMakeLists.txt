@@ -256,11 +256,10 @@ target_include_directories(AdePT_G4_integration
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
-target_link_libraries(AdePT_G4_integration
+cuda_rdc_target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
