@@ -105,7 +105,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
     std::atomic_init(&eventState, EventState::ScoringRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmConfig); // FIXME check if I can really comment this out as it is called later
+  AsyncAdePTTransport::Initialize(hepEmConfig);
 }
 
 template <typename IntegrationLayer>
