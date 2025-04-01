@@ -32,12 +32,15 @@
 #include <VecGeom/surfaces/cuda/BrepCudaManager.h>
 #endif
 
-#include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
 #include <G4HepEmState.hh>
 #include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
+#include <G4HepEmParametersInit.hh>
+#include <G4HepEmMaterialInit.hh>
+#include <G4HepEmElectronInit.hh>
+#include <G4HepEmGammaInit.hh>
 
 #include <iostream>
 #include <iomanip>
@@ -412,17 +415,38 @@ void CopySurfaceModelToGPU()
 #endif
 }
 
-G4HepEmState *InitG4HepEm()
+G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
 {
+  // here we call everything from InitG4HepEmState, as we need to provide the parameters from the G4HepEmConfig and do
+  // not want to initialize to the default values
   auto state = new G4HepEmState;
-  InitG4HepEmState(state);
+
+  // Use the config-provided parameters
+  state->fParameters = hepEmConfig->GetG4HepEmParameters();
+
+  // Initialize data and fill each subtable using its initialize function
+  state->fData = new G4HepEmData;
+  InitG4HepEmData(state->fData);
+  InitMaterialAndCoupleData(state->fData, state->fParameters);
+
+  // electrons, positrons, gamma
+  InitElectronData(state->fData, state->fParameters, true);
+  InitElectronData(state->fData, state->fParameters, false);
+  InitGammaData(state->fData, state->fParameters);
 
   G4HepEmMatCutData *cutData = state->fData->fTheMatCutData;
   G4cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData << G4endl;
 
   // Copy to GPU.
   CopyG4HepEmDataToGPU(state->fData);
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, state->fParameters, sizeof(G4HepEmParameters)));
+  CopyG4HepEmParametersToGPU(state->fParameters);
+
+  // Create G4HepEmParameters with the device pointer
+  G4HepEmParameters parametersOnDevice        = *state->fParameters;
+  parametersOnDevice.fParametersPerRegion     = state->fParameters->fParametersPerRegion_gpu;
+  parametersOnDevice.fParametersPerRegion_gpu = nullptr;
+
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
 
   // Create G4HepEmData with the device pointers.
   G4HepEmData dataOnDevice;
@@ -1218,6 +1242,7 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
 
   // Free G4HepEm data
   FreeG4HepEmData(g4hepem_state.fData);
+  FreeG4HepEmParametersOnGPU(g4hepem_state.fParameters);
 
   // Free magnetic field
 #ifdef ADEPT_USE_EXT_BFIELD

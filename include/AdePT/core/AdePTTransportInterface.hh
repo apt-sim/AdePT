@@ -6,6 +6,7 @@
 
 #include "G4VPhysicalVolume.hh"
 #include "VecGeom/navigation/NavigationState.h"
+#include <G4HepEmConfig.hh>
 
 #include <memory>
 #include <string>
@@ -46,7 +47,7 @@ public:
   virtual void SetCUDAStackLimit(int limit)                   = 0;
   virtual void SetCUDAHeapLimit(int limit)                    = 0;
   /// @brief Initialize service and copy geometry & physics data on device
-  virtual void Initialize(bool common_data = false) = 0;
+  virtual void Initialize(G4HepEmConfig *hepEmConfig, bool common_data = false) = 0;
   /// @brief Initialize the ApplyCuts flag on device
   virtual bool InitializeApplyCuts(bool applycuts) = 0;
   /// @brief Interface for transporting a buffer of tracks in AdePT.

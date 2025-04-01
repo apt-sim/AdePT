@@ -18,10 +18,10 @@
 #include <algorithm>
 
 #ifdef ASYNC_MODE
-std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf)
+std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmConfig *hepEmConfig)
 {
   static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> AdePT{
-      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf)};
+      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmConfig)};
   return AdePT;
 }
 #endif
@@ -72,34 +72,32 @@ void AdePTTrackingManager::InitializeAdePT()
 
 // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
 // all threads.
-#ifndef ASYNC_MODE
-    fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+#ifdef ASYNC_MODE
+    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
 #else
-    // fAdeptTransport =
-    // std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration);
-#endif
+    fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
-    fAdeptTransport->Initialize(true /*common_data*/);
+    fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig(), true /*common_data*/);
     if (sequential) {
       // Initialize per-thread data (When in sequential mode)
-      fAdeptTransport->Initialize();
+      fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
     }
+#endif
+
   } else {
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
     fAdePTConfiguration->SetNumThreads(fNumThreads);
-#ifndef ASYNC_MODE
-    fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+#ifdef ASYNC_MODE
+    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
 #else
-    // fAdeptTransport =
-    // std::make_shared<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration);
-#endif
+    fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+
     // Initialize per-thread data
-    fAdeptTransport->Initialize();
+    fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
+#endif
   }
 
   // Initialize the GPU region list
