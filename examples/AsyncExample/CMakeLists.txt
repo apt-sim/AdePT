@@ -58,7 +58,7 @@ add_library(ExamplesCommon OBJECT
 )
 
 target_include_directories(ExamplesCommon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../common/include)
-target_link_libraries(ExamplesCommon PUBLIC AdePT_G4_integration)
+cuda_rdc_target_link_libraries(ExamplesCommon PUBLIC AdePT_G4_integration)
 target_compile_options(ExamplesCommon PRIVATE -Wall -Wextra)
 
 if(HepMC3_FOUND)
