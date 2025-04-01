@@ -28,7 +28,6 @@ template <typename FieldType>
 bool InitializeBField(FieldType &);
 template <typename FieldType>
 void FreeField();
-bool InitializeApplyCuts(bool);
 bool InitializeVolAuxArray(adeptint::VolAuxArray &);
 void FreeVolAuxArray(adeptint::VolAuxArray &);
 G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
@@ -89,12 +88,6 @@ bool AdePTTransport<IntegrationLayer>::InitializeBField(UniformMagneticField &Bf
     return adept_impl::InitializeBField(Bfield);
   }
   return true; // no B field provided, but no error encountered, so true is returned
-}
-
-template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
-{
-  return adept_impl::InitializeApplyCuts(applycuts);
 }
 
 template <typename IntegrationLayer>

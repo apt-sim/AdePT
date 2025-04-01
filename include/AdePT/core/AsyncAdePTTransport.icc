@@ -48,7 +48,6 @@ template <typename FieldType>
 bool InitializeBField(FieldType &);
 template <typename FieldType>
 void FreeField();
-bool InitializeApplyCuts(bool applycuts);
 G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
@@ -201,12 +200,6 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeBField(UniformMagneticFiel
     return async_adept_impl::InitializeBField(Bfield);
   }
   return true; // no B field provided, but no error encountered, so true is returned
-}
-
-template <typename IntegrationLayer>
-bool AsyncAdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
-{
-  return async_adept_impl::InitializeApplyCuts(applycuts);
 }
 
 template <typename IntegrationLayer>

@@ -211,7 +211,6 @@ extern __constant__ __device__ struct G4HepEmData g4HepEmData;
 // Pointer for array of volume auxiliary data on device
 extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
 
-extern __constant__ __device__ bool ApplyCuts;
 constexpr double kPush = 1.e-8 * copcore::units::cm;
 #ifdef ADEPT_USE_EXT_BFIELD
 __device__ GeneralMagneticField *gMagneticField = nullptr;

@@ -297,6 +297,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
 
+    const int iregion = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
+    ;
+    const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
+
     double edep           = 0.;
     double newEnergyGamma = 0.; // gamma energy after compton scattering
 

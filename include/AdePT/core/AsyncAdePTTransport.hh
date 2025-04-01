@@ -111,8 +111,6 @@ public:
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
   /// No effect
   void Initialize(G4HepEmConfig *hepEmConfig, bool) override {}
-  /// @brief Initializes the ApplyCut flag. Can only be called after G4 Physics is build
-  bool InitializeApplyCuts(bool applycuts);
   /// @brief Finish GPU transport, bring hits and tracks to host
   /// @details The shower call exists to maintain the same interface as the
   /// synchronous AdePT mode, since in this case the transport loop is always
