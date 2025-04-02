@@ -41,7 +41,14 @@ void InitG4HepEmGPU(G4HepEmState *state)
 {
   // Copy to GPU.
   CopyG4HepEmDataToGPU(state->fData);
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, state->fParameters, sizeof(G4HepEmParameters)));
+  CopyG4HepEmParametersToGPU(state->fParameters);
+
+  // Create G4HepEmParameters with the device pointer
+  G4HepEmParameters parametersOnDevice        = *state->fParameters;
+  parametersOnDevice.fParametersPerRegion     = state->fParameters->fParametersPerRegion_gpu;
+  parametersOnDevice.fParametersPerRegion_gpu = nullptr;
+
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
 
   // Create G4HepEmData with the device pointers.
   G4HepEmData dataOnDevice;
