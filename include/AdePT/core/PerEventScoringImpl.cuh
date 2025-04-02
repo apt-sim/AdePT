@@ -687,8 +687,8 @@ namespace adept_scoring {
 /// @brief Record a hit
 template <>
 __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParentID, char aParticleType,
-                          double aStepLength, double aTotalEnergyDeposit, vecgeom::NavigationState const &aPreState,
-                          vecgeom::Vector3D<Precision> const &aPrePosition,
+                          double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
+                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
@@ -698,7 +698,7 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParent
   GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
 
   // Fill the required data
-  FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aPreState, aPrePosition,
+  FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight, aPreState, aPrePosition,
           aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
           aPostCharge, eventID, threadID, isLastStep, isLastStep);
 }

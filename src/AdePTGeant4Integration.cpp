@@ -518,7 +518,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // aTrack->SetCreatorModelID(0);                                                            // Missing data
   // aTrack->SetParentResonanceDef(nullptr);                                                  // Missing data
   // aTrack->SetParentResonanceID(0);                                                         // Missing data
-  // aTrack->SetWeight(0);                                                                    // Missing data
+  aTrack->SetWeight(aGPUHit->fTrackWeight);
   // aTrack->SetUserInformation(nullptr);                                                     // Missing data
   // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
 

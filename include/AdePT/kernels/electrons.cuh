@@ -721,6 +721,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                static_cast<char>(IsElectron ? 0 : 1),         // Particle type
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
+                               currentTrack.weight,                           // Track weight
                                navState,                                      // Pre-step point navstate
                                preStepPos,                                    // Pre-step point position
                                preStepDir,                                    // Pre-step point momentum direction
