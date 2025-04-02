@@ -32,7 +32,7 @@ target_include_directories(testField
     $<BUILD_INTERFACE:${G4HepEm_INCLUDE_DIR}>
 )
 cuda_rdc_target_link_libraries(testField
-  #PRIVATE
+  PRIVATE
     CopCore
     VecGeom::vecgeom
     VecGeom::vgdml
@@ -41,7 +41,7 @@ cuda_rdc_target_link_libraries(testField
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
-  target_link_libraries(testField 
+  cuda_rdc_target_link_libraries(testField
     PRIVATE
       covfie::core
       covfie::cuda
