@@ -24,7 +24,7 @@ endmacro()
 # Common Data
 #----------------------------------------------------------------------------#
 set(TESTING_GDML "${PROJECT_BINARY_DIR}/testEm3.gdml")
-file(COPY "${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml" DESTINATION "${TESTING_GDML}")
+file(COPY "${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml" DESTINATION "${PROJECT_BINARY_DIR}")
 
 #----------------------------------------------------------------------------#
 # G4 App-based Tests
