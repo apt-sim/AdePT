@@ -861,7 +861,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // ------------------
 
       AllowFinishOffEventArray allowFinishOffEvent;
-      for (int i = 0; i < kMaxThreads; ++i) {
+      for (int i = 0; i < numThreads; ++i) {
         // if waiting for transport to finish, the last N particles may be finished on CPU
         if (eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish) {
           allowFinishOffEvent.flags[i] = lastNParticlesOnCPU;
