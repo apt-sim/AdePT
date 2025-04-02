@@ -255,6 +255,9 @@ cuda_rdc_target_include_directories(AdePT_G4_integration
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
+# This needs to be after the cuda_rdc_target_include_directories when
+# using v10 of CudaRdcUtils.cmake
+cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
 
 cuda_rdc_target_link_libraries(AdePT_G4_integration
   PUBLIC
