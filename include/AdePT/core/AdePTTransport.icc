@@ -28,10 +28,9 @@ template <typename FieldType>
 bool InitializeBField(FieldType &);
 template <typename FieldType>
 void FreeField();
-bool InitializeApplyCuts(bool);
 bool InitializeVolAuxArray(adeptint::VolAuxArray &);
 void FreeVolAuxArray(adeptint::VolAuxArray &);
-G4HepEmState *InitG4HepEm();
+G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
 GPUstate *InitializeGPU(TrackBuffer &, int, int);
 AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring);
 void CopySurfaceModelToGPU();
@@ -89,12 +88,6 @@ bool AdePTTransport<IntegrationLayer>::InitializeBField(UniformMagneticField &Bf
     return adept_impl::InitializeBField(Bfield);
   }
   return true; // no B field provided, but no error encountered, so true is returned
-}
-
-template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
-{
-  return adept_impl::InitializeApplyCuts(applycuts);
 }
 
 template <typename IntegrationLayer>
@@ -165,14 +158,14 @@ bool AdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VP
 }
 
 template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializePhysics()
+bool AdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hepEmConfig)
 {
-  fg4hepem_state = adept_impl::InitG4HepEm();
+  fg4hepem_state = adept_impl::InitG4HepEm(hepEmConfig);
   return true;
 }
 
 template <typename IntegrationLayer>
-void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
+void AdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig, bool common_data)
 {
   if (fInit) return;
   if (fMaxBatch <= 0)
@@ -194,7 +187,7 @@ void AdePTTransport<IntegrationLayer>::Initialize(bool common_data)
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Cannot initialize geometry on GPU");
 
     // Initialize G4HepEm
-    if (!InitializePhysics())
+    if (!InitializePhysics(hepEmConfig))
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize physics on GPU");
 
 #ifdef ADEPT_USE_EXT_BFIELD

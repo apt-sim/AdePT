@@ -48,8 +48,7 @@ template <typename FieldType>
 bool InitializeBField(FieldType &);
 template <typename FieldType>
 void FreeField();
-bool InitializeApplyCuts(bool applycuts);
-G4HepEmState *InitG4HepEm();
+G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
 std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
@@ -85,7 +84,8 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 } // namespace
 
 template <typename IntegrationLayer>
-AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration)
+AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration,
+                                                           G4HepEmConfig *hepEmConfig)
     : fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
@@ -105,7 +105,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
     std::atomic_init(&eventState, EventState::ScoringRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize();
+  AsyncAdePTTransport::Initialize(hepEmConfig);
 }
 
 template <typename IntegrationLayer>
@@ -203,12 +203,6 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeBField(UniformMagneticFiel
 }
 
 template <typename IntegrationLayer>
-bool AsyncAdePTTransport<IntegrationLayer>::InitializeApplyCuts(bool applycuts)
-{
-  return async_adept_impl::InitializeApplyCuts(applycuts);
-}
-
-template <typename IntegrationLayer>
 bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
   // Upload geometry to GPU.
@@ -250,15 +244,15 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cx
 }
 
 template <typename IntegrationLayer>
-bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics()
+bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hepEmConfig)
 {
   // Initialize shared physics data
-  fg4hepem_state.reset(async_adept_impl::InitG4HepEm());
+  fg4hepem_state.reset(async_adept_impl::InitG4HepEm(hepEmConfig));
   return true;
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::Initialize()
+void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig)
 {
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -273,7 +267,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize()
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
   // Initialize G4HepEm
-  if (!InitializePhysics())
+  if (!InitializePhysics(hepEmConfig))
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
   // Initialize field

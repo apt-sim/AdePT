@@ -169,6 +169,7 @@ int *CreateMCCindex(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolu
 void FreeG4HepEm(G4HepEmState *state)
 {
   FreeG4HepEmData(state->fData);
+  FreeG4HepEmParametersOnGPU(state->fParameters);
 }
 
 void InitBVH()

@@ -408,6 +408,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
 
+    const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
+    const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
+
     if (!stopped) {
       if (nextState.IsOnBoundary()) {
         // For now, just count that we hit something.

@@ -34,12 +34,17 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/copcore/Ranluxpp.h>
 
-#include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
 #include <G4HepEmState.hh>
 #include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
+#include <G4HepEmParametersInit.hh>
+#include <G4HepEmMaterialInit.hh>
+#include <G4HepEmElectronInit.hh>
+#include <G4HepEmGammaInit.hh>
+#include <G4HepEmConfig.hh>
+
 #ifdef USE_SPLIT_KERNELS
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmGammaTrack.hh>
@@ -56,7 +61,6 @@ inline __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 inline __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 inline __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
-inline __constant__ __device__ bool ApplyCuts                    = false;
 
 bool InitializeVolAuxArray(adeptint::VolAuxArray &array)
 {
@@ -73,18 +77,38 @@ void FreeVolAuxArray(adeptint::VolAuxArray &array)
   COPCORE_CUDA_CHECK(cudaFree(array.fAuxData_dev));
 }
 
-G4HepEmState *InitG4HepEm()
+G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
 {
+  // here we call everything from InitG4HepEmState, as we need to provide the parameters from the G4HepEmConfig and do
+  // not want to initialize to the default values
   auto state = new G4HepEmState;
-  InitG4HepEmState(state);
+
+  // Use the config-provided parameters
+  state->fParameters = hepEmConfig->GetG4HepEmParameters();
+
+  // Initialize data and fill each subtable using its initialize function
+  state->fData = new G4HepEmData;
+  InitG4HepEmData(state->fData);
+  InitMaterialAndCoupleData(state->fData, state->fParameters);
+
+  // electrons, positrons, gamma
+  InitElectronData(state->fData, state->fParameters, true);
+  InitElectronData(state->fData, state->fParameters, false);
+  InitGammaData(state->fData, state->fParameters);
 
   G4HepEmMatCutData *cutData = state->fData->fTheMatCutData;
-  std::cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData
-            << std::endl;
+  G4cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData << G4endl;
 
   // Copy to GPU.
   CopyG4HepEmDataToGPU(state->fData);
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(adept_impl::g4HepEmPars, state->fParameters, sizeof(G4HepEmParameters)));
+  CopyG4HepEmParametersToGPU(state->fParameters);
+
+  // Create G4HepEmParameters with the device pointer
+  G4HepEmParameters parametersOnDevice        = *state->fParameters;
+  parametersOnDevice.fParametersPerRegion     = state->fParameters->fParametersPerRegion_gpu;
+  parametersOnDevice.fParametersPerRegion_gpu = nullptr;
+
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
 
   // Create G4HepEmData with the device pointers.
   G4HepEmData dataOnDevice;
@@ -107,13 +131,6 @@ G4HepEmState *InitG4HepEm()
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
 
   return state;
-}
-
-bool InitializeApplyCuts(bool applycuts)
-{
-  // Initialize ApplyCut
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(ApplyCuts, &applycuts, sizeof(bool)));
-  return true;
 }
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
@@ -147,9 +164,9 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.numIALeft[2] = -1.0;
     track.numIALeft[3] = -1.0;
 
-    track.initialRange       = -1.0;
-    track.dynamicRangeFactor = -1.0;
-    track.tlimitMin          = -1.0;
+    track.initialRange       = 1.0e+21;
+    track.dynamicRangeFactor = 0.04;
+    track.tlimitMin          = 1.0E-7;
 
     track.pos                     = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
     track.dir                     = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
@@ -365,6 +382,7 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
 
   // Free G4HepEm data
   FreeG4HepEmData(g4hepem_state->fData);
+  FreeG4HepEmParametersOnGPU(g4hepem_state->fParameters);
   delete g4hepem_state;
 
 // Free magnetic field

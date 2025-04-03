@@ -92,7 +92,6 @@ extern __constant__ struct G4HepEmParameters g4HepEmPars;
 extern __constant__ struct G4HepEmData g4HepEmData;
 
 extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
-extern __constant__ __device__ bool ApplyCuts;
 #ifdef ADEPT_USE_EXT_BFIELD
 __device__ GeneralMagneticField *gMagneticField = nullptr;
 #else

@@ -295,7 +295,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
     const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecPosProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+
+    const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
+    const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
     double edep           = 0.;
     double newEnergyGamma = 0.; // gamma energy after compton scattering
@@ -342,7 +346,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #endif
       }
 
-      if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < theElCut)) {
+      if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
         // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
         edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
       } else {
