@@ -49,6 +49,7 @@ AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configurati
   fMaxBatch          = 2 * configuration.GetTransportBufferThreshold();
   fTrackInAllRegions = configuration.GetTrackInAllRegions();
   fGPURegionNames    = configuration.GetGPURegionNames();
+  fCPURegionNames    = configuration.GetCPURegionNames();
   fCUDAStackLimit    = configuration.GetCUDAStackLimit();
   fCUDAHeapLimit     = configuration.GetCUDAHeapLimit();
   fBfieldFile        = configuration.GetCovfieBfieldFile();

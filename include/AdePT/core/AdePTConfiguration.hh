@@ -32,6 +32,7 @@ public:
   void SetCallUserSteppingAction(bool callUserSteppingAction) { fCallUserSteppingAction = callUserSteppingAction; }
   void SetCallUserTrackingAction(bool callUserTrackingAction) { fCallUserTrackingAction = callUserTrackingAction; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
+  void RemoveGPURegionName(std::string name) { fCPURegionNames.push_back(name); }
   void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
   void SetTransportBufferThreshold(int threshold) { fTransportBufferThreshold = threshold; }
@@ -67,6 +68,7 @@ public:
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
+  std::vector<std::string> *GetCPURegionNames() { return &fCPURegionNames; }
 
   // Temporary
   std::string GetVecGeomGDML() { return fVecGeomGDML; }
@@ -90,6 +92,7 @@ private:
   unsigned short fLastNParticlesOnCPU{0};
 
   std::vector<std::string> fGPURegionNames{};
+  std::vector<std::string> fCPURegionNames{};
   int fNThread = -1;
 
   std::string fVecGeomGDML{""};

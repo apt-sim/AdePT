@@ -103,17 +103,55 @@ void AdePTTrackingManager::InitializeAdePT()
   // Initialize the GPU region list
 
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
-    for (std::string regionName : *(fAdeptTransport->GetGPURegionNames())) {
-      G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
+    // Case 1: GPU regions are explicitly listed, and CPU regions must not overlap
+    for (const std::string &regionName : *(fAdeptTransport->GetGPURegionNames())) {
       G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
-      if (region != nullptr)
-        fGPURegions.insert(region);
-      else
+      if (region == nullptr) {
         G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
-                    ("Region given to /adept/addGPURegion: " + regionName + " Not found\n").c_str());
+                    ("Region given to /adept/addGPURegion: " + regionName + " not found\n").c_str());
+      }
+
+      // Check for conflict with CPURegionNames
+      for (const std::string &cpuRegionName : *(fAdeptTransport->GetCPURegionNames())) {
+        if (regionName == cpuRegionName) {
+          G4Exception("AdePTTrackingManager", "Conflicting region assignment", FatalErrorInArgument,
+                      ("Region '" + regionName + "' is defined in both /adept/addGPURegion and /adept/removeGPURegion")
+                          .c_str());
+        }
+      }
+
+      G4cout << "AdePTTrackingManager: Marking " << regionName << " as a GPU Region" << G4endl;
+      fGPURegions.insert(region);
     }
+
+    fHepEmTrackingManager->SetTrackInAllRegions(false);
+
+  } else if (!fAdeptTransport->GetCPURegionNames()->empty()) {
+    // Case 2: Track everywhere except explicitly listed CPU regions
+    const auto &cpuRegionNames = *(fAdeptTransport->GetCPURegionNames());
+
+    // First mark all regions as GPU regions
+    for (G4Region *region : *G4RegionStore::GetInstance()) {
+      if (region != nullptr) {
+        fGPURegions.insert(region);
+      }
+    }
+
+    // Then remove explicitly listed CPU regions
+    for (const std::string &cpuRegionName : cpuRegionNames) {
+      G4Region *region = G4RegionStore::GetInstance()->GetRegion(cpuRegionName);
+      if (region == nullptr) {
+        G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
+                    ("Region given to /adept/removeGPURegion: " + cpuRegionName + " not found\n").c_str());
+      }
+
+      G4cout << "AdePTTrackingManager: Removing " << cpuRegionName << " from GPU Regions" << G4endl;
+      fGPURegions.erase(region);
+    }
+
     fHepEmTrackingManager->SetTrackInAllRegions(false);
   } else {
+    // Case 3: Track everywhere, no CPU overrides
     fHepEmTrackingManager->SetTrackInAllRegions(true);
   }
   // initialize special G4HepEmTrackingManager

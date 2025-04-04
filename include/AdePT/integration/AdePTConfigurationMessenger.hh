@@ -41,6 +41,7 @@ private:
   G4UIcmdWithABool *fSetCallUserTrackingActionCmd;
   G4UIcmdWithABool *fSetSpeedOfLightCmd;
   G4UIcmdWithAString *fAddRegionCmd;
+  G4UIcmdWithAString *fRemoveRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;
   G4UIcmdWithAnInteger *fSetVerbosityCmd;
   G4UIcmdWithAnInteger *fSetTransportBufferThresholdCmd;

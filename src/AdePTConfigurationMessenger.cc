@@ -46,6 +46,10 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fAddRegionCmd = new G4UIcmdWithAString("/adept/addGPURegion", this);
   fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
 
+  fRemoveRegionCmd = new G4UIcmdWithAString("/adept/removeGPURegion", this);
+  fRemoveRegionCmd->SetGuidance(
+      "Remove a region in which transport will be done on GPU (so it will be done on the CPU)");
+
   fActivateAdePTCmd = new G4UIcmdWithABool("/adept/activateAdePT", this);
   fActivateAdePTCmd->SetGuidance("Set whether to use AdePT for transport, if false all transport is done by Geant4");
 
@@ -106,6 +110,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetCallUserSteppingActionCmd;
   delete fSetCallUserTrackingActionCmd;
   delete fAddRegionCmd;
+  delete fRemoveRegionCmd;
   delete fActivateAdePTCmd;
   delete fSetVerbosityCmd;
   delete fSetTransportBufferThresholdCmd;
@@ -134,6 +139,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetSpeedOfLightCmd(newValue);
   } else if (command == fAddRegionCmd) {
     fAdePTConfiguration->AddGPURegionName(newValue);
+  } else if (command == fRemoveRegionCmd) {
+    fAdePTConfiguration->RemoveGPURegionName(newValue);
   } else if (command == fActivateAdePTCmd) {
     fAdePTConfiguration->SetAdePTActivation(fActivateAdePTCmd->GetNewBoolValue(newValue));
   } else if (command == fSetVerbosityCmd) {

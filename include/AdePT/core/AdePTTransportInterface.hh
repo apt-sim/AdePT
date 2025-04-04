@@ -38,9 +38,12 @@ public:
   virtual void SetTrackInAllRegions(bool trackInAllRegions) = 0;
   /// @brief Check whether AdePT should transport particles across the whole geometry
   virtual bool GetTrackInAllRegions() const = 0;
-  /// @brief Set Geant4 region to which it applies
+  /// @brief Set Geant4 region which are run on GPU
   virtual void SetGPURegionNames(std::vector<std::string> const *regionNames) = 0;
+  /// @brief Set Geant4 region which are run on CPU
+  virtual void SetCPURegionNames(std::vector<std::string> const *regionNames) = 0;
   virtual std::vector<std::string> const *GetGPURegionNames()                 = 0;
+  virtual std::vector<std::string> const *GetCPURegionNames()                 = 0;
   /// @brief Set path to covfie magnetic field file
   /// @param fileName path to magnetic field file
   virtual void SetBfieldFileName(const std::string &fileName) = 0;

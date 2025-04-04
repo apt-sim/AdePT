@@ -66,12 +66,14 @@ public:
   bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
   /// @brief Set Geant4 region to which it applies
   void SetGPURegionNames(std::vector<std::string> const *regionNames) { fGPURegionNames = regionNames; }
+  void SetCPURegionNames(std::vector<std::string> const *regionNames) { fCPURegionNames = regionNames; }
   /// @brief Set path to covfie Bfield file
   void SetBfieldFileName(const std::string &fileName) override { fBfieldFile = fileName; }
   /// @brief Set CUDA device stack limit
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
+  std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize(G4HepEmConfig *hepEmConfig, bool common_data = false);
@@ -97,7 +99,8 @@ private:
   AdeptScoring *fScoring{nullptr};                     ///< User scoring object
   AdeptScoring *fScoring_dev{nullptr};                 ///< Device ptr for scoring data
   TrackBuffer fBuffer;                                 ///< Vector of buffers of tracks to/from device (per thread)
-  std::vector<std::string> const *fGPURegionNames{};   ///< Region to which applies
+  std::vector<std::string> const *fGPURegionNames{};   ///< Regions that are run on GPU
+  std::vector<std::string> const *fCPURegionNames{};   ///< Regions that are run on CPU
   IntegrationLayer fIntegrationLayer;  ///< Provides functionality needed for integration with the simulation toolkit
   bool fInit{false};                   ///< Service initialized flag
   bool fTrackInAllRegions;             ///< Whether the whole geometry is a GPU region
