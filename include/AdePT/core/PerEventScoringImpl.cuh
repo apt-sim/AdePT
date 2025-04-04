@@ -20,8 +20,7 @@
 #include <chrono>
 #include <thread>
 #include <condition_variable>
-
-#include <cub/device/device_merge_sort.cuh>
+#include <sstream>
 
 // definitions for printouts and advanced debugging
 // #define DEBUG

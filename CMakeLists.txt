@@ -228,6 +228,7 @@ if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
 endif()
 
+# The NOFLUCTUATION flag is passed and used in G4HepEm
 if(NOT WITH_FLUCT)
   add_compile_definitions(NOFLUCTUATION)
 endif()
