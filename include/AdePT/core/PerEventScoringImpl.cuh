@@ -22,8 +22,6 @@
 #include <condition_variable>
 #include <sstream>
 
-#include <cub/device/device_merge_sort.cuh>
-
 // definitions for printouts and advanced debugging
 // #define DEBUG
 #define RESET "\033[0m"
