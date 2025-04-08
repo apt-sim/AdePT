@@ -97,6 +97,15 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
   fSetCUDAHeapLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAHeapLimit", this);
   fSetCUDAHeapLimitCmd->SetGuidance("Set the CUDA device heap limit");
+
+  fSetMultipleStepsInMSCWithTransportationCmd =
+      new G4UIcmdWithABool("/adept/SetMultipleStepsInMSCWithTransportation", this);
+  fSetMultipleStepsInMSCWithTransportationCmd->SetGuidance(
+      "If true, this configures G4HepEm to use multiple steps in MSC on CPU. This does not affect GPU transport");
+
+  fSetEnergyLossFluctuationCmd = new G4UIcmdWithABool("/adept/SetEnergyLossFluctuation", this);
+  fSetEnergyLossFluctuationCmd->SetGuidance(
+      "If true, this configures G4HepEm to use energy loss fluctuations. This affects both CPU and GPU transport");
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -122,6 +131,8 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetFinishOnCpuCmd;
   delete fSetSpeedOfLightCmd;
   delete fSetCPUCapacityFactorCmd;
+  delete fSetMultipleStepsInMSCWithTransportationCmd;
+  delete fSetEnergyLossFluctuationCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -132,11 +143,16 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
   if (command == fSetTrackInAllRegionsCmd) {
     fAdePTConfiguration->SetTrackInAllRegions(fSetTrackInAllRegionsCmd->GetNewBoolValue(newValue));
   } else if (command == fSetCallUserSteppingActionCmd) {
-    fAdePTConfiguration->SetCallUserSteppingAction(newValue);
+    fAdePTConfiguration->SetCallUserSteppingAction(fSetCallUserSteppingActionCmd->GetNewBoolValue(newValue));
   } else if (command == fSetCallUserTrackingActionCmd) {
-    fAdePTConfiguration->SetCallUserTrackingAction(newValue);
+    fAdePTConfiguration->SetCallUserTrackingAction(fSetCallUserTrackingActionCmd->GetNewBoolValue(newValue));
   } else if (command == fSetSpeedOfLightCmd) {
-    fAdePTConfiguration->SetSpeedOfLightCmd(newValue);
+    fAdePTConfiguration->SetSpeedOfLight(fSetSpeedOfLightCmd->GetNewBoolValue(newValue));
+  } else if (command == fSetMultipleStepsInMSCWithTransportationCmd) {
+    fAdePTConfiguration->SetMultipleStepsInMSCWithTransportation(
+        fSetMultipleStepsInMSCWithTransportationCmd->GetNewBoolValue(newValue));
+  } else if (command == fSetEnergyLossFluctuationCmd) {
+    fAdePTConfiguration->SetEnergyLossFluctuation(fSetEnergyLossFluctuationCmd->GetNewBoolValue(newValue));
   } else if (command == fAddRegionCmd) {
     fAdePTConfiguration->AddGPURegionName(newValue);
   } else if (command == fRemoveRegionCmd) {

@@ -190,7 +190,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     theTrack->SetOnBoundary(navState.IsOnBoundary());
     theTrack->SetCharge(Charge);
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    mscData->fIsFirstStep        = currentTrack.initialRange < 0;
+    // the default is 1.0e21 but there are float vs double conversions, so we check for 1e20
+    mscData->fIsFirstStep        = currentTrack.initialRange > 1.0e+20;
     mscData->fInitialRange       = currentTrack.initialRange;
     mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
     mscData->fTlimitMin          = currentTrack.tlimitMin;

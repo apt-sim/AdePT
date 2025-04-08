@@ -51,7 +51,6 @@ option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
 option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
-option(WITH_FLUCT "Switch on the energy loss fluctuations" OFF)
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -226,11 +225,6 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecog
 find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
-endif()
-
-# The NOFLUCTUATION flag is passed and used in G4HepEm
-if(NOT WITH_FLUCT)
-  add_compile_definitions(NOFLUCTUATION)
 endif()
 
 #----------------------------------------------------------------------------#
