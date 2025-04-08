@@ -51,8 +51,6 @@ option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
 option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
-option(WITH_FLUCT "Switch on the energy loss fluctuations" OFF)
-option(MULTI_STEPS_IN_MSC "Switch on multiple steps in MSC with transportation in G4HepEm" OFF)
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -227,18 +225,6 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecog
 find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
-endif()
-
-# If fluctuations are turned off, the AdePT physics list switches off all fluctuations in G4HepEm
-# (otherwise it is using the default setting of the G4 application)
-if(WITH_FLUCT)
-  add_compile_definitions(WITH_FLUCT)
-endif()
-
-# If multiple steps in multiple scattering are turned off, the AdePT physics list switches them off in G4HepEm
-# I.e., this affects only the particles that are tracked on CPU in G4HepEm
-if(MULTI_STEPS_IN_MSC)
-  add_compile_definitions(MULTI_STEPS_IN_MSC)
 endif()
 
 #----------------------------------------------------------------------------#
