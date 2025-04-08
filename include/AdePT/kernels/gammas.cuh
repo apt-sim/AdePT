@@ -103,7 +103,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
       if (leak) {
-        // printf("LEAK\n");
         leakedQueue->push_back(slot);
       } else
         nextActiveQueue->push_back(slot);
