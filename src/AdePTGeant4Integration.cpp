@@ -607,7 +607,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   }
   G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
 
-  // printf("%lf\n", track.eKin);
+  // // printf("%lf\n", track.eKin);
 
   G4DynamicParticle *dynamic =
       new G4DynamicParticle(G4ParticleTable::GetParticleTable()->FindParticle(track.pdg), direction, track.eKin);
@@ -617,12 +617,12 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // push it to make sure it is not relocated again in the GPU region
   posi += tolerance * direction;
 
-  // Create track
+  // // Create track
   G4Track *secondary = new G4Track(dynamic /* Now owned by G4Track */, track.globalTime, posi);
 
   // We set the status of leaked tracks to fStopButAlive to be able to distinguish them to keep
   // them on the CPU until they die!
-  // secondary->SetTrackStatus(fStopButAlive);
+  secondary->SetTrackStatus(fAlive);
 
   // Set time information
   secondary->SetLocalTime(track.localTime);
@@ -646,15 +646,16 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // - For the same reason, we need to fill a navigation history and then create a touchable history from it
   auto originNavigationHistory = std::make_unique<G4NavigationHistory>();
   FillG4NavigationHistory(track.originNavState, *originNavigationHistory);
-  // We can't use the G4TouchableHistory constructor as it does only a shallow copy of the navigation history,
-  // but UpdateYourself takes ownership of the pointer
-  auto originTouchableHistory = std::make_unique<G4TouchableHistory>();
-  auto topVolume              = originNavigationHistory->GetTopVolume();
-  originTouchableHistory->UpdateYourself(topVolume,
-                                         originNavigationHistory.release() /* Now owned by G4TouchableHistory */);
+
+  // G4TouchableHistory constructor does a shallow copy of the navigation history
+  // There is no way to transfer ownership of this pointer to the G4TouchableHistory, as the other available method,
+  // UpdateYourself() does a shallow copy as well.
+  // The only way to avoid a memory leak is to do the shallow copy and then allow our instance to be deleted, which will
+  // call G4NavigationHistoryPool::DeRegister()
+  auto originTouchableHistory = std::make_unique<G4TouchableHistory>(*originNavigationHistory);
+
   // Give ownership of the touchable history to the touchable handle, which will now manage its lifetime
   G4TouchableHandle originTouchableHandle(originTouchableHistory.release() /* Now owned by G4TouchableHandle */);
-  secondary->SetOriginTouchableHandle(originTouchableHandle);
 
   // Give the track to G4
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
