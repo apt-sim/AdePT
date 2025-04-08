@@ -40,6 +40,8 @@ private:
   G4UIcmdWithABool *fSetCallUserSteppingActionCmd;
   G4UIcmdWithABool *fSetCallUserTrackingActionCmd;
   G4UIcmdWithABool *fSetSpeedOfLightCmd;
+  G4UIcmdWithABool *fSetMultipleStepsInMSCWithTransportationCmd;
+  G4UIcmdWithABool *fSetEnergyLossFluctuationCmd;
   G4UIcmdWithAString *fAddRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;
   G4UIcmdWithAnInteger *fSetVerbosityCmd;

@@ -43,7 +43,12 @@ public:
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
-  void SetSpeedOfLightCmd(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
+  void SetSpeedOfLight(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
+  void SetMultipleStepsInMSCWithTransportation(bool setMultipleSteps)
+  {
+    fSetMultipleStepsInMSCWithTransportation = setMultipleSteps;
+  }
+  void SetEnergyLossFluctuation(bool setELossFluct) { fSetEnergyLossFluctuation = setELossFluct; }
 
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
@@ -55,6 +60,8 @@ public:
   bool GetCallUserSteppingAction() { return fCallUserSteppingAction; }
   bool GetCallUserTrackingAction() { return fCallUserTrackingAction; }
   bool GetSpeedOfLight() { return fSpeedOfLight; }
+  bool GetMultipleStepsInMSCWithTransportation() { return fSetMultipleStepsInMSCWithTransportation; }
+  bool GetEnergyLossFluctuation() { return fSetEnergyLossFluctuation; }
   bool IsAdePTActivated() { return fAdePTActivated; }
   int GetNumThreads() { return fNumThreads; };
   int GetVerbosity() { return fVerbosity; };
@@ -77,6 +84,8 @@ private:
   bool fCallUserSteppingAction{false};
   bool fCallUserTrackingAction{false};
   bool fSpeedOfLight{false};
+  bool fSetMultipleStepsInMSCWithTransportation{false};
+  bool fSetEnergyLossFluctuation{false};
   bool fAdePTActivated{true};
   int fNumThreads;
   int fVerbosity{0};
