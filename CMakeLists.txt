@@ -42,9 +42,6 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ${CMAKE_CXX_STANDARD_REQUIRED})
 set(CMAKE_CUDA_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
-# set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fno-sanitize=address") 
-# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address") 
-
 #----------------------------------------------------------------------------#
 # User options
 #----------------------------------------------------------------------------#
