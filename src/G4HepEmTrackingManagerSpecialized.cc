@@ -34,8 +34,7 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
   //       This can be checked from the pre- and post-steppoint
 
   // Not in the GPU region, continue normal tracking with G4HepEmTrackingManager
-  if (fGPURegions.find(region) == fGPURegions.end() || (fGPURegions.empty() && !GetTrackInAllRegions()) ||
-      fFinishEventOnCPU[threadId] > 0) {
+  if ((!GetTrackInAllRegions() && fGPURegions.find(region) == fGPURegions.end()) || fFinishEventOnCPU[threadId] > 0) {
     return false; // Continue tracking with G4HepEmTrackingManager
   } else {
 

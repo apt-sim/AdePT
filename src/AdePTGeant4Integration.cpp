@@ -650,6 +650,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
 
   // Give ownership of the touchable history to the touchable handle, which will now manage its lifetime
   G4TouchableHandle originTouchableHandle(originTouchableHistory.release() /* Now owned by G4TouchableHandle */);
+  secondary->SetOriginTouchableHandle(originTouchableHandle);
 
   // Give the track to G4
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);

@@ -1504,56 +1504,6 @@
       <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
       <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
     </auxiliary>
-
-    <!-- <auxiliary auxtype="Region" auxvalue="Region1">
-      <auxiliary auxtype="volume" auxvalue="Layer1"/>
-      <auxiliary auxtype="volume" auxvalue="Layer2"/>
-      <auxiliary auxtype="volume" auxvalue="Layer3"/>
-      <auxiliary auxtype="volume" auxvalue="Layer4"/>
-      <auxiliary auxtype="volume" auxvalue="Layer5"/>
-      <auxiliary auxtype="volume" auxvalue="Layer6"/>
-      <auxiliary auxtype="volume" auxvalue="Layer7"/>
-      <auxiliary auxtype="volume" auxvalue="Layer8"/>
-      <auxiliary auxtype="volume" auxvalue="Layer9"/>
-      <auxiliary auxtype="volume" auxvalue="Layer10"/>
-      <auxiliary auxtype="volume" auxvalue="Layer11"/>
-      <auxiliary auxtype="volume" auxvalue="Layer12"/>
-      <auxiliary auxtype="volume" auxvalue="Layer13"/>
-      <auxiliary auxtype="volume" auxvalue="Layer14"/>
-      <auxiliary auxtype="volume" auxvalue="Layer15"/>
-      <auxiliary auxtype="volume" auxvalue="Layer16"/>
-      <auxiliary auxtype="volume" auxvalue="Layer17"/>
-      <auxiliary auxtype="volume" auxvalue="Layer18"/>
-      <auxiliary auxtype="volume" auxvalue="Layer19"/>
-      <auxiliary auxtype="volume" auxvalue="Layer20"/>
-      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
-      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
-      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
-      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
-    </auxiliary> -->
-    <!-- <auxiliary auxtype="Region" auxvalue="Region2">
-      <auxiliary auxtype="volume" auxvalue="Layer31"/>
-      <auxiliary auxtype="volume" auxvalue="Layer32"/>
-      <auxiliary auxtype="volume" auxvalue="Layer33"/>
-      <auxiliary auxtype="volume" auxvalue="Layer34"/>
-      <auxiliary auxtype="volume" auxvalue="Layer35"/>
-      <auxiliary auxtype="volume" auxvalue="Layer36"/>
-      <auxiliary auxtype="volume" auxvalue="Layer37"/>
-      <auxiliary auxtype="volume" auxvalue="Layer38"/>
-      <auxiliary auxtype="volume" auxvalue="Layer39"/>
-      <auxiliary auxtype="volume" auxvalue="Layer40"/>
-      <auxiliary auxtype="volume" auxvalue="Layer41"/>
-      <auxiliary auxtype="volume" auxvalue="Layer42"/>
-      <auxiliary auxtype="volume" auxvalue="Layer43"/>
-      <auxiliary auxtype="volume" auxvalue="Layer44"/>
-      <auxiliary auxtype="volume" auxvalue="Layer45"/>
-      <auxiliary auxtype="volume" auxvalue="Layer46"/>
-      <auxiliary auxtype="volume" auxvalue="Layer47"/>
-      <auxiliary auxtype="volume" auxvalue="Layer48"/>
-      <auxiliary auxtype="volume" auxvalue="Layer49"/>
-      <auxiliary auxtype="volume" auxvalue="Layer50"/>
-    </auxiliary> -->
-
     <auxiliary auxtype="Region" auxvalue="Layer1">
       <auxiliary auxtype="volume" auxvalue="Layer1"/>
       <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
