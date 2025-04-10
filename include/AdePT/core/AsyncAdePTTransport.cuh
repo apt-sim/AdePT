@@ -13,8 +13,14 @@
 #include <AdePT/copcore/Global.h>
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/copcore/Ranluxpp.h>
+
+#ifndef USE_SPLIT_KERNELS
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
+#else
+#include <AdePT/kernels/electrons_split_async.cuh>
+#include <AdePT/kernels/gammas_split_async.cuh>
+#endif
 // deprecated kernels that split the gamma interactions:
 // #include <AdePT/kernels/electrons_async.cuh>
 // #include <AdePT/kernels/gammas_async.cuh>
