@@ -66,7 +66,7 @@ struct ScoringObjects {
 
   ScoringObjects()
   {
-    // Step
+    // Assign step points in local storage and take ownership of the StepPoints
     fG4Step = new (&stepStorage) G4Step;
     fG4Step->SetPreStepPoint(::new (&stepPointStorage[0]) G4StepPoint());
     fG4Step->SetPostStepPoint(::new (&stepPointStorage[1]) G4StepPoint());
