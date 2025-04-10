@@ -60,7 +60,8 @@ namespace AdePTGeant4Integration_detail {
 //   // We need the dynamic particle associated to the track to have the correct particle definition, however this can
 //   // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
 //   // For this reason we create one track per particle type, to be reused
-//   // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
+//   // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per
+//   hit
 //   // The same goes for the G4Track global time and position
 //   std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type dynParticleStorage[3];
 
@@ -95,7 +96,7 @@ struct ScoringObjects {
   // are in memory pools. Therefore, we construct them as pointer to local memory.
   G4Step *fG4Step = nullptr;
 
-  G4TouchableHandle *fPreG4TouchableHistoryHandle = nullptr;
+  G4TouchableHandle *fPreG4TouchableHistoryHandle  = nullptr;
   G4TouchableHandle *fPostG4TouchableHistoryHandle = nullptr;
 
   // We need the dynamic particle associated to the track to have the correct particle definition, however this can
@@ -108,7 +109,7 @@ struct ScoringObjects {
 
   G4Track *fElectronTrack = nullptr;
   G4Track *fPositronTrack = nullptr;
-  G4Track *fGammaTrack = nullptr;
+  G4Track *fGammaTrack    = nullptr;
 
   ScoringObjects()
   {
@@ -124,12 +125,18 @@ struct ScoringObjects {
         ::new (&toucheableHandleStorage[1]) G4TouchableHandle{::new (&toucheableHistoryStorage[1]) G4TouchableHistory};
 
     // Tracks
-    fElectronTrack = ::new (&trackStorage[0]) G4Track{::new (&dynParticleStorage[0]) G4DynamicParticle{
-      G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0}, 0, G4ThreeVector(0, 0, 0)};
-    fPositronTrack = ::new (&trackStorage[1]) G4Track{::new (&dynParticleStorage[1]) G4DynamicParticle{
-      G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0}, 0, G4ThreeVector(0, 0, 0)};
-    fGammaTrack = ::new (&trackStorage[2]) G4Track{::new (&dynParticleStorage[2]) G4DynamicParticle{
-      G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0}, 0, G4ThreeVector(0, 0, 0)};
+    fElectronTrack = ::new (&trackStorage[0]) G4Track{
+        ::new (&dynParticleStorage[0])
+            G4DynamicParticle{G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0},
+        0, G4ThreeVector(0, 0, 0)};
+    fPositronTrack = ::new (&trackStorage[1]) G4Track{
+        ::new (&dynParticleStorage[1])
+            G4DynamicParticle{G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0},
+        0, G4ThreeVector(0, 0, 0)};
+    fGammaTrack = ::new (&trackStorage[2]) G4Track{
+        ::new (&dynParticleStorage[2])
+            G4DynamicParticle{G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0},
+        0, G4ThreeVector(0, 0, 0)};
   }
 
   // Note: no destructor needed since we’re intentionally *not* calling dtors on the placement-new'ed objects
