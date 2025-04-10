@@ -36,6 +36,52 @@ namespace AdePTGeant4Integration_detail {
 /// which cause a destruction order fiasco when the pools are destroyed before the objects,
 /// and then the objects' destructors are called.
 /// This also keeps all these objects much closer in memory.
+// struct ScoringObjects {
+//   G4NavigationHistory fPreG4NavigationHistory;
+//   G4NavigationHistory fPostG4NavigationHistory;
+
+//   // Create local storage for placement new of step points:
+//   std::aligned_storage<sizeof(G4StepPoint), alignof(G4StepPoint)>::type stepPointStorage[2];
+//   std::aligned_storage<sizeof(G4Step), alignof(G4Step)>::type stepStorage;
+//   std::aligned_storage<sizeof(G4TouchableHistory), alignof(G4TouchableHistory)>::type toucheableHistoryStorage[2];
+//   std::aligned_storage<sizeof(G4TouchableHandle), alignof(G4TouchableHandle)>::type toucheableHandleStorage[2];
+//   std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type trackStorage[3];
+
+//   // Cannot run G4Step's and TouchableHandle's destructors, since their internal reference-counted handles
+//   // are in memory pools. Therefore, we construct them as pointer to local memory.
+//   G4Step *fG4Step = new (&stepStorage) G4Step;
+
+//   G4TouchableHandle *fPreG4TouchableHistoryHandle =
+//       ::new (&toucheableHandleStorage[0]) G4TouchableHandle{::new (&toucheableHistoryStorage[0]) G4TouchableHistory};
+
+//   G4TouchableHandle *fPostG4TouchableHistoryHandle =
+//       ::new (&toucheableHandleStorage[1]) G4TouchableHandle{::new (&toucheableHistoryStorage[1]) G4TouchableHistory};
+
+//   // We need the dynamic particle associated to the track to have the correct particle definition, however this can
+//   // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
+//   // For this reason we create one track per particle type, to be reused
+//   // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
+//   // The same goes for the G4Track global time and position
+//   std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type dynParticleStorage[3];
+
+//   G4Track fElectronTrack{::new (dynParticleStorage) G4DynamicParticle{
+//                              G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0},
+//                          0, G4ThreeVector(0, 0, 0)};
+//   G4Track fPositronTrack{::new (dynParticleStorage + 1) G4DynamicParticle{
+//                              G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0},
+//                          0, G4ThreeVector(0, 0, 0)};
+//   G4Track fGammaTrack{::new (dynParticleStorage + 2) G4DynamicParticle{
+//                           G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0},
+//                       0, G4ThreeVector(0, 0, 0)};
+
+//   ScoringObjects()
+//   {
+//     // Assign step points in local storage:
+//     fG4Step->SetPreStepPoint(::new (stepPointStorage) G4StepPoint());      // Takes ownership
+//     fG4Step->SetPostStepPoint(::new (stepPointStorage + 1) G4StepPoint()); // Takes ownership
+//   }
+// };
+
 struct ScoringObjects {
   G4NavigationHistory fPreG4NavigationHistory;
   G4NavigationHistory fPostG4NavigationHistory;
@@ -47,13 +93,10 @@ struct ScoringObjects {
   std::aligned_storage<sizeof(G4TouchableHandle), alignof(G4TouchableHandle)>::type toucheableHandleStorage[2];
   // Cannot run G4Step's and TouchableHandle's destructors, since their internal reference-counted handles
   // are in memory pools. Therefore, we construct them as pointer to local memory.
-  G4Step *fG4Step = new (&stepStorage) G4Step;
+  G4Step *fG4Step = nullptr;
 
-  G4TouchableHandle *fPreG4TouchableHistoryHandle =
-      ::new (&toucheableHandleStorage[0]) G4TouchableHandle{::new (&toucheableHistoryStorage[0]) G4TouchableHistory};
-
-  G4TouchableHandle *fPostG4TouchableHistoryHandle =
-      ::new (&toucheableHandleStorage[1]) G4TouchableHandle{::new (&toucheableHistoryStorage[1]) G4TouchableHistory};
+  G4TouchableHandle *fPreG4TouchableHistoryHandle = nullptr;
+  G4TouchableHandle *fPostG4TouchableHistoryHandle = nullptr;
 
   // We need the dynamic particle associated to the track to have the correct particle definition, however this can
   // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
@@ -61,23 +104,35 @@ struct ScoringObjects {
   // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
   // The same goes for the G4Track global time and position
   std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type dynParticleStorage[3];
+  std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type trackStorage[3];
 
-  G4Track fElectronTrack{::new (dynParticleStorage) G4DynamicParticle{
-                             G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0},
-                         0, G4ThreeVector(0, 0, 0)};
-  G4Track fPositronTrack{::new (dynParticleStorage + 1) G4DynamicParticle{
-                             G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0},
-                         0, G4ThreeVector(0, 0, 0)};
-  G4Track fGammaTrack{::new (dynParticleStorage + 2) G4DynamicParticle{
-                          G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0},
-                      0, G4ThreeVector(0, 0, 0)};
+  G4Track *fElectronTrack = nullptr;
+  G4Track *fPositronTrack = nullptr;
+  G4Track *fGammaTrack = nullptr;
 
   ScoringObjects()
   {
-    // Assign step points in local storage:
-    fG4Step->SetPreStepPoint(::new (stepPointStorage) G4StepPoint());      // Takes ownership
-    fG4Step->SetPostStepPoint(::new (stepPointStorage + 1) G4StepPoint()); // Takes ownership
+    // Step
+    fG4Step = new (&stepStorage) G4Step;
+    fG4Step->SetPreStepPoint(::new (&stepPointStorage[0]) G4StepPoint());
+    fG4Step->SetPostStepPoint(::new (&stepPointStorage[1]) G4StepPoint());
+
+    // Touchable handles
+    fPreG4TouchableHistoryHandle =
+        ::new (&toucheableHandleStorage[0]) G4TouchableHandle{::new (&toucheableHistoryStorage[0]) G4TouchableHistory};
+    fPostG4TouchableHistoryHandle =
+        ::new (&toucheableHandleStorage[1]) G4TouchableHandle{::new (&toucheableHistoryStorage[1]) G4TouchableHistory};
+
+    // Tracks
+    fElectronTrack = ::new (&trackStorage[0]) G4Track{::new (&dynParticleStorage[0]) G4DynamicParticle{
+      G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0}, 0, G4ThreeVector(0, 0, 0)};
+    fPositronTrack = ::new (&trackStorage[1]) G4Track{::new (&dynParticleStorage[1]) G4DynamicParticle{
+      G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0}, 0, G4ThreeVector(0, 0, 0)};
+    fGammaTrack = ::new (&trackStorage[2]) G4Track{::new (&dynParticleStorage[2]) G4DynamicParticle{
+      G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0}, 0, G4ThreeVector(0, 0, 0)};
   }
+
+  // Note: no destructor needed since we’re intentionally *not* calling dtors on the placement-new'ed objects
 };
 
 void Deleter::operator()(ScoringObjects *ptr)
@@ -370,13 +425,13 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
   // Reconstruct G4Step
   switch (hit.fParticleType) {
   case 0:
-    fScoringObjects->fG4Step->SetTrack(&fScoringObjects->fElectronTrack);
+    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fElectronTrack);
     break;
   case 1:
-    fScoringObjects->fG4Step->SetTrack(&fScoringObjects->fPositronTrack);
+    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fPositronTrack);
     break;
   case 2:
-    fScoringObjects->fG4Step->SetTrack(&fScoringObjects->fGammaTrack);
+    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
     break;
   }
   FillG4Step(&hit, fScoringObjects->fG4Step, *fScoringObjects->fPreG4TouchableHistoryHandle,
