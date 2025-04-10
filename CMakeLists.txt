@@ -118,16 +118,16 @@ if(Geant4_FOUND)
   message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from ${Geant4_INCLUDE_DIRS}")
   set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
   set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
+  # Check if Geant4 is supports G4VTrackingManager
+  # Always available from v11.0, but experiments may backport it to earlier versions
+  # so we do a compile check.
   check_cxx_source_compiles("
-  #include \"G4VFastSimulationModel.hh\"
-  class testflush_ : public G4VFastSimulationModel {
-    G4bool IsApplicable(const G4ParticleDefinition&) {return true;}
-    G4bool ModelTrigger(const G4FastTrack &) {return true;}
-    void DoIt(const G4FastTrack&, G4FastStep&) {}
-    void Flush() final override {}
-    public: testflush_() : G4VFastSimulationModel(\"\") {}
-  };
-  int main() { testflush_ model; return 0; }" Geant4_flush_FOUND)
+    #include \"G4VTrackingManager.hh\"
+    class testtm_ : public G4VTrackingManager {
+    public:
+      void HandOverOneTrack(G4Track*) {}
+    };
+    int main() { testtm_ model; return 0; }" AdePT_HAS_G4VTRACKINGMANAGER)
 else()
   message(STATUS "Did not find Geant4")
 endif()
