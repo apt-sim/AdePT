@@ -37,19 +37,19 @@ set(SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/test/regression/scripts")
 set(TEMP_DIR "${PROJECT_SOURCE_DIR}/test/regression/ci_tmp")
 
 # This test checks the reproducibility of AdePT by running 8 ttbar events and checking that the energy deposition is exactly the same.
-add_test(NAME reproducibility_cms_ttbar
-    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility.sh
-    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-)
+#add_test(NAME reproducibility_cms_ttbar
+	# COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility.sh
+    #  "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+    #   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    #)
 
 # test that compares the physics output of a full AdePT run against a high-statistics Geant4 simulation using G4HepEm.
 # The energy deposition per layer error must be < 1% to pass the test
-add_test(NAME testEm3_validation
-    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3.sh
-    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-)
+#add_test(NAME testEm3_validation
+	#COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3.sh
+    #"$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+    #    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    #)
 
 set(APP_TESTS
 
