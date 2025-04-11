@@ -426,6 +426,15 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                  geometricalStepLengthFromPhysics, safety);
           continue;
+          // printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+          //   "physicsStepLength=%E "
+          //   "safety=%E safeLength=%E propagated=%d\n"
+          //   "position %.16f %.16f %.16f direction %.16f %.16f %.16f navState %d nextState %d\n",
+          //   eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+          //   geometricalStepLengthFromPhysics, safety, safeLength, propagated, pos[0], pos[1], pos[2], dir[0], dir[1],
+          //   dir[2], navState.GetNavIndex(), nextState.GetNavIndex());
+          // continue;
+
         } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
           // This will happen after recording the step
@@ -450,6 +459,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
                  geometricalStepLengthFromPhysics, safety);
           continue;
+          // printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+          //   "physicsStepLength=%E "
+          //   "safety=%E safeLength=%E propagated=%d\n"
+          //   "position %.16f %.16f %.16f direction %.16f %.16f %.16f navState %d nextState %d\n",
+          //   eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
+          //   geometricalStepLengthFromPhysics, safety, safeLength, propagated, pos[0], pos[1], pos[2], dir[0], dir[1],
+          //   dir[2], navState.GetNavIndex(), nextState.GetNavIndex());
+          // continue;
         }
 
         survive();

@@ -247,11 +247,12 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
   PrintFieldVectors::PrintLineSixvecDyDx(yStart, charge, magFieldStartArr, dy_ds);
 
   Vector3D<Real_t> momentumVec = momentumMag * Direction;
+  Real_t lastGoodStep          = 0.;
 
   do {
     Real_t hAdvanced = 0.0;
 
-    done = Driver_t::Advance(Position, momentumVec, charge, hLength, magField, dydx_end, MaxTrials);
+    done = Driver_t::Advance(Position, momentumVec, charge, hLength, magField, dydx_end, lastGoodStep, MaxTrials);
     // Runge-Kutta single call
     ++totalTrials;
     std::cout << "Advanced returned:  done= " << (done ? "Yes" : " No") << " hAdvanced = " << hAdvanced
@@ -350,11 +351,12 @@ bool CheckDriverVsHelix(Field_t const &magField, const Real_t stepLength = 300.0
   constexpr int maxTrials = 500;
 
   Vector3D<Real_t> momentumVec = momentumMag * Direction;
+  Real_t lastGoodStep          = 0.;
 
   do {
     Real_t hAdvanced = 0; //  length integrated
 
-    bool done = Driver_t::Advance(Position, momentumVec, charge, hLength, magField, dydx_end, MaxTrials);
+    bool done = Driver_t::Advance(Position, momentumVec, charge, hLength, magField, dydx_end, lastGoodStep, MaxTrials);
     //   Runge-Kutta single call ( number of steps <= trialsPerCall )
     ++totalTrials;
 
