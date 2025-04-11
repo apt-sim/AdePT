@@ -26,6 +26,7 @@
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true
 
+/process/em/applyCuts true
 
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic field:
