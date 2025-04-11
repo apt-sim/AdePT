@@ -90,6 +90,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
   Real_t remains            = physicsStep;
   const Real_t tiniest_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
   int chordIters            = 0;
+  Real_t last_good_step     = 0.0; // to be re-used for next cord iteration
 
   constexpr bool inZeroFieldRegion =
       false; // This could be a per-region flag ... - better depend on template parameter?
@@ -127,8 +128,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       const Real_t safeArc                     = min(remains, maxNextSafeMove); // safeLength);
 
       Real_t dydx_end[Nvar]; // not used at the moment, but could be used for FSAL between cord integrations
-      bool done =
-          RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, /*max_trials=*/30);
+      bool done = RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, last_good_step,
+                                      /*max_trials=*/30, chordIters);
 
       //-----------------
       vecgeom::Vector3D<Real_t> chordDir     = endPosition - position; // not yet normalized!

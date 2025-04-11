@@ -10,16 +10,10 @@
 #ifndef RKINTEGRATION_DRIVER_H_
 #define RKINTEGRATION_DRIVER_H_
 
-// #include "VecGeom/base/Global.h"
-
-#include <VecCore/VecMath.h>
-#include <VecGeom/base/Vector3D.h> // Needed for Vector3D
-// #include <AdePT/copcore/PhysicalConstants.h>
-
 #include "ErrorEstimatorRK.h"
 
-// namespace adept {
-// inline namespace ADEPT_IMPL_NAMESPACE {
+#include <VecCore/VecMath.h>
+#include <VecGeom/base/Vector3D.h>
 
 /**
  * A simple stepper treating the propagation of particles in a constant magnetic field
@@ -54,9 +48,9 @@ public:
   static inline __host__ __device__ bool Advance(vecgeom::Vector3D<Real_t> &position,
                                                  vecgeom::Vector3D<Real_t> &momentumVec, Int_t const &charge,
                                                  // Real_t const &momentum,
-                                                 Real_t const &step, MagField_t const &magField,
-                                                 Real_t dydx_next[], // dy_ds[Nvar] at final point (return only !! )
-                                                 unsigned int maxTrials = 5);
+                                                 Real_t const &step, MagField_t const &magField, Real_t dydx_next[],
+                                                 Real_t &hgood, // dy_ds[Nvar] at final point (return only !! )
+                                                 unsigned int maxTrials = 5, int cordIters = 0);
 
   // Invariants
   // ----------
@@ -67,9 +61,6 @@ public:
 
   // Auxiliary methods
   // -----------------
-  // static void SetMaxRelativeError( Real_t epsMax ) { fEpsilonRelativeMax = epsMax; }
-
-  // template <typename Real_t, typename Int_t, class Stepper_t, class Equation_t, class MagField_t>
 
   static inline __host__ __device__ void PrintStep(vecgeom::Vector3D<Real_t> const &startPosition,
                                                    vecgeom::Vector3D<Real_t> const &startDirection, Int_t const &charge,
@@ -84,10 +75,7 @@ public:
                                                        Real_t next_dydx[], //     - next derivative
                                                        Real_t &hnext);
 
-  // static inline __host__ __device__ EquationType() { return Equation_t; }
-
 protected:
-  // template <typename Real_t>
   static inline __host__ __device__ bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v);
 
 }; // end class declaration
@@ -102,9 +90,9 @@ template <int Verbose>
 inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::Advance(
     vecgeom::Vector3D<Real_t> &position,    //   In/Out
     vecgeom::Vector3D<Real_t> &momentumVec, //   In/Out
-    Int_t const &chargeInt, Real_t const &length, MagField_t const &magField,
-    Real_t dydx_next[Nvar], // dy_ds[] at final point (return only !! )
-    unsigned int maxTrials  // max allowed trials
+    Int_t const &chargeInt, Real_t const &length, MagField_t const &magField, Real_t dydx_next[Nvar],
+    Real_t &hgood,                        // dy_ds[] at final point (return only !! ), last good step
+    unsigned int maxTrials, int cordIters // max allowed trials
 )
 {
   using vecgeom::Vector3D;
@@ -116,9 +104,8 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
   Equation_t::EvaluateDerivatives(magField, yStart, chargeInt, dydx);
 
   Real_t stepAdvance = 0.0;
-  Real_t hgood       = 0.0; // Length possible with adequate accuracy -- could return this for next step!
-
-  Real_t htry = length; // initial try doing the full cordlength in one step
+  // For first cord integration try full cordlength otherwise use last step from previous cord integration
+  Real_t htry = cordIters == 0 ? length : vecCore::Min(hgood, length);
 
   bool done    = false;
   int numSteps = 0;
@@ -126,7 +113,7 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
   bool allFailed = true;  // Have all steps until now failed
   bool goodStep  = false; // last step was good
   do {
-    Real_t hnext; // , hdid;
+    Real_t hnext;
 
     goodStep = IntegrateStep(yStart, dydx, chargeInt, stepAdvance, htry, magField, yEnd, dydx_next, hnext);
 
@@ -157,12 +144,11 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 #endif
 
     ++numSteps;
-    // if(numSteps > 2 && !goodStep) printf("Warning: numSteps %d  goodstep? %d htry %.10f\n", numSteps, goodStep,
-    // htry);
 
   } while (!done && numSteps < maxTrials);
 
-  // if(numSteps > 10) printf("Warning: numSteps %d  goodstep? %d htry %.10f\n", numSteps, goodStep, htry);
+  // printf("stepAdvance %.10f length %.10f htry %.10f done %d goodStep %d numSteps %d cordIters %d\n", stepAdvance,
+  // length, htry, done, goodStep, numSteps, cordIters );
 
   //  In case of failed last step, we must not use it's 'yEnd' values !!
   if (goodStep) {
@@ -174,6 +160,8 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
     if (!allFailed) { // numSteps == maxTrials ){
       position.Set(yStart[0], yStart[1], yStart[2]);
       momentumVec.Set(yStart[3], yStart[4], yStart[5]);
+    } else {
+      printf("WARNING: B field integration has failed, this track seems stuck!\n");
     }
   }
 
@@ -227,15 +215,23 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
                                           : hnext = max_step_increase * h;
 #endif
   } else {
-    // Step failed; compute the size of retrial Step.
-    Real_t htemp = safetyFactor * htry * std::pow(errmax_sq, 0.5 * shrinkPower);
-    hnext        = vecCore::Max(htemp, max_step_decrease * htry);
-    // no more than than a factor of 10 smaller
 
-    if (xCurrent + hnext == xCurrent) {
-      // Serious Problem --- under FLOW !!!   Report it ??????????????????????????
-      printf("This should never happen, under flow in next step\n");
-      hnext = 2.0 * vecCore::math::Max(htemp, htry);
+    // if we did a minimal step we force the step to be accepted
+    if (htry <= fMinimumStep) {
+      goodStep = true;
+      xCurrent += htry;
+      hnext = 2 * fMinimumStep;
+    } else {
+      // Step failed; compute the size of retrial Step.
+      Real_t htemp = safetyFactor * htry * std::pow(errmax_sq, 0.5 * shrinkPower);
+      hnext        = vecCore::Max(htemp, max_step_decrease * htry);
+      // no more than than a factor of 10 smaller
+
+      if (xCurrent + hnext == xCurrent) {
+        // Serious Problem --- under FLOW !!!   Report it ??????????????????????????
+        printf("This should never happen, under flow in next step\n");
+        hnext = 2.0 * vecCore::math::Max(htemp, htry);
+      }
     }
   }
   return goodStep;
@@ -294,8 +290,5 @@ inline __host__ __device__ void RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
     printf(" End> Pos= %9.6f %9.6f %9.6f  Mom= %9.6f %9.6f %9.6f\n", x, y, z, dx, dy, dz);
   }
 }
-
-// } // namespace ADEPT_IMPL_NAMESPACE
-// } // namespace adept
 
 #endif /* RKINTEGRATION_DRIVER_H_ */
