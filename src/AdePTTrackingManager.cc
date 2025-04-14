@@ -117,8 +117,8 @@ void AdePTTrackingManager::InitializeAdePT()
   if (!sequential) { // if sequential, the instance is already created
     fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
   }
-    // Initialize per-thread data
-    fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
+  // Initialize per-thread data
+  fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
 #endif
 
   // Initialize the GPU region list
