@@ -8,6 +8,7 @@
 #include "G4EventManager.hh"
 #include "G4Event.hh"
 #include "G4RunManager.hh"
+#include "G4MTRunManager.hh"
 #include "G4TransportationManager.hh"
 #include "G4EmParameters.hh"
 
@@ -46,13 +47,24 @@ void AdePTTrackingManager::InitializeAdePT()
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
 
-  // One thread initializes common elements
   auto tid = G4Threading::G4GetThreadId();
-  if (tid < 0) {
-    // Only the master thread knows the actual number of threads, the worker threads will return "1"
-    // This value is stored here by the master in a static variable, and used by each thread to pass the
-    // correct number to their AdePTConfiguration instance
-    fNumThreads = G4RunManager::GetRunManager()->GetNumberOfThreads();
+
+  // Master thread cannot initialize AdePT as the number of G4 worker threads may not yet be known in applications
+  if (tid < 0) return;
+
+  // a condition variable and a mutex is used for the initialization:
+  // The first G4 worker that reaches the initialization, needs to initialize AdePT.
+  // At the same time, all other G4 workers must wait for the common initialization to be finished, before they are allowed to continue
+  static std::once_flag onceFlag;
+  static std::mutex initMutex;
+  static std::condition_variable initCV;
+  static bool commonInitDone = false;
+
+  // Global initialization: only done once by the first worker thread
+  std::call_once(onceFlag, [&]() {
+    std::unique_lock<std::mutex> lock(initMutex);
+    fNumThreads = G4MTRunManager::GetMasterRunManager()->GetNumberOfThreads();
+    std::cout << " NUM OF THREADS ACCORDING TO G4: " << fNumThreads << std::endl;
     fAdePTConfiguration->SetNumThreads(fNumThreads);
 
     // Load the VecGeom world using G4VG if we don't have a GDML file, VGDML otherwise
@@ -86,27 +98,38 @@ void AdePTTrackingManager::InitializeAdePT()
     }
 #endif
 
-  } else {
-    // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
-    // all threads.
-    fAdePTConfiguration->SetNumThreads(fNumThreads);
+    // common init done, can notify other workers to proceed their initialization
+    commonInitDone = true;
+    lock.unlock();
+    initCV.notify_all();
+  });
+
+  // All other G4 worker threads must wait for common init to complete
+  {
+    std::unique_lock<std::mutex> lock(initMutex);
+    initCV.wait(lock, [&] { return commonInitDone; });
+  }
+
+  // Now the fNumThreads is known and all workers can initialize
+  fAdePTConfiguration->SetNumThreads(fNumThreads);
+
 #ifdef ASYNC_MODE
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
+  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
 #else
+  if (!sequential) {
     fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
 
     // Initialize per-thread data
     fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
-#endif
   }
+#endif
 
   // Initialize the GPU region list
-
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
     // Case 1: GPU regions are explicitly listed, and CPU regions must not overlap
     for (const std::string &regionName : *(fAdeptTransport->GetGPURegionNames())) {
       G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
-      if (region == nullptr) {
+      if (!region) {
         G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
                     ("Region given to /adept/addGPURegion: " + regionName + " not found\n").c_str());
       }
@@ -132,7 +155,7 @@ void AdePTTrackingManager::InitializeAdePT()
 
     // First mark all regions as GPU regions
     for (G4Region *region : *G4RegionStore::GetInstance()) {
-      if (region != nullptr) {
+      if (region) {
         fGPURegions.insert(region);
       }
     }
@@ -140,7 +163,7 @@ void AdePTTrackingManager::InitializeAdePT()
     // Then remove explicitly listed CPU regions
     for (const std::string &cpuRegionName : cpuRegionNames) {
       G4Region *region = G4RegionStore::GetInstance()->GetRegion(cpuRegionName);
-      if (region == nullptr) {
+      if (!region) {
         G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
                     ("Region given to /adept/removeGPURegion: " + cpuRegionName + " not found\n").c_str());
       }
