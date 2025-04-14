@@ -54,7 +54,8 @@ void AdePTTrackingManager::InitializeAdePT()
 
   // a condition variable and a mutex is used for the initialization:
   // The first G4 worker that reaches the initialization, needs to initialize AdePT.
-  // At the same time, all other G4 workers must wait for the common initialization to be finished, before they are allowed to continue
+  // At the same time, all other G4 workers must wait for the common initialization to be finished, before they are
+  // allowed to continue
   static std::once_flag onceFlag;
   static std::mutex initMutex;
   static std::condition_variable initCV;
