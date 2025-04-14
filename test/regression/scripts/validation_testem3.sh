@@ -37,7 +37,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --output ${CI_TMP_DIR}/validation_testem3.mac \
     --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml \
     --num_threads 4 \
-    --num_events 100 \
+    --num_events 250 \
     --num_trackslots 3 \
     --num_hitslots 20 \
     --track_in_all_regions True\
@@ -48,14 +48,14 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
 $ADEPT_EXECUTABLE --do_validation --allsensitive --accumulated_events \
                   -m "${CI_TMP_DIR}/validation_testem3.mac" \
                   --output_dir "${CI_TMP_DIR}" \
-                  --output_file "adept_em3_1e4_e-"
+                  --output_file "adept_em3_2.5e4_e-"
 
 # Validating the relative error per layer
 # The saved G4 benchmark file was run with --noadept and 1e7 primary 10 GeV electrons.
 # Comparing against 1e5 primary electrons (500 per event, 200 events) with AdePT should give errors below 1%.
 # This is a compromise between run time and accuracy of the test 
-$CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_1e4_e-.csv \
+$CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_2.5e4_e-.csv \
                                                 --file2 ${CI_TEST_DIR}/benchmark_files/g4_em3_10e6_e-.csv \
-                                                --n1 1e4 --n2 1e6 --tol 0.01 \
+                                                --n1 2.5e4 --n2 1e6 --tol 0.01 \
                                                 # --plot_file plot.png # uncomment to plot the validation plot
 
