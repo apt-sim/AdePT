@@ -64,7 +64,6 @@ void AdePTTrackingManager::InitializeAdePT()
 
   // Global initialization: only done once by the first worker thread
   std::call_once(onceFlag, [&]() {
-    std::unique_lock<std::mutex> lock(initMutex);
     fNumThreads = G4MTRunManager::GetMasterRunManager()->GetNumberOfThreads();
     std::cout << " NUM OF THREADS ACCORDING TO G4: " << fNumThreads << std::endl;
     fAdePTConfiguration->SetNumThreads(fNumThreads);
@@ -97,8 +96,10 @@ void AdePTTrackingManager::InitializeAdePT()
 #endif
 
     // common init done, can notify other workers to proceed their initialization
-    commonInitDone = true;
-    lock.unlock();
+    {
+      std::lock_guard<std::mutex> lock(initMutex);
+      commonInitDone = true;
+    }
     initCV.notify_all();
   });
 
