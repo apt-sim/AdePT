@@ -49,8 +49,9 @@ void AdePTTrackingManager::InitializeAdePT()
 
   auto tid = G4Threading::G4GetThreadId();
 
-  // Master thread cannot initialize AdePT as the number of G4 worker threads may not yet be known in applications
-  if (tid < 0) return;
+  // Master thread cannot initialize AdePT as the number of G4 worker threads may not yet be known in applications.
+  // In sequential mode, the tid is -2, so there we need to continue
+  if (tid == -1) return;
 
   // a condition variable and a mutex is used for the initialization:
   // The first G4 worker that reaches the initialization, needs to initialize AdePT.
@@ -93,10 +94,6 @@ void AdePTTrackingManager::InitializeAdePT()
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
     fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig(), true /*common_data*/);
-    if (sequential) {
-      // Initialize per-thread data (When in sequential mode)
-      fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
-    }
 #endif
 
     // common init done, can notify other workers to proceed their initialization
@@ -117,12 +114,11 @@ void AdePTTrackingManager::InitializeAdePT()
 #ifdef ASYNC_MODE
   fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
 #else
-  if (!sequential) {
+  if (!sequential) { // if sequential, the instance is already created
     fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
-
+  }
     // Initialize per-thread data
     fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
-  }
 #endif
 
   // Initialize the GPU region list
