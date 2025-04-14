@@ -41,7 +41,7 @@ $regions
 /run/initialize
 
 ## User-defined Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
-/eventAction/verbose 2
+/eventAction/verbose 1
 
 /gun/$gun_type # hepmc or setDefault
 $hepmc_part
