@@ -186,7 +186,6 @@ struct GPUstate {
   // TracksOnHost: Some or all the tracks have been transferred from device to host and are waiting in the copy buffer
   // SavingTracks: Tracks are being copied to per-event queues
   // TracksSaved: Tracks have been moved from the copy buffer to their respective per-event queues
-  // ExtractionFinished: No more tracks left on device, all tracks are available in the per-event queues
   enum class ExtractState {
     Idle,
     ExtractionRequested,
@@ -196,8 +195,7 @@ struct GPUstate {
     CopyingTracks,
     TracksOnHost,
     SavingTracks,
-    TracksSaved,
-    ExtractionFinished
+    TracksSaved
   };
   std::atomic<ExtractState> extractState;
   std::atomic_bool runTransport{true}; ///< Keep transport thread running
