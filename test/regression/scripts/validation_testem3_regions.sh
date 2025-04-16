@@ -36,7 +36,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
     --output ${CI_TMP_DIR}/validation_testem3_regions.mac \
     --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_regions.gdml \
-    --num_threads 4 \
+    --num_threads 8 \
     --num_events 250 \
     --num_trackslots 3 \
     --num_hitslots 20 \

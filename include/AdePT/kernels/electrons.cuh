@@ -159,7 +159,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
       if (leak) {
-        leakedQueue->push_back(slot);
+        // printf("LEAK ELECTRON\n");
+        auto success = leakedQueue->push_back(slot);
+        if (!success) {
+          printf("ERROR: No space left in e-/+ leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
       } else
         nextActiveQueue->push_back(slot);
 #else

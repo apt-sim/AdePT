@@ -7,7 +7,7 @@ import argparse
 import os
 
 
-def generate_macro(template_path, output_path, gdml_name, num_threads, num_events, num_trackslots, num_hitslots, gun_type, event_file, track_in_all_regions, regions):
+def generate_macro(template_path, output_path, gdml_name, num_threads, num_events, num_trackslots, num_leakslots, num_hitslots, gun_type, event_file, track_in_all_regions, regions):
     # Read the template file
     with open(template_path, 'r') as template_file:
         template_content = template_file.read()
@@ -17,6 +17,7 @@ def generate_macro(template_path, output_path, gdml_name, num_threads, num_event
     macro_content = macro_content.replace("$num_threads", str(num_threads))
     macro_content = macro_content.replace("$num_events", str(num_events))
     macro_content = macro_content.replace("$num_trackslots", str(num_trackslots))
+    macro_content = macro_content.replace("$num_leakslots", str(num_leakslots))
     macro_content = macro_content.replace("$num_hitslots", str(num_hitslots))
     macro_content = macro_content.replace("$gun_type", str(gun_type))
     macro_content = macro_content.replace(
@@ -63,6 +64,8 @@ def main():
                         help="Number of events to simulate.")
     parser.add_argument("--num_trackslots", type=int, default=12,
                         help="Number of trackslots in million. Should be chosen according to the GPU memory")
+    parser.add_argument("--num_leakslots", type=float, default=12,
+                        help="Number of leakslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--num_hitslots", type=int, default=12,
                         help="Number of hitslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--gun_type", default="setDefault",
@@ -92,6 +95,7 @@ def main():
         num_threads=args.num_threads,
         num_events=args.num_events,
         num_trackslots=args.num_trackslots,
+        num_leakslots=args.num_leakslots,
         num_hitslots=args.num_hitslots,
         gun_type=args.gun_type,
         event_file=args.event_file,

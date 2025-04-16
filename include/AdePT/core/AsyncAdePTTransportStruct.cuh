@@ -140,6 +140,8 @@ struct Stats {
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
   unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
   unsigned int perEventLeaked[kMaxThreads];
+  unsigned int nLeakedCurrent[ParticleType::NumParticleTypes];
+  unsigned int nLeakedNext[ParticleType::NumParticleTypes];
   unsigned int hitBufferOccupancy;
 };
 
