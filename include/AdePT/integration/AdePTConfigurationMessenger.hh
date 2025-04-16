@@ -48,6 +48,7 @@ private:
   G4UIcmdWithAnInteger *fSetVerbosityCmd;
   G4UIcmdWithAnInteger *fSetTransportBufferThresholdCmd;
   G4UIcmdWithADouble *fSetMillionsOfTrackSlotsCmd;
+  G4UIcmdWithADouble *fSetMillionsOfLeakSlotsCmd;
   G4UIcmdWithADouble *fSetMillionsOfHitSlotsCmd;
   G4UIcmdWithADouble *fSetHitBufferFlushThresholdCmd;
   G4UIcmdWithADouble *fSetCPUCapacityFactorCmd;

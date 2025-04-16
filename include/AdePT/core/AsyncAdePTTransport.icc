@@ -53,11 +53,11 @@ void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
 std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
-std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
+std::thread LaunchGPUWorker(int, int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
                             std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
-    int trackCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
+    int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
     std::vector<AdePTScoring> &scoring, double CPUCapacityFactor, double CPUCopyFraction);
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, G4HepEmState &, std::thread &);
 } // namespace async_adept_impl
@@ -88,6 +88,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
                                                            G4HepEmConfig *hepEmConfig)
     : fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
+      fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
@@ -307,11 +308,11 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
 
   assert(fBuffer != nullptr);
 
-  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fScoring,
-                                               fCPUCapacityFactor, fCPUCopyFraction);
-  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
-                                                 fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel,
-                                                 fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU);
+  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
+                                               fScoring, fCPUCapacityFactor, fCPUCopyFraction);
+  fGPUWorker = async_adept_impl::LaunchGPUWorker(
+      fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate, fEventStates, fCV_G4Workers,
+      fScoring, fAdePTSeed, fDebugLevel, fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU);
 }
 
 template <typename IntegrationLayer>

@@ -43,9 +43,9 @@ add_test(NAME reproducibility_cms_ttbar
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
-# This test checks the reproducibility of AdePT with transport only in some regions by running 8 ttbar events and checking that the 
-# energy deposition is exactly the same.
-add_test(NAME reproducibility_cms_ttbar_regions
+# This test checks the reproducibility of AdePT with transport only in some regions by running 50 e- events in the testEm3 geometry
+# and checking that the energy deposition is exactly the same.
+add_test(NAME reproducibility_regions
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility_regions.sh
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

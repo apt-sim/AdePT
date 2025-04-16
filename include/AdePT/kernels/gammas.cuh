@@ -103,7 +103,15 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
       if (leak) {
-        leakedQueue->push_back(slot);
+        // printf("LEAK GAMMA\n");
+        auto success = leakedQueue->push_back(slot);
+        // printf("USAGE: %lu / %lu\n", leakedQueue->size(), leakedQueue->max_size());
+        if (!success) {
+          printf("ERROR: No space left in gammas leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
       } else
         nextActiveQueue->push_back(slot);
 #else

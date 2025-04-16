@@ -24,7 +24,7 @@ cleanup() {
 }
 
 # register cleanup to be called on exit
-trap cleanup EXIT
+# trap cleanup EXIT
 # called it directly ensure clean environment
 cleanup
 
@@ -35,23 +35,26 @@ mkdir -p ${CI_TMP_DIR}
 $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
     --output ${CI_TMP_DIR}/reproducibility_regions.mac \
-    --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml \
+    --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_regions.gdml \
     --num_threads 4 \
-    --num_events 8 \
-    --num_trackslots 8 \
-    --num_hitslots 4 \
-    --gun_type hepmc \
-    --event_file ${PROJECT_BINARY_DIR}/ppttbar.hepmc3 \
-    --track_in_all_regions False \
-    --regions "EcalRegion, HcalRegion"
-    
+    --num_events 50 \
+    --num_trackslots 3 \
+    --num_leakslots 0.3 \
+    --num_hitslots 20 \
+    --track_in_all_regions False\
+    --gun_type setDefault\
+    --regions "caloregion, Layer1, Layer2, Layer3, Layer4, Layer5, Layer6, Layer7, Layer8, Layer9, Layer10,\
+            Layer11, Layer12, Layer13, Layer14, Layer15, Layer16, Layer17, Layer18, Layer19, Layer20,\
+            Layer31, Layer32, Layer33, Layer34, Layer35, Layer36, Layer37, Layer38, Layer39, Layer40,\
+            Layer41, Layer42, Layer43, Layer44, Layer45, Layer46, Layer47, Layer48, Layer49, Layer50"
 
+# Choose a small num_leakslots value in order to test the throttling mechanism
 
 # run test
-$ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file cms_ttbar_run1
-$ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file cms_ttbar_run2 
+$ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file testem3_run1 --allsensitive
+$ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file testem3_run2 --allsensitive
 
 # allow for small rounding error of 1e-6 due to summation per thread
-$CI_TEST_DIR/python_scripts/check_reproducibility.py --file1 ${CI_TMP_DIR}/cms_ttbar_run1.csv \
-                                                     --file2 ${CI_TMP_DIR}/cms_ttbar_run2.csv \
+$CI_TEST_DIR/python_scripts/check_reproducibility.py --file1 ${CI_TMP_DIR}/testem3_run1.csv \
+                                                     --file2 ${CI_TMP_DIR}/testem3_run2.csv \
                                                      --tol 1e-5

@@ -26,6 +26,8 @@ public:
 
   /// @brief Set capacity of on-GPU track buffer.
   virtual void SetTrackCapacity(size_t capacity) = 0;
+  /// @brief Set capacity of on-GPU leak buffer.
+  virtual void SetLeakCapacity(size_t capacity) = 0;
   /// @brief Set Hit buffer capacity on GPU and Host
   virtual void SetHitBufferCapacity(size_t capacity) = 0;
   /// @brief Set maximum batch size
