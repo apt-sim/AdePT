@@ -51,6 +51,10 @@ public:
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
   /// @brief Get the track capacity on GPU
   int GetTrackCapacity() const { return fCapacity; }
+  /// @brief  Set capacity of the leak buffer on GPU
+  void SetLeakCapacity(size_t capacity) { fLeakCapacity = capacity; }
+  /// @brief Get the leak buffer size
+  int GetLeakCapacity(size_t capacity) { return fLeakCapacity; }
   /// @brief Set Hit buffer capacity on GPU and Host
   void SetHitBufferCapacity(size_t capacity) { fHitBufferCapacity = capacity; }
   /// @brief Get the hit buffer size (host/device)
@@ -86,6 +90,7 @@ public:
 private:
   static inline G4HepEmState *fg4hepem_state{nullptr}; ///< The HepEm state singleton
   int fCapacity{1024 * 1024};                          ///< Track container capacity on GPU
+  int fLeakCapacity{1024 * 1024};                      ///< Track container capacity on GPU
   int fHitBufferCapacity{1024 * 1024};                 ///< Capacity of hit buffers
   int fNthreads{0};                                    ///< Number of cpu threads
   int fMaxBatch{0};                                    ///< Max batch size for allocating GPU memory

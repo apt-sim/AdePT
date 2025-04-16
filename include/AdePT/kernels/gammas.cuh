@@ -24,9 +24,10 @@ namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
-                    adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
-                    AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps, bool returnLastStep)
+    TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries,
+                    adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                    Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
+                    bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
@@ -101,15 +102,23 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
-      if (leak)
-        leakedQueue->push_back(slot);
-      else
-        activeQueue->push_back(slot);
+      if (leak) {
+        // printf("LEAK GAMMA\n");
+        auto success = leakedQueue->push_back(slot);
+        // printf("USAGE: %lu / %lu\n", leakedQueue->size(), leakedQueue->max_size());
+        if (!success) {
+          printf("ERROR: No space left in gammas leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
+      } else
+        nextActiveQueue->push_back(slot);
 #else
       currentTrack.CopyTo(trackdata, Pdg);
-      if (leak)
+      if (leak) {
         leakedQueue->push_back(trackdata);
-      else
+      } else
         gammas->fNextTracks->push_back(slot);
 #endif
     };

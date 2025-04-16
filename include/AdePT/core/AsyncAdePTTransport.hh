@@ -45,6 +45,7 @@ public:
 private:
   unsigned short fNThread{0};             ///< Number of G4 workers
   unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
+  unsigned int fLeakCapacity{0};          ///< Number of leak slots to allocate on device
   unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
   int fDebugLevel{0};                     ///< Debug level
   int fCUDAStackLimit{0};                 ///< CUDA device stack limit
@@ -94,6 +95,8 @@ public:
                 vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState) override;
   /// @brief Set track capacity on GPU
   void SetTrackCapacity(size_t capacity) override { fTrackCapacity = capacity; }
+  /// @brief Set leak capacity on GPU
+  void SetLeakCapacity(size_t capacity) override { fLeakCapacity = capacity; }
   /// @brief Set Hit buffer capacity on GPU and Host
   virtual void SetHitBufferCapacity(size_t capacity) override { fScoringCapacity = capacity; }
   /// No effect

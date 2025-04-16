@@ -17,14 +17,16 @@
 /detector/filename $gdml_name
 /adept/setVerbosity 0
 ## Threshold for buffering tracks before sending to GPU
-/adept/setTransportBufferThreshold 250000
+/adept/setTransportBufferThreshold 125000
 ## Total number of GPU track slots (not per thread)
 /adept/setMillionsOfTrackSlots $num_trackslots
+/adept/setMillionsOfLeakSlots $num_leakslots
 /adept/setMillionsOfHitSlots $num_hitslots
 /adept/setCUDAStackLimit 8192
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
-/adept/setTrackInAllRegions true
+/adept/setTrackInAllRegions $track_in_all_regions
+$regions
 
 /process/em/applyCuts true
 
@@ -40,7 +42,7 @@
 /run/initialize
 
 ## User-defined Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
-/eventAction/verbose 2
+/eventAction/verbose 1
 
 /gun/$gun_type # hepmc or setDefault
 $hepmc_part
