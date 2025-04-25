@@ -28,6 +28,9 @@
 
 using VolAuxData = adeptint::VolAuxData;
 
+// DEBUG
+// __device__ unsigned int electronleaks;
+
 // Compute velocity based on the kinetic energy of the particle
 __device__ double GetVelocity(double eKin)
 {
@@ -159,7 +162,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
       if (leak) {
-        // printf("LEAK ELECTRON\n");
+        // printf("PRINTLEAK ELECTRON\n");
+        // atomicAdd(&electronleaks, 1);
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\

@@ -171,6 +171,8 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parentId, doub
   }
 
   fEventStates[threadId].store(EventState::NewTracksFromG4, std::memory_order_release);
+
+  // printf("INJECTED\n");
 }
 
 template <typename IntegrationLayer>
@@ -352,6 +354,9 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
 template <typename IntegrationLayer>
 void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
 {
+  // DEBUG:
+  // std::this_thread::sleep_for(std::chrono::seconds(1));
+
   if (fDebugLevel >= 3) {
     G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
   }
@@ -370,6 +375,15 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
 
     ProcessGPUSteps(threadId, eventId);
   }
+
+  // // DEBUG: Check that no tracks from this event are present in either the injection, in-flight
+  // // or leak queues
+  // // Host side to-device buffer
+  // for (int i = 0; i < fBuffer->getActiveBuffer().nTrack; i++) {
+  //   if (fBuffer->getActiveBuffer().tracks[i].threadId == threadId) {
+  //     printf("INJECTERROR HOST SIDE\n");
+  //   }
+  // }
 
   // Now device should be flushed, so retrieve the tracks:
   std::vector<TrackDataWithIDs> tracks;
@@ -391,6 +405,8 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     assert(!error);
   }
 #endif
+
+  // Sort the tracks coming from device by energy. This is necessary to ensure reproducibility
   std::sort(tracks.begin(), tracks.end());
 
   const auto oldEnergyTransferred = fGPUNetEnergy[threadId];

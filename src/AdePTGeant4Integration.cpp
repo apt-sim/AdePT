@@ -593,6 +593,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
 void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex,
                                          int debugLevel) const
 {
+  // DEBUG
   // if (track.pdg != 22) {
   //   printf("RETURN ELECTRON\n");
   // } else {

@@ -19,6 +19,9 @@
 
 using VolAuxData = adeptint::VolAuxData;
 
+// DEBUG
+// __device__ unsigned int gammaleaks;
+
 #ifdef ASYNC_MODE
 namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
@@ -103,7 +106,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
       if (leak) {
-        // printf("LEAK GAMMA\n");
+        // printf("PRINTLEAK GAMMA\n");
+        // atomicAdd(&gammaleaks, 1);
         auto success = leakedQueue->push_back(slot);
         // printf("USAGE: %lu / %lu\n", leakedQueue->size(), leakedQueue->max_size());
         if (!success) {
@@ -293,8 +297,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       // gamma-nuclear reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a
       // reaction is needed to compensate for the smaller step size returned by HowFar.
 
-      // Reset number of interaction left for the winner discrete process also in the currentTrack (SampleInteraction()
-      // resets it for theTrack), will be resampled in the next iteration.
+      // Reset number of interaction left for the winner discrete process also in the currentTrack
+      // (SampleInteraction() resets it for theTrack), will be resampled in the next iteration.
       currentTrack.numIALeft[0] = -1.0;
     }
 
