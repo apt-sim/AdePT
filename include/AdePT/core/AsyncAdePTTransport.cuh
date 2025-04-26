@@ -778,16 +778,18 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   AllLeaked allLeaked{nullptr, nullptr, nullptr};
 
   cudaEvent_t cudaEvent, cudaStatsEvent;
-  cudaStream_t transferStream, extractStream, statsStream, interactionStream;
+  cudaStream_t hitTransferStream, injectStream, extractStream, statsStream, interactionStream;
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaStatsEvent, cudaEventDisableTiming));
   unique_ptr_cuda<cudaEvent_t> cudaEventCleanup{&cudaEvent};
   unique_ptr_cuda<cudaEvent_t> cudaStatsEventCleanup{&cudaStatsEvent};
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&transferStream));
+  COPCORE_CUDA_CHECK(cudaStreamCreate(&hitTransferStream));
+  COPCORE_CUDA_CHECK(cudaStreamCreate(&injectStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&extractStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&statsStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&interactionStream));
-  unique_ptr_cuda<cudaStream_t> cudaStreamCleanup{&transferStream};
+  unique_ptr_cuda<cudaStream_t> cudaStreamCleanup{&hitTransferStream};
+  unique_ptr_cuda<cudaStream_t> cudaInjectStreamCleanup{&injectStream};
   unique_ptr_cuda<cudaStream_t> cudaExtractStreamCleanup{&extractStream};
   unique_ptr_cuda<cudaStream_t> cudaStatsStreamCleanup{&statsStream};
   unique_ptr_cuda<cudaStream_t> cudaInteractionStreamCleanup{&interactionStream};
@@ -800,7 +802,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   int injectIteration[numThreads];
   std::fill_n(injectIteration, numThreads, -1);
 
-  std::unique_ptr<HitProcessingContext> hitProcessing{new HitProcessingContext{transferStream}};
+  std::unique_ptr<HitProcessingContext> hitProcessing{new HitProcessingContext{hitTransferStream}};
   std::thread hitProcessingThread{&HitProcessingLoop,    (HitProcessingContext *)hitProcessing.get(),
                                   std::ref(gpuState),    std::ref(eventStates),
                                   std::ref(cvG4Workers), std::ref(debugLevel)};
@@ -918,17 +920,17 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           // copy buffer of tracks to device
           COPCORE_CUDA_CHECK(cudaMemcpyAsync(trackBuffer.toDevice_dev.get(), toDevice.tracks,
                                              nInject * sizeof(TrackDataWithIDs), cudaMemcpyHostToDevice,
-                                             transferStream));
+                                             injectStream));
           // Mark end of copy operation:
-          COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, transferStream));
+          COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, injectStream));
 
           // Init AdePT tracks using the track buffer
           constexpr auto injectThreads = 128u;
           const auto injectBlocks      = (nInject + injectThreads - 1) / injectThreads;
-          InitTracks<<<injectBlocks, injectThreads, 0, transferStream>>>(
+          InitTracks<<<injectBlocks, injectThreads, 0, injectStream>>>(
               trackBuffer.toDevice_dev.get(), nInject, secondaries, world_dev, gpuState.injectionQueue, adeptSeed);
           COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
-              transferStream,
+              injectStream,
               [](void *arg) { (*static_cast<decltype(GPUstate::injectState) *>(arg)) = InjectState::ReadyToEnqueue; },
               &gpuState.injectState));
 
@@ -946,7 +948,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         gpuState.injectState = InjectState::Enqueueing;
         EnqueueTracks<<<1, 256, 0, gpuState.stream>>>(allParticleQueues, gpuState.injectionQueue);
         // New injection has to wait until particles are enqueued:
-        waitForOtherStream(transferStream, gpuState.stream);
+        waitForOtherStream(injectStream, gpuState.stream);
       } else if (gpuState.injectState == InjectState::Enqueueing) {
         gpuState.injectState = InjectState::Idle;
       }
@@ -1135,7 +1137,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           }
 
           // DEBUG
-          // PrintLeaks<<<1, 1, 0, transferStream>>>(true);
+          // PrintLeaks<<<1, 1, 0, hitTransferStream>>>(true);
 
           // Once transport has finished, we can start extracting the leaks
           COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
@@ -1279,12 +1281,14 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // see may not be up to date. This is acceptable in most situations
         if (gpuState.stats->slotFillLevel > 0.5) {
           // Freeing of slots has to run exclusively
-          waitForOtherStream(gpuState.stream, transferStream);
+          waitForOtherStream(gpuState.stream, hitTransferStream);
+          waitForOtherStream(gpuState.stream, injectStream);
           waitForOtherStream(gpuState.stream, extractStream);
           static_assert(gpuState.nSlotManager_dev == 1, "The below launches assume there is only one slot manager.");
           FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev);
           FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev);
-          waitForOtherStream(transferStream, gpuState.stream);
+          waitForOtherStream(hitTransferStream, gpuState.stream);
+          waitForOtherStream(injectStream, gpuState.stream);
           waitForOtherStream(extractStream, gpuState.stream);
         }
       }
@@ -1312,10 +1316,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         }
         COPCORE_CUDA_CHECK(result);
 
-        // COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, transferStream));
+        // COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, hitTransferStream));
 
         // // NOTE: Stats synchronization is needed for an accurate count of in-flight particles.
-        // // transferStream synchronization is also needed for reproducibility, but the reason
+        // // hitTransferStream synchronization is also needed for reproducibility, but the reason
         // // is not clear. It is likely a combination of the work done to extract leaked particles
         // // and the assumption that injection is completed in one iteration
         // while (cudaEventQuery(cudaStatsEvent) == cudaErrorNotReady || cudaEventQuery(cudaEvent) ==
