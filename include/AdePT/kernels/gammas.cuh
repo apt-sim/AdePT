@@ -19,9 +19,6 @@
 
 using VolAuxData = adeptint::VolAuxData;
 
-// DEBUG
-// __device__ unsigned int gammaleaks;
-
 #ifdef ASYNC_MODE
 namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
@@ -106,10 +103,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.navState   = navState;
 #ifdef ASYNC_MODE
       if (leak) {
-        // printf("PRINTLEAK GAMMA\n");
-        // atomicAdd(&gammaleaks, 1);
         auto success = leakedQueue->push_back(slot);
-        // printf("USAGE: %lu / %lu\n", leakedQueue->size(), leakedQueue->max_size());
         if (!success) {
           printf("ERROR: No space left in gammas leaks queue.\n\
 \tThe threshold for flushing the leak buffer may be too high\n\
@@ -120,9 +114,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         nextActiveQueue->push_back(slot);
 #else
       currentTrack.CopyTo(trackdata, Pdg);
-      if (leak) {
+      if (leak)
         leakedQueue->push_back(trackdata);
-      } else
+      else
         gammas->fNextTracks->push_back(slot);
 #endif
     };

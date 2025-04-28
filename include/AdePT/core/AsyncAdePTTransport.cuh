@@ -63,27 +63,6 @@ struct HitProcessingContext {
   std::atomic_bool keepRunning = true;
 };
 
-// DEBUG //////////////////////////////////////////////////////
-
-// __global__ void SetLeaks()
-// {
-//   gammaleaks    = 0;
-//   electronleaks = 0;
-// }
-
-// __global__ void PrintLeaks(bool partial = false)
-// {
-//   if (partial) {
-//     printf("PARTIALLEAK GAMMAS: %d\n", gammaleaks);
-//     printf("PARTIALLEAK ELECTRONS: %d\n", electronleaks);
-//   } else {
-//     printf("LEAK GAMMAS: %d\n", gammaleaks);
-//     printf("LEAK ELECTRONS: %d\n", electronleaks);
-//   }
-// }
-
-///////////////////////////////////////////////////////////////
-
 // Kernel to initialize the set of queues per particle type.
 __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTransport, size_t CapacityLeaked)
 {
@@ -137,9 +116,6 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
     track.originNavState = trackinfo[i].originNavState;
     toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
 
-    // DEBUG
-    // printf("INITIALIZED\n");
-
     // FIXME KEEP OLD IMPLEMENTATION SINCE THIS HAS NOT BEEN TESTED THOROUGLY, THEN REMOVE
     //     // We locate the pushed point because we run the risk that the
     //     // point is not located in the GPU region
@@ -187,8 +163,6 @@ __global__ void EnqueueTracks(AllParticleQueues allQueues, adept::MParrayT<Queue
   for (unsigned int i = threadIdx.x; i < end; i += blockDim.x) {
     const auto [slotNumber, particleType] = (*toBeEnqueued)[i];
     allQueues.queues[particleType].nextActive->push_back(slotNumber);
-    // DEBUG
-    // printf("ENQUEUED\n");
   }
 
   __syncthreads();
@@ -202,7 +176,6 @@ __device__ unsigned int nFromDevice_dev;
 __device__ unsigned int nRemainingLeaks_dev;
 
 // Copy particles leaked from the GPU region into a compact buffer
-// __global__ void FillFromDeviceBuffer(bool printtotal, AllLeaked all, AsyncAdePT::TrackDataWithIDs *fromDevice,
 __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs *fromDevice,
                                      unsigned int maxFromDeviceBuffer, unsigned int nAlreadyTransferred)
 {
@@ -213,15 +186,9 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
   const auto nToCopy      = total < maxFromDeviceBuffer ? total : maxFromDeviceBuffer;
 
   if (blockIdx.x == 0 && threadIdx.x == 0) {
-    // DEBUG
-    // if (printtotal) printf("TOTAL: %lu\n", total);
-
     // Update the number of particles that will be copied in this iteration
     nFromDevice_dev     = nToCopy;
     nRemainingLeaks_dev = total - nToCopy;
-
-    // DEBUG
-    // printf("STAGING: %d\n", nFromDevice_dev);
   }
 
   for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred;
@@ -422,14 +389,8 @@ __global__ void CountLeakedTracks(AllParticleQueues all, Stats *stats, TracksAnd
 
     // Update the global usage
     if (threadIdx.x == 0) {
-      // printf("%d, %d\n", particleType, queueIndex);
       queueIndex < ParticleType::NumParticleTypes ? stats->nLeakedCurrent[particleType] = size
                                                   : stats->nLeakedNext[particleType]    = size;
-      // if (queueIndex < ParticleType::NumParticleTypes) {
-      //   printf("NUM LEAKED CURR: %d, real: %lu\n", *(stats->nLeakedCurrent + particleType), size);
-      // } else {
-      //   printf("NUM LEAKED NEXT: %d, real: %lu\n", *(stats->nLeakedNext + particleType), size);
-      // }
     }
   }
 }
@@ -721,7 +682,6 @@ __host__ void ReturnTracksToG4(TrackBuffer &trackBuffer, GPUstate &gpuState,
     // TODO: Pass numThreads here, only used in debug mode however
     // assert(0 <= trackIt->threadId && trackIt->threadId <= numThreads);
     trackBuffer.fromDeviceBuffers[trackIt->threadId].push_back(*trackIt);
-    // printf("PUSHED\n");
   }
 
 #ifndef NDEBUG
@@ -760,9 +720,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                    std::condition_variable &cvG4Workers, std::vector<AdePTScoring> &scoring, int adeptSeed,
                    int debugLevel, bool returnAllSteps, bool returnLastStep, unsigned short lastNParticlesOnCPU)
 {
-  // DEBUG
-  // SetLeaks<<<1, 1>>>();
-
   // NVTXTracer tracer{"TransportLoop"};
 
   using InjectState                             = GPUstate::InjectState;
@@ -827,10 +784,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       isInitialized = true;
     }
   }
-
-  //// DEBUG //////////////////////////////////
-  // bool printtotal = true;
-  /////////////////////////////////////////////
 
   while (gpuState.runTransport) {
     // NVTXTracer nvtx1{"Setup"}, nvtx2{"Setup2"};
@@ -1135,9 +1088,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             COPCORE_CUDA_CHECK(cudaStreamWaitEvent(extractStream, event));
           }
 
-          // DEBUG
-          // PrintLeaks<<<1, 1, 0, hitTransferStream>>>(true);
-
           // Once transport has finished, we can start extracting the leaks
           COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
               extractStream,
@@ -1167,9 +1117,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
               allLeaked, trackBuffer.fromDevice_dev.get(), trackBuffer.fNumFromDevice,
               // printtotal, allLeaked, trackBuffer.fromDevice_dev.get(), trackBuffer.fNumFromDevice,
               trackBuffer.fNumLeaksTransferred);
-
-          // DEBUG
-          // printtotal = false;
 
           // Copy the number of leaked tracks to host
           COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(trackBuffer.nFromDevice_host.get(), nFromDevice_dev,
@@ -1253,8 +1200,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                 }
               }
             }
-            // DEBUG
-            // printtotal = true;
 
             AdvanceEventStates(EventState::FlushingTracks, EventState::DeviceFlushed, eventStates);
 
@@ -1280,6 +1225,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // see may not be up to date. This is acceptable in most situations
         if (gpuState.stats->slotFillLevel > 0.5) {
           // Freeing of slots has to run exclusively
+          // FIXME: Revise this code and make sure all three streams actually need to be synchronized
+          // with gpuState.stream
           waitForOtherStream(gpuState.stream, hitTransferStream);
           waitForOtherStream(gpuState.stream, injectStream);
           waitForOtherStream(gpuState.stream, extractStream);
@@ -1314,20 +1261,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           std::this_thread::sleep_for(50us);
         }
         COPCORE_CUDA_CHECK(result);
-
-        // COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, hitTransferStream));
-
-        // // NOTE: Stats synchronization is needed for an accurate count of in-flight particles.
-        // // hitTransferStream synchronization is also needed for reproducibility, but the reason
-        // // is not clear. It is likely a combination of the work done to extract leaked particles
-        // // and the assumption that injection is completed in one iteration
-        // while (cudaEventQuery(cudaStatsEvent) == cudaErrorNotReady || cudaEventQuery(cudaEvent) ==
-        // cudaErrorNotReady)
-        // {
-        //   // Cuda uses a busy wait. This reduces CPU consumption by 50%:
-        //   using namespace std::chrono_literals;
-        //   std::this_thread::sleep_for(50us);
-        // }
 
         for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
           inFlight += gpuState.stats->inFlight[i];
@@ -1441,8 +1374,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
     if (debugLevel > 2) std::cout << "End transport loop.\n";
   }
-
-  // PrintLeaks<<<1, 1>>>();
 
   hitProcessing->keepRunning = false;
   hitProcessing->cv.notify_one();

@@ -21,12 +21,6 @@ macro(add_to_test TESTS)
 endmacro()
 
 #----------------------------------------------------------------------------#
-# Common Data
-#----------------------------------------------------------------------------#
-# file(COPY "${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml" DESTINATION "${PROJECT_BINARY_DIR}")
-# file(COPY "${PROJECT_SOURCE_DIR}/examples/data/testEm3_regions.gdml" DESTINATION "${PROJECT_BINARY_DIR}")
-
-#----------------------------------------------------------------------------#
 # G4 App-based Tests
 #----------------------------------------------------------------------------#
 
