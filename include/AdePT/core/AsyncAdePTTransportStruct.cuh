@@ -58,7 +58,6 @@ public:
 struct LeakedTracks {
   Track *fTracks;
   adept::MParray *fLeakedQueue;
-  adept::MParray *fLeakedQueueNext;
   SlotManager *fSlotManager;
 };
 
@@ -141,6 +140,8 @@ struct Stats {
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
   unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
   unsigned int perEventLeaked[kMaxThreads];
+  unsigned int nLeakedCurrent[ParticleType::NumParticleTypes];
+  unsigned int nLeakedNext[ParticleType::NumParticleTypes];
   unsigned int hitBufferOccupancy;
 };
 
@@ -177,7 +178,27 @@ struct GPUstate {
 
   enum class InjectState { Idle, CreatingSlots, ReadyToEnqueue, Enqueueing };
   std::atomic<InjectState> injectState;
-  enum class ExtractState { Idle, FreeingSlots, ReadyToCopy, CopyToHost };
+  // ExtractState:
+  // Idle: No flush has been requested
+  // ExtractionRequested: An event requested a flush, waiting for transport to finish
+  // TracksNeedTransfer: An event requested a flush, leak buffer on device has tracks to transfer
+  // PreparingTracks: Tracks are being copied to the staging buffer
+  // TracksReadyToCopy: Staging buffer is ready to be copied to host
+  // CopyingTracks: Tracks are being copied to host
+  // TracksOnHost: Some or all the tracks have been transferred from device to host and are waiting in the copy buffer
+  // SavingTracks: Tracks are being copied to per-event queues
+  // TracksSaved: Tracks have been moved from the copy buffer to their respective per-event queues
+  enum class ExtractState {
+    Idle,
+    ExtractionRequested,
+    TracksNeedTransfer,
+    PreparingTracks,
+    TracksReadyToCopy,
+    CopyingTracks,
+    TracksOnHost,
+    SavingTracks,
+    TracksSaved
+  };
   std::atomic<ExtractState> extractState;
   std::atomic_bool runTransport{true}; ///< Keep transport thread running
 

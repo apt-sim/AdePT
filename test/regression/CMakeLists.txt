@@ -21,12 +21,6 @@ macro(add_to_test TESTS)
 endmacro()
 
 #----------------------------------------------------------------------------#
-# Common Data
-#----------------------------------------------------------------------------#
-file(COPY "${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml" DESTINATION "${PROJECT_BINARY_DIR}")
-set(TESTING_GDML "${PROJECT_BINARY_DIR}/testEm3.gdml")
-
-#----------------------------------------------------------------------------#
 # G4 App-based Tests
 #----------------------------------------------------------------------------#
 
@@ -43,10 +37,26 @@ add_test(NAME reproducibility_cms_ttbar
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
+# This test checks the reproducibility of AdePT with transport only in some regions by running 50 e- events in the testEm3 geometry
+# and checking that the energy deposition is exactly the same.
+add_test(NAME reproducibility_regions
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility_regions.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+
 # test that compares the physics output of a full AdePT run against a high-statistics Geant4 simulation using G4HepEm.
 # The energy deposition per layer error must be < 1% to pass the test
 add_test(NAME testEm3_validation
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+
+# test that compares the physics output of a full AdePT run with transport only in some regions against a high-statistics 
+# Geant4 simulation using G4HepEm. The energy deposition per layer error must be < 1% to pass the test
+add_test(NAME testEm3_validation_regions
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_regions.sh
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
