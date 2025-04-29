@@ -44,7 +44,7 @@ namespace AsyncAdePT {
 // generate secondaries.
 template <bool IsElectron, typename Scoring>
 static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
-                                                          Secondaries &secondaries, adept::MParray *activeQueue,
+                                                          Secondaries &secondaries, adept::MParray *nextActiveQueue,
                                                           adept::MParray *leakedQueue, Scoring *userScoring,
                                                           Stats *InFlightStats,
                                                           AllowFinishOffEventArray allowFinishOffEvent,
@@ -109,14 +109,19 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
-      
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak)
-        leakedQueue->push_back(slot);
-      else
-        activeQueue->push_back(slot);
+      if (leak) {
+        auto success = leakedQueue->push_back(slot);
+        if (!success) {
+          printf("ERROR: No space left in e-/+ leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
+      } else
+        nextActiveQueue->push_back(slot);
     };
 
     if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
@@ -635,21 +640,21 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 // Instantiate kernels for electrons and positrons.
 template <typename Scoring>
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
                                    Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
                                    bool returnAllSteps, bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, activeQueue, leakedQueue,
+  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, nextActiveQueue, leakedQueue,
                                                    userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
                                                    returnLastStep);
 }
 template <typename Scoring>
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *activeQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
                                    Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
                                    bool returnAllSteps, bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, activeQueue, leakedQueue,
+  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, nextActiveQueue, leakedQueue,
                                                     userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
                                                     returnLastStep);
 }
