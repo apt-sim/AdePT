@@ -960,6 +960,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** ELECTRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
+        ElectronHowFar<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
             electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,

@@ -54,6 +54,7 @@ struct Track {
   double preStepEKin{0};
   // Variables used to store navigation results
   double geometryStepLength{0};
+  double safeLength{0};
   long hitsurfID{0};
 #endif
 
