@@ -39,6 +39,176 @@ __device__ double GetVelocity(double eKin)
 
 namespace AsyncAdePT {
 
+template <bool IsElectron, typename Scoring>
+static __device__ __forceinline__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
+                                                      const adept::MParray *active, Secondaries &secondaries,
+                                                      adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
+                                                      Scoring *userScoring, Stats *InFlightStats,
+                                                      AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
+                                                      bool returnLastStep)
+{
+  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr unsigned short maxSteps = 10'000;
+  constexpr int Charge              = IsElectron ? -1 : 1;
+  constexpr double restMass         = copcore::units::kElectronMassC2;
+  constexpr int Nvar                = 6;
+  constexpr int max_iterations      = 10;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+  using Field_t = GeneralMagneticField;
+#else
+  using Field_t = UniformMagneticField;
+#endif
+  using Equation_t = MagneticFieldEquation<Field_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+
+  auto &magneticField = *gMagneticField;
+
+  int activeSize = active->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const int slot           = (*active)[i];
+    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+
+    Track &currentTrack          = electrons[slot];
+    currentTrack.preStepEKin     = currentTrack.eKin;
+    currentTrack.preStepPos      = currentTrack.pos;
+    currentTrack.preStepDir      = currentTrack.dir;
+    currentTrack.preStepNavState = currentTrack.navState;
+    // the MCC vector is indexed by the logical volume id
+#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
+    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
+#else
+    const int lvolID = currentTrack.navState.GetLogicalId();
+#endif
+
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+
+    currentTrack.stepCounter++;
+    if (currentTrack.stepCounter >= maxSteps) {
+      printf("Killing e-/+ event %d E=%f lvol=%d after %d steps.\n", currentTrack.eventId, currentTrack.eKin, lvolID,
+             currentTrack.stepCounter);
+      continue;
+    }
+
+    auto survive = [&](bool leak = false) {
+      returnLastStep = false; // track survived, do not force return of step
+      // NOTE: When adapting the split kernels for async mode this won't
+      // work if we want to re-use slots on the fly. Directly copying to
+      // a trackdata struct would be better
+      if (leak) {
+        auto success = leakedQueue->push_back(slot);
+        if (!success) {
+          printf("ERROR: No space left in e-/+ leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
+      } else
+        nextActiveQueue->push_back(slot);
+    };
+
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+             currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
+      survive(/*leak*/ true);
+      continue;
+    }
+
+    // Init a track with the needed data to call into G4HepEm.
+    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
+    elTrack.ReSet();
+    G4HepEmTrack *theTrack = elTrack.GetTrack();
+    theTrack->SetEKin(currentTrack.eKin);
+    theTrack->SetMCIndex(auxData.fMCIndex);
+    theTrack->SetOnBoundary(currentTrack.navState.IsOnBoundary());
+    theTrack->SetCharge(Charge);
+    G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
+    // the default is 1.0e21 but there are float vs double conversions, so we check for 1e20
+    mscData->fIsFirstStep        = currentTrack.initialRange > 1.0e+20;
+    mscData->fInitialRange       = currentTrack.initialRange;
+    mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
+    mscData->fTlimitMin          = currentTrack.tlimitMin;
+
+    // Prepare a branched RNG state while threads are synchronized. Even if not
+    // used, this provides a fresh round of random numbers and reduces thread
+    // divergence because the RNG state doesn't need to be advanced later.
+    currentTrack.newRNG = RanluxppDouble(currentTrack.rngState.BranchNoAdvance());
+    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+
+    // Sample the `number-of-interaction-left` and put it into the track.
+    for (int ip = 0; ip < 4; ++ip) {
+      double numIALeft = currentTrack.numIALeft[ip];
+      if (numIALeft <= 0) {
+        numIALeft = -std::log(currentTrack.Uniform());
+      }
+      if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
+      theTrack->SetNumIALeft(numIALeft, ip);
+    }
+
+    G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
+
+    auto physicalStepLength = elTrack.GetPStepLength();
+    // Compute safety, needed for MSC step limit. The accuracy range is physicalStepLength
+    double safety = 0.;
+    if (!currentTrack.navState.IsOnBoundary()) {
+      // Get the remaining safety only if larger than physicalStepLength
+      safety = currentTrack.GetSafety(currentTrack.pos);
+      if (safety < physicalStepLength) {
+        // Recompute safety and update it in the track.
+#ifdef ADEPT_USE_SURF
+        // Use maximum accuracy only if safety is samller than physicalStepLength
+        safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, physicalStepLength);
+#else
+        safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
+#endif
+        currentTrack.SetSafety(currentTrack.pos, safety);
+      }
+    }
+    theTrack->SetSafety(currentTrack.safety);
+    currentTrack.restrictedPhysicalStepLength = false;
+
+    currentTrack.safeLength = 0.;
+
+    if (gMagneticField) {
+
+      const double momentumMag = sqrt(currentTrack.eKin * (currentTrack.eKin + 2.0 * restMass));
+      // Distance along the track direction to reach the maximum allowed error
+
+      // SEVERIN: to be checked if we can use float
+      vecgeom::Vector3D<double> momentumVec = momentumMag * currentTrack.dir;
+      vecgeom::Vector3D<double> B0fieldVec  = magneticField.Evaluate(
+          currentTrack.pos[0], currentTrack.pos[1], currentTrack.pos[2]); // Field value at starting point
+      currentTrack.safeLength =
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
+              momentumVec, B0fieldVec, Charge);
+
+      constexpr int MaxSafeLength = 10;
+      double limit                = MaxSafeLength * currentTrack.safeLength;
+      limit                       = currentTrack.safety > limit ? currentTrack.safety : limit;
+
+      if (physicalStepLength > limit) {
+        physicalStepLength                        = limit;
+        currentTrack.restrictedPhysicalStepLength = true;
+        elTrack.SetPStepLength(physicalStepLength);
+
+        // Note: We are limiting the true step length, which is converted to
+        // a shorter geometry step length in HowFarToMSC. In that sense, the
+        // limit is an over-approximation, but that is fine for our purpose.
+      }
+    }
+
+    G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+
+    // Remember MSC values for the next step(s).
+    currentTrack.initialRange       = mscData->fInitialRange;
+    currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
+    currentTrack.tlimitMin          = mscData->fTlimitMin;
+  }
+}
+
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
@@ -50,6 +220,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           AllowFinishOffEventArray allowFinishOffEvent,
                                                           bool returnAllSteps, bool returnLastStep)
 {
+
+  //////////////////////////// TRANSPORT ELECTRONS ////////////////////////////
+
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -126,7 +299,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
         InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+      printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n ",
              currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
              currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
       survive(/*leak*/ true);
@@ -147,80 +320,85 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
     mscData->fTlimitMin          = currentTrack.tlimitMin;
 
-    // Prepare a branched RNG state while threads are synchronized. Even if not
-    // used, this provides a fresh round of random numbers and reduces thread
-    // divergence because the RNG state doesn't need to be advanced later.
-    RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
-    // Sample the `number-of-interaction-left` and put it into the track.
-    for (int ip = 0; ip < 4; ++ip) {
-      double numIALeft = currentTrack.numIALeft[ip];
-      if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
-      }
-      if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
-      theTrack->SetNumIALeft(numIALeft, ip);
-    }
+    //     // Prepare a branched RNG state while threads are synchronized. Even if not
+    //     // used, this provides a fresh round of random numbers and reduces thread
+    //     // divergence because the RNG state doesn't need to be advanced later.
+    //     RanluxppDouble newRNG(currentTrack.rngState.BranchNoAdvance());
+    //     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
-    G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
+    //     // Sample the `number-of-interaction-left` and put it into the track.
+    //     for (int ip = 0; ip < 4; ++ip) {
+    //       double numIALeft = currentTrack.numIALeft[ip];
+    //       if (numIALeft <= 0) {
+    //         numIALeft = -std::log(currentTrack.Uniform());
+    //       }
+    //       if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
+    //       theTrack->SetNumIALeft(numIALeft, ip);
+    //     }
 
-    auto physicalStepLength = elTrack.GetPStepLength();
-    // Compute safety, needed for MSC step limit. The accuracy range is physicalStepLength
-    double safety = 0.;
-    if (!navState.IsOnBoundary()) {
-      // Get the remaining safety only if larger than physicalStepLength
-      safety = currentTrack.GetSafety(pos);
-      if (safety < physicalStepLength) {
-        // Recompute safety and update it in the track.
-#ifdef ADEPT_USE_SURF
-        // Use maximum accuracy only if safety is samller than physicalStepLength
-        safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
-#else
-        safety = AdePTNavigator::ComputeSafety(pos, navState);
-#endif
-        currentTrack.SetSafety(pos, safety);
-      }
-    }
-    theTrack->SetSafety(safety);
-    bool restrictedPhysicalStepLength = false;
+    //     G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
 
-    double safeLength = 0.;
+    //     auto physicalStepLength = elTrack.GetPStepLength();
+    //     // Compute safety, needed for MSC step limit. The accuracy range is physicalStepLength
+    //     double safety = 0.;
+    //     if (!navState.IsOnBoundary()) {
+    //       // Get the remaining safety only if larger than physicalStepLength
+    //       safety = currentTrack.GetSafety(pos);
+    //       if (safety < physicalStepLength) {
+    //         // Recompute safety and update it in the track.
+    // #ifdef ADEPT_USE_SURF
+    //         // Use maximum accuracy only if safety is samller than physicalStepLength
+    //         safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
+    // #else
+    //         safety = AdePTNavigator::ComputeSafety(pos, navState);
+    // #endif
+    //         currentTrack.SetSafety(pos, safety);
+    //       }
+    //     }
+    //     theTrack->SetSafety(safety);
+    //     bool restrictedPhysicalStepLength = false;
 
-    if (gMagneticField) {
+    //     double safeLength = 0.;
 
-      const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
-      // Distance along the track direction to reach the maximum allowed error
+    //     if (gMagneticField) {
 
-      // SEVERIN: to be checked if we can use float
-      vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
-      vecgeom::Vector3D<double> B0fieldVec =
-          magneticField.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
-      safeLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
-              momentumVec, B0fieldVec, Charge);
+    //       const double momentumMag = sqrt(eKin * (eKin + 2.0 * restMass));
+    //       // Distance along the track direction to reach the maximum allowed error
 
-      constexpr int MaxSafeLength = 10;
-      double limit                = MaxSafeLength * safeLength;
-      limit                       = safety > limit ? safety : limit;
+    //       // SEVERIN: to be checked if we can use float
+    //       vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
+    //       vecgeom::Vector3D<double> B0fieldVec =
+    //           magneticField.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
+    //       safeLength =
+    //           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength
+    //           /*<Real_t>*/ (
+    //               momentumVec, B0fieldVec, Charge);
 
-      if (physicalStepLength > limit) {
-        physicalStepLength           = limit;
-        restrictedPhysicalStepLength = true;
-        elTrack.SetPStepLength(physicalStepLength);
+    //       constexpr int MaxSafeLength = 10;
+    //       double limit                = MaxSafeLength * safeLength;
+    //       limit                       = safety > limit ? safety : limit;
 
-        // Note: We are limiting the true step length, which is converted to
-        // a shorter geometry step length in HowFarToMSC. In that sense, the
-        // limit is an over-approximation, but that is fine for our purpose.
-      }
-    }
+    //       if (physicalStepLength > limit) {
+    //         physicalStepLength           = limit;
+    //         restrictedPhysicalStepLength = true;
+    //         elTrack.SetPStepLength(physicalStepLength);
 
-    G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+    //         // Note: We are limiting the true step length, which is converted to
+    //         // a shorter geometry step length in HowFarToMSC. In that sense, the
+    //         // limit is an over-approximation, but that is fine for our purpose.
+    //       }
+    //     }
 
-    // Remember MSC values for the next step(s).
-    currentTrack.initialRange       = mscData->fInitialRange;
-    currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
-    currentTrack.tlimitMin          = mscData->fTlimitMin;
+    //     G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+
+    //     // Remember MSC values for the next step(s).
+    //     currentTrack.initialRange       = mscData->fInitialRange;
+    //     currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
+    //     currentTrack.tlimitMin          = mscData->fTlimitMin;
+
+    //////////////////////////// TRANSPORT ELECTRONS END ////////////////////////////
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
@@ -249,8 +427,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       int iterDone = -1;
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
-              magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
-              nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
+              magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, currentTrack.safeLength, pos,
+              dir, navState, nextState, hitsurf_index, propagated, /*lengthDone,*/ currentTrack.safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot);
     } else {
@@ -293,7 +471,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       if (dLength2 > kGeomMinLength2) {
         const double dispR = std::sqrt(dLength2);
         // Estimate safety by subtracting the geometrical step length.
-        safety                 = currentTrack.GetSafety(pos);
+        auto safety            = currentTrack.GetSafety(pos);
         constexpr double sFact = 0.99;
         double reducedSafety   = sFact * safety;
 
@@ -375,7 +553,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                  "physicsStepLength=%E "
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
-                 geometricalStepLengthFromPhysics, safety);
+                 geometricalStepLengthFromPhysics, currentTrack.safety);
           continue;
         } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
@@ -387,7 +565,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           slotManager.MarkSlotForFreeing(slot);
         }
 
-      } else if (!propagated || restrictedPhysicalStepLength) {
+      } else if (!propagated || currentTrack.restrictedPhysicalStepLength) {
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
 
@@ -397,7 +575,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                  "physicsStepLength=%E "
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
-                 geometricalStepLengthFromPhysics, safety);
+                 geometricalStepLengthFromPhysics, currentTrack.safety);
           continue;
         }
 
@@ -434,7 +612,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       } else {
         // Perform the discrete interaction, make sure the branched RNG state is
         // ready to be used.
-        newRNG.Advance();
+        currentTrack.newRNG.Advance();
         // Also advance the current RNG state to provide a fresh round of random
         // numbers after MSC used up a fair share for sampling the displacement.
         currentTrack.rngState.Advance();
@@ -459,8 +637,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
           } else {
             Track &secondary = secondaries.electrons.NextTrack(
-                newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                navState, currentTrack);
+                currentTrack.newRNG, deltaEkin, pos,
+                vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, navState,
+                currentTrack);
           }
 
           eKin -= deltaEkin;
@@ -500,8 +679,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
           } else {
             secondaries.gammas.NextTrack(
-                newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                navState, currentTrack);
+                currentTrack.newRNG, deltaEkin, pos,
+                vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, navState,
+                currentTrack);
           }
 
           eKin -= deltaEkin;
@@ -538,7 +718,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
           } else {
             secondaries.gammas.NextTrack(
-                newRNG, theGamma1Ekin, pos,
+                currentTrack.newRNG, theGamma1Ekin, pos,
                 vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState,
                 currentTrack);
           }
@@ -581,10 +761,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           double sinPhi, cosPhi;
           sincos(phi, &sinPhi, &cosPhi);
 
-          newRNG.Advance();
-          Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, pos,
-                                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
-                                                       navState, currentTrack);
+          currentTrack.newRNG.Advance();
+          Track &gamma1 = secondaries.gammas.NextTrack(
+              currentTrack.newRNG, double{copcore::units::kElectronMassC2}, pos,
+              vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost}, navState, currentTrack);
 
           // Reuse the RNG state of the dying track.
           Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},

@@ -174,6 +174,10 @@ struct GPUstate {
   AllSlotManagers allmgr_h;              // All host slot managers, statically allocated
   SlotManager *slotManager_dev{nullptr}; // All device slot managers
 
+#ifdef USE_SPLIT_KERNELS
+  HepEmBuffers hepEMBuffers_d;
+#endif
+
   Stats *stats_dev{nullptr}; ///< statistics object pointer on device
   Stats *stats{nullptr};     ///< statistics object pointer on host
 
