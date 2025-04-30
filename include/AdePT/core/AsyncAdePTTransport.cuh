@@ -262,6 +262,8 @@ __global__ void FreeSlots2(Ts... slotManagers)
   (slotManagers->FreeMarkedSlotsStage2(), ...);
 }
 
+// FIXME: ADAPT FOR 3 SLOTMANAGERS
+
 // Finish iteration: clear queues and fill statistics.
 __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
 //, GammaInteractions gammaInteractions) // Note: deprecated gammaInteractions
@@ -277,17 +279,15 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
   } else if (blockIdx.x == 1 && threadIdx.x == 0) {
     // Assert that there are enough slots allocated:
     unsigned int particlesInFlight = 0;
-    // FIXME: This code assumes that there is only one slot manager. If this changes to one manager
-    // per particle type this code needs to be updated
-    SlotManager const &slotManager = *tracksAndSlots.slotManagers[0];
-    stats->slotFillLevel           = slotManager.FillLevel();
+    unsigned int occupiedSlots     = 0;
 
     for (int i = 0; i < ParticleType::NumParticleTypes; ++i) {
       particlesInFlight += all.queues[i].nextActive->size();
+      occupiedSlots += tracksAndSlots.slotManagers[i]->OccupiedSlots();
+      stats->slotFillLevel[i] = tracksAndSlots.slotManagers[i]->FillLevel();
     }
-    if (particlesInFlight > slotManager.OccupiedSlots()) {
-      printf("Error: %d in flight while %d slots allocated\n", particlesInFlight,
-             tracksAndSlots.slotManagers[0]->OccupiedSlots());
+    if (particlesInFlight > occupiedSlots) {
+      printf("Error: %d in flight while %d slots allocated\n", particlesInFlight, occupiedSlots);
       asm("trap;");
     }
   } else if (blockIdx.x == 2) {
@@ -565,12 +565,17 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     if (emplaceForAutoDelete) gpuState.allCudaPointers.push_back(devPtr);
   };
 
-  gpuState.slotManager_host = SlotManager{static_cast<SlotManager::value_type>(trackCapacity),
-                                          static_cast<SlotManager::value_type>(trackCapacity)};
-  gpuState.slotManager_dev  = nullptr;
+  // Allocate all slot managers on device
+  gpuState.slotManager_dev = nullptr;
   gpuMalloc(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(gpuState.slotManager_dev, &gpuState.slotManager_host, sizeof(SlotManager), cudaMemcpyDefault));
+  for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+    // Initialize all host slot managers
+    gpuState.allmgr_h.slotManagers[i] = SlotManager{static_cast<SlotManager::value_type>(trackCapacity),
+                                                    static_cast<SlotManager::value_type>(trackCapacity)};
+    // Initialize dev slotmanagers by copying the host data
+    COPCORE_CUDA_CHECK(cudaMemcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
+                                  cudaMemcpyDefault));
+  }
 
   // Create a stream to synchronize kernels of all particle types.
   COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
@@ -587,7 +592,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     // FIXME: THIS SHOULD CHANGE IF THE TRACKS ARE EVENTUALLY STORED IN AN SoA
     // (Mixing particle types will reduce the efficiency gain from loading less data as
     // they will not be contiguous in the track buffer)
-    particleType.slotManager = gpuState.slotManager_dev;
+    particleType.slotManager = &gpuState.slotManager_dev[i];
 
     void *gpuPtr = nullptr;
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
@@ -635,11 +640,11 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   gpuState.injectionQueue = static_cast<adept::MParrayT<QueueIndexPair> *>(gpuPtr);
   InitQueue<QueueIndexPair><<<1, 1>>>(gpuState.injectionQueue, trackBuffer.fNumToDevice);
 
-  // This is the largest allocation. If it does not fit, we need to try again:
-  Track *trackStorage_dev = nullptr;
-  gpuMalloc(trackStorage_dev, trackCapacity);
-
   for (auto &partType : gpuState.particles) {
+    // This is the largest allocation. If it does not fit, we need to try again:
+    Track *trackStorage_dev = nullptr;
+    gpuMalloc(trackStorage_dev, trackCapacity);
+
     // NOTE: ALL PARTICLES ARE STORED IN THE SAME BUFFER
     // FIXME: SAME AS FOR THE SLOTMANAGER
     partType.tracks = trackStorage_dev;
@@ -1223,19 +1228,30 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       if (gpuState.injectState != InjectState::CreatingSlots) {
         // NOTE: This is done before synchronizing with the stats copy. This means that the value we
         // see may not be up to date. This is acceptable in most situations
-        if (gpuState.stats->slotFillLevel > 0.5) {
-          // Freeing of slots has to run exclusively
-          // FIXME: Revise this code and make sure all three streams actually need to be synchronized
-          // with gpuState.stream
-          waitForOtherStream(gpuState.stream, hitTransferStream);
-          waitForOtherStream(gpuState.stream, injectStream);
-          waitForOtherStream(gpuState.stream, extractStream);
-          static_assert(gpuState.nSlotManager_dev == 1, "The below launches assume there is only one slot manager.");
-          FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev);
-          FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev);
-          waitForOtherStream(hitTransferStream, gpuState.stream);
-          waitForOtherStream(injectStream, gpuState.stream);
-          waitForOtherStream(extractStream, gpuState.stream);
+        for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+          if (gpuState.stats->slotFillLevel[i] > 0.5) {
+            // Freeing of slots has to run exclusively
+            // FIXME: Revise this code and make sure all three streams actually need to be synchronized
+            // with gpuState.stream
+            waitForOtherStream(gpuState.stream, hitTransferStream);
+            waitForOtherStream(gpuState.stream, injectStream);
+            waitForOtherStream(gpuState.stream, extractStream);
+            // static_assert(gpuState.nSlotManager_dev == 1, "The below launches assume there is only one slot
+            // manager.");
+            FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
+            FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
+            // TO TEST FOR PERFORMANCE
+            // {
+            //   FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.slotManager_dev + 1,
+            //                                               gpuState.slotManager_dev + 2);
+            //   FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.slotManager_dev + 1,
+            //                                            gpuState.slotManager_dev + 2);
+            //   break;
+            // }
+            waitForOtherStream(hitTransferStream, gpuState.stream);
+            waitForOtherStream(injectStream, gpuState.stream);
+            waitForOtherStream(extractStream, gpuState.stream);
+          }
         }
       }
 
@@ -1325,7 +1341,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                   << gpuState.stats->queueFillLevel[ParticleType::Electron] << " "
                   << gpuState.stats->queueFillLevel[ParticleType::Positron] << " "
                   << gpuState.stats->queueFillLevel[ParticleType::Gamma] << ")";
-        std::cerr << "\t slots:" << gpuState.stats->slotFillLevel << ", " << numLeaked << " leaked."
+        std::cerr << "\t slots [e-, e+, gamma]: [" << gpuState.stats->slotFillLevel[0] << ", "
+                  << gpuState.stats->slotFillLevel[1] << ", " << gpuState.stats->slotFillLevel[2] << "], " << numLeaked
+                  << " leaked."
                   << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
                   << "\tExtractState: " << static_cast<unsigned int>(gpuState.extractState.load())
                   << "\tHitBuffer: " << gpuState.stats->hitBufferOccupancy
