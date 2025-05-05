@@ -1253,14 +1253,22 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         inFlight  = 0;
         numLeaked = 0;
+        // FIXME: Synchronizing with the injectionStream here, along with the stats stream is not
+        // needed by the logic. It is a temporary fix to a long-standing bug where some particles may
+        // be injected after their events have already finished. This synchronization doesn't cause
+        // any measurable slowdown, but it should be removed once the underlying cause of the bug is
+        // understood and fixed
+        COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, injectStream));
         // Synchronize with stats count before taking decisions
-        cudaError_t result;
-        while ((result = cudaEventQuery(cudaStatsEvent)) == cudaErrorNotReady) {
+        cudaError_t result, injectResult;
+        while ((result = cudaEventQuery(cudaStatsEvent)) == cudaErrorNotReady ||
+               (injectResult = cudaEventQuery(cudaEvent)) == cudaErrorNotReady) {
           // Cuda uses a busy wait. This reduces CPU consumption by 50%:
           using namespace std::chrono_literals;
           std::this_thread::sleep_for(50us);
         }
         COPCORE_CUDA_CHECK(result);
+        COPCORE_CUDA_CHECK(injectResult);
 
         for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
           inFlight += gpuState.stats->inFlight[i];
