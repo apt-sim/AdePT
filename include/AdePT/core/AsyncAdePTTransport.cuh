@@ -262,8 +262,6 @@ __global__ void FreeSlots2(Ts... slotManagers)
   (slotManagers->FreeMarkedSlotsStage2(), ...);
 }
 
-// FIXME: ADAPT FOR 3 SLOTMANAGERS
-
 // Finish iteration: clear queues and fill statistics.
 __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
 //, GammaInteractions gammaInteractions) // Note: deprecated gammaInteractions
@@ -588,10 +586,6 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     const size_t nLeakSlots         = leakCapacity;
     const size_t sizeOfLeakQueue    = adept::MParray::SizeOfInstance(nLeakSlots);
 
-    // NOTE: ALL PARTICLES SHARE THE SAME SLOTMANAGER
-    // FIXME: THIS SHOULD CHANGE IF THE TRACKS ARE EVENTUALLY STORED IN AN SoA
-    // (Mixing particle types will reduce the efficiency gain from loading less data as
-    // they will not be contiguous in the track buffer)
     particleType.slotManager = &gpuState.slotManager_dev[i];
 
     void *gpuPtr = nullptr;
@@ -1236,18 +1230,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             waitForOtherStream(gpuState.stream, hitTransferStream);
             waitForOtherStream(gpuState.stream, injectStream);
             waitForOtherStream(gpuState.stream, extractStream);
-            // static_assert(gpuState.nSlotManager_dev == 1, "The below launches assume there is only one slot
-            // manager.");
+            static_assert(gpuState.nSlotManager_dev == ParticleType::NumParticleTypes,
+                          "The below launches assume there is a slot manager per particle type.");
             FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
             FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
-            // TO TEST FOR PERFORMANCE
-            // {
-            //   FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.slotManager_dev + 1,
-            //                                               gpuState.slotManager_dev + 2);
-            //   FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.slotManager_dev + 1,
-            //                                            gpuState.slotManager_dev + 2);
-            //   break;
-            // }
             waitForOtherStream(hitTransferStream, gpuState.stream);
             waitForOtherStream(injectStream, gpuState.stream);
             waitForOtherStream(extractStream, gpuState.stream);
