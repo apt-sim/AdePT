@@ -131,12 +131,16 @@ struct AllParticleQueues {
   ParticleQueues queues[ParticleType::NumParticleTypes];
 };
 
+struct AllSlotManagers {
+  SlotManager slotManagers[ParticleType::NumParticleTypes];
+};
+
 // A data structure to transfer statistics after each iteration.
 struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
   float queueFillLevel[ParticleType::NumParticleTypes];
-  float slotFillLevel;
+  float slotFillLevel[ParticleType::NumParticleTypes];
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
   unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
   unsigned int perEventLeaked[kMaxThreads];
@@ -165,9 +169,11 @@ struct GPUstate {
   // Create a stream to synchronize kernels of all particle types.
   cudaStream_t stream; ///< all-particle sync stream
 
-  static constexpr unsigned int nSlotManager_dev = 1;
-  SlotManager slotManager_host;
-  SlotManager *slotManager_dev{nullptr};
+  static constexpr unsigned int nSlotManager_dev = 3;
+
+  AllSlotManagers allmgr_h;              // All host slot managers, statically allocated
+  SlotManager *slotManager_dev{nullptr}; // All device slot managers
+
   Stats *stats_dev{nullptr}; ///< statistics object pointer on device
   Stats *stats{nullptr};     ///< statistics object pointer on host
 
