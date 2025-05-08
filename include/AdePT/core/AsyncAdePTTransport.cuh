@@ -563,30 +563,31 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     if (emplaceForAutoDelete) gpuState.allCudaPointers.push_back(devPtr);
   };
 
+  // Create a stream to synchronize kernels of all particle types.
+  COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
+
   // Allocate all slot managers on device
   gpuState.slotManager_dev = nullptr;
   gpuMalloc(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    // Initialize all host slot managers
-    gpuState.allmgr_h.slotManagers[i] = SlotManager{static_cast<SlotManager::value_type>(trackCapacity),
-                                                    static_cast<SlotManager::value_type>(trackCapacity)};
-    // Initialize dev slotmanagers by copying the host data
-    COPCORE_CUDA_CHECK(cudaMemcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
-                                  cudaMemcpyDefault));
-  }
-
-  // Create a stream to synchronize kernels of all particle types.
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
-  for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    ParticleType &particleType = gpuState.particles[i];
-    // Provide 20% more queue slots than track slots, so a large cluster of a specific particle type
-    // doesn't exhaust the queues.
-    const size_t nSlot              = trackCapacity * ParticleType::relativeQueueSize[i] * 1.2;
+    // Number of slots allocated computed based on the proportions set in ParticleType::relativeQueueSize
+    const size_t nSlot              = trackCapacity * ParticleType::relativeQueueSize[i];
     const size_t sizeOfQueueStorage = adept::MParray::SizeOfInstance(nSlot);
     const size_t nLeakSlots         = leakCapacity;
     const size_t sizeOfLeakQueue    = adept::MParray::SizeOfInstance(nLeakSlots);
 
-    particleType.slotManager = &gpuState.slotManager_dev[i];
+    // Initialize all host slot managers (This call allocates GPU memory)
+    gpuState.allmgr_h.slotManagers[i] =
+        SlotManager{static_cast<SlotManager::value_type>(nSlot), static_cast<SlotManager::value_type>(nSlot)};
+    // Initialize dev slotmanagers by copying the host data
+    COPCORE_CUDA_CHECK(cudaMemcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
+                                  cudaMemcpyDefault));
+
+    // Allocate the queues where the active and leak indices are stored
+    // * Current and next active track indices
+    // * Current and next leaked track indices
+    ParticleType &particleType = gpuState.particles[i];
+    particleType.slotManager   = &gpuState.slotManager_dev[i];
 
     void *gpuPtr = nullptr;
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
@@ -601,6 +602,16 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
     COPCORE_CUDA_CHECK(cudaStreamCreate(&particleType.stream));
     COPCORE_CUDA_CHECK(cudaEventCreate(&particleType.event));
+
+    // Allocate the array where the tracks are stored
+    // This is the largest allocation. If it does not fit, we need to try again:
+    Track *trackStorage_dev = nullptr;
+    gpuMalloc(trackStorage_dev, nSlot);
+
+    gpuState.particles[i].tracks = trackStorage_dev;
+
+    printf("%u track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
+           ParticleType::relativeQueueSize[i] * 100, trackCapacity);
   }
 
   // NOTE: deprecated GammaInteractions
@@ -633,16 +644,6 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   gpuMalloc(gpuPtr, injectQueueSize);
   gpuState.injectionQueue = static_cast<adept::MParrayT<QueueIndexPair> *>(gpuPtr);
   InitQueue<QueueIndexPair><<<1, 1>>>(gpuState.injectionQueue, trackBuffer.fNumToDevice);
-
-  for (auto &partType : gpuState.particles) {
-    // This is the largest allocation. If it does not fit, we need to try again:
-    Track *trackStorage_dev = nullptr;
-    gpuMalloc(trackStorage_dev, trackCapacity);
-
-    // NOTE: ALL PARTICLES ARE STORED IN THE SAME BUFFER
-    // FIXME: SAME AS FOR THE SLOTMANAGER
-    partType.tracks = trackStorage_dev;
-  }
 
   return gpuState_ptr;
 }
