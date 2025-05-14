@@ -1004,10 +1004,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         //     electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
         //     gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
 
-        TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-            returnAllSteps, returnLastStep);
+        // TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+        //     electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+        //     electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+        //     returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -1042,10 +1042,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         //     positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
         //     gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
 
-        TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
-            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-            returnAllSteps, returnLastStep);
+        // TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+        //     positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
+        //     positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+        //     returnAllSteps, returnLastStep);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
