@@ -40,9 +40,11 @@ struct Track {
   vecgeom::Vector3D<Precision> vertexPosition;          ///< vertex position
   vecgeom::Vector3D<Precision> vertexMomentumDirection; ///< vertex momentum direction
   vecgeom::Vector3D<float> safetyPos;                   ///< last position where the safety was computed
-  float safety{0.f};                                    ///< last computed safety value
-  vecgeom::NavigationState navState;                    ///< current navigation state
-  vecgeom::NavigationState originNavState;              ///< navigation state where the vertex was created
+  // TODO: For better clarity in the split kernels, rename this to "stored safety" as opposed to the
+  // safety we get from GetSafety(), which is computed in the moment
+  float safety{0.f};                       ///< last computed safety value
+  vecgeom::NavigationState navState;       ///< current navigation state
+  vecgeom::NavigationState originNavState; ///< navigation state where the vertex was created
 
 #ifdef USE_SPLIT_KERNELS
   // Variables used to store track info needed for scoring
@@ -72,6 +74,7 @@ struct Track {
   // Variables used to store results from G4HepEM
   bool restrictedPhysicalStepLength{false};
   bool stopped{false};
+  bool leaked{false};
 #endif
 
   /// Construct a new track for GPU transport.

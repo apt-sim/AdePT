@@ -647,6 +647,24 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
     printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
            ParticleType::relativeQueueSize[i] * 100, trackCapacity);
+
+#ifdef USE_SPLIT_KERNELS
+    // Allocate an array of HepEm tracks per particle type
+    switch (i) {
+    case 0: // Electrons
+      gpuMalloc(gpuState.hepEmBuffers_d.electronsHepEm, nSlot);
+      break;
+    case 1: // Positrons
+      gpuMalloc(gpuState.hepEmBuffers_d.positronsHepEm, nSlot);
+      break;
+    case 2: // Gammas
+      gpuMalloc(gpuState.hepEmBuffers_d.gammasHepEm, nSlot);
+      break;
+    default:
+      printf("Error: Undefined particle type");
+      break;
+    }
+#endif
   }
 
   // NOTE: deprecated GammaInteractions
@@ -961,9 +979,31 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
         ElectronHowFar<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-            returnAllSteps, returnLastStep);
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronPropagation<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronMSC<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronRelocation<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronInteractions<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+
+        // TransportElectrons<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+        //     electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
+        //     electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+        //     gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
             electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
@@ -976,6 +1016,32 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** POSITRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
+        ElectronHowFar<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronPropagation<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronMSC<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronRelocation<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        ElectronInteractions<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+
+        // TransportElectrons<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+        //     positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
+        //     positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+        //     gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
             positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
