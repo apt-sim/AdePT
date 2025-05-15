@@ -72,6 +72,9 @@ struct Track {
   // Variables used to store results from G4HepEM
   bool restrictedPhysicalStepLength{false};
   bool stopped{false};
+
+  // TODO: Use this variable to prevent tracks that leaked on the first kernel from
+  // being processed by the next kernels during the same step
   bool leaked{false};
 #endif
 

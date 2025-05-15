@@ -1022,11 +1022,33 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** GAMMAS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
-        TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-            returnAllSteps,
+
+        GammaHowFar<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
+            gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
+            allowFinishOffEvent, returnAllSteps,
             returnLastStep); //, gpuState.gammaInteractions);
+        GammaPropagation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
+            gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
+            allowFinishOffEvent, returnAllSteps,
+            returnLastStep); //, gpuState.gammaInteractions);
+        GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
+            gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
+            allowFinishOffEvent, returnAllSteps,
+            returnLastStep); //, gpuState.gammaInteractions);
+        GammaInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
+            gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
+            allowFinishOffEvent, returnAllSteps,
+            returnLastStep); //, gpuState.gammaInteractions);
+
+        // TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+        //     gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
+        //     gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+        //     returnAllSteps,
+        //     returnLastStep); //, gpuState.gammaInteractions);
 
         // constexpr unsigned int intThreads = 128;
         // ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
