@@ -137,8 +137,11 @@ def buildAndTest() {
     export CMAKE_BINARY_DIR=BUILD_ASYNC_ON
     export ExtraCMakeOptions="-DASYNC_MODE=ON"
     ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+    export ExtraCMakeOptions="-DUSE_SPLIT_KERNELS=ON"
+    ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
     export CMAKE_BINARY_DIR=BUILD_ASYNC_OFF
     export ExtraCMakeOptions="-DASYNC_MODE=OFF"
+    export ExtraCMakeOptions="-DUSE_SPLIT_KERNELS=OFF"
     ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
 }
