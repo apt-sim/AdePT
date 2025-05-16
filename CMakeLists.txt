@@ -51,6 +51,7 @@ option(ADEPT_USE_SURF_SINGLE "Use surface model in single precision" OFF)
 option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
+set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -218,9 +219,12 @@ add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Debug>>:--device-debug>")
 # - For both, interleave the source in PTX to enhance the debugging experience.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:--source-in-ptx>")
-
 # Disable warnings from the CUDA frontend about unknown GCC pragmas - let the compiler decide what it likes.
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma>")
+# Add track debug as compile definition for CUDA if debugging requested
+if(ADEPT_DEBUG_TRACK GREATER 0)
+  add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-DADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>")
+endif()
 
 find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)

@@ -15,6 +15,7 @@
 #include <AdePT/copcore/Ranluxpp.h>
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
+#include <AdePT/core/TrackDebug.cuh>
 // deprecated kernels that split the gamma interactions:
 // #include <AdePT/kernels/electrons_async.cuh>
 // #include <AdePT/kernels/gammas_async.cuh>
@@ -52,6 +53,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <type_traits>
+#include <cstdlib>
+#include <cstdint>
 
 using namespace AsyncAdePT;
 
@@ -62,6 +65,38 @@ struct HitProcessingContext {
   std::mutex mutex{};
   std::atomic_bool keepRunning = true;
 };
+
+/// @brief Init track id for debugging to the number read from ADEPT_DEBUG_TRACK environment variable
+/// The default debug step range is 0 - 10000, and can be changed via ADEPT_DEBUG_MINSTEP/ADEPT_DEBUG_MAXSTEP
+/// @return Debugging enabled
+bool InitializeTrackDebug()
+{
+  const char *env_trk = std::getenv("ADEPT_DEBUG_TRACK");
+  if (env_trk == nullptr) return false;
+  TrackDebug debug;
+  char *end;
+  debug.track_id = std::strtoull(env_trk, &end, 0);
+  if (*end != '\0') return false;
+  debug.active = true;
+
+  const char *env_minstep = std::getenv("ADEPT_DEBUG_MINSTEP");
+  if (env_minstep) {
+    debug.min_step = std::strtol(env_minstep, &end, 0);
+    if (*end != '\0') debug.min_step = 0;
+  }
+
+  const char *env_maxstep = std::getenv("ADEPT_DEBUG_MAXSTEP");
+  if (env_maxstep) {
+    debug.max_step = std::strtol(env_maxstep, &end, 0);
+    if (*end != '\0') debug.max_step = 10000;
+  }
+
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gTrackDebug, &debug, sizeof(TrackDebug)));
+#if ADEPT_DEBUG_TRACK > 0
+  printf("=== Track debugging enabled: track %lu steps %ld - %ld\n", debug.track_id, debug.min_step, debug.max_step);
+#endif
+  return true;
+}
 
 // Kernel to initialize the set of queues per particle type.
 __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTransport, size_t CapacityLeaked)
@@ -631,6 +666,9 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
   // init scoring structures
   gpuMalloc(gpuState.fScoring_dev, numThreads);
+
+  // initialize track debugging
+  InitializeTrackDebug();
 
   scoring.clear();
   scoring.reserve(numThreads);
