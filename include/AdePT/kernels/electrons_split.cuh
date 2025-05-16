@@ -39,11 +39,10 @@ __device__ double GetVelocity(double eKin)
 
 namespace AsyncAdePT {
 
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron>
 __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                               Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                               Scoring *userScoring, Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
-                               bool returnAllSteps, bool returnLastStep)
+                               adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Stats *InFlightStats,
+                               AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -85,7 +84,6 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     }
 
     auto survive = [&](bool leak = false) {
-      returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
@@ -202,12 +200,9 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
   }
 }
 
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron>
 __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                                    Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                    adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
-                                    AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
-                                    bool returnLastStep)
+                                    adept::MParray *leakedQueue)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -288,11 +283,8 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
   }
 }
 
-template <bool IsElectron, typename Scoring>
-__global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                            Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                            Scoring *userScoring, Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
-                            bool returnAllSteps, bool returnLastStep)
+template <bool IsElectron>
+__global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active)
 {
   constexpr double restMass = copcore::units::kElectronMassC2;
 
@@ -374,12 +366,8 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
   }
 }
 
-template <bool IsElectron, typename Scoring>
-__global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
-                                   AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
-                                   bool returnLastStep)
+template <bool IsElectron>
+__global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -392,24 +380,6 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 #else
     const int lvolID = currentTrack.navState.GetLogicalId();
 #endif
-
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // track survived, do not force return of step
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      if (leak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else
-        nextActiveQueue->push_back(slot);
-    };
-
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
@@ -440,8 +410,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
                                      Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                     adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
-                                     AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
+                                     adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
                                      bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;

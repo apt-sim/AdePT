@@ -21,11 +21,9 @@ using VolAuxData = adeptint::VolAuxData;
 
 namespace AsyncAdePT {
 
-template <typename Scoring>
 __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                            Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                            Scoring *userScoring, Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
-                            bool returnAllSteps, bool returnLastStep)
+                            adept::MParray *leakedQueue, Stats *InFlightStats,
+                            AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
@@ -55,7 +53,6 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
 
     // Write local variables back into track and enqueue
     auto survive = [&](bool leak = false) {
-      returnLastStep = false; // particle survived, do not force return of step
       if (leak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
@@ -64,8 +61,9 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
-        nextActiveQueue->push_back(slot);
+      }
+      // else
+      //   nextActiveQueue->push_back(slot);
     };
 
     if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
@@ -98,11 +96,7 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
   }
 }
 
-template <typename Scoring>
-__global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                                 Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                                 Scoring *userScoring, Stats *InFlightStats,
-                                 AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps, bool returnLastStep)
+__global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = active->size();
@@ -115,21 +109,6 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 #else
     int lvolID = currentTrack.navState.GetLogicalId();
 #endif
-
-    // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // particle survived, do not force return of step
-      if (leak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in gammas leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else
-        nextActiveQueue->push_back(slot);
-    };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
@@ -169,8 +148,7 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 template <typename Scoring>
 __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
                                 Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                                Scoring *userScoring, Stats *InFlightStats,
-                                AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps, bool returnLastStep)
+                                Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = active->size();
@@ -313,9 +291,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
 template <typename Scoring>
 __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
                                   Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                                  Scoring *userScoring, Stats *InFlightStats,
-                                  AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
-                                  bool returnLastStep)
+                                  Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
