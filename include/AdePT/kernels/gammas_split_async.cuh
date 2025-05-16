@@ -27,12 +27,10 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
                             Scoring *userScoring, Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
                             bool returnAllSteps, bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
-    auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
 #ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
@@ -107,11 +105,9 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
                                  AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
-    auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
 #ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
@@ -119,7 +115,6 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 #else
     int lvolID = currentTrack.navState.GetLogicalId();
 #endif
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
     auto survive = [&](bool leak = false) {
@@ -178,7 +173,6 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
                                 AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
@@ -190,7 +184,6 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
 #else
     int lvolID = currentTrack.navState.GetLogicalId();
 #endif
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
     auto survive = [&](bool leak = false) {
@@ -324,9 +317,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
                                   AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
                                   bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  constexpr unsigned short maxSteps = 10'000;
-  int activeSize                    = active->size();
+  int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;

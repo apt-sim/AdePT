@@ -228,8 +228,7 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot           = (*active)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+    const int slot = (*active)[i];
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
@@ -238,25 +237,6 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
 #else
     const int lvolID = currentTrack.navState.GetLogicalId();
 #endif
-
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
-
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // track survived, do not force return of step
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      if (leak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else
-        nextActiveQueue->push_back(slot);
-    };
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -314,27 +294,11 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
                             Scoring *userScoring, Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
                             bool returnAllSteps, bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  constexpr int Charge              = IsElectron ? -1 : 1;
-  constexpr double restMass         = copcore::units::kElectronMassC2;
-  constexpr int Nvar                = 6;
-  constexpr int max_iterations      = 10;
-
-#ifdef ADEPT_USE_EXT_BFIELD
-  using Field_t = GeneralMagneticField;
-#else
-  using Field_t = UniformMagneticField;
-#endif
-  using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
-
-  auto &magneticField = *gMagneticField;
+  constexpr double restMass = copcore::units::kElectronMassC2;
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot           = (*active)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+    const int slot = (*active)[i];
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
@@ -343,25 +307,6 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
 #else
     const int lvolID = currentTrack.navState.GetLogicalId();
 #endif
-
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
-
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // track survived, do not force return of step
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      if (leak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else
-        nextActiveQueue->push_back(slot);
-    };
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -436,27 +381,9 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
                                    AllowFinishOffEventArray allowFinishOffEvent, bool returnAllSteps,
                                    bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  constexpr int Charge              = IsElectron ? -1 : 1;
-  constexpr double restMass         = copcore::units::kElectronMassC2;
-  constexpr int Nvar                = 6;
-  constexpr int max_iterations      = 10;
-
-#ifdef ADEPT_USE_EXT_BFIELD
-  using Field_t = GeneralMagneticField;
-#else
-  using Field_t = UniformMagneticField;
-#endif
-  using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
-
-  auto &magneticField = *gMagneticField;
-
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot           = (*active)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+    const int slot = (*active)[i];
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
@@ -465,8 +392,6 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 #else
     const int lvolID = currentTrack.navState.GetLogicalId();
 #endif
-
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     auto survive = [&](bool leak = false) {
       returnLastStep = false; // track survived, do not force return of step
@@ -520,21 +445,6 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
                                      bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  constexpr int Charge              = IsElectron ? -1 : 1;
-  constexpr double restMass         = copcore::units::kElectronMassC2;
-  constexpr int Nvar                = 6;
-  constexpr int max_iterations      = 10;
-
-#ifdef ADEPT_USE_EXT_BFIELD
-  using Field_t = GeneralMagneticField;
-#else
-  using Field_t = UniformMagneticField;
-#endif
-  using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
-
-  auto &magneticField = *gMagneticField;
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -574,22 +484,6 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
-
-    //     double energyDeposit = theTrack->GetEnergyDeposit();
-
-    //     if (currentTrack.nextState.IsOnBoundary()) {
-    //       // if the particle hit a boundary, and is neither stopped or outside, relocate to have the correct next
-    //       state
-    //       // before RecordHit is called
-    //       if (!currentTrack.stopped && !currentTrack.nextState.IsOutside()) {
-    // #ifdef ADEPT_USE_SURF
-    //         AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.hitsurfID,
-    //                                              currentTrack.nextState);
-    // #else
-    //         AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
-    // #endif
-    //       }
-    //     }
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 

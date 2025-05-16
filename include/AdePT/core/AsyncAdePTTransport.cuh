@@ -14,12 +14,12 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/copcore/Ranluxpp.h>
 
-#ifndef USE_SPLIT_KERNELS
-#include <AdePT/kernels/electrons.cuh>
-#include <AdePT/kernels/gammas.cuh>
-#else
+#ifdef USE_SPLIT_KERNELS
 #include <AdePT/kernels/electrons_split_async.cuh>
 #include <AdePT/kernels/gammas_split_async.cuh>
+#else
+#include <AdePT/kernels/electrons.cuh>
+#include <AdePT/kernels/gammas.cuh>
 #endif
 // deprecated kernels that split the gamma interactions:
 // #include <AdePT/kernels/electrons_async.cuh>
@@ -946,6 +946,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** ELECTRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
+#ifdef USE_SPLIT_KERNELS
         ElectronHowFar<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
             electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
@@ -966,17 +967,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
             electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
-
-        // TransportElectrons<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-        //     electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
-        //     electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-        //     gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
-
-        // TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-        //     electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
-        //     electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-        //     returnAllSteps, returnLastStep);
-
+#else
+        TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
+#endif
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
       }
@@ -984,6 +980,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** POSITRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
+#ifdef USE_SPLIT_KERNELS
         ElectronHowFar<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
             positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
@@ -1004,16 +1001,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
             positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+#else
 
-        // TransportElectrons<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
-        //     positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
-        //     positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-        //     gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
-
-        // TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
-        //     positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
-        //     positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-        //     returnAllSteps, returnLastStep);
+        TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
+            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
+#endif
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
@@ -1022,33 +1016,30 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** GAMMAS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
-
+#ifdef USE_SPLIT_KERNELS
         GammaHowFar<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
             gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
-            allowFinishOffEvent, returnAllSteps,
-            returnLastStep); //, gpuState.gammaInteractions);
+            allowFinishOffEvent, returnAllSteps, returnLastStep);
         GammaPropagation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
             gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
-            allowFinishOffEvent, returnAllSteps,
-            returnLastStep); //, gpuState.gammaInteractions);
+            allowFinishOffEvent, returnAllSteps, returnLastStep);
         GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
             gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
-            allowFinishOffEvent, returnAllSteps,
-            returnLastStep); //, gpuState.gammaInteractions);
+            allowFinishOffEvent, returnAllSteps, returnLastStep);
         GammaInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
             gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev,
-            allowFinishOffEvent, returnAllSteps,
+            allowFinishOffEvent, returnAllSteps, returnLastStep);
+#else
+        TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            returnAllSteps,
             returnLastStep); //, gpuState.gammaInteractions);
-
-        // TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
-        //     gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
-        //     gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-        //     returnAllSteps,
-        //     returnLastStep); //, gpuState.gammaInteractions);
+#endif
 
         // constexpr unsigned int intThreads = 128;
         // ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
