@@ -15,8 +15,8 @@
 #include <AdePT/copcore/Ranluxpp.h>
 
 #ifdef USE_SPLIT_KERNELS
-#include <AdePT/kernels/electrons_split_async.cuh>
-#include <AdePT/kernels/gammas_split_async.cuh>
+#include <AdePT/kernels/electrons_split.cuh>
+#include <AdePT/kernels/gammas_split.cuh>
 #else
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
