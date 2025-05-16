@@ -18,6 +18,11 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
 
+#ifdef USE_SPLIT_KERNELS
+#include <G4HepEmElectronTrack.hh>
+#include <G4HepEmGammaTrack.hh>
+#endif
+
 namespace AsyncAdePT {
 
 // A bundle of pointers to generate particles of an implicit type.
@@ -120,6 +125,14 @@ struct ParticleType {
   static constexpr double relativeQueueSize[] = {0.35, 0.15, 0.5};
 };
 
+#ifdef USE_SPLIT_KERNELS
+struct HepEmBuffers {
+  G4HepEmElectronTrack *electronsHepEm;
+  G4HepEmElectronTrack *positronsHepEm;
+  G4HepEmGammaTrack *gammasHepEm;
+};
+#endif
+
 // Pointers to track storage for each particle type
 struct TracksAndSlots {
   Track *const tracks[ParticleType::NumParticleTypes];
@@ -173,6 +186,10 @@ struct GPUstate {
 
   AllSlotManagers allmgr_h;              // All host slot managers, statically allocated
   SlotManager *slotManager_dev{nullptr}; // All device slot managers
+
+#ifdef USE_SPLIT_KERNELS
+  HepEmBuffers hepEmBuffers_d; // All device buffers of hepem tracks
+#endif
 
   Stats *stats_dev{nullptr}; ///< statistics object pointer on device
   Stats *stats{nullptr};     ///< statistics object pointer on host

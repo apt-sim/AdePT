@@ -13,8 +13,14 @@
 #include <AdePT/copcore/Global.h>
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/copcore/Ranluxpp.h>
+
+#ifdef USE_SPLIT_KERNELS
+#include <AdePT/kernels/electrons_split.cuh>
+#include <AdePT/kernels/gammas_split.cuh>
+#else
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
+#endif
 // deprecated kernels that split the gamma interactions:
 // #include <AdePT/kernels/electrons_async.cuh>
 // #include <AdePT/kernels/gammas_async.cuh>
@@ -612,6 +618,24 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
     printf("%u track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
            ParticleType::relativeQueueSize[i] * 100, trackCapacity);
+
+#ifdef USE_SPLIT_KERNELS
+    // Allocate an array of HepEm tracks per particle type
+    switch (i) {
+    case 0: // Electrons
+      gpuMalloc(gpuState.hepEmBuffers_d.electronsHepEm, nSlot);
+      break;
+    case 1: // Positrons
+      gpuMalloc(gpuState.hepEmBuffers_d.positronsHepEm, nSlot);
+      break;
+    case 2: // Gammas
+      gpuMalloc(gpuState.hepEmBuffers_d.gammasHepEm, nSlot);
+      break;
+    default:
+      printf("Error: Undefined particle type");
+      break;
+    }
+#endif
   }
 
   // NOTE: deprecated GammaInteractions
@@ -922,11 +946,27 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** ELECTRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
+#ifdef USE_SPLIT_KERNELS
+        ElectronHowFar<true><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
+        ElectronPropagation<true><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive,
+            electrons.queues.leakedTracksCurrent);
+        ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive);
+        ElectronRelocation<true><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive);
+        ElectronInteractions<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.currentlyActive, secondaries,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            returnLastStep);
+#else
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
             electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
             returnAllSteps, returnLastStep);
-
+#endif
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
       }
@@ -934,10 +974,28 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** POSITRONS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
+#ifdef USE_SPLIT_KERNELS
+        ElectronHowFar<false><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
+        ElectronPropagation<false><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive,
+            positrons.queues.leakedTracksCurrent);
+        ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive);
+        ElectronRelocation<false><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive);
+        ElectronInteractions<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.currentlyActive, secondaries,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            returnLastStep);
+#else
+
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
             positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
             returnAllSteps, returnLastStep);
+#endif
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
@@ -946,11 +1004,26 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** GAMMAS ***
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
+#ifdef USE_SPLIT_KERNELS
+        GammaHowFar<<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive,
+            gammas.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
+        GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
+                                                                gammas.queues.currentlyActive);
+        GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
+            gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            returnLastStep);
+        GammaInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
+            gammas.queues.nextActive, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            returnLastStep);
+#else
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,
             gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-            returnAllSteps,
-            returnLastStep); //, gpuState.gammaInteractions);
+            returnAllSteps, returnLastStep); //, gpuState.gammaInteractions);
+#endif
 
         // constexpr unsigned int intThreads = 128;
         // ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
