@@ -86,8 +86,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     currentTrack.stepCounter++;
     if (currentTrack.stepCounter >= maxSteps) {
-      printf("Killing gamma event %d E=%f lvol=%d after %d steps. This indicates a stuck particle!\n",
-             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+      printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps. This indicates a stuck particle!\n",
+             currentTrack.eventId, currentTrack.id, eKin, lvolID, currentTrack.stepCounter);
       continue;
     }
 

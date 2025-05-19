@@ -111,7 +111,7 @@ struct Track {
 
   __host__ __device__ void Print() const
   {
-    printf("== evt %u prim %lu track %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
+    printf("== evt %u prim %d track %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
            "%.19f} remain_safe %g loop %u\n| state: ",
            eventId, parentId, id, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0], dir[1],
            dir[2], GetSafety(pos), looperCounter);

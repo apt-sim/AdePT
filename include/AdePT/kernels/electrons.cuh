@@ -425,11 +425,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
         if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are scraping a boundary
-          printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+          printf("Killing looper scraping at a boundary: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
+                 "geoStepLength=%E "
                  "physicsStepLength=%E "
                  "safety=%E\n",
-                 eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
-                 geometricalStepLengthFromPhysics, safety);
+                 eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
+                 geometryStepLength, geometricalStepLengthFromPhysics, safety);
           continue;
         } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
@@ -449,11 +450,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
         if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are not advancing in free space
-          printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+          printf("Killing looper due to lack of advance: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
+                 "geoStepLength=%E "
                  "physicsStepLength=%E "
                  "safety=%E\n",
-                 eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit, geometryStepLength,
-                 geometricalStepLengthFromPhysics, safety);
+                 eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
+                 geometryStepLength, geometricalStepLengthFromPhysics, safety);
           continue;
         }
 

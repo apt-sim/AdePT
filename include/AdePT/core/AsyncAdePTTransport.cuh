@@ -645,7 +645,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
     gpuState.particles[i].tracks = trackStorage_dev;
 
-    printf("%u track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
+    printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
            ParticleType::relativeQueueSize[i] * 100, trackCapacity);
   }
 
