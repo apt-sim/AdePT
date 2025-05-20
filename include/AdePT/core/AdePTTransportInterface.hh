@@ -4,6 +4,8 @@
 #ifndef ADEPT_TRANSPORT_INTERFACE_H
 #define ADEPT_TRANSPORT_INTERFACE_H
 
+#include "AdePT/integration/G4HepEmTrackingManagerSpecialized.hh"
+
 #include "G4VPhysicalVolume.hh"
 #include "VecGeom/navigation/NavigationState.h"
 #include <G4HepEmConfig.hh>
@@ -57,6 +59,10 @@ public:
   virtual void Shower(int event, int threadId)            = 0;
   virtual void Cleanup()                                  = 0;
   virtual void ProcessGPUSteps(int threadId, int eventId) = 0;
+  /// @brief Setup function for the G4HepEmtrackingManager in the integratin layer -  used only in async AdePT
+  /// @param threadId thread Id
+  /// @param hepEmTM specialized G4HepEmTrackingManager
+  virtual void SetIntegrationLayerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM) = 0;
 };
 
 #endif

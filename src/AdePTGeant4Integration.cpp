@@ -601,7 +601,8 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
               << track.parentId << " kinetic energy " << track.eKin << " position " << track.position[0] << " "
               << track.position[1] << " " << track.position[2] << " direction " << track.direction[0] << " "
               << track.direction[1] << " " << track.direction[2] << " global time, local time, proper time: "
-              << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << std::endl;
+              << "(" << track.globalTime << ", " << track.localTime << ", " << track.properTime << ")" << " LeakStatus "
+              << static_cast<int>(track.leakStatus) << std::endl;
   }
   G4ParticleMomentum direction(track.direction[0], track.direction[1], track.direction[2]);
 
@@ -614,25 +615,23 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   posi += tolerance * direction;
 
   // Create track
-  G4Track *secondary = new G4Track(dynamic /* Now owned by G4Track */, track.globalTime, posi);
-
-  secondary->SetTrackStatus(fAlive);
+  G4Track *leakedTrack = new G4Track(dynamic, track.globalTime, posi);
 
   // Set time information
-  secondary->SetLocalTime(track.localTime);
-  secondary->SetProperTime(track.properTime);
-  secondary->SetParentID(track.parentId);
+  leakedTrack->SetLocalTime(track.localTime);
+  leakedTrack->SetProperTime(track.properTime);
+  leakedTrack->SetParentID(track.parentId);
 
   // Set weight
-  secondary->SetWeight(track.weight);
+  leakedTrack->SetWeight(track.weight);
 
   // Set vertex information
-  secondary->SetVertexPosition(
+  leakedTrack->SetVertexPosition(
       G4ThreeVector(track.vertexPosition[0], track.vertexPosition[1], track.vertexPosition[2]));
-  secondary->SetVertexMomentumDirection(G4ThreeVector(
+  leakedTrack->SetVertexMomentumDirection(G4ThreeVector(
       track.vertexMomentumDirection[0], track.vertexMomentumDirection[1], track.vertexMomentumDirection[2]));
-  secondary->SetVertexKineticEnergy(track.vertexEkin);
-  secondary->SetLogicalVolumeAtVertex(
+  leakedTrack->SetVertexKineticEnergy(track.vertexEkin);
+  leakedTrack->SetLogicalVolumeAtVertex(
       fglobal_vecgeom_lv_to_g4_map[track.originNavState.Top()->GetLogicalVolume()->id()]);
 
   // Reconstruct the origin touchable history and update it on the track
@@ -650,10 +649,100 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
 
   // Give ownership of the touchable history to the touchable handle, which will now manage its lifetime
   G4TouchableHandle originTouchableHandle(originTouchableHistory.release() /* Now owned by G4TouchableHandle */);
-  secondary->SetOriginTouchableHandle(originTouchableHandle);
+  leakedTrack->SetOriginTouchableHandle(originTouchableHandle);
 
-  // Give the track to G4
-  G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(secondary);
+  // ------ Handle leaked tracks according to their status, if not LeakStatus::OutOfGPURegion ---------
+
+  // sanity check
+  if (track.leakStatus == LeakStatus::NoLeak) throw std::runtime_error("Leaked track with status NoLeak detected!");
+
+  // We set the status of leaked tracks to fStopButAlive to be able to distinguish them to keep
+  // them on the CPU until they are done
+  if (track.leakStatus == LeakStatus::FinishEventOnCPU) {
+    // FIXME: previous approach was broken in sync AdePT, therefore it was removed
+    // to be fixed with a different approach e.g., negative track ID.
+    // leakedTrack->SetTrackStatus(fStopAndAlive);
+  }
+
+  // handle gamma- and lepton-nuclear directly in G4HepEm
+  if (track.leakStatus == LeakStatus::GammaNuclear || track.leakStatus == LeakStatus::LeptonNuclear) {
+
+    // AS ABOVE the current touchable is set as it is needed for gamma-/lepton- nuclear
+    auto NavigationHistory = std::make_unique<G4NavigationHistory>();
+    FillG4NavigationHistory(track.navState, *NavigationHistory);
+    auto TouchableHistory = std::make_unique<G4TouchableHistory>(*NavigationHistory);
+    auto topVolume        = NavigationHistory->GetTopVolume();
+    G4TouchableHandle TouchableHandle(TouchableHistory.release() /* Now owned by G4TouchableHandle */);
+    leakedTrack->SetTouchableHandle(TouchableHandle);
+
+    // create a new step
+    G4Step *step = new G4Step();
+    step->NewSecondaryVector();
+
+    // initialize preStepPoint values
+    step->InitializeStep(leakedTrack);
+
+    // entangle our newly created step and the leaked track
+    step->SetTrack(leakedTrack);
+    leakedTrack->SetStep(step);
+
+    // get fresh secondary vector
+    G4TrackVector *secondariesPtr = step->GetfSecondary();
+    if (!secondariesPtr) throw std::runtime_error("Failed to allocate secondary vector");
+    G4TrackVector &secondaries = *secondariesPtr;
+
+    if (fHepEmTrackingManager) {
+
+      if (track.leakStatus == LeakStatus::GammaNuclear) {
+
+        auto GNucProcess = fHepEmTrackingManager->GetGammaNuclearProcess();
+        if (GNucProcess != nullptr) {
+
+          // need to call StartTracking to set the particle type in the hadronic process (see G4HadronicProcess.cc)
+          GNucProcess->StartTracking(leakedTrack);
+
+          // perform gamma nuclear from G4HepEmTrackingManager
+          // ApplyCuts must be false, as we are not in a tracking loop here and could not deposit the energy
+          fHepEmTrackingManager->PerformNuclear(leakedTrack, step, /*particleID=*/2, /*isApplyCuts=*/false);
+
+          // Give secondaries to G4
+          G4EventManager::GetEventManager()->StackTracks(&secondaries);
+
+          // Since we do not give back the track to G4, we have to delete it here
+          delete leakedTrack;
+          delete step;
+        }
+      } else {
+        // case LeakStatus::LeptonNuclear
+        const double charge   = leakedTrack->GetParticleDefinition()->GetPDGCharge();
+        const bool isElectron = (charge < 0.0);
+        int particleID        = isElectron ? 0 : 1;
+
+        // Invoke the electron/positron-nuclear process start tracking interace (if any)
+        G4VProcess *theNucProcess = isElectron ? fHepEmTrackingManager->GetElectronNuclearProcess()
+                                               : fHepEmTrackingManager->GetPositronNuclearProcess();
+        if (theNucProcess != nullptr) {
+
+          // perform lepton nuclear from G4HepEmTrackingManager
+          // ApplyCuts must be false, as we are not in a tracking loop here and could not deposit the energy
+          fHepEmTrackingManager->PerformNuclear(leakedTrack, step, particleID, /*isApplyCuts=*/false);
+
+          // Give secondaries to G4 - they are already stored from G4HepEm in the G4Step, now we need to pass them to G4
+          // itself
+          G4EventManager::GetEventManager()->StackTracks(&secondaries);
+          // Give updated primary after lepton nuclear reacton to G4
+          G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
+        }
+      }
+    } else {
+      throw std::runtime_error("Specialized HepEmTrackingManager not longer valid in integration!");
+    }
+
+  } else {
+
+    // LeakStatus::OutOfGPURegion: just give track back to G4
+    G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
+  }
 }
 
 vecgeom::Vector3D<float> AdePTGeant4Integration::GetUniformField() const
