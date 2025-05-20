@@ -107,8 +107,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     }
 
     // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
-      returnLastStep          = false; // particle survived, do not force return of step
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+      returnLastStep =
+          returnLastStep && leakReason == LeakStatus::GammaNuclear; // enable return of last step if it is GammaNuclear
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
@@ -116,8 +117,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
+      currentTrack.leakStatus = leakReason;
 #ifdef ASYNC_MODE
-      if (leak) {
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in gammas leaks queue.\n\
@@ -125,14 +127,16 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
 #else
       currentTrack.CopyTo(trackdata, Pdg);
-      if (leak)
+      if (leakReason != LeakStatus::NoLeak) {
         leakedQueue->push_back(trackdata);
-      else
+      else {
         gammas->fNextTracks->push_back(slot);
+      }
 #endif
     };
 
@@ -142,7 +146,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
              currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
              currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-      survive(/*leak*/ true);
+      survive(LeakStatus::FinishEventOnCPU);
       continue;
     }
 #endif
@@ -297,7 +301,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           if (verbose) printf("\n| track leaked to Geant4\n");
 #endif
 
-          survive(/*leak*/ true);
+          survive(LeakStatus::OutOfGPURegion);
         }
       } else {
         // release slot for particle that has left the world
@@ -545,12 +549,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       break;
     }
     case 3: {
-      // Invoke gamma nuclear needs to be handled by Geant4 directly, to be implemented
-      // Just keep particle alive
+
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose) printf("| GAMMA-NUCLEAR ");
 #endif
-      survive();
+      // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
+      survive(LeakStatus::GammaNuclear);
     }
     }
 
