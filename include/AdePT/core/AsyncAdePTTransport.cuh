@@ -1220,9 +1220,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
         CountCurrentPopulation<<<ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
             allParticleQueues, gpuState.stats_dev, tracksAndSlots);
+        // FIXME: The leaked tracks count is not used, but it should be re-enabled or removed
         // Count leaked tracks. Note that new tracks might be added while/after we count:
-        CountLeakedTracks<<<2 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
-            allParticleQueues, gpuState.stats_dev, tracksAndSlots);
+        // CountLeakedTracks<<<2 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
+        //     allParticleQueues, gpuState.stats_dev, tracksAndSlots);
 
         waitForOtherStream(gpuState.stream, statsStream);
 
@@ -1457,6 +1458,33 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           }
         }
       } while (leakExtractionNeeded);
+
+      // Now we can re-use the host buffer for the next copy, if there are any remaining leaks on GPU
+      if (gpuState.extractState.load(std::memory_order_acquire) == ExtractState::TracksSaved) {
+        if (*trackBuffer.nRemainingLeaks_host == 0) {
+          // Extraction finished, clear the queues and set to idle
+          ClearQueues<<<1, 1, 0, extractStream>>>(allLeaked.leakedElectrons.fLeakedQueue,
+                                                  allLeaked.leakedPositrons.fLeakedQueue,
+                                                  allLeaked.leakedGammas.fLeakedQueue);
+          // ExtraxtState is set to Idle, a new extraction can be started
+          // The events that had requested a flush are guaranteed to have all their tracks available on host
+          AdvanceExtractState(ExtractState::TracksSaved, ExtractState::Idle, gpuState.extractState);
+
+          if (debugLevel > 5) {
+            for (unsigned short threadId = 0; threadId < eventStates.size(); ++threadId) {
+              if (eventStates[threadId].load(std::memory_order_acquire) == EventState::FlushingTracks) {
+                printf("\033[48;5;208mEvent %d flushed\033[0m\n", threadId);
+              }
+            }
+          }
+
+          AdvanceEventStates(EventState::FlushingTracks, EventState::DeviceFlushed, eventStates);
+
+        } else {
+          // There are still tracks left on device
+          AdvanceExtractState(ExtractState::TracksSaved, ExtractState::TracksNeedTransfer, gpuState.extractState);
+        }
+      }
 
       // -------------------------
       // *** Finish iteration ***
