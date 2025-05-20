@@ -18,6 +18,7 @@
 #include <AdePT/core/PerEventScoringStruct.cuh>
 #include <AdePT/magneticfield/GeneralMagneticField.h>
 #include <AdePT/magneticfield/UniformMagneticField.h>
+#include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
@@ -51,9 +52,11 @@ private:
   int fCUDAStackLimit{0};                 ///< CUDA device stack limit
   int fCUDAHeapLimit{0};                  ///< CUDA device heap limit
   unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
-  std::vector<IntegrationLayer> fIntegrationLayerObjects;
-  std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
-  std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker
+  // note: std::optional is used here as the AdePTGeant4Integration has no default constructor and we need to
+  // resize the vector to the number of threads, and then each worker has to construct its entry at its given slot
+  std::vector<std::optional<IntegrationLayer>> fIntegrationLayerObjects; //< vector of integration layers per thread
+  std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr};         ///< CUDA state placeholder
+  std::vector<AdePTScoring> fScoring;                                    ///< User scoring objects per G4 worker
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
   std::thread fGPUWorker;                            ///< Thread to manage GPU
@@ -75,7 +78,6 @@ private:
   ///< G4workers
   double fCPUCopyFraction{0.5};
 
-  void Initialize(G4HepEmConfig *hepEmConfig);
   void InitBVH();
   bool InitializeBField();
   bool InitializeBField(UniformMagneticField &Bfield);
@@ -83,7 +85,7 @@ private:
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmConfig *hepEmConfig);
+  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
   ~AsyncAdePTTransport();
 
@@ -117,6 +119,7 @@ public:
   std::vector<std::string> const *GetCPURegionNames() override { return fCPURegionNames; }
   /// No effect
   void Initialize(G4HepEmConfig *hepEmConfig, bool) override {}
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, int threadId);
   /// @brief Finish GPU transport, bring hits and tracks to host
   /// @details The shower call exists to maintain the same interface as the
   /// synchronous AdePT mode, since in this case the transport loop is always
@@ -127,6 +130,10 @@ public:
   void Flush(int threadId, int eventId);
   void ProcessGPUSteps(int threadId, int eventId) override;
   void Cleanup() override {}
+  /// @brief Setup function used only in async AdePT
+  /// @param threadId thread Id
+  /// @param hepEmTM specialized G4HepEmTrackingManager
+  void SetIntegrationLayerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM) override;
 };
 
 } // namespace AsyncAdePT

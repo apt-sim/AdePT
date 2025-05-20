@@ -85,16 +85,15 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 
 template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                           G4HepEmConfig *hepEmConfig)
+                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
     : fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
-      fDebugLevel{configuration.GetVerbosity()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
-      fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
-      fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
-      fCUDAStackLimit{configuration.GetCUDAStackLimit()}, fCUDAHeapLimit{configuration.GetCUDAHeapLimit()},
-      fReturnAllSteps{configuration.GetCallUserSteppingAction()},
+      fDebugLevel{configuration.GetVerbosity()}, fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
+      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
+      fCPURegionNames{configuration.GetCPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
+      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction()},
       fBfieldFile{configuration.GetCovfieBfieldFile()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
       fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
@@ -107,13 +106,34 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
     std::atomic_init(&eventState, EventState::ScoringRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmConfig);
+  // Initialize integration layers:
+  // the worker thread that initializes the GPU transport must initialize the integration layer for itself first
+  fIntegrationLayerObjects.resize(fNThread);
+  auto tid = G4Threading::G4GetThreadId();
+  SetIntegrationLayerForThread(tid, hepEmTM);
+  AsyncAdePTTransport::Initialize(hepEmTM, tid);
 }
 
 template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
 {
   async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker);
+}
+
+template <typename IntegrationLayer>
+void AsyncAdePTTransport<IntegrationLayer>::SetIntegrationLayerForThread(int threadId,
+                                                                         G4HepEmTrackingManagerSpecialized *hepEmTM)
+{
+
+  if (threadId >= fNThread) {
+    throw std::runtime_error("Invalid thread ID: exceeds configured thread count");
+  }
+  if (fIntegrationLayerObjects[threadId].has_value()) {
+    // Integration layer already initialized
+    return;
+  }
+  fIntegrationLayerObjects[threadId].emplace(hepEmTM);
+  return;
 }
 
 template <typename IntegrationLayer>
@@ -254,7 +274,7 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hep
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig)
+void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, int threadId)
 {
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -264,12 +284,21 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
   if (!vecgeom::GeoManager::Instance().IsClosed())
     throw std::runtime_error("AsyncAdePTTransport::Initialize: VecGeom geometry not closed.");
 
+  // initialize the G4HepEmTrackingManager per thread - this is needed for the nuclear processes,
+  // as the HepEmTM carries a pointer to the thread-local hadronic physics model
+  if (threadId >= fNThread) {
+    throw std::runtime_error("Invalid thread ID: exceeds configured thread count");
+  }
+  if (!(fIntegrationLayerObjects[threadId].has_value())) {
+    fIntegrationLayerObjects[threadId].emplace(hepEmTM);
+  }
+
   const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
   if (!InitializeGeometry(world))
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
   // Initialize G4HepEm
-  if (!InitializePhysics(hepEmConfig))
+  if (!InitializePhysics(hepEmTM->GetConfig()))
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
   // Initialize field
@@ -280,17 +309,19 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
         "AdePTTransport<IntegrationLayer>::Initialize cannot initialize GeneralMagneticField on GPU");
   }
 #else
-  auto field_values =
-      fIntegrationLayerObjects[0].GetUniformField(); // Get the field value from one of the worker threads
+  auto field_values = fIntegrationLayerObjects[threadId]
+                          .value()
+                          .GetUniformField(); // Get the field value from one of the worker threads
   std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(field_values);
   if (!InitializeBField(*Bfield))
     throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
 #endif
 
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
-  fIntegrationLayerObjects.front().CheckGeometry(fg4hepem_state.get());
+  fIntegrationLayerObjects[threadId].value().CheckGeometry(fg4hepem_state.get());
   adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
-  fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), fTrackInAllRegions, fGPURegionNames);
+  fIntegrationLayerObjects[threadId].value().InitVolAuxData(auxData, fg4hepem_state.get(), fTrackInAllRegions,
+                                                            fGPURegionNames);
 
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
@@ -326,7 +357,7 @@ template <typename IntegrationLayer>
 void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int eventId)
 {
 
-  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId];
+  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId].value();
   std::pair<GPUHit *, GPUHit *> range;
   bool dataOnBuffer;
 
@@ -359,7 +390,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
   fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
 
-  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId];
+  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId].value();
 
   while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
 
