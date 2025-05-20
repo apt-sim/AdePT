@@ -134,7 +134,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.CopyTo(trackdata, Pdg);
       if (leakReason != LeakStatus::NoLeak) {
         leakedQueue->push_back(trackdata);
-      else {
+      } else {
         gammas->fNextTracks->push_back(slot);
       }
 #endif
