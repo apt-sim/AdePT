@@ -233,7 +233,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (numIALeft <= 0) {
         numIALeft = -std::log(currentTrack.Uniform());
       }
-      if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
