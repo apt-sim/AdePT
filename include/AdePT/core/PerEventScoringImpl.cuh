@@ -690,7 +690,8 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, int aParent
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, double aGlobalTime, unsigned int eventID, short threadID, bool isLastStep, bool isFirstStep)
+                          double aPostCharge, double aGlobalTime, unsigned int eventID, short threadID, bool isLastStep,
+                          bool isFirstStep)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);

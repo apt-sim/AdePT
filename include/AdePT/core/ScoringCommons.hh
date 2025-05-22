@@ -75,8 +75,8 @@ __device__ __forceinline__ void FillHit(
     float aTrackWeight, vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
     vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
     vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
-    vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin, double aPostCharge, double aGlobalTime,
-    unsigned int eventID, short threadID, bool isLastStep, bool isFirstStep)
+    vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin, double aPostCharge,
+    double aGlobalTime, unsigned int eventID, short threadID, bool isLastStep, bool isFirstStep)
 {
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
