@@ -94,7 +94,7 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   }
 
   if (fVerbosity > 0) {
-    G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
+    G4cout << "EndOfEventAction " << eventId << " Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
   }
 
   // Restore the original IO precission
