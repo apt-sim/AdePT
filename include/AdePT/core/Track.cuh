@@ -92,8 +92,8 @@ struct Track {
   /// NB: The caller is responsible to branch a new RNG state.
   __device__ Track(RanluxppDouble const &rngState, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
-                   const Track &parentTrack)
-      : rngState{rngState}, eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
+                   const Track &parentTrack, const double globalTime)
+      : rngState{rngState}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, eventId{parentTrack.eventId},
         parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
         vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0}

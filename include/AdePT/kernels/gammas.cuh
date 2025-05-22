@@ -342,7 +342,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         secondaries.electrons.NextTrack(
             newRNG, elKinEnergy, pos,
             vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
-            currentTrack);
+            currentTrack, globalTime);
 #else
         Track &electron = secondaries.electrons->NextTrack();
         electron.InitAsSecondary(pos, navState, globalTime);
@@ -363,7 +363,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         secondaries.positrons.NextTrack(
             currentTrack.rngState, posKinEnergy, pos,
             vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
-            currentTrack);
+            currentTrack, globalTime);
 #else
         Track &positron = secondaries.positrons->NextTrack();
         positron.InitAsSecondary(pos, navState, globalTime);
@@ -405,7 +405,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // Create a secondary electron and sample/compute directions.
 #ifdef ASYNC_MODE
         Track &electron = secondaries.electrons.NextTrack(
-            newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack);
+            newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 #else
         Track &electron = secondaries.electrons->NextTrack();
 
@@ -459,7 +459,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #ifdef ASYNC_MODE
         secondaries.electrons.NextTrack(newRNG, photoElecE, pos,
                                         vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
-                                        navState, currentTrack);
+                                        navState, currentTrack, globalTime);
 #else
         Track &electron = secondaries.electrons->NextTrack();
         electron.InitAsSecondary(pos, navState, globalTime);
