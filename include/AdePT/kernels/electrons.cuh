@@ -379,17 +379,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
     }
 
-    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    eKin                 = theTrack->GetEKin();
-    double energyDeposit = theTrack->GetEnergyDeposit();
-
     // Update the flight times of the particle
-    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
-    // the velocity depends on the remaining energy
+    // To conform with Geant4, we use the initial velocity of the particle, before eKin is updated after the energy loss
     double deltaTime = elTrack.GetPStepLength() / GetVelocity(eKin);
     globalTime += deltaTime;
     localTime += deltaTime;
     properTime += deltaTime * (restMass / eKin);
+
+    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
+    eKin                 = theTrack->GetEKin();
+    double energyDeposit = theTrack->GetEnergyDeposit();
 
     if (nextState.IsOnBoundary()) {
       // if the particle hit a boundary, and is neither stopped or outside, relocate to have the correct next state
@@ -518,7 +517,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             Track &secondary = secondaries.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                navState, currentTrack);
+                navState, currentTrack, globalTime);
 #else
             Track &secondary = secondaries.electrons->NextTrack();
             secondary.InitAsSecondary(pos, navState, globalTime);
@@ -570,7 +569,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             secondaries.gammas.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                navState, currentTrack);
+                navState, currentTrack, globalTime);
 #else
             Track &gamma = secondaries.gammas->NextTrack();
             gamma.InitAsSecondary(pos, navState, globalTime);
@@ -620,8 +619,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             secondaries.gammas.NextTrack(
                 newRNG, theGamma1Ekin, pos,
-                vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState,
-                currentTrack);
+                vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
+                globalTime);
 #else
             Track &gamma1 = secondaries.gammas->NextTrack();
             gamma1.InitAsSecondary(pos, navState, globalTime);
@@ -641,8 +640,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             secondaries.gammas.NextTrack(
                 currentTrack.rngState, theGamma2Ekin, pos,
-                vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState,
-                currentTrack);
+                vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
+                globalTime);
 #else
             Track &gamma2 = secondaries.gammas->NextTrack();
             gamma2.InitAsSecondary(pos, navState, globalTime);
@@ -691,11 +690,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
           Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, pos,
                                                        vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
-                                                       navState, currentTrack);
+                                                       navState, currentTrack, globalTime);
 
           // Reuse the RNG state of the dying track.
           Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                       pos, -gamma1.dir, navState, currentTrack);
+                                                       pos, -gamma1.dir, navState, currentTrack, globalTime);
 #else
           Track &gamma1 = secondaries.gammas->NextTrack();
           Track &gamma2 = secondaries.gammas->NextTrack();
@@ -726,7 +725,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
                                static_cast<char>(IsElectron ? 0 : 1),         // Particle type
                                elTrack.GetPStepLength(),                      // Step length
@@ -742,9 +741,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                dir,                                           // Post-step point momentum direction
                                eKin,                                          // Post-step point kinetic energy
                                IsElectron ? -1 : 1,                           // Post-step point charge
+                               globalTime,                                    // global time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
                                returnLastStep,                                // whether this was the last step
                                currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+    }
     if (cross_boundary) {
       // Move to the next boundary now that the Step is recorded
       navState = nextState;
