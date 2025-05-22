@@ -225,6 +225,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    dir,                                         // Post-step point momentum direction
                                    eKin,                                        // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
+                                   globalTime,                                  // global time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep,
                                    currentTrack.stepCounter == 1 ? true
@@ -278,6 +279,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    dir,                                         // Post-step point momentum direction
                                    eKin,                                        // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
+                                   globalTime,                                  // global time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep, // whether this is the last step of the track
                                    currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
@@ -504,6 +506,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                dir,                                         // Post-step point momentum direction
                                newEnergyGamma,                              // Post-step point kinetic energy
                                0,                                           // Post-step point charge
+                               globalTime,                                  // global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                returnLastStep, // whether this is the last step of the track
                                currentTrack.stepCounter == 1 ? true : false); // whether this is the first step

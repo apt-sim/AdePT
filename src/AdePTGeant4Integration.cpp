@@ -510,7 +510,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aTrack->SetTrackID(aGPUHit->fParentID);      // Missing data
   aTrack->SetParentID(aGPUHit->fParentID);     // ID of the initial particle that entered AdePT
   aTrack->SetPosition(aPostStepPointPosition); // Real data
-  // aTrack->SetGlobalTime(0);                                                                // Missing data
+  aTrack->SetGlobalTime(aGPUHit->fGlobalTime);                                                // Real data
   // aTrack->SetLocalTime(0);                                                                 // Missing data
   // aTrack->SetProperTime(0);                                                                // Missing data
   // aTrack->SetTouchableHandle(aTrackTouchableHistory);                                      // Missing data
@@ -568,7 +568,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
   aPostStepPoint->SetPosition(aPostStepPointPosition); // Real data
   // aPostStepPoint->SetLocalTime(0);                                                                 // Missing data
-  // aPostStepPoint->SetGlobalTime(0);                                                                // Missing data
+  aPostStepPoint->SetGlobalTime(aGPUHit->fGlobalTime);                                                // Real data
   // aPostStepPoint->SetProperTime(0);                                                                // Missing data
   aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data

@@ -379,17 +379,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
     }
 
-    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    eKin                 = theTrack->GetEKin();
-    double energyDeposit = theTrack->GetEnergyDeposit();
-
     // Update the flight times of the particle
-    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
-    // the velocity depends on the remaining energy
+    // To conform with Geant4, we use the initial velocity of the particle, before eKin is updated after the energy loss
     double deltaTime = elTrack.GetPStepLength() / GetVelocity(eKin);
     globalTime += deltaTime;
     localTime += deltaTime;
     properTime += deltaTime * (restMass / eKin);
+
+    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
+    eKin                 = theTrack->GetEKin();
+    double energyDeposit = theTrack->GetEnergyDeposit();
 
     if (nextState.IsOnBoundary()) {
       // if the particle hit a boundary, and is neither stopped or outside, relocate to have the correct next state
@@ -726,7 +725,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
                                static_cast<char>(IsElectron ? 0 : 1),         // Particle type
                                elTrack.GetPStepLength(),                      // Step length
@@ -742,9 +741,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                dir,                                           // Post-step point momentum direction
                                eKin,                                          // Post-step point kinetic energy
                                IsElectron ? -1 : 1,                           // Post-step point charge
+                               globalTime,                                    // global time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
                                returnLastStep,                                // whether this was the last step
                                currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+    }
     if (cross_boundary) {
       // Move to the next boundary now that the Step is recorded
       navState = nextState;
