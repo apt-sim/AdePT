@@ -63,6 +63,7 @@ struct Track {
   short threadId{-1};
   unsigned short stepCounter{0};
   unsigned short looperCounter{0};
+  unsigned short zeroStepCounter{0};
 
 #ifdef USE_SPLIT_KERNELS
   bool propagated{false};
@@ -80,7 +81,7 @@ struct Track {
                    short threadId)
       : eKin{eKin}, vertexEkin{vertexEkin}, weight{weight}, globalTime{globalTime}, localTime{localTime},
         properTime{properTime}, eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0},
-        looperCounter{0}
+        looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
     id                      = rngState.IntRndmNoAdvance();
@@ -99,7 +100,7 @@ struct Track {
         navState{newNavState}, originNavState{newNavState}, id{rng_state.IntRndmNoAdvance()},
         eventId{parentTrack.eventId}, parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin},
         weight{parentTrack.weight}, vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0},
-        looperCounter{0}
+        looperCounter{0}, zeroStepCounter{0}
   {
   }
 
@@ -109,12 +110,12 @@ struct Track {
     return (itrack == id) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
   }
 
-  __host__ __device__ void Print() const
+  __host__ __device__ void Print(const char *label) const
   {
-    printf("== evt %u prim %d track %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
+    printf("== evt %u prim %d %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
            "%.19f} remain_safe %g loop %u\n| state: ",
-           eventId, parentId, id, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0], dir[1],
-           dir[2], GetSafety(pos), looperCounter);
+           eventId, parentId, label, id, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
+           dir[1], dir[2], GetSafety(pos), looperCounter);
     navState.Print();
   }
 
@@ -177,8 +178,9 @@ struct Track {
     this->localTime  = 0.;
     this->properTime = 0.;
 
-    this->stepCounter   = 0;
-    this->looperCounter = 0;
+    this->stepCounter     = 0;
+    this->looperCounter   = 0;
+    this->zeroStepCounter = 0;
   }
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)

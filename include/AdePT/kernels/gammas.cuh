@@ -4,6 +4,7 @@
 #include <AdePT/navigation/AdePTNavigator.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/core/TrackDebug.cuh>
 
 #include <G4HepEmGammaManager.hh>
 #include <G4HepEmGammaTrack.hh>
@@ -73,9 +74,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
 #endif
 
-    auto eKin          = currentTrack.eKin;
-    auto preStepEnergy = eKin;
-    auto pos           = currentTrack.pos;
+    constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+    constexpr unsigned short kStepsStuckPush = 5;
+    constexpr unsigned short kStepsStuckKill = 25;
+    auto eKin                                = currentTrack.eKin;
+    auto preStepEnergy                       = eKin;
+    auto pos                                 = currentTrack.pos;
     vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir = currentTrack.dir;
     vecgeom::Vector3D<Precision> preStepDir(dir);
@@ -85,9 +89,20 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
-    if (currentTrack.stepCounter >= maxSteps) {
-      printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps. This indicates a stuck particle!\n",
-             currentTrack.eventId, currentTrack.id, eKin, lvolID, currentTrack.stepCounter);
+    bool printErrors = true;
+    bool verbose     = false;
+#if ADEPT_DEBUG_TRACK > 0
+    if (gTrackDebug.active) {
+      verbose = currentTrack.Matches(gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
+      if (verbose) currentTrack.Print("gamma");
+      printErrors = !gTrackDebug.active || verbose;
+    }
+#endif
+    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
+      printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
+             "stuck particle!\n",
+             currentTrack.eventId, currentTrack.id, eKin, lvolID, currentTrack.stepCounter,
+             currentTrack.zeroStepCounter);
       continue;
     }
 
@@ -153,6 +168,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
 
+#if ADEPT_DEBUG_TRACK > 0
+    if (verbose) printf("| geometricalStepLengthFromPhysics %g ", geometricalStepLengthFromPhysics);
+#endif
+
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
 
@@ -167,10 +186,23 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, kPushDistance);
 #endif
-    //  printf("pvol=%d  step=%g  onboundary=%d  pos={%g, %g, %g}  dir={%g, %g, %g}\n", navState.TopId(),
-    //  geometryStepLength,
-    //         nextState.IsOnBoundary(), pos[0], pos[1], pos[2], dir[0], dir[1], dir[2]);
+    if (geometryStepLength < kPushStuck && geometryStepLength < geometricalStepLengthFromPhysics) {
+      currentTrack.zeroStepCounter++;
+      if (currentTrack.zeroStepCounter > kStepsStuckPush) geometryStepLength = kPushStuck;
+    } else
+      currentTrack.zeroStepCounter = 0;
+
     pos += geometryStepLength * dir;
+
+#if ADEPT_DEBUG_TRACK > 0
+    if (verbose) {
+      if (currentTrack.zeroStepCounter > kStepsStuckPush) printf("| STUCK TRACK PUSHED ");
+      printf("| geometryStepLength %g | propagated_pos {%.19f, %.19f, %.19f} ", geometryStepLength, pos[0], pos[1],
+             pos[2]);
+      if (geometryStepLength < 100 * vecgeom::kTolerance) printf("| SMALL STEP ");
+      nextState.Print();
+    }
+#endif
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -204,6 +236,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
+#endif
+
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) {
+          printf("| CROSSED into ");
+          nextState.Print();
+        }
 #endif
 
         // if all steps are returned, we need to record the hit here,
@@ -253,6 +292,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
           pos += kPushDistance * dir;
+
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) printf("\n| track leaked to Geant4\n");
+#endif
+
           survive(/*leak*/ true);
         }
       } else {
@@ -289,6 +333,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
       winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| winnerProc %d\n", winnerProcessIndex);
+#endif
+
       // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
       // gamma-nuclear reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a
       // reaction is needed to compensate for the smaller step size returned by HowFar.
@@ -320,6 +369,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         survive();
         break;
       }
+
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| GAMMA CONVERSION ");
+#endif
 
       double logEnergy = std::log(eKin);
       double elKinEnergy, posKinEnergy;
@@ -385,6 +438,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     }
     case 1: {
       // Invoke Compton scattering of gamma.
+
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| COMPTON ");
+#endif
+
       constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
       if (eKin < LowEnergyThreshold) {
         survive();
@@ -440,6 +498,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     }
     case 2: {
       // Invoke photoelectric process.
+
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| PHOTOELECTRIC ");
+#endif
+
       const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
       const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
@@ -484,6 +547,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     case 3: {
       // Invoke gamma nuclear needs to be handled by Geant4 directly, to be implemented
       // Just keep particle alive
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| GAMMA-NUCLEAR ");
+#endif
       survive();
     }
     }

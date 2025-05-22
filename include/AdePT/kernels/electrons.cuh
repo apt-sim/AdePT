@@ -9,6 +9,7 @@
 #include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/core/TrackDebug.cuh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -129,9 +130,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     VolAuxData const &auxData = auxDataArray[lvolID];
 
 #endif
-    auto eKin          = currentTrack.eKin;
-    auto preStepEnergy = eKin;
-    auto pos           = currentTrack.pos;
+    const char *pname[2]                     = {"e+", "e-"};
+    constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+    constexpr unsigned short kStepsStuckPush = 5;
+    constexpr unsigned short kStepsStuckKill = 25;
+    auto eKin                                = currentTrack.eKin;
+    auto preStepEnergy                       = eKin;
+    auto pos                                 = currentTrack.pos;
     vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir = currentTrack.dir;
     vecgeom::Vector3D<Precision> preStepDir(dir);
@@ -139,9 +144,19 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double localTime  = currentTrack.localTime;
     double properTime = currentTrack.properTime;
     currentTrack.stepCounter++;
-    if (currentTrack.stepCounter >= maxSteps) {
-      printf("Killing e-/+ event %d E=%f lvol=%d after %d steps.\n", currentTrack.eventId, eKin, lvolID,
-             currentTrack.stepCounter);
+    bool printErrors = true;
+    bool verbose     = false;
+#if ADEPT_DEBUG_TRACK > 0
+    if (gTrackDebug.active) {
+      verbose = currentTrack.Matches(gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
+      if (verbose) currentTrack.Print(pname[IsElectron]);
+    }
+    printErrors = !gTrackDebug.active || verbose;
+#endif
+    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
+      printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
+             currentTrack.eventId, currentTrack.id, eKin, lvolID, currentTrack.stepCounter,
+             currentTrack.zeroStepCounter);
       continue;
     }
 
@@ -180,9 +195,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
     if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
         InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-             currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+      if (printErrors)
+        printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+               currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+               currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
       survive(/*leak*/ true);
       continue;
     }
@@ -221,6 +237,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
 
     auto physicalStepLength = elTrack.GetPStepLength();
+
+#if ADEPT_DEBUG_TRACK > 0
+    if (verbose) printf("| physStep discrete %g ", physicalStepLength);
+#endif
+
     // Compute safety, needed for MSC step limit. The accuracy range is physicalStepLength
     double safety = 0.;
     if (!navState.IsOnBoundary()) {
@@ -235,6 +256,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         safety = AdePTNavigator::ComputeSafety(pos, navState);
 #endif
         currentTrack.SetSafety(pos, safety);
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) printf("| new safety %g ", safety);
+#endif
       }
     }
     theTrack->SetSafety(safety);
@@ -255,6 +279,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
               momentumVec, B0fieldVec, Charge);
 
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| safeField %g ", safeLength);
+#endif
+
       constexpr int MaxSafeLength = 10;
       double limit                = MaxSafeLength * safeLength;
       limit                       = safety > limit ? safety : limit;
@@ -263,6 +291,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         physicalStepLength           = limit;
         restrictedPhysicalStepLength = true;
         elTrack.SetPStepLength(physicalStepLength);
+
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) printf("| restricted_physStep %g ", physicalStepLength);
+#endif
 
         // Note: We are limiting the true step length, which is converted to
         // a shorter geometry step length in HowFarToMSC. In that sense, the
@@ -279,12 +311,22 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
+
+#if ADEPT_DEBUG_TRACK > 0
+    if (verbose) printf("| geometricalStepLengthFromPhysics %g ", geometricalStepLengthFromPhysics);
+#endif
+
     // The phyiscal step length is the amount that the particle experiences
     // which might be longer than the geometrical step length due to MSC. As
     // long as we call PerformContinuous in the same kernel we don't need to
     // care, but we need to make this available when splitting the operations.
     // double physicalStepLength = elTrack.GetPStepLength();
     int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+
+#if ADEPT_DEBUG_TRACK > 0
+    if (verbose) printf("| winnerProc %d\n", winnerProcessIndex);
+#endif
+
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
 
@@ -307,7 +349,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
               magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
               nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
-              max_iterations, iterDone, slot);
+              max_iterations, iterDone, slot, verbose);
     } else {
 #ifdef ADEPT_USE_SURF
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
@@ -318,6 +360,21 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
       pos += geometryStepLength * dir;
     }
+
+    if (geometryStepLength < kPushStuck && geometryStepLength < geometricalStepLengthFromPhysics) {
+      currentTrack.zeroStepCounter++;
+      if (currentTrack.zeroStepCounter > kStepsStuckPush) pos += kPushStuck * dir;
+    } else
+      currentTrack.zeroStepCounter = 0;
+
+#if ADEPT_DEBUG_TRACK > 0
+    if (verbose) {
+      printf("| geometryStepLength %g | propagated_pos {%.19f, %.19f, %.19f} ", geometryStepLength, pos[0], pos[1],
+             pos[2]);
+      if (geometryStepLength < 100 * vecgeom::kTolerance) printf("| SMALL STEP ");
+      nextState.Print();
+    }
+#endif
 
     // punish miniscule steps by increasing the looperCounter by 10
     if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
@@ -339,6 +396,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // Collect the direction change and displacement by MSC.
     const double *direction = theTrack->GetDirection();
     dir.Set(direction[0], direction[1], direction[2]);
+
+#if ADEPT_DEBUG_TRACK > 1
+    if (verbose) {
+      printf("| after MSC: newdir {%.19f, %.19f, %.19f} ", dir[0], dir[1], dir[2]);
+      if (stopped) printf("| particle STOPPED ");
+    }
+#endif
+
     if (!nextState.IsOnBoundary()) {
       const double *mscDisplacement = mscData->GetDisplacement();
       vecgeom::Vector3D<Precision> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
@@ -377,6 +442,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // 3. Very small safety: do nothing.
         }
       }
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) {
+        printf("| displaced_pos {%.19f, %.19f, %.19f} | ekin %g | edep %g | safety %g\n", pos[0], pos[1], pos[2],
+               theTrack->GetEKin(), theTrack->GetEnergyDeposit(), safety);
+      }
+#endif
     }
 
     // Update the flight times of the particle
@@ -398,6 +469,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
+#endif
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) {
+          printf("\n| CROSSED into ");
+          nextState.Print();
+        }
 #endif
       }
     }
@@ -425,12 +502,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
         if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are scraping a boundary
-          printf("Killing looper scraping at a boundary: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
-                 "geoStepLength=%E "
-                 "physicsStepLength=%E "
-                 "safety=%E\n",
-                 eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
-                 geometryStepLength, geometricalStepLengthFromPhysics, safety);
+          if (printErrors)
+            printf("Killing looper scraping at a boundary: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
+                   "geoStepLength=%E "
+                   "physicsStepLength=%E "
+                   "safety=%E\n",
+                   eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
+                   geometryStepLength, geometricalStepLengthFromPhysics, safety);
           continue;
         } else if (!nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
@@ -450,12 +528,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
         if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are not advancing in free space
-          printf("Killing looper due to lack of advance: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
-                 "geoStepLength=%E "
-                 "physicsStepLength=%E "
-                 "safety=%E\n",
-                 eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
-                 geometryStepLength, geometricalStepLengthFromPhysics, safety);
+          if (printErrors)
+            printf("Killing looper due to lack of advance: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
+                   "geoStepLength=%E "
+                   "physicsStepLength=%E "
+                   "safety=%E\n",
+                   eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
+                   geometryStepLength, geometricalStepLengthFromPhysics, safety);
           continue;
         }
 
@@ -488,6 +567,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // Check if a delta interaction happens instead of the real discrete process.
       if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
         // A delta interaction happened, move on.
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) printf("| delta interaction\n");
+#endif
         survive();
       } else {
         // Perform the discrete interaction, make sure the branched RNG state is
@@ -504,6 +586,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                  ? G4HepEmElectronInteractionIoni::SampleETransferMoller(theElCut, eKin, &rnge)
                                  : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
 
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) printf("| IONIZATION: deltaEkin %g ", deltaEkin);
+#endif
+
           double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
           double dirSecondary[3];
           G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
@@ -514,6 +600,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           if (ApplyCuts && (deltaEkin < theElCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
+
+#if ADEPT_DEBUG_TRACK > 0
+            if (verbose) printf("| secondary killed by cut ");
+#endif
 
           } else {
 #ifdef ASYNC_MODE
@@ -540,6 +630,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
               energyDeposit += eKin;
             }
             stopped = true;
+#if ADEPT_DEBUG_TRACK > 0
+            if (verbose) printf("\n| STOPPED by tracking cut\n");
+#endif
             break;
           }
 
@@ -561,12 +654,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
-
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) printf("| BREMSSTRAHLUNG: deltaEkin %g ", deltaEkin);
+#endif
           // Apply cuts
           if (ApplyCuts && (deltaEkin < theGammaCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
-
+#if ADEPT_DEBUG_TRACK > 0
+            if (verbose) printf("| secondary killed by cut ");
+#endif
           } else {
 #ifdef ASYNC_MODE
             secondaries.gammas.NextTrack(
@@ -593,15 +690,24 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
               energyDeposit += eKin;
             }
             stopped = true;
+#if ADEPT_DEBUG_TRACK > 0
+            if (verbose) printf("\n| STOPPED by tracking cut\n");
+#endif
             break;
           }
 
           dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) printf("| new_dir {%.19f, %.19f, %.19f}\n", dir[0], dir[1], dir[2]);
+#endif
           survive();
           break;
         }
         case 2: {
           // Invoke annihilation (in-flight) for e+
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) printf("| ANIHHILATION\n");
+#endif
           double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
           double theGamma1Ekin, theGamma2Ekin;
           double theGamma1Dir[3], theGamma2Dir[3];
@@ -768,6 +874,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // To be safe, just push a bit the track exiting the GPU region to make sure
         // Geant4 does not relocate it again inside the same region
         pos += kPushDistance * dir;
+
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) printf("\n| track leaked to Geant4\n");
+#endif
+
         survive(/*leak*/ true);
       }
     }
