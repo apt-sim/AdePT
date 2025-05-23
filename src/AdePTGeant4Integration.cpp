@@ -711,6 +711,9 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
           // Since we do not give back the track to G4, we have to delete it here
           delete leakedTrack;
           delete step;
+        } else {
+          // no gamma nuclear process attached, just give back the track to G4 to put it back on GPU
+          G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
         }
       } else {
         // case LeakStatus::LeptonNuclear
@@ -731,6 +734,9 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
           // itself
           G4EventManager::GetEventManager()->StackTracks(&secondaries);
           // Give updated primary after lepton nuclear reacton to G4
+          G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
+        } else {
+          // no lepton nuclear process attached, just give back the track to G4 to put it back on GPU
           G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
         }
       }
