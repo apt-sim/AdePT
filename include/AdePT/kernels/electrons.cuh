@@ -130,7 +130,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     VolAuxData const &auxData = auxDataArray[lvolID];
 
 #endif
-    const char *pname[2]                     = {"e+", "e-"};
     constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
     constexpr unsigned short kStepsStuckPush = 5;
     constexpr unsigned short kStepsStuckKill = 25;
@@ -147,6 +146,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     bool printErrors = true;
     bool verbose     = false;
 #if ADEPT_DEBUG_TRACK > 0
+    const char *pname[2] = {"e+", "e-"};
     if (gTrackDebug.active) {
       verbose = currentTrack.Matches(gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
       if (verbose) currentTrack.Print(pname[IsElectron]);
