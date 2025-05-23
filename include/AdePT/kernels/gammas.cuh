@@ -90,8 +90,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     currentTrack.stepCounter++;
     bool printErrors = true;
-    bool verbose     = false;
 #if ADEPT_DEBUG_TRACK > 0
+    bool verbose = false;
     if (gTrackDebug.active) {
       verbose = currentTrack.Matches(gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
       if (verbose) currentTrack.Print("gamma");
