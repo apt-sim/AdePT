@@ -83,6 +83,21 @@ public:
     return bits;
   }
 
+  /// Return random bits matching the current state without advancing it
+  __host__ __device__ uint64_t GetRandomBits() const
+  {
+    int idx     = fPosition / 64;
+    int offset  = fPosition % 64;
+    int numBits = 64 - offset;
+
+    uint64_t bits = fState[idx] >> offset;
+    if (numBits < w) {
+      bits |= fState[(idx + 1) % 9] << numBits;
+    }
+    bits &= ((uint64_t(1) << w) - 1);
+    return bits;
+  }
+
   /// Return a floating point number, converted from the next random bits.
   __host__ __device__ double NextRandomFloat()
   {
@@ -155,6 +170,8 @@ public:
   __host__ __device__ double operator()() { return this->NextRandomFloat(); }
   /// Generate a random integer value with 48 bits
   __host__ __device__ uint64_t IntRndm() { return this->NextRandomBits(); }
+  /// Generate a random integer value with 48 bits without advancing the state
+  __host__ __device__ uint64_t IntRndmNoAdvance() const { return this->GetRandomBits(); }
 
   /// Branch a new RNG state, also advancing the current one.
   /// The caller must Advance() the branched RNG state to decorrelate the

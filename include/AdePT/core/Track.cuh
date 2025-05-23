@@ -57,11 +57,13 @@ struct Track {
   long hitsurfID{0};
 #endif
 
+  uint64_t id{0}; ///< track id (non-consecutive, reproducible)
   unsigned int eventId{0};
   int parentId{-1}; // Stores the track id of the initial particle given to AdePT
   short threadId{-1};
   unsigned short stepCounter{0};
   unsigned short looperCounter{0};
+  unsigned short zeroStepCounter{0};
 
 #ifdef USE_SPLIT_KERNELS
   bool propagated{false};
@@ -79,9 +81,10 @@ struct Track {
                    short threadId)
       : eKin{eKin}, vertexEkin{vertexEkin}, weight{weight}, globalTime{globalTime}, localTime{localTime},
         properTime{properTime}, eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0},
-        looperCounter{0}
+        looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
+    id                      = rngState.IntRndmNoAdvance();
     pos                     = {position[0], position[1], position[2]};
     dir                     = {direction[0], direction[1], direction[2]};
     vertexPosition          = {vertexPos[0], vertexPos[1], vertexPos[2]};
@@ -90,14 +93,30 @@ struct Track {
 
   /// Construct a secondary from a parent track.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ Track(RanluxppDouble const &rngState, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
+  __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack, const double globalTime)
-      : rngState{rngState}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, originNavState{newNavState}, eventId{parentTrack.eventId},
-        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
-        vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0}
+      : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
+        navState{newNavState}, originNavState{newNavState}, id{rng_state.IntRndmNoAdvance()},
+        eventId{parentTrack.eventId}, parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin},
+        weight{parentTrack.weight}, vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0},
+        looperCounter{0}, zeroStepCounter{0}
   {
+  }
+
+  __host__ __device__ VECGEOM_FORCE_INLINE bool Matches(size_t itrack, size_t stepmin = 0,
+                                                        size_t stepmax = 100000) const
+  {
+    return (itrack == id) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
+  }
+
+  __host__ __device__ void Print(const char *label) const
+  {
+    printf("== evt %u prim %d %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
+           "%.19f} remain_safe %g loop %u\n| state: ",
+           eventId, parentId, label, id, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
+           dir[1], dir[2], GetSafety(pos), looperCounter);
+    navState.Print();
   }
 
   /// @brief Get recomputed cached safety ay a given track position
@@ -159,8 +178,9 @@ struct Track {
     this->localTime  = 0.;
     this->properTime = 0.;
 
-    this->stepCounter   = 0;
-    this->looperCounter = 0;
+    this->stepCounter     = 0;
+    this->looperCounter   = 0;
+    this->zeroStepCounter = 0;
   }
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
