@@ -100,6 +100,10 @@ struct AllLeaked {
 struct ParticleQueues {
   adept::MParray *currentlyActive;
   adept::MParray *nextActive;
+  adept::MParray *reachedInteraction;
+  adept::MParray *interaction0;
+  adept::MParray *interaction1;
+  adept::MParray *interaction2;
   adept::MParray *leakedTracksCurrent;
   adept::MParray *leakedTracksNext;
 
@@ -142,6 +146,11 @@ struct TracksAndSlots {
 // A bundle of queues for the three particle types.
 struct AllParticleQueues {
   ParticleQueues queues[ParticleType::NumParticleTypes];
+};
+
+// A bundle of queues per interaction type
+struct AllInteractionQueues {
+  adept::MParray *queues[3];
 };
 
 struct AllSlotManagers {
