@@ -42,7 +42,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GP
 } // namespace adept_impl
 
 template <typename IntegrationLayer>
-AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configuration)
+AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configuration,
+                                                 G4HepEmTrackingManagerSpecialized *hepEmTM)
+    : fIntegrationLayer(hepEmTM)
 {
   fDebugLevel        = configuration.GetVerbosity();
   fBufferThreshold   = configuration.GetTransportBufferThreshold();

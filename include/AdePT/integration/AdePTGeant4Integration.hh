@@ -11,6 +11,7 @@
 
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/ScoringCommons.hh>
+#include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <G4EventManager.hh>
 #include <G4Event.hh>
@@ -28,8 +29,14 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
-  AdePTGeant4Integration() = default;
+  explicit AdePTGeant4Integration(G4HepEmTrackingManagerSpecialized *hepEmTM) : fHepEmTrackingManager(hepEmTM) {}
   ~AdePTGeant4Integration();
+
+  AdePTGeant4Integration(const AdePTGeant4Integration &)            = delete;
+  AdePTGeant4Integration &operator=(const AdePTGeant4Integration &) = delete;
+
+  AdePTGeant4Integration(AdePTGeant4Integration &&)            = default;
+  AdePTGeant4Integration &operator=(AdePTGeant4Integration &&) = default;
 
   /// @brief Initializes VecGeom geometry
   /// @details Currently VecGeom geometry is initialized by loading it from a GDML file,
@@ -91,6 +98,9 @@ private:
   static std::vector<G4LogicalVolume const *> fglobal_vecgeom_lv_to_g4_map;
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
+  // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
+  // this is just a reference to handle gamma-/lepton-nuclear reactions
+  G4HepEmTrackingManagerSpecialized *fHepEmTrackingManager;
 };
 
 #endif
