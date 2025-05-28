@@ -100,6 +100,7 @@ struct AllLeaked {
 struct ParticleQueues {
   adept::MParray *currentlyActive;
   adept::MParray *nextActive;
+  adept::MParray *reachedInteraction;
   adept::MParray *leakedTracksCurrent;
   adept::MParray *leakedTracksNext;
 
@@ -114,6 +115,7 @@ struct ParticleType {
   ParticleQueues queues;
   cudaStream_t stream;
   cudaEvent_t event;
+  unsigned int numReachedInteraction;
 
   enum {
     Electron = 0,

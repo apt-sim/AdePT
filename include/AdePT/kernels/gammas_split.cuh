@@ -147,7 +147,8 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 
 template <typename Scoring>
 __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                                Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
+                                Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                adept::MParray *reachedInteractionQueue, adept::MParray *leakedQueue,
                                 Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
@@ -274,6 +275,9 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
     } else {
       currentTrack.restrictedPhysicalStepLength = false;
 
+      // This track will go to the interactions kernel
+      reachedInteractionQueue->push_back(slot);
+
       // NOTE: This may be moved to the next kernel
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
       // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
@@ -287,15 +291,27 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
   }
 }
 
+__global__ void GammaUpdateNumInteracting(adept::MParray *reachedInteractionQueue)
+{
+  // if (threadIdx.x == 0 && blockIdx.x == 0) {
+  //   printf("Total: %lu, Interacting: %lu (%f)\n", active->size(), reachedInteractionQueue->size(),
+  //          (float)reachedInteractionQueue->size() / active->size() * 100);
+  // }
+}
+
 // Asynchronous TransportGammas Interface
 template <typename Scoring>
-__global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                                  Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                                  Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
+// __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
+__global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
+                                  adept::MParray *nextActiveQueue, adept::MParray *reachedInteractionQueue,
+                                  adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                  bool returnLastStep)
 {
-  int activeSize = active->size();
+  // int activeSize = active->size();
+  int activeSize = reachedInteractionQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
+    // const int slot      = (*active)[i];
+    const int slot      = (*reachedInteractionQueue)[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
