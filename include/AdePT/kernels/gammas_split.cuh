@@ -148,8 +148,9 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 template <typename Scoring>
 __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
                                 Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                adept::MParray *reachedInteractionQueue, adept::MParray *leakedQueue,
-                                Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
+                                adept::MParray *reachedInteractionQueue, AllInteractionQueues interactionQueues,
+                                adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = active->size();
@@ -278,6 +279,22 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
       // This track will go to the interactions kernel
       reachedInteractionQueue->push_back(slot);
 
+      // switch (theTrack->GetWinnerProcessIndex()) {
+      // case 0:
+      //   conversionQueue->push_back(slot);
+      //   break;
+      // case 1:
+      //   comptonQueue->push_back(slot);
+      //   break;
+      // case 2:
+      //   photoelectricQueue->push_back(slot);
+      //   break;
+      // default:
+      //   // Gamma-nuclear not implemented, track survives
+      //   survive();
+      //   break;
+      // }
+
       // NOTE: This may be moved to the next kernel
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
       // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
@@ -287,16 +304,16 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
       // Reset number of interaction left for the winner discrete process also in the currentTrack
       // (SampleInteraction() resets it for theTrack), will be resampled in the next iteration.
       currentTrack.numIALeft[0] = -1.0;
+
+      if (theTrack->GetWinnerProcessIndex() < 3) {
+        interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
+      } else {
+        // Gamma-nuclear not implemented, track survives
+        survive();
+        ;
+      }
     }
   }
-}
-
-__global__ void GammaUpdateNumInteracting(adept::MParray *reachedInteractionQueue)
-{
-  // if (threadIdx.x == 0 && blockIdx.x == 0) {
-  //   printf("Total: %lu, Interacting: %lu (%f)\n", active->size(), reachedInteractionQueue->size(),
-  //          (float)reachedInteractionQueue->size() / active->size() * 100);
-  // }
 }
 
 // Asynchronous TransportGammas Interface
@@ -339,11 +356,6 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
-
-    // Temporary solution
-    if (currentTrack.restrictedPhysicalStepLength) {
-      continue;
-    }
 
     // Perform the discrete interaction.
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
@@ -483,6 +495,365 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
       survive();
     }
     }
+
+    // If there is some edep from cutting particles, record the step
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+      adept_scoring::RecordHit(userScoring,
+                               currentTrack.parentId,                       // Track ID
+                               2,                                           // Particle type
+                               currentTrack.geometryStepLength,             // Step length
+                               edep,                                        // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               0,                                           // Pre-step point charge
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               newEnergyGamma,                              // Post-step point kinetic energy
+                               0,                                           // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                               returnLastStep, // whether this is the last step of the track
+                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+    }
+  }
+}
+
+template <typename Scoring>
+__global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
+                                adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
+                                adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                bool returnLastStep)
+{
+  // int activeSize = active->size();
+  int activeSize = interactingQueue->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    // const int slot      = (*active)[i];
+    const int slot      = (*interactingQueue)[i];
+    auto &slotManager   = *secondaries.gammas.fSlotManager;
+    Track &currentTrack = gammas[slot];
+
+#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
+    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
+#else
+    int lvolID = currentTrack.navState.GetLogicalId();
+#endif
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+
+    // Write local variables back into track and enqueue
+    auto survive = [&](bool leak = false) {
+      returnLastStep = false; // particle survived, do not force return of step
+      if (leak) {
+        auto success = leakedQueue->push_back(slot);
+        if (!success) {
+          printf("ERROR: No space left in gammas leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
+      } else
+        nextActiveQueue->push_back(slot);
+    };
+
+    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
+
+    // Perform the discrete interaction.
+    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    // We might need one branched RNG state, prepare while threads are synchronized.
+    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+
+    const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecPosProdCutE;
+    const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+
+    const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
+    const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
+
+    double edep           = 0.;
+    double newEnergyGamma = 0.; // gamma energy after compton scattering
+
+    // Interaction
+
+    // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
+    if (currentTrack.eKin < 2 * copcore::units::kElectronMassC2) {
+      survive();
+      break;
+    }
+
+    double logEnergy = std::log(currentTrack.eKin);
+    double elKinEnergy, posKinEnergy;
+    G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex,
+                                                         elKinEnergy, posKinEnergy, &rnge);
+
+    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirSecondaryEl[3], dirSecondaryPos[3];
+    G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
+                                                        posKinEnergy, &rnge);
+
+    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
+
+    // Check the cuts and deposit energy in this volume if needed
+    if (ApplyCuts && elKinEnergy < theElCut) {
+      // Deposit the energy here and kill the secondary
+      edep = elKinEnergy;
+    } else {
+      secondaries.electrons.NextTrack(
+          newRNG, elKinEnergy, currentTrack.pos,
+          vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
+          currentTrack);
+    }
+
+    if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
+      // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
+      edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
+    } else {
+      secondaries.positrons.NextTrack(
+          currentTrack.rngState, posKinEnergy, currentTrack.pos,
+          vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
+          currentTrack.navState, currentTrack);
+    }
+
+    // The current track is killed by not enqueuing into the next activeQueue and the slot is released
+    slotManager.MarkSlotForFreeing(slot);
+
+    //////////////
+
+    // If there is some edep from cutting particles, record the step
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+      adept_scoring::RecordHit(userScoring,
+                               currentTrack.parentId,                       // Track ID
+                               2,                                           // Particle type
+                               currentTrack.geometryStepLength,             // Step length
+                               edep,                                        // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               0,                                           // Pre-step point charge
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               newEnergyGamma,                              // Post-step point kinetic energy
+                               0,                                           // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                               returnLastStep, // whether this is the last step of the track
+                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+    }
+  }
+}
+
+template <typename Scoring>
+__global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
+                             adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
+                             adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                             bool returnLastStep)
+{
+  // int activeSize = active->size();
+  int activeSize = interactingQueue->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    // const int slot      = (*active)[i];
+    const int slot      = (*interactingQueue)[i];
+    auto &slotManager   = *secondaries.gammas.fSlotManager;
+    Track &currentTrack = gammas[slot];
+
+#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
+    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
+#else
+    int lvolID = currentTrack.navState.GetLogicalId();
+#endif
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+
+    // Write local variables back into track and enqueue
+    auto survive = [&](bool leak = false) {
+      returnLastStep = false; // particle survived, do not force return of step
+      if (leak) {
+        auto success = leakedQueue->push_back(slot);
+        if (!success) {
+          printf("ERROR: No space left in gammas leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
+      } else
+        nextActiveQueue->push_back(slot);
+    };
+
+    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
+
+    // Perform the discrete interaction.
+    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    // We might need one branched RNG state, prepare while threads are synchronized.
+    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+
+    const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecPosProdCutE;
+    const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+
+    const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
+    const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
+
+    double edep           = 0.;
+    double newEnergyGamma = 0.; // gamma energy after compton scattering
+
+    // Interaction
+
+    // Invoke Compton scattering of gamma.
+    constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
+    if (currentTrack.eKin < LowEnergyThreshold) {
+      survive();
+      break;
+    }
+    const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirPrimary[3];
+    newEnergyGamma = G4HepEmGammaInteractionCompton::SamplePhotonEnergyAndDirection(currentTrack.eKin, dirPrimary,
+                                                                                    origDirPrimary, &rnge);
+    vecgeom::Vector3D<double> newDirGamma(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+
+    const double energyEl = currentTrack.eKin - newEnergyGamma;
+
+    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+
+    // Check the cuts and deposit energy in this volume if needed
+    if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
+      // Create a secondary electron and sample/compute directions.
+      Track &electron = secondaries.electrons.NextTrack(
+          newRNG, energyEl, currentTrack.pos, currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma,
+          currentTrack.navState, currentTrack);
+      electron.dir.Normalize();
+    } else {
+      edep = energyEl;
+    }
+
+    // Check the new gamma energy and deposit if below threshold.
+    // Using same hardcoded very LowEnergyThreshold as G4HepEm
+    if (newEnergyGamma > LowEnergyThreshold) {
+      currentTrack.eKin = newEnergyGamma;
+      currentTrack.dir  = newDirGamma;
+      survive();
+    } else {
+      edep += newEnergyGamma;
+      newEnergyGamma = 0.;
+      // The current track is killed by not enqueuing into the next activeQueue and the slot is released
+      slotManager.MarkSlotForFreeing(slot);
+    }
+
+    //////////////
+
+    // If there is some edep from cutting particles, record the step
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+      adept_scoring::RecordHit(userScoring,
+                               currentTrack.parentId,                       // Track ID
+                               2,                                           // Particle type
+                               currentTrack.geometryStepLength,             // Step length
+                               edep,                                        // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               0,                                           // Pre-step point charge
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               newEnergyGamma,                              // Post-step point kinetic energy
+                               0,                                           // Post-step point charge
+                               currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                               returnLastStep, // whether this is the last step of the track
+                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+    }
+  }
+}
+
+template <typename Scoring>
+__global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
+                                   adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
+                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                   bool returnLastStep)
+{
+  // int activeSize = active->size();
+  int activeSize = interactingQueue->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    // const int slot      = (*active)[i];
+    const int slot      = (*interactingQueue)[i];
+    auto &slotManager   = *secondaries.gammas.fSlotManager;
+    Track &currentTrack = gammas[slot];
+
+#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
+    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
+#else
+    int lvolID = currentTrack.navState.GetLogicalId();
+#endif
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+
+    // Write local variables back into track and enqueue
+    auto survive = [&](bool leak = false) {
+      returnLastStep = false; // particle survived, do not force return of step
+      if (leak) {
+        auto success = leakedQueue->push_back(slot);
+        if (!success) {
+          printf("ERROR: No space left in gammas leaks queue.\n\
+\tThe threshold for flushing the leak buffer may be too high\n\
+\tThe space allocated to the leak buffer may be too small\n");
+          asm("trap;");
+        }
+      } else
+        nextActiveQueue->push_back(slot);
+    };
+
+    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
+
+    // Perform the discrete interaction.
+    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    // We might need one branched RNG state, prepare while threads are synchronized.
+    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+
+    const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
+    const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecPosProdCutE;
+    const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+
+    const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
+    const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
+
+    double edep           = 0.;
+    double newEnergyGamma = 0.; // gamma energy after compton scattering
+
+    // Interaction
+
+    // Invoke photoelectric process.
+    const double theLowEnergyThreshold = 1 * copcore::units::eV;
+
+    const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
+        &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), currentTrack.eKin, &rnge);
+
+    edep                    = bindingEnergy;
+    const double photoElecE = currentTrack.eKin - edep;
+    if (ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
+
+      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
+
+      double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+      double dirPhotoElec[3];
+      G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
+
+      // Create a secondary electron and sample directions.
+      secondaries.electrons.NextTrack(newRNG, photoElecE, currentTrack.pos,
+                                      vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
+                                      currentTrack.navState, currentTrack);
+
+    } else {
+      // If the secondary electron is cut, deposit all the energy of the gamma in this volume
+      edep = currentTrack.eKin;
+    }
+    // The current track is killed by not enqueuing into the next activeQueue and the slot is released
+    slotManager.MarkSlotForFreeing(slot);
+
+    //////////////
 
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
