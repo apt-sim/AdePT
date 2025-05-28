@@ -324,6 +324,11 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
       if (theTrack->GetWinnerProcessIndex() < 3) {
         interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
       } else {
+        // IMPORTANT: This is necessary just for getting numerically identical results,
+        // but should be removed once confirmed that results are good
+        G4HepEmRandomEngine rnge(&currentTrack.rngState);
+        // We might need one branched RNG state, prepare while threads are synchronized.
+        RanluxppDouble newRNG(currentTrack.rngState.Branch());
         // Gamma-nuclear not implemented, track survives
         survive();
         ;
