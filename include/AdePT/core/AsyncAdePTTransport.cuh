@@ -110,9 +110,9 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTranspo
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.currentlyActive);
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.nextActive);
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.reachedInteraction);
-  adept::MParray::MakeInstanceAt(CapacityTransport, queues.interaction0);
-  adept::MParray::MakeInstanceAt(CapacityTransport, queues.interaction1);
-  adept::MParray::MakeInstanceAt(CapacityTransport, queues.interaction2);
+  for (int i = 0; i < ParticleQueues::numInteractions; i++) {
+    adept::MParray::MakeInstanceAt(CapacityTransport, queues.interactionQueues[i]);
+  }
   adept::MParray::MakeInstanceAt(CapacityLeaked, queues.leakedTracksCurrent);
   adept::MParray::MakeInstanceAt(CapacityLeaked, queues.leakedTracksNext);
 }
@@ -316,9 +316,9 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     for (int i = threadIdx.x; i < ParticleType::NumParticleTypes; i += blockDim.x) {
       all.queues[i].currentlyActive->clear();
       all.queues[i].reachedInteraction->clear();
-      all.queues[i].interaction0->clear();
-      all.queues[i].interaction1->clear();
-      all.queues[i].interaction2->clear();
+      for (int j = 0; j < ParticleQueues::numInteractions; j++) {
+        all.queues[i].interactionQueues[j]->clear();
+      }
       stats->inFlight[i]       = all.queues[i].nextActive->size();
       stats->leakedTracks[i]   = all.queues[i].leakedTracksCurrent->size() + all.queues[i].leakedTracksNext->size();
       stats->queueFillLevel[i] = float(all.queues[i].nextActive->size()) / all.queues[i].nextActive->max_size();
@@ -645,12 +645,10 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     particleType.queues.nextActive = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
     particleType.queues.reachedInteraction = static_cast<adept::MParray *>(gpuPtr);
-    gpuMalloc(gpuPtr, sizeOfQueueStorage);
-    particleType.queues.interaction0 = static_cast<adept::MParray *>(gpuPtr);
-    gpuMalloc(gpuPtr, sizeOfQueueStorage);
-    particleType.queues.interaction1 = static_cast<adept::MParray *>(gpuPtr);
-    gpuMalloc(gpuPtr, sizeOfQueueStorage);
-    particleType.queues.interaction2 = static_cast<adept::MParray *>(gpuPtr);
+    for (int j = 0; j < ParticleQueues::numInteractions; j++) {
+      gpuMalloc(gpuPtr, sizeOfQueueStorage);
+      particleType.queues.interactionQueues[j] = static_cast<adept::MParray *>(gpuPtr);
+    }
     gpuMalloc(gpuPtr, sizeOfLeakQueue);
     particleType.queues.leakedTracksCurrent = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfLeakQueue);
@@ -924,7 +922,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       };
       const AllParticleQueues allParticleQueues            = {{electrons.queues, positrons.queues, gammas.queues}};
       const AllInteractionQueues allGammaInteractionQueues = {
-          {gammas.queues.interaction0, gammas.queues.interaction1, gammas.queues.interaction2}};
+          {gammas.queues.interactionQueues[0], gammas.queues.interactionQueues[1], gammas.queues.interactionQueues[2]}};
       const TracksAndSlots tracksAndSlots = {{electrons.tracks, positrons.tracks, gammas.tracks},
                                              {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
 
@@ -1082,16 +1080,16 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         GammaConversion<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
-            gammas.queues.interaction0, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
-            returnLastStep);
+            gammas.queues.interactionQueues[0], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            returnAllSteps, returnLastStep);
         GammaCompton<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
-            gammas.queues.interaction1, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
-            returnLastStep);
+            gammas.queues.interactionQueues[1], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            returnAllSteps, returnLastStep);
         GammaPhotoelectric<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
-            gammas.queues.interaction2, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
-            returnLastStep);
+            gammas.queues.interactionQueues[2], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            returnAllSteps, returnLastStep);
 #else
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,

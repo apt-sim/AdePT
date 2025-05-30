@@ -295,22 +295,6 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
       // This track will go to the interactions kernel
       reachedInteractionQueue->push_back(slot);
 
-      // switch (theTrack->GetWinnerProcessIndex()) {
-      // case 0:
-      //   conversionQueue->push_back(slot);
-      //   break;
-      // case 1:
-      //   comptonQueue->push_back(slot);
-      //   break;
-      // case 2:
-      //   photoelectricQueue->push_back(slot);
-      //   break;
-      // default:
-      //   // Gamma-nuclear not implemented, track survives
-      //   survive();
-      //   break;
-      // }
-
       // NOTE: This may be moved to the next kernel
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
       // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
@@ -327,7 +311,6 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
         // IMPORTANT: This is necessary just for getting numerically identical results,
         // but should be removed once confirmed that results are good
         G4HepEmRandomEngine rnge(&currentTrack.rngState);
-        // We might need one branched RNG state, prepare while threads are synchronized.
         RanluxppDouble newRNG(currentTrack.rngState.Branch());
         // Gamma-nuclear not implemented, track survives
         survive();
