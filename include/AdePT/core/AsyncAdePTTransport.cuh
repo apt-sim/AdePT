@@ -1031,11 +1031,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
             positrons.queues.interactionQueues[1], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             returnAllSteps, returnLastStep);
-        PositronAnnihilation<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+        PositronAnnihilation<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
             positrons.queues.interactionQueues[2], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             returnAllSteps, returnLastStep);
-        PositronStoppedAnnihilation<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+        PositronStoppedAnnihilation<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
             positrons.queues.interactionQueues[3], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             returnAllSteps, returnLastStep);

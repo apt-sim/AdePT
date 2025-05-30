@@ -1048,7 +1048,6 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
-    const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
 
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
@@ -1124,7 +1123,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
   }
 }
 
-template <bool IsElectron, typename Scoring>
+template <typename Scoring>
 __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                      adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
                                      adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
@@ -1134,7 +1133,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
     const int slot           = (*interactingQueue)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+    SlotManager &slotManager = *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
@@ -1172,7 +1171,6 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
-    const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
 
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
@@ -1222,7 +1220,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
-                               static_cast<char>(IsElectron ? 0 : 1),         // Particle type
+                               static_cast<char>(1),                          // Particle type
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
@@ -1230,19 +1228,19 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
                                currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Pre-step point charge
+                               1,                                             // Pre-step point charge
                                currentTrack.nextState,                        // Post-step point navstate
                                currentTrack.pos,                              // Post-step point position
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Post-step point charge
+                               1,                                             // Post-step point charge
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
                                returnLastStep,                                // whether this was the last step
                                currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
   }
 }
 
-template <bool IsElectron, typename Scoring>
+template <typename Scoring>
 __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
                                             Secondaries secondaries, adept::MParray *nextActiveQueue,
                                             adept::MParray *interactingQueue, adept::MParray *leakedQueue,
@@ -1252,7 +1250,7 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
     const int slot           = (*interactingQueue)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+    SlotManager &slotManager = *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
@@ -1290,7 +1288,6 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
-    const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
 
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
@@ -1299,13 +1296,13 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
     // Annihilate the stopped positron into two gammas heading to opposite
     // directions (isotropic).
 
-    PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager,
-                                                    ApplyCuts, theGammaCut, userScoring);
+    PerformStoppedAnnihilation<false, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager, ApplyCuts,
+                                               theGammaCut, userScoring);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring, currentTrack.parentId,
-                               static_cast<char>(IsElectron ? 0 : 1),         // Particle type
+                               static_cast<char>(1),                          // Particle type
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
@@ -1313,12 +1310,12 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
                                currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Pre-step point charge
+                               1,                                             // Pre-step point charge
                                currentTrack.nextState,                        // Post-step point navstate
                                currentTrack.pos,                              // Post-step point position
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Post-step point charge
+                               1,                                             // Post-step point charge
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
                                returnLastStep,                                // whether this was the last step
                                currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
