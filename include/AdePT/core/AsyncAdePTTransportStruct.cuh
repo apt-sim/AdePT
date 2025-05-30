@@ -98,6 +98,30 @@ struct AllLeaked {
 // A bundle of queues per particle type:
 //  * Two for active particles, one for the current iteration and the second for the next.
 struct ParticleQueues {
+  /*
+Gamma interactions:
+0 - Conversion
+1 - Compton
+2 - Photoelectric
+3 - Unused
+Electron interactions:
+0 - Ionization
+1 - Bremsstrahlung
+2 - Unused
+3 - Unused
+Positron interactions:
+0 - Ionization
+1 - Bremsstrahlung
+2 - In flight annihilation
+3 - Stopped annihilation
+
+In-flight and stopped annihilation use different codes but may be merged to save space
+in unused queues or if launching one kernel is faster than two smaller ones
+
+It is not straightforward to allocate just the needed queues per particle type because
+ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
+dynamic allocations
+*/
   static constexpr char numInteractions = 4;
   adept::MParray *currentlyActive;
   adept::MParray *nextActive;
@@ -149,7 +173,7 @@ struct AllParticleQueues {
 
 // A bundle of queues per interaction type
 struct AllInteractionQueues {
-  adept::MParray *queues[3];
+  adept::MParray *queues[4];
 };
 
 struct AllSlotManagers {
