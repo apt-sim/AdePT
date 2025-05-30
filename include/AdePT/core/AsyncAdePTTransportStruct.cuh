@@ -98,12 +98,11 @@ struct AllLeaked {
 // A bundle of queues per particle type:
 //  * Two for active particles, one for the current iteration and the second for the next.
 struct ParticleQueues {
+  static constexpr char numInteractions = 4;
   adept::MParray *currentlyActive;
   adept::MParray *nextActive;
   adept::MParray *reachedInteraction;
-  adept::MParray *interaction0;
-  adept::MParray *interaction1;
-  adept::MParray *interaction2;
+  adept::MParray *interactionQueues[numInteractions];
   adept::MParray *leakedTracksCurrent;
   adept::MParray *leakedTracksNext;
 
