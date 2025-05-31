@@ -137,6 +137,12 @@ dynamic allocations
   adept::MParray *interactionQueues[numInteractions];
   adept::MParray *leakedTracksCurrent;
   adept::MParray *leakedTracksNext;
+  // 3 int arrays that may be used as auxiliary memory for sorting any of these MParrays
+  int *keys_in;
+  int *keys_out;
+  int *temp_storage;
+  size_t temp_storage_bytes;
+  int nSlot;
 
   void SwapActive() { std::swap(currentlyActive, nextActive); }
   void SwapLeakedQueue() { std::swap(leakedTracksCurrent, leakedTracksNext); }

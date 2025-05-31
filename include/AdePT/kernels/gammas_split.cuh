@@ -513,14 +513,17 @@ __global__ void GammaInteractions(Track *gammas, SoATrack *soaTrack, G4HepEmGamm
 template <typename Scoring>
 __global__ void GammaConversion(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
                                 Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                adept::MParray *interactingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                                bool returnAllSteps, bool returnLastStep)
+                                adept::MParray *interactingQueue, int *sortedInteractingQueue,
+                                adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
+
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot      = (*active)[i];
-    const int slot      = (*interactingQueue)[i];
+    // const int slot      = (*interactingQueue)[i];
+    const int slot      = sortedInteractingQueue[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
@@ -638,14 +641,15 @@ __global__ void GammaConversion(Track *gammas, SoATrack *soaTrack, G4HepEmGammaT
 template <typename Scoring>
 __global__ void GammaCompton(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
                              adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                             adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                             bool returnLastStep)
+                             int *sortedInteractingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                             bool returnAllSteps, bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot      = (*active)[i];
-    const int slot      = (*interactingQueue)[i];
+    // const int slot      = (*interactingQueue)[i];
+    const int slot      = sortedInteractingQueue[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
@@ -759,14 +763,16 @@ __global__ void GammaCompton(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrac
 template <typename Scoring>
 __global__ void GammaPhotoelectric(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
                                    Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *interactingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                                   bool returnAllSteps, bool returnLastStep)
+                                   adept::MParray *interactingQueue, int *sortedInteractingQueue,
+                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                   bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot      = (*active)[i];
-    const int slot      = (*interactingQueue)[i];
+    // const int slot      = (*interactingQueue)[i];
+    const int slot      = sortedInteractingQueue[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
