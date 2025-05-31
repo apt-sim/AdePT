@@ -15,12 +15,42 @@
 #include <G4HepEmRandomEngine.hh>
 #endif
 
+struct SoATrack {
+  uint fNSlot;
+  RanluxppDouble *fRngState;
+
+  __host__ __device__ void InitOnDevice(void *devPtr, int nSlot)
+  {
+    fNSlot    = nSlot;
+    fRngState = reinterpret_cast<RanluxppDouble *>(devPtr);
+    // Move devPtr
+    devPtr = fRngState + fNSlot * sizeof(RanluxppDouble);
+    // Follow with any new arrays
+  }
+
+  // In order to use the ParticleGenerator, all extra arguments are absorved and discarded
+  template <typename... Args>
+  __device__ void InitTrack(int trackIdx, uint64_t rngSeed, Args...)
+  {
+    fRngState[trackIdx].SetSeed(rngSeed);
+  }
+
+  /// Construct a secondary from a parent track.
+  template <typename... Args>
+  __device__ void InitTrack(int trackIdx, RanluxppDouble const &rngState, Args...)
+  {
+    fRngState[trackIdx] = rngState;
+  }
+
+  __host__ __device__ double Uniform(int trackIdx) { return fRngState[trackIdx].Rndm(); }
+};
+
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
   using Precision = vecgeom::Precision;
 
-  RanluxppDouble rngState;
+  // RanluxppDouble rngState;
   double eKin{0.};
   double vertexEkin{0.};
   double globalTime{0.};
@@ -88,7 +118,7 @@ struct Track {
         properTime{properTime}, eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0},
         looperCounter{0}
   {
-    rngState.SetSeed(rngSeed);
+    /*rngState.SetSeed(rngSeed);*/
     pos                     = {position[0], position[1], position[2]};
     dir                     = {direction[0], direction[1], direction[2]};
     vertexPosition          = {vertexPos[0], vertexPos[1], vertexPos[2]};
@@ -100,7 +130,7 @@ struct Track {
   __device__ Track(RanluxppDouble const &rngState, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack)
-      : rngState{rngState}, eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
+      : /*rngState{rngState},*/ eKin{eKin}, globalTime{parentTrack.globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, eventId{parentTrack.eventId},
         parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
         vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0}
@@ -130,7 +160,7 @@ struct Track {
     safety = vecCore::math::Max(safe, 0.f);
   }
 
-  __host__ __device__ double Uniform() { return rngState.Rndm(); }
+  // __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
   __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
                                            const vecgeom::NavigationState &parentNavState, double gTime)

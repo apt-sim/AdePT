@@ -40,8 +40,9 @@ __device__ double GetVelocity(double eKin)
 namespace AsyncAdePT {
 
 template <bool IsElectron>
-__global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                               adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Stats *InFlightStats,
+__global__ void ElectronHowFar(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                               const adept::MParray *active, adept::MParray *nextActiveQueue,
+                               adept::MParray *leakedQueue, Stats *InFlightStats,
                                AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps = 10'000;
@@ -126,14 +127,14 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     // Prepare a branched RNG state while threads are synchronized. Even if not
     // used, this provides a fresh round of random numbers and reduces thread
     // divergence because the RNG state doesn't need to be advanced later.
-    currentTrack.newRNG = RanluxppDouble(currentTrack.rngState.BranchNoAdvance());
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    currentTrack.newRNG = RanluxppDouble(soaTrack->fRngState[slot].BranchNoAdvance());
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 4; ++ip) {
       double numIALeft = currentTrack.numIALeft[ip];
       if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
+        numIALeft = -std::log(soaTrack->Uniform(slot));
       }
       if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
       theTrack->SetNumIALeft(numIALeft, ip);
@@ -201,8 +202,8 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
 }
 
 template <bool IsElectron>
-__global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                                    adept::MParray *leakedQueue)
+__global__ void ElectronPropagation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                                    const adept::MParray *active, adept::MParray *leakedQueue)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -238,7 +239,7 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     // Check if there's a volume boundary in between.
     currentTrack.propagated = true;
@@ -284,7 +285,8 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
 }
 
 template <bool IsElectron>
-__global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active)
+__global__ void ElectronMSC(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                            const adept::MParray *active)
 {
   constexpr double restMass = copcore::units::kElectronMassC2;
 
@@ -305,7 +307,7 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     // Apply continuous effects.
     currentTrack.stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
@@ -367,11 +369,11 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
 }
 
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *reachedInteractionQueue, AllInteractionQueues interactionQueues,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                   bool returnLastStep)
+__global__ void ElectronRelocation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                                   const adept::MParray *active, Secondaries secondaries,
+                                   adept::MParray *nextActiveQueue, adept::MParray *reachedInteractionQueue,
+                                   AllInteractionQueues interactionQueues, adept::MParray *leakedQueue,
+                                   Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = active->size();
@@ -411,7 +413,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
@@ -482,7 +484,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
         // No discrete process, move on.
         survive();
         reached_interaction = false;
-      } else if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
+      } else if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, soaTrack->Uniform(slot))) {
         // If there was a delta interaction, the track survives but does not move onto the next kernel
         survive();
         reached_interaction = false;
@@ -571,7 +573,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 }
 
 template <bool IsElectron, typename Scoring>
-__device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track &currentTrack,
+__device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track &currentTrack, SoATrack *soaTrack,
                                                            Secondaries &secondaries, double &energyDeposit,
                                                            SlotManager &slotManager, const bool ApplyCuts,
                                                            const double theGammaCut, Scoring *userScoring)
@@ -589,9 +591,9 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
 
       adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
-      const double cost = 2 * currentTrack.Uniform() - 1;
+      const double cost = 2 * soaTrack->Uniform(slot) - 1;
       const double sint = sqrt(1 - cost * cost);
-      const double phi  = k2Pi * currentTrack.Uniform();
+      const double phi  = k2Pi * soaTrack->Uniform(slot);
       double sinPhi, cosPhi;
       sincos(phi, &sinPhi, &cosPhi);
 
@@ -601,7 +603,7 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
           vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost}, currentTrack.navState, currentTrack);
 
       // Reuse the RNG state of the dying track.
-      Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+      Track &gamma2 = secondaries.gammas.NextTrack(soaTrack->fRngState[slot], double{copcore::units::kElectronMassC2},
                                                    currentTrack.pos, -gamma1.dir, currentTrack.navState, currentTrack);
     }
   }
@@ -613,10 +615,10 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                     adept::MParray *nextActiveQueue, adept::MParray *reachedInteractionQueue,
-                                     adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                     bool returnLastStep)
+__global__ void ElectronInteractions(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                                     Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                     adept::MParray *reachedInteractionQueue, adept::MParray *leakedQueue,
+                                     Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = reachedInteractionQueue->size();
@@ -657,7 +659,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
@@ -683,7 +685,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
       currentTrack.numIALeft[theTrack->GetWinnerProcessIndex()] = -1.0;
 
       // Check if a delta interaction happens instead of the real discrete process.
-      if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
+      if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, soaTrack->Uniform(slot))) {
         // A delta interaction happened, move on.
         survive();
       } else {
@@ -692,7 +694,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
         currentTrack.newRNG.Advance();
         // Also advance the current RNG state to provide a fresh round of random
         // numbers after MSC used up a fair share for sampling the displacement.
-        currentTrack.rngState.Advance();
+        soaTrack->fRngState[slot].Advance();
 
         switch (theTrack->GetWinnerProcessIndex()) {
         case 0: {
@@ -807,7 +809,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
           } else {
             secondaries.gammas.NextTrack(
-                currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
+                soaTrack->fRngState[slot], theGamma2Ekin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, currentTrack.navState,
                 currentTrack);
           }
@@ -834,9 +836,9 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
-          const double cost = 2 * currentTrack.Uniform() - 1;
+          const double cost = 2 * soaTrack->Uniform(slot) - 1;
           const double sint = sqrt(1 - cost * cost);
-          const double phi  = k2Pi * currentTrack.Uniform();
+          const double phi  = k2Pi * soaTrack->Uniform(slot);
           double sinPhi, cosPhi;
           sincos(phi, &sinPhi, &cosPhi);
 
@@ -847,7 +849,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
           // Reuse the RNG state of the dying track.
           Track &gamma2 =
-              secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+              secondaries.gammas.NextTrack(soaTrack->fRngState[slot], double{copcore::units::kElectronMassC2},
                                            currentTrack.pos, -gamma1.dir, currentTrack.navState, currentTrack);
         }
       }
@@ -879,10 +881,10 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 }
 
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                   adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                   bool returnLastStep)
+__global__ void ElectronIonization(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                   adept::MParray *interactingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   bool returnAllSteps, bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -922,7 +924,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
@@ -937,7 +939,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
     currentTrack.newRNG.Advance();
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
-    currentTrack.rngState.Advance();
+    soaTrack->fRngState[slot].Advance();
 
     // Invoke ionization (for e-/e+):
     double deltaEkin = (IsElectron)
@@ -970,8 +972,8 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
         energyDeposit += currentTrack.eKin;
       }
       currentTrack.stopped = true;
-      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager,
-                                                      ApplyCuts, theGammaCut, userScoring);
+      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, soaTrack, secondaries, energyDeposit,
+                                                      slotManager, ApplyCuts, theGammaCut, userScoring);
     } else {
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
@@ -1001,10 +1003,10 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
 }
 
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                       adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                       adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                       bool returnLastStep)
+__global__ void ElectronBremsstrahlung(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                                       Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                       adept::MParray *interactingQueue, adept::MParray *leakedQueue,
+                                       Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -1044,7 +1046,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
@@ -1058,7 +1060,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     currentTrack.newRNG.Advance();
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
-    currentTrack.rngState.Advance();
+    soaTrack->fRngState[slot].Advance();
 
     // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
     double logEnergy = std::log(currentTrack.eKin);
@@ -1093,8 +1095,8 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
         energyDeposit += currentTrack.eKin;
       }
       currentTrack.stopped = true;
-      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager,
-                                                      ApplyCuts, theGammaCut, userScoring);
+      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, soaTrack, secondaries, energyDeposit,
+                                                      slotManager, ApplyCuts, theGammaCut, userScoring);
     } else {
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
@@ -1124,10 +1126,10 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 }
 
 template <typename Scoring>
-__global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                     adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                     adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                     bool returnLastStep)
+__global__ void PositronAnnihilation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
+                                     Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                     adept::MParray *interactingQueue, adept::MParray *leakedQueue,
+                                     Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -1167,7 +1169,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
@@ -1181,7 +1183,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     currentTrack.newRNG.Advance();
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
-    currentTrack.rngState.Advance();
+    soaTrack->fRngState[slot].Advance();
 
     // Invoke annihilation (in-flight) for e+
     double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
@@ -1209,7 +1211,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
       energyDeposit += theGamma2Ekin;
 
     } else {
-      secondaries.gammas.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
+      secondaries.gammas.NextTrack(soaTrack->fRngState[slot], theGamma2Ekin, currentTrack.pos,
                                    vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
                                    currentTrack.navState, currentTrack);
     }
@@ -1241,7 +1243,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 }
 
 template <typename Scoring>
-__global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
+__global__ void PositronStoppedAnnihilation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
                                             Secondaries secondaries, adept::MParray *nextActiveQueue,
                                             adept::MParray *interactingQueue, adept::MParray *leakedQueue,
                                             Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
@@ -1284,7 +1286,7 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
     G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
@@ -1296,8 +1298,8 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
     // Annihilate the stopped positron into two gammas heading to opposite
     // directions (isotropic).
 
-    PerformStoppedAnnihilation<false, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager, ApplyCuts,
-                                               theGammaCut, userScoring);
+    PerformStoppedAnnihilation<false, Scoring>(slot, currentTrack, soaTrack, secondaries, energyDeposit, slotManager,
+                                               ApplyCuts, theGammaCut, userScoring);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)

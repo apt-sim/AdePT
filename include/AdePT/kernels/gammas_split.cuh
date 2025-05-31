@@ -21,8 +21,8 @@ using VolAuxData = adeptint::VolAuxData;
 
 namespace AsyncAdePT {
 
-__global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                            adept::MParray *leakedQueue, Stats *InFlightStats,
+__global__ void GammaHowFar(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
+                            const adept::MParray *active, adept::MParray *leakedQueue, Stats *InFlightStats,
                             AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps = 10'000;
@@ -86,7 +86,7 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
     // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
     // currentTrack.numIALeft[0] are updated later
     if (currentTrack.numIALeft[0] <= 0.0) {
-      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
+      theTrack->SetNumIALeft(-std::log(soaTrack->Uniform(slot)), 0);
     } else {
       theTrack->SetNumIALeft(currentTrack.numIALeft[0], 0);
     }
@@ -96,7 +96,8 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
   }
 }
 
-__global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active)
+__global__ void GammaPropagation(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
+                                 const adept::MParray *active)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = active->size();
@@ -146,8 +147,8 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 }
 
 template <typename Scoring>
-__global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                                Secondaries secondaries, adept::MParray *nextActiveQueue,
+__global__ void GammaRelocation(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
+                                const adept::MParray *active, Secondaries secondaries, adept::MParray *nextActiveQueue,
                                 adept::MParray *reachedInteractionQueue, AllInteractionQueues interactionQueues,
                                 adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
                                 bool returnLastStep)
@@ -280,7 +281,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
       reachedInteractionQueue->push_back(slot);
 
       // NOTE: This may be moved to the next kernel
-      G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
+      G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, soaTrack->Uniform(slot));
       // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
       // gamma-nuclear reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a
       // reaction is needed to compensate for the smaller step size returned by HowFar.
@@ -294,8 +295,8 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
       } else {
         // IMPORTANT: This is necessary just for getting numerically identical results,
         // but should be removed once confirmed that results are good
-        G4HepEmRandomEngine rnge(&currentTrack.rngState);
-        RanluxppDouble newRNG(currentTrack.rngState.Branch());
+        G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
+        RanluxppDouble newRNG(soaTrack->fRngState[slot].Branch());
         // Gamma-nuclear not implemented, track survives
         survive();
         ;
@@ -307,10 +308,10 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
 // Asynchronous TransportGammas Interface
 template <typename Scoring>
 // __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-__global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
-                                  adept::MParray *nextActiveQueue, adept::MParray *reachedInteractionQueue,
-                                  adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                  bool returnLastStep)
+__global__ void GammaInteractions(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
+                                  Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                  adept::MParray *reachedInteractionQueue, adept::MParray *leakedQueue,
+                                  Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = reachedInteractionQueue->size();
@@ -346,9 +347,9 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
     // Perform the discrete interaction.
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
     // We might need one branched RNG state, prepare while threads are synchronized.
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+    RanluxppDouble newRNG(soaTrack->fRngState[slot].Branch());
 
     const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecPosProdCutE;
@@ -396,7 +397,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
       } else {
         secondaries.positrons.NextTrack(
-            currentTrack.rngState, posKinEnergy, currentTrack.pos,
+            soaTrack->fRngState[slot], posKinEnergy, currentTrack.pos,
             vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
             currentTrack.navState, currentTrack);
       }
@@ -510,10 +511,10 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
 }
 
 template <typename Scoring>
-__global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
-                                adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                bool returnLastStep)
+__global__ void GammaConversion(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
+                                Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                adept::MParray *interactingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                bool returnAllSteps, bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
@@ -549,9 +550,9 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
     // Perform the discrete interaction.
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
     // We might need one branched RNG state, prepare while threads are synchronized.
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+    RanluxppDouble newRNG(soaTrack->fRngState[slot].Branch());
 
     const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecPosProdCutE;
@@ -599,7 +600,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
     } else {
       secondaries.positrons.NextTrack(
-          currentTrack.rngState, posKinEnergy, currentTrack.pos,
+          soaTrack->fRngState[slot], posKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
           currentTrack.navState, currentTrack);
     }
@@ -635,7 +636,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
 }
 
 template <typename Scoring>
-__global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
+__global__ void GammaCompton(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
                              adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
                              adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
                              bool returnLastStep)
@@ -674,9 +675,9 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
     // Perform the discrete interaction.
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
     // We might need one branched RNG state, prepare while threads are synchronized.
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+    RanluxppDouble newRNG(soaTrack->fRngState[slot].Branch());
 
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
 
@@ -756,10 +757,10 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
 }
 
 template <typename Scoring>
-__global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
-                                   adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                   bool returnLastStep)
+__global__ void GammaPhotoelectric(Track *gammas, SoATrack *soaTrack, G4HepEmGammaTrack *hepEMTracks,
+                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                   adept::MParray *interactingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   bool returnAllSteps, bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
@@ -795,9 +796,9 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
     // Perform the discrete interaction.
-    G4HepEmRandomEngine rnge(&currentTrack.rngState);
+    G4HepEmRandomEngine rnge(&soaTrack->fRngState[slot]);
     // We might need one branched RNG state, prepare while threads are synchronized.
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+    RanluxppDouble newRNG(soaTrack->fRngState[slot].Branch());
 
     const double theElCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
 

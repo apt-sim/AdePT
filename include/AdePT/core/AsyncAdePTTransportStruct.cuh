@@ -28,12 +28,14 @@ namespace AsyncAdePT {
 // A bundle of pointers to generate particles of an implicit type.
 struct ParticleGenerator {
   Track *fTracks;
+  SoATrack *fSoATracks;
   SlotManager *fSlotManager;
   adept::MParray *fActiveQueue;
 
 public:
-  __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue)
-      : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue)
+  __host__ __device__ ParticleGenerator(Track *tracks, SoATrack *soaTracks, SlotManager *slotManager,
+                                        adept::MParray *activeQueue)
+      : fTracks(tracks), fSoATracks(soaTracks), fSlotManager(slotManager), fActiveQueue(activeQueue)
   {
   }
 
@@ -44,6 +46,9 @@ public:
   template <typename... Ts>
   __device__ Track &InitTrack(SlotManager::value_type slot, Ts &&...args)
   {
+    // Initialize the values in the SoA storage
+    fSoATracks->InitTrack(slot, std::forward<Ts>(args)...);
+    // Init the main track
     return *new (fTracks + slot) Track{std::forward<Ts>(args)...};
   }
 
@@ -53,6 +58,9 @@ public:
   {
     const auto slot = NextSlot();
     fActiveQueue->push_back(slot);
+    // Initialize the values in the SoA storage
+    fSoATracks->InitTrack(slot, std::forward<Ts>(args)...);
+    // Init the main track
     auto &track = InitTrack(slot, std::forward<Ts>(args)...);
     return track;
   }
@@ -137,6 +145,7 @@ dynamic allocations
 // Holds all information needed to manage in-flight tracks of one type
 struct ParticleType {
   Track *tracks;
+  SoATrack *soaTrack;
   SlotManager *slotManager;
   ParticleQueues queues;
   cudaStream_t stream;
