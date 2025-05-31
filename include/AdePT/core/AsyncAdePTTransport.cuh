@@ -1064,51 +1064,75 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
 #ifdef USE_SPLIT_KERNELS
+        PrepareSort<<<blocks, threads, 0, electrons.stream>>>(electrons.queues.currentlyActive,
+                                                              electrons.queues.keys_in);
+        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+            electrons.queues.temp_storage, electrons.queues.temp_storage_bytes, electrons.queues.keys_in,
+            electrons.queues.keys_out, electrons.queues.nSlot, 0, sizeof(int) * 8, electrons.stream));
         ElectronHowFar<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm,
-            electrons.queues.currentlyActive, electrons.queues.nextActive, electrons.queues.leakedTracksCurrent,
-            gpuState.stats_dev, allowFinishOffEvent);
+            electrons.queues.currentlyActive, electrons.queues.keys_out, electrons.queues.nextActive,
+            electrons.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
         ElectronPropagation<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm,
-            electrons.queues.currentlyActive, electrons.queues.leakedTracksCurrent);
-        ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(electrons.tracks, electrons.soaTrack,
-                                                                    gpuState.hepEmBuffers_d.electronsHepEm,
-                                                                    electrons.queues.currentlyActive);
+            electrons.queues.currentlyActive, electrons.queues.keys_out, electrons.queues.leakedTracksCurrent);
+        ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm,
+            electrons.queues.currentlyActive, electrons.queues.keys_out);
         ElectronRelocation<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm,
-            electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+            electrons.queues.currentlyActive, electrons.queues.keys_out, secondaries, electrons.queues.nextActive,
             electrons.queues.reachedInteraction, allElectronInteractionQueues, electrons.queues.leakedTracksCurrent,
             gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+
+        // ElectronHowFar<true><<<blocks, threads, 0, electrons.stream>>>(
+        //     electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm,
+        //     electrons.queues.currentlyActive, electrons.queues.nextActive, electrons.queues.leakedTracksCurrent,
+        //     gpuState.stats_dev, allowFinishOffEvent);
+        // ElectronPropagation<true><<<blocks, threads, 0, electrons.stream>>>(
+        //     electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm,
+        //     electrons.queues.currentlyActive, electrons.queues.leakedTracksCurrent);
+        // ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(electrons.tracks, electrons.soaTrack,
+        //                                                             gpuState.hepEmBuffers_d.electronsHepEm,
+        //                                                             electrons.queues.currentlyActive);
+        // ElectronRelocation<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+        //     electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm,
+        //     electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
+        //     electrons.queues.reachedInteraction, allElectronInteractionQueues, electrons.queues.leakedTracksCurrent,
+        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+
         // ElectronInteractions<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
         //     electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries, electrons.queues.nextActive,
         //     electrons.queues.reachedInteraction, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
         //     returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, electrons.stream>>>(electrons.queues.interactionQueues[0],
-                                                              electrons.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
-            electrons.queues.temp_storage, electrons.queues.temp_storage_bytes, electrons.queues.keys_in,
-            electrons.queues.keys_out, electrons.queues.nSlot, 0, sizeof(int) * 8, electrons.stream));
+        // PrepareSort<<<blocks, threads, 0, electrons.stream>>>(electrons.queues.interactionQueues[0],
+        //                                                       electrons.queues.keys_in);
+
+        // COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+        //     electrons.queues.temp_storage, electrons.queues.temp_storage_bytes, electrons.queues.keys_in,
+        //     electrons.queues.keys_out, electrons.queues.nSlot, 0, sizeof(int) * 8, electrons.stream));
         // ElectronIonization<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
         //     electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm, secondaries,
-        //     electrons.queues.nextActive, electrons.queues.interactionQueues[0], electrons.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        //     electrons.queues.nextActive, electrons.queues.interactionQueues[0], electrons.queues.keys_out,
+        //     electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronIonization<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm, secondaries,
-            electrons.queues.nextActive, electrons.queues.interactionQueues[0], electrons.queues.keys_out,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, electrons.stream>>>(electrons.queues.interactionQueues[1],
-                                                              electrons.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
-            electrons.queues.temp_storage, electrons.queues.temp_storage_bytes, electrons.queues.keys_in,
-            electrons.queues.keys_out, electrons.queues.nSlot, 0, sizeof(int) * 8, electrons.stream));
+            electrons.queues.nextActive, electrons.queues.interactionQueues[0], electrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        // PrepareSort<<<blocks, threads, 0, electrons.stream>>>(electrons.queues.interactionQueues[1],
+        //                                                       electrons.queues.keys_in);
+        // COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+        //     electrons.queues.temp_storage, electrons.queues.temp_storage_bytes, electrons.queues.keys_in,
+        //     electrons.queues.keys_out, electrons.queues.nSlot, 0, sizeof(int) * 8, electrons.stream));
+
         // ElectronBremsstrahlung<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
         //     electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm, secondaries,
-        //     electrons.queues.nextActive, electrons.queues.interactionQueues[1], electrons.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        //     electrons.queues.nextActive, electrons.queues.interactionQueues[1], electrons.queues.keys_out,
+        //     electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronBremsstrahlung<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.soaTrack, gpuState.hepEmBuffers_d.electronsHepEm, secondaries,
-            electrons.queues.nextActive, electrons.queues.interactionQueues[1], electrons.queues.keys_out,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            electrons.queues.nextActive, electrons.queues.interactionQueues[1], electrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 #else
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive,
@@ -1123,77 +1147,83 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
 #ifdef USE_SPLIT_KERNELS
+        PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.currentlyActive,
+                                                              positrons.queues.keys_in);
+        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+            positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
+            positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
+
         ElectronHowFar<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm,
-            positrons.queues.currentlyActive, positrons.queues.nextActive, positrons.queues.leakedTracksCurrent,
-            gpuState.stats_dev, allowFinishOffEvent);
+            positrons.queues.currentlyActive, positrons.queues.keys_out, positrons.queues.nextActive,
+            positrons.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
         ElectronPropagation<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm,
-            positrons.queues.currentlyActive, positrons.queues.leakedTracksCurrent);
-        ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(positrons.tracks, positrons.soaTrack,
-                                                                     gpuState.hepEmBuffers_d.positronsHepEm,
-                                                                     positrons.queues.currentlyActive);
+            positrons.queues.currentlyActive, positrons.queues.keys_out, positrons.queues.leakedTracksCurrent);
+        ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm,
+            positrons.queues.currentlyActive, positrons.queues.keys_out);
         ElectronRelocation<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm,
-            positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive,
+            positrons.queues.currentlyActive, positrons.queues.keys_out, secondaries, positrons.queues.nextActive,
             positrons.queues.reachedInteraction, allPositronInteractionQueues, positrons.queues.leakedTracksCurrent,
             gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         // ElectronInteractions<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
         //     positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
         //     positrons.queues.reachedInteraction, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
         //     returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[0],
-                                                              positrons.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
-            positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
-            positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
+        // PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[0],
+        //                                                       positrons.queues.keys_in);
+        // COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+        //     positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
+        //     positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
         // ElectronIonization<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
         //     positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-        //     positrons.queues.nextActive, positrons.queues.interactionQueues[0], positrons.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        //     positrons.queues.nextActive, positrons.queues.interactionQueues[0], positrons.queues.keys_out,
+        //     positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronIonization<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-            positrons.queues.nextActive, positrons.queues.interactionQueues[0], positrons.queues.keys_out,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[1],
-                                                              positrons.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
-            positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
-            positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
+            positrons.queues.nextActive, positrons.queues.interactionQueues[0], positrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        // PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[1],
+        //                                                       positrons.queues.keys_in);
+        // COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+        //     positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
+        //     positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
         // ElectronBremsstrahlung<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
         //     positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-        //     positrons.queues.nextActive, positrons.queues.interactionQueues[1], positrons.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        //     positrons.queues.nextActive, positrons.queues.interactionQueues[1], positrons.queues.keys_out,
+        //     positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronBremsstrahlung<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-            positrons.queues.nextActive, positrons.queues.interactionQueues[1], positrons.queues.keys_out,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[2],
-                                                              positrons.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
-            positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
-            positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
+            positrons.queues.nextActive, positrons.queues.interactionQueues[1], positrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        // PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[2],
+        //                                                       positrons.queues.keys_in);
+        // COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+        //     positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
+        //     positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
         // PositronAnnihilation<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
         //     positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-        //     positrons.queues.nextActive, positrons.queues.interactionQueues[2], positrons.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        //     positrons.queues.nextActive, positrons.queues.interactionQueues[2], positrons.queues.keys_out,
+        //     positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         PositronAnnihilation<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-            positrons.queues.nextActive, positrons.queues.interactionQueues[2], positrons.queues.keys_out,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[3],
-                                                              positrons.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
-            positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
-            positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
+            positrons.queues.nextActive, positrons.queues.interactionQueues[2], positrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        // PrepareSort<<<blocks, threads, 0, positrons.stream>>>(positrons.queues.interactionQueues[3],
+        //                                                       positrons.queues.keys_in);
+        // COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(
+        //     positrons.queues.temp_storage, positrons.queues.temp_storage_bytes, positrons.queues.keys_in,
+        //     positrons.queues.keys_out, positrons.queues.nSlot, 0, sizeof(int) * 8, positrons.stream));
         // PositronStoppedAnnihilation<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
         //     positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-        //     positrons.queues.nextActive, positrons.queues.interactionQueues[3], positrons.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        //     positrons.queues.nextActive, positrons.queues.interactionQueues[3], positrons.queues.keys_out,
+        //     positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         PositronStoppedAnnihilation<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.soaTrack, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
-            positrons.queues.nextActive, positrons.queues.interactionQueues[3], positrons.queues.keys_out,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            positrons.queues.nextActive, positrons.queues.interactionQueues[3], positrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 #else
 
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
@@ -1210,15 +1240,32 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
 #ifdef USE_SPLIT_KERNELS
+        PrepareSort<<<blocks, threads, 0, gammas.stream>>>(gammas.queues.currentlyActive, gammas.queues.keys_in);
+        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(gammas.queues.temp_storage, gammas.queues.temp_storage_bytes,
+                                                          gammas.queues.keys_in, gammas.queues.keys_out,
+                                                          gammas.queues.nSlot, 0, sizeof(int) * 8, gammas.stream));
+
         GammaHowFar<<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive,
-            gammas.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
-        GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive);
+            gammas.queues.keys_out, gammas.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
+        GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gammas.soaTrack,
+                                                                gpuState.hepEmBuffers_d.gammasHepEm,
+                                                                gammas.queues.currentlyActive, gammas.queues.keys_out);
         GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive,
-            secondaries, gammas.queues.nextActive, gammas.queues.reachedInteraction, allGammaInteractionQueues,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            gammas.queues.keys_out, secondaries, gammas.queues.nextActive, gammas.queues.reachedInteraction,
+            allGammaInteractionQueues, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps,
+            returnLastStep);
+
+        // GammaHowFar<<<blocks, threads, 0, gammas.stream>>>(
+        //     gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive,
+        //     gammas.queues.leakedTracksCurrent, gpuState.stats_dev, allowFinishOffEvent);
+        // GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(
+        //     gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive);
+        // GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+        //     gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive,
+        //     secondaries, gammas.queues.nextActive, gammas.queues.reachedInteraction, allGammaInteractionQueues,
+        //     gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 
         // Copying the number of interacting tracks back to host and using this information to adjust
         // the launch parameters of the interactions kernel is complicated and expensive due to a
@@ -1229,46 +1276,45 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         //     gammas.queues.reachedInteraction, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
         //     returnAllSteps, returnLastStep);
 
-        // DebugSort<<<1, 1, 0, gammas.stream>>>(gammas.queues.interactionQueues[0], gammas.queues.keys_in,
-        //                                       gammas.queues.keys_out);
-        PrepareSort<<<blocks, threads, 0, gammas.stream>>>(gammas.queues.interactionQueues[0], gammas.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(gammas.queues.temp_storage, gammas.queues.temp_storage_bytes,
-                                                          gammas.queues.keys_in, gammas.queues.keys_out,
-                                                          gammas.queues.nSlot, 0, sizeof(int) * 8, gammas.stream));
-        // DebugSort<<<1, 1, 0, gammas.stream>>>(gammas.queues.interactionQueues[0], gammas.queues.keys_in,
-        //                                       gammas.queues.keys_out);
-        GammaConversion<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
-            gammas.queues.interactionQueues[0], gammas.queues.keys_out, gammas.queues.leakedTracksCurrent,
-            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        // PrepareSort<<<blocks, threads, 0, gammas.stream>>>(gammas.queues.interactionQueues[0],
+        // gammas.queues.keys_in); COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(gammas.queues.temp_storage,
+        // gammas.queues.temp_storage_bytes,
+        //                                                   gammas.queues.keys_in, gammas.queues.keys_out,
+        //                                                   gammas.queues.nSlot, 0, sizeof(int) * 8, gammas.stream));
         // GammaConversion<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
         //     gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, secondaries,
-        //     gammas.queues.nextActive, gammas.queues.interactionQueues[0], gammas.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, gammas.stream>>>(gammas.queues.interactionQueues[1], gammas.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(gammas.queues.temp_storage, gammas.queues.temp_storage_bytes,
-                                                          gammas.queues.keys_in, gammas.queues.keys_out,
-                                                          gammas.queues.nSlot, 0, sizeof(int) * 8, gammas.stream));
-        GammaCompton<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+        //     gammas.queues.nextActive, gammas.queues.interactionQueues[0], gammas.queues.keys_out,
+        //     gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        GammaConversion<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
-            gammas.queues.interactionQueues[1], gammas.queues.keys_out, gammas.queues.leakedTracksCurrent,
-            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            gammas.queues.interactionQueues[0], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            returnAllSteps, returnLastStep);
+        // PrepareSort<<<blocks, threads, 0, gammas.stream>>>(gammas.queues.interactionQueues[1],
+        // gammas.queues.keys_in); COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(gammas.queues.temp_storage,
+        // gammas.queues.temp_storage_bytes,
+        //                                                   gammas.queues.keys_in, gammas.queues.keys_out,
+        //                                                   gammas.queues.nSlot, 0, sizeof(int) * 8, gammas.stream));
         // GammaCompton<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
         //     gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, secondaries,
-        //     gammas.queues.nextActive, gammas.queues.interactionQueues[1], gammas.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
-        PrepareSort<<<blocks, threads, 0, gammas.stream>>>(gammas.queues.interactionQueues[2], gammas.queues.keys_in);
-        COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(gammas.queues.temp_storage, gammas.queues.temp_storage_bytes,
-                                                          gammas.queues.keys_in, gammas.queues.keys_out,
-                                                          gammas.queues.nSlot, 0, sizeof(int) * 8, gammas.stream));
-        GammaPhotoelectric<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+        //     gammas.queues.nextActive, gammas.queues.interactionQueues[1], gammas.queues.keys_out,
+        //     gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        GammaCompton<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
-            gammas.queues.interactionQueues[2], gammas.queues.keys_out, gammas.queues.leakedTracksCurrent,
-            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            gammas.queues.interactionQueues[1], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            returnAllSteps, returnLastStep);
+        // PrepareSort<<<blocks, threads, 0, gammas.stream>>>(gammas.queues.interactionQueues[2],
+        // gammas.queues.keys_in); COPCORE_CUDA_CHECK(cub::DeviceRadixSort::SortKeys(gammas.queues.temp_storage,
+        // gammas.queues.temp_storage_bytes,
+        //                                                   gammas.queues.keys_in, gammas.queues.keys_out,
+        //                                                   gammas.queues.nSlot, 0, sizeof(int) * 8, gammas.stream));
         // GammaPhotoelectric<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
         //     gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, secondaries,
-        //     gammas.queues.nextActive, gammas.queues.interactionQueues[2], gammas.queues.leakedTracksCurrent,
-        //     gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        //     gammas.queues.nextActive, gammas.queues.interactionQueues[2], gammas.queues.keys_out,
+        //     gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+        GammaPhotoelectric<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gammas.tracks, gammas.soaTrack, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
+            gammas.queues.interactionQueues[2], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            returnAllSteps, returnLastStep);
 #else
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive,

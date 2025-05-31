@@ -41,7 +41,7 @@ namespace AsyncAdePT {
 
 template <bool IsElectron>
 __global__ void ElectronHowFar(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
-                               const adept::MParray *active, adept::MParray *nextActiveQueue,
+                               const adept::MParray *active, int *sortedActive, adept::MParray *nextActiveQueue,
                                adept::MParray *leakedQueue, Stats *InFlightStats,
                                AllowFinishOffEventArray allowFinishOffEvent)
 {
@@ -63,7 +63,8 @@ __global__ void ElectronHowFar(Track *electrons, SoATrack *soaTrack, G4HepEmElec
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
+    // const int slot           = (*active)[i];
+    const int slot      = sortedActive[i];
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
 #ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
@@ -203,7 +204,7 @@ __global__ void ElectronHowFar(Track *electrons, SoATrack *soaTrack, G4HepEmElec
 
 template <bool IsElectron>
 __global__ void ElectronPropagation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
-                                    const adept::MParray *active, adept::MParray *leakedQueue)
+                                    const adept::MParray *active, int *sortedActive, adept::MParray *leakedQueue)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -224,7 +225,8 @@ __global__ void ElectronPropagation(Track *electrons, SoATrack *soaTrack, G4HepE
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot = (*active)[i];
+    // const int slot           = (*active)[i];
+    const int slot = sortedActive[i];
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
@@ -286,13 +288,14 @@ __global__ void ElectronPropagation(Track *electrons, SoATrack *soaTrack, G4HepE
 
 template <bool IsElectron>
 __global__ void ElectronMSC(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
-                            const adept::MParray *active)
+                            const adept::MParray *active, int *sortedActive)
 {
   constexpr double restMass = copcore::units::kElectronMassC2;
 
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot = (*active)[i];
+    // const int slot           = (*active)[i];
+    const int slot = sortedActive[i];
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
@@ -370,7 +373,7 @@ __global__ void ElectronMSC(Track *electrons, SoATrack *soaTrack, G4HepEmElectro
 
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronRelocation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
-                                   const adept::MParray *active, Secondaries secondaries,
+                                   const adept::MParray *active, int *sortedActive, Secondaries secondaries,
                                    adept::MParray *nextActiveQueue, adept::MParray *reachedInteractionQueue,
                                    AllInteractionQueues interactionQueues, adept::MParray *leakedQueue,
                                    Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
@@ -378,7 +381,8 @@ __global__ void ElectronRelocation(Track *electrons, SoATrack *soaTrack, G4HepEm
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot           = (*active)[i];
+    // const int slot           = (*active)[i];
+    const int slot           = sortedActive[i];
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
@@ -883,15 +887,15 @@ __global__ void ElectronInteractions(Track *electrons, SoATrack *soaTrack, G4Hep
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronIonization(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
                                    Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *interactingQueue, int *sortedInteractingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                   adept::MParray *interactingQueue /*,
+ int *sortedInteractingQueue*/, adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
                                    bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    // const int slot           = (*interactingQueue)[i];
-    const int slot           = sortedInteractingQueue[i];
+    const int slot = (*interactingQueue)[i];
+    // const int slot           = sortedInteractingQueue[i];
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
@@ -1007,15 +1011,15 @@ __global__ void ElectronIonization(Track *electrons, SoATrack *soaTrack, G4HepEm
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronBremsstrahlung(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
                                        Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                       adept::MParray *interactingQueue, int *sortedInteractingQueue,
-                                       adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                       adept::MParray *interactingQueue /*,
+ int *sortedInteractingQueue*/, adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
                                        bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    // const int slot           = (*interactingQueue)[i];
-    const int slot           = sortedInteractingQueue[i];
+    const int slot = (*interactingQueue)[i];
+    // const int slot           = sortedInteractingQueue[i];
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
@@ -1132,15 +1136,15 @@ __global__ void ElectronBremsstrahlung(Track *electrons, SoATrack *soaTrack, G4H
 template <typename Scoring>
 __global__ void PositronAnnihilation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
                                      Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                     adept::MParray *interactingQueue, int *sortedInteractingQueue,
-                                     adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                     adept::MParray *interactingQueue /*,
+ int *sortedInteractingQueue*/, adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
                                      bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    // const int slot           = (*interactingQueue)[i];
-    const int slot           = sortedInteractingQueue[i];
+    const int slot = (*interactingQueue)[i];
+    // const int slot           = sortedInteractingQueue[i];
     SlotManager &slotManager = *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
@@ -1251,15 +1255,15 @@ __global__ void PositronAnnihilation(Track *electrons, SoATrack *soaTrack, G4Hep
 template <typename Scoring>
 __global__ void PositronStoppedAnnihilation(Track *electrons, SoATrack *soaTrack, G4HepEmElectronTrack *hepEMTracks,
                                             Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                            adept::MParray *interactingQueue, int *sortedInteractingQueue,
-                                            adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
+                                            adept::MParray *interactingQueue /*,
+ int *sortedInteractingQueue*/, adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
                                             bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    // const int slot           = (*interactingQueue)[i];
-    const int slot           = sortedInteractingQueue[i];
+    const int slot = (*interactingQueue)[i];
+    // const int slot           = sortedInteractingQueue[i];
     SlotManager &slotManager = *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
