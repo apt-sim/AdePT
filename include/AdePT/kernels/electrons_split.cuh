@@ -44,10 +44,11 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
                                adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Stats *InFlightStats,
                                AllowFinishOffEventArray allowFinishOffEvent)
 {
-  constexpr unsigned short maxSteps = 10'000;
-  constexpr int Charge              = IsElectron ? -1 : 1;
-  constexpr double restMass         = copcore::units::kElectronMassC2;
-  constexpr int Nvar                = 6;
+  constexpr unsigned short maxSteps        = 10'000;
+  constexpr int Charge                     = IsElectron ? -1 : 1;
+  constexpr double restMass                = copcore::units::kElectronMassC2;
+  constexpr int Nvar                       = 6;
+  constexpr unsigned short kStepsStuckKill = 25;
 
 #ifdef ADEPT_USE_EXT_BFIELD
   using Field_t = GeneralMagneticField;
@@ -77,9 +78,11 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     currentTrack.preStepPos  = currentTrack.pos;
     currentTrack.preStepDir  = currentTrack.dir;
     currentTrack.stepCounter++;
-    if (currentTrack.stepCounter >= maxSteps) {
-      printf("Killing e-/+ event %d E=%f lvol=%d after %d steps.\n", currentTrack.eventId, currentTrack.eKin, lvolID,
-             currentTrack.stepCounter);
+    bool printErrors = true;
+    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
+      printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
+             currentTrack.eventId, currentTrack.id, currentTrack.eKin, lvolID, currentTrack.stepCounter,
+             currentTrack.zeroStepCounter);
       continue;
     }
 
@@ -204,11 +207,13 @@ template <bool IsElectron>
 __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
                                     adept::MParray *leakedQueue)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  constexpr int Charge              = IsElectron ? -1 : 1;
-  constexpr double restMass         = copcore::units::kElectronMassC2;
-  constexpr int Nvar                = 6;
-  constexpr int max_iterations      = 10;
+  constexpr Precision kPushDistance        = 1000 * vecgeom::kTolerance;
+  constexpr int Charge                     = IsElectron ? -1 : 1;
+  constexpr double restMass                = copcore::units::kElectronMassC2;
+  constexpr int Nvar                       = 6;
+  constexpr int max_iterations             = 10;
+  constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+  constexpr unsigned short kStepsStuckPush = 5;
 
 #ifdef ADEPT_USE_EXT_BFIELD
   using Field_t = GeneralMagneticField;
@@ -266,6 +271,12 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
 #endif
       currentTrack.pos += currentTrack.geometryStepLength * currentTrack.dir;
     }
+
+    if (currentTrack.geometryStepLength < kPushStuck && currentTrack.geometryStepLength < theTrack->GetGStepLength()) {
+      currentTrack.zeroStepCounter++;
+      if (currentTrack.zeroStepCounter > kStepsStuckPush) currentTrack.pos += kPushStuck * currentTrack.dir;
+    } else
+      currentTrack.zeroStepCounter = 0;
 
     // punish miniscule steps by increasing the looperCounter by 10
     if (currentTrack.geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
@@ -353,16 +364,18 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
       }
     }
 
-    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    currentTrack.eKin = theTrack->GetEKin();
-
     // Update the flight times of the particle
     // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
     // the velocity depends on the remaining energy
+    // To conform with Geant4, we use the initial velocity of the particle, before eKin is updated after the energy
+    // loss
     double deltaTime = elTrack.GetPStepLength() / GetVelocity(currentTrack.eKin);
     currentTrack.globalTime += deltaTime;
     currentTrack.localTime += deltaTime;
     currentTrack.properTime += deltaTime * (restMass / currentTrack.eKin);
+
+    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
+    currentTrack.eKin = theTrack->GetEKin();
   }
 }
 
@@ -571,7 +584,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
             Track &secondary = secondaries.electrons.NextTrack(
                 currentTrack.newRNG, deltaEkin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
-                currentTrack);
+                currentTrack, currentTrack.globalTime);
           }
 
           currentTrack.eKin -= deltaEkin;
@@ -614,7 +627,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
             secondaries.gammas.NextTrack(
                 currentTrack.newRNG, deltaEkin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
-                currentTrack);
+                currentTrack, currentTrack.globalTime);
           }
 
           currentTrack.eKin -= deltaEkin;
@@ -653,7 +666,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
             secondaries.gammas.NextTrack(
                 currentTrack.newRNG, theGamma1Ekin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, currentTrack.navState,
-                currentTrack);
+                currentTrack, currentTrack.globalTime);
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
@@ -663,7 +676,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
             secondaries.gammas.NextTrack(
                 currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, currentTrack.navState,
-                currentTrack);
+                currentTrack, currentTrack.globalTime);
           }
 
           // The current track is killed by not enqueuing into the next activeQueue.
@@ -695,14 +708,15 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
           sincos(phi, &sinPhi, &cosPhi);
 
           currentTrack.newRNG.Advance();
-          Track &gamma1 = secondaries.gammas.NextTrack(
-              currentTrack.newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-              vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost}, currentTrack.navState, currentTrack);
+          Track &gamma1 = secondaries.gammas.NextTrack(currentTrack.newRNG, double{copcore::units::kElectronMassC2},
+                                                       currentTrack.pos,
+                                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                       currentTrack.navState, currentTrack, currentTrack.globalTime);
 
           // Reuse the RNG state of the dying track.
-          Track &gamma2 =
-              secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                           currentTrack.pos, -gamma1.dir, currentTrack.navState, currentTrack);
+          Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                       currentTrack.pos, -gamma1.dir, currentTrack.navState,
+                                                       currentTrack, currentTrack.globalTime);
         }
       }
       // Particles are killed by not enqueuing them into the new activeQueue (and free the slot in async mode)
@@ -726,6 +740,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
                                IsElectron ? -1 : 1,                           // Post-step point charge
+                               currentTrack.globalTime,                       // global time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
                                returnLastStep,                                // whether this was the last step
                                currentTrack.stepCounter == 1 ? true : false); // whether this was the first step

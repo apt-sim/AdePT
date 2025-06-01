@@ -25,8 +25,9 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
                             adept::MParray *leakedQueue, Stats *InFlightStats,
                             AllowFinishOffEventArray allowFinishOffEvent)
 {
-  constexpr unsigned short maxSteps = 10'000;
-  int activeSize                    = active->size();
+  constexpr unsigned short maxSteps        = 10'000;
+  constexpr unsigned short kStepsStuckKill = 25;
+  int activeSize                           = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];
@@ -45,9 +46,12 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
-    if (currentTrack.stepCounter >= maxSteps) {
-      printf("Killing gamma event %d E=%f lvol=%d after %d steps. This indicates a stuck particle!\n",
-             currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
+    bool printErrors = true;
+    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
+      printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
+             "stuck particle!\n",
+             currentTrack.eventId, currentTrack.id, currentTrack.eKin, lvolID, currentTrack.stepCounter,
+             currentTrack.zeroStepCounter);
       continue;
     }
 
@@ -98,8 +102,11 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
 
 __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  int activeSize                    = active->size();
+  constexpr Precision kPushDistance        = 1000 * vecgeom::kTolerance;
+  constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+  constexpr unsigned short kStepsStuckPush = 5;
+
+  int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];
@@ -127,6 +134,13 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
     //  printf("pvol=%d  step=%g  onboundary=%d  pos={%g, %g, %g}  dir={%g, %g, %g}\n", navState.TopId(),
     //  geometryStepLength,
     //         nextState.IsOnBoundary(), pos[0], pos[1], pos[2], dir[0], dir[1], dir[2]);
+
+    if (currentTrack.geometryStepLength < kPushStuck && currentTrack.geometryStepLength < theTrack->GetGStepLength()) {
+      currentTrack.zeroStepCounter++;
+      if (currentTrack.zeroStepCounter > kStepsStuckPush) currentTrack.pos += kPushStuck * currentTrack.dir;
+    } else
+      currentTrack.zeroStepCounter = 0;
+
     currentTrack.pos += currentTrack.geometryStepLength * currentTrack.dir;
 
     // Set boundary state in navState so the next step and secondaries get the
@@ -221,6 +235,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
                                    currentTrack.dir,                            // Post-step point momentum direction
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
+                                   currentTrack.globalTime,                     // global time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep,
                                    currentTrack.stepCounter == 1 ? true
@@ -266,6 +281,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
                                    currentTrack.dir,                            // Post-step point momentum direction
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
+                                   currentTrack.globalTime,                     // global time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep, // whether this is the last step of the track
                                    currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
@@ -372,7 +388,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         secondaries.electrons.NextTrack(
             newRNG, elKinEnergy, currentTrack.pos,
             vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]},
-            currentTrack.navState, currentTrack);
+            currentTrack.navState, currentTrack, currentTrack.globalTime);
       }
 
       if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
@@ -382,7 +398,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         secondaries.positrons.NextTrack(
             currentTrack.rngState, posKinEnergy, currentTrack.pos,
             vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
-            currentTrack.navState, currentTrack);
+            currentTrack.navState, currentTrack, currentTrack.globalTime);
       }
 
       // The current track is killed by not enqueuing into the next activeQueue and the slot is released
@@ -411,7 +427,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons.NextTrack(
             newRNG, energyEl, currentTrack.pos, currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma,
-            currentTrack.navState, currentTrack);
+            currentTrack.navState, currentTrack, currentTrack.globalTime);
         electron.dir.Normalize();
       } else {
         edep = energyEl;
@@ -451,7 +467,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         // Create a secondary electron and sample directions.
         secondaries.electrons.NextTrack(newRNG, photoElecE, currentTrack.pos,
                                         vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
-                                        currentTrack.navState, currentTrack);
+                                        currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       } else {
         // If the secondary electron is cut, deposit all the energy of the gamma in this volume
@@ -486,6 +502,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
                                currentTrack.dir,                            // Post-step point momentum direction
                                newEnergyGamma,                              // Post-step point kinetic energy
                                0,                                           // Post-step point charge
+                               currentTrack.globalTime,                     // global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                returnLastStep, // whether this is the last step of the track
                                currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
