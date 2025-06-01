@@ -448,6 +448,8 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     bool reached_interaction = true;
     bool cross_boundary      = false;
 
+    bool printErrors = false;
+
     if (!currentTrack.stopped) {
       if (currentTrack.nextState.IsOnBoundary()) {
         // For now, just count that we hit something.
@@ -456,11 +458,12 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 
         if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are scraping a boundary
-          printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
-                 "physicsStepLength=%E "
-                 "safety=%E\n",
-                 currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
-                 currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
+          if (printErrors)
+            printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                   "physicsStepLength=%E "
+                   "safety=%E\n",
+                   currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
+                   currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
           continue;
         } else if (!currentTrack.nextState.IsOutside()) {
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
@@ -478,11 +481,12 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 
         if (++currentTrack.looperCounter > 500) {
           // Kill loopers that are not advancing in free space
-          printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
-                 "physicsStepLength=%E "
-                 "safety=%E\n",
-                 currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
-                 currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
+          if (printErrors)
+            printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                   "physicsStepLength=%E "
+                   "safety=%E\n",
+                   currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
+                   currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
           continue;
         }
 
