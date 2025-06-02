@@ -448,7 +448,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     bool reached_interaction = true;
     bool cross_boundary      = false;
 
-    bool printErrors = false;
+    bool printErrors = true;
 
     if (!currentTrack.stopped) {
       if (currentTrack.nextState.IsOnBoundary()) {
