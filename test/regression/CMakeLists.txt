@@ -29,6 +29,7 @@ add_subdirectory(IntegrationTest)
 # Scripts
 set(SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/test/regression/scripts")
 set(TEMP_DIR "${PROJECT_SOURCE_DIR}/test/regression/ci_tmp")
+set(TEMP_SPLIT_DIR "${PROJECT_SOURCE_DIR}/test/regression/ci_tmp_split")
 
 # This test checks the reproducibility of AdePT by running 8 ttbar events and checking that the energy deposition is exactly the same.
 add_test(NAME reproducibility_cms_ttbar
@@ -60,6 +61,22 @@ add_test(NAME testEm3_validation_regions
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+
+if (ASYNC_MODE AND NOT USE_SPLIT_KERNELS)
+# Run monolithic kernels and store the results
+add_test(NAME split_kernels_part1
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/split_kernels_part1.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_SPLIT_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+elseif(ASYNC_MODE AND USE_SPLIT_KERNELS)
+# Run split kernels and store the results
+add_test(NAME split_kernels_part2
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/split_kernels_part2.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_SPLIT_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+endif()
 
 set(APP_TESTS
 

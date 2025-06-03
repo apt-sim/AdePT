@@ -920,7 +920,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
           .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
       };
-      const AllParticleQueues allParticleQueues               = {{electrons.queues, positrons.queues, gammas.queues}};
+      const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues}};
+#ifdef USE_SPLIT_KERNELS
       const AllInteractionQueues allGammaInteractionQueues    = {{gammas.queues.interactionQueues[0],
                                                                   gammas.queues.interactionQueues[1],
                                                                   gammas.queues.interactionQueues[2], nullptr}};
@@ -929,9 +930,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       const AllInteractionQueues allPositronInteractionQueues = {
           {positrons.queues.interactionQueues[0], positrons.queues.interactionQueues[1],
            positrons.queues.interactionQueues[2], positrons.queues.interactionQueues[3]}};
+#endif
       const TracksAndSlots tracksAndSlots = {{electrons.tracks, positrons.tracks, gammas.tracks},
                                              {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
-
       // --------------------------
       // *** Particle injection ***
       // --------------------------
