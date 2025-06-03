@@ -251,20 +251,22 @@ target_include_directories(CopCore
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
-add_library(AdePT_G4_integration SHARED
+cuda_rdc_add_library(AdePT_G4_integration SHARED
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
-target_include_directories(AdePT_G4_integration
+cuda_rdc_target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
+# This needs to be after the cuda_rdc_target_include_directories when
+# using v10 of CudaRdcUtils.cmake
+cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
 
-target_link_libraries(AdePT_G4_integration
+cuda_rdc_target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
     VecGeom::vecgeom
-    VecGeom::vecgeomcuda_static
     VecGeom::vgdml
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
@@ -276,18 +278,18 @@ target_link_libraries(AdePT_G4_integration
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
-  target_link_libraries(AdePT_G4_integration
+  cuda_rdc_target_link_libraries(AdePT_G4_integration
     PUBLIC
       covfie::core
       covfie::cuda
   )
 endif()
 
-set_target_properties(AdePT_G4_integration
-  PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON
-)
+#set_target_properties(AdePT_G4_integration
+#  PROPERTIES
+#    CUDA_SEPARABLE_COMPILATION ON
+#    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+#)
 
 option(ASYNC_MODE OFF "Enable the async transport backend")
 if(ASYNC_MODE)
@@ -322,7 +324,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-install(TARGETS CopCore AdePT_G4_integration
+cuda_rdc_install(TARGETS CopCore AdePT_G4_integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
