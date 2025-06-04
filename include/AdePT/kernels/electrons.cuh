@@ -622,9 +622,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
           if (eKin < g4HepEmPars.fElectronTrackingCut) {
-            if (IsElectron) {
-              energyDeposit += eKin;
-            }
+            energyDeposit += eKin;
             stopped = true;
 #if ADEPT_DEBUG_TRACK > 0
             if (verbose) printf("\n| STOPPED by tracking cut\n");
@@ -682,9 +680,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
           if (eKin < g4HepEmPars.fElectronTrackingCut) {
-            if (IsElectron) {
-              energyDeposit += eKin;
-            }
+            energyDeposit += eKin;
             stopped = true;
 #if ADEPT_DEBUG_TRACK > 0
             if (verbose) printf("\n| STOPPED by tracking cut\n");
