@@ -14,13 +14,8 @@
 #include <AdePT/navigation/AdePTNavigator.h>
 #include <AdePT/base/MParray.h>
 
-#ifndef USE_SPLIT_KERNELS
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
-#else
-#include <AdePT/kernels/electrons_split.cuh>
-#include <AdePT/kernels/gammas_split.cuh>
-#endif
 
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
@@ -44,11 +39,6 @@
 #include <G4HepEmElectronInit.hh>
 #include <G4HepEmGammaInit.hh>
 #include <G4HepEmConfig.hh>
-
-#ifdef USE_SPLIT_KERNELS
-#include <G4HepEmElectronTrack.hh>
-#include <G4HepEmGammaTrack.hh>
-#endif
 
 #include <iostream>
 #include <iomanip>
@@ -328,15 +318,6 @@ GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatc
     COPCORE_CUDA_CHECK(cudaEventCreate(&gpuState.particles[i].event));
   }
 
-#ifdef USE_SPLIT_KERNELS
-  // Init HepEM tracks
-  // e+ / e-
-  COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.hepEMBuffers_d.electronsHepEm, capacity * sizeof(G4HepEmElectronTrack)));
-  COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.hepEMBuffers_d.positronsHepEm, capacity * sizeof(G4HepEmElectronTrack)));
-  // Gammas
-  COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.hepEMBuffers_d.gammasHepEm, capacity * sizeof(G4HepEmGammaTrack)));
-#endif
-
   InitLeakedQueues<<<1, 1, 0, gpuState.stream>>>(gpuState.allmgr_d, kQueueSize);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -362,12 +343,6 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
   COPCORE_CUDA_CHECK(cudaFree(gpuState.stats_dev));
   COPCORE_CUDA_CHECK(cudaFreeHost(gpuState.stats));
   COPCORE_CUDA_CHECK(cudaFree(gpuState.toDevice_dev));
-
-#ifdef USE_SPLIT_KERNELS
-  COPCORE_CUDA_CHECK(cudaFree(gpuState.hepEMBuffers_d.electronsHepEm));
-  COPCORE_CUDA_CHECK(cudaFree(gpuState.hepEMBuffers_d.positronsHepEm));
-  COPCORE_CUDA_CHECK(cudaFree(gpuState.hepEMBuffers_d.gammasHepEm));
-#endif
 
   COPCORE_CUDA_CHECK(cudaStreamDestroy(gpuState.stream));
 
@@ -482,22 +457,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
-#ifndef USE_SPLIT_KERNELS
       TransportElectrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
           electrons.trackmgr, secondaries, electrons.leakedTracks, scoring_dev,
           VolAuxArray::GetInstance().fAuxData_dev);
-#else
-      ElectronHowFar<true><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.trackmgr, gpuState.hepEMBuffers_d.electronsHepEm, VolAuxArray::GetInstance().fAuxData_dev);
-      ElectronPropagation<true><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.trackmgr, gpuState.hepEMBuffers_d.electronsHepEm);
-      ElectronMSC<true><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.trackmgr, gpuState.hepEMBuffers_d.electronsHepEm);
-      ElectronRelocation<true><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(electrons.trackmgr);
-      ElectronInteractions<true, AdeptScoring><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.trackmgr, gpuState.hepEMBuffers_d.electronsHepEm, secondaries, electrons.leakedTracks, scoring_dev,
-          VolAuxArray::GetInstance().fAuxData_dev);
-#endif
       COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
     }
@@ -509,22 +471,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
-#ifndef USE_SPLIT_KERNELS
       TransportPositrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
           positrons.trackmgr, secondaries, positrons.leakedTracks, scoring_dev,
           VolAuxArray::GetInstance().fAuxData_dev);
-#else
-      ElectronHowFar<false><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.trackmgr, gpuState.hepEMBuffers_d.positronsHepEm, VolAuxArray::GetInstance().fAuxData_dev);
-      ElectronPropagation<false><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.trackmgr, gpuState.hepEMBuffers_d.positronsHepEm);
-      ElectronMSC<false><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.trackmgr, gpuState.hepEMBuffers_d.positronsHepEm);
-      ElectronRelocation<false><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(positrons.trackmgr);
-      ElectronInteractions<false, AdeptScoring><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.trackmgr, gpuState.hepEMBuffers_d.positronsHepEm, secondaries, positrons.leakedTracks, scoring_dev,
-          VolAuxArray::GetInstance().fAuxData_dev);
-#endif
       COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
     }
@@ -536,20 +485,8 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
-#ifndef USE_SPLIT_KERNELS
       TransportGammas<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
           gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
-#else
-      GammaHowFar<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.trackmgr, gpuState.hepEMBuffers_d.gammasHepEm, VolAuxArray::GetInstance().fAuxData_dev);
-      GammaPropagation<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.trackmgr, gpuState.hepEMBuffers_d.gammasHepEm, VolAuxArray::GetInstance().fAuxData_dev);
-      GammaRelocation<<<transportBlocks, TransportThreads, 0, gammas.stream>>>(gammas.trackmgr, gammas.leakedTracks,
-                                                                               VolAuxArray::GetInstance().fAuxData_dev);
-      GammaInteractions<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.trackmgr, gpuState.hepEMBuffers_d.gammasHepEm, secondaries, scoring_dev,
-          VolAuxArray::GetInstance().fAuxData_dev);
-#endif
       COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
     }

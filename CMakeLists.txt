@@ -52,6 +52,7 @@ option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
+option(ASYNC_MODE "Enable the async transport backend" OFF)
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -85,10 +86,20 @@ endif()
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
 endif()
+if(ASYNC_MODE)
+  add_compile_definitions(ASYNC_MODE)
+  message(STATUS "${Green}Using the asynchronous transport backend${ColorReset}")
+else()
+  message(STATUS "${Red}Async backend is disabled${ColorReset}")
+endif()
 # Run split kernels
 if (USE_SPLIT_KERNELS)
-  add_compile_definitions(USE_SPLIT_KERNELS)
-  message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
+  if(ASYNC_MODE)
+    add_compile_definitions(USE_SPLIT_KERNELS)
+    message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
+  else()
+    message(FATAL_ERROR "In order to run with split kernels, AdePT must be compiled in ASYNC_MODE")
+  endif()
 endif()
 # Debugging in single-thread mode
 if (DEBUG_SINGLE_THREAD)
@@ -290,14 +301,6 @@ endif()
 #    CUDA_SEPARABLE_COMPILATION ON
 #    CUDA_RESOLVE_DEVICE_SYMBOLS ON
 #)
-
-option(ASYNC_MODE OFF "Enable the async transport backend")
-if(ASYNC_MODE)
-  add_compile_definitions(ASYNC_MODE)
-  message(STATUS "${Green}Using the asynchronous transport backend${ColorReset}")
-else()
-  message(STATUS "${Red}Async backend is disabled${ColorReset}")
-endif()
 
 # Optional library to activate NVTX annotations for profiling:
 option(NVTX OFF "Add NVTX instrumentation for profiling (only for annotated examples)")
