@@ -778,6 +778,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     std::unique_lock lock(context->mutex);
     context->cv.wait(lock);
 
+    AdvanceEventStates(EventState::RequestHitFlush, EventState::FlushingHits, eventStates);
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers, debugLevel);
 
@@ -1479,7 +1480,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {
-            AdvanceEventStates(EventState::RequestHitFlush, EventState::FlushingHits, eventStates);
             // Reset hitBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted swap
             COPCORE_CUDA_CHECK(
                 cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
