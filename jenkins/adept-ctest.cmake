@@ -74,10 +74,13 @@ endif()
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 set(CTEST_BUILD_FLAGS "-j${N}")
 
+# Split the environment string into a list of individual flags to enable passing multiple arguments to ExtraCMakeOptions
+separate_arguments(extra_cmake_args UNIX_COMMAND "$ENV{ExtraCMakeOptions}")
+
 # Fixed set of CMake options----------------------------------------------------
 set(config_options -DCMAKE_INSTALL_PREFIX=${CTEST_INSTALL_PREFIX}
                    -DCMAKE_CUDA_ARCHITECTURES=$ENV{CUDA_CAPABILITY} 
-                   $ENV{ExtraCMakeOptions})
+                   ${extra_cmake_args})
 
 # git command configuration------------------------------------------------------
 find_program(CTEST_GIT_COMMAND NAMES git)
