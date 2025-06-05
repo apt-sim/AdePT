@@ -467,8 +467,6 @@ public:
     fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter =
         fGPUHitBufferCount_dev.get() + fActiveBuffer * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads;
 
-    fDeviceState[fActiveBuffer].store(DeviceState::Filling, std::memory_order_release);
-    fDeviceState[prevActiveDeviceBuffer].store(DeviceState::NeedTransferToHost, std::memory_order_relaxed);
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo[fActiveBuffer],
                                        sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
 
@@ -476,8 +474,18 @@ public:
     // send to the HitQueue
     fBuffer.hostState.store(BufferHandle::HostState::AwaitingDeviceTransfer, std::memory_order_release);
 
-    // here we need to synchronize as the swaping of device memory must stop the transport
-    COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
+    // the current active buffer can be set directly to block it from being seen as free
+    fDeviceState[fActiveBuffer].store(DeviceState::Filling, std::memory_order_release);
+
+    // However, the prevActiveDeviceBuffer state can only be advanced when the transfer is finished,
+    // otherwise the TransferHitsToHost may call the transfer before the correct hostBufferCount has arrived
+    COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+        cudaStream,
+        [](void *arg) {
+          static_cast<std::atomic<DeviceState> *>(arg)->store(DeviceState::NeedTransferToHost,
+                                                              std::memory_order_release);
+        },
+        &fDeviceState[prevActiveDeviceBuffer]));
   }
 
   bool ProcessHits(std::condition_variable &cvG4Workers, int debugLevel)
@@ -569,7 +577,8 @@ public:
 
 #ifdef DEBUG
       if (fBuffer.hostState.load() != BufferHandle::HostState::AwaitingDeviceTransfer)
-        std::cout << BOLD_RED << " Hoststate Wrong! should AwaitingDeviceTransfer" << RESET << std::endl;
+        std::cout << BOLD_RED << " Hoststate Wrong! should AwaitingDeviceTransfer but state is "
+                  << GetHostStateName(fBuffer.hostState) << RESET << std::endl;
 #endif
 
       // previous active device buffer - from this one we need to transfer the data to the host
