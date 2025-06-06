@@ -56,8 +56,8 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
     }
 
     // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
-      if (leak) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in gammas leaks queue.\n\
@@ -75,7 +75,7 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
       printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
              currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
              currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
-      survive(/*leak*/ true);
+      survive(LeakStatus::FinishEventOnCPU);
       continue;
     }
 
@@ -180,9 +180,9 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
 #endif
 
     // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       returnLastStep = false; // particle survived, do not force return of step
-      if (leak) {
+      if (leakReason != LeakStatus::NoLeak) {
         currentTrack.leaked = true;
         auto success        = leakedQueue->push_back(slot);
         if (!success) {
@@ -191,8 +191,9 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
@@ -259,7 +260,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
           currentTrack.pos += kPushDistance * currentTrack.dir;
-          survive(/*leak*/ true);
+          survive(LeakStatus::OutOfGPURegion);
         }
       } else {
         // release slot for particle that has left the world
@@ -297,9 +298,6 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
 
       // NOTE: This may be moved to the next kernel
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
-      // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
-      // gamma-nuclear reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a
-      // reaction is needed to compensate for the smaller step size returned by HowFar.
 
       // Reset number of interaction left for the winner discrete process also in the currentTrack
       // (SampleInteraction() resets it for theTrack), will be resampled in the next iteration.
@@ -312,9 +310,8 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
         // but should be removed once confirmed that results are good
         G4HepEmRandomEngine rnge(&currentTrack.rngState);
         RanluxppDouble newRNG(currentTrack.rngState.Branch());
-        // Gamma-nuclear not implemented, track survives
-        survive();
-        ;
+        // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
+        survive(LeakStatus::GammaNuclear);
       }
     }
   }
@@ -488,11 +485,6 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
       // The current track is killed by not enqueuing into the next activeQueue and the slot is released
       slotManager.MarkSlotForFreeing(slot);
       break;
-    }
-    case 3: {
-      // Invoke gamma nuclear needs to be handled by Geant4 directly, to be implemented
-      // Just keep particle alive
-      survive();
     }
     }
 

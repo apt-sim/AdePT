@@ -342,10 +342,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (verbose) printf("| winnerProc %d\n", winnerProcessIndex);
 #endif
 
-      // NOTE: no simple re-drawing is possible for gamma-nuclear, since HowFar returns now smaller steps due to the
-      // gamma-nuclear reactions in comparison to without gamma-nuclear reactions. Thus, an empty step without a
-      // reaction is needed to compensate for the smaller step size returned by HowFar.
-
       // Reset number of interaction left for the winner discrete process also in the currentTrack
       // (SampleInteraction() resets it for theTrack), will be resampled in the next iteration.
       currentTrack.numIALeft[0] = -1.0;
