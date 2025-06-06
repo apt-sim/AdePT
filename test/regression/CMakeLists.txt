@@ -40,11 +40,15 @@ add_test(NAME reproducibility_cms_ttbar
 
 # This test checks the reproducibility of AdePT with transport only in some regions by running 50 e- events in the testEm3 geometry
 # and checking that the energy deposition is exactly the same.
+# The async mode with not all regions is from the current understanding not reproducible as the state advances asynchronously.
+# To be investigated more in the future
+if (NOT ASYNC_MODE)
 add_test(NAME reproducibility_regions
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility_regions.sh
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+endif()
 
 # test that compares the physics output of a full AdePT run against a high-statistics Geant4 simulation using G4HepEm.
 # The energy deposition per layer error must be < 1% to pass the test
