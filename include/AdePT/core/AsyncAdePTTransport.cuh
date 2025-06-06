@@ -331,6 +331,8 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       fromDevice[idx].originNavState             = track->originNavState;
       fromDevice[idx].leakStatus                 = track->leakStatus;
       fromDevice[idx].parentId                   = track->parentId;
+      fromDevice[idx].trackId                    = track->trackId;
+      fromDevice[idx].creatorProcessId           = track->creatorProcessId;
 
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }

@@ -25,12 +25,15 @@ struct GPUHit {
   GPUStepPoint fPreStepPoint;
   GPUStepPoint fPostStepPoint;
   // Data needed to reconstruct G4 Step
+  vecgeom::Vector3D<vecgeom::Precision> fVertexPosition{0., 0., 0.};
   double fStepLength{0};
   double fTotalEnergyDeposit{0};
   double fNonIonizingEnergyDeposit{0};
   double fGlobalTime{0.};
   float fTrackWeight{1};
-  int fParentID{0}; // Track ID
+  uint64_t fTrackID{0}; // Track ID
+  uint64_t fParentID{0}; // parent Track ID
+  short fCreatorProcessID{-1};
   unsigned int fEventId{0};
   short threadId{-1};
   // bool fFirstStepInVolume{false};
@@ -71,8 +74,8 @@ __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const 
 
 /// @brief Fill the provided hit with the given data
 __device__ __forceinline__ void FillHit(
-    GPUHit &aGPUHit, int aParentID, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
-    float aTrackWeight, vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
+    GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aCreatorProcessID, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
+    float aTrackWeight, vecgeom::Vector3D<vecgeom::Precision> aVertexPosition, vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
     vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
     vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
     vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin, double aPostCharge,
@@ -84,12 +87,15 @@ __device__ __forceinline__ void FillHit(
   aGPUHit.fFirstStepOfTrack = isFirstStep;
   aGPUHit.fLastStepOfTrack  = isLastStep;
   // Fill the required data
+  aGPUHit.fTrackID            = aTrackID;
   aGPUHit.fParentID           = aParentID;
+  aGPUHit.fCreatorProcessID   = aCreatorProcessID;
   aGPUHit.fParticleType       = aParticleType;
   aGPUHit.fStepLength         = aStepLength;
   aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;
   aGPUHit.fTrackWeight        = aTrackWeight;
   aGPUHit.fGlobalTime         = aGlobalTime;
+  Copy3DVector(aVertexPosition, aGPUHit.fVertexPosition);
   // Pre step point
   aGPUHit.fPreStepPoint.fNavigationState = aPreState;
   Copy3DVector(aPrePosition, aGPUHit.fPreStepPoint.fPosition);

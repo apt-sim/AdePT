@@ -158,7 +158,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
     if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
       printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
-             currentTrack.eventId, currentTrack.id, eKin, lvolID, currentTrack.stepCounter,
+             currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
              currentTrack.zeroStepCounter);
       continue;
     }
@@ -512,7 +512,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                    "geoStepLength=%E "
                    "physicsStepLength=%E "
                    "safety=%E\n",
-                   eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
+                   eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                    geometryStepLength, geometricalStepLengthFromPhysics, safety);
           continue;
         } else if (!nextState.IsOutside()) {
@@ -538,7 +538,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                    "geoStepLength=%E "
                    "physicsStepLength=%E "
                    "safety=%E\n",
-                   eKin, currentTrack.eventId, currentTrack.id, currentTrack.looperCounter, energyDeposit,
+                   eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                    geometryStepLength, geometricalStepLengthFromPhysics, safety);
           continue;
         }
@@ -614,11 +614,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             Track &secondary = secondaries.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                navState, currentTrack, globalTime);
+                navState, currentTrack, globalTime, /*CreatorProcessId*/ short(0));
 #else
             Track &secondary = secondaries.electrons->NextTrack();
             secondary.InitAsSecondary(pos, navState, globalTime);
-            secondary.parentId = currentTrack.parentId;
+            secondary.parentId = currentTrack.trackId;
             secondary.rngState = newRNG;
             secondary.eKin = secondary.vertexEkin = deltaEkin;
             secondary.weight                      = currentTrack.weight;
@@ -671,11 +671,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             secondaries.gammas.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                navState, currentTrack, globalTime);
+                navState, currentTrack, globalTime, /*CreatorProcessId*/ short(1));
 #else
             Track &gamma = secondaries.gammas->NextTrack();
             gamma.InitAsSecondary(pos, navState, globalTime);
-            gamma.parentId = currentTrack.parentId;
+            gamma.parentId = currentTrack.trackId;
             gamma.rngState = newRNG;
             gamma.eKin = gamma.vertexEkin = deltaEkin;
             gamma.weight                  = currentTrack.weight;
@@ -729,11 +729,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             secondaries.gammas.NextTrack(
                 newRNG, theGamma1Ekin, pos,
                 vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
-                globalTime);
+                globalTime, /*CreatorProcessId*/ short(2));
 #else
             Track &gamma1 = secondaries.gammas->NextTrack();
             gamma1.InitAsSecondary(pos, navState, globalTime);
-            gamma1.parentId = currentTrack.parentId;
+            gamma1.parentId = currentTrack.trackId;
             gamma1.rngState = newRNG;
             gamma1.eKin = gamma1.vertexEkin = theGamma1Ekin;
             gamma1.weight                   = currentTrack.weight;
@@ -750,13 +750,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             secondaries.gammas.NextTrack(
                 currentTrack.rngState, theGamma2Ekin, pos,
                 vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
-                globalTime);
+                globalTime, /*CreatorProcessId*/ short(2));
 #else
             Track &gamma2 = secondaries.gammas->NextTrack();
             gamma2.InitAsSecondary(pos, navState, globalTime);
             // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut
             // the state is not reused, but this shouldn't be an issue)
-            gamma2.parentId = currentTrack.parentId;
+            gamma2.parentId = currentTrack.trackId;
             gamma2.rngState = currentTrack.rngState;
             gamma2.eKin = gamma2.vertexEkin = theGamma2Ekin;
             gamma2.weight                   = currentTrack.weight;
@@ -806,11 +806,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
           Track &gamma1 = secondaries.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
                                                        vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
-                                                       navState, currentTrack, globalTime);
+                                                       navState, currentTrack, globalTime, /*CreatorProcessId*/ short(2));
 
           // Reuse the RNG state of the dying track.
           Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                       pos, -gamma1.dir, navState, currentTrack, globalTime);
+                                                       pos, -gamma1.dir, navState, currentTrack, globalTime, /*CreatorProcessId*/ short(2));
 #else
           Track &gamma1 = secondaries.gammas->NextTrack();
           Track &gamma2 = secondaries.gammas->NextTrack();
@@ -824,7 +824,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           gamma2.InitAsSecondary(pos, navState, globalTime);
           // Reuse the RNG state of the dying track.
-          gamma2.parentId = currentTrack.parentId;
+          gamma2.parentId = currentTrack.trackId;
           gamma2.rngState = currentTrack.rngState;
           gamma2.eKin = gamma2.vertexEkin = copcore::units::kElectronMassC2;
           gamma2.weight                   = currentTrack.weight;
@@ -841,11 +841,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
-      adept_scoring::RecordHit(userScoring, currentTrack.parentId,
+      adept_scoring::RecordHit(userScoring, currentTrack.trackId, currentTrack.parentId, currentTrack.creatorProcessId,
                                static_cast<char>(IsElectron ? 0 : 1),         // Particle type
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
+                               currentTrack.vertexPosition,
                                navState,                                      // Pre-step point navstate
                                preStepPos,                                    // Pre-step point position
                                preStepDir,                                    // Pre-step point momentum direction

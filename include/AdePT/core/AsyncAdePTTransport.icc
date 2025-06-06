@@ -137,13 +137,13 @@ void AsyncAdePTTransport<IntegrationLayer>::SetIntegrationLayerForThread(int thr
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parentId, double energy, double vertexEnergy,
+void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, short creatorProcessId, double energy, double vertexEnergy,
                                                      double x, double y, double z, double dirx, double diry,
                                                      double dirz, double vertexX, double vertexY, double vertexZ,
                                                      double vertexDirx, double vertexDiry, double vertexDirz,
                                                      double globalTime, double localTime, double properTime,
                                                      float weight, int threadId, unsigned int eventId,
-                                                     unsigned int trackId, vecgeom::NavigationState &&state,
+                                                     vecgeom::NavigationState &&state,
                                                      vecgeom::NavigationState &&originState)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
@@ -152,7 +152,9 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parentId, doub
   }
 
   TrackDataWithIDs track{pdg,
+                         trackId,
                          parentId,
+                         creatorProcessId,
                          energy,
                          vertexEnergy,
                          x,
@@ -174,7 +176,6 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, int parentId, doub
                          std::move(state),
                          std::move(originState),
                          eventId,
-                         trackId,
                          static_cast<short>(threadId)};
   if (fDebugLevel >= 2) {
     fGPUNetEnergy[threadId] += energy;

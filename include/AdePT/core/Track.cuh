@@ -59,9 +59,11 @@ struct Track {
   long hitsurfID{0};
 #endif
 
-  uint64_t id{0}; ///< track id (non-consecutive, reproducible)
+  uint64_t trackId{0}; ///< track id (non-consecutive, reproducible)
+  uint64_t parentId{0}; // track id of the parent
+
+  short creatorProcessId{-1};
   unsigned int eventId{0};
-  int parentId{-1}; // Stores the track id of the initial particle given to AdePT
   short threadId{-1};
   unsigned short stepCounter{0};
   unsigned short looperCounter{0};
@@ -85,10 +87,10 @@ struct Track {
   /// NB: The navState remains uninitialised.
   __device__ Track(uint64_t rngSeed, double eKin, double vertexEkin, double globalTime, float localTime,
                    float properTime, float weight, double const position[3], double const direction[3],
-                   double const vertexPos[3], double const vertexDir[3], unsigned int eventId, int parentId,
-                   short threadId)
+                   double const vertexPos[3], double const vertexDir[3], unsigned int eventId, uint64_t trackId, uint64_t parentId,
+                   short creatorProcessId, short threadId)
       : eKin{eKin}, vertexEkin{vertexEkin}, weight{weight}, globalTime{globalTime}, localTime{localTime},
-        properTime{properTime}, eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0},
+        properTime{properTime}, eventId{eventId}, trackId{trackId}, parentId{parentId}, creatorProcessId{creatorProcessId}, threadId{threadId}, stepCounter{0},
         looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
@@ -104,7 +106,7 @@ struct Track {
   /// NB: The caller is responsible to branch a new RNG state.
   __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
-                   const Track &parentTrack, const double globalTime)
+                   const Track &parentTrack, const double globalTime, short creatorProcessId)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, id{rngState.IntRndm()}, eventId{parentTrack.eventId},
         parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
@@ -122,9 +124,9 @@ struct Track {
 
   __host__ __device__ void Print(const char *label) const
   {
-    printf("== evt %u prim %d %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
+    printf("== evt %u parentId %lu %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
            "%.19f} remain_safe %g loop %u\n| state: ",
-           eventId, parentId, label, id, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
+           eventId, parentId, label, trackId, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
            dir[1], dir[2], GetSafety(pos), looperCounter);
     navState.Print();
   }

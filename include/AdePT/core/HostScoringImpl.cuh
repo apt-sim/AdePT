@@ -149,8 +149,8 @@ void FreeGPU(HostScoring *hostScoring, HostScoring *hostScoring_dev)
 
 /// @brief Record a hit
 template <>
-__device__ void RecordHit(HostScoring *hostScoring_dev, int aParentID, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
+__device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId, char aParticleType, double aStepLength,
+                          double aTotalEnergyDeposit, float aTrackWeight, vecgeom::Vector3D<Precision> const &aVertexPosition, vecgeom::NavigationState const &aPreState,
                           vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
@@ -161,7 +161,7 @@ __device__ void RecordHit(HostScoring *hostScoring_dev, int aParentID, char aPar
   GPUHit &aGPUHit = *GetNextFreeHit(hostScoring_dev);
 
   // Fill the required data
-  FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight, aPreState, aPrePosition,
+  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight, aVertexPosition, aPreState, aPrePosition,
           aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
           aPostCharge, aGlobalTime, 0, 0, false, false);
 }

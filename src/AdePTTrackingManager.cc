@@ -264,6 +264,14 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4int threadId = G4Threading::G4GetThreadId();
   fAdeptTransport->ProcessGPUSteps(threadId, eventID);
 
+  // need to cast to avoid the pitfall of the untemplated AdePTTransportInterface that cannot hold the IntegrationLayer
+  auto *asyncTransport = dynamic_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
+  if (!asyncTransport) {
+    G4Exception("AdePTTrackingManager::ProcessTrack", "", FatalException,
+                "fAdeptTransport is not of type AsyncAdePTTransport<AdePTGeant4Integration>");
+  }
+  auto &trackIDMapper = asyncTransport->GetIntegrationLayer(threadId).GetTrackIDMapper();
+  
   // new event detected, reset
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) >= 0 &&
       fHepEmTrackingManager->GetFinishEventOnCPU(threadId) != eventID) {
@@ -287,6 +295,17 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
     if (isGPURegion && (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0)) {
       // If the track is in a GPU region, hand it over to AdePT
+      
+      // generate uint64_t track ids for the GPU
+      uint64_t gpuTrackID  = trackIDMapper.registerG4Track(aTrack->GetTrackID(), eventID);
+      uint64_t gpuParentID = (aTrack->GetParentID() >= 0) ? trackIDMapper.registerG4Track(aTrack->GetParentID(), eventID) : 0;
+
+      // set primary
+      G4PrimaryParticle* prim = aTrack->GetDynamicParticle()->GetPrimaryParticle();
+      trackIDMapper.setPrimaryForG4ID(aTrack->GetTrackID(), prim);
+      trackIDMapper.setCreatorProcessForG4ID(aTrack->GetTrackID(), const_cast<G4VProcess*>(aTrack->GetCreatorProcess()));
+      short creatorProcessId = -1; // 
+      
       auto particlePosition  = aTrack->GetPosition();
       auto particleDirection = aTrack->GetMomentumDirection();
       G4double energy        = aTrack->GetKineticEnergy();
@@ -295,7 +314,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double properTime    = aTrack->GetProperTime();
       G4double weight        = aTrack->GetWeight();
       auto pdg               = aTrack->GetParticleDefinition()->GetPDGEncoding();
-      int id                 = aTrack->GetTrackID();
       if (fCurrentEventID != eventID) {
         // Do this to reproducibly seed the AdePT random numbers:
         fCurrentEventID = eventID;
@@ -312,6 +330,16 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         // so we need to use the track's current position
         // If the vertex is not in a GPU region, the origin touchable handle will be set by the HepEmTrackingManager
         convertedOrigin = GetVecGeomFromG4State(*aTrack->GetTouchable()->GetHistory());
+
+        // if (hit.fFirstStepOfTrack && callUserTrackingAction && fScoringObjects->fG4Step->GetTrack()->GetParentID() !=0 ) {
+        auto *userTrackingAction = eventManager->GetUserTrackingAction();
+        if (userTrackingAction) {
+          userTrackingAction->PreUserTrackingAction(aTrack);
+        }
+        // }
+        // PreTrackingAction attaches UserInformation, add it to map.
+        trackIDMapper.setUserTrackInfoForG4ID(aTrack->GetTrackID(),  aTrack->GetUserInformation());
+
       } else {
         // For secondary tracks, the origin touchable handle is set when they are stacked
         convertedOrigin = GetVecGeomFromG4State(*aTrack->GetOriginTouchableHandle()->GetHistory());
@@ -331,13 +359,14 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         vertexDirection = aTrack->GetVertexMomentumDirection();
         vertexEnergy    = aTrack->GetVertexKineticEnergy();
       }
-
-      fAdeptTransport->AddTrack(pdg, id, energy, vertexEnergy, particlePosition[0], particlePosition[1],
+      fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, creatorProcessId, energy, vertexEnergy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 vertexPosition[0], vertexPosition[1], vertexPosition[2], vertexDirection[0],
                                 vertexDirection[1], vertexDirection[2], globalTime, localTime, properTime, weight,
-                                G4Threading::G4GetThreadId(), eventID, fTrackCounter++, std::move(converted),
+                                G4Threading::G4GetThreadId(), eventID, std::move(converted),
                                 std::move(convertedOrigin));
+
+      fTrackCounter++; // increment the track counter for AdePT
 
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);
@@ -350,6 +379,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   }
 
   // delete track after finishing offloading to AdePT or finished tracking in G4HepEmTrackingManager
+  aTrack->SetUserInformation(nullptr); // set UserInformation to null as its memory would otherwise be deleted when we delete the track
   delete aTrack;
 }
 
