@@ -57,6 +57,7 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+      currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
@@ -181,7 +182,8 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep = false; // particle survived, do not force return of step
+      returnLastStep          = false; // particle survived, do not force return of step
+      currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         currentTrack.leaked = true;
         auto success        = leakedQueue->push_back(slot);
@@ -337,9 +339,10 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // particle survived, do not force return of step
-      if (leak) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+      returnLastStep          = false; // particle survived, do not force return of step
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in gammas leaks queue.\n\
@@ -347,8 +350,9 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
@@ -536,9 +540,10 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // particle survived, do not force return of step
-      if (leak) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+      returnLastStep          = false; // particle survived, do not force return of step
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in gammas leaks queue.\n\
@@ -546,8 +551,9 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
@@ -662,9 +668,10 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // particle survived, do not force return of step
-      if (leak) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+      returnLastStep          = false; // particle survived, do not force return of step
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in gammas leaks queue.\n\
@@ -672,8 +679,9 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
@@ -784,9 +792,10 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
-    auto survive = [&](bool leak = false) {
-      returnLastStep = false; // particle survived, do not force return of step
-      if (leak) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+      returnLastStep          = false; // particle survived, do not force return of step
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in gammas leaks queue.\n\
@@ -794,8 +803,9 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];

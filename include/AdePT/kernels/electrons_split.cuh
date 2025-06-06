@@ -90,6 +90,7 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
+      currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
@@ -405,6 +406,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
+      currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
@@ -653,12 +655,13 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
-    auto survive = [&](bool leak = false) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak) {
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
@@ -666,8 +669,9 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     // Retrieve HepEM track
@@ -916,12 +920,13 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
-    auto survive = [&](bool leak = false) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak) {
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
@@ -929,8 +934,9 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     // Retrieve HepEM track
@@ -1039,12 +1045,13 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
-    auto survive = [&](bool leak = false) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak) {
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
@@ -1052,8 +1059,9 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     // Retrieve HepEM track
@@ -1163,12 +1171,13 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
-    auto survive = [&](bool leak = false) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak) {
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
@@ -1176,8 +1185,9 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     // Retrieve HepEM track
@@ -1281,12 +1291,13 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
-    auto survive = [&](bool leak = false) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak) {
+      currentTrack.leakStatus = leakReason;
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
@@ -1294,8 +1305,9 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
     };
 
     // Retrieve HepEM track
