@@ -699,22 +699,25 @@ namespace adept_scoring {
 
 /// @brief Record a hit
 template <>
-__device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId, char aParticleType,
-                          double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::Vector3D<Precision> const &aVertexPosition,
+__device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aTrackID, uint64_t aParentID,
+                          short creatorProcessId, short stepLimitingProcessId, char aParticleType, double aStepLength,
+                          double aTotalEnergyDeposit, float aTrackWeight,
+                          vecgeom::Vector3D<Precision> const &aVertexPosition,
                           vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, double aGlobalTime, unsigned int eventID, short threadID, bool isLastStep,
-                          bool isFirstStep)
+                          double aPostCharge, double aGlobalTime, double aLocalTime, unsigned int eventID,
+                          short threadID, bool isLastStep, bool isFirstStep)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
 
   // Fill the required data
-  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight, aVertexPosition, aPreState, aPrePosition,
-          aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
-          aPostCharge, aGlobalTime, eventID, threadID, isLastStep, isLastStep);
+  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, stepLimitingProcessId, aParticleType, aStepLength,
+          aTotalEnergyDeposit, aTrackWeight, aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin,
+          aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin, aPostCharge, aGlobalTime,
+          aLocalTime, eventID, threadID, isLastStep, isLastStep);
 }
 
 /// @brief Account for the number of produced secondaries

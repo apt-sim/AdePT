@@ -17,14 +17,16 @@ template <typename Scoring>
 void FreeGPU(Scoring *scoring, Scoring *scoring_dev);
 
 template <typename Scoring>
-__device__ void RecordHit(Scoring *scoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, float aTrackWeight, vecgeom::Vector3D<Precision> const &aVertexPosition, vecgeom::NavigationState const &aPreState,
-                          vecgeom::Vector3D<Precision> const &aPrePosition,
+__device__ void RecordHit(Scoring *scoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId,
+                          short stepLimitingProcessId, char aParticleType, double aStepLength,
+                          double aTotalEnergyDeposit, float aTrackWeight,
+                          vecgeom::Vector3D<Precision> const &aVertexPosition,
+                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, double aGlobalTime, unsigned int eventId, short threadId, bool isLastStep,
-                          bool isFirstStep);
+                          double aPostCharge, double aGlobalTime, double aLocalTime, unsigned int eventId,
+                          short threadId, bool isLastStep, bool isFirstStep);
 
 template <typename Scoring>
 __device__ void AccountProduced(Scoring *scoring_dev, int num_ele, int num_pos, int num_gam);

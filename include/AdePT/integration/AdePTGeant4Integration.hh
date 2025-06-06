@@ -30,7 +30,10 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
-  explicit AdePTGeant4Integration(G4HepEmTrackingManagerSpecialized *hepEmTM) : fHepEmTrackingManager(hepEmTM), fTrackIDMapper(std::make_unique<TrackIDMapper>()) {}
+  explicit AdePTGeant4Integration(G4HepEmTrackingManagerSpecialized *hepEmTM)
+      : fHepEmTrackingManager(hepEmTM), fTrackIDMapper(std::make_unique<TrackIDMapper>())
+  {
+  }
   ~AdePTGeant4Integration();
 
   AdePTGeant4Integration(const AdePTGeant4Integration &)            = delete;
@@ -85,19 +88,20 @@ public:
 
   int GetThreadID() const { return G4Threading::G4GetThreadId(); }
 
-  TrackIDMapper& GetTrackIDMapper() { return *fTrackIDMapper; }
+  TrackIDMapper &GetTrackIDMapper() { return *fTrackIDMapper; }
 
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
   void FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory &aG4NavigationHistory) const;
 
   void FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
-                  G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
-                  G4StepStatus aPostStepStatus, bool callUserTrackingAction, bool callUserSteppingAction) const;
+                  G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus,
+                  bool callUserTrackingAction, bool callUserSteppingAction) const;
 
   void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel) const;
 
-  std::unique_ptr<TrackIDMapper> fTrackIDMapper; // helper class to map from G4's int track IDs to AdePT's uint64 track IDs
+  std::unique_ptr<TrackIDMapper>
+      fTrackIDMapper; // helper class to map from G4's int track IDs to AdePT's uint64 track IDs
 
   static std::vector<G4VPhysicalVolume const *> fglobal_vecgeom_pv_to_g4_map;
   static std::vector<G4LogicalVolume const *> fglobal_vecgeom_lv_to_g4_map;

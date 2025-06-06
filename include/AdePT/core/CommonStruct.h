@@ -92,9 +92,10 @@ struct TrackDataWithIDs : public adeptint::TrackData {
   unsigned int eventId{0};
   short threadId{-1};
 
-  TrackDataWithIDs(int pdg_id, uint64_t trackId, uint64_t parentId, short creatorProcessId, double ene, double vertexEne, double x, double y, double z, double dirx,
-                   double diry, double dirz, double vertexX, double vertexY, double vertexZ, double vertexDirx,
-                   double vertexDiry, double vertexDirz, double gTime, double lTime, double pTime, float weight,
+  TrackDataWithIDs(int pdg_id, uint64_t trackId, uint64_t parentId, short creatorProcessId, double ene,
+                   double vertexEne, double x, double y, double z, double dirx, double diry, double dirz,
+                   double vertexX, double vertexY, double vertexZ, double vertexDirx, double vertexDiry,
+                   double vertexDirz, double gTime, double lTime, double pTime, float weight,
                    vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState, unsigned int eventId = 0,
                    short threadId = -1)
       : TrackData{pdg_id,

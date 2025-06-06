@@ -246,13 +246,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // as now the nextState is defined, but the navState is not yet replaced
         if (returnAllSteps)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,                        // Track ID
-                                   currentTrack.parentId,                       // parent Track ID
+                                   currentTrack.trackId,  // Track ID
+                                   currentTrack.parentId, // parent Track ID
                                    currentTrack.creatorProcessId,
-                                   2,                                           // Particle type
-                                   geometryStepLength,                          // Step length
-                                   0,                                           // Total Edep
-                                   currentTrack.weight,                         // Track weight
+                                   2,                   // Particle type
+                                   geometryStepLength,  // Step length
+                                   0,                   // Total Edep
+                                   currentTrack.weight, // Track weight
                                    currentTrack.vertexPosition,
                                    navState,                                    // Pre-step point navstate
                                    preStepPos,                                  // Pre-step point position
@@ -265,6 +265,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    eKin,                                        // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
                                    globalTime,                                  // global time
+                                   localTime,                                   // local time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep,
                                    currentTrack.stepCounter == 1 ? true
@@ -304,13 +305,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // particle has left the world, record hit if last or all steps are returned
         if (returnAllSteps || returnLastStep)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,                        // Track ID
-                                   currentTrack.parentId,                       // parent Track ID
+                                   currentTrack.trackId,  // Track ID
+                                   currentTrack.parentId, // parent Track ID
                                    currentTrack.creatorProcessId,
-                                   2,                                           // Particle type
-                                   geometryStepLength,                          // Step length
-                                   0,                                           // Total Edep
-                                   currentTrack.weight,                         // Track weight
+                                   2,                   // Particle type
+                                   geometryStepLength,  // Step length
+                                   0,                   // Total Edep
+                                   currentTrack.weight, // Track weight
                                    currentTrack.vertexPosition,
                                    navState,                                    // Pre-step point navstate
                                    preStepPos,                                  // Pre-step point position
@@ -323,6 +324,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    eKin,                                        // Post-step point kinetic energy
                                    0,                                           // Post-step point charge
                                    globalTime,                                  // global time
+                                   localTime,                                   // local time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep, // whether this is the last step of the track
                                    currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
@@ -457,8 +459,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
 #ifdef ASYNC_MODE
-        Track &electron = secondaries.electrons.NextTrack(
-            newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime, short(winnerProcessIndex));
+        Track &electron =
+            secondaries.electrons.NextTrack(newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState,
+                                            currentTrack, globalTime, short(winnerProcessIndex));
 #else
         Track &electron = secondaries.electrons->NextTrack();
 
@@ -552,13 +555,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
-                               currentTrack.parentId,                       // parent Track ID
+                               currentTrack.trackId,  // Track ID
+                               currentTrack.parentId, // parent Track ID
                                currentTrack.creatorProcessId,
-                               2,                                           // Particle type
-                               geometryStepLength,                          // Step length
-                               edep,                                        // Total Edep
-                               currentTrack.weight,                         // Track weight
+                               2,                   // Particle type
+                               geometryStepLength,  // Step length
+                               edep,                // Total Edep
+                               currentTrack.weight, // Track weight
                                currentTrack.vertexPosition,
                                navState,                                    // Pre-step point navstate
                                preStepPos,                                  // Pre-step point position
@@ -571,6 +574,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                newEnergyGamma,                              // Post-step point kinetic energy
                                0,                                           // Post-step point charge
                                globalTime,                                  // global time
+                               localTime,                                   // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                returnLastStep, // whether this is the last step of the track
                                currentTrack.stepCounter == 1 ? true : false); // whether this is the first step

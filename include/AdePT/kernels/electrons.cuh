@@ -804,13 +804,15 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           RanluxppDouble newRNG2(currentTrack.rngState.Branch());
 
 #ifdef ASYNC_MODE
-          Track &gamma1 = secondaries.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
-                                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
-                                                       navState, currentTrack, globalTime, /*CreatorProcessId*/ short(2));
+          Track &gamma1 =
+              secondaries.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
+                                           vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost}, navState,
+                                           currentTrack, globalTime, /*CreatorProcessId*/ short(2));
 
           // Reuse the RNG state of the dying track.
           Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                       pos, -gamma1.dir, navState, currentTrack, globalTime, /*CreatorProcessId*/ short(2));
+                                                       pos, -gamma1.dir, navState, currentTrack, globalTime,
+                                                       /*CreatorProcessId*/ short(2));
 #else
           Track &gamma1 = secondaries.gammas->NextTrack();
           Track &gamma2 = secondaries.gammas->NextTrack();
@@ -846,7 +848,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
-                               currentTrack.vertexPosition,
+                               currentTrack.vertexPosition,                   // vertex position
                                navState,                                      // Pre-step point navstate
                                preStepPos,                                    // Pre-step point position
                                preStepDir,                                    // Pre-step point momentum direction
@@ -858,6 +860,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                eKin,                                          // Post-step point kinetic energy
                                IsElectron ? -1 : 1,                           // Post-step point charge
                                globalTime,                                    // global time
+                               localTime,                                     // local time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
                                returnLastStep,                                // whether this was the last step
                                currentTrack.stepCounter == 1 ? true : false); // whether this was the first step

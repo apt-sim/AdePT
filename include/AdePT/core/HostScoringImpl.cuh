@@ -149,21 +149,24 @@ void FreeGPU(HostScoring *hostScoring, HostScoring *hostScoring_dev)
 
 /// @brief Record a hit
 template <>
-__device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, float aTrackWeight, vecgeom::Vector3D<Precision> const &aVertexPosition, vecgeom::NavigationState const &aPreState,
-                          vecgeom::Vector3D<Precision> const &aPrePosition,
+__device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId,
+                          short stepLimitingProcessId, char aParticleType, double aStepLength,
+                          double aTotalEnergyDeposit, float aTrackWeight,
+                          vecgeom::Vector3D<Precision> const &aVertexPosition,
+                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, double aGlobalTime, unsigned int, short, bool, bool)
+                          double aPostCharge, double aGlobalTime, double aLocalTime, unsigned int, short, bool, bool)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = *GetNextFreeHit(hostScoring_dev);
 
   // Fill the required data
-  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight, aVertexPosition, aPreState, aPrePosition,
-          aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
-          aPostCharge, aGlobalTime, 0, 0, false, false);
+  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, stepLimitingProcessId, aParticleType, aStepLength,
+          aTotalEnergyDeposit, aTrackWeight, aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin,
+          aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin, aPostCharge, aGlobalTime,
+          aLocalTime, 0, 0, false, false);
 }
 
 /// @brief Account for the number of produced secondaries

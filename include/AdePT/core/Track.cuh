@@ -59,10 +59,11 @@ struct Track {
   long hitsurfID{0};
 #endif
 
-  uint64_t trackId{0}; ///< track id (non-consecutive, reproducible)
+  uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
   uint64_t parentId{0}; // track id of the parent
 
-  short creatorProcessId{-1};
+  short creatorProcessId{
+      -1}; // if -1, the creatorProcess needs to be looked up in the map on CPU, else it is a valid process
   unsigned int eventId{0};
   short threadId{-1};
   unsigned short stepCounter{0};
@@ -87,11 +88,11 @@ struct Track {
   /// NB: The navState remains uninitialised.
   __device__ Track(uint64_t rngSeed, double eKin, double vertexEkin, double globalTime, float localTime,
                    float properTime, float weight, double const position[3], double const direction[3],
-                   double const vertexPos[3], double const vertexDir[3], unsigned int eventId, uint64_t trackId, uint64_t parentId,
-                   short creatorProcessId, short threadId)
+                   double const vertexPos[3], double const vertexDir[3], unsigned int eventId, uint64_t trackId,
+                   uint64_t parentId, short creatorProcessId, short threadId)
       : eKin{eKin}, vertexEkin{vertexEkin}, weight{weight}, globalTime{globalTime}, localTime{localTime},
-        properTime{properTime}, eventId{eventId}, trackId{trackId}, parentId{parentId}, creatorProcessId{creatorProcessId}, threadId{threadId}, stepCounter{0},
-        looperCounter{0}, zeroStepCounter{0}
+        properTime{properTime}, eventId{eventId}, trackId{trackId}, parentId{parentId},
+        creatorProcessId{creatorProcessId}, threadId{threadId}, stepCounter{0}, looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
     id                      = rngState.IntRndm();
