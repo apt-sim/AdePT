@@ -47,7 +47,6 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
   RegisterPhysics(new AdePTPhysics(ver));
 
   // Synchroton Radiation & GN Physics
-  // comenting out to remove gamma- and lepto-nuclear processes
   RegisterPhysics(new G4EmExtraPhysics(ver));
 
   // Decays
