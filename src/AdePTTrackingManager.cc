@@ -271,8 +271,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
                 "fAdeptTransport is not of type AsyncAdePTTransport<AdePTGeant4Integration>");
   }
   auto &trackIDMapper = asyncTransport->GetIntegrationLayer(threadId).GetTrackIDMapper();
-  // new event detected reset trackIDMapper
-  if (fCurrentEventID != eventID) trackIDMapper.reset();
+
+  if (fCurrentEventID != eventID) trackIDMapper.beginEvent(eventID);
 
   // new event detected, reset
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) >= 0 &&
@@ -299,16 +299,19 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // If the track is in a GPU region, hand it over to AdePT
 
       // generate uint64_t track ids for the GPU
-      uint64_t gpuTrackID = trackIDMapper.registerG4Track(aTrack->GetTrackID(), eventID);
-      uint64_t gpuParentID =
-          (aTrack->GetParentID() >= 0) ? trackIDMapper.registerG4Track(aTrack->GetParentID(), eventID) : 0;
+      auto hostTrackData  = trackIDMapper.getOrCreate(static_cast<uint64_t>(aTrack->GetTrackID()), /*useNewId=*/false);
+      uint64_t gpuTrackID = hostTrackData.gpuId;
+      hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
+      hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
+      hostTrackData.userTrackInfo  = aTrack->GetUserInformation();
+      // registerG4Track(aTrack->GetTrackID(), eventID,
+      //                                                     aTrack->GetDynamicParticle()->GetPrimaryParticle(),
+      //                                                     const_cast<G4VProcess *>(aTrack->GetCreatorProcess()),
+      //                                                     aTrack->GetUserInformation());
+      uint64_t gpuParentID = static_cast<uint64_t>(aTrack->GetParentID());
+      // (aTrack->GetParentID() >= 0) ? trackIDMapper.registerG4Track(aTrack->GetParentID(), eventID) : 0;
 
-      // set primary
-      G4PrimaryParticle *prim = aTrack->GetDynamicParticle()->GetPrimaryParticle();
-      trackIDMapper.setPrimaryForG4ID(aTrack->GetTrackID(), prim);
-      trackIDMapper.setCreatorProcessForG4ID(aTrack->GetTrackID(),
-                                             const_cast<G4VProcess *>(aTrack->GetCreatorProcess()));
-      short creatorProcessId = -1; //
+      short creatorProcessId = -1; // -1 for tracks that come from G4 directly and are not created by AdePT
 
       auto particlePosition  = aTrack->GetPosition();
       auto particleDirection = aTrack->GetMomentumDirection();
@@ -334,16 +337,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         // so we need to use the track's current position
         // If the vertex is not in a GPU region, the origin touchable handle will be set by the HepEmTrackingManager
         convertedOrigin = GetVecGeomFromG4State(*aTrack->GetTouchable()->GetHistory());
-
-        // if (hit.fFirstStepOfTrack && callUserTrackingAction && fScoringObjects->fG4Step->GetTrack()->GetParentID()
-        // !=0 ) {
-        auto *userTrackingAction = eventManager->GetUserTrackingAction();
-        if (userTrackingAction) {
-          userTrackingAction->PreUserTrackingAction(aTrack);
-        }
-        // }
-        // PreTrackingAction attaches UserInformation, add it to map.
-        trackIDMapper.setUserTrackInfoForG4ID(aTrack->GetTrackID(), aTrack->GetUserInformation());
 
       } else {
         // For secondary tracks, the origin touchable handle is set when they are stacked

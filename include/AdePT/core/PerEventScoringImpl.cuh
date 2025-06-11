@@ -700,9 +700,8 @@ namespace adept_scoring {
 /// @brief Record a hit
 template <>
 __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aTrackID, uint64_t aParentID,
-                          short creatorProcessId, short stepLimitingProcessId, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, float aTrackWeight,
-                          vecgeom::Vector3D<Precision> const &aVertexPosition,
+                          short creatorProcessId, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
+                          float aTrackWeight, vecgeom::Vector3D<Precision> const &aVertexPosition,
                           vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
@@ -714,10 +713,10 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
   GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
 
   // Fill the required data
-  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, stepLimitingProcessId, aParticleType, aStepLength,
-          aTotalEnergyDeposit, aTrackWeight, aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin,
-          aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin, aPostCharge, aGlobalTime,
-          aLocalTime, eventID, threadID, isLastStep, isLastStep);
+  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
+          aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPreCharge, aPostState,
+          aPostPosition, aPostMomentumDirection, aPostEKin, aPostCharge, aGlobalTime, aLocalTime, eventID, threadID,
+          isLastStep, isLastStep);
 }
 
 /// @brief Account for the number of produced secondaries
