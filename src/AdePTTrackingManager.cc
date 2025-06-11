@@ -19,10 +19,11 @@
 #include <algorithm>
 
 #ifdef ASYNC_MODE
-std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmConfig *hepEmConfig)
+std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf,
+                                                          G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
   static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> AdePT{
-      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmConfig)};
+      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmTM)};
   return AdePT;
 }
 #endif
@@ -86,9 +87,10 @@ void AdePTTrackingManager::InitializeAdePT()
 // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
 // all threads.
 #ifdef ASYNC_MODE
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
+    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
 #else
-    fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+    fAdeptTransport =
+        std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
@@ -113,10 +115,15 @@ void AdePTTrackingManager::InitializeAdePT()
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
 #ifdef ASYNC_MODE
-  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
+  // the first G4 worker has already initialized the GPU worker, the other G4 workers need to get their shared pointer
+  // here and need to initialize the integration layer with their own G4HepEmTracking manager (this is required for
+  // nuclear processes)
+  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
+  fAdeptTransport->SetIntegrationLayerForThread(tid, fHepEmTrackingManager.get());
 #else
   if (!sequential) { // if sequential, the instance is already created
-    fAdeptTransport = std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration);
+    fAdeptTransport =
+        std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
   }
   // Initialize per-thread data
   fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());

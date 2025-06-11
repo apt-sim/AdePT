@@ -15,6 +15,7 @@
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/magneticfield/GeneralMagneticField.h>
 #include <AdePT/magneticfield/UniformMagneticField.h>
+#include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
@@ -33,7 +34,7 @@ public:
   using TrackBuffer                = adeptint::TrackBuffer;
   using VolAuxArray                = adeptint::VolAuxArray;
 
-  AdePTTransport(AdePTConfiguration &configuration);
+  AdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);
 
   ~AdePTTransport() { delete fScoring; }
 
@@ -86,6 +87,10 @@ public:
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   void Shower(int event, int threadId);
   void ProcessGPUSteps(int, int) {};
+  /// @brief Setup function used only in async AdePT
+  /// @param threadId thread Id
+  /// @param hepEmTM specialized G4HepEmTrackingManager
+  void SetIntegrationLayerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM) override {};
 
 private:
   static inline G4HepEmState *fg4hepem_state{nullptr}; ///< The HepEm state singleton

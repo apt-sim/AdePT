@@ -160,7 +160,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       continue;
     }
 
-    auto survive = [&](bool leak = false) {
+    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       returnLastStep          = false; // track survived, do not force return of step
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
@@ -169,11 +169,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
       currentTrack.navState   = navState;
+      currentTrack.leakStatus = leakReason;
 #ifdef ASYNC_MODE
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
-      if (leak) {
+      if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
@@ -181,14 +182,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
-      } else
+      } else {
         nextActiveQueue->push_back(slot);
+      }
 #else
       currentTrack.CopyTo(trackdata, Pdg);
-      if (leak)
+      if (leakReason != LeakStatus::NoLeak) {
         leakedQueue->push_back(trackdata);
-      else
+      } else {
         electrons->fNextTracks->push_back(slot);
+      }
 #endif
     };
 
@@ -199,7 +202,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
                currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
                currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-      survive(/*leak*/ true);
+      survive(LeakStatus::FinishEventOnCPU);
       continue;
     }
 #endif
@@ -230,7 +233,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       if (numIALeft <= 0) {
         numIALeft = -std::log(currentTrack.Uniform());
       }
-      if (ip == 3) numIALeft = vecgeom::kInfLength; // suppress lepton nuclear by infinite length
       theTrack->SetNumIALeft(numIALeft, ip);
     }
 
@@ -329,12 +331,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
     // also need to carry them over!
-
-    // Skip electron/positron-nuclear reaction that would need to be handled by G4 itself
-    if (winnerProcessIndex == 3) {
-      winnerProcessIndex = -1;
-      // Note, this should not be hit at the moment due to the infinite length, this is just for safety
-    }
 
     // Check if there's a volume boundary in between.
     bool propagated    = true;
@@ -626,9 +622,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
           if (eKin < g4HepEmPars.fElectronTrackingCut) {
-            if (IsElectron) {
-              energyDeposit += eKin;
-            }
+            energyDeposit += eKin;
             stopped = true;
 #if ADEPT_DEBUG_TRACK > 0
             if (verbose) printf("\n| STOPPED by tracking cut\n");
@@ -686,9 +680,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
           if (eKin < g4HepEmPars.fElectronTrackingCut) {
-            if (IsElectron) {
-              energyDeposit += eKin;
-            }
+            energyDeposit += eKin;
             stopped = true;
 #if ADEPT_DEBUG_TRACK > 0
             if (verbose) printf("\n| STOPPED by tracking cut\n");
@@ -768,6 +760,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
           slotManager.MarkSlotForFreeing(slot);
 #endif
+          break;
+        }
+        case 3: {
+          // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
+          survive(LeakStatus::LeptonNuclear);
           break;
         }
         }
@@ -879,7 +876,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         if (verbose) printf("\n| track leaked to Geant4\n");
 #endif
 
-        survive(/*leak*/ true);
+        survive(LeakStatus::OutOfGPURegion);
       }
     }
   }

@@ -80,6 +80,8 @@ struct Track {
   bool leaked{false};
 #endif
 
+  LeakStatus leakStatus{LeakStatus::NoLeak};
+
   /// Construct a new track for GPU transport.
   /// NB: The navState remains uninitialised.
   __device__ Track(uint64_t rngSeed, double eKin, double vertexEkin, double globalTime, float localTime,
@@ -96,6 +98,7 @@ struct Track {
     dir                     = {direction[0], direction[1], direction[2]};
     vertexPosition          = {vertexPos[0], vertexPos[1], vertexPos[2]};
     vertexMomentumDirection = {vertexDir[0], vertexDir[1], vertexDir[2]};
+    leakStatus              = LeakStatus::NoLeak;
   }
 
   /// Construct a secondary from a parent track.
@@ -107,7 +110,7 @@ struct Track {
         navState{newNavState}, originNavState{newNavState}, id{rng_state.IntRndmNoAdvance()},
         eventId{parentTrack.eventId}, parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin},
         weight{parentTrack.weight}, vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0},
-        looperCounter{0}, zeroStepCounter{0}
+        looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
   }
 
@@ -188,6 +191,8 @@ struct Track {
     this->stepCounter     = 0;
     this->looperCounter   = 0;
     this->zeroStepCounter = 0;
+
+    this->leakStatus = LeakStatus::NoLeak;
   }
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
@@ -214,6 +219,7 @@ struct Track {
     tdata.originNavState             = originNavState;
     tdata.vertexEkin                 = vertexEkin;
     tdata.weight                     = weight;
+    tdata.leakStatus                 = leakStatus;
   }
 };
 #endif

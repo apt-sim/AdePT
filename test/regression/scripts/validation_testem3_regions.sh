@@ -55,7 +55,7 @@ $ADEPT_EXECUTABLE --do_validation --allsensitive --accumulated_events \
 
 # Validating the relative error per layer
 $CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_2.5e4_e-.csv \
-                                                --file2 ${CI_TEST_DIR}/benchmark_files/g4_em3_10e6_e-.csv \
-                                                --n1 2.5e4 --n2 1e6 --tol 0.01 \
+                                                --file2 ${CI_TEST_DIR}/benchmark_files/g4hepem_em3_10e7_e-.csv \
+                                                --n1 2.5e4 --n2 1e7 --tol 0.01 \
                                                 # --plot_file plot.png # uncomment to plot the validation plot
 

@@ -24,7 +24,7 @@ cleanup() {
 }
 
 # register cleanup to be called on exit
-# trap cleanup EXIT
+trap cleanup EXIT
 # called it directly ensure clean environment
 cleanup
 
