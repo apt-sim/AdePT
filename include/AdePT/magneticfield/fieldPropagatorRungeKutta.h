@@ -260,8 +260,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| BACK-SCATTERING detected\n");
 #endif
-        position += (kPush + Navigator_t::kBoundaryPush) * direction;
-        return (kPush + Navigator_t::kBoundaryPush);
+        return 0.;
       }
 
       // Reduce the step attempted in the next iteration to navigate around
