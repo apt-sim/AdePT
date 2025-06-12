@@ -105,7 +105,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
     int indx, bool verbose)
 {
   Real_t stepDone = 0.0;         ///< step already done
-  Real_t remains  = physicsStep; ///< reminder of the step to be done
+  Real_t remains  = physicsStep; ///< remainder of the step to be done
   constexpr bool inZeroFieldRegion =
       false; // This could be a per-region flag ... - better depend on template parameter?
   if (inZeroFieldRegion) {
@@ -167,7 +167,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
     const Real_t safeArc = min(remains, maxNextSafeMove);
 
-    Real_t dydx_end[Nvar]; // not used at the moment, but could be used for FSAL between cord integrations
+    Real_t dydx_end[Nvar]; // not re-used at the moment, but could be used for FSAL between cord integrations
                            // Integrate the step.
     /*bool done = */
     RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, last_good_step, kMaxTrials,
@@ -205,7 +205,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       if (newSafety > chordLen) {
         // The recomputed safety was actually larger than the chord -> safe step
         move = chordLen;
-        // update safety with the computed one BEFORE the arc sdvance
+        // update safety with the computed one BEFORE the arc advance
         safetyOrigin = position;
         safety       = newSafety;
       } else {
@@ -302,10 +302,12 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       // as the reduction of the full chord due to the boundary crossing.
 #else
       // Alternative approximation of end position & direction -- calling RK again
-      //  Better accuracy (e.g. for comparipropagated the moment, but could be used for FSAL between cord integrations
-      bool done = RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, /*max_trials=*/30);
+      //  Better accuracy (e.g. for comparing with Helix) but the point will not be on the surface !!
+      // bool done = 
+      RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, /*max_trials=*/30);
 
-      direction = inv_momentumMag * momentumVec; // momentumVec.Unit();
+      direction = inv_momentumMag * momentumVec; // requires re-normalization after Advance
+      direction.Normalize();
 #endif
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose) printf("| linear step to crossing point %g ", move);
