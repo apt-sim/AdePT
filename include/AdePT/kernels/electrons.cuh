@@ -149,7 +149,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     const char *pname[2] = {"e+", "e-"};
     if (gTrackDebug.active) {
       verbose = currentTrack.Matches(gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
-      if (verbose) currentTrack.Print(pname[IsElectron]);
+      if (verbose) {
+        currentTrack.Print(pname[IsElectron]);
+      }
     }
     printErrors = !gTrackDebug.active || verbose;
 #endif
@@ -583,7 +585,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                  : G4HepEmElectronInteractionIoni::SampleETransferBhabha(theElCut, eKin, &rnge);
 
 #if ADEPT_DEBUG_TRACK > 0
-          if (verbose) printf("| IONIZATION: deltaEkin %g ", deltaEkin);
+          if (verbose) printf("| IONIZATION: deltaEkin %g \n", deltaEkin);
 #endif
 
           double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
@@ -598,7 +600,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += deltaEkin;
 
 #if ADEPT_DEBUG_TRACK > 0
-            if (verbose) printf("| secondary killed by cut ");
+            if (verbose) printf("| secondary killed by cut \n");
 #endif
 
           } else {
@@ -625,7 +627,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += eKin;
             stopped = true;
 #if ADEPT_DEBUG_TRACK > 0
-            if (verbose) printf("\n| STOPPED by tracking cut\n");
+            if (verbose) printf("| STOPPED by tracking cut\n");
 #endif
             break;
           }
@@ -649,14 +651,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 #if ADEPT_DEBUG_TRACK > 0
-          if (verbose) printf("| BREMSSTRAHLUNG: deltaEkin %g ", deltaEkin);
+          if (verbose) printf("| BREMSSTRAHLUNG: deltaEkin %g \n", deltaEkin);
 #endif
           // Apply cuts
           if (ApplyCuts && (deltaEkin < theGammaCut)) {
             // Deposit the energy here and kill the secondary
             energyDeposit += deltaEkin;
 #if ADEPT_DEBUG_TRACK > 0
-            if (verbose) printf("| secondary killed by cut ");
+            if (verbose) printf("| secondary killed by cut \n");
 #endif
           } else {
 #ifdef ASYNC_MODE
@@ -683,7 +685,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += eKin;
             stopped = true;
 #if ADEPT_DEBUG_TRACK > 0
-            if (verbose) printf("\n| STOPPED by tracking cut\n");
+            if (verbose) printf("| STOPPED by tracking cut\n");
 #endif
             break;
           }
