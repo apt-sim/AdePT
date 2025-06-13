@@ -303,7 +303,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 #else
       // Alternative approximation of end position & direction -- calling RK again
       //  Better accuracy (e.g. for comparing with Helix) but the point will not be on the surface !!
-      // bool done = 
+      // bool done =
       RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, /*max_trials=*/30);
 
       direction = inv_momentumMag * momentumVec; // requires re-normalization after Advance
