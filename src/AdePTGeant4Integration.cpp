@@ -503,36 +503,29 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     g4ParentID               = hostTrackInfoParent.g4id;
   }
   auto g4TrackID = hostTrackInfo.g4id;
-  // auto [g4TrackID, hostTrackInfo] = fTrackIDMapper->mapGpuToG4Data(aGPUHit->fTrackID);
-  // // int g4TrackID  = fTrackIDMapper->mapGpuToG4(aGPUHit->fTrackID);
-  // int g4ParentID = (aGPUHit->fParentID != 0) ? fTrackIDMapper->mapGpuToG4(aGPUHit->fParentID) : 0;
 
   G4Track *aTrack = aG4Step->GetTrack();
 
+  // set creator process
   if (aGPUHit->fCreatorProcessID == -1) {
     aTrack->SetCreatorProcess(hostTrackInfo.creatorProcess);
   } else {
     const G4ParticleDefinition *part = aTrack->GetParticleDefinition();
     if (part == G4Electron::Definition() || part == G4Positron::Definition()) {
       aTrack->SetCreatorProcess(fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID]);
-      // fTrackIDMapper->setCreatorProcessForG4ID(g4TrackID,
-      // fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID]);
       hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID];
     } else if (part == G4Gamma::Definition()) {
       aTrack->SetCreatorProcess(fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID]);
-      // fTrackIDMapper->setCreatorProcessForG4ID(g4TrackID,
-      // fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID]);
       hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID];
     }
   }
 
-  // G4DynamicParticle* dynamicParticle = aTrack->GetDynamicParticle();
   // must const-cast as GetDynamicParticle only returns const
   G4DynamicParticle *dynamicParticle = const_cast<G4DynamicParticle *>(aTrack->GetDynamicParticle());
-  // dynamicParticle->SetPrimaryParticle(hostTrackInfo.primary);
+  dynamicParticle->SetPrimaryParticle(hostTrackInfo.primary);
 
-  // aTrack->SetTrackID(g4TrackID);               // Missing data
-  // aTrack->SetParentID(g4ParentID);             // ID of the initial particle that entered AdePT
+  aTrack->SetTrackID(g4TrackID);               // Real data
+  aTrack->SetParentID(g4ParentID);             // ID of the initial particle that entered AdePT
   aTrack->SetPosition(aPostStepPointPosition); // Real data
   aTrack->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
   aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
@@ -558,7 +551,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // aTrack->SetParentResonanceID(0);                                                         // Missing data
   aTrack->SetWeight(aGPUHit->fTrackWeight);
   // if it exists, add UserTrackInfo
-  // aTrack->SetUserInformation(hostTrackInfo.userTrackInfo); // Real data for primaries
+  aTrack->SetUserInformation(hostTrackInfo.userTrackInfo); // Real data
   // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
 
   // Pre-Step Point
@@ -622,12 +615,11 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     if (userTrackingAction) {
       userTrackingAction->PreUserTrackingAction(aTrack);
 
-      // To do, if userTrackInfo didn't exist before but exists now, update the map as a new TrackInfo was attached for
+      // if userTrackInfo didn't exist before but exists now, update the map as a new TrackInfo was attached for
       // the first time
-      // if (hostTrackInfo.userTrackInfo == nullptr && aTrack->GetUserInformation() != nullptr) {
-      //   hostTrackInfo.userTrackInfo = aTrack->GetUserInformation();
-      // fTrackIDMapper->setUserTrackInfoForG4ID(g4TrackID, aTrack->GetUserInformation());
-      // }
+      if (hostTrackInfo.userTrackInfo == nullptr && aTrack->GetUserInformation() != nullptr) {
+        hostTrackInfo.userTrackInfo = aTrack->GetUserInformation();
+      }
     }
   }
 
@@ -643,6 +635,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(aTrack);
   }
+
+  // optional to test performance improvement, remove dead tracks from storage
+  // if (aGPUHit->fLastStepOfTrack) fTrackIDMapper->removeTrack( aGPUHit->fTrackID);
 }
 
 void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex,

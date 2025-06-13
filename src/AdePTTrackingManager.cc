@@ -304,12 +304,11 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
       hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
       hostTrackData.userTrackInfo  = aTrack->GetUserInformation();
-      // registerG4Track(aTrack->GetTrackID(), eventID,
-      //                                                     aTrack->GetDynamicParticle()->GetPrimaryParticle(),
-      //                                                     const_cast<G4VProcess *>(aTrack->GetCreatorProcess()),
-      //                                                     aTrack->GetUserInformation());
+
       uint64_t gpuParentID = static_cast<uint64_t>(aTrack->GetParentID());
-      // (aTrack->GetParentID() >= 0) ? trackIDMapper.registerG4Track(aTrack->GetParentID(), eventID) : 0;
+      if (aTrack->GetParentID() > 0) {
+        trackIDMapper.getOrCreate(gpuParentID, /*useNewId=*/false);
+      }
 
       short creatorProcessId = -1; // -1 for tracks that come from G4 directly and are not created by AdePT
 
