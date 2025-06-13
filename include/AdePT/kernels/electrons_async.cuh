@@ -286,13 +286,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                &preStepDir,                           // Pre-step point momentum direction
                                nullptr,                               // Pre-step point polarization
                                preStepEnergy,                         // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                   // Pre-step point charge
                                &nextState,                            // Post-step point navstate
                                &pos,                                  // Post-step point position
                                &dir,                                  // Post-step point momentum direction
                                nullptr,                               // Post-step point polarization
                                eKin,                                  // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                   // Post-step point charge
                                currentTrack.eventId, currentTrack.threadId);
 
     // Save the `number-of-interaction-left` in our track.

@@ -507,12 +507,10 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
                                  currentTrack.preStepPos,                       // Pre-step point position
                                  currentTrack.preStepDir,                       // Pre-step point momentum direction
                                  currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                                 IsElectron ? -1 : 1,                           // Pre-step point charge
                                  currentTrack.nextState,                        // Post-step point navstate
                                  currentTrack.pos,                              // Post-step point position
                                  currentTrack.dir,                              // Post-step point momentum direction
                                  currentTrack.eKin,                             // Post-step point kinetic energy
-                                 IsElectron ? -1 : 1,                           // Post-step point charge
                                  currentTrack.globalTime,                       // global time
                                  currentTrack.localTime,                        // local time
                                  currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
@@ -945,12 +943,10 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
                                currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Pre-step point charge
                                currentTrack.nextState,                        // Post-step point navstate
                                currentTrack.pos,                              // Post-step point position
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Post-step point charge
                                currentTrack.globalTime,                       // global time
                                currentTrack.localTime,                        // local time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
@@ -1071,12 +1067,10 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
                                currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Pre-step point charge
                                currentTrack.nextState,                        // Post-step point navstate
                                currentTrack.pos,                              // Post-step point position
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Post-step point charge
                                currentTrack.globalTime,                       // global time
                                currentTrack.localTime,                        // local time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
@@ -1199,12 +1193,10 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
                                currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Pre-step point charge
                                currentTrack.nextState,                        // Post-step point navstate
                                currentTrack.pos,                              // Post-step point position
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Post-step point charge
                                currentTrack.globalTime,                       // global time
                                currentTrack.localTime,                        // local time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
@@ -1322,12 +1314,10 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
                                currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               1,                                             // Pre-step point charge
                                currentTrack.nextState,                        // Post-step point navstate
                                currentTrack.pos,                              // Post-step point position
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
-                               1,                                             // Post-step point charge
                                currentTrack.globalTime,                       // global time
                                currentTrack.localTime,                        // local time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
@@ -1408,12 +1398,10 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
                                currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               1,                                             // Pre-step point charge
                                currentTrack.nextState,                        // Post-step point navstate
                                currentTrack.pos,                              // Post-step point position
                                currentTrack.dir,                              // Post-step point momentum direction
                                currentTrack.eKin,                             // Post-step point kinetic energy
-                               1,                                             // Post-step point charge
                                currentTrack.globalTime,                       // global time
                                currentTrack.localTime,                        // local time
                                currentTrack.eventId, currentTrack.threadId,   // eventID and threadID

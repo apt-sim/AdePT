@@ -11,9 +11,7 @@
 struct GPUStepPoint {
   vecgeom::Vector3D<Precision> fPosition;
   vecgeom::Vector3D<Precision> fMomentumDirection;
-  vecgeom::Vector3D<Precision> fPolarization;
   double fEKin;
-  double fCharge;
   // Data needed to reconstruct G4 Touchable history
   vecgeom::NavigationState fNavigationState{0}; // VecGeom navigation state, used to identify the touchable
 };
@@ -28,7 +26,7 @@ struct GPUHit {
   vecgeom::Vector3D<vecgeom::Precision> fVertexPosition{0., 0., 0.};
   double fStepLength{0};
   double fTotalEnergyDeposit{0};
-  double fNonIonizingEnergyDeposit{0};
+  // double fNonIonizingEnergyDeposit{0};
   double fGlobalTime{0.};
   double fLocalTime{0.};
   float fTrackWeight{1};
@@ -80,10 +78,10 @@ __device__ __forceinline__ void FillHit(GPUHit &aGPUHit, uint64_t aTrackID, uint
                                         vecgeom::NavigationState const &aPreState,
                                         vecgeom::Vector3D<Precision> const &aPrePosition,
                                         vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
-                                        double aPreCharge, vecgeom::NavigationState const &aPostState,
+                                        vecgeom::NavigationState const &aPostState,
                                         vecgeom::Vector3D<Precision> const &aPostPosition,
                                         vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                                        double aPostCharge, double aGlobalTime, double aLocalTime, unsigned int eventID,
+                                        double aGlobalTime, double aLocalTime, unsigned int eventID,
                                         short threadID, bool isLastStep, bool isFirstStep)
 {
   aGPUHit.fEventId = eventID;
@@ -107,13 +105,11 @@ __device__ __forceinline__ void FillHit(GPUHit &aGPUHit, uint64_t aTrackID, uint
   Copy3DVector(aPrePosition, aGPUHit.fPreStepPoint.fPosition);
   Copy3DVector(aPreMomentumDirection, aGPUHit.fPreStepPoint.fMomentumDirection);
   aGPUHit.fPreStepPoint.fEKin   = aPreEKin;
-  aGPUHit.fPreStepPoint.fCharge = aPreCharge;
   // Post step point
   aGPUHit.fPostStepPoint.fNavigationState = aPostState;
   Copy3DVector(aPostPosition, aGPUHit.fPostStepPoint.fPosition);
   Copy3DVector(aPostMomentumDirection, aGPUHit.fPostStepPoint.fMomentumDirection);
   aGPUHit.fPostStepPoint.fEKin   = aPostEKin;
-  aGPUHit.fPostStepPoint.fCharge = aPostCharge;
 };
 
 #endif

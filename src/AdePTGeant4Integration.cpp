@@ -475,9 +475,6 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
                                                       aGPUHit->fPostStepPoint.fMomentumDirection.y(),
                                                       aGPUHit->fPostStepPoint.fMomentumDirection.z());
-  const G4ThreeVector aPostStepPointPolarization(aGPUHit->fPostStepPoint.fPolarization.x(),
-                                                 aGPUHit->fPostStepPoint.fPolarization.y(),
-                                                 aGPUHit->fPostStepPoint.fPolarization.z());
   const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(),
                                              aGPUHit->fPostStepPoint.fPosition.y(),
                                              aGPUHit->fPostStepPoint.fPosition.z());
@@ -536,7 +533,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   // aTrack->SetVelocity(0);                                                                  // Missing data
-  aTrack->SetPolarization(aPostStepPointPolarization); // Real data
+  // aTrack->SetPolarization(); // Missing Data data
   // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
   // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
   // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
@@ -571,13 +568,11 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aPreStepPoint->SetMaterialCutsCouple(aPreG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterialCutsCouple());
   // aPreStepPoint->SetSensitiveDetector(nullptr);                                                  // Missing data
   // aPreStepPoint->SetSafety(0);                                                                   // Missing data
-  aPreStepPoint->SetPolarization(G4ThreeVector(aGPUHit->fPreStepPoint.fPolarization.x(),
-                                               aGPUHit->fPreStepPoint.fPolarization.y(),
-                                               aGPUHit->fPreStepPoint.fPolarization.z())); // Real data
+  // aPreStepPoint->SetPolarization(); // Missing data
   aPreStepPoint->SetStepStatus(aPreStepStatus);                                            // Missing data
   // aPreStepPoint->SetProcessDefinedStep(nullptr);                                                 // Missing data
   // aPreStepPoint->SetMass(0);                                                                     // Missing data
-  aPreStepPoint->SetCharge(aGPUHit->fPreStepPoint.fCharge); // Real data
+  aPreStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPreStepPoint->SetMagneticMoment(0);                                                           // Missing data
   // aPreStepPoint->SetWeight(0);                                                                   // Missing data
 
@@ -598,11 +593,11 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   }
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
-  aPostStepPoint->SetPolarization(aPostStepPointPolarization); // Real data
+  // aPostStepPoint->SetPolarization(); // Missing data
   aPostStepPoint->SetStepStatus(aPostStepStatus);              // Missing data
   // aPostStepPoint->SetProcessDefinedStep(nullptr);                                                  // Missing data
   // aPostStepPoint->SetMass(0);                                                                      // Missing data
-  aPostStepPoint->SetCharge(aGPUHit->fPostStepPoint.fCharge); // Real data
+  aPostStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data
   // aPostStepPoint->SetWeight(0);                                                                    // Missing data
 

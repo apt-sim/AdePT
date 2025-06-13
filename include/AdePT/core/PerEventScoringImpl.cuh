@@ -703,10 +703,10 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
                           short creatorProcessId, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
                           float aTrackWeight, vecgeom::Vector3D<Precision> const &aVertexPosition,
                           vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
-                          vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
+                          vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, double aGlobalTime, double aLocalTime, unsigned int eventID,
+                          double aGlobalTime, double aLocalTime, unsigned int eventID,
                           short threadID, bool isLastStep, bool isFirstStep)
 {
   // Acquire a hit slot
@@ -714,8 +714,8 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
 
   // Fill the required data
   FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
-          aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPreCharge, aPostState,
-          aPostPosition, aPostMomentumDirection, aPostEKin, aPostCharge, aGlobalTime, aLocalTime, eventID, threadID,
+          aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState,
+          aPostPosition, aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, eventID, threadID,
           isLastStep, isLastStep);
 }
 

@@ -527,12 +527,10 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                               0,                                           // Pre-step point charge
                                currentTrack.nextState,                      // Post-step point navstate
                                currentTrack.pos,                            // Post-step point position
                                currentTrack.dir,                            // Post-step point momentum direction
                                newEnergyGamma,                              // Post-step point kinetic energy
-                               0,                                           // Post-step point charge
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
@@ -655,12 +653,10 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                               0,                                           // Pre-step point charge
                                currentTrack.nextState,                      // Post-step point navstate
                                currentTrack.pos,                            // Post-step point position
                                currentTrack.dir,                            // Post-step point momentum direction
                                newEnergyGamma,                              // Post-step point kinetic energy
-                               0,                                           // Post-step point charge
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
@@ -779,12 +775,10 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                               0,                                           // Pre-step point charge
                                currentTrack.nextState,                      // Post-step point navstate
                                currentTrack.pos,                            // Post-step point position
                                currentTrack.dir,                            // Post-step point momentum direction
                                newEnergyGamma,                              // Post-step point kinetic energy
-                               0,                                           // Post-step point charge
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
@@ -892,12 +886,10 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                               0,                                           // Pre-step point charge
                                currentTrack.nextState,                      // Post-step point navstate
                                currentTrack.pos,                            // Post-step point position
                                currentTrack.dir,                            // Post-step point momentum direction
                                newEnergyGamma,                              // Post-step point kinetic energy
-                               0,                                           // Post-step point charge
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID

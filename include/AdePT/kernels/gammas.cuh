@@ -258,12 +258,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    preStepPos,                                  // Pre-step point position
                                    preStepDir,                                  // Pre-step point momentum direction
                                    preStepEnergy,                               // Pre-step point kinetic energy
-                                   0,                                           // Pre-step point charge
                                    nextState,                                   // Post-step point navstate
                                    pos,                                         // Post-step point position
                                    dir,                                         // Post-step point momentum direction
                                    eKin,                                        // Post-step point kinetic energy
-                                   0,                                           // Post-step point charge
                                    globalTime,                                  // global time
                                    localTime,                                   // local time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
@@ -317,12 +315,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    preStepPos,                                  // Pre-step point position
                                    preStepDir,                                  // Pre-step point momentum direction
                                    preStepEnergy,                               // Pre-step point kinetic energy
-                                   0,                                           // Pre-step point charge
                                    nextState,                                   // Post-step point navstate
                                    pos,                                         // Post-step point position
                                    dir,                                         // Post-step point momentum direction
                                    eKin,                                        // Post-step point kinetic energy
-                                   0,                                           // Post-step point charge
                                    globalTime,                                  // global time
                                    localTime,                                   // local time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
@@ -567,12 +563,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                preStepPos,                                  // Pre-step point position
                                preStepDir,                                  // Pre-step point momentum direction
                                preStepEnergy,                               // Pre-step point kinetic energy
-                               0,                                           // Pre-step point charge
                                nextState,                                   // Post-step point navstate
                                pos,                                         // Post-step point position
                                dir,                                         // Post-step point momentum direction
                                newEnergyGamma,                              // Post-step point kinetic energy
-                               0,                                           // Post-step point charge
                                globalTime,                                  // global time
                                localTime,                                   // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
