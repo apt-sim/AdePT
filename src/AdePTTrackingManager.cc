@@ -73,8 +73,10 @@ void AdePTTrackingManager::InitializeAdePT()
     if (fAdePTConfiguration->GetVecGeomGDML().empty()) {
       auto *tman  = G4TransportationManager::GetTransportationManager();
       auto *world = tman->GetNavigatorForTracking()->GetWorldVolume();
+      std::cout << "Loading geometry via G4VG\n";
       AdePTGeant4Integration::CreateVecGeomWorld(world);
     } else {
+      std::cout << "Loading geometry via VGDML\n";
       AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
     }
 
