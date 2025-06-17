@@ -11,20 +11,28 @@ Accelerated demonstrator of electromagnetic Particle Transport
 
 The following packages are a required to build and run:
 
-- CMake >= 3.18
-- C/C++ Compiler with C++14 support
-- CUDA Toolkit (tested 10.1, min version TBD)
-- VecCore [library](https://github.com/root-project/veccore) 0.7.0 (recommended, but older versions >= 0.5.0 also work)
-- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 1.1.20
-- G4HepEM [library](https://github.com/mnovak42/g4hepem)
+- CMake >= 3.25.2
+- C/C++ Compiler with C++20 support
+- CUDA Toolkit (> 12 recommended, tested 10.1, min version TBD)
+- VecCore [library](https://github.com/root-project/veccore) 0.8.2
+- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >=  2.0.0-rc.4 
+- G4HepEm [library](https://github.com/mnovak42/g4hepem) >= tag 20250610
+- optional: HepMC3 [library](https://gitlab.cern.ch/hepmc/HepMC3)
+
+### Setting up the environment and installing the dependencies
+
+#### 1. From CVMFS (recommended for users)
 
 A suitable environment may be set up either from CVMFS (requires the sft.cern.ch and projects.cern.ch repos
 to be available on the local system):
 ```console
-$ source /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-centos7-gcc11-opt/setup.sh
+$ source /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-centos7-gcc13-opt/setup.sh
 ```
 
-or from the supplied [spack](https://spack.io) environment file:
+#### 2. Via Spack (outdated, currently not recommended)
+
+The dependencies may be installed via spack supplied [spack](https://spack.io) environment file:
+Note: the spack environment has not been tested for a while and might be outdated
 ```console
 $ spack env create adept-spack ./scripts/spack.yaml
 $ spack -e adept-spack concretize -f
@@ -35,6 +43,8 @@ $ spack env activate -p adept-spack
 
 Note that the above assumes your spack configuration defaults to use a suitable C++ compiler and has
 `cuda_arch` set appropriately for the hardware you will be running on.
+
+#### 3. Manually (recommended for developers)
 
 You can also build the packages manually as follows. To configure and build VecCore, simply run:
 ```console
@@ -48,15 +58,8 @@ $ export PATH=${PATH}:/usr/local/cuda/bin
 $ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
 ```
 
-Find the CUDA architecture for the target GPU. If you installed the CUDA demo suite, the fastest way is to use the deviceQuery executable from `extras/demo_suite`. This lists the CUDA capability for all installed GPUs, remember the value for your target:
-```console
-$ /usr/local/cuda/extras/demo_suite/deviceQuery
-Device 0: "GeForce RTX 2080 SUPER"
-  CUDA Capability Major/Minor version number:    7.5 (cuda_architecture=75)
-...
-Device 1: "Quadro K4200"
-  CUDA Capability Major/Minor version number:    3.0 (cuda_architecture=30)
-```
+Find the CUDA architecture for the target GPU. The GPU can be found via `nvidia-smi`. Then, the list of compute capabilities is available on the [nvidia-website](https://developer.nvidia.com/cuda-gpus). 
+Then, the required `cuda_architecture` is the compute capability without the `.` for the version, i.e., compute capability 8.9 corresponds to `<cuda_architecture> = 89`.
 
 To configure and build VecGeom, use the configuration options below, using as <cuda_architecture> the value from the step above:
 ```console
@@ -67,31 +70,58 @@ $ cmake -S. -B./vecgeom-build \
   -DVECGEOM_GDML=ON \
   -DBACKEND=Scalar \
   -DCMAKE_CUDA_ARCHITECTURES=<cuda_architecture> \
-  -DVECGEOM_USE_NAVINDEX=ON \
   -DCMAKE_BUILD_TYPE=Release
-$ cmake --build ./vecgeom-build --target install -- -j6 ### build using 6 threads and install
+$ cmake --build ./vecgeom-build --target install -- -j 6 ### build using 6 threads and install
 ```
+For faster performance with with the solid model, the option `-DVECGEOM_NAV=index` can be used over the default of `-DVECGEOM_NAV=tuple`.
 
-To configure and build G4HepEM, use the configuration options below:
+To configure and build G4HepEm, use the configuration options below:
 ```console
 $ cmake -S. -B./g4hepem-build \
   -DCMAKE_INSTALL_PREFIX="<path_to_g4hepem_installation>" \
   -DCMAKE_PREFIX_PATH="<path_to_geant4_installation>" \
+  -DG4HepEm_EARLY_TRACKING_EXIT=ON \
   -DG4HepEm_CUDA_BUILD=ON
-$ cmake --build ./g4hepem-build --target install -- -j6 ### build using 6 threads and install
+$ cmake --build ./g4hepem-build --target install -- -j 6 ### build using 6 threads and install
 ```
+
+HepMC3 is optional, but strongly recommended to be able to use the HepMC3 gun in AdePT for realistic events:
+```console
+cmake -S. -B./hepmc3-build \
+  -DCMAKE_INSTALL_PREFIX=<path_to_hepmc3_installation>
+  -DHEPMC3_ENABLE_ROOTIO=OFF \
+  -DHEPMC3_ENABLE_PYTHON=OFF \
+cmake --build ./hepmc3-build --target install -- -j 6 ### build using 6 threads and install
+```
+
+### Building AdePT
 
 To configure AdePT, simply run:
 
 ```console
-$ cmake -S. -B./adept-build <otherargs>
-```
-As <otherargs> one needs to provide the paths to the dependence libraries VecCore, VecGeom and G4HepEM
-```console
-   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>;<path_to_g4hepem_installation>" \
+$ cmake -S. -B./adept-build \
    -DCMAKE_CUDA_ARCHITECTURES=<cuda_architecture> \
-   -DCMAKE_BUILD_TYPE=Release
+   -DCMAKE_BUILD_TYPE=Release \
+   <otherargs>
 ```
+where `<otherargs>` are additional options from the Build Options below to configure the build.
+If one did not rely on an environment setup via CVMFS or Spack, one also must provide in `<otherargs>` the paths to the dependence libraries VecCore, VecGeom, G4HepEm, and optionally HepMC3
+```console
+   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>;<path_to_g4hepem_installation>;<path_to_hepmc3_installation>" \
+```
+
+#### Build Options
+The table below shows the available CMake options for AdePT that may be used to configure the build:
+
+|Option|Default|Description|
+|------|:-----:|-----------|
+|ASYNC_MODE|OFF|Enable the asynchronous kernel scheduling mode. Recommended and significantly faster than the synchronous mode in many occasions |
+|ADEPT_USE_EXT_BFIELD|OFF|Use external B field from file via the covfie library. If ON, the constant field values are ignored and only B fields from file are accepted! |
+|USE_SPLIT_KERNELS|OFF| Run split version of the transport kernels. Requires ASYNC_MODE=ON |
+|ADEPT_USE_SURF|OFF| Enable surface model navigation on GPU (still in development, unstable for geometries with overlaps) |
+|ADEPT_USE_SURF_SINGLE|OFF|Use mixed precision in the surface model|
+|DEBUG_SINGLE_THREAD|OFF| Run transport kernels in single thread mode |
+|ADEPT_DEBUG_TRACK|0| Debug tracking level (0=off, >0=on with levels) |
 
 To build, run:
 
@@ -99,11 +129,13 @@ To build, run:
 $ cmake --build ./adept-build -- -j6 ### build using 6 threads
 ```
 
-The provided examples and tests can be run from the build directory:
+The provided examples and tests can be run from the build directory. `example1` is a standalone G4 application with AdePT integration.
+It can be run with
 ```console
 $ cd adept-build
-$ CUDA_VISIBLE_DEVICES=0 BuildProducts/bin/<executable>   ### use the device number matching the selected <cuda_architecture>
+$ ./BuildProducts/bin/example1 -m <macro_file>   ### for more option, use -h
 ```
+In the build folder, several example `<macro_file>` are generated, such as `example1.mac` or `example1_ttbar.mac`.
 
 ## Including AdePT in other CMake projects
 
@@ -118,14 +150,16 @@ Which has the same dependencies as before (VecGeom, VecCore and G4HepEM).
 Then, for the targets using AdePT:
 
 ```
-target_include_directories(example_target <SCOPE> 
-                          <TARGET INCLUDE DIRECTORIES>
-                          ${AdePT_INCLUDE_DIRS})
+cuda_rdc_target_include_directories(example_target <SCOPE> 
+                                    <TARGET INCLUDE DIRECTORIES>
+                                    ${AdePT_INCLUDE_DIRS})
 
-target_link_libraries(example_target <SCOPE>
-                      <TARGET LINK LIBRARIES>
-                      ${AdePT_LIBRARIES})
+cuda_rdc_target_link_libraries(example_target <SCOPE>
+                               <TARGET LINK LIBRARIES>
+                               ${AdePT_LIBRARIES})
 ```
+Note that the cuda_rdc is required, which is inherited from VecGeom and needed to avoid multi-cuda dependency issues.
+
 
 ## Copyright
 
