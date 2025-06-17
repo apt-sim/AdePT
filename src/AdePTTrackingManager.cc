@@ -312,14 +312,15 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
       short creatorProcessId = -1; // -1 for tracks that come from G4 directly and are not created by AdePT
 
-      auto particlePosition  = aTrack->GetPosition();
-      auto particleDirection = aTrack->GetMomentumDirection();
-      G4double energy        = aTrack->GetKineticEnergy();
-      G4double globalTime    = aTrack->GetGlobalTime();
-      G4double localTime     = aTrack->GetLocalTime();
-      G4double properTime    = aTrack->GetProperTime();
-      G4double weight        = aTrack->GetWeight();
-      auto pdg               = aTrack->GetParticleDefinition()->GetPDGEncoding();
+      auto particlePosition     = aTrack->GetPosition();
+      auto particleDirection    = aTrack->GetMomentumDirection();
+      G4double energy           = aTrack->GetKineticEnergy();
+      G4double globalTime       = aTrack->GetGlobalTime();
+      G4double localTime        = aTrack->GetLocalTime();
+      G4double properTime       = aTrack->GetProperTime();
+      G4double weight           = aTrack->GetWeight();
+      unsigned short stepNumber = static_cast<unsigned short>(aTrack->GetCurrentStepNumber());
+      auto pdg                  = aTrack->GetParticleDefinition()->GetPDGEncoding();
       if (fCurrentEventID != eventID) {
         // Do this to reproducibly seed the AdePT random numbers:
         fCurrentEventID = eventID;
@@ -360,8 +361,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
                                 particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
                                 particleDirection[1], particleDirection[2], vertexPosition[0], vertexPosition[1],
                                 vertexPosition[2], vertexDirection[0], vertexDirection[1], vertexDirection[2],
-                                globalTime, localTime, properTime, weight, G4Threading::G4GetThreadId(), eventID,
-                                std::move(converted), std::move(convertedOrigin));
+                                globalTime, localTime, properTime, weight, stepNumber, G4Threading::G4GetThreadId(),
+                                eventID, std::move(converted), std::move(convertedOrigin));
 
       fTrackCounter++; // increment the track counter for AdePT
 

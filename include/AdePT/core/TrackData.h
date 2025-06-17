@@ -32,6 +32,7 @@ struct TrackData {
   uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
   uint64_t parentId{0}; // track id of the parent
   short creatorProcessId{-1};
+  unsigned short stepCounter{0};
 
   LeakStatus leakStatus{LeakStatus::NoLeak};
 
@@ -39,12 +40,13 @@ struct TrackData {
   TrackData(int pdg_id, uint64_t trackId, uint64_t parentId, short creatorProcessId, double ene, double vertexEne,
             double x, double y, double z, double dirx, double diry, double dirz, double vertexX, double vertexY,
             double vertexZ, double vertexDirx, double vertexDiry, double vertexDirz, double gTime, double lTime,
-            double pTime, float weight, vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
+            double pTime, float weight, unsigned short stepCounter, vecgeom::NavigationState &&state,
+            vecgeom::NavigationState &&originState)
       : navState{std::move(state)}, originNavState{std::move(originState)}, position{x, y, z},
         vertexPosition{vertexX, vertexY, vertexZ}, direction{dirx, diry, dirz},
         vertexMomentumDirection{vertexDirx, vertexDiry, vertexDirz}, eKin{ene}, vertexEkin{vertexEne},
         globalTime{gTime}, localTime{lTime}, properTime{pTime}, weight{weight}, pdg{pdg_id}, trackId{trackId},
-        creatorProcessId{creatorProcessId}, parentId{parentId}
+        creatorProcessId{creatorProcessId}, parentId{parentId}, stepCounter{stepCounter}
   {
   }
 

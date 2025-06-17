@@ -89,10 +89,11 @@ struct Track {
   __device__ Track(uint64_t rngSeed, double eKin, double vertexEkin, double globalTime, float localTime,
                    float properTime, float weight, double const position[3], double const direction[3],
                    double const vertexPos[3], double const vertexDir[3], unsigned int eventId, uint64_t trackId,
-                   uint64_t parentId, short creatorProcessId, short threadId)
+                   uint64_t parentId, short creatorProcessId, short threadId, unsigned short stepCounter)
       : eKin{eKin}, vertexEkin{vertexEkin}, weight{weight}, globalTime{globalTime}, localTime{localTime},
         properTime{properTime}, eventId{eventId}, trackId{trackId}, parentId{parentId},
-        creatorProcessId{creatorProcessId}, threadId{threadId}, stepCounter{0}, looperCounter{0}, zeroStepCounter{0}
+        creatorProcessId{creatorProcessId}, threadId{threadId}, stepCounter{stepCounter}, looperCounter{0},
+        zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
     id                      = rngState.IntRndm();
@@ -223,6 +224,7 @@ struct Track {
     tdata.vertexEkin                 = vertexEkin;
     tdata.weight                     = weight;
     tdata.leakStatus                 = leakStatus;
+    tdata.stepCounter                = stepCounter;
   }
 };
 #endif
