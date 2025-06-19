@@ -253,12 +253,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       safety = currentTrack.GetSafety(pos);
       if (safety < physicalStepLength) {
         // Recompute safety and update it in the track.
-#ifdef ADEPT_USE_SURF
         // Use maximum accuracy only if safety is samller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
-#else
-        safety = AdePTNavigator::ComputeSafety(pos, navState);
-#endif
         currentTrack.SetSafety(pos, safety);
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| new safety %g ", safety);
@@ -421,12 +417,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           pos += displacement;
         } else {
           // Recompute safety.
-#ifdef ADEPT_USE_SURF
           // Use maximum accuracy only if safety is samller than physicalStepLength
           safety = AdePTNavigator::ComputeSafety(pos, navState, dispR);
-#else
-          safety = AdePTNavigator::ComputeSafety(pos, navState);
-#endif
           currentTrack.SetSafety(pos, safety);
           reducedSafety = sFact * safety;
 
@@ -857,11 +849,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // Move to the next boundary now that the Step is recorded
       navState = nextState;
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-#ifndef ADEPT_USE_SURF
-      const int nextlvolID = navState.Top()->GetLogicalVolume()->id();
-#else
       const int nextlvolID = navState.GetLogicalId();
-#endif
 #ifdef ASYNC_MODE
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
 #else

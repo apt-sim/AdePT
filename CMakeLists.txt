@@ -71,17 +71,58 @@ message(STATUS "Using VecCore version ${Cyan}${VecCore_VERSION}${ColorReset}")
 find_package(XercesC REQUIRED)
 
 # Find VecGeom geometry headers library
-set(VecGeom_VERSION_REQ 2.0.0-dev.3)
 find_package(VecGeom REQUIRED)
-# Older versions did not provide VecGeom_VERSION_STRING, but only VecGeom_VERSION
+
+### VecGeom Version check
+
+# Use VecGeom_VERSION_STRING if defined, otherwise fall back to VecGeom_VERSION
 if(NOT VecGeom_VERSION_STRING)
   set(VecGeom_VERSION_STRING ${VecGeom_VERSION})
 endif()
-if(VecGeom_VERSION_STRING STRLESS VecGeom_VERSION_REQ)
-  message(FATAL_ERROR "AdePT requires at least VecGeom ${VecGeom_VERSION_REQ}, found ${VecGeom_VERSION_STRING}" )
+
+# VecGeom might append build metadata (e.g. '+master.abc123') to the version string.
+# Strip everything after the '+' to focus on the version core.
+string(REGEX REPLACE "\\+.*$" "" CLEANED_VERSION "${VecGeom_VERSION_STRING}")
+
+
+# Try to match the core version suffix to extract either:
+# - an RC version like "rc3", "rc4"
+# - a dev version like "dev.3", "dev.4"
+# This works even if the full suffix is like "rc3.213" or "dev.4.99"
+string(REGEX MATCH "2\\.0\\.0-(rc[0-9]+|dev\\.[0-9]+)" _match "${CLEANED_VERSION}")
+set(MATCHED_SUFFIX "${CMAKE_MATCH_1}")
+
+set(_vecgeom_version_ok FALSE)
+
+# Handle dev versions
+if(MATCHED_SUFFIX MATCHES "dev\\.([0-9]+)")
+  set(devver "${CMAKE_MATCH_1}")
+  if(devver GREATER_EQUAL 4)
+    set(_vecgeom_version_ok TRUE)
+  endif()
+endif()
+
+# Handle rc versions
+if(MATCHED_SUFFIX MATCHES "rc([0-9]+)")
+  set(rcver "${CMAKE_MATCH_1}")
+  if(rcver GREATER_EQUAL 4)
+    set(_vecgeom_version_ok TRUE)
+  endif()
+endif()
+
+# Handle stable releases >= 2.0.0
+if(CLEANED_VERSION VERSION_GREATER_EQUAL "2.0.0" AND NOT MATCHED_SUFFIX)
+  set(_vecgeom_version_ok TRUE)
+endif()
+
+if(NOT _vecgeom_version_ok)
+  message(FATAL_ERROR "AdePT requires VecGeom >= 2.0.0-dev.4 or >= 2.0.0-rc4, but found '${VecGeom_VERSION_STRING}'")
 else()
   message(STATUS "Using VecGeom version ${Cyan}${VecGeom_VERSION_STRING}${ColorReset}")
 endif()
+
+### end version check for VecGeom
+
 # Make sure VecGeom::vgdml is enabled
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")

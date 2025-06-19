@@ -32,11 +32,7 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
-    int lvolID = currentTrack.navState.GetLogicalId();
-#endif
+    int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     currentTrack.leaked      = false;
@@ -112,11 +108,7 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
@@ -174,11 +166,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
@@ -250,11 +238,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, c
         currentTrack.navState = currentTrack.nextState;
         // printf("  -> pvol=%d pos={%g, %g, %g} \n", navState.TopId(), pos[0], pos[1], pos[2]);
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
-#ifndef ADEPT_USE_SURF
-        const int nextlvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
-        const int nextlvolID = currentTrack.navState.GetLogicalId();
-#endif
+        const int nextlvolID          = currentTrack.navState.GetLogicalId();
         VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
         if (nextauxData.fGPUregion > 0)
           survive();
@@ -331,11 +315,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
-    int lvolID = currentTrack.navState.GetLogicalId();
-#endif
+    int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
@@ -532,11 +512,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
-    int lvolID = currentTrack.navState.GetLogicalId();
-#endif
+    int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
@@ -660,11 +636,7 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
-    int lvolID = currentTrack.navState.GetLogicalId();
-#endif
+    int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue
@@ -784,11 +756,7 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
-    int lvolID = currentTrack.navState.GetLogicalId();
-#endif
+    int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     // Write local variables back into track and enqueue

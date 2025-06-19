@@ -117,12 +117,8 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
     } else {
       Precision newSafety = 0;
       if (stepDone > 0) {
-#ifdef ADEPT_USE_SURF
-        // Use maximum accuracy only if safety is samller than physicalStepLength
+        // Use maximum accuracy only if safety is smaller than physicalStepLength
         newSafety = Navigator::ComputeSafety(position, current_state, remains);
-#else
-        newSafety = Navigator::ComputeSafety(position, current_state);
-#endif
       }
       if (newSafety > chordLen) {
         move         = chordLen;

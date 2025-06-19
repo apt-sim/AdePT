@@ -28,6 +28,7 @@
 #include <memory>
 #include <thread>
 #include <unordered_map>
+#include <optional>
 
 class G4Region;
 class G4VPhysicalVolume;
