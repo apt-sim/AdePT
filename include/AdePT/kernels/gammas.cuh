@@ -39,11 +39,7 @@ __global__ void __launch_bounds__(256, 1)
     Track &currentTrack = gammas[slot];
     auto navState       = currentTrack.navState;
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = navState.Top()->GetLogicalVolume()->id();
-#else
-    int lvolID = navState.GetLogicalId();
-#endif
+    int lvolID                = navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 #else
 
@@ -65,11 +61,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     Track &currentTrack = (*gammas)[slot];
     auto navState       = currentTrack.navState;
 
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    int lvolID = navState.Top()->GetLogicalVolume()->id();
-#else
-    int lvolID = navState.GetLogicalId();
-#endif
+    int lvolID                = navState.GetLogicalId();
     VolAuxData const &auxData = auxDataArray[lvolID]; // FIXME unify VolAuxData
 
 #endif
@@ -278,11 +270,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         navState = nextState;
         // printf("  -> pvol=%d pos={%g, %g, %g} \n", navState.TopId(), pos[0], pos[1], pos[2]);
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
-#ifndef ADEPT_USE_SURF
-        const int nextlvolID = navState.Top()->GetLogicalVolume()->id();
-#else
         const int nextlvolID = navState.GetLogicalId();
-#endif
 
 #ifdef ASYNC_MODE // FIXME unify VolAuxData
         VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];

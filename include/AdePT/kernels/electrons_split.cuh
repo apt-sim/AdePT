@@ -66,11 +66,7 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     const int slot      = (*active)[i];
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
@@ -153,12 +149,8 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
       safety = currentTrack.GetSafety(currentTrack.pos);
       if (safety < physicalStepLength) {
         // Recompute safety and update it in the track.
-#ifdef ADEPT_USE_SURF
         // Use maximum accuracy only if safety is samller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, physicalStepLength);
-#else
-        safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
-#endif
         currentTrack.SetSafety(currentTrack.pos, safety);
       }
     }
@@ -233,11 +225,7 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -306,11 +294,7 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -344,12 +328,8 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
           currentTrack.pos += displacement;
         } else {
           // Recompute safety.
-#ifdef ADEPT_USE_SURF
           // Use maximum accuracy only if safety is samller than physicalStepLength
           safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, dispR);
-#else
-          safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState);
-#endif
           currentTrack.SetSafety(currentTrack.pos, safety);
           reducedSafety = sFact * safety;
 
@@ -393,11 +373,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
@@ -569,11 +545,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
         // Move to the next boundary now that the Step is recorded
         currentTrack.navState = currentTrack.nextState;
         // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-#ifndef ADEPT_USE_SURF
-        const int nextlvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
-        const int nextlvolID = currentTrack.navState.GetLogicalId();
-#endif
+        const int nextlvolID          = currentTrack.navState.GetLogicalId();
         VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
         if (nextauxData.fGPUregion > 0)
           survive();
@@ -647,11 +619,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
@@ -912,11 +880,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
@@ -1037,11 +1001,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
@@ -1163,11 +1123,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
@@ -1283,11 +1239,7 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
 
     Track &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = currentTrack.navState.Top()->GetLogicalVolume()->id();
-#else
     const int lvolID = currentTrack.navState.GetLogicalId();
-#endif
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
