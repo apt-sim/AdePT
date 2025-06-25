@@ -296,8 +296,7 @@ class HitScoring {
   double fCPUCapacityFactor;
   double fCPUCopyFraction;
   unsigned short fActiveBuffer = 0;
-  unique_ptr_cuda<std::byte> fGPUSortAuxMemory;
-  std::size_t fGPUSortAuxMemorySize;
+  cudaEvent_t fSwapDoneEvent; // cuda event to synchronize the swapping of the device buffers with the transport
 
   // HitQueue with one lock per queue
   std::vector<std::deque<HitQueueItem>> fHitQueues;
@@ -432,7 +431,12 @@ public:
     assert(fHitScoringBuffer_deviceAddress != nullptr);
     COPCORE_CUDA_CHECK(cudaMemcpy(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo, sizeof(HitScoringBuffer),
                                   cudaMemcpyHostToDevice));
+
+    // create cuda event needed to tell the transport that the swap of the device buffers is executed
+    cudaEventCreateWithFlags(&fSwapDoneEvent, cudaEventDisableTiming);
   }
+
+  cudaEvent_t getSwapDoneEvent() const { return fSwapDoneEvent; }
 
   unsigned int HitCapacity() const { return fHitCapacity; }
 
@@ -469,6 +473,8 @@ public:
 
     COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo[fActiveBuffer],
                                        sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
+    COPCORE_CUDA_CHECK(
+        cudaEventRecord(fSwapDoneEvent, cudaStream)); // record event that the transport kernels must wait for
 
     // need to set the hostState to awaiting device, this prevents the next swap until the hits in the hostBuffer are
     // send to the HitQueue
