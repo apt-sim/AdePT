@@ -1009,6 +1009,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
       // *** ELECTRONS ***
       {
+
+        // wait for swapping of hit buffers
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(electrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
 #ifdef USE_SPLIT_KERNELS
         ElectronHowFar<true><<<blocks, threads, 0, electrons.stream>>>(
@@ -1047,6 +1051,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
       // *** POSITRONS ***
       {
+
+        // wait for swapping of hit buffers
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(positrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
 #ifdef USE_SPLIT_KERNELS
         ElectronHowFar<false><<<blocks, threads, 0, positrons.stream>>>(
@@ -1095,6 +1103,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
       // *** GAMMAS ***
       {
+
+        // wait for swapping of hit buffers
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gammas.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
 #ifdef USE_SPLIT_KERNELS
         GammaHowFar<<<blocks, threads, 0, gammas.stream>>>(
