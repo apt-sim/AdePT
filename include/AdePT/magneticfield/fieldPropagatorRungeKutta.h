@@ -40,6 +40,7 @@ public:
   /// @param max_iterations Maximum allowed iterations
   /// @param iterDone[out] Number of iterations performed
   /// @param threadId Thread id
+  /// @param zero_first_step Detected zero first step
   /// @param verbose Verbosity
   /// @return Length of the step made
   static inline __host__ __device__ Real_t
@@ -47,7 +48,7 @@ public:
                            double safeLength, vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
                            vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state,
                            long &hitsurf_index, bool &propagated, const Real_t &safetyIn, const int max_iterations,
-                           int &iterDone, int threadId, bool verbose = false);
+                           int &iterDone, int threadId, bool &zero_first_step, bool verbose = false);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
 
@@ -64,7 +65,7 @@ protected:
 #else
   static constexpr Real_t kPush = 0.;
 #endif
-
+  static constexpr Real_t kDistCheckPush = kPush + Navigator::kBoundaryPush;
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
 };
 
@@ -102,18 +103,20 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
     vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
     bool &propagated, const Real_t &safetyIn, //  eventually In/Out ?
     const int max_iterations, int &itersDone, //  useful for now - to monitor and report -- unclear if needed later
-    int indx, bool verbose)
+    int indx, bool &zero_first_step, bool verbose)
 {
   Real_t stepDone = 0.0;         ///< step already done
   Real_t remains  = physicsStep; ///< remainder of the step to be done
+  zero_first_step = false;
   constexpr bool inZeroFieldRegion =
       false; // This could be a per-region flag ... - better depend on template parameter?
   if (inZeroFieldRegion) {
 #ifdef ADEPT_USE_SURF
     stepDone = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state,
-                                                     hitsurf_index, kPush);
+                                                     hitsurf_index, kDistCheckPush);
 #else
-    stepDone = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
+    stepDone =
+        Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kDistCheckPush);
 #endif
     position += stepDone * direction;
     return stepDone;
@@ -219,9 +222,10 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 
 #ifdef ADEPT_USE_SURF
         move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
-                                                     hitsurf_index, kPush);
+                                                     hitsurf_index, kDistCheckPush);
 #else
-        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
+        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
+                                                     kDistCheckPush);
 #endif
       }
     }
@@ -244,22 +248,27 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 
       maxNextSafeMove   = safeArc; // Reset it, once a step succeeds!!
       continueIteration = true;
-    } else if (stepDone == 0 && move <= kPush + Navigator_t::kBoundaryPush) {
+    } else if (stepDone == 0 && move <= kDistCheckPush) {
       // Cope with a track at a boundary that wants to bend back into the previous
       // volume in the first step (by reducing the attempted distance.)
 
       // Deal with back-scattered tracks that need to be relocated. Check distance along initial direction.
 #ifdef ADEPT_USE_SURF
       move = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state,
-                                                   hitsurf_index, kPush);
+                                                   hitsurf_index, kDistCheckPush);
 #else
-      move = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kPush);
+      move = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state,
+                                                   kDistCheckPush);
 #endif
 
-      if (move <= kPush + Navigator_t::kBoundaryPush) {
+      if (move <= kDistCheckPush) {
 #if ADEPT_DEBUG_TRACK > 0
-        if (verbose) printf("| BACK-SCATTERING detected\n");
+        if (verbose) {
+          printf("| BACK-SCATTERING or WRONG RELOCATION detected hitting ");
+          next_state.Print();
+        }
 #endif
+        zero_first_step = true;
         return 0.;
       }
 
@@ -304,13 +313,16 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       // Alternative approximation of end position & direction -- calling RK again
       //  Better accuracy (e.g. for comparing with Helix) but the point will not be on the surface !!
       // bool done =
-      RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, /*max_trials=*/30);
+      RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, kMaxTrials);
 
       direction = inv_momentumMag * momentumVec; // requires re-normalization after Advance
       direction.Normalize();
 #endif
 #if ADEPT_DEBUG_TRACK > 0
-      if (verbose) printf("| linear step to crossing point %g ", move);
+      if (verbose) {
+        printf("| linear step to crossing point %g hitting ", move);
+        next_state.Print();
+      }
 #endif
       continueIteration = false;
     }
@@ -322,14 +334,20 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
                 || (remains <= tiniest_step);
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose)
-      printf("| stepDone %g remains %g foundEnd = %d chordIters %d\n", stepDone, remains, found_end, chordIters);
+      printf("| stepDone %g remains %g foundEnd = %d chordIters %d point {%.8f, %.8f, %.8f} dir {%.8f, %.8f, "
+             "%.8f}\n",
+             stepDone, remains, found_end, chordIters, position[0], position[1], position[2], direction[0],
+             direction[1], direction[2]);
 #endif
 
   } while (!found_end && continueIteration && (chordIters < max_iterations));
 
   propagated = found_end;
   itersDone += chordIters;
-  //  = (chordIters < max_iterations);  // ---> Misses success on the last step!
+  // If the track is not exiting the current volume, reset next_state.fLastExited because it may re-enter the same
+  // volume
+  if (next_state.GetLastExited() == current_state.GetLastExited()) next_state.SetLastExited();
+
   return stepDone;
 }
 
