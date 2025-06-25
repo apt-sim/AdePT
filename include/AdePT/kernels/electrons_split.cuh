@@ -502,7 +502,6 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
                                  elTrack.GetPStepLength(),                      // Step length
                                  energyDeposit,                                 // Total Edep
                                  currentTrack.weight,                           // Track weight
-                                 currentTrack.vertexPosition,                   // vertex position
                                  currentTrack.navState,                         // Pre-step point navstate
                                  currentTrack.preStepPos,                       // Pre-step point position
                                  currentTrack.preStepDir,                       // Pre-step point momentum direction
@@ -938,7 +937,6 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
-                               currentTrack.vertexPosition,                   // vertex position
                                currentTrack.navState,                         // Pre-step point navstate
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
@@ -1062,7 +1060,6 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
-                               currentTrack.vertexPosition,                   // vertex position
                                currentTrack.navState,                         // Pre-step point navstate
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
@@ -1188,7 +1185,6 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
-                               currentTrack.vertexPosition,                   // vertex position
                                currentTrack.navState,                         // Pre-step point navstate
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
@@ -1309,7 +1305,6 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
-                               currentTrack.vertexPosition,                   // vertex position
                                currentTrack.navState,                         // Pre-step point navstate
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction
@@ -1393,7 +1388,6 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
                                elTrack.GetPStepLength(),                      // Step length
                                energyDeposit,                                 // Total Edep
                                currentTrack.weight,                           // Track weight
-                               currentTrack.vertexPosition,                   // vertex position
                                currentTrack.navState,                         // Pre-step point navstate
                                currentTrack.preStepPos,                       // Pre-step point position
                                currentTrack.preStepDir,                       // Pre-step point momentum direction

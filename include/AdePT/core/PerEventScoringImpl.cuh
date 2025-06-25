@@ -23,7 +23,7 @@
 #include <sstream>
 
 // definitions for printouts and advanced debugging
-// #define DEBUG
+#define DEBUG
 #define RESET "\033[0m"
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE "\033[1;34m"
@@ -647,9 +647,9 @@ public:
     assert(threadId < fHitQueues.size());
     std::unique_lock lock{fHitQueueLocks[threadId]}; // setting scoring started flag, need unique lock
 
-    if (fHitQueues[threadId].empty())
+    if (fHitQueues[threadId].empty()) {
       return nullptr;
-    else {
+    } else {
       auto &ret    = fHitQueues[threadId].front();
       dataOnBuffer = ret.IsDataOnHostBuffer.load();
       ret.ScoringStarted.store(true, std::memory_order_release);
@@ -701,22 +701,21 @@ namespace adept_scoring {
 template <>
 __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aTrackID, uint64_t aParentID,
                           short creatorProcessId, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
-                          float aTrackWeight, vecgeom::Vector3D<Precision> const &aVertexPosition,
-                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
+                          float aTrackWeight, vecgeom::NavigationState const &aPreState,
+                          vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aGlobalTime, double aLocalTime, unsigned int eventID,
-                          short threadID, bool isLastStep, bool isFirstStep)
+                          double aGlobalTime, double aLocalTime, unsigned int eventID, short threadID, bool isLastStep,
+                          unsigned short stepCounter)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
 
   // Fill the required data
   FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
-          aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState,
-          aPostPosition, aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, eventID, threadID,
-          isLastStep, isLastStep);
+          aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition, aPostMomentumDirection,
+          aPostEKin, aGlobalTime, aLocalTime, eventID, threadID, isLastStep, stepCounter);
 }
 
 /// @brief Account for the number of produced secondaries

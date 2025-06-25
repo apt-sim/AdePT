@@ -20,10 +20,15 @@ class G4PrimaryParticle;
 /// @brief A helper struct to store the data that is stored exclusively on the CPU
 struct HostTrackData {
   int g4id;       // the Geant4 track ID
+  int g4parentid; // the Geant4 parent ID
   uint64_t gpuId; // the GPU’s 64-bit track ID
   G4PrimaryParticle *primary             = nullptr;
   G4VProcess *creatorProcess             = nullptr;
   G4VUserTrackInformation *userTrackInfo = nullptr;
+  G4LogicalVolume *logicalVolumeAtVertex = nullptr;
+  G4ThreeVector vertexPosition;
+  G4ThreeVector vertexMomentumDirection;
+  G4double vertexKineticEnergy;
 };
 
 // This class provides a mapping between G4 id's (int) and AdePT id's (uint64_t).
@@ -56,6 +61,21 @@ public:
       return hostDataVec[it->second];
     }
     // new track -> assign next slot
+    int idx           = static_cast<int>(hostDataVec.size());
+    gpuToIndex[gpuId] = idx;
+    hostDataVec.push_back({});
+    auto &d = hostDataVec.back();
+    d.gpuId = gpuId;
+    d.g4id  = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
+    return d;
+  }
+
+  // Assumes caller knows entry exists
+  HostTrackData &get(uint64_t gpuId) { return hostDataVec[gpuToIndex.at(gpuId)]; }
+
+  // Assumes caller knows entry does not exist yet
+  HostTrackData &create(uint64_t gpuId, bool useNewId = true)
+  {
     int idx           = static_cast<int>(hostDataVec.size());
     gpuToIndex[gpuId] = idx;
     hostDataVec.push_back({});

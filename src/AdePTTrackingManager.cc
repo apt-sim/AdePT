@@ -298,17 +298,31 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     if (isGPURegion && (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0)) {
       // If the track is in a GPU region, hand it over to AdePT
 
-      // generate uint64_t track ids for the GPU
+      // generate hostTrackData and fill it
       auto hostTrackData  = trackIDMapper.getOrCreate(static_cast<uint64_t>(aTrack->GetTrackID()), /*useNewId=*/false);
       uint64_t gpuTrackID = hostTrackData.gpuId;
       hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
       hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
       hostTrackData.userTrackInfo  = aTrack->GetUserInformation();
+      // FIXME: probably missing, if this is the 0th step, we have to call the PreUserTrackingAction and then attach the
+      // UserInformation
+      hostTrackData.g4parentid = aTrack->GetParentID();
+
+      // Set the vertex information
+      if (aTrack->GetCurrentStepNumber() == 0) {
+        // If it's the first step of the track these values are not set
+        hostTrackData.vertexPosition          = aTrack->GetPosition();
+        hostTrackData.vertexMomentumDirection = aTrack->GetMomentumDirection();
+        hostTrackData.vertexKineticEnergy     = aTrack->GetKineticEnergy();
+        hostTrackData.logicalVolumeAtVertex   = aTrack->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
+      } else {
+        hostTrackData.vertexPosition          = aTrack->GetVertexPosition();
+        hostTrackData.vertexMomentumDirection = aTrack->GetVertexMomentumDirection();
+        hostTrackData.vertexKineticEnergy     = aTrack->GetVertexKineticEnergy();
+        hostTrackData.logicalVolumeAtVertex   = const_cast<G4LogicalVolume *>(aTrack->GetLogicalVolumeAtVertex());
+      }
 
       uint64_t gpuParentID = static_cast<uint64_t>(aTrack->GetParentID());
-      if (aTrack->GetParentID() > 0) {
-        trackIDMapper.getOrCreate(gpuParentID, /*useNewId=*/false);
-      }
 
       short creatorProcessId = -1; // -1 for tracks that come from G4 directly and are not created by AdePT
 
@@ -343,26 +357,11 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         convertedOrigin = GetVecGeomFromG4State(*aTrack->GetOriginTouchableHandle()->GetHistory());
       }
 
-      // Get the vertex information
-      G4ThreeVector vertexPosition;
-      G4ThreeVector vertexDirection;
-      G4double vertexEnergy;
-      if (aTrack->GetCurrentStepNumber() == 0) {
-        // If it's the first step of the track these values are not set
-        vertexPosition  = aTrack->GetPosition();
-        vertexDirection = aTrack->GetMomentumDirection();
-        vertexEnergy    = aTrack->GetKineticEnergy();
-      } else {
-        vertexPosition  = aTrack->GetVertexPosition();
-        vertexDirection = aTrack->GetVertexMomentumDirection();
-        vertexEnergy    = aTrack->GetVertexKineticEnergy();
-      }
-      fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, creatorProcessId, energy, vertexEnergy,
-                                particlePosition[0], particlePosition[1], particlePosition[2], particleDirection[0],
-                                particleDirection[1], particleDirection[2], vertexPosition[0], vertexPosition[1],
-                                vertexPosition[2], vertexDirection[0], vertexDirection[1], vertexDirection[2],
-                                globalTime, localTime, properTime, weight, stepNumber, G4Threading::G4GetThreadId(),
-                                eventID, std::move(converted), std::move(convertedOrigin));
+      fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, creatorProcessId, energy, particlePosition[0],
+                                particlePosition[1], particlePosition[2], particleDirection[0], particleDirection[1],
+                                particleDirection[2], globalTime, localTime, properTime, weight, stepNumber,
+                                G4Threading::G4GetThreadId(), eventID, std::move(converted),
+                                std::move(convertedOrigin));
 
       fTrackCounter++; // increment the track counter for AdePT
 

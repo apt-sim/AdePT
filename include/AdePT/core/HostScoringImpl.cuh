@@ -151,20 +151,19 @@ void FreeGPU(HostScoring *hostScoring, HostScoring *hostScoring_dev)
 template <>
 __device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId,
                           char aParticleType, double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
-                          vecgeom::Vector3D<Precision> const &aVertexPosition,
                           vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aGlobalTime, double aLocalTime, unsigned int, short, bool, bool)
+                          double aGlobalTime, double aLocalTime, unsigned int, short, bool, unsigned short)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = *GetNextFreeHit(hostScoring_dev);
 
   // Fill the required data
   FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
-          aVertexPosition, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState,
-          aPostPosition, aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, 0, 0, false, false);
+          aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition, aPostMomentumDirection,
+          aPostEKin, aGlobalTime, aLocalTime, 0, 0, false, 0);
 }
 
 /// @brief Account for the number of produced secondaries

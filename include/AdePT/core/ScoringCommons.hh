@@ -22,8 +22,6 @@ struct GPUHit {
   // Data needed to reconstruct pre-post step points
   GPUStepPoint fPreStepPoint;
   GPUStepPoint fPostStepPoint;
-  // Data needed to reconstruct G4 Step
-  vecgeom::Vector3D<vecgeom::Precision> fVertexPosition{0., 0., 0.};
   double fStepLength{0};
   double fTotalEnergyDeposit{0};
   // double fNonIonizingEnergyDeposit{0};
@@ -36,8 +34,8 @@ struct GPUHit {
   unsigned int fEventId{0};
   short threadId{-1};
   // bool fFirstStepInVolume{false};
-  bool fFirstStepOfTrack{false};
   bool fLastStepOfTrack{false};
+  unsigned short fStepCounter{false};
   char fParticleType{0}; // Particle type ID
 };
 
@@ -72,23 +70,19 @@ __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const 
 };
 
 /// @brief Fill the provided hit with the given data
-__device__ __forceinline__ void FillHit(GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aCreatorProcessID,
-                                        char aParticleType, double aStepLength, double aTotalEnergyDeposit,
-                                        float aTrackWeight, vecgeom::Vector3D<vecgeom::Precision> aVertexPosition,
-                                        vecgeom::NavigationState const &aPreState,
-                                        vecgeom::Vector3D<Precision> const &aPrePosition,
-                                        vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
-                                        vecgeom::NavigationState const &aPostState,
-                                        vecgeom::Vector3D<Precision> const &aPostPosition,
-                                        vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                                        double aGlobalTime, double aLocalTime, unsigned int eventID,
-                                        short threadID, bool isLastStep, bool isFirstStep)
+__device__ __forceinline__ void FillHit(
+    GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aCreatorProcessID, char aParticleType,
+    double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
+    vecgeom::Vector3D<Precision> const &aPrePosition, vecgeom::Vector3D<Precision> const &aPreMomentumDirection,
+    double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
+    vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, double aLocalTime,
+    unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter)
 {
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
 
-  aGPUHit.fFirstStepOfTrack = isFirstStep;
-  aGPUHit.fLastStepOfTrack  = isLastStep;
+  aGPUHit.fStepCounter     = stepCounter;
+  aGPUHit.fLastStepOfTrack = isLastStep;
   // Fill the required data
   aGPUHit.fTrackID            = aTrackID;
   aGPUHit.fParentID           = aParentID;
@@ -99,17 +93,16 @@ __device__ __forceinline__ void FillHit(GPUHit &aGPUHit, uint64_t aTrackID, uint
   aGPUHit.fTrackWeight        = aTrackWeight;
   aGPUHit.fGlobalTime         = aGlobalTime;
   aGPUHit.fLocalTime          = aLocalTime;
-  Copy3DVector(aVertexPosition, aGPUHit.fVertexPosition);
   // Pre step point
   aGPUHit.fPreStepPoint.fNavigationState = aPreState;
   Copy3DVector(aPrePosition, aGPUHit.fPreStepPoint.fPosition);
   Copy3DVector(aPreMomentumDirection, aGPUHit.fPreStepPoint.fMomentumDirection);
-  aGPUHit.fPreStepPoint.fEKin   = aPreEKin;
+  aGPUHit.fPreStepPoint.fEKin = aPreEKin;
   // Post step point
   aGPUHit.fPostStepPoint.fNavigationState = aPostState;
   Copy3DVector(aPostPosition, aGPUHit.fPostStepPoint.fPosition);
   Copy3DVector(aPostMomentumDirection, aGPUHit.fPostStepPoint.fMomentumDirection);
-  aGPUHit.fPostStepPoint.fEKin   = aPostEKin;
+  aGPUHit.fPostStepPoint.fEKin = aPostEKin;
 };
 
 #endif

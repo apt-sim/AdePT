@@ -249,11 +249,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    currentTrack.trackId,  // Track ID
                                    currentTrack.parentId, // parent Track ID
                                    currentTrack.creatorProcessId,
-                                   2,                   // Particle type
-                                   geometryStepLength,  // Step length
-                                   0,                   // Total Edep
-                                   currentTrack.weight, // Track weight
-                                   currentTrack.vertexPosition,
+                                   2,                                           // Particle type
+                                   geometryStepLength,                          // Step length
+                                   0,                                           // Total Edep
+                                   currentTrack.weight,                         // Track weight
                                    navState,                                    // Pre-step point navstate
                                    preStepPos,                                  // Pre-step point position
                                    preStepDir,                                  // Pre-step point momentum direction
@@ -266,8 +265,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    localTime,                                   // local time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                    returnLastStep,
-                                   currentTrack.stepCounter == 1 ? true
-                                                                 : false); // whether this is the last step of the track
+                                   currentTrack.stepCounter); // whether this is the last step of the track
 
         // Move to the next boundary.
         navState = nextState;
@@ -306,11 +304,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    currentTrack.trackId,  // Track ID
                                    currentTrack.parentId, // parent Track ID
                                    currentTrack.creatorProcessId,
-                                   2,                   // Particle type
-                                   geometryStepLength,  // Step length
-                                   0,                   // Total Edep
-                                   currentTrack.weight, // Track weight
-                                   currentTrack.vertexPosition,
+                                   2,                                           // Particle type
+                                   geometryStepLength,                          // Step length
+                                   0,                                           // Total Edep
+                                   currentTrack.weight,                         // Track weight
                                    navState,                                    // Pre-step point navstate
                                    preStepPos,                                  // Pre-step point position
                                    preStepDir,                                  // Pre-step point momentum direction
@@ -322,8 +319,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    globalTime,                                  // global time
                                    localTime,                                   // local time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                   returnLastStep, // whether this is the last step of the track
-                                   currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+                                   returnLastStep,            // whether this is the last step of the track
+                                   currentTrack.stepCounter); // whether this is the first step
       }
       continue;
     } else {
@@ -385,7 +382,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         edep = elKinEnergy;
       } else {
 #ifdef ASYNC_MODE
-        secondaries.electrons.NextTrack(
+        Track &electron = secondaries.electrons.NextTrack(
             newRNG, elKinEnergy, pos,
             vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
             currentTrack, globalTime, short(winnerProcessIndex));
@@ -394,11 +391,29 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.trackId;
         electron.rngState = newRNG;
-        electron.eKin = electron.vertexEkin = elKinEnergy;
-        electron.weight                     = currentTrack.weight;
+        electron.eKin = = elKinEnergy;
+        electron.weight = currentTrack.weight;
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
-        electron.vertexMomentumDirection.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 #endif
+        adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
+                                 /*CreatorProcessId*/ short(winnerProcessIndex),
+                                 /* electron*/ 0,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 electron.weight,                     // Track weight
+                                 navState,                            // Pre-step point navstate
+                                 electron.pos,                        // Pre-step point position
+                                 electron.dir,                        // Pre-step point momentum direction
+                                 electron.eKin,                       // Pre-step point kinetic energy
+                                 navState,                            // Post-step point navstate
+                                 electron.pos,                        // Post-step point position
+                                 electron.dir,                        // Post-step point momentum direction
+                                 electron.eKin,                       // Post-step point kinetic energy
+                                 globalTime,                          // global time
+                                 localTime,                           // local time
+                                 electron.eventId, electron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 electron.stepCounter);               // whether this was the first step
       }
 
       if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
@@ -406,7 +421,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
       } else {
 #ifdef ASYNC_MODE
-        secondaries.positrons.NextTrack(
+        Track &positron = secondaries.positrons.NextTrack(
             currentTrack.rngState, posKinEnergy, pos,
             vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
             currentTrack, globalTime, short(winnerProcessIndex));
@@ -416,11 +431,29 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // Reuse the RNG state of the dying track.
         positron.parentId = currentTrack.trackId;
         positron.rngState = currentTrack.rngState;
-        positron.eKin = positron.vertexEkin = posKinEnergy;
-        positron.weight                     = currentTrack.weight;
+        positron.eKin     = posKinEnergy;
+        positron.weight   = currentTrack.weight;
         positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
-        positron.vertexMomentumDirection.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 #endif
+        adept_scoring::RecordHit(userScoring, positron.trackId, positron.parentId,
+                                 /*CreatorProcessId*/ short(winnerProcessIndex),
+                                 /* positron*/ 1,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 positron.weight,                     // Track weight
+                                 navState,                            // Pre-step point navstate
+                                 positron.pos,                        // Pre-step point position
+                                 positron.dir,                        // Pre-step point momentum direction
+                                 positron.eKin,                       // Pre-step point kinetic energy
+                                 navState,                            // Post-step point navstate
+                                 positron.pos,                        // Post-step point position
+                                 positron.dir,                        // Post-step point momentum direction
+                                 positron.eKin,                       // Post-step point kinetic energy
+                                 globalTime,                          // global time
+                                 localTime,                           // local time
+                                 positron.eventId, positron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 positron.stepCounter);               // whether this was the first step
       }
 
       // The current track is killed by not enqueuing into the next activeQueue and the slot is released
@@ -464,12 +497,31 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.trackId;
         electron.rngState = newRNG;
-        electron.eKin = electron.vertexEkin = energyEl;
-        electron.weight                     = currentTrack.weight;
-        electron.dir = electron.vertexMomentumDirection = eKin * dir - newEnergyGamma * newDirGamma;
+        electron.eKin     = energyEl;
+        electron.weight   = currentTrack.weight;
 #endif
-
         electron.dir.Normalize();
+
+        adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
+                                 /*CreatorProcessId*/ short(winnerProcessIndex),
+                                 /* electron*/ 0,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 electron.weight,                     // Track weight
+                                 navState,                            // Pre-step point navstate
+                                 electron.pos,                        // Pre-step point position
+                                 electron.dir,                        // Pre-step point momentum direction
+                                 electron.eKin,                       // Pre-step point kinetic energy
+                                 navState,                            // Post-step point navstate
+                                 electron.pos,                        // Post-step point position
+                                 electron.dir,                        // Post-step point momentum direction
+                                 electron.eKin,                       // Post-step point kinetic energy
+                                 globalTime,                          // global time
+                                 localTime,                           // local time
+                                 electron.eventId, electron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 electron.stepCounter);               // whether this was the first step
+
       } else {
         edep = energyEl;
       }
@@ -514,19 +566,37 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
         // Create a secondary electron and sample directions.
 #ifdef ASYNC_MODE
-        secondaries.electrons.NextTrack(newRNG, photoElecE, pos,
-                                        vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
-                                        navState, currentTrack, globalTime, short(winnerProcessIndex));
+        Track &electron = secondaries.electrons.NextTrack(
+            newRNG, photoElecE, pos, vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
+            navState, currentTrack, globalTime, short(winnerProcessIndex));
 #else
         Track &electron = secondaries.electrons->NextTrack();
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.trackId;
         electron.rngState = newRNG;
-        electron.eKin = electron.vertexEkin = photoElecE;
-        electron.weight                     = currentTrack.weight;
+        electron.eKin     = photoElecE;
+        electron.weight   = currentTrack.weight;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
-        electron.vertexMomentumDirection.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
 #endif
+        adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
+                                 /*CreatorProcessId*/ short(winnerProcessIndex),
+                                 /* electron*/ 0,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 electron.weight,                     // Track weight
+                                 navState,                            // Pre-step point navstate
+                                 electron.pos,                        // Pre-step point position
+                                 electron.dir,                        // Pre-step point momentum direction
+                                 electron.eKin,                       // Pre-step point kinetic energy
+                                 navState,                            // Post-step point navstate
+                                 electron.pos,                        // Post-step point position
+                                 electron.dir,                        // Post-step point momentum direction
+                                 electron.eKin,                       // Post-step point kinetic energy
+                                 globalTime,                          // global time
+                                 localTime,                           // local time
+                                 electron.eventId, electron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 electron.stepCounter);               // whether this was the first step
 
       } else {
         // If the secondary electron is cut, deposit all the energy of the gamma in this volume
@@ -554,11 +624,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                currentTrack.trackId,  // Track ID
                                currentTrack.parentId, // parent Track ID
                                currentTrack.creatorProcessId,
-                               2,                   // Particle type
-                               geometryStepLength,  // Step length
-                               edep,                // Total Edep
-                               currentTrack.weight, // Track weight
-                               currentTrack.vertexPosition,
+                               2,                                           // Particle type
+                               geometryStepLength,                          // Step length
+                               edep,                                        // Total Edep
+                               currentTrack.weight,                         // Track weight
                                navState,                                    // Pre-step point navstate
                                preStepPos,                                  // Pre-step point position
                                preStepDir,                                  // Pre-step point momentum direction
@@ -570,8 +639,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                globalTime,                                  // global time
                                localTime,                                   // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               returnLastStep, // whether this is the last step of the track
-                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+                               returnLastStep,            // whether this is the last step of the track
+                               currentTrack.stepCounter); // whether this is the first step
     }
   }
 }

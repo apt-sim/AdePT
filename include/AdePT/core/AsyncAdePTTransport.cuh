@@ -306,34 +306,27 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       // NOTE: Sync transport copies data into trackData structs during transport.
       // Async transport stores the slots and copies to trackdata structs for transfer to
       // host here. These approaches should be unified.
-      fromDevice[idx].position[0]                = track->pos[0];
-      fromDevice[idx].position[1]                = track->pos[1];
-      fromDevice[idx].position[2]                = track->pos[2];
-      fromDevice[idx].direction[0]               = track->dir[0];
-      fromDevice[idx].direction[1]               = track->dir[1];
-      fromDevice[idx].direction[2]               = track->dir[2];
-      fromDevice[idx].vertexPosition[0]          = track->vertexPosition[0];
-      fromDevice[idx].vertexPosition[1]          = track->vertexPosition[1];
-      fromDevice[idx].vertexPosition[2]          = track->vertexPosition[2];
-      fromDevice[idx].vertexMomentumDirection[0] = track->vertexMomentumDirection[0];
-      fromDevice[idx].vertexMomentumDirection[1] = track->vertexMomentumDirection[1];
-      fromDevice[idx].vertexMomentumDirection[2] = track->vertexMomentumDirection[2];
-      fromDevice[idx].eKin                       = track->eKin;
-      fromDevice[idx].vertexEkin                 = track->vertexEkin;
-      fromDevice[idx].globalTime                 = track->globalTime;
-      fromDevice[idx].localTime                  = track->localTime;
-      fromDevice[idx].properTime                 = track->properTime;
-      fromDevice[idx].weight                     = track->weight;
-      fromDevice[idx].pdg                        = pdg;
-      fromDevice[idx].eventId                    = track->eventId;
-      fromDevice[idx].threadId                   = track->threadId;
-      fromDevice[idx].navState                   = track->navState;
-      fromDevice[idx].originNavState             = track->originNavState;
-      fromDevice[idx].leakStatus                 = track->leakStatus;
-      fromDevice[idx].parentId                   = track->parentId;
-      fromDevice[idx].trackId                    = track->trackId;
-      fromDevice[idx].creatorProcessId           = track->creatorProcessId;
-      fromDevice[idx].stepCounter                = track->stepCounter;
+      fromDevice[idx].position[0]      = track->pos[0];
+      fromDevice[idx].position[1]      = track->pos[1];
+      fromDevice[idx].position[2]      = track->pos[2];
+      fromDevice[idx].direction[0]     = track->dir[0];
+      fromDevice[idx].direction[1]     = track->dir[1];
+      fromDevice[idx].direction[2]     = track->dir[2];
+      fromDevice[idx].eKin             = track->eKin;
+      fromDevice[idx].globalTime       = track->globalTime;
+      fromDevice[idx].localTime        = track->localTime;
+      fromDevice[idx].properTime       = track->properTime;
+      fromDevice[idx].weight           = track->weight;
+      fromDevice[idx].pdg              = pdg;
+      fromDevice[idx].eventId          = track->eventId;
+      fromDevice[idx].threadId         = track->threadId;
+      fromDevice[idx].navState         = track->navState;
+      fromDevice[idx].originNavState   = track->originNavState;
+      fromDevice[idx].leakStatus       = track->leakStatus;
+      fromDevice[idx].parentId         = track->parentId;
+      fromDevice[idx].trackId          = track->trackId;
+      fromDevice[idx].creatorProcessId = track->creatorProcessId;
+      fromDevice[idx].stepCounter      = track->stepCounter;
 
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }
@@ -1546,7 +1539,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           hitProcessing->cv.notify_one();
         } else {
           if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2 ||
-              gpuState.stats->hitBufferOccupancy >= 10000 ||
+              gpuState.stats->hitBufferOccupancy >= 30000 ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {

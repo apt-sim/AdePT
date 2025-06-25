@@ -522,7 +522,6 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
                                currentTrack.geometryStepLength,             // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
-                               currentTrack.vertexPosition,                 // vertex position
                                currentTrack.navState,                       // Pre-step point navstate
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
@@ -648,7 +647,6 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                currentTrack.geometryStepLength,             // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
-                               currentTrack.vertexPosition,                 // vertex position
                                currentTrack.navState,                       // Pre-step point navstate
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
@@ -770,7 +768,6 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
                                currentTrack.geometryStepLength,             // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
-                               currentTrack.vertexPosition,                 // vertex position
                                currentTrack.navState,                       // Pre-step point navstate
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
@@ -881,7 +878,6 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
                                currentTrack.geometryStepLength,             // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
-                               currentTrack.vertexPosition,                 // vertex position
                                currentTrack.navState,                       // Pre-step point navstate
                                currentTrack.preStepPos,                     // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
