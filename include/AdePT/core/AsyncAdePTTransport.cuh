@@ -124,7 +124,7 @@ __global__ void InitQueue(adept::MParrayT<T> *queue, size_t Capacity)
   adept::MParrayT<T>::MakeInstanceAt(Capacity, queue);
 }
 
-// 64-bit MurmurHash3 finalizer (good avalanche)
+// Use the 64-bit MurmurHash3 finalizer for avalanche behaviour so that every input bit can influence every output bit
 __device__ inline uint64_t murmur3_64(uint64_t x)
 {
   x ^= x >> 33;
