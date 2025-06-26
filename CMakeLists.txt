@@ -92,20 +92,21 @@ string(REGEX REPLACE "\\+.*$" "" CLEANED_VERSION "${VecGeom_VERSION_STRING}")
 string(REGEX MATCH "2\\.0\\.0-(rc[0-9]+|dev\\.[0-9]+)" _match "${CLEANED_VERSION}")
 set(MATCHED_SUFFIX "${CMAKE_MATCH_1}")
 
+set(_vecgeom_dev_version 5)
 set(_vecgeom_version_ok FALSE)
 
 # Handle dev versions
 if(MATCHED_SUFFIX MATCHES "dev\\.([0-9]+)")
   set(devver "${CMAKE_MATCH_1}")
-  if(devver GREATER_EQUAL 4)
+  if(devver GREATER_EQUAL _vecgeom_dev_version)
     set(_vecgeom_version_ok TRUE)
   endif()
 endif()
 
 # Handle rc versions
-if(MATCHED_SUFFIX MATCHES "rc([0-9]+)")
+if(MATCHED_SUFFIX MATCHES "rc\\.([0-9]+)")
   set(rcver "${CMAKE_MATCH_1}")
-  if(rcver GREATER_EQUAL 4)
+  if(rcver GREATER_EQUAL _vecgeom_dev_version)
     set(_vecgeom_version_ok TRUE)
   endif()
 endif()
@@ -116,7 +117,7 @@ if(CLEANED_VERSION VERSION_GREATER_EQUAL "2.0.0" AND NOT MATCHED_SUFFIX)
 endif()
 
 if(NOT _vecgeom_version_ok)
-  message(FATAL_ERROR "AdePT requires VecGeom >= 2.0.0-dev.4 or >= 2.0.0-rc4, but found '${VecGeom_VERSION_STRING}'")
+  message(FATAL_ERROR "AdePT requires VecGeom >= 2.0.0-dev.${_vecgeom_dev_version} or >= 2.0.0-rc.${_vecgeom_dev_version}, but found '${VecGeom_VERSION_STRING}'")
 else()
   message(STATUS "Using VecGeom version ${Cyan}${VecGeom_VERSION_STRING}${ColorReset}")
 endif()
