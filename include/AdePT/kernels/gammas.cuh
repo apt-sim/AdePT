@@ -101,8 +101,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep =
-          returnLastStep && leakReason == LeakStatus::GammaNuclear; // enable return of last step if it is GammaNuclear
+      returnLastStep = false; // FIXME need to decide on how to do this, as setting the returnLastStep to 0 would delete
+                              // the info, but we would need it when the track is leaked. Possible solution: use step
+                              // defining process to fix this. returnLastStep && leakReason == LeakStatus::GammaNuclear;
+                              // // enable return of last step if it is GammaNuclear
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;

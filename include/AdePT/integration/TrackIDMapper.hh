@@ -42,6 +42,7 @@ public:
   {
     if (eventID != currentEventID) {
       currentEventID = eventID;
+      std::cout << " CLEARING TRACKIDMAPPER OF SIZE " << gpuToIndex.size() << std::endl;
       gpuToIndex.clear();
       gpuToIndex.max_load_factor(0.5f);
 
@@ -100,6 +101,29 @@ public:
     hostDataVec.pop_back();
     gpuToIndex.erase(it);
   }
+
+  /// Call when a track (with given gpuId) is completely done:
+  void remove(uint64_t gpuId)
+  {
+    auto it = gpuToIndex.find(gpuId);
+    if (it == gpuToIndex.end()) return; // nothing to do
+
+    int idx     = it->second;                  // index in hostDataVec
+    int lastIdx = int(hostDataVec.size()) - 1; // last element’s index
+
+    if (idx != lastIdx) {
+      // Move the last element into slot idx
+      HostTrackData moved = std::move(hostDataVec[lastIdx]);
+      hostDataVec[idx]    = std::move(moved);
+      // Update the map for that moved element
+      gpuToIndex[hostDataVec[idx].gpuId] = idx;
+    }
+
+    // pop & erase the old entry
+    hostDataVec.pop_back();
+    gpuToIndex.erase(it);
+  }
+
   // end V2
 
   // V1: one big hash map

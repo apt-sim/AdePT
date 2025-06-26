@@ -409,8 +409,8 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
           ->GetLogicalVolume()
           ->GetSensitiveDetector();
 
-  // Call scoring if SD is defined
-  if (aSensitiveDetector != nullptr) {
+  // Call scoring if SD is defined and it is not the initializing step
+  if (aSensitiveDetector != nullptr && hit.fStepCounter != 0) {
     aSensitiveDetector->Hit(fScoringObjects->fG4Step);
   }
 }
@@ -657,7 +657,13 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   }
 
   // optional to test performance improvement, remove dead tracks from storage
-  // if (aGPUHit->fLastStepOfTrack) fTrackIDMapper->removeTrack( aGPUHit->fTrackID);
+  if (aGPUHit->fLastStepOfTrack) {
+    // std::cout << "Last step "<<  aGPUHit->fStepCounter <<  " removing trackID " << aGPUHit->fTrackID
+    //           << " parentID = " << aGPUHit->fParentID << ") "
+    //           << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+    //           << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << std::endl;
+    fTrackIDMapper->removeTrack(aGPUHit->fTrackID);
+  }
 }
 
 void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex,
