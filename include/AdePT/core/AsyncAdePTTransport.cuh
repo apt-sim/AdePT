@@ -124,6 +124,36 @@ __global__ void InitQueue(adept::MParrayT<T> *queue, size_t Capacity)
   adept::MParrayT<T>::MakeInstanceAt(Capacity, queue);
 }
 
+// Use the 64-bit MurmurHash3 finalizer for avalanche behaviour so that every input bit can influence every output bit
+__device__ inline uint64_t murmur3_64(uint64_t x)
+{
+  x ^= x >> 33;
+  x *= 0xff51afd7ed558ccdULL;
+  x ^= x >> 33;
+  x *= 0xc4ceb9fe1a85ec53ULL;
+  x ^= x >> 33;
+  return x;
+}
+
+/// Generate a “random” uint64_t ID on the device by combining:
+///   • base = initialSeed * eventId + trackId
+///   • eKin (double)
+///   • globalTime (double)
+__device__ inline uint64_t GenerateSeed(uint64_t base, double eKin, double globalTime)
+{
+  // 1) grab the raw bit‐patterns of the doubles
+  uint64_t eb = __double_as_longlong(eKin);
+  uint64_t tb = __double_as_longlong(globalTime);
+
+  // 2) mix them in boost::hash_combine style
+  uint64_t seed = base;
+  seed ^= eb + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+  seed ^= tb + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+
+  // 3) final avalanche
+  return murmur3_64(seed);
+}
+
 // Kernel function to initialize tracks comming from a Geant4 buffer
 __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks, Secondaries secondaries,
                            const vecgeom::VPlacedVolume *world, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
@@ -151,11 +181,14 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
 
     // TODO: Delay when not enough slots?
     const auto slot = generator->NextSlot();
-    Track &track    = generator->InitTrack(
-        slot, initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin, trackInfo.vertexEkin,
-        trackInfo.globalTime, static_cast<float>(trackInfo.localTime), static_cast<float>(trackInfo.properTime),
-        trackInfo.weight, trackInfo.position, trackInfo.direction, trackInfo.vertexPosition,
-        trackInfo.vertexMomentumDirection, trackInfo.eventId, trackInfo.parentId, trackInfo.threadId);
+    // we need to scramble the initial seed with some more trackinfo to generate a unique seed. otherwise, if a particle
+    // returns from the device and is injected again, it would have the same random number state
+    auto seed = GenerateSeed(initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin, trackInfo.globalTime);
+    Track &track = generator->InitTrack(
+        slot, seed, trackInfo.eKin, trackInfo.vertexEkin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+        static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position, trackInfo.direction,
+        trackInfo.vertexPosition, trackInfo.vertexMomentumDirection, trackInfo.eventId, trackInfo.parentId,
+        trackInfo.threadId);
     track.navState.Clear();
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;

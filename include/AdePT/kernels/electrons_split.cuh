@@ -585,11 +585,12 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
       double sinPhi, cosPhi;
       sincos(phi, &sinPhi, &cosPhi);
 
-      currentTrack.newRNG.Advance();
-      Track &gamma1 =
-          secondaries.gammas.NextTrack(currentTrack.newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime);
+      // as the branched newRNG may have already been used by interactions before, we need to create a new one
+      RanluxppDouble newRNG2(currentTrack.rngState.Branch());
+
+      Track &gamma1 = secondaries.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                                   vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                   currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       // Reuse the RNG state of the dying track.
       Track &gamma2 =
