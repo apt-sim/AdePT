@@ -92,7 +92,7 @@ struct Track {
         looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
-    id                      = rngState.IntRndmNoAdvance();
+    id                      = rngState.IntRndm();
     pos                     = {position[0], position[1], position[2]};
     dir                     = {direction[0], direction[1], direction[2]};
     vertexPosition          = {vertexPos[0], vertexPos[1], vertexPos[2]};
@@ -106,10 +106,10 @@ struct Track {
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack, const double globalTime)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, originNavState{newNavState}, id{rng_state.IntRndmNoAdvance()},
-        eventId{parentTrack.eventId}, parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin},
-        weight{parentTrack.weight}, vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0},
-        looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
+        navState{newNavState}, originNavState{newNavState}, id{rngState.IntRndm()}, eventId{parentTrack.eventId},
+        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
+        vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0},
+        zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
   }
 
