@@ -52,7 +52,6 @@ struct Track {
   vecgeom::NavigationState preStepNavState;
   vecgeom::Vector3D<Precision> preStepPos;
   vecgeom::Vector3D<Precision> preStepDir;
-  RanluxppDouble newRNG;
   double preStepEKin{0};
   // Variables used to store navigation results
   double geometryStepLength{0};

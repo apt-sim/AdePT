@@ -124,10 +124,6 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
     mscData->fTlimitMin          = currentTrack.tlimitMin;
 
-    // Prepare a branched RNG state while threads are synchronized. Even if not
-    // used, this provides a fresh round of random numbers and reduces thread
-    // divergence because the RNG state doesn't need to be advanced later.
-    currentTrack.newRNG = RanluxppDouble(currentTrack.rngState.BranchNoAdvance());
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
@@ -585,11 +581,13 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
       double sinPhi, cosPhi;
       sincos(phi, &sinPhi, &cosPhi);
 
-      currentTrack.newRNG.Advance();
-      Track &gamma1 =
-          secondaries.gammas.NextTrack(currentTrack.newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime);
+      // Perform the discrete interaction, branch a new RNG state with advance so it is
+      // ready to be used.
+      auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
+
+      Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                                   vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                   currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       // Reuse the RNG state of the dying track.
       Track &gamma2 =
@@ -666,6 +664,10 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
     //     nextState.IsOnBoundary(), propagated);
     // }
 
+    // Perform the discrete interaction or annihilate stopped positron, branch a new RNG state with advance so it is
+    // ready to be used.
+    auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
+
     // if (reached_interaction && !currentTrack.stopped) { // All tracks in this kernel reached their interaction
     if (!currentTrack.stopped) {
       // Reset number of interaction left for the winner discrete process.
@@ -677,9 +679,6 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
         // A delta interaction happened, move on.
         survive();
       } else {
-        // Perform the discrete interaction, make sure the branched RNG state is
-        // ready to be used.
-        currentTrack.newRNG.Advance();
         // Also advance the current RNG state to provide a fresh round of random
         // numbers after MSC used up a fair share for sampling the displacement.
         currentTrack.rngState.Advance();
@@ -705,7 +704,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
           } else {
             Track &secondary = secondaries.electrons.NextTrack(
-                currentTrack.newRNG, deltaEkin, currentTrack.pos,
+                newRNG, deltaEkin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
                 currentTrack, currentTrack.globalTime);
           }
@@ -746,7 +745,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
           } else {
             secondaries.gammas.NextTrack(
-                currentTrack.newRNG, deltaEkin, currentTrack.pos,
+                newRNG, deltaEkin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
                 currentTrack, currentTrack.globalTime);
           }
@@ -783,7 +782,7 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
 
           } else {
             secondaries.gammas.NextTrack(
-                currentTrack.newRNG, theGamma1Ekin, currentTrack.pos,
+                newRNG, theGamma1Ekin, currentTrack.pos,
                 vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, currentTrack.navState,
                 currentTrack, currentTrack.globalTime);
           }
@@ -826,11 +825,10 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
           double sinPhi, cosPhi;
           sincos(phi, &sinPhi, &cosPhi);
 
-          currentTrack.newRNG.Advance();
-          Track &gamma1 = secondaries.gammas.NextTrack(currentTrack.newRNG, double{copcore::units::kElectronMassC2},
-                                                       currentTrack.pos,
-                                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
-                                                       currentTrack.navState, currentTrack, currentTrack.globalTime);
+          Track &gamma1 =
+              secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                           vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
 
           // Reuse the RNG state of the dying track.
           Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
@@ -918,9 +916,9 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
     const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
-    // Perform the discrete interaction, make sure the branched RNG state is
+    // Perform the discrete interaction, branch a new RNG state with advance so it is
     // ready to be used.
-    currentTrack.newRNG.Advance();
+    auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
@@ -943,7 +941,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
 
     } else {
       Track &secondary = secondaries.electrons.NextTrack(
-          currentTrack.newRNG, deltaEkin, currentTrack.pos,
+          newRNG, deltaEkin, currentTrack.pos,
           vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
     }
@@ -1038,9 +1036,9 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
     const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
-    // Perform the discrete interaction, make sure the branched RNG state is
+    // Perform the discrete interaction, branch a new RNG state with advance so it is
     // ready to be used.
-    currentTrack.newRNG.Advance();
+    auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
@@ -1065,7 +1063,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
       energyDeposit += deltaEkin;
 
     } else {
-      secondaries.gammas.NextTrack(currentTrack.newRNG, deltaEkin, currentTrack.pos,
+      secondaries.gammas.NextTrack(newRNG, deltaEkin, currentTrack.pos,
                                    vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                                    currentTrack.navState, currentTrack, currentTrack.globalTime);
     }
@@ -1160,9 +1158,9 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
     const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
-    // Perform the discrete interaction, make sure the branched RNG state is
+    // Perform the discrete interaction, branch a new RNG state with advance so it is
     // ready to be used.
-    currentTrack.newRNG.Advance();
+    auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
     currentTrack.rngState.Advance();
@@ -1184,7 +1182,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
       energyDeposit += theGamma1Ekin;
 
     } else {
-      secondaries.gammas.NextTrack(currentTrack.newRNG, theGamma1Ekin, currentTrack.pos,
+      secondaries.gammas.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
                                    vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
                                    currentTrack.navState, currentTrack, currentTrack.globalTime);
     }
