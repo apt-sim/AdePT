@@ -113,10 +113,11 @@ struct Track {
   {
   }
 
-  __host__ __device__ VECGEOM_FORCE_INLINE bool Matches(size_t itrack, size_t stepmin = 0,
+  __host__ __device__ VECGEOM_FORCE_INLINE bool Matches(int ievt, size_t itrack, size_t stepmin = 0,
                                                         size_t stepmax = 100000) const
   {
-    return (itrack == id) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
+    bool match_event = (ievt < 0) || (ievt == eventId);
+    return match_event && (itrack == id) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
   }
 
   __host__ __device__ void Print(const char *label) const
