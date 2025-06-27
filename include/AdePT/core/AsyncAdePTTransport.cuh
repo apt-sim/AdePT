@@ -77,12 +77,18 @@ struct HitProcessingContext {
 /// @return Debugging enabled
 bool InitializeTrackDebug()
 {
-  const char *env_trk = std::getenv("ADEPT_DEBUG_TRACK");
-  if (env_trk == nullptr) return false;
   TrackDebug debug;
   char *end;
+  const char *env_evt = std::getenv("ADEPT_DEBUG_EVENT");
+  if (env_evt) {
+    debug.event_id = std::strtoull(env_evt, &end, 0);
+    if (*end != '\0') debug.event_id = -1;
+  }
+  const char *env_trk = std::getenv("ADEPT_DEBUG_TRACK");
+  if (env_trk == nullptr) return false;
   debug.track_id = std::strtoull(env_trk, &end, 0);
   if (*end != '\0') return false;
+  if (debug.track_id == 0) return false;
   debug.active = true;
 
   const char *env_minstep = std::getenv("ADEPT_DEBUG_MINSTEP");
@@ -99,7 +105,8 @@ bool InitializeTrackDebug()
 
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gTrackDebug, &debug, sizeof(TrackDebug)));
 #if ADEPT_DEBUG_TRACK > 0
-  printf("=== Track debugging enabled: track %lu steps %ld - %ld\n", debug.track_id, debug.min_step, debug.max_step);
+  printf("=== Track debugging enabled: event %d track %lu steps %ld - %ld\n", debug.event_id, debug.track_id,
+         debug.min_step, debug.max_step);
 #endif
   return true;
 }
