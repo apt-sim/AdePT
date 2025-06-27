@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2020 CERN
+# SPDX-License-Identifier: Apache-2.0
+# Author: ChatGPT o4-mini-high 27 Jun 2025
 import re
 import sys
 import numpy as np
