@@ -335,6 +335,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     long hitsurf_index = -1;
     double geometryStepLength;
     vecgeom::NavigationState nextState;
+    bool zero_first_step = false;
 
     if (gMagneticField) {
       int iterDone = -1;
@@ -343,7 +344,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
               magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
               nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
-              max_iterations, iterDone, slot, verbose);
+              max_iterations, iterDone, slot, zero_first_step, verbose);
+      // In case of zero step detected by the field propagator this could be due to back scattering, or wrong relocation
+      // in the previous step.
+      // - In case of BS we should just restore the last exited one for the nextState. For now we cannot detect BS.
+      // if (zero_first_step) nextState.SetNavIndex(navState.GetLastExitedState());
     } else {
 #ifdef ADEPT_USE_SURF
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
@@ -363,8 +368,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) {
-      printf("| geometryStepLength %g | propagated_pos {%.19f, %.19f, %.19f} ", geometryStepLength, pos[0], pos[1],
-             pos[2]);
+      printf("| geometryStepLength %g | propagated_pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, %.19f}",
+             geometryStepLength, pos[0], pos[1], pos[2], dir[0], dir[1], dir[2]);
       if (geometryStepLength < 100 * vecgeom::kTolerance) printf("| SMALL STEP ");
       nextState.Print();
     }
@@ -455,11 +460,20 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // if the particle hit a boundary, and is neither stopped or outside, relocate to have the correct next state
       // before RecordHit is called
       if (!stopped && !nextState.IsOutside()) {
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) {
+          printf("\n| +++ RelocateToNextVolume -position %.17f, %.17f, %.17f -direction %.17f, %.17f, %.17f ", pos[0],
+                 pos[1], pos[2], dir[0], dir[1], dir[2]);
+          nextState.Print();
+        }
+#endif
 #ifdef ADEPT_USE_SURF
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif
+        // Set the last exited state to be the one before crossing
+        nextState.SetLastExited(navState.GetState());
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
           printf("\n| CROSSED into ");

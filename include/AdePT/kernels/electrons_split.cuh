@@ -233,6 +233,7 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
     // Check if there's a volume boundary in between.
     currentTrack.propagated = true;
     currentTrack.hitsurfID  = -1;
+    bool zero_first_step    = false;
 
     if (gMagneticField) {
       int iterDone = -1;
@@ -243,7 +244,12 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
               currentTrack.propagated,
               /*lengthDone,*/ currentTrack.safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
-              max_iterations, iterDone, slot);
+              max_iterations, iterDone, slot, zero_first_step);
+      // In case of zero step detected by the field propagator this could be due to back scattering, or wrong relocation
+      // in the previous step.
+      // - In case of BS we should just restore the last exited one for the nextState. For now we cannot detect BS.
+      // if (zero_first_step) nextState.SetNavIndex(navState.GetLastExitedState());
+
     } else {
 #ifdef ADEPT_USE_SURF
       currentTrack.geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(
@@ -411,6 +417,8 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 #else
         AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 #endif
+        // Set the last exited state to be the one before crossing
+        currentTrack.nextState.SetLastExited(currentTrack.navState.GetState());
       }
     }
 

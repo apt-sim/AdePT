@@ -220,13 +220,14 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
               momentumVec, B0fieldVec, Charge);
 
-      int iterDone = -1;
+      int iterDone         = -1;
+      bool zero_first_step = false;
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
               nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
-              max_iterations, iterDone, slot);
+              max_iterations, iterDone, slot, zero_first_step);
 #ifdef CHECK_RESULTS
 #define formatBool(b) ((b) ? "yes " : "no")
       constexpr Precision thresholdDiff = 3.0e-3;
