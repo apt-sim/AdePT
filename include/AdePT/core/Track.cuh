@@ -103,10 +103,9 @@ struct Track {
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack, const double globalTime, short creatorProcessId)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, originNavState{newNavState}, id{rngState.IntRndm()}, eventId{parentTrack.eventId},
-        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
-        vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0},
-        zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
+        navState{newNavState}, originNavState{newNavState}, trackId{rngState.IntRndm()}, eventId{parentTrack.eventId},
+        parentId{parentTrack.parentId}, creatorProcessId{creatorProcessId}, threadId{parentTrack.threadId},
+        weight{parentTrack.weight}, stepCounter{0}, looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
   }
 
@@ -114,7 +113,7 @@ struct Track {
                                                         size_t stepmax = 100000) const
   {
     bool match_event = (ievt < 0) || (ievt == eventId);
-    return match_event && (itrack == id) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
+    return match_event && (itrack == trackId) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
   }
 
   __host__ __device__ void Print(const char *label) const

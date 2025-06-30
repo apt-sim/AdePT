@@ -191,11 +191,11 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
     // we need to scramble the initial seed with some more trackinfo to generate a unique seed. otherwise, if a particle
     // returns from the device and is injected again, it would have the same random number state
     auto seed = GenerateSeed(initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin, trackInfo.globalTime);
-    Track &track = generator->InitTrack(
-        slot, seed, trackInfo.eKin, trackInfo.vertexEkin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
-        static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position, trackInfo.direction,
-        trackInfo.vertexPosition, trackInfo.vertexMomentumDirection, trackInfo.eventId, trackInfo.parentId,
-        trackInfo.threadId);
+    Track &track =
+        generator->InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+                             static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
+                             trackInfo.direction, trackInfo.eventId, trackInfo.trackId, trackInfo.parentId,
+                             trackInfo.creatorProcessId, trackInfo.threadId, trackinfo->stepCounter);
     track.navState.Clear();
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;
