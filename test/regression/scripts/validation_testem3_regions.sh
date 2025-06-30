@@ -37,7 +37,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --output ${CI_TMP_DIR}/validation_testem3_regions.mac \
     --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_regions.gdml \
     --num_threads 8 \
-    --num_events 250 \
+    --num_events 400 \
     --num_trackslots 3 \
     --num_hitslots 15 \
     --track_in_all_regions False\
@@ -56,6 +56,6 @@ $ADEPT_EXECUTABLE --do_validation --allsensitive --accumulated_events \
 # Validating the relative error per layer
 $CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_2.5e4_e-.csv \
                                                 --file2 ${CI_TEST_DIR}/benchmark_files/g4hepem_em3_10e7_e-.csv \
-                                                --n1 2.5e4 --n2 1e7 --tol 0.01 \
+                                                --n1 4e4 --n2 1e7 --tol 0.01 \
                                                 # --plot_file plot.png # uncomment to plot the validation plot
 
