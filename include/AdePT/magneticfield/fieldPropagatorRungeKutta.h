@@ -187,9 +187,13 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
     // Subtract from the existing safety after the move
     Precision currentSafety = safety - (endPosition - safetyOrigin).Length();
 #if ADEPT_DEBUG_TRACK > 0
-    if (verbose)
+    if (verbose) {
+      if (chordIters > 0)
+        printf("| field_point: pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, %.19f}\n", position[0], position[1],
+               position[2], direction[0], direction[1], direction[2]);
       printf("| Advance #%d: safeArc %g | chordLen %g | reducedSafety %g ", chordIters, safeArc, chordLen,
              currentSafety);
+    }
 #endif
     Precision move;
     if (currentSafety > chordLen) {

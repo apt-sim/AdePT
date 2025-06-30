@@ -148,7 +148,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #if ADEPT_DEBUG_TRACK > 0
     const char *pname[2] = {"e+", "e-"};
     if (gTrackDebug.active) {
-      verbose = currentTrack.Matches(gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
+      verbose =
+          currentTrack.Matches(gTrackDebug.event_id, gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
       if (verbose) {
         currentTrack.Print(pname[IsElectron]);
       }
