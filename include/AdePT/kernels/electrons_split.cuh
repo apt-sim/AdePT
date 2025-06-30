@@ -590,7 +590,8 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
       sincos(phi, &sinPhi, &cosPhi);
 
       // Perform the discrete interaction, branch a new RNG state with advance so it is
-      // ready to be used.
+      // ready to be used. As another state may have already branched from the current rngState, advance it first
+      currentTrack.rngState.Advance();
       auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
 
       Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
