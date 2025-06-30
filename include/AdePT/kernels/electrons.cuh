@@ -799,9 +799,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           double sinPhi, cosPhi;
           sincos(phi, &sinPhi, &cosPhi);
 
-          newRNG.Advance();
+          // as the branched newRNG may have already been used by interactions before, we need to create a new one
+          RanluxppDouble newRNG2(currentTrack.rngState.Branch());
+
 #ifdef ASYNC_MODE
-          Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, pos,
+          Track &gamma1 = secondaries.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
                                                        vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
                                                        navState, currentTrack, globalTime);
 
@@ -812,9 +814,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           Track &gamma1 = secondaries.gammas->NextTrack();
           Track &gamma2 = secondaries.gammas->NextTrack();
           gamma1.InitAsSecondary(pos, navState, globalTime);
-          newRNG.Advance();
           gamma1.parentId = currentTrack.parentId;
-          gamma1.rngState = newRNG;
+          gamma1.rngState = newRNG2;
           gamma1.eKin = gamma1.vertexEkin = copcore::units::kElectronMassC2;
           gamma1.weight                   = currentTrack.weight;
           gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
