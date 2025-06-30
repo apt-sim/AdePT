@@ -501,7 +501,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     } else {
       // initializing step, set parameters
       hostTrackInfo            = fTrackIDMapper->create(aGPUHit->fTrackID);
-      hostTrackInfo.g4parentid = fTrackIDMapper->get(aGPUHit->fParentID).g4id;
+      hostTrackInfo.g4parentid = aGPUHit->fParentID != 0 ? fTrackIDMapper->get(aGPUHit->fParentID).g4id : 0;
 
       hostTrackInfo.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
       hostTrackInfo.vertexPosition =
