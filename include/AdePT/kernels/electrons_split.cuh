@@ -589,7 +589,8 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
       double sinPhi, cosPhi;
       sincos(phi, &sinPhi, &cosPhi);
 
-      // as the other branched newRNG may have already been used by interactions before, we need to advance and create a new one
+      // as the other branched newRNG may have already been used by interactions before, we need to advance and create a
+      // new one
       currentTrack.rngState.Advance();
       RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
