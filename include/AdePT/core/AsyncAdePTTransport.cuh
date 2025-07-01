@@ -131,34 +131,40 @@ __global__ void InitQueue(adept::MParrayT<T> *queue, size_t Capacity)
   adept::MParrayT<T>::MakeInstanceAt(Capacity, queue);
 }
 
-// Use the 64-bit MurmurHash3 finalizer for avalanche behaviour so that every input bit can influence every output bit
-__device__ inline uint64_t murmur3_64(uint64_t x)
+// implementation of the FNV-1a hash function
+// (see https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function)
+// it is a fast GPU implementation with sufficient properties
+__device__ inline uint64_t fnv1a_hash64(const uint64_t *data, size_t count)
 {
-  x ^= x >> 33;
-  x *= 0xff51afd7ed558ccdULL;
-  x ^= x >> 33;
-  x *= 0xc4ceb9fe1a85ec53ULL;
-  x ^= x >> 33;
-  return x;
+  // Constants for 64-bit FNV-1a
+  constexpr uint64_t FNV_offset_basis = 14695981039346656037ULL;
+  constexpr uint64_t FNV_prime        = 1099511628211ULL;
+
+  uint64_t hash = FNV_offset_basis;
+  for (size_t i = 0; i < count; ++i) {
+    hash ^= data[i];
+    hash *= FNV_prime;
+  }
+  return hash;
 }
 
-/// Generate a “random” uint64_t ID on the device by combining:
-///   • base = initialSeed * eventId + trackId
-///   • eKin (double)
-///   • globalTime (double)
-__device__ inline uint64_t GenerateSeed(uint64_t base, double eKin, double globalTime)
+// helper function to generate the seed for the track via FNV-1a from the trackinfo
+__device__ inline uint64_t GenerateSeedFromTrackInfo(const AsyncAdePT::TrackDataWithIDs &trackInfo, uint64_t baseSeed)
 {
-  // 1) grab the raw bit‐patterns of the doubles
-  uint64_t eb = __double_as_longlong(eKin);
-  uint64_t tb = __double_as_longlong(globalTime);
-
-  // 2) mix them in boost::hash_combine style
-  uint64_t seed = base;
-  seed ^= eb + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-  seed ^= tb + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-
-  // 3) final avalanche
-  return murmur3_64(seed);
+  uint64_t input[13] = {baseSeed,
+                        trackInfo.eventId,
+                        trackInfo.trackId,
+                        trackInfo.parentId,
+                        trackInfo.stepCounter,
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.eKin)),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.globalTime)),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.position[0])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.position[1])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.position[2])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[0])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[1])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[2]))};
+  return fnv1a_hash64(input, 13);
 }
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
@@ -188,14 +194,15 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
 
     // TODO: Delay when not enough slots?
     const auto slot = generator->NextSlot();
-    // we need to scramble the initial seed with some more trackinfo to generate a unique seed. otherwise, if a particle
-    // returns from the device and is injected again, it would have the same random number state
-    auto seed = GenerateSeed(initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin, trackInfo.globalTime);
+    // we need to scramble the initial seed with some more trackinfo to generate a unique seed.
+    // otherwise, if a particle returns from the device and is injected again (i.e., via lepton nuclear), it would have
+    // the same random number state, causing collisions in the track IDs
+    auto seed = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
     Track &track =
         generator->InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
                              static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
                              trackInfo.direction, trackInfo.eventId, trackInfo.trackId, trackInfo.parentId,
-                             trackInfo.creatorProcessId, trackInfo.threadId, trackinfo->stepCounter);
+                             trackInfo.creatorProcessId, trackInfo.threadId, trackInfo.stepCounter);
     track.navState.Clear();
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;
