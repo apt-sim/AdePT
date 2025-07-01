@@ -500,6 +500,18 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
       hostTrackInfo = fTrackIDMapper->get(aGPUHit->fTrackID);
     } else {
       // initializing step, set parameters
+
+#ifdef DEBUG
+      if (fTrackIDMapper->contains(aGPUHit->fTrackID)) {
+        std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << aGPUHit->fTrackID
+                  << ", parentID = " << aGPUHit->fParentID << ") "
+                  << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+                  << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
+                  << std::endl;
+        std::abort();
+      }
+#endif
+
       hostTrackInfo            = fTrackIDMapper->create(aGPUHit->fTrackID);
       hostTrackInfo.g4parentid = aGPUHit->fParentID != 0 ? fTrackIDMapper->get(aGPUHit->fParentID).g4id : 0;
 

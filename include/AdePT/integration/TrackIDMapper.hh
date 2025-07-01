@@ -36,7 +36,7 @@ struct HostTrackData {
 // such as the pointer to the creator process, the G4 primary particle, and the G4VUserTrackInformation
 class TrackIDMapper {
 public:
-  // V2: HASH MAP + then VECTOR FOR DATA
+  // Using a hash map to find the correct index for a given GPU id and then a vector for all the CPU-only data
   /// Call once at the start of each event, so we can clear and reserve
   void beginEvent(int eventID, size_t expectedTracks = 1'000'000)
   {
@@ -124,47 +124,14 @@ public:
     gpuToIndex.erase(it);
   }
 
-  // end V2
-
-  // V1: one big hash map
-  // /// Call once at the start of each event, so we can clear and reserve
-  // void beginEvent(int eventId, size_t expectedTracks = 20'000'000) {
-  //   if (eventId != currentEventID) {
-  //     std::cout << " SIZE BEFORE CLEARING " << gpuToHost.size() << std::endl;
-  //     gpuToHost.clear();
-  //     currentGpuReturnG4ID = std::numeric_limits<int>::max();
-  //     currentEventID       = eventId;
-  //     gpuToHost.max_load_factor(0.5f);
-  //     gpuToHost.reserve(expectedTracks);
-  //   }
-  // }
-
-  // /// HOT PATH: 1 hash + bucket probe, returns a reference into the table
-  // HostTrackData& getOrCreate(uint64_t gpuId, bool useNewId=true) {
-  //   auto [it, inserted] = gpuToHost.try_emplace(gpuId);
-  //   if (inserted) {
-  //     // first‐time initialization
-  //     it->second.gpuId = gpuId;
-  //     if (useNewId) {
-  //       it->second.g4id  = currentGpuReturnG4ID--;
-  //     } else {
-  //       it->second.g4id = static_cast<int>(gpuId);
-  //     }
-  //   }
-
-  //   std::cout << " g4id " << it->second.g4id << " inserted " << inserted << " useNewId " << useNewId <<  "
-  //   currentsize " << gpuToHost.size() << std::endl;
-
-  //   return it->second;
-  // }
-  // END V1
+  /// @brief Whether an entry exists in the GPU to Index map for the given GPU id
+  /// @param gpuId GPU id to be checked
+  /// @return true if the value exists
+  bool contains(uint64_t gpuId) const { return gpuToIndex.find(gpuId) != gpuToIndex.end(); }
 
 private:
-  // V2:
   std::unordered_map<uint64_t, int> gpuToIndex; // key→slot in hostDataVec
   std::vector<HostTrackData> hostDataVec;       // contiguous array of all data
-                                                // V1
-  // std::unordered_map<uint64_t,HostTrackData> gpuToHost;
 
   int currentGpuReturnG4ID = std::numeric_limits<int>::max();
   int currentEventID       = -1;

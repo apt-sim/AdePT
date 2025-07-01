@@ -23,7 +23,7 @@
 #include <sstream>
 
 // definitions for printouts and advanced debugging
-#define DEBUG
+// #define DEBUG
 #define RESET "\033[0m"
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE "\033[1;34m"
