@@ -103,8 +103,8 @@ struct Track {
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack, const double globalTime, short creatorProcessId)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, originNavState{newNavState}, trackId{rngState.IntRndm()}, eventId{parentTrack.eventId},
-        parentId{parentTrack.parentId}, creatorProcessId{creatorProcessId}, threadId{parentTrack.threadId},
+        navState{newNavState}, originNavState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
+        parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, creatorProcessId{creatorProcessId},
         weight{parentTrack.weight}, stepCounter{0}, looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
   }
