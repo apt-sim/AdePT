@@ -407,9 +407,45 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
 
     double energyDeposit = theTrack->GetEnergyDeposit();
 
+    bool reached_interaction = true;
+    bool cross_boundary      = false;
+    bool printErrors         = true;
+
+    // Save the `number-of-interaction-left` in our track.
+    for (int ip = 0; ip < 4; ++ip) {
+      double numIALeft           = theTrack->GetNumIALeft(ip);
+      currentTrack.numIALeft[ip] = numIALeft;
+    }
+
     if (currentTrack.nextState.IsOnBoundary()) {
       // if the particle hit a boundary, and is neither stopped or outside, relocate to have the correct next state
       // before RecordHit is called
+
+      // - Set no interaction flag
+      // - Kill loopers stuck at a boundary
+      // - Set cross boundary flag in order to set the correct navstate after scoring
+      // - Kill particles that left the world
+
+      reached_interaction = false;
+      if (++currentTrack.looperCounter > 500) {
+        // Kill loopers that are scraping a boundary
+        if (printErrors)
+          printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                 "physicsStepLength=%E "
+                 "safety=%E\n",
+                 currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
+                 currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
+        continue;
+      } else if (!currentTrack.nextState.IsOutside()) {
+        // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
+        // This will happen after recording the step
+        cross_boundary = true;
+        returnLastStep = false; // the track survives, do not force return of step
+      } else {
+        // Particle left the world, don't enqueue it and release the slot
+        slotManager.MarkSlotForFreeing(slot);
+      }
+
       if (!currentTrack.stopped && !currentTrack.nextState.IsOutside()) {
 #ifdef ADEPT_USE_SURF
         AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.hitsurfID,
@@ -420,81 +456,46 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
         // Set the last exited state to be the one before crossing
         currentTrack.nextState.SetLastExited(currentTrack.navState.GetState());
       }
-    }
+    } else {
+      if (!currentTrack.stopped) {
+        if (!currentTrack.propagated || currentTrack.restrictedPhysicalStepLength) {
+          // Did not yet reach the interaction point due to error in the magnetic
+          // field propagation. Try again next time.
 
-    // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 4; ++ip) {
-      double numIALeft           = theTrack->GetNumIALeft(ip);
-      currentTrack.numIALeft[ip] = numIALeft;
-    }
+          if (++currentTrack.looperCounter > 500) {
+            // Kill loopers that are not advancing in free space
+            if (printErrors)
+              printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
+                     "physicsStepLength=%E "
+                     "safety=%E\n",
+                     currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
+                     currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
+            continue;
+          }
 
-    bool reached_interaction = true;
-    bool cross_boundary      = false;
-
-    bool printErrors = true;
-
-    if (!currentTrack.stopped) {
-      if (currentTrack.nextState.IsOnBoundary()) {
-        // For now, just count that we hit something.
-        reached_interaction = false;
-        // Kill the particle if it left the world.
-
-        if (++currentTrack.looperCounter > 500) {
-          // Kill loopers that are scraping a boundary
-          if (printErrors)
-            printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
-                   "physicsStepLength=%E "
-                   "safety=%E\n",
-                   currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
-                   currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
-          continue;
-        } else if (!currentTrack.nextState.IsOutside()) {
-          // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
-          // This will happen after recording the step
-          cross_boundary = true;
-          returnLastStep = false; // the track survives, do not force return of step
-        } else {
-          // Particle left the world, don't enqueue it and release the slot
+          survive();
+          reached_interaction = false;
+        } else if (theTrack->GetWinnerProcessIndex() < 0) {
+          // No discrete process, move on.
+          survive();
+          reached_interaction = false;
+        } else if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
+          // If there was a delta interaction, the track survives but does not move onto the next kernel
+          survive();
+          reached_interaction = false;
+          // Reset number of interaction left for the winner discrete process.
+          // (Will be resampled in the next iteration.)
+          currentTrack.numIALeft[theTrack->GetWinnerProcessIndex()] = -1.0;
+        }
+      } else {
+        // Stopped positrons annihilate, stopped electrons score and die
+        if (IsElectron) {
+          reached_interaction = false;
+          // Ekin = 0 for correct scoring
+          currentTrack.eKin = 0;
+          // Particle is killed by not enqueuing it for the next iteration. Free the slot it occupies
           slotManager.MarkSlotForFreeing(slot);
         }
-
-      } else if (!currentTrack.propagated || currentTrack.restrictedPhysicalStepLength) {
-        // Did not yet reach the interaction point due to error in the magnetic
-        // field propagation. Try again next time.
-
-        if (++currentTrack.looperCounter > 500) {
-          // Kill loopers that are not advancing in free space
-          if (printErrors)
-            printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
-                   "physicsStepLength=%E "
-                   "safety=%E\n",
-                   currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
-                   currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
-          continue;
-        }
-
-        survive();
-        reached_interaction = false;
-      } else if (theTrack->GetWinnerProcessIndex() < 0) {
-        // No discrete process, move on.
-        survive();
-        reached_interaction = false;
-      } else if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
-        // If there was a delta interaction, the track survives but does not move onto the next kernel
-        survive();
-        reached_interaction = false;
-        // Reset number of interaction left for the winner discrete process.
-        // (Will be resampled in the next iteration.)
-        currentTrack.numIALeft[theTrack->GetWinnerProcessIndex()] = -1.0;
-      }
-    } else {
-      // Stopped positrons annihilate, stopped electrons score and die
-      if (IsElectron) {
-        reached_interaction = false;
-        // Ekin = 0 for correct scoring
-        currentTrack.eKin = 0;
-        // Particle is killed by not enqueuing it for the next iteration. Free the slot it occupies
-        slotManager.MarkSlotForFreeing(slot);
       }
     }
 
