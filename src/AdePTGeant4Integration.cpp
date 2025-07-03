@@ -492,49 +492,54 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // G4Track
   G4Track *aTrack = aG4Step->GetTrack();
 
-  // try to get the hostTrackInfo to catch silent failures. This should always be available!
   HostTrackData hostTrackInfo;
-  try {
-    if (aGPUHit->fStepCounter != 0) {
-      // not the initializing step, hostTrackInfo must be available
-      hostTrackInfo = fTrackIDMapper->get(aGPUHit->fTrackID);
-    } else {
-      // initializing step, set parameters
+
+  // Add full track information if TrackingAction or SteppingAction is enabled
+  if (callUserTrackingAction || callUserSteppingAction) {
+
+    // try to get the hostTrackInfo to catch silent failures. This should always be available!
+    try {
+      if (aGPUHit->fStepCounter != 0) {
+        // not the initializing step, hostTrackInfo must be available
+        hostTrackInfo = fTrackIDMapper->get(aGPUHit->fTrackID);
+      } else {
+        // initializing step, set parameters
 
 #ifdef DEBUG
-      if (fTrackIDMapper->contains(aGPUHit->fTrackID)) {
-        std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << aGPUHit->fTrackID
-                  << ", parentID = " << aGPUHit->fParentID << ") "
-                  << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
-                  << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
-                  << std::endl;
-        std::abort();
-      }
+        if (fTrackIDMapper->contains(aGPUHit->fTrackID)) {
+          std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << aGPUHit->fTrackID
+                    << ", parentID = " << aGPUHit->fParentID << ") "
+                    << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+                    << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
+                    << std::endl;
+          std::abort();
+        }
 #endif
 
-      hostTrackInfo            = fTrackIDMapper->create(aGPUHit->fTrackID);
-      hostTrackInfo.g4parentid = aGPUHit->fParentID != 0 ? fTrackIDMapper->get(aGPUHit->fParentID).g4id : 0;
+        hostTrackInfo            = fTrackIDMapper->create(aGPUHit->fTrackID);
+        hostTrackInfo.g4parentid = aGPUHit->fParentID != 0 ? fTrackIDMapper->get(aGPUHit->fParentID).g4id : 0;
 
-      hostTrackInfo.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
-      hostTrackInfo.vertexPosition =
-          G4ThreeVector{aGPUHit->fPostStepPoint.fPosition.x(), aGPUHit->fPostStepPoint.fPosition.y(),
-                        aGPUHit->fPostStepPoint.fPosition.z()};
-      hostTrackInfo.vertexMomentumDirection =
-          G4ThreeVector{aGPUHit->fPostStepPoint.fMomentumDirection.x(), aGPUHit->fPostStepPoint.fMomentumDirection.y(),
-                        aGPUHit->fPostStepPoint.fMomentumDirection.z()};
-      hostTrackInfo.vertexKineticEnergy = aGPUHit->fPostStepPoint.fEKin;
+        hostTrackInfo.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
+        hostTrackInfo.vertexPosition =
+            G4ThreeVector{aGPUHit->fPostStepPoint.fPosition.x(), aGPUHit->fPostStepPoint.fPosition.y(),
+                          aGPUHit->fPostStepPoint.fPosition.z()};
+        hostTrackInfo.vertexMomentumDirection = G4ThreeVector{aGPUHit->fPostStepPoint.fMomentumDirection.x(),
+                                                              aGPUHit->fPostStepPoint.fMomentumDirection.y(),
+                                                              aGPUHit->fPostStepPoint.fMomentumDirection.z()};
+        hostTrackInfo.vertexKineticEnergy     = aGPUHit->fPostStepPoint.fEKin;
+      }
+
+    } catch (const std::exception &e) {
+      std::cerr << "\033[1;31mERROR: EXCEPTION in TrackIDMapper: " << e.what() << " (trackID = " << aGPUHit->fTrackID
+                << ", parentID = " << aGPUHit->fParentID << ") "
+                << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+                << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
+                << std::endl;
+    } catch (...) {
+      std::cerr << "\033[1;31mERROR UNKNOWN EXCEPTION in TrackIDMapper"
+                << " (trackID = " << aGPUHit->fTrackID << ", parentID = " << aGPUHit->fParentID << ")\033[0m"
+                << std::endl;
     }
-
-  } catch (const std::exception &e) {
-    std::cerr << "\033[1;31mERROR: EXCEPTION in TrackIDMapper: " << e.what() << " (trackID = " << aGPUHit->fTrackID
-              << ", parentID = " << aGPUHit->fParentID << ") "
-              << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
-              << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
-              << std::endl;
-  } catch (...) {
-    std::cerr << "\033[1;31mERROR UNKNOWN EXCEPTION in TrackIDMapper"
-              << " (trackID = " << aGPUHit->fTrackID << ", parentID = " << aGPUHit->fParentID << ")\033[0m"
-              << std::endl;
   }
 
   auto g4TrackID  = hostTrackInfo.g4id;
@@ -714,13 +719,11 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
                 << " pdg " << track.pdg << " stepCounter " << track.stepCounter << "\033[0m" << std::endl;
     }
   } catch (const std::exception &e) {
-    std::cerr << "\033[1;31mERROR: EXCEPTION in TrackIDMapper: " << e.what() << " (trackID = " << track.trackId
-              << ", parentID = " << track.parentId << ") "
-              << " pdg " << track.pdg << " stepCounter " << track.stepCounter << "\033[0m" << std::endl;
-  } catch (...) {
-    std::cerr << "\033[1;31mERROR UNKNOWN EXCEPTION in TrackIDMapper"
-              << " (trackID = " << track.trackId << ", parentID = " << track.parentId << ") "
-              << " pdg " << track.pdg << " stepCounter " << track.stepCounter << "\033[0m" << std::endl;
+    // Note: if tracking or steppingaction is enabled, this should always be available, then the following printout can
+    // be used for debugging: std::cerr << "\033[1;31mERROR: EXCEPTION in TrackIDMapper: " << e.what() << " (trackID = "
+    // << track.trackId
+    //           << ", parentID = " << track.parentId << ") "
+    //           << " pdg " << track.pdg << " stepCounter " << track.stepCounter << "\033[0m" << std::endl;
   }
 
   auto g4TrackID  = hostTrackInfo.g4id;

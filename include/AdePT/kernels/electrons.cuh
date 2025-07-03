@@ -50,7 +50,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           adept::MParray *leakedQueue, Scoring *userScoring,
                                                           Stats *InFlightStats,
                                                           AllowFinishOffEventArray allowFinishOffEvent,
-                                                          bool returnAllSteps, bool returnLastStep)
+                                                          const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
@@ -94,7 +94,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
-  bool returnLastStep               = false;
+  constexpr bool returnLastStep     = false;
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
@@ -130,6 +130,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     VolAuxData const &auxData = auxDataArray[lvolID];
 
 #endif
+    bool isLastStep                          = returnLastStep;
     constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
     constexpr unsigned short kStepsStuckPush = 5;
     constexpr unsigned short kStepsStuckKill = 25;
@@ -164,7 +165,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep          = false; // track survived, do not force return of step
+      isLastStep              = false; // track survived, do not force return of step
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
@@ -519,7 +520,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
           // This will happen after recording the step
           cross_boundary = true;
-          returnLastStep = false; // the track survives, do not force return of step
+          isLastStep     = false; // the track survives, do not force return of step
         } else {
           // Particle left the world, don't enqueue it and release the slot
 #ifdef ASYNC_MODE
@@ -625,24 +626,28 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 #endif
 
-            adept_scoring::RecordHit(userScoring, secondary.trackId, secondary.parentId, /*CreatorProcessId*/ short(0),
-                                     /* electron*/ 0,                       // Particle type
-                                     0,                                     // Step length
-                                     0,                                     // Total Edep
-                                     secondary.weight,                      // Track weight
-                                     navState,                              // Pre-step point navstate
-                                     secondary.pos,                         // Pre-step point position
-                                     secondary.dir,                         // Pre-step point momentum direction
-                                     secondary.eKin,                        // Pre-step point kinetic energy
-                                     navState,                              // Post-step point navstate
-                                     secondary.pos,                         // Post-step point position
-                                     secondary.dir,                         // Post-step point momentum direction
-                                     secondary.eKin,                        // Post-step point kinetic energy
-                                     globalTime,                            // global time
-                                     localTime,                             // local time
-                                     secondary.eventId, secondary.threadId, // eventID and threadID
-                                     false,                                 // whether this was the last step
-                                     secondary.stepCounter);                // whether this was the first step
+            // if tracking or stepping action is called, return initial step
+            if (returnAllSteps || returnLastStep) {
+              adept_scoring::RecordHit(userScoring, secondary.trackId, secondary.parentId,
+                                       /*CreatorProcessId*/ short(0),
+                                       /* electron*/ 0,                       // Particle type
+                                       0,                                     // Step length
+                                       0,                                     // Total Edep
+                                       secondary.weight,                      // Track weight
+                                       navState,                              // Pre-step point navstate
+                                       secondary.pos,                         // Pre-step point position
+                                       secondary.dir,                         // Pre-step point momentum direction
+                                       secondary.eKin,                        // Pre-step point kinetic energy
+                                       navState,                              // Post-step point navstate
+                                       secondary.pos,                         // Post-step point position
+                                       secondary.dir,                         // Post-step point momentum direction
+                                       secondary.eKin,                        // Post-step point kinetic energy
+                                       globalTime,                            // global time
+                                       localTime,                             // local time
+                                       secondary.eventId, secondary.threadId, // eventID and threadID
+                                       false,                                 // whether this was the last step
+                                       secondary.stepCounter);                // whether this was the first step
+            }
           }
 
           eKin -= deltaEkin;
@@ -699,25 +704,27 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma.weight   = currentTrack.weight;
             gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 #endif
-
-            adept_scoring::RecordHit(userScoring, gamma.trackId, gamma.parentId, /*CreatorProcessId*/ short(1),
-                                     /* gamma*/ 2,                  // Particle type
-                                     0,                             // Step length
-                                     0,                             // Total Edep
-                                     gamma.weight,                  // Track weight
-                                     navState,                      // Pre-step point navstate
-                                     gamma.pos,                     // Pre-step point position
-                                     gamma.dir,                     // Pre-step point momentum direction
-                                     gamma.eKin,                    // Pre-step point kinetic energy
-                                     navState,                      // Post-step point navstate
-                                     gamma.pos,                     // Post-step point position
-                                     gamma.dir,                     // Post-step point momentum direction
-                                     gamma.eKin,                    // Post-step point kinetic energy
-                                     globalTime,                    // global time
-                                     localTime,                     // local time
-                                     gamma.eventId, gamma.threadId, // eventID and threadID
-                                     false,                         // whether this was the last step
-                                     gamma.stepCounter);            // whether this was the first step
+            // if tracking or stepping action is called, return initial step
+            if (returnAllSteps || returnLastStep) {
+              adept_scoring::RecordHit(userScoring, gamma.trackId, gamma.parentId, /*CreatorProcessId*/ short(1),
+                                       /* gamma*/ 2,                  // Particle type
+                                       0,                             // Step length
+                                       0,                             // Total Edep
+                                       gamma.weight,                  // Track weight
+                                       navState,                      // Pre-step point navstate
+                                       gamma.pos,                     // Pre-step point position
+                                       gamma.dir,                     // Pre-step point momentum direction
+                                       gamma.eKin,                    // Pre-step point kinetic energy
+                                       navState,                      // Post-step point navstate
+                                       gamma.pos,                     // Post-step point position
+                                       gamma.dir,                     // Post-step point momentum direction
+                                       gamma.eKin,                    // Post-step point kinetic energy
+                                       globalTime,                    // global time
+                                       localTime,                     // local time
+                                       gamma.eventId, gamma.threadId, // eventID and threadID
+                                       false,                         // whether this was the last step
+                                       gamma.stepCounter);            // whether this was the first step
+            }
           }
 
           eKin -= deltaEkin;
@@ -774,24 +781,27 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma1.weight   = currentTrack.weight;
             gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 #endif
-            adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
-                                     /* gamma*/ 2,                    // Particle type
-                                     0,                               // Step length
-                                     0,                               // Total Edep
-                                     gamma1.weight,                   // Track weight
-                                     navState,                        // Pre-step point navstate
-                                     gamma1.pos,                      // Pre-step point position
-                                     gamma1.dir,                      // Pre-step point momentum direction
-                                     gamma1.eKin,                     // Pre-step point kinetic energy
-                                     navState,                        // Post-step point navstate
-                                     gamma1.pos,                      // Post-step point position
-                                     gamma1.dir,                      // Post-step point momentum direction
-                                     gamma1.eKin,                     // Post-step point kinetic energy
-                                     globalTime,                      // global time
-                                     localTime,                       // local time
-                                     gamma1.eventId, gamma1.threadId, // eventID and threadID
-                                     false,                           // whether this was the last step
-                                     gamma1.stepCounter);             // whether this was the first step
+            // if tracking or stepping action is called, return initial step
+            if (returnAllSteps || returnLastStep) {
+              adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
+                                       /* gamma*/ 2,                    // Particle type
+                                       0,                               // Step length
+                                       0,                               // Total Edep
+                                       gamma1.weight,                   // Track weight
+                                       navState,                        // Pre-step point navstate
+                                       gamma1.pos,                      // Pre-step point position
+                                       gamma1.dir,                      // Pre-step point momentum direction
+                                       gamma1.eKin,                     // Pre-step point kinetic energy
+                                       navState,                        // Post-step point navstate
+                                       gamma1.pos,                      // Post-step point position
+                                       gamma1.dir,                      // Post-step point momentum direction
+                                       gamma1.eKin,                     // Post-step point kinetic energy
+                                       globalTime,                      // global time
+                                       localTime,                       // local time
+                                       gamma1.eventId, gamma1.threadId, // eventID and threadID
+                                       false,                           // whether this was the last step
+                                       gamma1.stepCounter);             // whether this was the first step
+            }
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
             // Deposit the energy here and kill the secondaries
@@ -814,24 +824,27 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma2.weight   = currentTrack.weight;
             gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 #endif
-            adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
-                                     /* gamma*/ 2,                    // Particle type
-                                     0,                               // Step length
-                                     0,                               // Total Edep
-                                     gamma2.weight,                   // Track weight
-                                     navState,                        // Pre-step point navstate
-                                     gamma2.pos,                      // Pre-step point position
-                                     gamma2.dir,                      // Pre-step point momentum direction
-                                     gamma2.eKin,                     // Pre-step point kinetic energy
-                                     navState,                        // Post-step point navstate
-                                     gamma2.pos,                      // Post-step point position
-                                     gamma2.dir,                      // Post-step point momentum direction
-                                     gamma2.eKin,                     // Post-step point kinetic energy
-                                     globalTime,                      // global time
-                                     localTime,                       // local time
-                                     gamma2.eventId, gamma2.threadId, // eventID and threadID
-                                     false,                           // whether this was the last step
-                                     gamma2.stepCounter);             // whether this was the first step
+            // if tracking or stepping action is called, return initial step
+            if (returnAllSteps || returnLastStep) {
+              adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
+                                       /* gamma*/ 2,                    // Particle type
+                                       0,                               // Step length
+                                       0,                               // Total Edep
+                                       gamma2.weight,                   // Track weight
+                                       navState,                        // Pre-step point navstate
+                                       gamma2.pos,                      // Pre-step point position
+                                       gamma2.dir,                      // Pre-step point momentum direction
+                                       gamma2.eKin,                     // Pre-step point kinetic energy
+                                       navState,                        // Post-step point navstate
+                                       gamma2.pos,                      // Post-step point position
+                                       gamma2.dir,                      // Post-step point momentum direction
+                                       gamma2.eKin,                     // Post-step point kinetic energy
+                                       globalTime,                      // global time
+                                       localTime,                       // local time
+                                       gamma2.eventId, gamma2.threadId, // eventID and threadID
+                                       false,                           // whether this was the last step
+                                       gamma2.stepCounter);             // whether this was the first step
+            }
           }
 
           // The current track is killed by not enqueuing into the next activeQueue.
@@ -901,42 +914,45 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           gamma2.dir      = -gamma1.dir;
 #endif
 
-          adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
-                                   /* gamma*/ 2,                    // Particle type
-                                   0,                               // Step length
-                                   0,                               // Total Edep
-                                   gamma1.weight,                   // Track weight
-                                   navState,                        // Pre-step point navstate
-                                   gamma1.pos,                      // Pre-step point position
-                                   gamma1.dir,                      // Pre-step point momentum direction
-                                   gamma1.eKin,                     // Pre-step point kinetic energy
-                                   navState,                        // Post-step point navstate
-                                   gamma1.pos,                      // Post-step point position
-                                   gamma1.dir,                      // Post-step point momentum direction
-                                   gamma1.eKin,                     // Post-step point kinetic energy
-                                   globalTime,                      // global time
-                                   localTime,                       // local time
-                                   gamma1.eventId, gamma1.threadId, // eventID and threadID
-                                   false,                           // whether this was the last step
-                                   gamma1.stepCounter);             // whether this was the first step
-          adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
-                                   /* gamma*/ 2,                    // Particle type
-                                   0,                               // Step length
-                                   0,                               // Total Edep
-                                   gamma2.weight,                   // Track weight
-                                   navState,                        // Pre-step point navstate
-                                   gamma2.pos,                      // Pre-step point position
-                                   gamma2.dir,                      // Pre-step point momentum direction
-                                   gamma2.eKin,                     // Pre-step point kinetic energy
-                                   navState,                        // Post-step point navstate
-                                   gamma2.pos,                      // Post-step point position
-                                   gamma2.dir,                      // Post-step point momentum direction
-                                   gamma2.eKin,                     // Post-step point kinetic energy
-                                   globalTime,                      // global time
-                                   localTime,                       // local time
-                                   gamma2.eventId, gamma2.threadId, // eventID and threadID
-                                   false,                           // whether this was the last step
-                                   gamma2.stepCounter);             // whether this was the first step
+          // if tracking or stepping action is called, return initial step
+          if (returnAllSteps || returnLastStep) {
+            adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
+                                     /* gamma*/ 2,                    // Particle type
+                                     0,                               // Step length
+                                     0,                               // Total Edep
+                                     gamma1.weight,                   // Track weight
+                                     navState,                        // Pre-step point navstate
+                                     gamma1.pos,                      // Pre-step point position
+                                     gamma1.dir,                      // Pre-step point momentum direction
+                                     gamma1.eKin,                     // Pre-step point kinetic energy
+                                     navState,                        // Post-step point navstate
+                                     gamma1.pos,                      // Post-step point position
+                                     gamma1.dir,                      // Post-step point momentum direction
+                                     gamma1.eKin,                     // Post-step point kinetic energy
+                                     globalTime,                      // global time
+                                     localTime,                       // local time
+                                     gamma1.eventId, gamma1.threadId, // eventID and threadID
+                                     false,                           // whether this was the last step
+                                     gamma1.stepCounter);             // whether this was the first step
+            adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
+                                     /* gamma*/ 2,                    // Particle type
+                                     0,                               // Step length
+                                     0,                               // Total Edep
+                                     gamma2.weight,                   // Track weight
+                                     navState,                        // Pre-step point navstate
+                                     gamma2.pos,                      // Pre-step point position
+                                     gamma2.dir,                      // Pre-step point momentum direction
+                                     gamma2.eKin,                     // Pre-step point kinetic energy
+                                     navState,                        // Post-step point navstate
+                                     gamma2.pos,                      // Post-step point position
+                                     gamma2.dir,                      // Post-step point momentum direction
+                                     gamma2.eKin,                     // Post-step point kinetic energy
+                                     globalTime,                      // global time
+                                     localTime,                       // local time
+                                     gamma2.eventId, gamma2.threadId, // eventID and threadID
+                                     false,                           // whether this was the last step
+                                     gamma2.stepCounter);             // whether this was the first step
+          }
         }
       }
       // Particles are killed by not enqueuing them into the new activeQueue (and free the slot in async mode)
@@ -946,7 +962,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || isLastStep) {
       adept_scoring::RecordHit(userScoring, currentTrack.trackId, currentTrack.parentId, currentTrack.creatorProcessId,
                                static_cast<char>(IsElectron ? 0 : 1),       // Particle type
                                elTrack.GetPStepLength(),                    // Step length
@@ -963,7 +979,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                globalTime,                                  // global time
                                localTime,                                   // local time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               returnLastStep,                              // whether this was the last step
+                               isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter);                   // whether this was the first step
     }
     if (cross_boundary) {
@@ -999,7 +1015,7 @@ template <typename Scoring>
 __global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
                                    Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
-                                   bool returnAllSteps, bool returnLastStep)
+                                   const bool returnAllSteps, const bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, nextActiveQueue, leakedQueue,
                                                    userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
@@ -1009,7 +1025,7 @@ template <typename Scoring>
 __global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
                                    adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
                                    Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
-                                   bool returnAllSteps, bool returnLastStep)
+                                   const bool returnAllSteps, const bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, nextActiveQueue, leakedQueue,
                                                     userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
