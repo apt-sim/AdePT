@@ -82,10 +82,10 @@ To configure and build Geant4, there are many options available, see the [docume
 ```console
 cmake -S. -B./geant4-build \
  -DCMAKE_INSTALL_PREFIX="<path_to_geant4_installation>" \
-  -DGEANT4_USE_SYSTEM_EXPAT=OFF \
-  -DGEANT4_USE_GDML=ON \
-  -DGEANT4_INSTALL_DATA=ON \
-  -DGEANT4_USE_USOLIDS=OFF
+ -DGEANT4_USE_SYSTEM_EXPAT=OFF \
+ -DGEANT4_USE_GDML=ON \
+ -DGEANT4_INSTALL_DATA=ON \
+ -DGEANT4_USE_USOLIDS=OFF
 cmake --build ./geant4-build --target install -- -j 6
 ```
 
