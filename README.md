@@ -14,6 +14,7 @@ The following packages are a required to build and run:
 - CMake >= 3.25.2
 - C/C++ Compiler with C++20 support
 - CUDA Toolkit (> 12 recommended, tested 10.1, min version TBD)
+- [Geant4](https://gitlab.cern.ch/geant4/geant4) > 11.0
 - VecCore [library](https://github.com/root-project/veccore) 0.8.2
 - VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >=  2.0.0-rc.4 
 - G4HepEm [library](https://github.com/mnovak42/g4hepem) >= tag 20250610
@@ -26,7 +27,7 @@ The following packages are a required to build and run:
 A suitable environment may be set up either from CVMFS (requires the sft.cern.ch and projects.cern.ch repos
 to be available on the local system):
 ```console
-$ source /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-centos7-gcc13-opt/setup.sh
+$ source /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el9-gcc13-opt/setup.sh
 ```
 
 #### 2. Via Spack (outdated, currently not recommended)
@@ -75,6 +76,19 @@ $ cmake --build ./vecgeom-build --target install -- -j 6 ### build using 6 threa
 ```
 For faster performance with with the solid model, the option `-DVECGEOM_NAV=index` can be used over the default of `-DVECGEOM_NAV=tuple`.
 
+
+To configure and build Geant4, there are many options available, see the [documentation](https://geant4-userdoc.web.cern.ch/UsersGuides/InstallationGuide/html/installguide.html#geant4-build-options). For AdePT it is important that VecGeom is switched off via ` -DGEANT4_USE_USOLIDS=OFF` (which it is by default), to avoid conflicting the GPU VecGeom build needed for AdePT. Furthermore GDML is required. For example, the following settings work:
+
+```console
+cmake -S. -B./geant4-build \
+ -DCMAKE_INSTALL_PREFIX="<path_to_geant4_installation>" \
+ -DGEANT4_USE_SYSTEM_EXPAT=OFF \
+ -DGEANT4_USE_GDML=ON \
+ -DGEANT4_INSTALL_DATA=ON \
+ -DGEANT4_USE_USOLIDS=OFF
+cmake --build ./geant4-build --target install -- -j 6
+```
+
 To configure and build G4HepEm, use the configuration options below:
 ```console
 $ cmake -S. -B./g4hepem-build \
@@ -107,7 +121,7 @@ $ cmake -S. -B./adept-build \
 where `<otherargs>` are additional options from the Build Options below to configure the build.
 If one did not rely on an environment setup via CVMFS or Spack, one also must provide in `<otherargs>` the paths to the dependence libraries VecCore, VecGeom, G4HepEm, and optionally HepMC3
 ```console
-   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>;<path_to_g4hepem_installation>;<path_to_hepmc3_installation>" \
+   -DCMAKE_PREFIX_PATH="<path_to_geant4_installation>;<path_to_veccore_installation>;<path_to_vecgeom_installation>;<path_to_g4hepem_installation>;<path_to_hepmc3_installation>"
 ```
 
 #### Build Options
