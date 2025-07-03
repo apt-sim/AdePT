@@ -121,7 +121,7 @@ $ cmake -S. -B./adept-build \
 where `<otherargs>` are additional options from the Build Options below to configure the build.
 If one did not rely on an environment setup via CVMFS or Spack, one also must provide in `<otherargs>` the paths to the dependence libraries VecCore, VecGeom, G4HepEm, and optionally HepMC3
 ```console
-   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>;<path_to_vecgeom_installation>;<path_to_g4hepem_installation>;<path_to_hepmc3_installation>" \
+   -DCMAKE_PREFIX_PATH="<path_to_geant4_installation>;<path_to_veccore_installation>;<path_to_vecgeom_installation>;<path_to_g4hepem_installation>;<path_to_hepmc3_installation>"
 ```
 
 #### Build Options
