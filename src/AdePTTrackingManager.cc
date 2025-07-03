@@ -299,7 +299,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // If the track is in a GPU region, hand it over to AdePT
 
       // generate hostTrackData and fill it
-      auto hostTrackData  = trackIDMapper.getOrCreate(static_cast<uint64_t>(aTrack->GetTrackID()), /*useNewId=*/false);
+      auto& hostTrackData  = trackIDMapper.getOrCreate(static_cast<uint64_t>(aTrack->GetTrackID()), /*useNewId=*/false);
       uint64_t gpuTrackID = hostTrackData.gpuId;
       hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
       hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
