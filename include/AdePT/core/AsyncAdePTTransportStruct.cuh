@@ -104,16 +104,19 @@ Gamma interactions:
 1 - Compton
 2 - Photoelectric
 3 - Unused
+4 - Unused
 Electron interactions:
 0 - Ionization
 1 - Bremsstrahlung
 2 - Unused
 3 - Unused
+4 - Relocation
 Positron interactions:
 0 - Ionization
 1 - Bremsstrahlung
 2 - In flight annihilation
 3 - Stopped annihilation
+4 - Relocation
 
 In-flight and stopped annihilation use different codes but may be merged to save space
 in unused queues or if launching one kernel is faster than two smaller ones
@@ -122,7 +125,7 @@ It is not straightforward to allocate just the needed queues per particle type b
 ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
 dynamic allocations
 */
-  static constexpr char numInteractions = 4;
+  static constexpr char numInteractions = 5;
   adept::MParray *currentlyActive;
   adept::MParray *nextActive;
   adept::MParray *reachedInteraction;
@@ -173,7 +176,7 @@ struct AllParticleQueues {
 
 // A bundle of queues per interaction type
 struct AllInteractionQueues {
-  adept::MParray *queues[4];
+  adept::MParray *queues[5];
 };
 
 struct AllSlotManagers {
