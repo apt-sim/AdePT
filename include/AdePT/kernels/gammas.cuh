@@ -302,7 +302,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #endif
 
         // particle has left the world, record hit if last or all steps are returned
-        if (returnAllSteps || isLastStep)
+        if (returnAllSteps || returnLastStep)
           adept_scoring::RecordHit(userScoring,
                                    currentTrack.trackId,  // Track ID
                                    currentTrack.parentId, // parent Track ID
@@ -399,7 +399,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 #endif
         // if tracking or stepping action is called, return initial step
-        if (returnAllSteps || returnLastStep) {
+        if (returnLastStep) {
           adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
                                    /*CreatorProcessId*/ short(winnerProcessIndex),
                                    /* electron*/ 0,                     // Particle type
@@ -415,7 +415,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    electron.dir,                        // Post-step point momentum direction
                                    electron.eKin,                       // Post-step point kinetic energy
                                    globalTime,                          // global time
-                                   localTime,                           // local time
+                                   0.,                                  // local time
                                    electron.eventId, electron.threadId, // eventID and threadID
                                    false,                               // whether this was the last step
                                    electron.stepCounter);               // whether this was the first step
@@ -442,7 +442,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 #endif
         // if tracking or stepping action is called, return initial step
-        if (returnAllSteps || returnLastStep) {
+        if (returnLastStep) {
           adept_scoring::RecordHit(userScoring, positron.trackId, positron.parentId,
                                    /*CreatorProcessId*/ short(winnerProcessIndex),
                                    /* positron*/ 1,                     // Particle type
@@ -458,7 +458,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    positron.dir,                        // Post-step point momentum direction
                                    positron.eKin,                       // Post-step point kinetic energy
                                    globalTime,                          // global time
-                                   localTime,                           // local time
+                                   0.,                                  // local time
                                    positron.eventId, positron.threadId, // eventID and threadID
                                    false,                               // whether this was the last step
                                    positron.stepCounter);               // whether this was the first step
@@ -512,7 +512,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir.Normalize();
 
         // if tracking or stepping action is called, return initial step
-        if (returnAllSteps || returnLastStep) {
+        if (returnLastStep) {
           adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
                                    /*CreatorProcessId*/ short(winnerProcessIndex),
                                    /* electron*/ 0,                     // Particle type
@@ -528,7 +528,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    electron.dir,                        // Post-step point momentum direction
                                    electron.eKin,                       // Post-step point kinetic energy
                                    globalTime,                          // global time
-                                   localTime,                           // local time
+                                   0.,                                  // local time
                                    electron.eventId, electron.threadId, // eventID and threadID
                                    false,                               // whether this was the last step
                                    electron.stepCounter);               // whether this was the first step
@@ -590,7 +590,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
 #endif
         // if tracking or stepping action is called, return initial step
-        if (returnAllSteps || returnLastStep) {
+        if (returnLastStep) {
           adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
                                    /*CreatorProcessId*/ short(winnerProcessIndex),
                                    /* electron*/ 0,                     // Particle type
@@ -606,7 +606,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                    electron.dir,                        // Post-step point momentum direction
                                    electron.eKin,                       // Post-step point kinetic energy
                                    globalTime,                          // global time
-                                   localTime,                           // local time
+                                   0.,                                  // local time
                                    electron.eventId, electron.threadId, // eventID and threadID
                                    false,                               // whether this was the last step
                                    electron.stepCounter);               // whether this was the first step
@@ -632,7 +632,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     }
 
     // If there is some edep from cutting particles, record the step
-    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || isLastStep) {
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,  // Track ID
                                currentTrack.parentId, // parent Track ID

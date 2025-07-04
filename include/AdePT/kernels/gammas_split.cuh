@@ -617,20 +617,66 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       // Deposit the energy here and kill the secondary
       edep = elKinEnergy;
     } else {
-      secondaries.electrons.NextTrack(
+      Track &electron = secondaries.electrons.NextTrack(
           newRNG, elKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime, /*CreatorProcessId*/ short(0));
+
+      // if tracking or stepping action is called, return initial step
+      if (returnLastStep) {
+        adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
+                                 /*CreatorProcessId*/ short(0),
+                                 /* electron*/ 0,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 electron.weight,                     // Track weight
+                                 electron.navState,                   // Pre-step point navstate
+                                 electron.pos,                        // Pre-step point position
+                                 electron.dir,                        // Pre-step point momentum direction
+                                 electron.eKin,                       // Pre-step point kinetic energy
+                                 electron.navState,                   // Post-step point navstate
+                                 electron.pos,                        // Post-step point position
+                                 electron.dir,                        // Post-step point momentum direction
+                                 electron.eKin,                       // Post-step point kinetic energy
+                                 electron.globalTime,                 // global time
+                                 0.,                                  // local time
+                                 electron.eventId, electron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 electron.stepCounter);               // whether this was the first step
+      }
     }
 
     if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
       // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
       edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
     } else {
-      secondaries.positrons.NextTrack(
+      Track &positron = secondaries.positrons.NextTrack(
           currentTrack.rngState, posKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
           currentTrack.navState, currentTrack, currentTrack.globalTime, /*CreatorProcessId*/ short(0));
+
+      // if tracking or stepping action is called, return initial step
+      if (returnLastStep) {
+        adept_scoring::RecordHit(userScoring, positron.trackId, positron.parentId,
+                                 /*CreatorProcessId*/ short(0),
+                                 /* positron*/ 1,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 positron.weight,                     // Track weight
+                                 positron.navState,                   // Pre-step point navstate
+                                 positron.pos,                        // Pre-step point position
+                                 positron.dir,                        // Pre-step point momentum direction
+                                 positron.eKin,                       // Pre-step point kinetic energy
+                                 positron.navState,                   // Post-step point navstate
+                                 positron.pos,                        // Post-step point position
+                                 positron.dir,                        // Post-step point momentum direction
+                                 positron.eKin,                       // Post-step point kinetic energy
+                                 positron.globalTime,                 // global time
+                                 0.,                                  // local time
+                                 positron.eventId, positron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 positron.stepCounter);               // whether this was the first step
+      }
     }
 
     // The current track is killed by not enqueuing into the next activeQueue and the slot is released
@@ -741,6 +787,30 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
           newRNG, energyEl, currentTrack.pos, currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma,
           currentTrack.navState, currentTrack, currentTrack.globalTime, /*CreatorProcessId*/ short(1));
       electron.dir.Normalize();
+
+      // if tracking or stepping action is called, return initial step
+      if (returnLastStep) {
+        adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
+                                 /*CreatorProcessId*/ short(1),
+                                 /* electron*/ 0,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 electron.weight,                     // Track weight
+                                 electron.navState,                   // Pre-step point navstate
+                                 electron.pos,                        // Pre-step point position
+                                 electron.dir,                        // Pre-step point momentum direction
+                                 electron.eKin,                       // Pre-step point kinetic energy
+                                 electron.navState,                   // Post-step point navstate
+                                 electron.pos,                        // Post-step point position
+                                 electron.dir,                        // Post-step point momentum direction
+                                 electron.eKin,                       // Post-step point kinetic energy
+                                 electron.globalTime,                 // global time
+                                 0.,                                  // local time
+                                 electron.eventId, electron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 electron.stepCounter);               // whether this was the first step
+      }
+
     } else {
       edep = energyEl;
     }
@@ -857,10 +927,34 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
       G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
       // Create a secondary electron and sample directions.
-      secondaries.electrons.NextTrack(newRNG, photoElecE, currentTrack.pos,
-                                      vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
-                                      currentTrack.navState, currentTrack, currentTrack.globalTime,
-                                      /*CreatorProcessId*/ short(2));
+      Track &electron = secondaries.electrons.NextTrack(
+          newRNG, photoElecE, currentTrack.pos,
+          vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
+          currentTrack, currentTrack.globalTime,
+          /*CreatorProcessId*/ short(2));
+
+      // if tracking or stepping action is called, return initial step
+      if (returnLastStep) {
+        adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
+                                 /*CreatorProcessId*/ short(2),
+                                 /* electron*/ 0,                     // Particle type
+                                 0,                                   // Step length
+                                 0,                                   // Total Edep
+                                 electron.weight,                     // Track weight
+                                 electron.navState,                   // Pre-step point navstate
+                                 electron.pos,                        // Pre-step point position
+                                 electron.dir,                        // Pre-step point momentum direction
+                                 electron.eKin,                       // Pre-step point kinetic energy
+                                 electron.navState,                   // Post-step point navstate
+                                 electron.pos,                        // Post-step point position
+                                 electron.dir,                        // Post-step point momentum direction
+                                 electron.eKin,                       // Post-step point kinetic energy
+                                 electron.globalTime,                 // global time
+                                 0.,                                  // local time
+                                 electron.eventId, electron.threadId, // eventID and threadID
+                                 false,                               // whether this was the last step
+                                 electron.stepCounter);               // whether this was the first step
+      }
 
     } else {
       // If the secondary electron is cut, deposit all the energy of the gamma in this volume

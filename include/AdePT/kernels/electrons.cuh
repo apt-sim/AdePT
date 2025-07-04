@@ -627,7 +627,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
 
             // if tracking or stepping action is called, return initial step
-            if (returnAllSteps || returnLastStep) {
+            if (returnLastStep) {
               adept_scoring::RecordHit(userScoring, secondary.trackId, secondary.parentId,
                                        /*CreatorProcessId*/ short(0),
                                        /* electron*/ 0,                       // Particle type
@@ -643,7 +643,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                        secondary.dir,                         // Post-step point momentum direction
                                        secondary.eKin,                        // Post-step point kinetic energy
                                        globalTime,                            // global time
-                                       localTime,                             // local time
+                                       0.,                                    // local time
                                        secondary.eventId, secondary.threadId, // eventID and threadID
                                        false,                                 // whether this was the last step
                                        secondary.stepCounter);                // whether this was the first step
@@ -705,7 +705,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
 #endif
             // if tracking or stepping action is called, return initial step
-            if (returnAllSteps || returnLastStep) {
+            if (returnLastStep) {
               adept_scoring::RecordHit(userScoring, gamma.trackId, gamma.parentId, /*CreatorProcessId*/ short(1),
                                        /* gamma*/ 2,                  // Particle type
                                        0,                             // Step length
@@ -720,7 +720,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                        gamma.dir,                     // Post-step point momentum direction
                                        gamma.eKin,                    // Post-step point kinetic energy
                                        globalTime,                    // global time
-                                       localTime,                     // local time
+                                       0.,                            // local time
                                        gamma.eventId, gamma.threadId, // eventID and threadID
                                        false,                         // whether this was the last step
                                        gamma.stepCounter);            // whether this was the first step
@@ -782,7 +782,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
 #endif
             // if tracking or stepping action is called, return initial step
-            if (returnAllSteps || returnLastStep) {
+            if (returnLastStep) {
               adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
                                        /* gamma*/ 2,                    // Particle type
                                        0,                               // Step length
@@ -797,7 +797,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                        gamma1.dir,                      // Post-step point momentum direction
                                        gamma1.eKin,                     // Post-step point kinetic energy
                                        globalTime,                      // global time
-                                       localTime,                       // local time
+                                       0.,                              // local time
                                        gamma1.eventId, gamma1.threadId, // eventID and threadID
                                        false,                           // whether this was the last step
                                        gamma1.stepCounter);             // whether this was the first step
@@ -825,7 +825,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
 #endif
             // if tracking or stepping action is called, return initial step
-            if (returnAllSteps || returnLastStep) {
+            if (returnLastStep) {
               adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
                                        /* gamma*/ 2,                    // Particle type
                                        0,                               // Step length
@@ -840,7 +840,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                        gamma2.dir,                      // Post-step point momentum direction
                                        gamma2.eKin,                     // Post-step point kinetic energy
                                        globalTime,                      // global time
-                                       localTime,                       // local time
+                                       0.,                              // local time
                                        gamma2.eventId, gamma2.threadId, // eventID and threadID
                                        false,                           // whether this was the last step
                                        gamma2.stepCounter);             // whether this was the first step
@@ -915,7 +915,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
 
           // if tracking or stepping action is called, return initial step
-          if (returnAllSteps || returnLastStep) {
+          if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
                                      /* gamma*/ 2,                    // Particle type
                                      0,                               // Step length
@@ -930,7 +930,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                      gamma1.dir,                      // Post-step point momentum direction
                                      gamma1.eKin,                     // Post-step point kinetic energy
                                      globalTime,                      // global time
-                                     localTime,                       // local time
+                                     0.,                              // local time
                                      gamma1.eventId, gamma1.threadId, // eventID and threadID
                                      false,                           // whether this was the last step
                                      gamma1.stepCounter);             // whether this was the first step
@@ -948,7 +948,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                      gamma2.dir,                      // Post-step point momentum direction
                                      gamma2.eKin,                     // Post-step point kinetic energy
                                      globalTime,                      // global time
-                                     localTime,                       // local time
+                                     0.,                              // local time
                                      gamma2.eventId, gamma2.threadId, // eventID and threadID
                                      false,                           // whether this was the last step
                                      gamma2.stepCounter);             // whether this was the first step
@@ -962,7 +962,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || isLastStep) {
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring, currentTrack.trackId, currentTrack.parentId, currentTrack.creatorProcessId,
                                static_cast<char>(IsElectron ? 0 : 1),       // Particle type
                                elTrack.GetPStepLength(),                    // Step length
