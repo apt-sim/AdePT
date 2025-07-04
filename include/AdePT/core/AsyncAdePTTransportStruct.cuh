@@ -104,7 +104,7 @@ Gamma interactions:
 1 - Compton
 2 - Photoelectric
 3 - Unused
-4 - Unused
+4 - Relocation
 Electron interactions:
 0 - Ionization
 1 - Bremsstrahlung

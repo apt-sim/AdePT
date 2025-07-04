@@ -364,11 +364,11 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
  * @brief Adds tracks to interaction and relocation queues depending on their state
  */
 template <bool IsElectron, typename Scoring>
-__global__ void InteractionSetup(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                                 Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                 adept::MParray *reachedInteractionQueue, AllInteractionQueues interactionQueues,
-                                 adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                 bool returnLastStep)
+__global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
+                                          const adept::MParray *active, Secondaries secondaries,
+                                          adept::MParray *nextActiveQueue, adept::MParray *reachedInteractionQueue,
+                                          AllInteractionQueues interactionQueues, adept::MParray *leakedQueue,
+                                          Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
