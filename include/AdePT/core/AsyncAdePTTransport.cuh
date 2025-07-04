@@ -151,10 +151,9 @@ __device__ inline uint64_t fnv1a_hash64(const uint64_t *data, size_t count)
 // helper function to generate the seed for the track via FNV-1a from the trackinfo
 __device__ inline uint64_t GenerateSeedFromTrackInfo(const AsyncAdePT::TrackDataWithIDs &trackInfo, uint64_t baseSeed)
 {
-  uint64_t input[13] = {baseSeed,
+  uint64_t input[12] = {baseSeed,
                         trackInfo.eventId,
                         trackInfo.trackId,
-                        trackInfo.parentId,
                         trackInfo.stepCounter,
                         static_cast<uint64_t>(__double_as_longlong(trackInfo.eKin)),
                         static_cast<uint64_t>(__double_as_longlong(trackInfo.globalTime)),
@@ -164,7 +163,7 @@ __device__ inline uint64_t GenerateSeedFromTrackInfo(const AsyncAdePT::TrackData
                         static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[0])),
                         static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[1])),
                         static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[2]))};
-  return fnv1a_hash64(input, 13);
+  return fnv1a_hash64(input, 12);
 }
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
