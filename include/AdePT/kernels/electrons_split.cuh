@@ -368,7 +368,7 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
                                           const adept::MParray *active, Secondaries secondaries,
                                           adept::MParray *nextActiveQueue, adept::MParray *reachedInteractionQueue,
                                           AllInteractionQueues interactionQueues, adept::MParray *leakedQueue,
-                                          Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
+                                          Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -382,7 +382,6 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
@@ -399,6 +398,8 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
         nextActiveQueue->push_back(slot);
       }
     };
+
+    bool isLastStep = false;
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -930,34 +931,34 @@ __global__ void ElectronInteractions(Track *electrons, G4HepEmElectronTrack *hep
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                          // Track ID
-                               currentTrack.parentId,                         // parent Track ID
-                               currentTrack.creatorProcessId,                 // creator process ID
-                               static_cast<char>(IsElectron ? 0 : 1),         // Particle type
-                               elTrack.GetPStepLength(),                      // Step length
-                               energyDeposit,                                 // Total Edep
-                               currentTrack.weight,                           // Track weight
-                               currentTrack.navState,                         // Pre-step point navstate
-                               currentTrack.preStepPos,                       // Pre-step point position
-                               currentTrack.preStepDir,                       // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               currentTrack.nextState,                        // Post-step point navstate
-                               currentTrack.pos,                              // Post-step point position
-                               currentTrack.dir,                              // Post-step point momentum direction
-                               currentTrack.eKin,                             // Post-step point kinetic energy
-                               currentTrack.globalTime,                       // global time
-                               currentTrack.localTime,                        // local time
-                               currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
-                               returnLastStep,                                // whether this was the last step
-                               currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               currentTrack.eKin,                           // Post-step point kinetic energy
+                               currentTrack.globalTime,                     // global time
+                               currentTrack.localTime,                      // local time
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               returnLastStep,                              // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
   }
 }
 
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                    adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                   bool returnLastStep)
+                                   adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -970,9 +971,10 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
     const int lvolID = currentTrack.navState.GetLogicalId();
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep = false; // track survived, do not force return of step
+      isLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
@@ -1053,34 +1055,34 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                          // Track ID
-                               currentTrack.parentId,                         // parent Track ID
-                               currentTrack.creatorProcessId,                 // creator process ID
-                               static_cast<char>(IsElectron ? 0 : 1),         // Particle type
-                               elTrack.GetPStepLength(),                      // Step length
-                               energyDeposit,                                 // Total Edep
-                               currentTrack.weight,                           // Track weight
-                               currentTrack.navState,                         // Pre-step point navstate
-                               currentTrack.preStepPos,                       // Pre-step point position
-                               currentTrack.preStepDir,                       // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               currentTrack.nextState,                        // Post-step point navstate
-                               currentTrack.pos,                              // Post-step point position
-                               currentTrack.dir,                              // Post-step point momentum direction
-                               currentTrack.eKin,                             // Post-step point kinetic energy
-                               currentTrack.globalTime,                       // global time
-                               currentTrack.localTime,                        // local time
-                               currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
-                               returnLastStep,                                // whether this was the last step
-                               currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               currentTrack.eKin,                           // Post-step point kinetic energy
+                               currentTrack.globalTime,                     // global time
+                               currentTrack.localTime,                      // local time
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               isLastStep,                                  // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
   }
 }
 
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                        adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                       adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                       bool returnLastStep)
+                                       adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                       const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -1093,9 +1095,10 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     const int lvolID = currentTrack.navState.GetLogicalId();
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep = false; // track survived, do not force return of step
+      isLastStep = false; // track survived
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
@@ -1178,34 +1181,34 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                          // Track ID
-                               currentTrack.parentId,                         // parent Track ID
-                               currentTrack.creatorProcessId,                 // creator process ID
-                               static_cast<char>(IsElectron ? 0 : 1),         // Particle type
-                               elTrack.GetPStepLength(),                      // Step length
-                               energyDeposit,                                 // Total Edep
-                               currentTrack.weight,                           // Track weight
-                               currentTrack.navState,                         // Pre-step point navstate
-                               currentTrack.preStepPos,                       // Pre-step point position
-                               currentTrack.preStepDir,                       // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               currentTrack.nextState,                        // Post-step point navstate
-                               currentTrack.pos,                              // Post-step point position
-                               currentTrack.dir,                              // Post-step point momentum direction
-                               currentTrack.eKin,                             // Post-step point kinetic energy
-                               currentTrack.globalTime,                       // global time
-                               currentTrack.localTime,                        // local time
-                               currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
-                               returnLastStep,                                // whether this was the last step
-                               currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               currentTrack.eKin,                           // Post-step point kinetic energy
+                               currentTrack.globalTime,                     // global time
+                               currentTrack.localTime,                      // local time
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               isLastStep,                                  // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
   }
 }
 
 template <typename Scoring>
 __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                      adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                     adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                     bool returnLastStep)
+                                     adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                     const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -1218,9 +1221,10 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     const int lvolID = currentTrack.navState.GetLogicalId();
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep = false; // track survived, do not force return of step
+      isLastStep = false; // track survived
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
@@ -1298,26 +1302,26 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                          // Track ID
-                               currentTrack.parentId,                         // parent Track ID
-                               currentTrack.creatorProcessId,                 // creator process ID
-                               static_cast<char>(1),                          // Particle type
-                               elTrack.GetPStepLength(),                      // Step length
-                               energyDeposit,                                 // Total Edep
-                               currentTrack.weight,                           // Track weight
-                               currentTrack.navState,                         // Pre-step point navstate
-                               currentTrack.preStepPos,                       // Pre-step point position
-                               currentTrack.preStepDir,                       // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               currentTrack.nextState,                        // Post-step point navstate
-                               currentTrack.pos,                              // Post-step point position
-                               currentTrack.dir,                              // Post-step point momentum direction
-                               currentTrack.eKin,                             // Post-step point kinetic energy
-                               currentTrack.globalTime,                       // global time
-                               currentTrack.localTime,                        // local time
-                               currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
-                               returnLastStep,                                // whether this was the last step
-                               currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<char>(1),                        // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               currentTrack.eKin,                           // Post-step point kinetic energy
+                               currentTrack.globalTime,                     // global time
+                               currentTrack.localTime,                      // local time
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               isLastStep,                                  // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
   }
 }
 
@@ -1325,7 +1329,7 @@ template <typename Scoring>
 __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
                                             Secondaries secondaries, adept::MParray *nextActiveQueue,
                                             adept::MParray *interactingQueue, adept::MParray *leakedQueue,
-                                            Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
+                                            Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -1338,9 +1342,10 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
     const int lvolID = currentTrack.navState.GetLogicalId();
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep = false; // track survived, do not force return of step
+      isLastStep = false; // track survived
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
@@ -1381,26 +1386,26 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                          // Track ID
-                               currentTrack.parentId,                         // parent Track ID
-                               currentTrack.creatorProcessId,                 // creator process ID
-                               static_cast<char>(1),                          // Particle type
-                               elTrack.GetPStepLength(),                      // Step length
-                               energyDeposit,                                 // Total Edep
-                               currentTrack.weight,                           // Track weight
-                               currentTrack.navState,                         // Pre-step point navstate
-                               currentTrack.preStepPos,                       // Pre-step point position
-                               currentTrack.preStepDir,                       // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               currentTrack.nextState,                        // Post-step point navstate
-                               currentTrack.pos,                              // Post-step point position
-                               currentTrack.dir,                              // Post-step point momentum direction
-                               currentTrack.eKin,                             // Post-step point kinetic energy
-                               currentTrack.globalTime,                       // global time
-                               currentTrack.localTime,                        // local time
-                               currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
-                               returnLastStep,                                // whether this was the last step
-                               currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<char>(1),                        // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               currentTrack.eKin,                           // Post-step point kinetic energy
+                               currentTrack.globalTime,                     // global time
+                               currentTrack.localTime,                      // local time
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               isLastStep,                                  // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
   }
 }
 

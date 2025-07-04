@@ -156,8 +156,8 @@ template <typename Scoring>
 __global__ void GammaSetupInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
                                        Secondaries secondaries, adept::MParray *nextActiveQueue,
                                        adept::MParray *reachedInteractionQueue, AllInteractionQueues interactionQueues,
-                                       adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                       bool returnLastStep)
+                                       adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                       const bool returnLastStep)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -168,7 +168,6 @@ __global__ void GammaSetupInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTr
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep          = false; // particle survived, do not force return of step
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         currentTrack.leaked = true;
@@ -346,7 +345,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
 template <typename Scoring>
 __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
                                   Secondaries secondaries, adept::MParray *nextActiveQueue, adept::MParray *leakedQueue,
-                                  Scoring *userScoring, bool returnAllSteps, bool returnLastStep)
+                                  Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -356,10 +355,11 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep          = false; // particle survived, do not force return of step
+      isLastStep              = false; // particle survived
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
@@ -533,8 +533,8 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               returnLastStep, // whether this is the last step of the track
-                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+                               isLastStep,                // whether this is the last step of the track
+                               currentTrack.stepCounter); // whether this is the first step
     }
   }
 }
@@ -542,8 +542,8 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
 template <typename Scoring>
 __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
                                 adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                bool returnLastStep)
+                                adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                const bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
@@ -555,10 +555,11 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep          = false; // particle survived, do not force return of step
+      isLastStep              = false; // particle survived
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
@@ -658,8 +659,8 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               returnLastStep, // whether this is the last step of the track
-                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+                               isLastStep,                // whether this is the last step of the track
+                               currentTrack.stepCounter); // stepcounter
     }
   }
 }
@@ -667,8 +668,8 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
 template <typename Scoring>
 __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
                              adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                             adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                             bool returnLastStep)
+                             adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                             const bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
@@ -680,10 +681,11 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep          = false; // particle survived, do not force return of step
+      isLastStep              = false; // particle survived
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
@@ -779,8 +781,8 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               returnLastStep, // whether this is the last step of the track
-                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+                               isLastStep, // whether this is the last step of the track
+                               currentTrack.stepCounter);
     }
   }
 }
@@ -788,8 +790,8 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
 template <typename Scoring>
 __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
                                    adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                   bool returnLastStep)
+                                   adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
   // int activeSize = active->size();
   int activeSize = interactingQueue->size();
@@ -801,10 +803,11 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    bool isLastStep           = true;
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep          = false; // particle survived, do not force return of step
+      isLastStep              = false; // particle survived
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         auto success = leakedQueue->push_back(slot);
@@ -889,8 +892,8 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               returnLastStep, // whether this is the last step of the track
-                               currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+                               isLastStep, // whether this is the last step of the track
+                               currentTrack.stepCounter);
     }
   }
 }
