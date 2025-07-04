@@ -6,6 +6,8 @@ import sys
 import numpy as np
 import argparse
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 import csv
 
 """
@@ -87,7 +89,7 @@ for i, h in enumerate(headers):
     dx, dy, dz = map(float, (mpos.group('dx'), mpos.group('dy'), mpos.group('dz')))
     # Debug step
     header_line = txt[:h.start()].count('\n') + 1
-    print(f"{point_counter} {header_line} step pos={{ {px}, {py}, {pz} }}")
+    #print(f"{point_counter} {header_line} step pos={{ {px}, {py}, {pz} }}")
     point_counter += 1
     # Range check
     if (min_step is not None and step < min_step) or (max_step is not None and step > max_step):
@@ -116,7 +118,7 @@ for i, h in enumerate(headers):
         # debug print
         abs_line = txt[:bounds[i]].count('\n') + idx_line + 1
         kind     = 'linear' if is_linear else 'field'
-        print(f"{point_counter} {abs_line} {kind} pos={{ {fx}, {fy}, {fz} }}")
+        #print(f"{point_counter} {abs_line} {kind} pos={{ {fx}, {fy}, {fz} }}")
         point_counter += 1
         # store if not duplicate
         if (fx,fy,fz) != (px,py,pz):
@@ -139,8 +141,8 @@ else:
     al = 1.0
 
 # Color mapping
-cmap      = plt.get_cmap('viridis')
-norm      = plt.Normalize(ekins.min(), ekins.max())
+norm = mcolors.Normalize(vmin=ekins.min(), vmax=ekins.max())
+cmap = cm.get_cmap('viridis')
 step_cols = cmap(norm(ekins))
 
 # Build ordered sequence
@@ -158,7 +160,7 @@ colors  = np.array(colors)
 # Plot
 fig = plt.figure(figsize=(10,8))
 ax  = fig.add_subplot(111, projection='3d')
-sc  = ax.scatter(step_pts[:,0], step_pts[:,1], step_pts[:,2], c=step_cols, s=20)
+sc = ax.scatter(step_pts[:,0], step_pts[:,1], step_pts[:,2], c=ekins, cmap='viridis', norm=norm, s=20)
 fig.colorbar(sc, ax=ax, pad=0.1).set_label('Kinetic Energy (MeV)')
 if field_pts.size:
     ax.scatter(field_pts[:,0], field_pts[:,1], field_pts[:,2], c=step_cols[owners], s=0.2)
@@ -200,8 +202,11 @@ for idx, (_,_,pt,dirv) in enumerate(steps_data):
 for pt,dirv,own in zip(field_pts, field_dirs, owners):
     draw_vec(pt, dirv, step_cols[own])
 
+included_steps = [s for s, *_ in steps_data]
+min_included = min(included_steps) if included_steps else 'none'
+max_included = max(included_steps) if included_steps else 'none'
 ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-ax.set_title(f"Trajectory (steps {min_step or 'all'} to {max_step or 'all'})")
+ax.set_title(f"Trajectory (steps {min_included} to {max_included})")
 plt.tight_layout(); plt.show(block=True)
 
 # CSV output
