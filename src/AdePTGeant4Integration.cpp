@@ -493,6 +493,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   G4Track *aTrack = aG4Step->GetTrack();
 
   HostTrackData hostTrackInfo;
+  HostTrackData parentTrackInfo;
 
   // Add full track information if TrackingAction or SteppingAction is enabled
   if (callUserTrackingAction || callUserSteppingAction) {
@@ -516,8 +517,24 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         }
 #endif
 
-        hostTrackInfo            = fTrackIDMapper->create(aGPUHit->fTrackID);
-        hostTrackInfo.g4parentid = aGPUHit->fParentID != 0 ? fTrackIDMapper->get(aGPUHit->fParentID).g4id : 0;
+        hostTrackInfo              = fTrackIDMapper->create(aGPUHit->fTrackID);
+        hostTrackInfo.particleType = aGPUHit->fParticleType;
+
+        if (aGPUHit->fParentID != 0) {
+          parentTrackInfo          = fTrackIDMapper->get(aGPUHit->fParentID);
+          hostTrackInfo.g4parentid = parentTrackInfo.g4id;
+        } else {
+          hostTrackInfo.g4parentid = 0;
+        }
+
+        // retrieve creator process from parent particle type
+        if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
+            static_cast<int>(parentTrackInfo.particleType) == 1) {
+          hostTrackInfo.creatorProcess =
+              fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID];
+        } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
+          hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID];
+        }
 
         hostTrackInfo.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
         hostTrackInfo.vertexPosition =
@@ -546,18 +563,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   auto g4ParentID = hostTrackInfo.g4parentid;
 
   // set creator process
-  if (aGPUHit->fCreatorProcessID == -1) {
-    aTrack->SetCreatorProcess(hostTrackInfo.creatorProcess);
-  } else {
-    const G4ParticleDefinition *part = aTrack->GetParticleDefinition();
-    if (part == G4Electron::Definition() || part == G4Positron::Definition()) {
-      aTrack->SetCreatorProcess(fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID]);
-      hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID];
-    } else if (part == G4Gamma::Definition()) {
-      aTrack->SetCreatorProcess(fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID]);
-      hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID];
-    }
-  }
+  aTrack->SetCreatorProcess(hostTrackInfo.creatorProcess);
 
   // must const-cast as GetDynamicParticle only returns const
   G4DynamicParticle *dynamicParticle = const_cast<G4DynamicParticle *>(aTrack->GetDynamicParticle());
@@ -734,19 +740,6 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // Create track
   G4Track *leakedTrack = new G4Track(dynamic, track.globalTime, posi);
 
-  if (track.creatorProcessId == -1) {
-    leakedTrack->SetCreatorProcess(hostTrackInfo.creatorProcess);
-  } else {
-    const G4ParticleDefinition *part = leakedTrack->GetParticleDefinition();
-    if (part == G4Electron::Definition() || part == G4Positron::Definition()) {
-      leakedTrack->SetCreatorProcess(fHepEmTrackingManager->GetElectronNoProcessVector()[track.creatorProcessId]);
-      hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[track.creatorProcessId];
-    } else if (part == G4Gamma::Definition()) {
-      leakedTrack->SetCreatorProcess(fHepEmTrackingManager->GetGammaNoProcessVector()[track.creatorProcessId]);
-      hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[track.creatorProcessId];
-    }
-  }
-
   // cannot set the current step number directly, could do this with a for loop over incrementing,
   // but not needed, only needed that it is not 0, so we increment only by 1
   leakedTrack->IncrementCurrentStepNumber();
@@ -755,6 +748,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   leakedTrack->SetParentID(g4ParentID);
 
   leakedTrack->SetUserInformation(hostTrackInfo.userTrackInfo);
+  leakedTrack->SetCreatorProcess(hostTrackInfo.creatorProcess);
 
   // Set time information
   leakedTrack->SetLocalTime(track.localTime);

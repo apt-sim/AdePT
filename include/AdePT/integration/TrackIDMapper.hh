@@ -29,6 +29,7 @@ struct HostTrackData {
   G4ThreeVector vertexPosition;
   G4ThreeVector vertexMomentumDirection;
   G4double vertexKineticEnergy;
+  char particleType;
 };
 
 // This class provides a mapping between G4 id's (int) and AdePT id's (uint64_t).

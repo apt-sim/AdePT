@@ -335,6 +335,15 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double weight           = aTrack->GetWeight();
       unsigned short stepNumber = static_cast<unsigned short>(aTrack->GetCurrentStepNumber());
       auto pdg                  = aTrack->GetParticleDefinition()->GetPDGEncoding();
+
+      if (pdg == 11) {
+        hostTrackData.particleType = static_cast<char>(0);
+      } else if (pdg == -11) {
+        hostTrackData.particleType = static_cast<char>(1);
+      } else if (pdg == 22) {
+        hostTrackData.particleType = static_cast<char>(2);
+      }
+
       if (fCurrentEventID != eventID) {
         // Do this to reproducibly seed the AdePT random numbers:
         fCurrentEventID = eventID;
