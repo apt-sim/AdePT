@@ -750,7 +750,6 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // Set time information
   leakedTrack->SetLocalTime(track.localTime);
   leakedTrack->SetProperTime(track.properTime);
-  leakedTrack->SetParentID(track.parentId);
 
   // Set weight
   leakedTrack->SetWeight(track.weight);

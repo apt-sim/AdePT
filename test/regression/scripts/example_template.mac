@@ -54,6 +54,9 @@ $hepmc_part
 /gun/direction 1 0 0
 /gun/print true
 
+/adept/CallUserTrackingAction true
+
+
 ## -----------------------------------------------------------------------------
 ## Run the simulation with the given number of events and print list of processes
 ## -----------------------------------------------------------------------------

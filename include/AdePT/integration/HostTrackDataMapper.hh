@@ -17,9 +17,9 @@ class G4PrimaryParticle;
 
 /// @brief A helper struct to store the data that is stored exclusively on the CPU
 struct HostTrackData {
-  int g4id;       // the Geant4 track ID
-  int g4parentid; // the Geant4 parent ID
-  uint64_t gpuId; // the GPU’s 64-bit track ID
+  int g4id                               = 0; // the Geant4 track ID
+  int g4parentid                         = 0; // the Geant4 parent ID
+  uint64_t gpuId                         = 0; // the GPU’s 64-bit track ID
   G4PrimaryParticle *primary             = nullptr;
   G4VProcess *creatorProcess             = nullptr;
   G4VUserTrackInformation *userTrackInfo = nullptr;
@@ -42,13 +42,19 @@ public:
     if (eventID != currentEventID) {
       currentEventID = eventID;
 
-      // for debugging
+      // for debugging:
+      // should be 0 unless there are no GPU regions, in that case tracks that are created on the GPU
+      // and die on the CPU will still be in the mapper.
       // std::cout << " CLEARING HostTrackDataMapper OF SIZE " << gpuToIndex.size() << std::endl;
 
       gpuToIndex.clear();
       gpuToIndex.max_load_factor(0.5f);
-
       gpuToIndex.reserve(expectedTracks);
+
+      g4idToGpuId.clear();
+      g4idToGpuId.max_load_factor(0.25f);
+      g4idToGpuId.reserve(expectedTracks);
+
       hostDataVec.clear();
       hostDataVec.reserve(expectedTracks);
       currentGpuReturnG4ID = std::numeric_limits<int>::max();
@@ -67,14 +73,27 @@ public:
     int idx           = static_cast<int>(hostDataVec.size());
     gpuToIndex[gpuId] = idx;
     hostDataVec.push_back({});
-    auto &d = hostDataVec.back();
-    d.gpuId = gpuId;
-    d.g4id  = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
+    auto &d             = hostDataVec.back();
+    d.gpuId             = gpuId;
+    d.g4id              = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
+    g4idToGpuId[d.g4id] = gpuId;
     return d;
   }
 
   // Assumes caller knows entry exists
   HostTrackData &get(uint64_t gpuId) { return hostDataVec[gpuToIndex.at(gpuId)]; }
+
+  // Assumes caller knows entry exists
+  bool tryGetGPUId(int g4id, uint64_t &gpuid)
+  {
+    auto it = g4idToGpuId.find(g4id);
+    if (it == g4idToGpuId.end()) {
+      gpuid = static_cast<uint64_t>(g4id);
+      return false;
+    }
+    gpuid = it->second;
+    return true;
+  }
 
   // Assumes caller knows entry does not exist yet
   HostTrackData &create(uint64_t gpuId, bool useNewId = true)
@@ -85,15 +104,22 @@ public:
     auto &d = hostDataVec.back();
     d.gpuId = gpuId;
     d.g4id  = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
+    // Note: this is a hot path and increases run time significantly, but is needed for correct re-mapping of tracks
+    // that go from GPU to CPU back to GPU, as they need to be assigned the same ID on the GPU
+    g4idToGpuId[d.g4id] = gpuId;
     return d;
   }
 
+  /// Call when a track (with given gpuId) is completely done:
   void removeTrack(uint64_t gpuId)
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return; // already gone
     int idx  = it->second;
     int last = int(hostDataVec.size()) - 1;
+    // optional: delete unused G4 ids. However, this is problematic as the IDs of killed tracks might require lookup
+    // when the parent id is set. Therefore unused for now int g4idToErase = hostDataVec[idx].g4id; // optional: delete
+    // unused g4 ids
     if (idx != last) {
       // move last element into idx
       std::swap(hostDataVec[idx], hostDataVec[last]);
@@ -102,28 +128,8 @@ public:
     }
     hostDataVec.pop_back();
     gpuToIndex.erase(it);
-  }
-
-  /// Call when a track (with given gpuId) is completely done:
-  void remove(uint64_t gpuId)
-  {
-    auto it = gpuToIndex.find(gpuId);
-    if (it == gpuToIndex.end()) return; // nothing to do
-
-    int idx     = it->second;                  // index in hostDataVec
-    int lastIdx = int(hostDataVec.size()) - 1; // last element’s index
-
-    if (idx != lastIdx) {
-      // Move the last element into slot idx
-      HostTrackData moved = std::move(hostDataVec[lastIdx]);
-      hostDataVec[idx]    = std::move(moved);
-      // Update the map for that moved element
-      gpuToIndex[hostDataVec[idx].gpuId] = idx;
-    }
-
-    // pop & erase the old entry
-    hostDataVec.pop_back();
-    gpuToIndex.erase(it);
+    // second part of deletion of g4 ids
+    // g4idToGpuId.erase(g4idToErase);
   }
 
   /// @brief Whether an entry exists in the GPU to Index map for the given GPU id
@@ -132,8 +138,9 @@ public:
   bool contains(uint64_t gpuId) const { return gpuToIndex.find(gpuId) != gpuToIndex.end(); }
 
 private:
-  std::unordered_map<uint64_t, int> gpuToIndex; // key→slot in hostDataVec
-  std::vector<HostTrackData> hostDataVec;       // contiguous array of all data
+  std::unordered_map<uint64_t, int> gpuToIndex;  // key→slot in hostDataVec
+  std::unordered_map<int, uint64_t> g4idToGpuId; // geant4 id to GPU id, needed for reverse lookup
+  std::vector<HostTrackData> hostDataVec;        // contiguous array of all data
 
   int currentGpuReturnG4ID = std::numeric_limits<int>::max();
   int currentEventID       = -1;

@@ -297,32 +297,60 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
     if (isGPURegion && (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0)) {
       // If the track is in a GPU region, hand it over to AdePT
+      auto pdg = aTrack->GetParticleDefinition()->GetPDGEncoding();
 
-      // generate hostTrackData and fill it
-      auto &hostTrackData   = trackMapper.getOrCreate(static_cast<uint64_t>(aTrack->GetTrackID()), /*useNewId=*/false);
-      uint64_t gpuTrackID   = hostTrackData.gpuId;
-      hostTrackData.primary = aTrack->GetDynamicParticle()->GetPrimaryParticle();
-      hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
-      hostTrackData.userTrackInfo  = aTrack->GetUserInformation();
-      // FIXME: probably missing, if this is the 0th step, we have to call the PreUserTrackingAction and then attach the
-      // UserInformation
-      hostTrackData.g4parentid = aTrack->GetParentID();
+      // check whether there is already an entry in the HostTrackData for this G4 trackid
+      uint64_t gpuTrackID;
+      bool entryExists = trackMapper.tryGetGPUId(aTrack->GetTrackID(), gpuTrackID);
 
-      // Set the vertex information
-      if (aTrack->GetCurrentStepNumber() == 0) {
-        // If it's the first step of the track these values are not set
-        hostTrackData.vertexPosition          = aTrack->GetPosition();
-        hostTrackData.vertexMomentumDirection = aTrack->GetMomentumDirection();
-        hostTrackData.vertexKineticEnergy     = aTrack->GetKineticEnergy();
-        hostTrackData.logicalVolumeAtVertex   = aTrack->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
-      } else {
-        hostTrackData.vertexPosition          = aTrack->GetVertexPosition();
-        hostTrackData.vertexMomentumDirection = aTrack->GetVertexMomentumDirection();
-        hostTrackData.vertexKineticEnergy     = aTrack->GetVertexKineticEnergy();
-        hostTrackData.logicalVolumeAtVertex   = const_cast<G4LogicalVolume *>(aTrack->GetLogicalVolumeAtVertex());
+      HostTrackData hostTrackData;
+      if (!entryExists) {
+        hostTrackData = trackMapper.create(gpuTrackID, /*useNewId=*/false);
+
+        hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
+        hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
+        hostTrackData.g4parentid     = aTrack->GetParentID();
+
+        // Set the vertex information
+        if (aTrack->GetCurrentStepNumber() == 0) {
+          // If it's the first step of the track these values are not set
+          hostTrackData.vertexPosition          = aTrack->GetPosition();
+          hostTrackData.vertexMomentumDirection = aTrack->GetMomentumDirection();
+          hostTrackData.vertexKineticEnergy     = aTrack->GetKineticEnergy();
+          hostTrackData.logicalVolumeAtVertex   = aTrack->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
+        } else {
+          hostTrackData.vertexPosition          = aTrack->GetVertexPosition();
+          hostTrackData.vertexMomentumDirection = aTrack->GetVertexMomentumDirection();
+          hostTrackData.vertexKineticEnergy     = aTrack->GetVertexKineticEnergy();
+          hostTrackData.logicalVolumeAtVertex   = const_cast<G4LogicalVolume *>(aTrack->GetLogicalVolumeAtVertex());
+        }
+
+        // set the particle type
+        if (pdg == 11) {
+          hostTrackData.particleType = static_cast<char>(0);
+        } else if (pdg == -11) {
+          hostTrackData.particleType = static_cast<char>(1);
+        } else if (pdg == 22) {
+          hostTrackData.particleType = static_cast<char>(2);
+        }
+
+        // if there has been no step, call PreUserTrackingAction and try to attach UserInformation
+        if (aTrack->GetCurrentStepNumber() == 0) {
+          auto *userTrackingAction = eventManager->GetUserTrackingAction();
+          if (userTrackingAction) {
+
+            // this assumes that the UserTrackInformation is attached to the track in the PreUserTrackingAction
+            userTrackingAction->PreUserTrackingAction(aTrack);
+            hostTrackData.userTrackInfo = aTrack->GetUserInformation();
+          }
+        } else {
+          // not the initializing step, just attach user information in case it is there
+          hostTrackData.userTrackInfo = aTrack->GetUserInformation();
+        }
       }
 
-      uint64_t gpuParentID = static_cast<uint64_t>(aTrack->GetParentID());
+      uint64_t gpuParentID;
+      trackMapper.tryGetGPUId(aTrack->GetParentID(), gpuParentID);
 
       short creatorProcessId = -1; // -1 for tracks that come from G4 directly and are not created by AdePT
 
@@ -334,15 +362,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double properTime       = aTrack->GetProperTime();
       G4double weight           = aTrack->GetWeight();
       unsigned short stepNumber = static_cast<unsigned short>(aTrack->GetCurrentStepNumber());
-      auto pdg                  = aTrack->GetParticleDefinition()->GetPDGEncoding();
-
-      if (pdg == 11) {
-        hostTrackData.particleType = static_cast<char>(0);
-      } else if (pdg == -11) {
-        hostTrackData.particleType = static_cast<char>(1);
-      } else if (pdg == 22) {
-        hostTrackData.particleType = static_cast<char>(2);
-      }
 
       if (fCurrentEventID != eventID) {
         // Do this to reproducibly seed the AdePT random numbers:
@@ -364,16 +383,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       } else {
         // For secondary tracks, the origin touchable handle is set when they are stacked
         convertedOrigin = GetVecGeomFromG4State(*aTrack->GetOriginTouchableHandle()->GetHistory());
-      }
-
-      if (aTrack->GetCurrentStepNumber() == 0) {
-        auto *userTrackingAction = eventManager->GetUserTrackingAction();
-        if (userTrackingAction) {
-
-          // this assumes that the UserTrackInformation is attached to the track in the PreUserTrackingAction
-          userTrackingAction->PreUserTrackingAction(aTrack);
-          hostTrackData.userTrackInfo = aTrack->GetUserInformation();
-        }
       }
 
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, creatorProcessId, energy, particlePosition[0],
