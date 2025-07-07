@@ -460,6 +460,7 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
       // Stopped positrons annihilate, stopped electrons score and die
       if (IsElectron) {
         reached_interaction = false;
+        isLastStep          = true;
         // Ekin = 0 for correct scoring
         currentTrack.eKin = 0;
         // Particle is killed by not enqueuing it for the next iteration. Free the slot it occupies
@@ -496,26 +497,26 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
       // Score the edep for particles that didn't reach the interaction
       if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                          // Track ID
-                                 currentTrack.parentId,                         // parent Track ID
-                                 currentTrack.creatorProcessId,                 // creator process ID
-                                 static_cast<char>(IsElectron ? 0 : 1),         // Particle type
-                                 elTrack.GetPStepLength(),                      // Step length
-                                 energyDeposit,                                 // Total Edep
-                                 currentTrack.weight,                           // Track weight
-                                 currentTrack.navState,                         // Pre-step point navstate
-                                 currentTrack.preStepPos,                       // Pre-step point position
-                                 currentTrack.preStepDir,                       // Pre-step point momentum direction
-                                 currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                                 currentTrack.nextState,                        // Post-step point navstate
-                                 currentTrack.pos,                              // Post-step point position
-                                 currentTrack.dir,                              // Post-step point momentum direction
-                                 currentTrack.eKin,                             // Post-step point kinetic energy
-                                 currentTrack.globalTime,                       // global time
-                                 currentTrack.localTime,                        // local time
-                                 currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
-                                 returnLastStep,                                // whether this was the last step
-                                 currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+                                 currentTrack.trackId,                        // Track ID
+                                 currentTrack.parentId,                       // parent Track ID
+                                 currentTrack.creatorProcessId,               // creator process ID
+                                 static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                                 elTrack.GetPStepLength(),                    // Step length
+                                 energyDeposit,                               // Total Edep
+                                 currentTrack.weight,                         // Track weight
+                                 currentTrack.navState,                       // Pre-step point navstate
+                                 currentTrack.preStepPos,                     // Pre-step point position
+                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                 currentTrack.nextState,                      // Post-step point navstate
+                                 currentTrack.pos,                            // Post-step point position
+                                 currentTrack.dir,                            // Post-step point momentum direction
+                                 currentTrack.eKin,                           // Post-step point kinetic energy
+                                 currentTrack.globalTime,                     // global time
+                                 currentTrack.localTime,                      // local time
+                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                 isLastStep,                                  // whether this was the last step
+                                 currentTrack.stepCounter);                   // stepcounter
     }
   }
 }
@@ -523,8 +524,8 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                    adept::MParray *nextActiveQueue, adept::MParray *relocatingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                   bool returnLastStep)
+                                   adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = relocatingQueue->size();
@@ -539,7 +540,6 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep = false; // track survived, do not force return of step
       // NOTE: When adapting the split kernels for async mode this won't
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
@@ -556,6 +556,8 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
         nextActiveQueue->push_back(slot);
       }
     };
+
+    bool isLastStep = false;
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -586,7 +588,6 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     if (!currentTrack.nextState.IsOutside()) {
       // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
       // This will happen after recording the step
-      returnLastStep = false; // the track survives, do not force return of step
       // Relocate
       cross_boundary = true;
 #ifdef ADEPT_USE_SURF
@@ -600,29 +601,32 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     } else {
       // Particle left the world, don't enqueue it and release the slot
       slotManager.MarkSlotForFreeing(slot);
+      isLastStep = true;
     }
 
     // Score
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
-      adept_scoring::RecordHit(userScoring, currentTrack.parentId,
-                               static_cast<char>(IsElectron ? 0 : 1),         // Particle type
-                               elTrack.GetPStepLength(),                      // Step length
-                               energyDeposit,                                 // Total Edep
-                               currentTrack.weight,                           // Track weight
-                               currentTrack.navState,                         // Pre-step point navstate
-                               currentTrack.preStepPos,                       // Pre-step point position
-                               currentTrack.preStepDir,                       // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                      // Pre-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Pre-step point charge
-                               currentTrack.nextState,                        // Post-step point navstate
-                               currentTrack.pos,                              // Post-step point position
-                               currentTrack.dir,                              // Post-step point momentum direction
-                               currentTrack.eKin,                             // Post-step point kinetic energy
-                               IsElectron ? -1 : 1,                           // Post-step point charge
-                               currentTrack.globalTime,                       // global time
-                               currentTrack.eventId, currentTrack.threadId,   // eventID and threadID
-                               returnLastStep,                                // whether this was the last step
-                               currentTrack.stepCounter == 1 ? true : false); // whether this was the first step
+      adept_scoring::RecordHit(userScoring,
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               currentTrack.eKin,                           // Post-step point kinetic energy
+                               currentTrack.globalTime,                     // global time
+                               currentTrack.localTime,                      // local time
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               isLastStep,                                  // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
 
     if (cross_boundary) {
       // Move to the next boundary now that the Step is recorded
@@ -630,9 +634,9 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
       const int nextlvolID          = currentTrack.navState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-      if (nextauxData.fGPUregion > 0)
+      if (nextauxData.fGPUregion > 0) {
         survive();
-      else {
+      } else {
         // To be safe, just push a bit the track exiting the GPU region to make sure
         // Geant4 does not relocate it again inside the same region
         currentTrack.pos += kPushDistance * currentTrack.dir;

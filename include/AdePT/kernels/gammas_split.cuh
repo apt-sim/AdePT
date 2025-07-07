@@ -156,8 +156,7 @@ template <typename Scoring>
 __global__ void GammaSetupInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
                                        Secondaries secondaries, adept::MParray *nextActiveQueue,
                                        adept::MParray *reachedInteractionQueue, AllInteractionQueues interactionQueues,
-                                       adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
-                                       const bool returnLastStep)
+                                       adept::MParray *leakedQueue, Scoring *userScoring)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -219,8 +218,8 @@ __global__ void GammaSetupInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTr
 template <typename Scoring>
 __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
                                 adept::MParray *nextActiveQueue, adept::MParray *relocatingQueue,
-                                adept::MParray *leakedQueue, Scoring *userScoring, bool returnAllSteps,
-                                bool returnLastStep)
+                                adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
+                                const bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = relocatingQueue->size();
@@ -233,7 +232,6 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      returnLastStep          = false; // particle survived, do not force return of step
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         currentTrack.leaked = true;
@@ -275,7 +273,9 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       // as now the nextState is defined, but the navState is not yet replaced
       if (returnAllSteps)
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.parentId,                       // Track ID
+                                 currentTrack.trackId,                        // Track ID
+                                 currentTrack.parentId,                       // parent Track ID
+                                 currentTrack.creatorProcessId,               // creator process ID
                                  2,                                           // Particle type
                                  currentTrack.geometryStepLength,             // Step length
                                  0,                                           // Total Edep
@@ -284,17 +284,15 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                  currentTrack.preStepPos,                     // Pre-step point position
                                  currentTrack.preStepDir,                     // Pre-step point momentum direction
                                  currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                 0,                                           // Pre-step point charge
                                  currentTrack.nextState,                      // Post-step point navstate
                                  currentTrack.pos,                            // Post-step point position
                                  currentTrack.dir,                            // Post-step point momentum direction
                                  currentTrack.eKin,                           // Post-step point kinetic energy
-                                 0,                                           // Post-step point charge
                                  currentTrack.globalTime,                     // global time
+                                 currentTrack.localTime,                      // local time
                                  currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                 returnLastStep,
-                                 currentTrack.stepCounter == 1 ? true
-                                                               : false); // whether this is the last step of the track
+                                 false,                     // whether this is the last step of the track
+                                 currentTrack.stepCounter); // stepcounter
 
       // Move to the next boundary.
       currentTrack.navState = currentTrack.nextState;
@@ -302,9 +300,9 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
       const int nextlvolID          = currentTrack.navState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-      if (nextauxData.fGPUregion > 0)
+      if (nextauxData.fGPUregion > 0) {
         survive();
-      else {
+      } else {
         // To be safe, just push a bit the track exiting the GPU region to make sure
         // Geant4 does not relocate it again inside the same region
         currentTrack.pos += kPushDistance * currentTrack.dir;
@@ -317,7 +315,9 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       // particle has left the world, record hit if last or all steps are returned
       if (returnAllSteps || returnLastStep)
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.parentId,                       // Track ID
+                                 currentTrack.trackId,                        // Track ID
+                                 currentTrack.parentId,                       // parent Track ID
+                                 currentTrack.creatorProcessId,               // creator process ID
                                  2,                                           // Particle type
                                  currentTrack.geometryStepLength,             // Step length
                                  0,                                           // Total Edep
@@ -326,16 +326,15 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                  currentTrack.preStepPos,                     // Pre-step point position
                                  currentTrack.preStepDir,                     // Pre-step point momentum direction
                                  currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                 0,                                           // Pre-step point charge
                                  currentTrack.nextState,                      // Post-step point navstate
                                  currentTrack.pos,                            // Post-step point position
                                  currentTrack.dir,                            // Post-step point momentum direction
                                  currentTrack.eKin,                           // Post-step point kinetic energy
-                                 0,                                           // Post-step point charge
                                  currentTrack.globalTime,                     // global time
+                                 currentTrack.localTime,                      // local time
                                  currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                 returnLastStep, // whether this is the last step of the track
-                                 currentTrack.stepCounter == 1 ? true : false); // whether this is the first step
+                                 true,                      // whether this is the last step of the track
+                                 currentTrack.stepCounter); // stepcounter
     }
     continue;
   }
