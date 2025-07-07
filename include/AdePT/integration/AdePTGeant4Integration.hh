@@ -12,7 +12,7 @@
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/ScoringCommons.hh>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
-#include <AdePT/integration/TrackIDMapper.hh>
+#include <AdePT/integration/HostTrackDataMapper.hh>
 
 #include <G4EventManager.hh>
 #include <G4Event.hh>
@@ -31,7 +31,7 @@ struct Deleter {
 class AdePTGeant4Integration {
 public:
   explicit AdePTGeant4Integration(G4HepEmTrackingManagerSpecialized *hepEmTM)
-      : fHepEmTrackingManager(hepEmTM), fTrackIDMapper(std::make_unique<TrackIDMapper>())
+      : fHepEmTrackingManager(hepEmTM), fHostTrackDataMapper(std::make_unique<HostTrackDataMapper>())
   {
   }
   ~AdePTGeant4Integration();
@@ -88,7 +88,7 @@ public:
 
   int GetThreadID() const { return G4Threading::G4GetThreadId(); }
 
-  TrackIDMapper &GetTrackIDMapper() { return *fTrackIDMapper; }
+  HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
 
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
@@ -100,8 +100,8 @@ private:
 
   void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel) const;
 
-  std::unique_ptr<TrackIDMapper>
-      fTrackIDMapper; // helper class to map from G4's int track IDs to AdePT's uint64 track IDs
+  // helper class to provide the CPU-only data for the returning GPU tracks
+  std::unique_ptr<HostTrackDataMapper> fHostTrackDataMapper;
 
   static std::vector<G4VPhysicalVolume const *> fglobal_vecgeom_pv_to_g4_map;
   static std::vector<G4LogicalVolume const *> fglobal_vecgeom_lv_to_g4_map;

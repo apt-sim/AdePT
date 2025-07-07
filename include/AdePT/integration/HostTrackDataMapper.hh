@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2025 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef TRACKIDMAPPER_H
-#define TRACKIDMAPPER_H
+#ifndef HOSTTRACKDATAMAPPER_H
+#define HOSTTRACKDATAMAPPER_H
 
 #include <unordered_map>
 #include <cstdint>
@@ -11,8 +11,6 @@
 
 #include "G4VUserTrackInformation.hh"
 #include "G4VProcess.hh"
-
-// #include "robin_hood.h"
 
 // Forward declaration
 class G4PrimaryParticle;
@@ -33,9 +31,9 @@ struct HostTrackData {
 };
 
 // This class provides a mapping between G4 id's (int) and AdePT id's (uint64_t).
-// Furthermore it holds a map to all the information that must be kept on the CPU
+// Furthermore it holds a vector to all the information that must be kept on the CPU
 // such as the pointer to the creator process, the G4 primary particle, and the G4VUserTrackInformation
-class TrackIDMapper {
+class HostTrackDataMapper {
 public:
   // Using a hash map to find the correct index for a given GPU id and then a vector for all the CPU-only data
   /// Call once at the start of each event, so we can clear and reserve
@@ -43,7 +41,10 @@ public:
   {
     if (eventID != currentEventID) {
       currentEventID = eventID;
-      std::cout << " CLEARING TRACKIDMAPPER OF SIZE " << gpuToIndex.size() << std::endl;
+
+      // for debugging
+      // std::cout << " CLEARING HostTrackDataMapper OF SIZE " << gpuToIndex.size() << std::endl;
+
       gpuToIndex.clear();
       gpuToIndex.max_load_factor(0.5f);
 

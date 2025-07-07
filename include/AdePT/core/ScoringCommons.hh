@@ -35,7 +35,7 @@ struct GPUHit {
   short threadId{-1};
   // bool fFirstStepInVolume{false};
   bool fLastStepOfTrack{false};
-  unsigned short fStepCounter{false};
+  unsigned short fStepCounter{0};
   char fParticleType{0}; // Particle type ID
 };
 

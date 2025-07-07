@@ -502,12 +502,12 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     try {
       if (aGPUHit->fStepCounter != 0) {
         // not the initializing step, hostTrackInfo must be available
-        hostTrackInfo = fTrackIDMapper->get(aGPUHit->fTrackID);
+        hostTrackInfo = fHostTrackDataMapper->get(aGPUHit->fTrackID);
       } else {
         // initializing step, set parameters
 
 #ifdef DEBUG
-        if (fTrackIDMapper->contains(aGPUHit->fTrackID)) {
+        if (fHostTrackDataMapper->contains(aGPUHit->fTrackID)) {
           std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << aGPUHit->fTrackID
                     << ", parentID = " << aGPUHit->fParentID << ") "
                     << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
@@ -517,11 +517,11 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         }
 #endif
 
-        hostTrackInfo              = fTrackIDMapper->create(aGPUHit->fTrackID);
+        hostTrackInfo              = fHostTrackDataMapper->create(aGPUHit->fTrackID);
         hostTrackInfo.particleType = aGPUHit->fParticleType;
 
         if (aGPUHit->fParentID != 0) {
-          parentTrackInfo          = fTrackIDMapper->get(aGPUHit->fParentID);
+          parentTrackInfo          = fHostTrackDataMapper->get(aGPUHit->fParentID);
           hostTrackInfo.g4parentid = parentTrackInfo.g4id;
         } else {
           hostTrackInfo.g4parentid = 0;
@@ -547,13 +547,13 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
       }
 
     } catch (const std::exception &e) {
-      std::cerr << "\033[1;31mERROR: EXCEPTION in TrackIDMapper: " << e.what() << " (trackID = " << aGPUHit->fTrackID
-                << ", parentID = " << aGPUHit->fParentID << ") "
+      std::cerr << "\033[1;31mERROR: EXCEPTION in HostTrackDataMapper: " << e.what()
+                << " (trackID = " << aGPUHit->fTrackID << ", parentID = " << aGPUHit->fParentID << ") "
                 << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
                 << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
                 << std::endl;
     } catch (...) {
-      std::cerr << "\033[1;31mERROR UNKNOWN EXCEPTION in TrackIDMapper"
+      std::cerr << "\033[1;31mERROR UNKNOWN EXCEPTION in HostTrackDataMapper"
                 << " (trackID = " << aGPUHit->fTrackID << ", parentID = " << aGPUHit->fParentID << ")\033[0m"
                 << std::endl;
     }
@@ -679,13 +679,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(aTrack);
   }
 
-  // optional to test performance improvement, remove dead tracks from storage
+  // remove killed tracks from storage to reduce lookup table size
   if (aGPUHit->fLastStepOfTrack) {
-    // std::cout << "Last step "<<  aGPUHit->fStepCounter <<  " removing trackID " << aGPUHit->fTrackID
-    //           << " parentID = " << aGPUHit->fParentID << ") "
-    //           << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
-    //           << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << std::endl;
-    fTrackIDMapper->removeTrack(aGPUHit->fTrackID);
+    fHostTrackDataMapper->removeTrack(aGPUHit->fTrackID);
   }
 }
 
@@ -717,7 +713,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   try {
     if (track.stepCounter != 0) {
       // not the initializing step, hostTrackInfo must be available
-      hostTrackInfo = fTrackIDMapper->get(track.trackId);
+      hostTrackInfo = fHostTrackDataMapper->get(track.trackId);
     } else {
       // tracks should never leak with the initializing step 0!
       std::cerr << "\033[1;31mERROR: Leaked track with stepCounter != 0 detected, this should never be the case! "
@@ -726,7 +722,8 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
     }
   } catch (const std::exception &e) {
     // Note: if tracking or steppingaction is enabled, this should always be available, then the following printout can
-    // be used for debugging: std::cerr << "\033[1;31mERROR: EXCEPTION in TrackIDMapper: " << e.what() << " (trackID = "
+    // be used for debugging: std::cerr << "\033[1;31mERROR: EXCEPTION in HostTrackDataMapper: " << e.what() << "
+    // (trackID = "
     // << track.trackId
     //           << ", parentID = " << track.parentId << ") "
     //           << " pdg " << track.pdg << " stepCounter " << track.stepCounter << "\033[0m" << std::endl;
@@ -740,8 +737,8 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // Create track
   G4Track *leakedTrack = new G4Track(dynamic, track.globalTime, posi);
 
-  // cannot set the current step number directly, could do this with a for loop over incrementing,
-  // but not needed, only needed that it is not 0, so we increment only by 1
+  // G4 does not allow to set the current step number directly, only to increment it.
+  // For now, it is sufficient to increment just once, to distinguish from the 0th step
   leakedTrack->IncrementCurrentStepNumber();
 
   leakedTrack->SetTrackID(g4TrackID);
@@ -844,7 +841,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
 
           // gamma nuclear kills the track, so we safely remove it from the hostTrackData map, as the hits are always
           // handled before the leaked tracks
-          fTrackIDMapper->removeTrack(track.trackId);
+          fHostTrackDataMapper->removeTrack(track.trackId);
 
         } else {
           // no gamma nuclear process attached, just give back the track to G4 to put it back on GPU

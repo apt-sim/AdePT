@@ -270,9 +270,9 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     G4Exception("AdePTTrackingManager::ProcessTrack", "", FatalException,
                 "fAdeptTransport is not of type AsyncAdePTTransport<AdePTGeant4Integration>");
   }
-  auto &trackIDMapper = asyncTransport->GetIntegrationLayer(threadId).GetTrackIDMapper();
+  auto &trackMapper = asyncTransport->GetIntegrationLayer(threadId).GetHostTrackDataMapper();
 
-  if (fCurrentEventID != eventID) trackIDMapper.beginEvent(eventID);
+  if (fCurrentEventID != eventID) trackMapper.beginEvent(eventID);
 
   // new event detected, reset
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) >= 0 &&
@@ -299,9 +299,9 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // If the track is in a GPU region, hand it over to AdePT
 
       // generate hostTrackData and fill it
-      auto &hostTrackData = trackIDMapper.getOrCreate(static_cast<uint64_t>(aTrack->GetTrackID()), /*useNewId=*/false);
-      uint64_t gpuTrackID = hostTrackData.gpuId;
-      hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
+      auto &hostTrackData   = trackMapper.getOrCreate(static_cast<uint64_t>(aTrack->GetTrackID()), /*useNewId=*/false);
+      uint64_t gpuTrackID   = hostTrackData.gpuId;
+      hostTrackData.primary = aTrack->GetDynamicParticle()->GetPrimaryParticle();
       hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
       hostTrackData.userTrackInfo  = aTrack->GetUserInformation();
       // FIXME: probably missing, if this is the 0th step, we have to call the PreUserTrackingAction and then attach the

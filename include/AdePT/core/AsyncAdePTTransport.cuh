@@ -1545,7 +1545,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           hitProcessing->cv.notify_one();
         } else {
           if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2 ||
-              gpuState.stats->hitBufferOccupancy >= 30000 ||
+              gpuState.stats->hitBufferOccupancy >= 10000 ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {

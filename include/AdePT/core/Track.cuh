@@ -59,8 +59,7 @@ struct Track {
   uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
   uint64_t parentId{0}; // track id of the parent
 
-  short creatorProcessId{
-      -1}; // if -1, the creatorProcess needs to be looked up in the map on CPU, else it is a valid process
+  short creatorProcessId{-1}; // TODO: to be improved and merged with step defining process
   unsigned int eventId{0};
   short threadId{-1};
   unsigned short stepCounter{0};
@@ -91,7 +90,6 @@ struct Track {
         stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
-    // trackId                 = rngState.IntRndmNoAdvance();
     pos        = {position[0], position[1], position[2]};
     dir        = {direction[0], direction[1], direction[2]};
     leakStatus = LeakStatus::NoLeak;
