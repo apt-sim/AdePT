@@ -117,9 +117,9 @@ struct Track {
   __host__ __device__ void Print(const char *label) const
   {
     printf("== evt %u parentId %lu %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
-           "%.19f} remain_safe %g loop %u\n| state: ",
+           "%.19f} remain_safe %g loop %u\n| creatorProcess %u | state: ",
            eventId, parentId, label, trackId, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
-           dir[1], dir[2], GetSafety(pos), looperCounter);
+           dir[1], dir[2], GetSafety(pos), looperCounter, creatorProcessId);
     navState.Print();
   }
 
@@ -187,23 +187,25 @@ struct Track {
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
-    tdata.pdg            = pdg;
-    tdata.parentId       = parentId;
-    tdata.position[0]    = pos[0];
-    tdata.position[1]    = pos[1];
-    tdata.position[2]    = pos[2];
-    tdata.direction[0]   = dir[0];
-    tdata.direction[1]   = dir[1];
-    tdata.direction[2]   = dir[2];
-    tdata.eKin           = eKin;
-    tdata.globalTime     = globalTime;
-    tdata.localTime      = localTime;
-    tdata.properTime     = properTime;
-    tdata.navState       = navState;
-    tdata.originNavState = originNavState;
-    tdata.weight         = weight;
-    tdata.leakStatus     = leakStatus;
-    tdata.stepCounter    = stepCounter;
+    tdata.pdg              = pdg;
+    tdata.trackId          = trackId;
+    tdata.parentId         = parentId;
+    tdata.position[0]      = pos[0];
+    tdata.position[1]      = pos[1];
+    tdata.position[2]      = pos[2];
+    tdata.direction[0]     = dir[0];
+    tdata.direction[1]     = dir[1];
+    tdata.direction[2]     = dir[2];
+    tdata.eKin             = eKin;
+    tdata.globalTime       = globalTime;
+    tdata.localTime        = localTime;
+    tdata.properTime       = properTime;
+    tdata.navState         = navState;
+    tdata.originNavState   = originNavState;
+    tdata.weight           = weight;
+    tdata.leakStatus       = leakStatus;
+    tdata.creatorProcessId = creatorProcessId;
+    tdata.stepCounter      = stepCounter;
   }
 };
 #endif

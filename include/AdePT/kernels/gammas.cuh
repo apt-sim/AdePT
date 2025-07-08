@@ -394,6 +394,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.trackId;
         electron.rngState = newRNG;
+        electron.trackId  = electron.rngState.IntRndm64();
         electron.eKin     = elKinEnergy;
         electron.weight   = currentTrack.weight;
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
@@ -435,10 +436,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         Track &positron = secondaries.positrons->NextTrack();
         positron.InitAsSecondary(pos, navState, globalTime);
         // Reuse the RNG state of the dying track.
-        positron.parentId = currentTrack.trackId;
-        positron.rngState = currentTrack.rngState;
-        positron.eKin     = posKinEnergy;
-        positron.weight   = currentTrack.weight;
+        positron.parentId         = currentTrack.trackId;
+        positron.creatorProcessId = short(winnerProcessIndex);
+        positron.rngState         = currentTrack.rngState;
+        positron.trackId          = positron.rngState.IntRndm64();
+        positron.eKin             = posKinEnergy;
+        positron.weight           = currentTrack.weight;
         positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 #endif
         // if tracking or stepping action is called, return initial step
@@ -504,10 +507,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         Track &electron = secondaries.electrons->NextTrack();
 
         electron.InitAsSecondary(pos, navState, globalTime);
-        electron.parentId = currentTrack.trackId;
-        electron.rngState = newRNG;
-        electron.eKin     = energyEl;
-        electron.weight   = currentTrack.weight;
+        electron.parentId         = currentTrack.trackId;
+        electron.creatorProcessId = short(winnerProcessIndex);
+        electron.rngState         = newRNG;
+        electron.trackId          = electron.rngState.IntRndm64();
+        electron.eKin             = energyEl;
+        electron.weight           = currentTrack.weight;
+        electron.dir              = eKin * dir - newEnergyGamma * newDirGamma;
 #endif
         electron.dir.Normalize();
 
@@ -583,10 +589,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #else
         Track &electron = secondaries.electrons->NextTrack();
         electron.InitAsSecondary(pos, navState, globalTime);
-        electron.parentId = currentTrack.trackId;
-        electron.rngState = newRNG;
-        electron.eKin     = photoElecE;
-        electron.weight   = currentTrack.weight;
+        electron.parentId         = currentTrack.trackId;
+        electron.creatorProcessId = short(winnerProcessIndex);
+        electron.rngState         = newRNG;
+        electron.trackId          = electron.rngState.IntRndm64();
+        electron.eKin             = photoElecE;
+        electron.weight           = currentTrack.weight;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
 #endif
         // if tracking or stepping action is called, return initial step
