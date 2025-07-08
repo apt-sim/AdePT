@@ -92,11 +92,13 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       printErrors = !gTrackDebug.active || verbose;
     }
 #endif
-    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
-      printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
-             "stuck particle!\n",
-             currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
-             currentTrack.zeroStepCounter);
+    if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      if (printErrors)
+        printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
+               "stuck particle!\n",
+               currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
+               currentTrack.zeroStepCounter);
+      __syncthreads();
       continue;
     }
 
