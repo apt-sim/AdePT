@@ -105,12 +105,14 @@ Gamma interactions:
 2 - Photoelectric
 3 - Unused
 4 - Relocation
+
 Electron interactions:
 0 - Ionization
 1 - Bremsstrahlung
 2 - Unused
 3 - Unused
 4 - Relocation
+
 Positron interactions:
 0 - Ionization
 1 - Bremsstrahlung
@@ -125,15 +127,17 @@ It is not straightforward to allocate just the needed queues per particle type b
 ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
 dynamic allocations
 */
-  static constexpr char numInteractions = 5;
-  adept::MParray *currentlyActive;
+  static constexpr char numInteractions = 7;
   adept::MParray *nextActive;
+  adept::MParray *initiallyActive;
+  adept::MParray *propagation;
+  // TODO: Remove this queue
   adept::MParray *reachedInteraction;
   adept::MParray *interactionQueues[numInteractions];
   adept::MParray *leakedTracksCurrent;
   adept::MParray *leakedTracksNext;
 
-  void SwapActive() { std::swap(currentlyActive, nextActive); }
+  void SwapActive() { std::swap(initiallyActive, nextActive); }
   void SwapLeakedQueue() { std::swap(leakedTracksCurrent, leakedTracksNext); }
 };
 

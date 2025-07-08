@@ -41,7 +41,8 @@ namespace AsyncAdePT {
 
 template <bool IsElectron>
 __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                               adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Stats *InFlightStats,
+                               adept::MParray *nextActiveQueue, adept::MParray *propagationQueue,
+                               adept::MParray *leakedQueue, Stats *InFlightStats,
                                AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps        = 10'000;
@@ -74,7 +75,7 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     currentTrack.preStepPos  = currentTrack.pos;
     currentTrack.preStepDir  = currentTrack.dir;
     currentTrack.stepCounter++;
-    bool printErrors = true;
+    bool printErrors = false;
     if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
       printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
              currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
@@ -189,6 +190,9 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     currentTrack.initialRange       = mscData->fInitialRange;
     currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
     currentTrack.tlimitMin          = mscData->fTlimitMin;
+
+    // Particles that were not cut or leaked are added to the queue used by the next kernels
+    propagationQueue->push_back(slot);
   }
 }
 
@@ -410,7 +414,7 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool reached_interaction = true;
-    bool printErrors         = true;
+    bool printErrors         = false;
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 4; ++ip) {
@@ -566,7 +570,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool cross_boundary = false;
-    bool printErrors    = true;
+    bool printErrors    = false;
 
     // Relocate to have the correct next state before RecordHit is called
 
