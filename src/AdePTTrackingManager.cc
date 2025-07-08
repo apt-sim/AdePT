@@ -265,12 +265,16 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   fAdeptTransport->ProcessGPUSteps(threadId, eventID);
 
   // need to cast to avoid the pitfall of the untemplated AdePTTransportInterface that cannot hold the IntegrationLayer
-  auto *asyncTransport = dynamic_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
-  if (!asyncTransport) {
+#ifdef ASYNC_MODE
+  auto *Transport = dynamic_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
+#else
+  auto *Transport = dynamic_cast<AdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
+#endif
+  if (!Transport) {
     G4Exception("AdePTTrackingManager::ProcessTrack", "", FatalException,
                 "fAdeptTransport is not of type AsyncAdePTTransport<AdePTGeant4Integration>");
   }
-  auto &trackMapper = asyncTransport->GetIntegrationLayer(threadId).GetHostTrackDataMapper();
+  auto &trackMapper = Transport->GetIntegrationLayer(threadId).GetHostTrackDataMapper();
 
   if (fCurrentEventID != eventID) trackMapper.beginEvent(eventID);
 

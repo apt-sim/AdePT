@@ -394,8 +394,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         electron.InitAsSecondary(pos, navState, globalTime);
         electron.parentId = currentTrack.trackId;
         electron.rngState = newRNG;
-        electron.eKin = = elKinEnergy;
-        electron.weight = currentTrack.weight;
+        electron.eKin     = elKinEnergy;
+        electron.weight   = currentTrack.weight;
         electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
 #endif
         // if tracking or stepping action is called, return initial step
