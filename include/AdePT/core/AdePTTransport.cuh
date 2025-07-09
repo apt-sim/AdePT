@@ -381,7 +381,7 @@ AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring)
   return adept_scoring::InitializeOnGPU(scoring);
 }
 
-void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
+void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state, bool commonInitThread)
 {
   // Free resources.
   COPCORE_CUDA_CHECK(cudaFree(gpuState.stats_dev));
@@ -399,17 +399,20 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state)
     COPCORE_CUDA_CHECK(cudaEventDestroy(gpuState.particles[i].event));
   }
 
-  // Free G4HepEm data
-  FreeG4HepEmData(g4hepem_state->fData);
-  FreeG4HepEmParametersOnGPU(g4hepem_state->fParameters);
-  delete g4hepem_state;
+  // only the thread that initialized the common data may free it
+  if (commonInitThread) {
+    // Free G4HepEm data
+    FreeG4HepEmData(g4hepem_state->fData);
+    FreeG4HepEmParametersOnGPU(g4hepem_state->fParameters);
+    delete g4hepem_state;
 
-// Free magnetic field
+    // Free magnetic field
 #ifdef ADEPT_USE_EXT_BFIELD
-  FreeBField<GeneralMagneticField>();
+    FreeBField<GeneralMagneticField>();
 #else
-  FreeBField<UniformMagneticField>();
+    FreeBField<UniformMagneticField>();
 #endif
+  }
 }
 
 template <typename IntegrationLayer>

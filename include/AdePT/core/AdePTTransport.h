@@ -82,7 +82,7 @@ public:
   /// @brief Initialize service and copy geometry & physics data on device
   void Initialize(G4HepEmConfig *hepEmConfig, bool common_data = false);
   /// @brief Final cleanup
-  void Cleanup();
+  void Cleanup(bool commonInitThread);
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   void Shower(int event, int threadId);
   void ProcessGPUSteps(int, int) {};

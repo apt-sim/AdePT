@@ -84,6 +84,7 @@ private:
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};
   bool fSpeedOfLight{false};
+  bool fCommonInitThread{false};
 };
 
 #ifdef ASYNC_MODE
