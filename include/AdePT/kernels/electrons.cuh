@@ -910,7 +910,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           gamma1.parentId         = currentTrack.trackId;
           gamma1.creatorProcessId = short(2);
           gamma1.rngState         = newRNG2;
-          gamma2.trackId          = gamma2.rngState.IntRndm64();
+          gamma1.trackId          = gamma1.rngState.IntRndm64();
           gamma1.eKin             = copcore::units::kElectronMassC2;
           gamma1.weight           = currentTrack.weight;
           gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
