@@ -155,6 +155,14 @@ public:
   __host__ __device__ double operator()() { return this->NextRandomFloat(); }
   /// Generate a random integer value with 48 bits
   __host__ __device__ uint64_t IntRndm() { return this->NextRandomBits(); }
+  /// Generate a uniformly random 64-bit integer by concatenating two 32-bit words
+  __host__ __device__ uint64_t IntRndm64()
+  {
+    // draw two 48-bit words, but take only their low 32 bits each
+    uint64_t lo = this->NextRandomBits() & 0xFFFFFFFFu;
+    uint64_t hi = this->NextRandomBits() & 0xFFFFFFFFu;
+    return (lo << 32) | hi;
+  }
 
   /// Branch a new RNG state, also advancing the current one.
   /// The caller must Advance() the branched RNG state to decorrelate the

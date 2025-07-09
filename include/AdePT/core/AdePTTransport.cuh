@@ -17,6 +17,8 @@
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
 
+#include <AdePT/core/TrackDebug.cuh>
+
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
@@ -51,6 +53,45 @@ inline __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 inline __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 inline __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
+
+/// @brief Init track id for debugging to the number read from ADEPT_DEBUG_TRACK environment variable
+/// The default debug step range is 0 - 10000, and can be changed via ADEPT_DEBUG_MINSTEP/ADEPT_DEBUG_MAXSTEP
+/// @return Debugging enabled
+bool InitializeTrackDebug()
+{
+  TrackDebug debug;
+  char *end;
+  const char *env_evt = std::getenv("ADEPT_DEBUG_EVENT");
+  if (env_evt) {
+    debug.event_id = std::strtoull(env_evt, &end, 0);
+    if (*end != '\0') debug.event_id = -1;
+  }
+  const char *env_trk = std::getenv("ADEPT_DEBUG_TRACK");
+  if (env_trk == nullptr) return false;
+  debug.track_id = std::strtoull(env_trk, &end, 0);
+  if (*end != '\0') return false;
+  if (debug.track_id == 0) return false;
+  debug.active = true;
+
+  const char *env_minstep = std::getenv("ADEPT_DEBUG_MINSTEP");
+  if (env_minstep) {
+    debug.min_step = std::strtol(env_minstep, &end, 0);
+    if (*end != '\0') debug.min_step = 0;
+  }
+
+  const char *env_maxstep = std::getenv("ADEPT_DEBUG_MAXSTEP");
+  if (env_maxstep) {
+    debug.max_step = std::strtol(env_maxstep, &end, 0);
+    if (*end != '\0') debug.max_step = 10000;
+  }
+
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gTrackDebug, &debug, sizeof(TrackDebug)));
+#if ADEPT_DEBUG_TRACK > 0
+  printf("=== Track debugging enabled: event %d track %lu steps %ld - %ld\n", debug.event_id, debug.track_id,
+         debug.min_step, debug.max_step);
+#endif
+  return true;
+}
 
 bool InitializeVolAuxArray(adeptint::VolAuxArray &array)
 {
@@ -144,11 +185,12 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     assert(trackmgr != nullptr && "Unsupported pdg type");
 
     Track &track   = trackmgr->NextTrack();
+    track.trackId  = trackinfo[i].trackId;
     track.parentId = trackinfo[i].parentId;
+    track.eventId  = event;
 
     track.rngState.SetSeed(1234567 * event + startTrack + i);
     track.eKin         = trackinfo[i].eKin;
-    track.vertexEkin   = trackinfo[i].vertexEkin;
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
     track.numIALeft[2] = -1.0;
@@ -158,18 +200,15 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.dynamicRangeFactor = 0.04;
     track.tlimitMin          = 1.0E-7;
 
-    track.pos                     = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
-    track.dir                     = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
-    track.vertexPosition          = {trackinfo[i].vertexPosition[0], trackinfo[i].vertexPosition[1],
-                                     trackinfo[i].vertexPosition[2]};
-    track.vertexMomentumDirection = {trackinfo[i].vertexMomentumDirection[0], trackinfo[i].vertexMomentumDirection[1],
-                                     trackinfo[i].vertexMomentumDirection[2]};
+    track.pos = {trackinfo[i].position[0], trackinfo[i].position[1], trackinfo[i].position[2]};
+    track.dir = {trackinfo[i].direction[0], trackinfo[i].direction[1], trackinfo[i].direction[2]};
 
     track.globalTime = trackinfo[i].globalTime;
     track.localTime  = trackinfo[i].localTime;
     track.properTime = trackinfo[i].properTime;
 
-    track.weight = trackinfo[i].weight;
+    track.weight           = trackinfo[i].weight;
+    track.creatorProcessId = trackinfo[i].creatorProcessId;
 
     track.originNavState.Clear();
     track.originNavState = trackinfo[i].originNavState;
@@ -324,6 +363,11 @@ GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatc
   // initialize statistics
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.stats_dev, sizeof(Stats)));
   COPCORE_CUDA_CHECK(cudaMallocHost(&gpuState.stats, sizeof(Stats)));
+
+#if ADEPT_DEBUG_TRACK > 0
+  // initialize track debugging
+  InitializeTrackDebug();
+#endif
 
   // initialize buffers of tracks on device
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.toDevice_dev, maxbatch * sizeof(TrackData)));

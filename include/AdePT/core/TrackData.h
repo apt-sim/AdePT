@@ -19,28 +19,27 @@ struct TrackData {
   vecgeom::NavigationState navState;
   vecgeom::NavigationState originNavState;
   double position[3];
-  double vertexPosition[3];
   double direction[3];
-  double vertexMomentumDirection[3];
   double eKin{0};
-  double vertexEkin{0};
   double globalTime{0};
   double localTime{0};
   double properTime{0};
   float weight{0};
   int pdg{0};
-  int parentId{0};
+  uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
+  uint64_t parentId{0}; // track id of the parent
+  short creatorProcessId{-1};
+  unsigned short stepCounter{0};
+
   LeakStatus leakStatus{LeakStatus::NoLeak};
 
   TrackData() = default;
-  TrackData(int pdg_id, int parentId, double ene, double vertexEne, double x, double y, double z, double dirx,
-            double diry, double dirz, double vertexX, double vertexY, double vertexZ, double vertexDirx,
-            double vertexDiry, double vertexDirz, double gTime, double lTime, double pTime, float weight,
-            vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
+  TrackData(int pdg_id, uint64_t trackId, uint64_t parentId, short creatorProcessId, double ene, double x, double y,
+            double z, double dirx, double diry, double dirz, double gTime, double lTime, double pTime, float weight,
+            unsigned short stepCounter, vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
       : navState{std::move(state)}, originNavState{std::move(originState)}, position{x, y, z},
-        vertexPosition{vertexX, vertexY, vertexZ}, direction{dirx, diry, dirz},
-        vertexMomentumDirection{vertexDirx, vertexDiry, vertexDirz}, eKin{ene}, vertexEkin{vertexEne},
-        globalTime{gTime}, localTime{lTime}, properTime{pTime}, weight{weight}, pdg{pdg_id}, parentId{parentId}
+        direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime}, localTime{lTime}, properTime{pTime}, weight{weight},
+        pdg{pdg_id}, trackId{trackId}, creatorProcessId{creatorProcessId}, parentId{parentId}, stepCounter{stepCounter}
   {
   }
 

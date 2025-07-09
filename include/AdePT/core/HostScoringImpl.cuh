@@ -149,21 +149,22 @@ void FreeGPU(HostScoring *hostScoring, HostScoring *hostScoring_dev)
 
 /// @brief Record a hit
 template <>
-__device__ void RecordHit(HostScoring *hostScoring_dev, int aParentID, char aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
-                          vecgeom::Vector3D<Precision> const &aPrePosition,
-                          vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin, double aPreCharge,
+__device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId,
+                          char aParticleType, double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
+                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
+                          vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
                           vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aPostCharge, double aGlobalTime, unsigned int, short, bool, bool)
+                          double aGlobalTime, double aLocalTime, unsigned int eventID, short threadID, bool isLastStep,
+                          unsigned short stepCounter)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = *GetNextFreeHit(hostScoring_dev);
 
   // Fill the required data
-  FillHit(aGPUHit, aParentID, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight, aPreState, aPrePosition,
-          aPreMomentumDirection, aPreEKin, aPreCharge, aPostState, aPostPosition, aPostMomentumDirection, aPostEKin,
-          aPostCharge, aGlobalTime, 0, 0, false, false);
+  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
+          aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition, aPostMomentumDirection,
+          aPostEKin, aGlobalTime, aLocalTime, eventID, threadID, isLastStep, stepCounter);
 }
 
 /// @brief Account for the number of produced secondaries

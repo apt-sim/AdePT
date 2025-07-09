@@ -12,6 +12,7 @@
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/ScoringCommons.hh>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
+#include <AdePT/integration/HostTrackDataMapper.hh>
 
 #include <G4EventManager.hh>
 #include <G4Event.hh>
@@ -29,7 +30,10 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
-  explicit AdePTGeant4Integration(G4HepEmTrackingManagerSpecialized *hepEmTM) : fHepEmTrackingManager(hepEmTM) {}
+  explicit AdePTGeant4Integration(G4HepEmTrackingManagerSpecialized *hepEmTM)
+      : fHepEmTrackingManager(hepEmTM), fHostTrackDataMapper(std::make_unique<HostTrackDataMapper>())
+  {
+  }
   ~AdePTGeant4Integration();
 
   AdePTGeant4Integration(const AdePTGeant4Integration &)            = delete;
@@ -84,15 +88,20 @@ public:
 
   int GetThreadID() const { return G4Threading::G4GetThreadId(); }
 
+  HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
+
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
   void FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory &aG4NavigationHistory) const;
 
   void FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
-                  G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
-                  G4StepStatus aPostStepStatus) const;
+                  G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus,
+                  bool callUserTrackingAction, bool callUserSteppingAction) const;
 
   void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel) const;
+
+  // helper class to provide the CPU-only data for the returning GPU tracks
+  std::unique_ptr<HostTrackDataMapper> fHostTrackDataMapper;
 
   static std::vector<G4VPhysicalVolume const *> fglobal_vecgeom_pv_to_g4_map;
   static std::vector<G4LogicalVolume const *> fglobal_vecgeom_lv_to_g4_map;

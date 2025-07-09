@@ -22,7 +22,6 @@ struct Track {
 
   RanluxppDouble rngState;
   double eKin{0.};
-  double vertexEkin{0.};
   double globalTime{0.};
 
   float weight{0.};
@@ -35,11 +34,9 @@ struct Track {
   float localTime{0.f};
   float properTime{0.f};
 
-  vecgeom::Vector3D<Precision> pos;                     ///< track position
-  vecgeom::Vector3D<Precision> dir;                     ///< track direction
-  vecgeom::Vector3D<Precision> vertexPosition;          ///< vertex position
-  vecgeom::Vector3D<Precision> vertexMomentumDirection; ///< vertex momentum direction
-  vecgeom::Vector3D<float> safetyPos;                   ///< last position where the safety was computed
+  vecgeom::Vector3D<Precision> pos;   ///< track position
+  vecgeom::Vector3D<Precision> dir;   ///< track direction
+  vecgeom::Vector3D<float> safetyPos; ///< last position where the safety was computed
   // TODO: For better clarity in the split kernels, rename this to "stored safety" as opposed to the
   // safety we get from GetSafety(), which is computed in the moment
   float safety{0.f};                       ///< last computed safety value
@@ -59,9 +56,11 @@ struct Track {
   long hitsurfID{0};
 #endif
 
-  uint64_t id{0}; ///< track id (non-consecutive, reproducible)
+  uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
+  uint64_t parentId{0}; // track id of the parent
+
+  short creatorProcessId{-1}; // TODO: to be improved and merged with step defining process
   unsigned int eventId{0};
-  int parentId{-1}; // Stores the track id of the initial particle given to AdePT
   short threadId{-1};
   unsigned short stepCounter{0};
   unsigned short looperCounter{0};
@@ -83,33 +82,28 @@ struct Track {
 
   /// Construct a new track for GPU transport.
   /// NB: The navState remains uninitialised.
-  __device__ Track(uint64_t rngSeed, double eKin, double vertexEkin, double globalTime, float localTime,
-                   float properTime, float weight, double const position[3], double const direction[3],
-                   double const vertexPos[3], double const vertexDir[3], unsigned int eventId, int parentId,
-                   short threadId)
-      : eKin{eKin}, vertexEkin{vertexEkin}, weight{weight}, globalTime{globalTime}, localTime{localTime},
-        properTime{properTime}, eventId{eventId}, parentId{parentId}, threadId{threadId}, stepCounter{0},
-        looperCounter{0}, zeroStepCounter{0}
+  __device__ Track(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime, float weight,
+                   double const position[3], double const direction[3], unsigned int eventId, uint64_t trackId,
+                   uint64_t parentId, short creatorProcessId, short threadId, unsigned short stepCounter)
+      : eKin{eKin}, weight{weight}, globalTime{globalTime}, localTime{localTime}, properTime{properTime},
+        eventId{eventId}, trackId{trackId}, parentId{parentId}, creatorProcessId{creatorProcessId}, threadId{threadId},
+        stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
-    id                      = rngState.IntRndm();
-    pos                     = {position[0], position[1], position[2]};
-    dir                     = {direction[0], direction[1], direction[2]};
-    vertexPosition          = {vertexPos[0], vertexPos[1], vertexPos[2]};
-    vertexMomentumDirection = {vertexDir[0], vertexDir[1], vertexDir[2]};
-    leakStatus              = LeakStatus::NoLeak;
+    pos        = {position[0], position[1], position[2]};
+    dir        = {direction[0], direction[1], direction[2]};
+    leakStatus = LeakStatus::NoLeak;
   }
 
   /// Construct a secondary from a parent track.
   /// NB: The caller is responsible to branch a new RNG state.
   __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
-                   const Track &parentTrack, const double globalTime)
+                   const Track &parentTrack, const double globalTime, short creatorProcessId)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, originNavState{newNavState}, id{rngState.IntRndm()}, eventId{parentTrack.eventId},
-        parentId{parentTrack.parentId}, threadId{parentTrack.threadId}, vertexEkin{eKin}, weight{parentTrack.weight},
-        vertexPosition{parentPos}, vertexMomentumDirection{newDirection}, stepCounter{0}, looperCounter{0},
-        zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
+        navState{newNavState}, originNavState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
+        parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, creatorProcessId{creatorProcessId},
+        weight{parentTrack.weight}, stepCounter{0}, looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
   }
 
@@ -117,15 +111,15 @@ struct Track {
                                                         size_t stepmax = 100000) const
   {
     bool match_event = (ievt < 0) || (ievt == eventId);
-    return match_event && (itrack == id) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
+    return match_event && (itrack == trackId) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
   }
 
   __host__ __device__ void Print(const char *label) const
   {
-    printf("== evt %u prim %d %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
-           "%.19f} remain_safe %g loop %u\n| state: ",
-           eventId, parentId, label, id, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
-           dir[1], dir[2], GetSafety(pos), looperCounter);
+    printf("== evt %u parentId %lu %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
+           "%.19f} remain_safe %g loop %u\n| creatorProcess %u | state: ",
+           eventId, parentId, label, trackId, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
+           dir[1], dir[2], GetSafety(pos), looperCounter, creatorProcessId);
     navState.Print();
   }
 
@@ -177,10 +171,6 @@ struct Track {
     // Set the origin for this track
     this->originNavState = parentNavState;
 
-    // Set the vertex information for this track
-    this->vertexPosition = parentPos;
-    // Caller is responsible to set the vertex momentum direction and ekin
-
     // Caller is responsible to set the weight of the track
 
     // The global time is inherited from the parent
@@ -197,29 +187,25 @@ struct Track {
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
-    tdata.pdg                        = pdg;
-    tdata.parentId                   = parentId;
-    tdata.position[0]                = pos[0];
-    tdata.position[1]                = pos[1];
-    tdata.position[2]                = pos[2];
-    tdata.direction[0]               = dir[0];
-    tdata.direction[1]               = dir[1];
-    tdata.direction[2]               = dir[2];
-    tdata.vertexPosition[0]          = vertexPosition[0];
-    tdata.vertexPosition[1]          = vertexPosition[1];
-    tdata.vertexPosition[2]          = vertexPosition[2];
-    tdata.vertexMomentumDirection[0] = vertexMomentumDirection[0];
-    tdata.vertexMomentumDirection[1] = vertexMomentumDirection[1];
-    tdata.vertexMomentumDirection[2] = vertexMomentumDirection[2];
-    tdata.eKin                       = eKin;
-    tdata.globalTime                 = globalTime;
-    tdata.localTime                  = localTime;
-    tdata.properTime                 = properTime;
-    tdata.navState                   = navState;
-    tdata.originNavState             = originNavState;
-    tdata.vertexEkin                 = vertexEkin;
-    tdata.weight                     = weight;
-    tdata.leakStatus                 = leakStatus;
+    tdata.pdg              = pdg;
+    tdata.trackId          = trackId;
+    tdata.parentId         = parentId;
+    tdata.position[0]      = pos[0];
+    tdata.position[1]      = pos[1];
+    tdata.position[2]      = pos[2];
+    tdata.direction[0]     = dir[0];
+    tdata.direction[1]     = dir[1];
+    tdata.direction[2]     = dir[2];
+    tdata.eKin             = eKin;
+    tdata.globalTime       = globalTime;
+    tdata.localTime        = localTime;
+    tdata.properTime       = properTime;
+    tdata.navState         = navState;
+    tdata.originNavState   = originNavState;
+    tdata.weight           = weight;
+    tdata.leakStatus       = leakStatus;
+    tdata.creatorProcessId = creatorProcessId;
+    tdata.stepCounter      = stepCounter;
   }
 };
 #endif

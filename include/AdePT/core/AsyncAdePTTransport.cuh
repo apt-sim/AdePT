@@ -131,34 +131,39 @@ __global__ void InitQueue(adept::MParrayT<T> *queue, size_t Capacity)
   adept::MParrayT<T>::MakeInstanceAt(Capacity, queue);
 }
 
-// Use the 64-bit MurmurHash3 finalizer for avalanche behaviour so that every input bit can influence every output bit
-__device__ inline uint64_t murmur3_64(uint64_t x)
+// implementation of the FNV-1a hash function
+// (see https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function)
+// it is a fast GPU implementation with sufficient properties
+__device__ inline uint64_t fnv1a_hash64(const uint64_t *data, size_t count)
 {
-  x ^= x >> 33;
-  x *= 0xff51afd7ed558ccdULL;
-  x ^= x >> 33;
-  x *= 0xc4ceb9fe1a85ec53ULL;
-  x ^= x >> 33;
-  return x;
+  // Constants for 64-bit FNV-1a
+  constexpr uint64_t FNV_offset_basis = 14695981039346656037ULL;
+  constexpr uint64_t FNV_prime        = 1099511628211ULL;
+
+  uint64_t hash = FNV_offset_basis;
+  for (size_t i = 0; i < count; ++i) {
+    hash ^= data[i];
+    hash *= FNV_prime;
+  }
+  return hash;
 }
 
-/// Generate a “random” uint64_t ID on the device by combining:
-///   • base = initialSeed * eventId + trackId
-///   • eKin (double)
-///   • globalTime (double)
-__device__ inline uint64_t GenerateSeed(uint64_t base, double eKin, double globalTime)
+// helper function to generate the seed for the track via FNV-1a from the trackinfo
+__device__ inline uint64_t GenerateSeedFromTrackInfo(const AsyncAdePT::TrackDataWithIDs &trackInfo, uint64_t baseSeed)
 {
-  // 1) grab the raw bit‐patterns of the doubles
-  uint64_t eb = __double_as_longlong(eKin);
-  uint64_t tb = __double_as_longlong(globalTime);
-
-  // 2) mix them in boost::hash_combine style
-  uint64_t seed = base;
-  seed ^= eb + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-  seed ^= tb + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-
-  // 3) final avalanche
-  return murmur3_64(seed);
+  uint64_t input[12] = {baseSeed,
+                        trackInfo.eventId,
+                        trackInfo.trackId,
+                        trackInfo.stepCounter,
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.eKin)),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.globalTime)),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.position[0])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.position[1])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.position[2])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[0])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[1])),
+                        static_cast<uint64_t>(__double_as_longlong(trackInfo.direction[2]))};
+  return fnv1a_hash64(input, 12);
 }
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
@@ -188,14 +193,15 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
 
     // TODO: Delay when not enough slots?
     const auto slot = generator->NextSlot();
-    // we need to scramble the initial seed with some more trackinfo to generate a unique seed. otherwise, if a particle
-    // returns from the device and is injected again, it would have the same random number state
-    auto seed = GenerateSeed(initialSeed * trackInfo.eventId + trackInfo.trackId, trackInfo.eKin, trackInfo.globalTime);
-    Track &track = generator->InitTrack(
-        slot, seed, trackInfo.eKin, trackInfo.vertexEkin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
-        static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position, trackInfo.direction,
-        trackInfo.vertexPosition, trackInfo.vertexMomentumDirection, trackInfo.eventId, trackInfo.parentId,
-        trackInfo.threadId);
+    // we need to scramble the initial seed with some more trackinfo to generate a unique seed.
+    // otherwise, if a particle returns from the device and is injected again (i.e., via lepton nuclear), it would have
+    // the same random number state, causing collisions in the track IDs
+    auto seed = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
+    Track &track =
+        generator->InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+                             static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
+                             trackInfo.direction, trackInfo.eventId, trackInfo.trackId, trackInfo.parentId,
+                             trackInfo.creatorProcessId, trackInfo.threadId, trackInfo.stepCounter);
     track.navState.Clear();
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;
@@ -306,31 +312,27 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       // NOTE: Sync transport copies data into trackData structs during transport.
       // Async transport stores the slots and copies to trackdata structs for transfer to
       // host here. These approaches should be unified.
-      fromDevice[idx].position[0]                = track->pos[0];
-      fromDevice[idx].position[1]                = track->pos[1];
-      fromDevice[idx].position[2]                = track->pos[2];
-      fromDevice[idx].direction[0]               = track->dir[0];
-      fromDevice[idx].direction[1]               = track->dir[1];
-      fromDevice[idx].direction[2]               = track->dir[2];
-      fromDevice[idx].vertexPosition[0]          = track->vertexPosition[0];
-      fromDevice[idx].vertexPosition[1]          = track->vertexPosition[1];
-      fromDevice[idx].vertexPosition[2]          = track->vertexPosition[2];
-      fromDevice[idx].vertexMomentumDirection[0] = track->vertexMomentumDirection[0];
-      fromDevice[idx].vertexMomentumDirection[1] = track->vertexMomentumDirection[1];
-      fromDevice[idx].vertexMomentumDirection[2] = track->vertexMomentumDirection[2];
-      fromDevice[idx].eKin                       = track->eKin;
-      fromDevice[idx].vertexEkin                 = track->vertexEkin;
-      fromDevice[idx].globalTime                 = track->globalTime;
-      fromDevice[idx].localTime                  = track->localTime;
-      fromDevice[idx].properTime                 = track->properTime;
-      fromDevice[idx].weight                     = track->weight;
-      fromDevice[idx].pdg                        = pdg;
-      fromDevice[idx].eventId                    = track->eventId;
-      fromDevice[idx].threadId                   = track->threadId;
-      fromDevice[idx].navState                   = track->navState;
-      fromDevice[idx].originNavState             = track->originNavState;
-      fromDevice[idx].leakStatus                 = track->leakStatus;
-      fromDevice[idx].parentId                   = track->parentId;
+      fromDevice[idx].position[0]      = track->pos[0];
+      fromDevice[idx].position[1]      = track->pos[1];
+      fromDevice[idx].position[2]      = track->pos[2];
+      fromDevice[idx].direction[0]     = track->dir[0];
+      fromDevice[idx].direction[1]     = track->dir[1];
+      fromDevice[idx].direction[2]     = track->dir[2];
+      fromDevice[idx].eKin             = track->eKin;
+      fromDevice[idx].globalTime       = track->globalTime;
+      fromDevice[idx].localTime        = track->localTime;
+      fromDevice[idx].properTime       = track->properTime;
+      fromDevice[idx].weight           = track->weight;
+      fromDevice[idx].pdg              = pdg;
+      fromDevice[idx].eventId          = track->eventId;
+      fromDevice[idx].threadId         = track->threadId;
+      fromDevice[idx].navState         = track->navState;
+      fromDevice[idx].originNavState   = track->originNavState;
+      fromDevice[idx].leakStatus       = track->leakStatus;
+      fromDevice[idx].parentId         = track->parentId;
+      fromDevice[idx].trackId          = track->trackId;
+      fromDevice[idx].creatorProcessId = track->creatorProcessId;
+      fromDevice[idx].stepCounter      = track->stepCounter;
 
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }
@@ -747,8 +749,10 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   // init scoring structures
   gpuMalloc(gpuState.fScoring_dev, numThreads);
 
+#if ADEPT_DEBUG_TRACK > 0
   // initialize track debugging
   InitializeTrackDebug();
+#endif
 
   scoring.clear();
   scoring.reserve(numThreads);
@@ -1167,7 +1171,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         GammaSetupInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.currentlyActive, secondaries,
             gammas.queues.nextActive, gammas.queues.reachedInteraction, allGammaInteractionQueues,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev);
         GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
             gammas.queues.interactionQueues[4], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,

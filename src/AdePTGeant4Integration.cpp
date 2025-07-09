@@ -24,6 +24,11 @@
 #include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
+#include <G4HepEmNoProcess.hh>
+
+#include "G4Electron.hh"
+#include "G4Positron.hh"
+#include "G4Gamma.hh"
 
 #include <G4VG.hh>
 
@@ -395,7 +400,8 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
     break;
   }
   FillG4Step(&hit, fScoringObjects->fG4Step, *fScoringObjects->fPreG4TouchableHistoryHandle,
-             *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus);
+             *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,
+             callUserSteppingAction);
 
   // Call SD code
   G4VSensitiveDetector *aSensitiveDetector =
@@ -403,29 +409,9 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
           ->GetLogicalVolume()
           ->GetSensitiveDetector();
 
-  // Call scoring if SD is defined
-  if (aSensitiveDetector != nullptr) {
+  // Call scoring if SD is defined and it is not the initializing step
+  if (aSensitiveDetector != nullptr && hit.fStepCounter != 0) {
     aSensitiveDetector->Hit(fScoringObjects->fG4Step);
-  }
-
-  // call UserSteppingAction if required
-  if (callUserSteppingAction) {
-    auto *evtMgr             = G4EventManager::GetEventManager();
-    auto *userSteppingAction = evtMgr->GetUserSteppingAction();
-    if (userSteppingAction) userSteppingAction->UserSteppingAction(fScoringObjects->fG4Step);
-  }
-
-  // call UserTrackingAction if required
-  if (hit.fFirstStepOfTrack && callUserTrackingAction) {
-    auto *evtMgr             = G4EventManager::GetEventManager();
-    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
-    if (userTrackingAction) userTrackingAction->PreUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
-  }
-
-  if (hit.fLastStepOfTrack && callUserTrackingAction) {
-    auto *evtMgr             = G4EventManager::GetEventManager();
-    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
-    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
   }
 }
 
@@ -483,14 +469,12 @@ void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aN
 void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
                                         G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
-                                        G4StepStatus aPostStepStatus) const
+                                        G4StepStatus aPostStepStatus, bool callUserTrackingAction,
+                                        bool callUserSteppingAction) const
 {
   const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
                                                       aGPUHit->fPostStepPoint.fMomentumDirection.y(),
                                                       aGPUHit->fPostStepPoint.fMomentumDirection.z());
-  const G4ThreeVector aPostStepPointPolarization(aGPUHit->fPostStepPoint.fPolarization.x(),
-                                                 aGPUHit->fPostStepPoint.fPolarization.y(),
-                                                 aGPUHit->fPostStepPoint.fPolarization.z());
   const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(),
                                              aGPUHit->fPostStepPoint.fPosition.y(),
                                              aGPUHit->fPostStepPoint.fPosition.z());
@@ -500,18 +484,96 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aG4Step->SetTotalEnergyDeposit(aGPUHit->fTotalEnergyDeposit); // Real data
   // aG4Step->SetNonIonizingEnergyDeposit(0);                      // Missing data
   // aG4Step->SetControlFlag(G4SteppingControl::NormalCondition);  // Missing data
-  // aG4Step->SetFirstStepFlag();                                  // Missing data
-  // aG4Step->SetLastStepFlag();                                   // Missing data
+  if (aGPUHit->fStepCounter == 1) aG4Step->SetFirstStepFlag(); // Real data
+  if (aGPUHit->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
   // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
   // aG4Step->SetSecondary(nullptr);                               // Missing data
 
   // G4Track
   G4Track *aTrack = aG4Step->GetTrack();
-  aTrack->SetTrackID(aGPUHit->fParentID);      // Missing data
-  aTrack->SetParentID(aGPUHit->fParentID);     // ID of the initial particle that entered AdePT
+
+  HostTrackData hostTrackInfo;
+  HostTrackData parentTrackInfo;
+
+  // Add full track information if TrackingAction or SteppingAction is enabled
+  if (callUserTrackingAction || callUserSteppingAction) {
+
+    // try to get the hostTrackInfo to catch silent failures. This should always be available!
+    try {
+      if (aGPUHit->fStepCounter != 0) {
+        // not the initializing step, hostTrackInfo must be available
+        hostTrackInfo = fHostTrackDataMapper->get(aGPUHit->fTrackID);
+      } else {
+        // initializing step, set parameters
+
+#ifdef DEBUG
+        if (fHostTrackDataMapper->contains(aGPUHit->fTrackID)) {
+          std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << aGPUHit->fTrackID
+                    << ", parentID = " << aGPUHit->fParentID << ") "
+                    << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+                    << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
+                    << std::endl;
+          std::abort();
+        }
+#endif
+
+        hostTrackInfo              = fHostTrackDataMapper->create(aGPUHit->fTrackID);
+        hostTrackInfo.particleType = aGPUHit->fParticleType;
+
+        if (aGPUHit->fParentID != 0) {
+          parentTrackInfo          = fHostTrackDataMapper->get(aGPUHit->fParentID);
+          hostTrackInfo.g4parentid = parentTrackInfo.g4id;
+        } else {
+          hostTrackInfo.g4parentid = 0;
+        }
+
+        // retrieve creator process from parent particle type
+        if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
+            static_cast<int>(parentTrackInfo.particleType) == 1) {
+          hostTrackInfo.creatorProcess =
+              fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID];
+        } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
+          hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID];
+        }
+
+        hostTrackInfo.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
+        hostTrackInfo.vertexPosition =
+            G4ThreeVector{aGPUHit->fPostStepPoint.fPosition.x(), aGPUHit->fPostStepPoint.fPosition.y(),
+                          aGPUHit->fPostStepPoint.fPosition.z()};
+        hostTrackInfo.vertexMomentumDirection = G4ThreeVector{aGPUHit->fPostStepPoint.fMomentumDirection.x(),
+                                                              aGPUHit->fPostStepPoint.fMomentumDirection.y(),
+                                                              aGPUHit->fPostStepPoint.fMomentumDirection.z()};
+        hostTrackInfo.vertexKineticEnergy     = aGPUHit->fPostStepPoint.fEKin;
+      }
+
+    } catch (const std::exception &e) {
+      std::cerr << "\033[1;31mERROR: EXCEPTION in HostTrackDataMapper: " << e.what()
+                << " (trackID = " << aGPUHit->fTrackID << ", parentID = " << aGPUHit->fParentID << ") "
+                << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+                << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
+                << std::endl;
+    } catch (...) {
+      std::cerr << "\033[1;31mERROR UNKNOWN EXCEPTION in HostTrackDataMapper"
+                << " (trackID = " << aGPUHit->fTrackID << ", parentID = " << aGPUHit->fParentID << ")\033[0m"
+                << std::endl;
+    }
+  }
+
+  auto g4TrackID  = hostTrackInfo.g4id;
+  auto g4ParentID = hostTrackInfo.g4parentid;
+
+  // set creator process
+  aTrack->SetCreatorProcess(hostTrackInfo.creatorProcess);
+
+  // must const-cast as GetDynamicParticle only returns const
+  G4DynamicParticle *dynamicParticle = const_cast<G4DynamicParticle *>(aTrack->GetDynamicParticle());
+  dynamicParticle->SetPrimaryParticle(hostTrackInfo.primary);
+
+  aTrack->SetTrackID(g4TrackID);               // Real data
+  aTrack->SetParentID(g4ParentID);             // ID of the initial particle that entered AdePT
   aTrack->SetPosition(aPostStepPointPosition); // Real data
   aTrack->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
-  // aTrack->SetLocalTime(0);                                                                 // Missing data
+  aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
   // aTrack->SetProperTime(0);                                                                // Missing data
   // aTrack->SetTouchableHandle(aTrackTouchableHistory);                                      // Missing data
   // aTrack->SetNextTouchableHandle(nullptr);                                                 // Missing data
@@ -519,22 +581,22 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   // aTrack->SetVelocity(0);                                                                  // Missing data
-  aTrack->SetPolarization(aPostStepPointPolarization); // Real data
+  // aTrack->SetPolarization(); // Missing Data data
   // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
   // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
   // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
-  aTrack->SetStep(aG4Step);                    // Real data
-  aTrack->SetStepLength(aGPUHit->fStepLength); // Real data
-  // aTrack->SetVertexPosition(G4ThreeVector(0, 0, 0));                                       // Missing data
-  // aTrack->SetVertexMomentumDirection(G4ThreeVector(0, 0, 0));                              // Missing data
-  // aTrack->SetVertexKineticEnergy(0);                                                       // Missing data
-  // aTrack->SetLogicalVolumeAtVertex(nullptr);                                               // Missing data
-  // aTrack->SetCreatorProcess(nullptr);                                                      // Missing data
+  aTrack->SetStep(aG4Step);                                                  // Real data
+  aTrack->SetStepLength(aGPUHit->fStepLength);                               // Real data
+  aTrack->SetVertexPosition(hostTrackInfo.vertexPosition);                   // Real data
+  aTrack->SetVertexMomentumDirection(hostTrackInfo.vertexMomentumDirection); // Real data
+  aTrack->SetVertexKineticEnergy(hostTrackInfo.vertexKineticEnergy);         // Real data
+  aTrack->SetLogicalVolumeAtVertex(hostTrackInfo.logicalVolumeAtVertex);     // Real data
   // aTrack->SetCreatorModelID(0);                                                            // Missing data
   // aTrack->SetParentResonanceDef(nullptr);                                                  // Missing data
   // aTrack->SetParentResonanceID(0);                                                         // Missing data
   aTrack->SetWeight(aGPUHit->fTrackWeight);
-  // aTrack->SetUserInformation(nullptr);                                                     // Missing data
+  // if it exists, add UserTrackInfo
+  aTrack->SetUserInformation(hostTrackInfo.userTrackInfo); // Real data
   // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
 
   // Pre-Step Point
@@ -554,20 +616,18 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aPreStepPoint->SetMaterialCutsCouple(aPreG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterialCutsCouple());
   // aPreStepPoint->SetSensitiveDetector(nullptr);                                                  // Missing data
   // aPreStepPoint->SetSafety(0);                                                                   // Missing data
-  aPreStepPoint->SetPolarization(G4ThreeVector(aGPUHit->fPreStepPoint.fPolarization.x(),
-                                               aGPUHit->fPreStepPoint.fPolarization.y(),
-                                               aGPUHit->fPreStepPoint.fPolarization.z())); // Real data
-  aPreStepPoint->SetStepStatus(aPreStepStatus);                                            // Missing data
+  // aPreStepPoint->SetPolarization(); // Missing data
+  aPreStepPoint->SetStepStatus(aPreStepStatus); // Missing data
   // aPreStepPoint->SetProcessDefinedStep(nullptr);                                                 // Missing data
   // aPreStepPoint->SetMass(0);                                                                     // Missing data
-  aPreStepPoint->SetCharge(aGPUHit->fPreStepPoint.fCharge); // Real data
+  aPreStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPreStepPoint->SetMagneticMoment(0);                                                           // Missing data
   // aPreStepPoint->SetWeight(0);                                                                   // Missing data
 
   // Post-Step Point
   G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
   aPostStepPoint->SetPosition(aPostStepPointPosition); // Real data
-  // aPostStepPoint->SetLocalTime(0);                                                                 // Missing data
+  aPostStepPoint->SetLocalTime(aGPUHit->fLocalTime);   // Real data
   aPostStepPoint->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
   // aPostStepPoint->SetProperTime(0);                                                                // Missing data
   aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
@@ -581,13 +641,48 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   }
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
-  aPostStepPoint->SetPolarization(aPostStepPointPolarization); // Real data
-  aPostStepPoint->SetStepStatus(aPostStepStatus);              // Missing data
+  // aPostStepPoint->SetPolarization(); // Missing data
+  aPostStepPoint->SetStepStatus(aPostStepStatus); // Missing data
   // aPostStepPoint->SetProcessDefinedStep(nullptr);                                                  // Missing data
   // aPostStepPoint->SetMass(0);                                                                      // Missing data
-  aPostStepPoint->SetCharge(aGPUHit->fPostStepPoint.fCharge); // Real data
+  aPostStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data
   // aPostStepPoint->SetWeight(0);                                                                    // Missing data
+
+  // Last, call tracking and stepping actions
+  // call UserSteppingAction if required
+
+  if (aGPUHit->fStepCounter == 0 && (callUserTrackingAction || callUserSteppingAction)) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+    if (userTrackingAction) {
+      userTrackingAction->PreUserTrackingAction(aTrack);
+
+      // if userTrackInfo didn't exist before but exists now, update the map as a new TrackInfo was attached for
+      // the first time
+      if (hostTrackInfo.userTrackInfo == nullptr && aTrack->GetUserInformation() != nullptr) {
+        hostTrackInfo.userTrackInfo = aTrack->GetUserInformation();
+      }
+    }
+  }
+
+  if (callUserSteppingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userSteppingAction = evtMgr->GetUserSteppingAction();
+    if (userSteppingAction) userSteppingAction->UserSteppingAction(aG4Step);
+  }
+
+  // call UserTrackingAction if required
+  if (aGPUHit->fLastStepOfTrack && (callUserTrackingAction || callUserSteppingAction)) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(aTrack);
+  }
+
+  // remove killed tracks from storage to reduce lookup table size
+  if (aGPUHit->fLastStepOfTrack) {
+    fHostTrackDataMapper->removeTrack(aGPUHit->fTrackID);
+  }
 }
 
 void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex,
@@ -614,25 +709,56 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // push it to make sure it is not relocated again in the GPU region
   posi += tolerance * direction;
 
+  HostTrackData hostTrackInfo;
+  try {
+    if (track.stepCounter != 0) {
+      // not the initializing step, hostTrackInfo must be available
+      hostTrackInfo = fHostTrackDataMapper->get(track.trackId);
+    } else {
+      // tracks should never leak with the initializing step 0!
+      std::cerr << "\033[1;31mERROR: Leaked track with stepCounter != 0 detected, this should never be the case! "
+                << " (trackID = " << track.trackId << ", parentID = " << track.parentId << ") "
+                << " pdg " << track.pdg << " stepCounter " << track.stepCounter << "\033[0m" << std::endl;
+    }
+  } catch (const std::exception &e) {
+    // Note: if tracking or steppingaction is enabled, this should always be available, then the following printout can
+    // be used for debugging: std::cerr << "\033[1;31mERROR: EXCEPTION in HostTrackDataMapper: " << e.what() << "
+    // (trackID = "
+    // << track.trackId
+    //           << ", parentID = " << track.parentId << ") "
+    //           << " pdg " << track.pdg << " stepCounter " << track.stepCounter << "\033[0m" << std::endl;
+  }
+
+  auto g4TrackID  = hostTrackInfo.g4id;
+  auto g4ParentID = hostTrackInfo.g4parentid;
+
+  dynamic->SetPrimaryParticle(hostTrackInfo.primary);
+
   // Create track
   G4Track *leakedTrack = new G4Track(dynamic, track.globalTime, posi);
+
+  // G4 does not allow to set the current step number directly, only to increment it.
+  // For now, it is sufficient to increment just once, to distinguish from the 0th step
+  leakedTrack->IncrementCurrentStepNumber();
+
+  leakedTrack->SetTrackID(g4TrackID);
+  leakedTrack->SetParentID(g4ParentID);
+
+  leakedTrack->SetUserInformation(hostTrackInfo.userTrackInfo);
+  leakedTrack->SetCreatorProcess(hostTrackInfo.creatorProcess);
 
   // Set time information
   leakedTrack->SetLocalTime(track.localTime);
   leakedTrack->SetProperTime(track.properTime);
-  leakedTrack->SetParentID(track.parentId);
 
   // Set weight
   leakedTrack->SetWeight(track.weight);
 
   // Set vertex information
-  leakedTrack->SetVertexPosition(
-      G4ThreeVector(track.vertexPosition[0], track.vertexPosition[1], track.vertexPosition[2]));
-  leakedTrack->SetVertexMomentumDirection(G4ThreeVector(
-      track.vertexMomentumDirection[0], track.vertexMomentumDirection[1], track.vertexMomentumDirection[2]));
-  leakedTrack->SetVertexKineticEnergy(track.vertexEkin);
-  leakedTrack->SetLogicalVolumeAtVertex(
-      fglobal_vecgeom_lv_to_g4_map[track.originNavState.Top()->GetLogicalVolume()->id()]);
+  leakedTrack->SetVertexPosition(hostTrackInfo.vertexPosition);
+  leakedTrack->SetVertexMomentumDirection(hostTrackInfo.vertexMomentumDirection);
+  leakedTrack->SetVertexKineticEnergy(hostTrackInfo.vertexKineticEnergy);
+  leakedTrack->SetLogicalVolumeAtVertex(hostTrackInfo.logicalVolumeAtVertex);
 
   // Reconstruct the origin touchable history and update it on the track
   // - We can't update the track's navigation history in place as it is a const member
@@ -711,6 +837,11 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
           // Since we do not give back the track to G4, we have to delete it here
           delete leakedTrack;
           delete step;
+
+          // gamma nuclear kills the track, so we safely remove it from the hostTrackData map, as the hits are always
+          // handled before the leaked tracks
+          fHostTrackDataMapper->removeTrack(track.trackId);
+
         } else {
           // no gamma nuclear process attached, just give back the track to G4 to put it back on GPU
           G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);

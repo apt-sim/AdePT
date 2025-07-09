@@ -90,37 +90,31 @@ namespace AsyncAdePT {
 
 struct TrackDataWithIDs : public adeptint::TrackData {
   unsigned int eventId{0};
-  unsigned int trackId{0};
   short threadId{-1};
 
-  TrackDataWithIDs(int pdg_id, int parentId, double ene, double vertexEne, double x, double y, double z, double dirx,
-                   double diry, double dirz, double vertexX, double vertexY, double vertexZ, double vertexDirx,
-                   double vertexDiry, double vertexDirz, double gTime, double lTime, double pTime, float weight,
-                   vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState, unsigned int eventId = 0,
-                   unsigned int trackId = 0, short threadId = -1)
+  TrackDataWithIDs(int pdg_id, uint64_t trackId, uint64_t parentId, short creatorProcessId, double ene, double x,
+                   double y, double z, double dirx, double diry, double dirz, double gTime, double lTime, double pTime,
+                   float weight, unsigned short stepCounter, vecgeom::NavigationState &&state,
+                   vecgeom::NavigationState &&originState, unsigned int eventId = 0, short threadId = -1)
       : TrackData{pdg_id,
+                  trackId,
                   parentId,
+                  creatorProcessId,
                   ene,
-                  vertexEne,
                   x,
                   y,
                   z,
                   dirx,
                   diry,
                   dirz,
-                  vertexX,
-                  vertexY,
-                  vertexZ,
-                  vertexDirx,
-                  vertexDiry,
-                  vertexDirz,
                   gTime,
                   lTime,
                   pTime,
                   weight,
+                  stepCounter,
                   std::move(state),
                   std::move(originState)},
-        eventId{eventId}, trackId{trackId}, threadId{threadId}
+        eventId{eventId}, threadId{threadId}
   {
   }
   friend bool operator==(TrackDataWithIDs const &a, TrackDataWithIDs const &b)
