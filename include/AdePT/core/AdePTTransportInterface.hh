@@ -57,7 +57,7 @@ public:
   virtual void Initialize(G4HepEmConfig *hepEmConfig, bool common_data = false) = 0;
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   virtual void Shower(int event, int threadId)            = 0;
-  virtual void Cleanup()                                  = 0;
+  virtual void Cleanup(bool commonInitThread)             = 0;
   virtual void ProcessGPUSteps(int threadId, int eventId) = 0;
   /// @brief Setup function for the G4HepEmtrackingManager in the integratin layer -  used only in async AdePT
   /// @param threadId thread Id

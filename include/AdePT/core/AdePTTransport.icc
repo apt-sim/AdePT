@@ -34,7 +34,7 @@ G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
 GPUstate *InitializeGPU(TrackBuffer &, int, int);
 AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring);
 void CopySurfaceModelToGPU();
-void FreeGPU(GPUstate &, G4HepEmState *);
+void FreeGPU(GPUstate &, G4HepEmState *, bool);
 template <typename IntegrationLayer>
 void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GPUstate &gpuState, AdeptScoring *scoring,
                AdeptScoring *scoring_dev, int debugLevel);
@@ -251,12 +251,12 @@ void AdePTTransport<IntegrationLayer>::InitBVH()
 }
 
 template <typename IntegrationLayer>
-void AdePTTransport<IntegrationLayer>::Cleanup()
+void AdePTTransport<IntegrationLayer>::Cleanup(bool commonInitThread)
 {
   if (!fInit) return;
-  adept_impl::FreeGPU(*fGPUstate, fg4hepem_state);
+  adept_impl::FreeGPU(*fGPUstate, fg4hepem_state, commonInitThread);
   fg4hepem_state = nullptr;
-  adept_impl::FreeVolAuxArray(VolAuxArray::GetInstance());
+  if (commonInitThread) adept_impl::FreeVolAuxArray(VolAuxArray::GetInstance());
   adept_scoring::FreeGPU(fScoring, fScoring_dev);
   delete[] fBuffer.fromDeviceBuff;
 }

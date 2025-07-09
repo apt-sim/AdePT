@@ -39,7 +39,7 @@ AdePTTrackingManager::AdePTTrackingManager()
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
-  if (fAdeptTransport) fAdeptTransport->Cleanup();
+  if (fAdeptTransport) fAdeptTransport->Cleanup(fCommonInitThread);
 }
 
 void AdePTTrackingManager::InitializeAdePT()
@@ -97,6 +97,7 @@ void AdePTTrackingManager::InitializeAdePT()
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
     fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig(), true /*common_data*/);
+    fCommonInitThread = true;
 #endif
 
     // common init done, can notify other workers to proceed their initialization
