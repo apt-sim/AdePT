@@ -266,9 +266,9 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
   // need to cast to avoid the pitfall of the untemplated AdePTTransportInterface that cannot hold the IntegrationLayer
 #ifdef ASYNC_MODE
-  auto *Transport = dynamic_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
+  auto *Transport = static_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
 #else
-  auto *Transport = dynamic_cast<AdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
+  auto *Transport = static_cast<AdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
 #endif
   if (!Transport) {
     G4Exception("AdePTTrackingManager::ProcessTrack", "", FatalException,

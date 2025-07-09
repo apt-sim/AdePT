@@ -364,8 +364,10 @@ GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatc
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.stats_dev, sizeof(Stats)));
   COPCORE_CUDA_CHECK(cudaMallocHost(&gpuState.stats, sizeof(Stats)));
 
+#if ADEPT_DEBUG_TRACK > 0
   // initialize track debugging
   InitializeTrackDebug();
+#endif
 
   // initialize buffers of tracks on device
   COPCORE_CUDA_CHECK(cudaMalloc(&gpuState.toDevice_dev, maxbatch * sizeof(TrackData)));

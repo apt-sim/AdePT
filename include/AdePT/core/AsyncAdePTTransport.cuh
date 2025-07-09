@@ -749,8 +749,10 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   // init scoring structures
   gpuMalloc(gpuState.fScoring_dev, numThreads);
 
+#if ADEPT_DEBUG_TRACK > 0
   // initialize track debugging
   InitializeTrackDebug();
+#endif
 
   scoring.clear();
   scoring.reserve(numThreads);
