@@ -1564,12 +1564,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           // if the next step might fail, one has to wait until the buffers are ready to swap again.
           if (nextStepMightFail) {
             // Wait until swap becomes available
-            if (debugLevel >= 4) {
-              std::cerr << "Warning: stalling transport loop because HitBuffers are overflowing: HitSlots left: "
-                        << (gpuState.fHitScoring->HitCapacity() / numThreads - gpuState.stats->hitBufferOccupancy)
-                        << " Max particles in flight: " << maxInFlight
-                        << "  | Waiting for HitBuffers to be freed by worker " << std::endl;
-            }
+            std::cerr << "Warning: stalling transport loop because HitBuffers are overflowing: HitSlots left: "
+                      << (gpuState.fHitScoring->HitCapacity() / numThreads - gpuState.stats->hitBufferOccupancy)
+                      << " Max particles in flight: " << maxInFlight
+                      << "  | Waiting for HitBuffers to be freed by worker " << std::endl;
+
             auto start = std::chrono::steady_clock::now();
             while (!gpuState.fHitScoring->ReadyToSwapBuffers()) {
               hitProcessing->cv.notify_one();
@@ -1581,7 +1580,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                 std::terminate();
               }
             }
-            if (debugLevel >= 4) {
+            if (debugLevel >= 3) {
               std::cerr << "Hit buffers freed, resuming with swapping of the buffers " << std::endl;
             }
           }
