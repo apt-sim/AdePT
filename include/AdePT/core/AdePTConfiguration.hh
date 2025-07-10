@@ -41,6 +41,7 @@ public:
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
   void SetCPUCapacityFactor(float CPUCapacityFactor) { fCPUCapacityFactor = CPUCapacityFactor; }
+  void SetAdePTSeed(int seed) { fAdePTSeed = static_cast<uint64_t>(seed); }
 
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
@@ -70,6 +71,8 @@ public:
   int GetTransportBufferThreshold() { return fTransportBufferThreshold; }
   int GetCUDAStackLimit() { return fCUDAStackLimit; }
   int GetCUDAHeapLimit() { return fCUDAHeapLimit; }
+  uint64_t GetAdePTSeed() { return fAdePTSeed; }
+
   unsigned short GetLastNParticlesOnCPU() { return fLastNParticlesOnCPU; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
   float GetCPUCapacityFactor() { return fCPUCapacityFactor; }
@@ -96,6 +99,7 @@ private:
   int fTransportBufferThreshold{200};
   int fCUDAStackLimit{0};
   int fCUDAHeapLimit{0};
+  uint64_t fAdePTSeed{1234567};
   float fHitBufferFlushThreshold{0.8};
   float fCPUCapacityFactor{2.5};
   double fMillionsOfTrackSlots{1};

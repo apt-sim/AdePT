@@ -37,7 +37,7 @@ void CopySurfaceModelToGPU();
 void FreeGPU(GPUstate &, G4HepEmState *, bool);
 template <typename IntegrationLayer>
 void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GPUstate &gpuState, AdeptScoring *scoring,
-               AdeptScoring *scoring_dev, int debugLevel);
+               AdeptScoring *scoring_dev, int debugLevel, uint64_t seed);
 
 } // namespace adept_impl
 
@@ -54,6 +54,7 @@ AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configurati
   fCPURegionNames    = configuration.GetCPURegionNames();
   fCUDAStackLimit    = configuration.GetCUDAStackLimit();
   fCUDAHeapLimit     = configuration.GetCUDAHeapLimit();
+  fAdePTSeed         = configuration.GetAdePTSeed();
   fBfieldFile        = configuration.GetCovfieBfieldFile();
   fCapacity          = 1024 * 1024 * configuration.GetMillionsOfTrackSlots() / configuration.GetNumThreads();
   fHitBufferCapacity = 1024 * 1024 * configuration.GetMillionsOfHitSlots() / configuration.GetNumThreads();
@@ -296,7 +297,7 @@ void AdePTTransport<IntegrationLayer>::Shower(int event, int /*threadId*/)
               << "GPU transporting event " << event << " for CPU thread " << fIntegrationLayer.GetThreadID() << ": "
               << std::flush;
   }
-  adept_impl::ShowerGPU(fIntegrationLayer, event, fBuffer, *fGPUstate, fScoring, fScoring_dev, fDebugLevel);
+  adept_impl::ShowerGPU(fIntegrationLayer, event, fBuffer, *fGPUstate, fScoring, fScoring_dev, fDebugLevel, fAdePTSeed);
 
   for (auto const &track : fBuffer.fromDevice) {
     if (track.pdg == 11)

@@ -102,6 +102,9 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetCUDAHeapLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAHeapLimit", this);
   fSetCUDAHeapLimitCmd->SetGuidance("Set the CUDA device heap limit");
 
+  fSetAdePTSeedCmd = new G4UIcmdWithAnInteger("/adept/setSeed", this);
+  fSetAdePTSeedCmd->SetGuidance("Set the base seed for the rng. Default: 1234567");
+
   fSetMultipleStepsInMSCWithTransportationCmd =
       new G4UIcmdWithABool("/adept/SetMultipleStepsInMSCWithTransportation", this);
   fSetMultipleStepsInMSCWithTransportationCmd->SetGuidance(
@@ -119,6 +122,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fDir;
   delete fSetCUDAStackLimitCmd;
   delete fSetCUDAHeapLimitCmd;
+  delete fSetAdePTSeedCmd;
   delete fSetTrackInAllRegionsCmd;
   delete fSetCallUserSteppingActionCmd;
   delete fSetCallUserTrackingActionCmd;
@@ -185,6 +189,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetCUDAStackLimit(fSetCUDAStackLimitCmd->GetNewIntValue(newValue));
   } else if (command == fSetCUDAHeapLimitCmd) {
     fAdePTConfiguration->SetCUDAHeapLimit(fSetCUDAHeapLimitCmd->GetNewIntValue(newValue));
+  } else if (command == fSetAdePTSeedCmd) {
+    fAdePTConfiguration->SetAdePTSeed(fSetAdePTSeedCmd->GetNewIntValue(newValue));
   } else if (command == fSetFinishOnCpuCmd) {
     fAdePTConfiguration->SetLastNParticlesOnCPU(fSetFinishOnCpuCmd->GetNewIntValue(newValue));
   }

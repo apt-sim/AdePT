@@ -13,7 +13,7 @@
 // Explicit instantiation of the ShowerGPU<AdePTGeant4Integration> function
 namespace adept_impl {
 template void ShowerGPU<AdePTGeant4Integration>(AdePTGeant4Integration &, int, adeptint::TrackBuffer &, GPUstate &,
-                                                HostScoring *, HostScoring *, int);
+                                                HostScoring *, HostScoring *, int, uint64_t);
 } // namespace adept_impl
 
 #endif

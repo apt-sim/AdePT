@@ -52,6 +52,8 @@ public:
   virtual void SetBfieldFileName(const std::string &fileName) = 0;
   virtual void SetCUDAStackLimit(int limit)                   = 0;
   virtual void SetCUDAHeapLimit(int limit)                    = 0;
+  virtual void SetAdePTSeed(uint64_t seed)                    = 0;
+
   /// @brief Initialize service and copy geometry & physics data on device
   virtual void Initialize(G4HepEmConfig *hepEmConfig, bool common_data = false) = 0;
   /// @brief Interface for transporting a buffer of tracks in AdePT.
