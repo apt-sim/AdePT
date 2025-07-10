@@ -506,20 +506,17 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         // not the initializing step, hostTrackInfo must be available
         hostTrackInfo = fHostTrackDataMapper->get(aGPUHit->fTrackID);
 
-        std::cout << " Track " << hostTrackInfo.g4id << " is limited by " << aGPUHit->fCreatorProcessID
-                  << " step number " << aGPUHit->fStepCounter << std::endl;
-
         // setting of the step-defining process
         if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
             static_cast<int>(parentTrackInfo.particleType) == 1) {
 
-          if (aGPUHit->fCreatorProcessID == -2) {
+          if (aGPUHit->fStepLimProcessId == -2) {
             // MSC
             stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[3];
-          } else if (aGPUHit->fCreatorProcessID == -1) {
+          } else if (aGPUHit->fStepLimProcessId == -1) {
             // continuous energy loss by ionization
             stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[0];
-          } else if (aGPUHit->fCreatorProcessID == 3) {
+          } else if (aGPUHit->fStepLimProcessId == 3) {
             // lepton nuclear
             if (static_cast<int>(parentTrackInfo.particleType) == 0)
               stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[4];
@@ -527,21 +524,21 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
               stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[5];
             // continuous energy loss by ionization
             stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[0];
-          } else if (aGPUHit->fCreatorProcessID == 10) {
+          } else if (aGPUHit->fStepLimProcessId == 10) {
             // transportation
             stepDefiningProcess = fHepEmTrackingManager->GetTransportNoProcess();
           } else {
             // discrete interactions
-            stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID];
+            stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fStepLimProcessId];
           }
         } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
 
-          if (aGPUHit->fCreatorProcessID == 10) {
+          if (aGPUHit->fStepLimProcessId == 10) {
             // transportation
             stepDefiningProcess = fHepEmTrackingManager->GetTransportNoProcess();
           } else {
             // discrete interactions
-            stepDefiningProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID];
+            stepDefiningProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fStepLimProcessId];
           }
         }
       } else {
@@ -551,7 +548,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         if (fHostTrackDataMapper->contains(aGPUHit->fTrackID)) {
           std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << aGPUHit->fTrackID
                     << ", parentID = " << aGPUHit->fParentID << ") "
-                    << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+                    << " stepLimProcessId " << aGPUHit->fStepLimProcessId << " pdg charge "
                     << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
                     << std::endl;
           std::abort();
@@ -569,12 +566,13 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         }
 
         // retrieve creator process from parent particle type
+        // for the initializing step, the step-defining process is the creator process
         if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
             static_cast<int>(parentTrackInfo.particleType) == 1) {
           hostTrackInfo.creatorProcess =
-              fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID];
+              fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fStepLimProcessId];
         } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
-          hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID];
+          hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fStepLimProcessId];
         }
 
         hostTrackInfo.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
@@ -590,7 +588,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     } catch (const std::exception &e) {
       std::cerr << "\033[1;31mERROR: EXCEPTION in HostTrackDataMapper: " << e.what()
                 << " (trackID = " << aGPUHit->fTrackID << ", parentID = " << aGPUHit->fParentID << ") "
-                << " creatorprocessId " << aGPUHit->fCreatorProcessID << " pdg charge "
+                << " stepLimProcessId " << aGPUHit->fStepLimProcessId << " pdg charge "
                 << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
                 << std::endl;
     } catch (...) {

@@ -700,7 +700,7 @@ namespace adept_scoring {
 /// @brief Record a hit
 template <>
 __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aTrackID, uint64_t aParentID,
-                          short creatorProcessId, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
+                          short stepLimProcessId, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
                           float aTrackWeight, vecgeom::NavigationState const &aPreState,
                           vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
@@ -713,7 +713,7 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
   GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
 
   // Fill the required data
-  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
+  FillHit(aGPUHit, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
           aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition, aPostMomentumDirection,
           aPostEKin, aGlobalTime, aLocalTime, eventID, threadID, isLastStep, stepCounter);
 }

@@ -17,7 +17,7 @@ template <typename Scoring>
 void FreeGPU(Scoring *scoring, Scoring *scoring_dev);
 
 template <typename Scoring>
-__device__ void RecordHit(Scoring *scoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId,
+__device__ void RecordHit(Scoring *scoring_dev, uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId,
                           char aParticleType, double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
                           vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
