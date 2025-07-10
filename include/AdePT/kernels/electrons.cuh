@@ -144,7 +144,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double localTime  = currentTrack.localTime;
     double properTime = currentTrack.properTime;
     currentTrack.stepCounter++;
-    bool printErrors = false;
+    bool printErrors = true;
     bool verbose     = false;
 #if ADEPT_DEBUG_TRACK > 0
     const char *pname[2] = {"e+", "e-"};

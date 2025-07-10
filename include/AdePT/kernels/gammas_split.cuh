@@ -42,7 +42,7 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
-    bool printErrors = false;
+    bool printErrors = true;
     if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
       if (printErrors)
         printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "

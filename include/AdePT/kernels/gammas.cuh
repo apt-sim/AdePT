@@ -82,7 +82,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
-    bool printErrors = false;
+    bool printErrors = true;
 #if ADEPT_DEBUG_TRACK > 0
     bool verbose = false;
     if (gTrackDebug.active) {
