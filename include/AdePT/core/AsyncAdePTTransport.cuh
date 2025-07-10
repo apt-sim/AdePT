@@ -1543,11 +1543,54 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         }
 
         // *** Hit management ***
-        if (!gpuState.fHitScoring->ReadyToSwapBuffers()) {
+
+        // check the maximum number of tracks in flight per thread
+        unsigned int maxInFlight =
+            *std::max_element(gpuState.stats->perEventInFlight, gpuState.stats->perEventInFlight + numThreads);
+
+        // if there are more tracks in flight than the total HitCapacity, it could fail at any step!
+        // This is really dangerous and requires a larger hit capacity
+        if (1.2 * maxInFlight > gpuState.fHitScoring->HitCapacity() / numThreads)
+          std::cerr << "WARNING: particles in flight ( " << maxInFlight << " ) is close or above the HitCapacity ( "
+                    << gpuState.fHitScoring->HitCapacity() / numThreads
+                    << " )! Must increase "
+                       "/adept/setMillionsOfHitSlots or reduce /run/numberOfThreads!"
+                    << std::endl;
+
+        // next step could fail because there are more tracks in flight than hit slots left..
+        bool nextStepMightFail =
+            gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads - 1.5 * maxInFlight;
+
+        if (!gpuState.fHitScoring->ReadyToSwapBuffers() && !nextStepMightFail) {
           hitProcessing->cv.notify_one();
         } else {
+
+          // if the next step might fail, one has to wait until the buffers are ready to swap again.
+          if (nextStepMightFail) {
+            // Wait until swap becomes available
+            std::cerr << "Warning: stalling transport loop because HitBuffers are overflowing: HitSlots left: "
+                      << (gpuState.fHitScoring->HitCapacity() / numThreads - gpuState.stats->hitBufferOccupancy)
+                      << " Max particles in flight: " << maxInFlight
+                      << "  | Waiting for HitBuffers to be freed by worker " << std::endl;
+
+            auto start = std::chrono::steady_clock::now();
+            while (!gpuState.fHitScoring->ReadyToSwapBuffers()) {
+              hitProcessing->cv.notify_one();
+              std::this_thread::sleep_for(std::chrono::microseconds(100));
+              // guard to avoid infinite stalls
+              auto now = std::chrono::steady_clock::now();
+              if (std::chrono::duration_cast<std::chrono::seconds>(now - start).count() > 5) {
+                std::cerr << "Error: Timed out waiting for hit buffer to become available.\n";
+                std::terminate();
+              }
+            }
+            if (debugLevel >= 3) {
+              std::cerr << "Hit buffers freed, resuming with swapping of the buffers " << std::endl;
+            }
+          }
+
           if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2 ||
-              gpuState.stats->hitBufferOccupancy >= 10000 ||
+              gpuState.stats->hitBufferOccupancy >= 10000 || nextStepMightFail ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {
