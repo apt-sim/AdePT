@@ -127,13 +127,15 @@ It is not straightforward to allocate just the needed queues per particle type b
 ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
 dynamic allocations
 */
-  static constexpr char numInteractions = 7;
+  static constexpr char numInteractions = 5;
   adept::MParray *nextActive;
   adept::MParray *initiallyActive;
+#ifdef USE_SPLIT_KERNELS
   adept::MParray *propagation;
   // TODO: Remove this queue
   adept::MParray *reachedInteraction;
   adept::MParray *interactionQueues[numInteractions];
+#endif
   adept::MParray *leakedTracksCurrent;
   adept::MParray *leakedTracksNext;
 
@@ -165,6 +167,11 @@ struct HepEmBuffers {
   G4HepEmElectronTrack *positronsHepEm;
   G4HepEmGammaTrack *gammasHepEm;
 };
+
+// A bundle of queues per interaction type
+struct AllInteractionQueues {
+  adept::MParray *queues[5];
+};
 #endif
 
 // Pointers to track storage for each particle type
@@ -176,11 +183,6 @@ struct TracksAndSlots {
 // A bundle of queues for the three particle types.
 struct AllParticleQueues {
   ParticleQueues queues[ParticleType::NumParticleTypes];
-};
-
-// A bundle of queues per interaction type
-struct AllInteractionQueues {
-  adept::MParray *queues[5];
 };
 
 struct AllSlotManagers {

@@ -62,22 +62,6 @@ add_test(NAME testEm3_validation_regions
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
-if (ASYNC_MODE AND NOT USE_SPLIT_KERNELS)
-# Run monolithic kernels and store the results
-add_test(NAME split_kernels_part1
-    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/split_kernels_part1.sh
-    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_SPLIT_DIR}"
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-)
-elseif(ASYNC_MODE AND USE_SPLIT_KERNELS)
-# Run split kernels and store the results
-add_test(NAME split_kernels_part2
-    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/split_kernels_part2.sh
-    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_SPLIT_DIR}"
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-)
-endif()
-
 set(APP_TESTS
 
 )

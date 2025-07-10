@@ -115,12 +115,14 @@ bool InitializeTrackDebug()
 __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTransport, size_t CapacityLeaked)
 {
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.initiallyActive);
-  adept::MParray::MakeInstanceAt(CapacityTransport, queues.propagation);
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.nextActive);
+#ifdef USE_SPLIT_KERNELS
+  adept::MParray::MakeInstanceAt(CapacityTransport, queues.propagation);
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.reachedInteraction);
   for (int i = 0; i < ParticleQueues::numInteractions; i++) {
     adept::MParray::MakeInstanceAt(CapacityTransport, queues.interactionQueues[i]);
   }
+#endif
   adept::MParray::MakeInstanceAt(CapacityLeaked, queues.leakedTracksCurrent);
   adept::MParray::MakeInstanceAt(CapacityLeaked, queues.leakedTracksNext);
 }
@@ -360,12 +362,14 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     // Clear queues and write statistics
     for (int i = threadIdx.x; i < ParticleType::NumParticleTypes; i += blockDim.x) {
       all.queues[i].initiallyActive->clear();
+#ifdef USE_SPLIT_KERNELS
       all.queues[i].propagation->clear();
       // TODO: Remove this queue along with the old interaction kernels
       all.queues[i].reachedInteraction->clear();
       for (int j = 0; j < ParticleQueues::numInteractions; j++) {
         all.queues[i].interactionQueues[j]->clear();
       }
+#endif
       stats->inFlight[i]       = all.queues[i].nextActive->size();
       stats->leakedTracks[i]   = all.queues[i].leakedTracksCurrent->size() + all.queues[i].leakedTracksNext->size();
       stats->queueFillLevel[i] = float(all.queues[i].nextActive->size()) / all.queues[i].nextActive->max_size();
@@ -500,7 +504,12 @@ __global__ void ClearAllQueues(AllParticleQueues all)
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     all.queues[i].initiallyActive->clear();
     all.queues[i].nextActive->clear();
+#ifdef USE_SPLIT_KERNELS
     all.queues[i].propagation->clear();
+    for (int j = 0; j < ParticleQueues::numInteractions; j++) {
+      all.queues[i].interactionQueues[j]->clear();
+    }
+#endif
     all.queues[i].leakedTracksCurrent->clear();
     all.queues[i].leakedTracksNext->clear();
   }
@@ -692,6 +701,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
     particleType.queues.nextActive = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
+#ifdef USE_SPLIT_KERNELS
     particleType.queues.propagation = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
     particleType.queues.reachedInteraction = static_cast<adept::MParray *>(gpuPtr);
@@ -699,6 +709,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
       gpuMalloc(gpuPtr, sizeOfQueueStorage);
       particleType.queues.interactionQueues[j] = static_cast<adept::MParray *>(gpuPtr);
     }
+#endif
     gpuMalloc(gpuPtr, sizeOfLeakQueue);
     particleType.queues.leakedTracksCurrent = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfLeakQueue);
