@@ -1546,7 +1546,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         // if there are more tracks in flight than the total HitCapacity, it could fail at any step!
         // This is really dangerous and requires a larger hit capacity
-        if (1.2 * maxInFlight > gpuState.fHitScoring->HitCapacity() / numThreads && debugLevel > 1)
+        if (1.2 * maxInFlight > gpuState.fHitScoring->HitCapacity() / numThreads)
           std::cerr << "WARNING: particles in flight ( " << maxInFlight << " ) is close or above the HitCapacity ( "
                     << gpuState.fHitScoring->HitCapacity() / numThreads
                     << " )! Must increase "
