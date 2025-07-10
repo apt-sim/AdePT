@@ -495,6 +495,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   HostTrackData hostTrackInfo;
   HostTrackData parentTrackInfo;
 
+  G4VProcess *stepDefiningProcess = nullptr;
+
   // Add full track information if TrackingAction or SteppingAction is enabled
   if (callUserTrackingAction || callUserSteppingAction) {
 
@@ -503,6 +505,45 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
       if (aGPUHit->fStepCounter != 0) {
         // not the initializing step, hostTrackInfo must be available
         hostTrackInfo = fHostTrackDataMapper->get(aGPUHit->fTrackID);
+
+        std::cout << " Track " << hostTrackInfo.g4id << " is limited by " << aGPUHit->fCreatorProcessID
+                  << " step number " << aGPUHit->fStepCounter << std::endl;
+
+        // setting of the step-defining process
+        if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
+            static_cast<int>(parentTrackInfo.particleType) == 1) {
+
+          if (aGPUHit->fCreatorProcessID == -2) {
+            // MSC
+            stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[3];
+          } else if (aGPUHit->fCreatorProcessID == -1) {
+            // continuous energy loss by ionization
+            stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[0];
+          } else if (aGPUHit->fCreatorProcessID == 3) {
+            // lepton nuclear
+            if (static_cast<int>(parentTrackInfo.particleType) == 0)
+              stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[4];
+            if (static_cast<int>(parentTrackInfo.particleType) == 1)
+              stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[5];
+            // continuous energy loss by ionization
+            stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[0];
+          } else if (aGPUHit->fCreatorProcessID == 10) {
+            // transportation
+            stepDefiningProcess = fHepEmTrackingManager->GetTransportNoProcess();
+          } else {
+            // discrete interactions
+            stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fCreatorProcessID];
+          }
+        } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
+
+          if (aGPUHit->fCreatorProcessID == 10) {
+            // transportation
+            stepDefiningProcess = fHepEmTrackingManager->GetTransportNoProcess();
+          } else {
+            // discrete interactions
+            stepDefiningProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fCreatorProcessID];
+          }
+        }
       } else {
         // initializing step, set parameters
 
@@ -642,8 +683,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
   // aPostStepPoint->SetPolarization(); // Missing data
-  aPostStepPoint->SetStepStatus(aPostStepStatus); // Missing data
-  // aPostStepPoint->SetProcessDefinedStep(nullptr);                                                  // Missing data
+  aPostStepPoint->SetStepStatus(aPostStepStatus);             // Missing data
+  aPostStepPoint->SetProcessDefinedStep(stepDefiningProcess); // Real data
   // aPostStepPoint->SetMass(0);                                                                      // Missing data
   aPostStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data

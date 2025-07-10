@@ -59,7 +59,6 @@ struct Track {
   uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
   uint64_t parentId{0}; // track id of the parent
 
-  short creatorProcessId{-1}; // TODO: to be improved and merged with step defining process
   unsigned int eventId{0};
   short threadId{-1};
   unsigned short stepCounter{0};
@@ -84,10 +83,10 @@ struct Track {
   /// NB: The navState remains uninitialised.
   __device__ Track(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime, float weight,
                    double const position[3], double const direction[3], unsigned int eventId, uint64_t trackId,
-                   uint64_t parentId, short creatorProcessId, short threadId, unsigned short stepCounter)
+                   uint64_t parentId, short threadId, unsigned short stepCounter)
       : eKin{eKin}, weight{weight}, globalTime{globalTime}, localTime{localTime}, properTime{properTime},
-        eventId{eventId}, trackId{trackId}, parentId{parentId}, creatorProcessId{creatorProcessId}, threadId{threadId},
-        stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}
+        eventId{eventId}, trackId{trackId}, parentId{parentId}, threadId{threadId}, stepCounter{stepCounter},
+        looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
     pos        = {position[0], position[1], position[2]};
@@ -99,11 +98,11 @@ struct Track {
   /// NB: The caller is responsible to branch a new RNG state.
   __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
                    const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
-                   const Track &parentTrack, const double globalTime, short creatorProcessId)
+                   const Track &parentTrack, const double globalTime)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
-        parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, creatorProcessId{creatorProcessId},
-        weight{parentTrack.weight}, stepCounter{0}, looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
+        parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, weight{parentTrack.weight}, stepCounter{0},
+        looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
   }
 
@@ -117,9 +116,9 @@ struct Track {
   __host__ __device__ void Print(const char *label) const
   {
     printf("== evt %u parentId %lu %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
-           "%.19f} remain_safe %g loop %u\n| creatorProcess %u | state: ",
+           "%.19f} remain_safe %g loop %u\n| | state: ",
            eventId, parentId, label, trackId, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
-           dir[1], dir[2], GetSafety(pos), looperCounter, creatorProcessId);
+           dir[1], dir[2], GetSafety(pos), looperCounter);
     navState.Print();
   }
 
@@ -187,25 +186,24 @@ struct Track {
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
-    tdata.pdg              = pdg;
-    tdata.trackId          = trackId;
-    tdata.parentId         = parentId;
-    tdata.position[0]      = pos[0];
-    tdata.position[1]      = pos[1];
-    tdata.position[2]      = pos[2];
-    tdata.direction[0]     = dir[0];
-    tdata.direction[1]     = dir[1];
-    tdata.direction[2]     = dir[2];
-    tdata.eKin             = eKin;
-    tdata.globalTime       = globalTime;
-    tdata.localTime        = localTime;
-    tdata.properTime       = properTime;
-    tdata.navState         = navState;
-    tdata.originNavState   = originNavState;
-    tdata.weight           = weight;
-    tdata.leakStatus       = leakStatus;
-    tdata.creatorProcessId = creatorProcessId;
-    tdata.stepCounter      = stepCounter;
+    tdata.pdg            = pdg;
+    tdata.trackId        = trackId;
+    tdata.parentId       = parentId;
+    tdata.position[0]    = pos[0];
+    tdata.position[1]    = pos[1];
+    tdata.position[2]    = pos[2];
+    tdata.direction[0]   = dir[0];
+    tdata.direction[1]   = dir[1];
+    tdata.direction[2]   = dir[2];
+    tdata.eKin           = eKin;
+    tdata.globalTime     = globalTime;
+    tdata.localTime      = localTime;
+    tdata.properTime     = properTime;
+    tdata.navState       = navState;
+    tdata.originNavState = originNavState;
+    tdata.weight         = weight;
+    tdata.leakStatus     = leakStatus;
+    tdata.stepCounter    = stepCounter;
   }
 };
 #endif

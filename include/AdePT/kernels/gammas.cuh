@@ -249,9 +249,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // as now the nextState is defined, but the navState is not yet replaced
         if (returnAllSteps)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,  // Track ID
-                                   currentTrack.parentId, // parent Track ID
-                                   currentTrack.creatorProcessId,
+                                   currentTrack.trackId,                        // Track ID
+                                   currentTrack.parentId,                       // parent Track ID
+                                   static_cast<short>(/* transport */ 10),      // step-defining process
                                    2,                                           // Particle type
                                    geometryStepLength,                          // Step length
                                    0,                                           // Total Edep
@@ -304,9 +304,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // particle has left the world, record hit if last or all steps are returned
         if (returnAllSteps || returnLastStep)
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,  // Track ID
-                                   currentTrack.parentId, // parent Track ID
-                                   currentTrack.creatorProcessId,
+                                   currentTrack.trackId,                        // Track ID
+                                   currentTrack.parentId,                       // parent Track ID
+                                   static_cast<short>(/* transport */ 10),      // step-defining process
                                    2,                                           // Particle type
                                    geometryStepLength,                          // Step length
                                    0,                                           // Total Edep
@@ -388,7 +388,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         Track &electron = secondaries.electrons.NextTrack(
             newRNG, elKinEnergy, pos,
             vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
-            currentTrack, globalTime, short(winnerProcessIndex));
+            currentTrack, globalTime);
 #else
         Track &electron = secondaries.electrons->NextTrack();
         electron.InitAsSecondary(pos, navState, globalTime);
@@ -431,17 +431,16 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         Track &positron = secondaries.positrons.NextTrack(
             currentTrack.rngState, posKinEnergy, pos,
             vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
-            currentTrack, globalTime, short(winnerProcessIndex));
+            currentTrack, globalTime);
 #else
         Track &positron = secondaries.positrons->NextTrack();
         positron.InitAsSecondary(pos, navState, globalTime);
         // Reuse the RNG state of the dying track.
-        positron.parentId         = currentTrack.trackId;
-        positron.creatorProcessId = short(winnerProcessIndex);
-        positron.rngState         = currentTrack.rngState;
-        positron.trackId          = positron.rngState.IntRndm64();
-        positron.eKin             = posKinEnergy;
-        positron.weight           = currentTrack.weight;
+        positron.parentId = currentTrack.trackId;
+        positron.rngState = currentTrack.rngState;
+        positron.trackId  = positron.rngState.IntRndm64();
+        positron.eKin     = posKinEnergy;
+        positron.weight   = currentTrack.weight;
         positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
 #endif
         // if tracking or stepping action is called, return initial step
@@ -500,20 +499,18 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
         // Create a secondary electron and sample/compute directions.
 #ifdef ASYNC_MODE
-        Track &electron =
-            secondaries.electrons.NextTrack(newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState,
-                                            currentTrack, globalTime, short(winnerProcessIndex));
+        Track &electron = secondaries.electrons.NextTrack(
+            newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 #else
         Track &electron = secondaries.electrons->NextTrack();
 
         electron.InitAsSecondary(pos, navState, globalTime);
-        electron.parentId         = currentTrack.trackId;
-        electron.creatorProcessId = short(winnerProcessIndex);
-        electron.rngState         = newRNG;
-        electron.trackId          = electron.rngState.IntRndm64();
-        electron.eKin             = energyEl;
-        electron.weight           = currentTrack.weight;
-        electron.dir              = eKin * dir - newEnergyGamma * newDirGamma;
+        electron.parentId = currentTrack.trackId;
+        electron.rngState = newRNG;
+        electron.trackId  = electron.rngState.IntRndm64();
+        electron.eKin     = energyEl;
+        electron.weight   = currentTrack.weight;
+        electron.dir      = eKin * dir - newEnergyGamma * newDirGamma;
 #endif
         electron.dir.Normalize();
 
@@ -585,16 +582,15 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #ifdef ASYNC_MODE
         Track &electron = secondaries.electrons.NextTrack(
             newRNG, photoElecE, pos, vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
-            navState, currentTrack, globalTime, short(winnerProcessIndex));
+            navState, currentTrack, globalTime);
 #else
         Track &electron = secondaries.electrons->NextTrack();
         electron.InitAsSecondary(pos, navState, globalTime);
-        electron.parentId         = currentTrack.trackId;
-        electron.creatorProcessId = short(winnerProcessIndex);
-        electron.rngState         = newRNG;
-        electron.trackId          = electron.rngState.IntRndm64();
-        electron.eKin             = photoElecE;
-        electron.weight           = currentTrack.weight;
+        electron.parentId = currentTrack.trackId;
+        electron.rngState = newRNG;
+        electron.trackId  = electron.rngState.IntRndm64();
+        electron.eKin     = photoElecE;
+        electron.weight   = currentTrack.weight;
         electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
 #endif
         // if tracking or stepping action is called, return initial step
@@ -642,9 +638,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,  // Track ID
-                               currentTrack.parentId, // parent Track ID
-                               currentTrack.creatorProcessId,
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               short(winnerProcessIndex),                   // step-defining process id
                                2,                                           // Particle type
                                geometryStepLength,                          // Step length
                                edep,                                        // Total Edep

@@ -138,13 +138,10 @@ void AsyncAdePTTransport<IntegrationLayer>::SetIntegrationLayerForThread(int thr
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, uint64_t trackId, uint64_t parentId,
-                                                     short creatorProcessId, double energy, double x, double y,
-                                                     double z, double dirx, double diry, double dirz, double globalTime,
-                                                     double localTime, double properTime, float weight,
-                                                     unsigned short stepCounter, int threadId, unsigned int eventId,
-                                                     vecgeom::NavigationState &&state,
-                                                     vecgeom::NavigationState &&originState)
+void AsyncAdePTTransport<IntegrationLayer>::AddTrack(
+    int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx, double diry,
+    double dirz, double globalTime, double localTime, double properTime, float weight, unsigned short stepCounter,
+    int threadId, unsigned int eventId, vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
@@ -154,7 +151,6 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, uint64_t trackId, 
   TrackDataWithIDs track{pdg,
                          trackId,
                          parentId,
-                         creatorProcessId,
                          energy,
                          x,
                          y,

@@ -357,8 +357,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       uint64_t gpuParentID;
       trackMapper.tryGetGPUId(aTrack->GetParentID(), gpuParentID);
 
-      short creatorProcessId = -1; // -1 for tracks that come from G4 directly and are not created by AdePT
-
       auto particlePosition     = aTrack->GetPosition();
       auto particleDirection    = aTrack->GetMomentumDirection();
       G4double energy           = aTrack->GetKineticEnergy();
@@ -390,11 +388,10 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         convertedOrigin = GetVecGeomFromG4State(*aTrack->GetOriginTouchableHandle()->GetHistory());
       }
 
-      fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, creatorProcessId, energy, particlePosition[0],
-                                particlePosition[1], particlePosition[2], particleDirection[0], particleDirection[1],
-                                particleDirection[2], globalTime, localTime, properTime, weight, stepNumber,
-                                G4Threading::G4GetThreadId(), eventID, std::move(converted),
-                                std::move(convertedOrigin));
+      fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
+                                particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
+                                globalTime, localTime, properTime, weight, stepNumber, G4Threading::G4GetThreadId(),
+                                eventID, std::move(converted), std::move(convertedOrigin));
 
       fTrackCounter++; // increment the track counter for AdePT
 

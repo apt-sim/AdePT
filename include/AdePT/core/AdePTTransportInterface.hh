@@ -20,9 +20,9 @@ public:
   virtual ~AdePTTransportInterface() {}
 
   /// @brief Adds a track to the buffer
-  virtual void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, short creatorProcessId, double energy, double x,
-                        double y, double z, double dirx, double diry, double dirz, double globalTime, double localTime,
-                        double properTime, float weight, unsigned short stepCounter, int threadId, unsigned int eventId,
+  virtual void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z,
+                        double dirx, double diry, double dirz, double globalTime, double localTime, double properTime,
+                        float weight, unsigned short stepCounter, int threadId, unsigned int eventId,
                         vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState) = 0;
 
   /// @brief Set capacity of on-GPU track buffer.
