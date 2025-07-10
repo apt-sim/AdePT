@@ -149,7 +149,7 @@ void FreeGPU(HostScoring *hostScoring, HostScoring *hostScoring_dev)
 
 /// @brief Record a hit
 template <>
-__device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short creatorProcessId,
+__device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId,
                           char aParticleType, double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
                           vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
                           vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
@@ -162,7 +162,7 @@ __device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint6
   GPUHit &aGPUHit = *GetNextFreeHit(hostScoring_dev);
 
   // Fill the required data
-  FillHit(aGPUHit, aTrackID, aParentID, creatorProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
+  FillHit(aGPUHit, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
           aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition, aPostMomentumDirection,
           aPostEKin, aGlobalTime, aLocalTime, eventID, threadID, isLastStep, stepCounter);
 }

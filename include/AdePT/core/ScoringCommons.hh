@@ -30,7 +30,7 @@ struct GPUHit {
   float fTrackWeight{1};
   uint64_t fTrackID{0};  // Track ID
   uint64_t fParentID{0}; // parent Track ID
-  short fCreatorProcessID{-1};
+  short fStepLimProcessId{-1};
   unsigned int fEventId{0};
   short threadId{-1};
   // bool fFirstStepInVolume{false};
@@ -71,7 +71,7 @@ __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const 
 
 /// @brief Fill the provided hit with the given data
 __device__ __forceinline__ void FillHit(
-    GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aCreatorProcessID, char aParticleType,
+    GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aStepLimProcessId, char aParticleType,
     double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
     vecgeom::Vector3D<Precision> const &aPrePosition, vecgeom::Vector3D<Precision> const &aPreMomentumDirection,
     double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
@@ -86,7 +86,7 @@ __device__ __forceinline__ void FillHit(
   // Fill the required data
   aGPUHit.fTrackID            = aTrackID;
   aGPUHit.fParentID           = aParentID;
-  aGPUHit.fCreatorProcessID   = aCreatorProcessID;
+  aGPUHit.fStepLimProcessId   = aStepLimProcessId;
   aGPUHit.fParticleType       = aParticleType;
   aGPUHit.fStepLength         = aStepLength;
   aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;

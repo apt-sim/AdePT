@@ -44,10 +44,10 @@ public:
   int GetNfromDevice() const { return fBuffer.fromDevice.size(); }
 
   /// @brief Adds a track to the buffer
-  void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, short creatorProcessId, double energy, double x, double y,
-                double z, double dirx, double diry, double dirz, double globalTime, double localTime, double properTime,
-                float weight, unsigned short stepCounter, int threadId, unsigned int eventId,
-                vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState);
+  void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
+                double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
+                unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state,
+                vecgeom::NavigationState &&originState);
 
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
   /// @brief Get the track capacity on GPU

@@ -196,12 +196,11 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
     // we need to scramble the initial seed with some more trackinfo to generate a unique seed.
     // otherwise, if a particle returns from the device and is injected again (i.e., via lepton nuclear), it would have
     // the same random number state, causing collisions in the track IDs
-    auto seed = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
-    Track &track =
-        generator->InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
-                             static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
-                             trackInfo.direction, trackInfo.eventId, trackInfo.trackId, trackInfo.parentId,
-                             trackInfo.creatorProcessId, trackInfo.threadId, trackInfo.stepCounter);
+    auto seed    = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
+    Track &track = generator->InitTrack(
+        slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+        static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position, trackInfo.direction,
+        trackInfo.eventId, trackInfo.trackId, trackInfo.parentId, trackInfo.threadId, trackInfo.stepCounter);
     track.navState.Clear();
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;
@@ -312,27 +311,26 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
       // NOTE: Sync transport copies data into trackData structs during transport.
       // Async transport stores the slots and copies to trackdata structs for transfer to
       // host here. These approaches should be unified.
-      fromDevice[idx].position[0]      = track->pos[0];
-      fromDevice[idx].position[1]      = track->pos[1];
-      fromDevice[idx].position[2]      = track->pos[2];
-      fromDevice[idx].direction[0]     = track->dir[0];
-      fromDevice[idx].direction[1]     = track->dir[1];
-      fromDevice[idx].direction[2]     = track->dir[2];
-      fromDevice[idx].eKin             = track->eKin;
-      fromDevice[idx].globalTime       = track->globalTime;
-      fromDevice[idx].localTime        = track->localTime;
-      fromDevice[idx].properTime       = track->properTime;
-      fromDevice[idx].weight           = track->weight;
-      fromDevice[idx].pdg              = pdg;
-      fromDevice[idx].eventId          = track->eventId;
-      fromDevice[idx].threadId         = track->threadId;
-      fromDevice[idx].navState         = track->navState;
-      fromDevice[idx].originNavState   = track->originNavState;
-      fromDevice[idx].leakStatus       = track->leakStatus;
-      fromDevice[idx].parentId         = track->parentId;
-      fromDevice[idx].trackId          = track->trackId;
-      fromDevice[idx].creatorProcessId = track->creatorProcessId;
-      fromDevice[idx].stepCounter      = track->stepCounter;
+      fromDevice[idx].position[0]    = track->pos[0];
+      fromDevice[idx].position[1]    = track->pos[1];
+      fromDevice[idx].position[2]    = track->pos[2];
+      fromDevice[idx].direction[0]   = track->dir[0];
+      fromDevice[idx].direction[1]   = track->dir[1];
+      fromDevice[idx].direction[2]   = track->dir[2];
+      fromDevice[idx].eKin           = track->eKin;
+      fromDevice[idx].globalTime     = track->globalTime;
+      fromDevice[idx].localTime      = track->localTime;
+      fromDevice[idx].properTime     = track->properTime;
+      fromDevice[idx].weight         = track->weight;
+      fromDevice[idx].pdg            = pdg;
+      fromDevice[idx].eventId        = track->eventId;
+      fromDevice[idx].threadId       = track->threadId;
+      fromDevice[idx].navState       = track->navState;
+      fromDevice[idx].originNavState = track->originNavState;
+      fromDevice[idx].leakStatus     = track->leakStatus;
+      fromDevice[idx].parentId       = track->parentId;
+      fromDevice[idx].trackId        = track->trackId;
+      fromDevice[idx].stepCounter    = track->stepCounter;
 
       leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
     }

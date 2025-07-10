@@ -275,7 +275,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
         adept_scoring::RecordHit(userScoring,
                                  currentTrack.trackId,                        // Track ID
                                  currentTrack.parentId,                       // parent Track ID
-                                 currentTrack.creatorProcessId,               // creator process ID
+                                 static_cast<short>(10),                      // step defining process ID
                                  2,                                           // Particle type
                                  currentTrack.geometryStepLength,             // Step length
                                  0,                                           // Total Edep
@@ -317,7 +317,7 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
         adept_scoring::RecordHit(userScoring,
                                  currentTrack.trackId,                        // Track ID
                                  currentTrack.parentId,                       // parent Track ID
-                                 currentTrack.creatorProcessId,               // creator process ID
+                                 static_cast<short>(10),                      // step defining process ID
                                  2,                                           // Particle type
                                  currentTrack.geometryStepLength,             // Step length
                                  0,                                           // Total Edep
@@ -419,7 +419,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         secondaries.electrons.NextTrack(
             newRNG, elKinEnergy, currentTrack.pos,
             vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]},
-            currentTrack.navState, currentTrack, currentTrack.globalTime, short(theTrack->GetWinnerProcessIndex()));
+            currentTrack.navState, currentTrack, currentTrack.globalTime);
       }
 
       if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
@@ -429,7 +429,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         secondaries.positrons.NextTrack(
             currentTrack.rngState, posKinEnergy, currentTrack.pos,
             vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
-            currentTrack.navState, currentTrack, currentTrack.globalTime, short(theTrack->GetWinnerProcessIndex()));
+            currentTrack.navState, currentTrack, currentTrack.globalTime);
       }
 
       // The current track is killed by not enqueuing into the next activeQueue and the slot is released
@@ -458,7 +458,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         // Create a secondary electron and sample/compute directions.
         Track &electron = secondaries.electrons.NextTrack(
             newRNG, energyEl, currentTrack.pos, currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma,
-            currentTrack.navState, currentTrack, currentTrack.globalTime, short(theTrack->GetWinnerProcessIndex()));
+            currentTrack.navState, currentTrack, currentTrack.globalTime);
         electron.dir.Normalize();
       } else {
         edep = energyEl;
@@ -498,8 +498,7 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
         // Create a secondary electron and sample directions.
         secondaries.electrons.NextTrack(newRNG, photoElecE, currentTrack.pos,
                                         vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
-                                        currentTrack.navState, currentTrack, currentTrack.globalTime,
-                                        short(theTrack->GetWinnerProcessIndex()));
+                                        currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       } else {
         // If the secondary electron is cut, deposit all the energy of the gamma in this volume
@@ -514,15 +513,15 @@ __global__ void GammaInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks,
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
-                               currentTrack.parentId,                       // parent Track ID
-                               currentTrack.creatorProcessId,               // creator process ID
-                               2,                                           // Particle type
-                               currentTrack.geometryStepLength,             // Step length
-                               edep,                                        // Total Edep
-                               currentTrack.weight,                         // Track weight
-                               currentTrack.navState,                       // Pre-step point navstate
-                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.trackId,                                  // Track ID
+                               currentTrack.parentId,                                 // parent Track ID
+                               static_cast<short>(theTrack->GetWinnerProcessIndex()), // step limiting process
+                               2,                                                     // Particle type
+                               currentTrack.geometryStepLength,                       // Step length
+                               edep,                                                  // Total Edep
+                               currentTrack.weight,                                   // Track weight
+                               currentTrack.navState,                                 // Pre-step point navstate
+                               currentTrack.preStepPos,                               // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
                                currentTrack.nextState,                      // Post-step point navstate
@@ -619,7 +618,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       Track &electron = secondaries.electrons.NextTrack(
           newRNG, elKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
-          currentTrack, currentTrack.globalTime, /*CreatorProcessId*/ short(0));
+          currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -652,7 +651,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       Track &positron = secondaries.positrons.NextTrack(
           currentTrack.rngState, posKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
-          currentTrack.navState, currentTrack, currentTrack.globalTime, /*CreatorProcessId*/ short(0));
+          currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -688,7 +687,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
-                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<short>(0),                       // step defining process ID
                                2,                                           // Particle type
                                currentTrack.geometryStepLength,             // Step length
                                edep,                                        // Total Edep
@@ -784,7 +783,7 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
       // Create a secondary electron and sample/compute directions.
       Track &electron = secondaries.electrons.NextTrack(
           newRNG, energyEl, currentTrack.pos, currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma,
-          currentTrack.navState, currentTrack, currentTrack.globalTime, /*CreatorProcessId*/ short(1));
+          currentTrack.navState, currentTrack, currentTrack.globalTime);
       electron.dir.Normalize();
 
       // if tracking or stepping action is called, return initial step
@@ -834,7 +833,7 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
-                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<short>(1),                       // step defining process ID
                                2,                                           // Particle type
                                currentTrack.geometryStepLength,             // Step length
                                edep,                                        // Total Edep
@@ -929,8 +928,7 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
       Track &electron = secondaries.electrons.NextTrack(
           newRNG, photoElecE, currentTrack.pos,
           vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
-          currentTrack, currentTrack.globalTime,
-          /*CreatorProcessId*/ short(2));
+          currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -969,7 +967,7 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
-                               currentTrack.creatorProcessId,               // creator process ID
+                               static_cast<short>(2),                       // step defining process ID
                                2,                                           // Particle type
                                currentTrack.geometryStepLength,             // Step length
                                edep,                                        // Total Edep
