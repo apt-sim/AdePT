@@ -167,7 +167,7 @@ G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
 // Kernel function to initialize tracks comming from a Geant4 buffer
 __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int startTrack, int event,
                            Secondaries secondaries, const vecgeom::VPlacedVolume *world, AdeptScoring *userScoring,
-                           VolAuxData const *auxDataArray)
+                           VolAuxData const *auxDataArray, uint64_t initialSeed)
 {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < ntracks; i += blockDim.x * gridDim.x) {
     adept::TrackManager<Track> *trackmgr = nullptr;
@@ -189,7 +189,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.parentId = trackinfo[i].parentId;
     track.eventId  = event;
 
-    track.rngState.SetSeed(1234567 * event + startTrack + i);
+    track.rngState.SetSeed(initialSeed * event + startTrack + i);
     track.eKin         = trackinfo[i].eKin;
     track.numIALeft[0] = -1.0;
     track.numIALeft[1] = -1.0;
@@ -417,7 +417,7 @@ void FreeGPU(GPUstate &gpuState, G4HepEmState *g4hepem_state, bool commonInitThr
 
 template <typename IntegrationLayer>
 void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &buffer, GPUstate &gpuState,
-               AdeptScoring *scoring, AdeptScoring *scoring_dev, int debugLevel)
+               AdeptScoring *scoring, AdeptScoring *scoring_dev, int debugLevel, uint64_t seed)
 {
   using TrackData   = adeptint::TrackData;
   using VolAuxArray = adeptint::VolAuxArray;
@@ -452,9 +452,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   int initBlocks = (buffer.toDevice.size() + initThreads - 1) / initThreads;
 
   // Initialize AdePT tracks using the track buffer copied from CPU
-  InitTracks<<<initBlocks, initThreads, 0, gpuState.stream>>>(gpuState.toDevice_dev, buffer.toDevice.size(),
-                                                              buffer.startTrack, event, secondaries, world_dev,
-                                                              scoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
+  InitTracks<<<initBlocks, initThreads, 0, gpuState.stream>>>(
+      gpuState.toDevice_dev, buffer.toDevice.size(), buffer.startTrack, event, secondaries, world_dev, scoring_dev,
+      VolAuxArray::GetInstance().fAuxData_dev, seed);
 
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 

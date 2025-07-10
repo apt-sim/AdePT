@@ -42,7 +42,7 @@ void InitVolAuxArray(adeptint::VolAuxArray &array);
 template <typename IntegrationLayer>
 class AsyncAdePTTransport : public AdePTTransportInterface {
 public:
-  static inline uint64_t fAdePTSeed = 1234567;
+  uint64_t fAdePTSeed = 1234567;
 
 private:
   unsigned short fNThread{0};             ///< Number of G4 workers
@@ -115,6 +115,7 @@ public:
   void SetBfieldFileName(const std::string &fileName) override { fBfieldFile = fileName; }
   void SetCUDAStackLimit(int limit) override {};
   void SetCUDAHeapLimit(int limit) override {};
+  void SetAdePTSeed(uint64_t seed) override { fAdePTSeed = seed; }
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() override { return fCPURegionNames; }
   /// No effect

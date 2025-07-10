@@ -30,6 +30,7 @@ struct G4HepEmState;
 template <typename IntegrationLayer>
 class AdePTTransport : public AdePTTransportInterface {
 public:
+  uint64_t fAdePTSeed              = 1234567;
   static constexpr int kMaxThreads = 256;
   using TrackBuffer                = adeptint::TrackBuffer;
   using VolAuxArray                = adeptint::VolAuxArray;
@@ -76,6 +77,7 @@ public:
   /// @brief Set CUDA device stack limit
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
+  void SetAdePTSeed(uint64_t seed) override { fAdePTSeed = seed; }
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   /// @brief Create material-cut couple index array
