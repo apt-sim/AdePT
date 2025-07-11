@@ -41,7 +41,8 @@ namespace AsyncAdePT {
 
 template <bool IsElectron>
 __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                               adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Stats *InFlightStats,
+                               adept::MParray *nextActiveQueue, adept::MParray *propagationQueue,
+                               adept::MParray *leakedQueue, Stats *InFlightStats,
                                AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps        = 10'000;
@@ -75,10 +76,11 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     currentTrack.preStepDir  = currentTrack.dir;
     currentTrack.stepCounter++;
     bool printErrors = true;
-    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
-      printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
-             currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
-             currentTrack.zeroStepCounter);
+    if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      if (printErrors)
+        printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
+               currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
+               currentTrack.zeroStepCounter);
       continue;
     }
 
@@ -189,6 +191,9 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     currentTrack.initialRange       = mscData->fInitialRange;
     currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
     currentTrack.tlimitMin          = mscData->fTlimitMin;
+
+    // Particles that were not cut or leaked are added to the queue used by the next kernels
+    propagationQueue->push_back(slot);
   }
 }
 

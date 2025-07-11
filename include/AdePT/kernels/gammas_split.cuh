@@ -22,7 +22,7 @@ using VolAuxData = adeptint::VolAuxData;
 namespace AsyncAdePT {
 
 __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                            adept::MParray *leakedQueue, Stats *InFlightStats,
+                            adept::MParray *propagationQueue, adept::MParray *leakedQueue, Stats *InFlightStats,
                             AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps        = 10'000;
@@ -43,11 +43,12 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
 
     currentTrack.stepCounter++;
     bool printErrors = true;
-    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
-      printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
-             "stuck particle!\n",
-             currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
-             currentTrack.zeroStepCounter);
+    if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      if (printErrors)
+        printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
+               "stuck particle!\n",
+               currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
+               currentTrack.zeroStepCounter);
       continue;
     }
 
@@ -94,6 +95,9 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
 
     // Call G4HepEm to compute the physics step limit.
     G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
+
+    // Particles that were not cut or leaked are added to the queue used by the next kernels
+    propagationQueue->push_back(slot);
   }
 }
 

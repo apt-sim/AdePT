@@ -157,10 +157,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
     printErrors = !gTrackDebug.active || verbose;
 #endif
-    if (printErrors && (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill)) {
-      printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
-             currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
-             currentTrack.zeroStepCounter);
+    if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      if (printErrors)
+        printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
+               currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
+               currentTrack.zeroStepCounter);
+      __syncthreads();
       continue;
     }
 

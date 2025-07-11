@@ -105,12 +105,14 @@ Gamma interactions:
 2 - Photoelectric
 3 - Unused
 4 - Relocation
+
 Electron interactions:
 0 - Ionization
 1 - Bremsstrahlung
 2 - Unused
 3 - Unused
 4 - Relocation
+
 Positron interactions:
 0 - Ionization
 1 - Bremsstrahlung
@@ -126,14 +128,18 @@ ParticleQueues needs to be passed by copy to the kernels, which means that we ca
 dynamic allocations
 */
   static constexpr char numInteractions = 5;
-  adept::MParray *currentlyActive;
   adept::MParray *nextActive;
+  adept::MParray *initiallyActive;
+#ifdef USE_SPLIT_KERNELS
+  adept::MParray *propagation;
+  // TODO: Remove this queue
   adept::MParray *reachedInteraction;
   adept::MParray *interactionQueues[numInteractions];
+#endif
   adept::MParray *leakedTracksCurrent;
   adept::MParray *leakedTracksNext;
 
-  void SwapActive() { std::swap(currentlyActive, nextActive); }
+  void SwapActive() { std::swap(initiallyActive, nextActive); }
   void SwapLeakedQueue() { std::swap(leakedTracksCurrent, leakedTracksNext); }
 };
 
@@ -161,6 +167,11 @@ struct HepEmBuffers {
   G4HepEmElectronTrack *positronsHepEm;
   G4HepEmGammaTrack *gammasHepEm;
 };
+
+// A bundle of queues per interaction type
+struct AllInteractionQueues {
+  adept::MParray *queues[5];
+};
 #endif
 
 // Pointers to track storage for each particle type
@@ -172,11 +183,6 @@ struct TracksAndSlots {
 // A bundle of queues for the three particle types.
 struct AllParticleQueues {
   ParticleQueues queues[ParticleType::NumParticleTypes];
-};
-
-// A bundle of queues per interaction type
-struct AllInteractionQueues {
-  adept::MParray *queues[5];
 };
 
 struct AllSlotManagers {
