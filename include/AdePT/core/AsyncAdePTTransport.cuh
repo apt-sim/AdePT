@@ -118,7 +118,6 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTranspo
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.nextActive);
 #ifdef USE_SPLIT_KERNELS
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.propagation);
-  adept::MParray::MakeInstanceAt(CapacityTransport, queues.reachedInteraction);
   for (int i = 0; i < ParticleQueues::numInteractions; i++) {
     adept::MParray::MakeInstanceAt(CapacityTransport, queues.interactionQueues[i]);
   }
@@ -362,8 +361,6 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       all.queues[i].initiallyActive->clear();
 #ifdef USE_SPLIT_KERNELS
       all.queues[i].propagation->clear();
-      // TODO: Remove this queue along with the old interaction kernels
-      all.queues[i].reachedInteraction->clear();
       for (int j = 0; j < ParticleQueues::numInteractions; j++) {
         all.queues[i].interactionQueues[j]->clear();
       }
@@ -698,11 +695,9 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     particleType.queues.initiallyActive = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
     particleType.queues.nextActive = static_cast<adept::MParray *>(gpuPtr);
-    gpuMalloc(gpuPtr, sizeOfQueueStorage);
 #ifdef USE_SPLIT_KERNELS
-    particleType.queues.propagation = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
-    particleType.queues.reachedInteraction = static_cast<adept::MParray *>(gpuPtr);
+    particleType.queues.propagation = static_cast<adept::MParray *>(gpuPtr);
     for (int j = 0; j < ParticleQueues::numInteractions; j++) {
       gpuMalloc(gpuPtr, sizeOfQueueStorage);
       particleType.queues.interactionQueues[j] = static_cast<adept::MParray *>(gpuPtr);
@@ -1087,16 +1082,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronSetupInteractions<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, secondaries,
-            electrons.queues.nextActive, electrons.queues.reachedInteraction, allElectronInteractionQueues,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            electrons.queues.nextActive, allElectronInteractionQueues, electrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronRelocation<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries, electrons.queues.nextActive,
             electrons.queues.interactionQueues[4], electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             returnAllSteps, returnLastStep);
-        // ElectronInteractions<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-        //     electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries, electrons.queues.nextActive,
-        //     electrons.queues.reachedInteraction, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-        //     returnAllSteps, returnLastStep);
         ElectronIonization<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries, electrons.queues.nextActive,
             electrons.queues.interactionQueues[0], electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
@@ -1134,16 +1125,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronSetupInteractions<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, secondaries,
-            positrons.queues.nextActive, positrons.queues.reachedInteraction, allPositronInteractionQueues,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            positrons.queues.nextActive, allPositronInteractionQueues, positrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronRelocation<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
             positrons.queues.interactionQueues[4], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             returnAllSteps, returnLastStep);
-        // ElectronInteractions<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
-        //     positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
-        //     positrons.queues.reachedInteraction, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-        //     returnAllSteps, returnLastStep);
         ElectronIonization<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
             positrons.queues.interactionQueues[0], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
@@ -1187,8 +1174,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                                                                 gammas.queues.propagation);
         GammaSetupInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, secondaries,
-            gammas.queues.nextActive, gammas.queues.reachedInteraction, allGammaInteractionQueues,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev);
+            gammas.queues.nextActive, allGammaInteractionQueues, gammas.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev);
         GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
             gammas.queues.interactionQueues[4], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
@@ -1197,11 +1184,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // the launch parameters of the interactions kernel is complicated and expensive due to a
         // required additional kernel launch and copy. Instead, launch the kernels with the same
         // parameters, the unneeded threads inmediately return and become free again.
-        // GammaInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
-        //     gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
-        //     gammas.queues.reachedInteraction, gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-        //     returnAllSteps, returnLastStep);
-
         GammaConversion<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
             gammas.queues.interactionQueues[0], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
