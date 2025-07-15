@@ -30,9 +30,10 @@ std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &co
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-AdePTTrackingManager::AdePTTrackingManager()
+AdePTTrackingManager::AdePTTrackingManager(AdePTConfiguration *config, int verbosity)
+    : fHepEmTrackingManager(std::make_unique<G4HepEmTrackingManagerSpecialized>()), fAdePTConfiguration(config),
+      fVerbosity(verbosity)
 {
-  fHepEmTrackingManager = std::make_unique<G4HepEmTrackingManagerSpecialized>();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

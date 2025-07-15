@@ -26,7 +26,7 @@
 
 class AdePTTrackingManager : public G4VTrackingManager {
 public:
-  AdePTTrackingManager();
+  explicit AdePTTrackingManager(AdePTConfiguration *config, int verbosity = 0);
   ~AdePTTrackingManager();
 
   void BuildPhysicsTable(const G4ParticleDefinition &) override;
@@ -38,11 +38,6 @@ public:
   void FlushEvent() override;
 
   void InitializeAdePT();
-
-  /// Set verbosity for integration
-  void SetVerbosity(int verbosity) { fVerbosity = verbosity; }
-
-  void SetAdePTConfiguration(AdePTConfiguration *aAdePTConfiguration) { fAdePTConfiguration = aAdePTConfiguration; }
 
   G4HepEmConfig *GetG4HepEmConfig() { return fHepEmTrackingManager->GetConfig(); }
 
@@ -79,7 +74,7 @@ private:
 #else
   std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
 #endif
-  AdePTConfiguration *fAdePTConfiguration;
+  AdePTConfiguration *const fAdePTConfiguration;
   unsigned int fTrackCounter{0};
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};

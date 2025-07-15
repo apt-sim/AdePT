@@ -39,7 +39,7 @@ AdePTPhysics::~AdePTPhysics()
 void AdePTPhysics::ConstructProcess()
 {
   // Register custom tracking manager for e-/e+ and gammas.
-  fTrackingManager = new AdePTTrackingManager();
+  fTrackingManager = new AdePTTrackingManager(fAdePTConfiguration, /*verbosity=*/0);
 
   auto g4hepemconfig = fTrackingManager->GetG4HepEmConfig();
   g4hepemconfig->SetMultipleStepsInMSCWithTransportation(
@@ -49,8 +49,4 @@ void AdePTPhysics::ConstructProcess()
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
   G4Positron::Definition()->SetTrackingManager(fTrackingManager);
   G4Gamma::Definition()->SetTrackingManager(fTrackingManager);
-
-  // Setup tracking manager
-  fTrackingManager->SetVerbosity(0);
-  fTrackingManager->SetAdePTConfiguration(fAdePTConfiguration);
 }
