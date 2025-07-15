@@ -132,8 +132,6 @@ dynamic allocations
   adept::MParray *initiallyActive;
 #ifdef USE_SPLIT_KERNELS
   adept::MParray *propagation;
-  // TODO: Remove this queue
-  adept::MParray *reachedInteraction;
   adept::MParray *interactionQueues[numInteractions];
 #endif
   adept::MParray *leakedTracksCurrent;
