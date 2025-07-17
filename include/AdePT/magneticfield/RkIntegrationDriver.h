@@ -54,10 +54,14 @@ public:
 
   // Invariants
   // ----------
-  static constexpr int Nvar                   = 6;      // For now, adequate to integrate over x, y, z, px, py, pz
-  static constexpr Real_t fEpsilonRelativeMax = 1.0e-6; // For now .. to be a parameter
-  static constexpr Real_t fMinimumStep        = 2.0e-4 * copcore::units::millimeter;
-  static constexpr Real_t kSmall              = 1.0e-30; //  amount to add to vector magnitude to avoid div by zero
+  static constexpr int Nvar                   = 6;     // For now, adequate to integrate over x, y, z, px, py, pz
+  static constexpr Real_t fEpsilonRelativeMax = 0.001; // For now .. to be a parameter
+  // Note: In Geant4, there is an absolute error tolerance via the deltaOneStep variable. The relative error tolerance
+  // per step is given by eps = deltaOneStep / stepLength. To ensure that the eps is reasonable, G4 sets a minimal and a
+  // maximal relative error tolerance. Here in AdePT, we don't use an absolute error tolerance but only define the
+  // maximum relative error tolerance that is then used all the time.
+  static constexpr Real_t fMinimumStep = 0.01 * copcore::units::millimeter;
+  static constexpr Real_t kSmall       = 1.0e-30; //  amount to add to vector magnitude to avoid div by zero
 
   // Auxiliary methods
   // -----------------

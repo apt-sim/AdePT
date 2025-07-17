@@ -11,6 +11,8 @@
 #include <AdePT/base/BlockData.h>
 #include <AdePT/navigation/AdePTNavigator.h>
 
+#include "fieldConstants.h"
+
 #include <AdePT/magneticfield/ConstBzFieldStepper.h>
 
 // Data structures for statistics of propagation chords
@@ -42,9 +44,6 @@ private:
 __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precision momentumMag, int charge,
                                                                         const Vector3D &direction)
 {
-  // Maximum allowed error made by approximating step along helix with step along straight line
-  constexpr Precision gEpsilonDeflect = 1.E-2 * copcore::units::cm;
-
   // Direction projection in plane perpendicular to field vector
   Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
 
@@ -54,7 +53,7 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precisio
   // Precision curv = bend / (dirxy + 1.e-30);
 
   // Distance along the track direction to reach the maximum allowed error
-  return sqrt(2 * gEpsilonDeflect / (bend * dirxy + 1.e-30));
+  return sqrt(2 * fieldConstants::deltaChord / (bend * dirxy + 1.e-30));
 }
 
 // Determine the step along curved trajectory for charged particles in a field.
