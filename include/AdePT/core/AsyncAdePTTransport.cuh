@@ -898,14 +898,16 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                                   std::ref(cvG4Workers), std::ref(debugLevel)};
 
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
-    constexpr int TransportThreads             = 256;
-    constexpr int LowOccupancyTransportThreads = 32;
+    constexpr int TransportThreads = 32;
+    // If using a larger block size, it may be worth using a smaller size when transporting few
+    // tracks in order to increase the number of blocks launched
+    // constexpr int LowOccupancyTransportThreads = 32;
 
     auto transportBlocks = nParticles / TransportThreads + 1;
-    if (transportBlocks < 10) {
-      transportBlocks = nParticles / LowOccupancyTransportThreads + 1;
-      return {LowOccupancyTransportThreads, transportBlocks};
-    }
+    // if (transportBlocks < 10) {
+    //   transportBlocks = nParticles / LowOccupancyTransportThreads + 1;
+    //   return {LowOccupancyTransportThreads, transportBlocks};
+    // }
     return {TransportThreads, transportBlocks};
   };
 
