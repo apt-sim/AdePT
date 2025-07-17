@@ -86,9 +86,9 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeSafe
 
   // Calculate inverse curvature instead - save a division
   Real_t inv_curv = fabs(PtransB.Mag() / (fieldConstants::kB2C * Real_t(charge) * bmag + 1.0e-30));
-  // acceptable lateral error from field ~ related to delta_chord sagital distance
-  return sqrt(Real_t(2.0) * fieldConstants::gEpsilonDeflect *
-              inv_curv); // max length along curve for deflectionn
+  // acceptable lateral error from field
+  return sqrt(Real_t(2.0) * fieldConstants::deltaChord *
+              inv_curv); // max length along curve for deflection
                          // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
 }
 
