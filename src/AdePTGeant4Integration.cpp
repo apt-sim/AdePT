@@ -618,7 +618,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
       postVolume != nullptr) {                              // protect against nullptr if postNavState is outside
     aTrack->SetNextTouchableHandle(aPostG4TouchableHandle); // Real data
-  } // Missing data
+  }
   // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
   aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
