@@ -40,6 +40,7 @@ RunAction::~RunAction() {}
 
 void RunAction::BeginOfRunAction(const G4Run *)
 {
+  std::cout << "### Starting run ###\n";
   fTimer.Start();
 }
 
