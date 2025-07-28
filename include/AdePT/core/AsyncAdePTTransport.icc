@@ -230,7 +230,7 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cx
   }
   bool success = true;
 #ifdef ADEPT_USE_SURF
-#ifdef ADEPT_USE_SURF_SINGLE
+#ifdef ADEPT_MIXED_PRECISION
   using SurfData   = vgbrep::SurfData<float>;
   using BrepHelper = vgbrep::BrepHelper<float>;
 #else

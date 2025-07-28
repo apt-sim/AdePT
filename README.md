@@ -133,7 +133,7 @@ The table below shows the available CMake options for AdePT that may be used to 
 |ADEPT_USE_EXT_BFIELD|OFF|Use external B field from file via the covfie library. If ON, the constant field values are ignored and only B fields from file are accepted! |
 |USE_SPLIT_KERNELS|OFF| Run split version of the transport kernels. Requires ASYNC_MODE=ON |
 |ADEPT_USE_SURF|OFF| Enable surface model navigation on GPU (still in development, unstable for geometries with overlaps) |
-|ADEPT_USE_SURF_SINGLE|OFF|Use mixed precision in the surface model|
+|ADEPT_MIXED_PRECISION|OFF|Use B-field integration and surface model in mixed precision|
 |DEBUG_SINGLE_THREAD|OFF| Run transport kernels in single thread mode |
 |ADEPT_DEBUG_TRACK|0| Debug tracking level (0=off, >0=on with levels) |
 

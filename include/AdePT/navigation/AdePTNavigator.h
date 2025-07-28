@@ -16,7 +16,7 @@
 
 // inline namespace COPCORE_IMPL {
 #ifdef ADEPT_USE_SURF
-#ifdef ADEPT_USE_SURF_SINGLE
+#ifdef ADEPT_MIXED_PRECISION
 using AdePTNavigator = SurfNavigator<float>;
 #else
 using AdePTNavigator = SurfNavigator<double>;
