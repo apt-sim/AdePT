@@ -67,8 +67,6 @@ cuda_rdc_target_link_libraries(example1
 # Install macros and geometry file
 SET(GDML ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 configure_file("macros/example1.mac.in" "${PROJECT_BINARY_DIR}/example1.mac")
-configure_file("macros/example1_large_stack.mac.in" "${PROJECT_BINARY_DIR}/example1_large_stack.mac")
-configure_file("macros/example1_large_stack_g4vg.mac.in" "${PROJECT_BINARY_DIR}/example1_large_stack_g4vg.mac")
 configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
 configure_file("macros/example1_ttbar_LHCb.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_LHCb.mac")
 configure_file("macros/example1_ttbar_noadept.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_noadept.mac")
@@ -76,10 +74,6 @@ configure_file("macros/async_mode.mac.in" "${PROJECT_BINARY_DIR}/async_mode.mac"
 
 # Tests
 
-add_test(NAME example1
-  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1_large_stack.mac
-)
-
 add_test(NAME example1-g4vg
-  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1_large_stack_g4vg.mac
+  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
 )
