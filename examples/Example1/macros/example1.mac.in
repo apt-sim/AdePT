@@ -15,21 +15,16 @@
 /event/verbose 0
 
 /detector/filename @GDML@
-# Temporary workaround since we don't have a G4 to VecGeom converter
-/adept/setVecGeomGDML @GDML@
 /adept/setVerbosity 0
 ## Threshold for buffering tracks before sending to GPU
 /adept/setTransportBufferThreshold 2000
 ## Total number of GPU track slots (not per thread)
 /adept/setMillionsOfTrackSlots 1
 /adept/setMillionsOfHitSlots 1
-# /adept/setCUDAStackLimit 4096
+/adept/setCUDAStackLimit 8192
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true
-# In order to do the GPU transport only in specific regions
-/adept/addGPURegion EcalRegion
-/adept/addGPURegion HcalRegion
 
 
 ## -----------------------------------------------------------------------------

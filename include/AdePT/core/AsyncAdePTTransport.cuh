@@ -207,45 +207,6 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
     track.navState       = trackinfo[i].navState;
     track.originNavState = trackinfo[i].originNavState;
     toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
-
-    // FIXME KEEP OLD IMPLEMENTATION SINCE THIS HAS NOT BEEN TESTED THOROUGLY, THEN REMOVE
-    //     // We locate the pushed point because we run the risk that the
-    //     // point is not located in the GPU region
-    // #ifdef NDEBUG
-    //     constexpr int maxAttempt = 2;
-    // #else
-    //     constexpr int maxAttempt = 10;
-    // #endif
-    //     for (int attempt = 1; attempt < maxAttempt; ++attempt) {
-    //       const auto amount = attempt < 5 ? attempt : (attempt - 5) * -1;
-    //       track.navState.Clear();
-    //       const auto pushedPosition = track.pos + amount * tolerance * track.dir;
-    //       BVHNavigator::LocatePointIn(world, pushedPosition, track.navState, true);
-    //       // The track must be on boundary at this point
-    //       track.navState.SetBoundaryState(true);
-    //       // nextState is initialized as needed.
-    // #ifndef NDEBUG
-    //       const vecgeom::VPlacedVolume *volume = track.navState.Top();
-    //       int lvolID                           = volume->GetLogicalVolume()->id();
-    //       adeptint::VolAuxData const &auxData  = AsyncAdePT::gVolAuxData[lvolID];
-    //       if (auxData.fGPUregion && attempt == 1) {
-    //         break;
-    //       } else {
-    //         printf("Error [%d, %d]: ev=%d track=%d thread=%d: GPUregion=%d volID=%d "
-    //                "x=(%18.15f, %18.15f, %18.15f) dir=(%f, %f, %f) "
-    //                "Safety=%17.15f DistanceToOut=%f shiftAmount=%d\n",
-    //                blockIdx.x, threadIdx.x, trackInfo.eventId, trackInfo.trackId, trackInfo.threadId,
-    //                auxData.fGPUregion, volume->id(), pushedPosition[0], pushedPosition[1], pushedPosition[2],
-    //                track.dir[0], track.dir[1], track.dir[2], BVHNavigator::ComputeSafety(pushedPosition,
-    //                track.navState), volume->DistanceToOut(track.pos, track.dir), amount);
-    //         track.navState.Print();
-    //         if (auxData.fGPUregion) {
-    //           printf("Success in attempt %d shiftAmount %d\n", attempt, amount);
-    //           break;
-    //         }
-    //       }
-    // #endif
-    //     }
   }
 }
 

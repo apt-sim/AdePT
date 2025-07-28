@@ -76,10 +76,6 @@ configure_file("macros/async_mode.mac.in" "${PROJECT_BINARY_DIR}/async_mode.mac"
 
 # Tests
 
-add_test(NAME example1
-  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1_large_stack.mac
-)
-
 add_test(NAME example1-g4vg
-  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1_large_stack_g4vg.mac
+  COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
 )

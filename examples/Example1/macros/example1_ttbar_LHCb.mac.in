@@ -16,8 +16,7 @@
 ##
 
 /detector/filename lhcb2024_downstream_calos.gdml
-# Temporary workaround since we don't have a G4 to VecGeom converter
-/adept/setVecGeomGDML lhcb2024_downstream_calos.gdml
+
 /adept/setVerbosity 0
 ## Threshold for buffering tracks before sending to GPU
 /adept/setTransportBufferThreshold 2000
@@ -25,13 +24,10 @@
 /adept/setMillionsOfTrackSlots 4
 /adept/setMillionsOfHitSlots 1
 ## Device stack limit
-# /adept/setCUDAStackLimit 4096
+/adept/setCUDAStackLimit 4096
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions true
-# In order to do the GPU transport only in specific regions
-#/adept/addGPURegion EcalRegion
-#/adept/addGPURegion HcalRegion
 
 
 ## -----------------------------------------------------------------------------
@@ -52,7 +48,7 @@
 /gun/hepmc
 # Geometry only contains calorimeters, use a point close to the ECAL
 /gun/position 0 1 12 m
-/generator/hepmcAscii/maxevents 256
+/generator/hepmcAscii/maxevents 100
 /generator/hepmcAscii/firstevent 0
 /generator/hepmcAscii/open ppttbar.hepmc3
 /generator/hepmcAscii/verbose 0
