@@ -132,9 +132,9 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
 
   // The allowed safe move is normally determined by the bending accuracy
   // This is reduced if starting from a boundary and crossing a boundary in the first step
-  Real_t maxNextSafeMove = safeLength; // It can be reduced if, at the start, a boundary is encountered
-  int chordIters         = 0;          ///< number of iterations for this integration
-  Real_t last_good_step  = 0.0;        ///< to be re-used for next cord iteration
+  Real_t maxNextSafeMove = max(safeLength, safetyIn); // It can be reduced if, at the start, a boundary is encountered
+  int chordIters         = 0;                         ///< number of iterations for this integration
+  Real_t last_good_step  = 0.0;                       ///< to be re-used for next cord iteration
   bool found_end         = false;
   bool continueIteration = false;
   bool fullChord         = false;
@@ -250,7 +250,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       if (verbose) printf("| full chord advance %g ", safeArc);
 #endif
 
-      maxNextSafeMove   = safeArc; // Reset it, once a step succeeds!!
+      maxNextSafeMove   = max(safeArc, safety); // Reset it, once a step succeeds!!
       continueIteration = true;
     } else if (stepDone == 0 && move <= kDistCheckPush) {
       // Cope with a track at a boundary that wants to bend back into the previous
