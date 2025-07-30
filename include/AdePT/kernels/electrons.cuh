@@ -10,6 +10,7 @@
 
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/TrackDebug.cuh>
+#include <AdePT/core/AdePTPrecision.hh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -65,8 +66,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
   using Field_t = UniformMagneticField;
 #endif
   using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
 
   auto &magneticField = *gMagneticField;
 
@@ -109,8 +110,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   using Field_t = UniformMagneticField;
 #endif
   using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
 
   auto &magneticField = *gMagneticField;
 
@@ -277,11 +278,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
       // SEVERIN: to be checked if we can use float
       vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
-      vecgeom::Vector3D<double> B0fieldVec =
+      vecgeom::Vector3D<rk_integration_t> B0fieldVec =
           magneticField.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
       safeLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
-              momentumVec, B0fieldVec, Charge);
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t,
+                                    AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, Charge);
 
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose) printf("| safeField %g ", safeLength);
@@ -344,7 +345,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     if (gMagneticField) {
       int iterDone = -1;
       geometryStepLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
               nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was

@@ -484,7 +484,7 @@ void CopySurfaceModelToGPU()
 {
 // Copy surface data to GPU
 #ifdef ADEPT_USE_SURF
-#ifdef ADEPT_USE_SURF_SINGLE
+#ifdef ADEPT_MIXED_PRECISION
   using SurfData        = vgbrep::SurfData<float>;
   using BrepCudaManager = vgbrep::BrepCudaManager<float>;
 #else

@@ -43,17 +43,17 @@ public:
   /// @param zero_first_step Detected zero first step
   /// @param verbose Verbosity
   /// @return Length of the step made
-  static inline __host__ __device__ Real_t
-  ComputeStepAndNextVolume(Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep,
-                           double safeLength, vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
-                           vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state,
-                           long &hitsurf_index, bool &propagated, const Real_t &safetyIn, const int max_iterations,
-                           int &iterDone, int threadId, bool &zero_first_step, bool verbose = false);
+  static inline __host__ __device__ double ComputeStepAndNextVolume(
+      Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep, double safeLength,
+      vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &direction,
+      vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
+      bool &propagated, const Real_t &safetyIn, const int max_iterations, int &iterDone, int threadId,
+      bool &zero_first_step, bool verbose = false);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
 
   // Calculate safety
-  static inline __host__ __device__ Real_t ComputeSafeLength(vecgeom::Vector3D<Real_t> &momentumVec,
+  static inline __host__ __device__ Real_t ComputeSafeLength(vecgeom::Vector3D<double> &momentumVec,
                                                              vecgeom::Vector3D<Real_t> &BfieldVec, int charge);
 
 protected:
@@ -74,7 +74,7 @@ protected:
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
 inline __host__ __device__ Real_t
 fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeSafeLength(
-    vecgeom::Vector3D<Real_t> &momentumVec, vecgeom::Vector3D<Real_t> &BfieldVec, int charge)
+    vecgeom::Vector3D<double> &momentumVec, vecgeom::Vector3D<Real_t> &BfieldVec, int charge)
 {
   Real_t bmag2                      = BfieldVec.Mag2();
   Real_t ratioOverFld               = (bmag2 > 0) ? momentumVec.Dot(BfieldVec) / bmag2 : 0.0;
@@ -96,16 +96,17 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeSafe
 //  ( Same name as the navigator method. )
 
 template <class Field_t, class RkDriver_t, typename Real_t, class Navigator_t>
-inline __host__ __device__ Real_t
-fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStepAndNextVolume(
-    Field_t const &magField, double kinE, double mass, int charge, double physicsStep, double safeLength,
-    vecgeom::Vector3D<Real_t> &position, vecgeom::Vector3D<Real_t> &direction,
-    vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
-    bool &propagated, const Real_t &safetyIn, //  eventually In/Out ?
-    const int max_iterations, int &itersDone, //  useful for now - to monitor and report -- unclear if needed later
-    int indx, bool &zero_first_step, bool verbose)
+inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::
+    ComputeStepAndNextVolume(Field_t const &magField, double kinE, double mass, int charge, double physicsStep,
+                             double safeLength, vecgeom::Vector3D<double> &position,
+                             vecgeom::Vector3D<double> &direction, vecgeom::NavigationState const &current_state,
+                             vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated,
+                             const Real_t &safetyIn, //  eventually In/Out ?
+                             const int max_iterations,
+                             int &itersDone, //  useful for now - to monitor and report -- unclear if needed later
+                             int indx, bool &zero_first_step, bool verbose)
 {
-  Real_t stepDone = 0.0;         ///< step already done
+  double stepDone = 0.0;         ///< step already done
   Real_t remains  = physicsStep; ///< remainder of the step to be done
   zero_first_step = false;
   constexpr bool inZeroFieldRegion =
@@ -127,8 +128,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
   // Limit for ignoring remainder depending on physics step
   const Real_t tiniest_step = 1.0e-7 * physicsStep;
 
-  const Real_t momentumMag              = sqrt(kinE * (kinE + 2.0 * mass));
-  vecgeom::Vector3D<Real_t> momentumVec = momentumMag * direction;
+  const double momentumMag              = sqrt(kinE * (kinE + 2.0 * mass));
+  vecgeom::Vector3D<double> momentumVec = momentumMag * direction;
 
   // The allowed safe move is normally determined by the bending accuracy
   // This is reduced if starting from a boundary and crossing a boundary in the first step
@@ -142,8 +143,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
   const Real_t inv_momentumMag = 1.0 / momentumMag;
 
   // Cache safety origin and value at the start point
-  Precision safety                       = safetyIn;
-  vecgeom::Vector3D<Real_t> safetyOrigin = position;
+  double safety                          = safetyIn;
+  vecgeom::Vector3D<double> safetyOrigin = position;
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
   next_state.SetBoundaryState(false);
@@ -164,8 +165,8 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
     static constexpr int ReduceIters        = 6;   ///< Number of reduced step trials to move away from the boundary
 
     // Position and momentum at the end of the current arc
-    vecgeom::Vector3D<Real_t> endPosition    = position;
-    vecgeom::Vector3D<Real_t> endMomentumVec = momentumVec;
+    vecgeom::Vector3D<double> endPosition    = position;
+    vecgeom::Vector3D<double> endMomentumVec = momentumVec;
 
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
     const Real_t safeArc = min(remains, maxNextSafeMove);
@@ -177,10 +178,10 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
                         chordIters);
 
     //----------------- Get chord
-    vecgeom::Vector3D<Real_t> chordDir = endPosition - position; // not yet normalized!
-    Real_t chordLen                    = chordDir.Length();
+    vecgeom::Vector3D<double> chordDir = endPosition - position; // not yet normalized!
+    double chordLen                    = chordDir.Length();
     chordDir *= (1.0 / chordLen); // Now the normalized direction of the chord!
-    vecgeom::Vector3D<Real_t> endDirection = inv_momentumMag * endMomentumVec;
+    vecgeom::Vector3D<double> endDirection = inv_momentumMag * endMomentumVec;
     // Normalize direction, which is NOT after calling Advance
     endDirection.Normalize();
 
@@ -195,13 +196,13 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
              currentSafety);
     }
 #endif
-    Precision move;
+    double move;
     if (currentSafety > chordLen) {
       // The move is still safe
       move = chordLen;
     } else {
       // Safety is violated by the move, set it to 0 and recompute it if not the first step
-      Precision newSafety = 0;
+      double newSafety = 0;
       if (stepDone > 0) {
         // Use maximum accuracy only if safety is smaller than the step remainder
         newSafety = Navigator_t::ComputeSafety(position, current_state, remains);
@@ -300,7 +301,7 @@ fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeStep
       //     of the (potential) true point on the intersection of the curve and the boundary.
       // ( This involves a bias -- typically important only for muons in trackers.
       //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
-      Real_t fraction = vecCore::Max(move / chordLen, 0.); // linearStep
+      double fraction = vecCore::Max(move / chordLen, 0.); // linearStep
       // The actual distance to the boundary is along the arc, so changing it as below would
       // be appropriate, however this won't put the last step on the real boundary which is error-prone
       // move = fraction * safeArc; // curvedStep

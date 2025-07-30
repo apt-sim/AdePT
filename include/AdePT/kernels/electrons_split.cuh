@@ -9,6 +9,7 @@
 #include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
 
 #include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/core/AdePTPrecision.hh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -57,8 +58,8 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
   using Field_t = UniformMagneticField;
 #endif
   using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
 
   auto &magneticField = *gMagneticField;
 
@@ -163,12 +164,12 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
       // Distance along the track direction to reach the maximum allowed error
 
       // SEVERIN: to be checked if we can use float
-      vecgeom::Vector3D<double> momentumVec = momentumMag * currentTrack.dir;
-      vecgeom::Vector3D<double> B0fieldVec  = magneticField.Evaluate(
+      vecgeom::Vector3D<double> momentumVec          = momentumMag * currentTrack.dir;
+      vecgeom::Vector3D<rk_integration_t> B0fieldVec = magneticField.Evaluate(
           currentTrack.pos[0], currentTrack.pos[1], currentTrack.pos[2]); // Field value at starting point
       currentTrack.safeLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
-              momentumVec, B0fieldVec, Charge);
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t,
+                                    AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, Charge);
 
       constexpr int MaxSafeLength = 10;
       double limit                = MaxSafeLength * currentTrack.safeLength;
@@ -243,7 +244,7 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
     if (gMagneticField) {
       int iterDone = -1;
       currentTrack.geometryStepLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticField, currentTrack.eKin, restMass, Charge, theTrack->GetGStepLength(), currentTrack.safeLength,
               currentTrack.pos, currentTrack.dir, currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID,
               currentTrack.propagated,
