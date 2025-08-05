@@ -209,11 +209,11 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
   using Stepper_t             = DormandPrinceRK45<Equation_t, Field_t, Nvar, Real_t>;
   using Driver_t              = RkIntegrationDriver<Stepper_t, Real_t, int, Equation_t, Field_t>;
 
-  Vector3D<Real_t> Position  = {0, 0.001, 0.002}; //  PositionVec[0], PositionVec[1], PositionVec[2],
-  Vector3D<Real_t> Direction = {0, 1.0, 0.0};
-  Real_t momentumMag         = 3.0 * copcore::units::GeV;
+  Vector3D<double> Position  = {0.0, 0.001, 0.002}; //  PositionVec[0], PositionVec[1], PositionVec[2],
+  Vector3D<double> Direction = {0.0, 1.0, 0.0};
+  double momentumMag         = 3.0 * copcore::units::GeV;
 
-  Vector3D<Real_t> Momentum = momentumMag * Direction;
+  Vector3D<double> Momentum = momentumMag * Direction;
 
   Real_t dy_ds[Nvar];
   Real_t yOut[Nvar];      // Output:  y values at end,
@@ -222,7 +222,7 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
 
   int charge = -1;
 
-  Real_t yStart[Nvar] = {Position[0], Position[1], Position[2], Momentum[0], Momentum[1], Momentum[2]};
+  Real_t yStart[Nvar] = {(Real_t)Position[0], (Real_t)Position[1], (Real_t)Position[2], (Real_t)Momentum[0], (Real_t)Momentum[1], (Real_t)Momentum[2]};
   // std::cout << "yStart: " << std::endl;
   // PrintFieldVectors::PrintSixvec( yStart );
 
@@ -246,7 +246,7 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
   Real_t magFieldStartArr[3] = {magFieldStart[0], magFieldStart[1], magFieldStart[2]};
   PrintFieldVectors::PrintLineSixvecDyDx(yStart, charge, magFieldStartArr, dy_ds);
 
-  Vector3D<Real_t> momentumVec = momentumMag * Direction;
+  Vector3D<double> momentumVec = momentumMag * Direction;
   Real_t lastGoodStep          = 0.;
 
   do {
@@ -258,7 +258,7 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
     std::cout << "Advanced returned:  done= " << (done ? "Yes" : " No") << " hAdvanced = " << hAdvanced
               << " hNext = " << hTry << std::endl;
 
-    Real_t yPosMom[Nvar] = {Position[0], Position[1], Position[2], momentumVec[0], momentumVec[1], momentumVec[2]};
+    Real_t yPosMom[Nvar] = {(Real_t)Position[0], (Real_t)Position[1], (Real_t)Position[2], (Real_t)momentumVec[0], (Real_t)momentumVec[1], (Real_t)momentumVec[2]};
     sumAdvanced += hAdvanced;
 
     if (verbose)
@@ -277,7 +277,7 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
 
   } while (!done && totalTrials < MaxTrials);
 
-  Vector3D<Real_t> magFieldEnd;
+  Vector3D<double> magFieldEnd;
   magField.Evaluate(Position, magFieldEnd);
 
   std::cout << " Mag field at end = " << magFieldEnd[0] << " , " << magFieldEnd[1] << "  , " << magFieldEnd[2]
@@ -328,8 +328,8 @@ bool CheckDriverVsHelix(Field_t const &magField, const Real_t stepLength = 300.0
 
   // For use by Runge Kutta
   Real_t hLength             = stepLength;
-  Vector3D<Real_t> Position  = startPosition;
-  Vector3D<Real_t> Direction = startDirection;
+  Vector3D<double> Position  = startPosition;
+  Vector3D<double> Direction = startDirection;
 
   // -- Test the simple Advance method
   unsigned int totalTrials = 0;
@@ -350,7 +350,7 @@ bool CheckDriverVsHelix(Field_t const &magField, const Real_t stepLength = 300.0
 
   constexpr int maxTrials = 500;
 
-  Vector3D<Real_t> momentumVec = momentumMag * Direction;
+  Vector3D<double> momentumVec = momentumMag * Direction;
   Real_t lastGoodStep          = 0.;
 
   do {
@@ -401,8 +401,8 @@ bool CheckDriverVsHelix(Field_t const &magField, const Real_t stepLength = 300.0
               << " l= " << setw(7) << stepLength << " "
               << " d||*1e6 = " << setw(10) << 1.e6 * (magDirectionRK - 1.0) << " | ";
   }
-  Real_t yPosMom[Nvar] = {endPositionHx[0], endPositionHx[1], endPositionHx[2],
-                          momentumVec[0],   momentumVec[1],   momentumVec[2]};
+  Real_t yPosMom[Nvar] = {(Real_t)endPositionHx[0], (Real_t)endPositionHx[1], (Real_t)endPositionHx[2],
+                          (Real_t)momentumVec[0],   (Real_t)momentumVec[1],   (Real_t)momentumVec[2]};
   Vector3D<float> magFieldEnd;
   Equation_t::EvaluateDerivativesReturnB(magField, yPosMom, charge, dy_ds, magFieldEnd);
   Real_t magFieldEndArr[3] = {magFieldEnd[0], magFieldEnd[1], magFieldEnd[2]};

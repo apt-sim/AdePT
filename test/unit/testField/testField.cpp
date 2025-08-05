@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
   std::cout << "synchronizing VecGeom geometry to GPU ...\n";
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
 #ifdef ADEPT_USE_SURF
-#ifdef ADEPT_USE_SURF_SINGLE
+#ifdef ADEPT_MIXED_PRECISION
   using BrepHelper = vgbrep::BrepHelper<float>;
 #else
   using BrepHelper = vgbrep::BrepHelper<double>;
