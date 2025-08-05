@@ -42,7 +42,7 @@ __global__ void GammaHowFar(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
-    bool printErrors = true;
+    bool printErrors = false;
     if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
       if (printErrors)
         printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
@@ -157,14 +157,15 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 }
 
 template <typename Scoring>
-__global__ void GammaSetupInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active,
-                                       Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                       AllInteractionQueues interactionQueues, adept::MParray *leakedQueue,
-                                       Scoring *userScoring)
+__global__ void GammaSetupInteractions(Track *gammas, Track *leaks, G4HepEmGammaTrack *hepEMTracks,
+                                       const adept::MParray *active, Secondaries secondaries,
+                                       adept::MParray *nextActiveQueue, AllInteractionQueues interactionQueues,
+                                       adept::MParray *leakedQueue, Scoring *userScoring)
 {
   int activeSize = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
+    auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
 
     int lvolID = currentTrack.navState.GetLogicalId();
@@ -173,14 +174,19 @@ __global__ void GammaSetupInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTr
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
-        currentTrack.leaked = true;
-        auto success        = leakedQueue->push_back(slot);
+        // Get a slot in the leaks array
+        int leakSlot = secondaries.gammas.NextLeakSlot();
+        // Copy the track to the leaks array and store the index in the leak queue
+        leaks[leakSlot] = gammas[slot];
+        auto success    = leakedQueue->push_back(leakSlot);
         if (!success) {
-          printf("ERROR: No space left in gammas leaks queue.\n\
+          printf("ERROR: No space left in e-/+ leaks queue.\n\
 \tThe threshold for flushing the leak buffer may be too high\n\
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
+        // Free the slot in the tracks slot manager
+        slotManager.MarkSlotForFreeing(slot);
       } else {
         nextActiveQueue->push_back(slot);
       }
@@ -217,7 +223,7 @@ __global__ void GammaSetupInteractions(Track *gammas, G4HepEmGammaTrack *hepEMTr
 }
 
 template <typename Scoring>
-__global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
+__global__ void GammaRelocation(Track *gammas, Track *leaks, G4HepEmGammaTrack *hepEMTracks, Secondaries secondaries,
                                 adept::MParray *nextActiveQueue, adept::MParray *relocatingQueue,
                                 adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
                                 const bool returnLastStep)
@@ -236,13 +242,19 @@ __global__ void GammaRelocation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         currentTrack.leaked = true;
-        auto success        = leakedQueue->push_back(slot);
+        // Get a slot in the leaks array
+        int leakSlot = secondaries.gammas.NextLeakSlot();
+        // Copy the track to the leaks array and store the index in the leak queue
+        leaks[leakSlot] = gammas[slot];
+        auto success    = leakedQueue->push_back(leakSlot);
         if (!success) {
-          printf("ERROR: No space left in gammas leaks queue.\n\
+          printf("ERROR: No space left in e-/+ leaks queue.\n\
 \tThe threshold for flushing the leak buffer may be too high\n\
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
+        // Free the slot in the tracks slot manager
+        slotManager.MarkSlotForFreeing(slot);
       } else {
         nextActiveQueue->push_back(slot);
       }

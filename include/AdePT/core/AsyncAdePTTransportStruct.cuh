@@ -29,16 +29,20 @@ namespace AsyncAdePT {
 struct ParticleGenerator {
   Track *fTracks;
   SlotManager *fSlotManager;
+  SlotManager *fSlotManagerLeaks;
   adept::MParray *fActiveQueue;
 
 public:
-  __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue)
-      : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue)
+  __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, SlotManager *slotManagerLeaks,
+                                        adept::MParray *activeQueue)
+      : fTracks(tracks), fSlotManager(slotManager), fSlotManagerLeaks(slotManagerLeaks), fActiveQueue(activeQueue)
   {
   }
 
   /// Obtain a slot for a track, but don't enqueue.
   __device__ auto NextSlot() { return fSlotManager->NextSlot(); }
+
+  __device__ auto NextLeakSlot() { return fSlotManagerLeaks->NextSlot(); }
 
   /// Construct a track at the given location, forwarding all arguments to the constructor.
   template <typename... Ts>
@@ -144,7 +148,9 @@ dynamic allocations
 // Holds all information needed to manage in-flight tracks of one type
 struct ParticleType {
   Track *tracks;
+  Track *leaks;
   SlotManager *slotManager;
+  SlotManager *slotManagerLeaks;
   ParticleQueues queues;
   cudaStream_t stream;
   cudaEvent_t event;
@@ -175,7 +181,9 @@ struct AllInteractionQueues {
 // Pointers to track storage for each particle type
 struct TracksAndSlots {
   Track *const tracks[ParticleType::NumParticleTypes];
+  Track *const leaks[ParticleType::NumParticleTypes];
   SlotManager *const slotManagers[ParticleType::NumParticleTypes];
+  SlotManager *const slotManagersLeaks[ParticleType::NumParticleTypes];
 };
 
 // A bundle of queues for the three particle types.
@@ -185,6 +193,7 @@ struct AllParticleQueues {
 
 struct AllSlotManagers {
   SlotManager slotManagers[ParticleType::NumParticleTypes];
+  SlotManager slotManagersLeaks[ParticleType::NumParticleTypes];
 };
 
 // A data structure to transfer statistics after each iteration.
@@ -193,6 +202,7 @@ struct Stats {
   int leakedTracks[ParticleType::NumParticleTypes];
   float queueFillLevel[ParticleType::NumParticleTypes];
   float slotFillLevel[ParticleType::NumParticleTypes];
+  float slotFillLevelLeaks[ParticleType::NumParticleTypes];
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
   unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
   unsigned int perEventLeaked[kMaxThreads];
@@ -223,8 +233,9 @@ struct GPUstate {
 
   static constexpr unsigned int nSlotManager_dev = 3;
 
-  AllSlotManagers allmgr_h;              // All host slot managers, statically allocated
-  SlotManager *slotManager_dev{nullptr}; // All device slot managers
+  AllSlotManagers allmgr_h;                   // All host slot managers, statically allocated
+  SlotManager *slotManager_dev{nullptr};      // All device slot managers
+  SlotManager *slotManagerLeaks_dev{nullptr}; // All device leak slot managers
 
 #ifdef USE_SPLIT_KERNELS
   HepEmBuffers hepEmBuffers_d; // All device buffers of hepem tracks

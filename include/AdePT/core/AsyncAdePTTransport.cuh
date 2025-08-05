@@ -338,7 +338,8 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     for (int i = 0; i < ParticleType::NumParticleTypes; ++i) {
       particlesInFlight += all.queues[i].nextActive->size();
       occupiedSlots += tracksAndSlots.slotManagers[i]->OccupiedSlots();
-      stats->slotFillLevel[i] = tracksAndSlots.slotManagers[i]->FillLevel();
+      stats->slotFillLevel[i]      = tracksAndSlots.slotManagers[i]->FillLevel();
+      stats->slotFillLevelLeaks[i] = tracksAndSlots.slotManagersLeaks[i]->FillLevel();
     }
     if (particlesInFlight > occupiedSlots) {
       printf("Error: %d in flight while %d slots allocated\n", particlesInFlight, occupiedSlots);
@@ -431,13 +432,13 @@ __global__ void CountLeakedTracks(AllParticleQueues all, Stats *stats, TracksAnd
   for (unsigned int queueIndex = blockIdx.x; queueIndex < nQueue; queueIndex += gridDim.x) {
     const auto particleType =
         queueIndex < ParticleType::NumParticleTypes ? queueIndex : queueIndex - ParticleType::NumParticleTypes;
-    Track const *const tracks = tracksAndSlots.tracks[particleType];
+    Track const *const leaks = tracksAndSlots.leaks[particleType];
     auto const queue = queueIndex < ParticleType::NumParticleTypes ? all.queues[particleType].leakedTracksCurrent
                                                                    : all.queues[particleType].leakedTracksNext;
     const auto size  = queue->size();
     for (unsigned int i = threadIdx.x; i < size; i += blockDim.x) {
       const auto slot     = (*queue)[i];
-      const auto threadId = tracks[slot].threadId;
+      const auto threadId = leaks[slot].threadId;
       atomicAdd(stats->perEventLeaked + threadId, 1u);
     }
 
@@ -631,6 +632,8 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   // Allocate all slot managers on device
   gpuState.slotManager_dev = nullptr;
   gpuMalloc(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
+  gpuState.slotManagerLeaks_dev = nullptr;
+  gpuMalloc(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
     // Number of slots allocated computed based on the proportions set in ParticleType::relativeQueueSize
     const size_t nSlot              = trackCapacity * ParticleType::relativeQueueSize[i];
@@ -641,15 +644,20 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     // Initialize all host slot managers (This call allocates GPU memory)
     gpuState.allmgr_h.slotManagers[i] =
         SlotManager{static_cast<SlotManager::value_type>(nSlot), static_cast<SlotManager::value_type>(nSlot)};
+    gpuState.allmgr_h.slotManagersLeaks[i] =
+        SlotManager{static_cast<SlotManager::value_type>(nLeakSlots), static_cast<SlotManager::value_type>(nLeakSlots)};
     // Initialize dev slotmanagers by copying the host data
     COPCORE_CUDA_CHECK(cudaMemcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
                                   cudaMemcpyDefault));
+    COPCORE_CUDA_CHECK(cudaMemcpy(&gpuState.slotManagerLeaks_dev[i], &gpuState.allmgr_h.slotManagersLeaks[i],
+                                  sizeof(SlotManager), cudaMemcpyDefault));
 
     // Allocate the queues where the active and leak indices are stored
     // * Current and next active track indices
     // * Current and next leaked track indices
-    ParticleType &particleType = gpuState.particles[i];
-    particleType.slotManager   = &gpuState.slotManager_dev[i];
+    ParticleType &particleType    = gpuState.particles[i];
+    particleType.slotManager      = &gpuState.slotManager_dev[i];
+    particleType.slotManagerLeaks = &gpuState.slotManagerLeaks_dev[i];
 
     void *gpuPtr = nullptr;
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
@@ -679,6 +687,12 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     gpuMalloc(trackStorage_dev, nSlot);
 
     gpuState.particles[i].tracks = trackStorage_dev;
+
+    // ALlocate space for the leaks
+    Track *leakStorage_dev = nullptr;
+    gpuMalloc(leakStorage_dev, nLeakSlots);
+
+    gpuState.particles[i].leaks = leakStorage_dev;
 
     printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
            ParticleType::relativeQueueSize[i] * 100, trackCapacity);
@@ -884,6 +898,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   while (gpuState.runTransport) {
     // NVTXTracer nvtx1{"Setup"}, nvtx2{"Setup2"};
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
+    InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
     COPCORE_CUDA_CHECK(cudaMemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
 
     int inFlight                                                   = 0;
@@ -936,9 +951,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       gammas.queues.SwapActive();
 
       const Secondaries secondaries = {
-          .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.nextActive},
-          .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.nextActive},
-          .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.nextActive},
+          .electrons = {electrons.tracks, electrons.slotManager, electrons.slotManagerLeaks,
+                        electrons.queues.nextActive},
+          .positrons = {positrons.tracks, positrons.slotManager, positrons.slotManagerLeaks,
+                        positrons.queues.nextActive},
+          .gammas    = {gammas.tracks, gammas.slotManager, gammas.slotManagerLeaks, gammas.queues.nextActive},
       };
       const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues}};
 #ifdef USE_SPLIT_KERNELS
@@ -953,8 +970,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
            positrons.queues.interactionQueues[2], positrons.queues.interactionQueues[3],
            positrons.queues.interactionQueues[4]}};
 #endif
-      const TracksAndSlots tracksAndSlots = {{electrons.tracks, positrons.tracks, gammas.tracks},
-                                             {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
+      const TracksAndSlots tracksAndSlots = {
+          {electrons.tracks, positrons.tracks, gammas.tracks},
+          {electrons.leaks, positrons.leaks, gammas.leaks},
+          {electrons.slotManager, positrons.slotManager, gammas.slotManager},
+          {electrons.slotManagerLeaks, positrons.slotManagerLeaks, gammas.slotManagerLeaks}};
       // --------------------------
       // *** Particle injection ***
       // --------------------------
@@ -1044,13 +1064,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronSetupInteractions<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, secondaries,
-            electrons.queues.nextActive, allElectronInteractionQueues, electrons.queues.leakedTracksCurrent,
-            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            electrons.tracks, electrons.leaks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation,
+            secondaries, electrons.queues.nextActive, allElectronInteractionQueues,
+            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronRelocation<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries, electrons.queues.nextActive,
-            electrons.queues.interactionQueues[4], electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-            returnAllSteps, returnLastStep);
+            electrons.tracks, electrons.leaks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries,
+            electrons.queues.nextActive, electrons.queues.interactionQueues[4], electrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronIonization<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries, electrons.queues.nextActive,
             electrons.queues.interactionQueues[0], electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
@@ -1061,9 +1081,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             returnAllSteps, returnLastStep);
 #else
         TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
-            electrons.tracks, electrons.queues.initiallyActive, secondaries, electrons.queues.nextActive,
-            electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-            returnAllSteps, returnLastStep);
+            electrons.tracks, electrons.leaks, electrons.queues.initiallyActive, secondaries,
+            electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -1087,13 +1107,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronSetupInteractions<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
-            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, secondaries,
-            positrons.queues.nextActive, allPositronInteractionQueues, positrons.queues.leakedTracksCurrent,
-            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
+            positrons.tracks, positrons.leaks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation,
+            secondaries, positrons.queues.nextActive, allPositronInteractionQueues,
+            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronRelocation<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
-            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
-            positrons.queues.interactionQueues[4], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-            returnAllSteps, returnLastStep);
+            positrons.tracks, positrons.leaks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries,
+            positrons.queues.nextActive, positrons.queues.interactionQueues[4], positrons.queues.leakedTracksCurrent,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         ElectronIonization<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
             positrons.queues.interactionQueues[0], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
@@ -1111,11 +1131,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             positrons.queues.interactionQueues[3], positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             returnAllSteps, returnLastStep);
 #else
-
         TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
-            positrons.tracks, positrons.queues.initiallyActive, secondaries, positrons.queues.nextActive,
-            positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
-            returnAllSteps, returnLastStep);
+            positrons.tracks, positrons.leaks, positrons.queues.initiallyActive, secondaries,
+            positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
+            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
@@ -1136,11 +1155,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
                                                                 gammas.queues.propagation);
         GammaSetupInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
-            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, secondaries,
+            gammas.tracks, gammas.leaks, gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, secondaries,
             gammas.queues.nextActive, allGammaInteractionQueues, gammas.queues.leakedTracksCurrent,
             gpuState.fScoring_dev);
         GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
-            gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
+            gammas.tracks, gammas.leaks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
             gammas.queues.interactionQueues[4], gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev,
             returnAllSteps, returnLastStep);
         // Copying the number of interacting tracks back to host and using this information to adjust
@@ -1161,7 +1180,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             returnAllSteps, returnLastStep);
 #else
         TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
-            gammas.tracks, gammas.queues.initiallyActive, secondaries, gammas.queues.nextActive,
+            gammas.tracks, gammas.leaks, gammas.queues.initiallyActive, secondaries, gammas.queues.nextActive,
             gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
             returnAllSteps, returnLastStep); //, gpuState.gammaInteractions);
 #endif
@@ -1257,9 +1276,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           } else {
             // Otherwise, the current leak queue usage is above the threshold. Transport needs to stop until the
             // transfer of these leaks can start
-            if (debugLevel > 5) {
-              printf("Leak extraction blocked. Transport will stop until current extraction ends\n");
-            }
+            printf("WARNING: Leak extraction blocked. Transport will stop until current extraction ends\n");
           }
         }
 
@@ -1293,9 +1310,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
           // This struct will hold the queues that need to be flushed
           allLeaked = {
-              .leakedElectrons = {electrons.tracks, electrons.queues.leakedTracksCurrent, electrons.slotManager},
-              .leakedPositrons = {positrons.tracks, positrons.queues.leakedTracksCurrent, positrons.slotManager},
-              .leakedGammas    = {gammas.tracks, gammas.queues.leakedTracksCurrent, gammas.slotManager}};
+              .leakedElectrons = {electrons.leaks, electrons.queues.leakedTracksCurrent, electrons.slotManagerLeaks},
+              .leakedPositrons = {positrons.leaks, positrons.queues.leakedTracksCurrent, positrons.slotManagerLeaks},
+              .leakedGammas    = {gammas.leaks, gammas.queues.leakedTracksCurrent, gammas.slotManagerLeaks}};
 
           // Ensure that transport that's writing to the old queues finishes before collecting leaked tracks
           for (auto const &event : {electrons.event, positrons.event, gammas.event}) {
@@ -1449,6 +1466,21 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                           "The below launches assume there is a slot manager per particle type.");
             FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
             FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
+            waitForOtherStream(hitTransferStream, gpuState.stream);
+            waitForOtherStream(injectStream, gpuState.stream);
+            waitForOtherStream(extractStream, gpuState.stream);
+          }
+          if (gpuState.stats->slotFillLevelLeaks[i] > 0.5) {
+            // Freeing of slots has to run exclusively
+            // FIXME: Revise this code and make sure all three streams actually need to be synchronized
+            // with gpuState.stream
+            waitForOtherStream(gpuState.stream, hitTransferStream);
+            waitForOtherStream(gpuState.stream, injectStream);
+            waitForOtherStream(gpuState.stream, extractStream);
+            static_assert(gpuState.nSlotManager_dev == ParticleType::NumParticleTypes,
+                          "The below launches assume there is a slot manager per particle type.");
+            FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev + i);
+            FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev + i);
             waitForOtherStream(hitTransferStream, gpuState.stream);
             waitForOtherStream(injectStream, gpuState.stream);
             waitForOtherStream(extractStream, gpuState.stream);

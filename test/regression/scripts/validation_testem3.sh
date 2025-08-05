@@ -39,7 +39,8 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --num_threads 4 \
     --num_events 400 \
     --num_trackslots 3 \
-    --num_hitslots 15 \
+    --num_hitslots 12 \
+    --num_leakslots 3 \
     --track_in_all_regions True\
     --gun_type setDefault 
 

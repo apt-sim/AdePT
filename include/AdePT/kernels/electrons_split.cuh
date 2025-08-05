@@ -76,7 +76,7 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     currentTrack.preStepPos  = currentTrack.pos;
     currentTrack.preStepDir  = currentTrack.dir;
     currentTrack.stepCounter++;
-    bool printErrors = true;
+    bool printErrors = false;
     if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
       if (printErrors)
         printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
@@ -370,7 +370,7 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
  * @brief Adds tracks to interaction and relocation queues depending on their state
  */
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
+__global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepEmElectronTrack *hepEMTracks,
                                           const adept::MParray *active, Secondaries secondaries,
                                           adept::MParray *nextActiveQueue, AllInteractionQueues interactionQueues,
                                           adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
@@ -393,13 +393,23 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
       // a trackdata struct would be better
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
+        // Get a slot in the leaks array
+        int leakSlot;
+        if (IsElectron)
+          leakSlot = secondaries.electrons.NextLeakSlot();
+        else
+          leakSlot = secondaries.positrons.NextLeakSlot();
+        // Copy the track to the leaks array and store the index in the leak queue
+        leaks[leakSlot] = electrons[slot];
+        auto success    = leakedQueue->push_back(leakSlot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
 \tThe threshold for flushing the leak buffer may be too high\n\
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
+        // Free the slot in the tracks slot manager
+        slotManager.MarkSlotForFreeing(slot);
       } else {
         nextActiveQueue->push_back(slot);
       }
@@ -416,7 +426,7 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool reached_interaction = true;
-    bool printErrors         = true;
+    bool printErrors         = false;
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 4; ++ip) {
@@ -529,10 +539,10 @@ __global__ void ElectronSetupInteractions(Track *electrons, G4HepEmElectronTrack
 }
 
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                   adept::MParray *nextActiveQueue, adept::MParray *relocatingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
-                                   const bool returnLastStep)
+__global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectronTrack *hepEMTracks,
+                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                   adept::MParray *relocatingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
+                                   const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
   int activeSize                    = relocatingQueue->size();
@@ -552,13 +562,23 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
       // a trackdata struct would be better
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
+        // Get a slot in the leaks array
+        int leakSlot;
+        if (IsElectron)
+          leakSlot = secondaries.electrons.NextLeakSlot();
+        else
+          leakSlot = secondaries.positrons.NextLeakSlot();
+        // Copy the track to the leaks array and store the index in the leak queue
+        leaks[leakSlot] = electrons[slot];
+        auto success    = leakedQueue->push_back(leakSlot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
 \tThe threshold for flushing the leak buffer may be too high\n\
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
+        // Free the slot in the tracks slot manager
+        slotManager.MarkSlotForFreeing(slot);
       } else {
         nextActiveQueue->push_back(slot);
       }
@@ -573,7 +593,7 @@ __global__ void ElectronRelocation(Track *electrons, G4HepEmElectronTrack *hepEM
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool cross_boundary = false;
-    bool printErrors    = true;
+    bool printErrors    = false;
 
     // Relocate to have the correct next state before RecordHit is called
 

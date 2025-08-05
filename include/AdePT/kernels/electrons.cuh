@@ -46,7 +46,7 @@ namespace AsyncAdePT {
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron, typename Scoring>
-static __device__ __forceinline__ void TransportElectrons(Track *electrons, const adept::MParray *active,
+static __device__ __forceinline__ void TransportElectrons(Track *electrons, Track *leaks, const adept::MParray *active,
                                                           Secondaries &secondaries, adept::MParray *nextActiveQueue,
                                                           adept::MParray *leakedQueue, Scoring *userScoring,
                                                           Stats *InFlightStats,
@@ -182,13 +182,23 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       // work if we want to re-use slots on the fly. Directly copying to
       // a trackdata struct would be better
       if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
+        // Get a slot in the leaks array
+        int leakSlot;
+        if (IsElectron)
+          leakSlot = secondaries.electrons.NextLeakSlot();
+        else
+          leakSlot = secondaries.positrons.NextLeakSlot();
+        // Copy the track to the leaks array and store the index in the leak queue
+        leaks[leakSlot] = electrons[slot];
+        auto success    = leakedQueue->push_back(leakSlot);
         if (!success) {
           printf("ERROR: No space left in e-/+ leaks queue.\n\
 \tThe threshold for flushing the leak buffer may be too high\n\
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");
         }
+        // Free the slot in the tracks slot manager
+        slotManager.MarkSlotForFreeing(slot);
       } else {
         nextActiveQueue->push_back(slot);
       }
@@ -1023,22 +1033,24 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 // Instantiate kernels for electrons and positrons.
 #ifdef ASYNC_MODE
 template <typename Scoring>
-__global__ void TransportElectrons(Track *electrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                                   Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
-                                   const bool returnAllSteps, const bool returnLastStep)
+__global__ void TransportElectrons(Track *electrons, Track *leaks, const adept::MParray *active,
+                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, active, secondaries, nextActiveQueue, leakedQueue,
+  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
                                                    userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
                                                    returnLastStep);
 }
 template <typename Scoring>
-__global__ void TransportPositrons(Track *positrons, const adept::MParray *active, Secondaries secondaries,
-                                   adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                                   Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent,
-                                   const bool returnAllSteps, const bool returnLastStep)
+__global__ void TransportPositrons(Track *positrons, Track *leaks, const adept::MParray *active,
+                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
+                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, active, secondaries, nextActiveQueue, leakedQueue,
+  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
                                                     userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
                                                     returnLastStep);
 }
