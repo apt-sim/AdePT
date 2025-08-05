@@ -222,7 +222,8 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
 
   int charge = -1;
 
-  Real_t yStart[Nvar] = {(Real_t)Position[0], (Real_t)Position[1], (Real_t)Position[2], (Real_t)Momentum[0], (Real_t)Momentum[1], (Real_t)Momentum[2]};
+  Real_t yStart[Nvar] = {(Real_t)Position[0], (Real_t)Position[1], (Real_t)Position[2],
+                         (Real_t)Momentum[0], (Real_t)Momentum[1], (Real_t)Momentum[2]};
   // std::cout << "yStart: " << std::endl;
   // PrintFieldVectors::PrintSixvec( yStart );
 
@@ -258,7 +259,8 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
     std::cout << "Advanced returned:  done= " << (done ? "Yes" : " No") << " hAdvanced = " << hAdvanced
               << " hNext = " << hTry << std::endl;
 
-    Real_t yPosMom[Nvar] = {(Real_t)Position[0], (Real_t)Position[1], (Real_t)Position[2], (Real_t)momentumVec[0], (Real_t)momentumVec[1], (Real_t)momentumVec[2]};
+    Real_t yPosMom[Nvar] = {(Real_t)Position[0],    (Real_t)Position[1],    (Real_t)Position[2],
+                            (Real_t)momentumVec[0], (Real_t)momentumVec[1], (Real_t)momentumVec[2]};
     sumAdvanced += hAdvanced;
 
     if (verbose)
