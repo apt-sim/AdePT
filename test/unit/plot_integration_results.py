@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2021 CERN
+# SPDX-License-Identifier: Apache-2.0
+#
+# Author:  N. Misyats, 05 Aug 2025
+#
+
 """
 plot.py: visualization utility for particle trajectories.
 
