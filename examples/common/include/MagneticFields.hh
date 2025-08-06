@@ -14,12 +14,16 @@
 #include <covfie/core/backend/transformer/affine.hpp>
 #include <covfie/core/backend/transformer/linear.hpp>
 #include <covfie/core/backend/transformer/strided.hpp>
+#include <covfie/core/backend/transformer/clamp.hpp>
 #include <covfie/core/field.hpp>
 
 #include <fstream>
 
 using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
     covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>;
+
+using cpu_field_clamped_t = covfie::field<covfie::backend::affine<covfie::backend::linear<covfie::backend::clamp<
+    covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>>;
 
 #endif
 
@@ -56,8 +60,13 @@ public:
       std::ifstream ifs(filename, std::ifstream::binary);
       if (!ifs.good()) throw std::runtime_error("Failed to open field file: " + filename);
 
-      cpuField   = cpu_field_t(ifs);
-      fFieldView = std::make_unique<cpu_field_t::view_t>(cpuField);
+      // Covfie requires that the B field type of the writer is the same as the B field type of the reader
+      // For the GPU B field in `GeneralMagneticField.h` no clamping of the field is possible, as this is done
+      // automatically by the texture memory. Therefore, unclamped B fields must be generated as the IO B field. To
+      // avoid out-of-bounds accesses on the CPU, a clamped field is generated and used on the CPU
+      cpu_field_t IoField = cpu_field_t(ifs);
+      fCpuField           = cpu_field_clamped_t(IoField);
+      fFieldView          = std::make_unique<cpu_field_clamped_t::view_t>(fCpuField);
 #endif
     }
   }
@@ -74,8 +83,8 @@ public:
 
 private:
 #ifdef ADEPT_USE_EXT_BFIELD
-  cpu_field_t cpuField;
-  std::unique_ptr<cpu_field_t::view_t> fFieldView;
+  cpu_field_clamped_t fCpuField;
+  std::unique_ptr<cpu_field_clamped_t::view_t> fFieldView;
 #endif
 };
 
