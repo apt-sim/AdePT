@@ -82,7 +82,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
-    bool printErrors = true;
+    bool printErrors = false;
 #if ADEPT_DEBUG_TRACK > 0
     bool verbose = false;
     if (gTrackDebug.active) {
@@ -124,7 +124,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         leaks[leakSlot] = gammas[slot];
         auto success    = leakedQueue->push_back(leakSlot);
         if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
+          printf("ERROR: No space left in gammas leaks queue.\n\
 \tThe threshold for flushing the leak buffer may be too high\n\
 \tThe space allocated to the leak buffer may be too small\n");
           asm("trap;");

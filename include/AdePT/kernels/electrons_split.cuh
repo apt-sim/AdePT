@@ -761,8 +761,7 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                    adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -777,23 +776,9 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
     bool isLastStep           = true;
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+    auto survive = [&]() {
       isLastStep = false; // track survived, do not force return of step
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else {
-        nextActiveQueue->push_back(slot);
-      }
+      nextActiveQueue->push_back(slot);
     };
 
     // Retrieve HepEM track
@@ -908,8 +893,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
 template <bool IsElectron, typename Scoring>
 __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                        adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                       adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
-                                       const bool returnLastStep)
+                                       Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -924,23 +908,9 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
     bool isLastStep           = true;
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      isLastStep = false; // track survived
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else {
-        nextActiveQueue->push_back(slot);
-      }
+    auto survive = [&]() {
+      isLastStep = false; // track survived, do not force return of step
+      nextActiveQueue->push_back(slot);
     };
 
     // Retrieve HepEM track
@@ -1055,8 +1025,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 template <typename Scoring>
 __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
                                      adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                     adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
-                                     const bool returnLastStep)
+                                     Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -1071,23 +1040,9 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
     bool isLastStep           = true;
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      isLastStep = false; // track survived
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else {
-        nextActiveQueue->push_back(slot);
-      }
+    auto survive = [&]() {
+      isLastStep = false; // track survived, do not force return of step
+      nextActiveQueue->push_back(slot);
     };
 
     // Retrieve HepEM track
@@ -1218,8 +1173,8 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 template <typename Scoring>
 __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
                                             Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                            adept::MParray *interactingQueue, adept::MParray *leakedQueue,
-                                            Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
+                                            adept::MParray *interactingQueue, Scoring *userScoring,
+                                            const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -1234,23 +1189,9 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
     bool isLastStep           = true;
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      isLastStep = false; // track survived
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-      } else {
-        nextActiveQueue->push_back(slot);
-      }
+    auto survive = [&]() {
+      isLastStep = false; // track survived, do not force return of step
+      nextActiveQueue->push_back(slot);
     };
 
     // Retrieve HepEM track
