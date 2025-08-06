@@ -239,11 +239,8 @@ if(ADEPT_USE_EXT_BFIELD)
     get_target_property(COVFIE_INCLUDE_DIR covfie::core INTERFACE_INCLUDE_DIRECTORIES)
     message(STATUS "covfie found at: ${COVFIE_INCLUDE_DIR}")
   else()
-    set(ADEPT_COVFIE_REPO "https://github.com/SeverinDiederichs/covfie.git")
-    set(ADEPT_COVFIE_BRANCH "export_targets_for_FetchContent")  # New branch with exports
-    ## FIXME use the ones below as soon as branch is merged and a new version is available
-    # set(ADEPT_COVFIE_REPO "https://github.com/acts-project/covfie.git")
-    # set(ADEPT_COVFIE_BRANCH "v0.12.1") # update version number
+    set(ADEPT_COVFIE_REPO "https://github.com/acts-project/covfie.git")
+    set(ADEPT_COVFIE_BRANCH "3b7b36ccfe4245dfd54b4b2f895ec11a7ea6333a") # latest version number at 06.08.2025
 
     message(STATUS "No covfie provided, fetching from: ${ADEPT_COVFIE_REPO} (branch: ${ADEPT_COVFIE_BRANCH})")
 
