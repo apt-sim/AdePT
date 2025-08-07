@@ -136,7 +136,7 @@ The table below shows the available CMake options for AdePT that may be used to 
 |ADEPT_MIXED_PRECISION|OFF|Use B-field integration and surface model in mixed precision|
 |DEBUG_SINGLE_THREAD|OFF| Run transport kernels in single thread mode |
 |ADEPT_DEBUG_TRACK|0| Debug tracking level (0=off, >0=on with levels) |
-|USE_STRICT_FLAGS|0| Use strict compiler flags, as also used in CMSSW. Many warnings are promoted to errors using this flag. |
+|ENFORCE_STRICT_FLAGS|0| Use strict compiler flags, as also used in CMSSW. Many warnings are promoted to errors using this flag. |
 
 To build, run:
 

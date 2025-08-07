@@ -53,7 +53,7 @@ option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie libra
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 option(ASYNC_MODE "Enable the async transport backend" OFF)
-option(USE_STRICT_FLAGS "Use strict compiler flags, as also used in CMSSW" OFF)
+option(ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 
@@ -101,7 +101,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   )
 
   # In soft mode, convert all -Werror=foo to just -Wfoo
-  if(NOT USE_STRICT_FLAGS)
+  if(NOT ENFORCE_STRICT_FLAGS)
     set(_converted_errors "")
     foreach(f IN LISTS _error_flags)
       string(REPLACE "-Werror=" "-W" _wflag "${f}")
