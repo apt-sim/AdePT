@@ -74,4 +74,16 @@
 #define COPCORE_DEVICE_COMPILATION
 #endif
 
+// Pragmas to locally suppress -Wpedantic for __int128 or other non-standard extensions
+#if defined(__GNUC__) && !defined(__clang__) && !defined(COPCORE_DEVICE_COMPILATION)
+#define DISABLE_PEDANTIC_WARNINGS _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wpedantic\"")
+#define ENABLE_PEDANTIC_WARNINGS _Pragma("GCC diagnostic pop")
+#elif defined(__clang__) && !defined(COPCORE_DEVICE_COMPILATION)
+#define DISABLE_PEDANTIC_WARNINGS _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wpedantic\"")
+#define ENABLE_PEDANTIC_WARNINGS _Pragma("clang diagnostic pop")
+#else
+#define DISABLE_PEDANTIC_WARNINGS
+#define ENABLE_PEDANTIC_WARNINGS
+#endif
+
 #endif // COPCORE_MACROS_H_

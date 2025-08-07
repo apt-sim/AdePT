@@ -50,11 +50,14 @@ __host__ __device__ static void multiply9x9(const uint64_t *in1, const uint64_t 
       uint64_t lower = fac1 * fac2;
       uint64_t upper = __umul64hi(fac1, fac2);
 #elif defined(__SIZEOF_INT128__)
+      // disable pedantic warnings, as __int128 is not in the C++ standard
+      DISABLE_PEDANTIC_WARNINGS
       unsigned __int128 prod = fac1;
       prod                   = prod * fac2;
 
       uint64_t upper = prod >> 64;
       uint64_t lower = static_cast<uint64_t>(prod);
+      ENABLE_PEDANTIC_WARNINGS
 #else
       uint64_t upper1 = fac1 >> 32;
       uint64_t lower1 = static_cast<uint32_t>(fac1);
@@ -241,5 +244,10 @@ __host__ __device__ static void powermod(const uint64_t *base, uint64_t *res, ui
     mod_m(mul, fac);
   }
 }
+
+// end disabling of -Wpedantic
+#if defined(__GNUC__) && !defined(__CUDA_ARCH__)
+#pragma GCC diagnostic pop
+#endif
 
 #endif
