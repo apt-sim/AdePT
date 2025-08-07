@@ -45,9 +45,11 @@ AdePTTrackingManager::~AdePTTrackingManager()
 
 void AdePTTrackingManager::InitializeAdePT()
 {
-  // Check if this is a sequential run
+#ifndef ASYNC_MODE
+  // in Sync AdePT, check if this is a sequential run
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
+#endif
 
   auto tid = G4Threading::G4GetThreadId();
 

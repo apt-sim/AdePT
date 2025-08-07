@@ -507,8 +507,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         hostTrackInfo = fHostTrackDataMapper->get(aGPUHit->fTrackID);
 
         // setting of the step-defining process
-        if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
-            static_cast<int>(parentTrackInfo.particleType) == 1) {
+        if (static_cast<int>(hostTrackInfo.particleType) == 0 || static_cast<int>(hostTrackInfo.particleType) == 1) {
 
           if (aGPUHit->fStepLimProcessId == -2) {
             // MSC
@@ -518,9 +517,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
             stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[0];
           } else if (aGPUHit->fStepLimProcessId == 3) {
             // lepton nuclear
-            if (static_cast<int>(parentTrackInfo.particleType) == 0)
+            if (static_cast<int>(hostTrackInfo.particleType) == 0)
               stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[4];
-            if (static_cast<int>(parentTrackInfo.particleType) == 1)
+            if (static_cast<int>(hostTrackInfo.particleType) == 1)
               stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[5];
             // continuous energy loss by ionization
             stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[0];
@@ -531,7 +530,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
             // discrete interactions
             stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fStepLimProcessId];
           }
-        } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
+        } else if (static_cast<int>(hostTrackInfo.particleType) == 2) {
 
           if (aGPUHit->fStepLimProcessId == 10) {
             // transportation
@@ -561,18 +560,18 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         if (aGPUHit->fParentID != 0) {
           parentTrackInfo          = fHostTrackDataMapper->get(aGPUHit->fParentID);
           hostTrackInfo.g4parentid = parentTrackInfo.g4id;
+
+          // retrieve creator process from parent particle type
+          // for the initializing step, the step-defining process is the creator process
+          if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
+              static_cast<int>(parentTrackInfo.particleType) == 1) {
+            hostTrackInfo.creatorProcess =
+                fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fStepLimProcessId];
+          } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
+            hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fStepLimProcessId];
+          }
         } else {
           hostTrackInfo.g4parentid = 0;
-        }
-
-        // retrieve creator process from parent particle type
-        // for the initializing step, the step-defining process is the creator process
-        if (static_cast<int>(parentTrackInfo.particleType) == 0 ||
-            static_cast<int>(parentTrackInfo.particleType) == 1) {
-          hostTrackInfo.creatorProcess =
-              fHepEmTrackingManager->GetElectronNoProcessVector()[aGPUHit->fStepLimProcessId];
-        } else if (static_cast<int>(parentTrackInfo.particleType) == 2) {
-          hostTrackInfo.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[aGPUHit->fStepLimProcessId];
         }
 
         hostTrackInfo.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
@@ -839,7 +838,6 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
     auto NavigationHistory = std::make_unique<G4NavigationHistory>();
     FillG4NavigationHistory(track.navState, *NavigationHistory);
     auto TouchableHistory = std::make_unique<G4TouchableHistory>(*NavigationHistory);
-    auto topVolume        = NavigationHistory->GetTopVolume();
     G4TouchableHandle TouchableHandle(TouchableHistory.release() /* Now owned by G4TouchableHandle */);
     leakedTrack->SetTouchableHandle(TouchableHandle);
 

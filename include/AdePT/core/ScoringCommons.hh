@@ -31,7 +31,7 @@ struct GPUHit {
   uint64_t fTrackID{0};  // Track ID
   uint64_t fParentID{0}; // parent Track ID
   short fStepLimProcessId{-1};
-  unsigned int fEventId{0};
+  int fEventId{0};
   short threadId{-1};
   // bool fFirstStepInVolume{false};
   bool fLastStepOfTrack{false};

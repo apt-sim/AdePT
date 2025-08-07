@@ -100,6 +100,10 @@ private:
 
   void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel) const;
 
+  // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
+  // this is just a reference to handle gamma-/lepton-nuclear reactions
+  G4HepEmTrackingManagerSpecialized *fHepEmTrackingManager;
+
   // helper class to provide the CPU-only data for the returning GPU tracks
   std::unique_ptr<HostTrackDataMapper> fHostTrackDataMapper;
 
@@ -107,9 +111,6 @@ private:
   static std::vector<G4LogicalVolume const *> fglobal_vecgeom_lv_to_g4_map;
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
-  // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
-  // this is just a reference to handle gamma-/lepton-nuclear reactions
-  G4HepEmTrackingManagerSpecialized *fHepEmTrackingManager;
 };
 
 #endif
