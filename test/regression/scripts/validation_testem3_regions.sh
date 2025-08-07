@@ -39,7 +39,8 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --num_threads 8 \
     --num_events 400 \
     --num_trackslots 3 \
-    --num_hitslots 15 \
+    --num_hitslots 12 \
+    --num_leakslots 3 \
     --track_in_all_regions False\
     --gun_type setDefault\
     --regions "caloregion, Layer1, Layer2, Layer3, Layer4, Layer5, Layer6, Layer7, Layer8, Layer9, Layer10,\
