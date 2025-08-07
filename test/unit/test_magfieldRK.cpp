@@ -216,9 +216,6 @@ bool TestDriverAdvance(Field_t const &magField, Real_t hLength = 300)
   Vector3D<double> Momentum = momentumMag * Direction;
 
   Real_t dy_ds[Nvar];
-  Real_t yOut[Nvar];      // Output:  y values at end,
-  Real_t yerr[Nvar];      //          estimated errors,
-  Real_t next_dyds[Nvar]; //          next value of dydx
 
   int charge = -1;
 
@@ -315,10 +312,6 @@ bool CheckDriverVsHelix(Field_t const &magField, const Real_t stepLength = 300.0
   Vector3D<Real_t> const startMomentum = momentumMag * startDirection;
 
   Real_t dy_ds[Nvar];
-  Real_t yOut[Nvar];      // Output:  y values at end,
-  Real_t yerr[Nvar];      //          estimated errors,
-  Real_t next_dyds[Nvar]; //          next value of dydx
-
   int charge = -1;
 
   Vector3D<float> magFieldStart(1, 2, 3);
@@ -347,8 +340,7 @@ bool CheckDriverVsHelix(Field_t const &magField, const Real_t stepLength = 300.0
   }
 
   bool unfinished    = true;
-  Real_t hTry        = hLength; // suggested 'good' length per integration step
-  Real_t sumAdvanced = 0;       //  length integrated
+  Real_t sumAdvanced = 0; //  length integrated
 
   constexpr int maxTrials = 500;
 
@@ -446,11 +438,11 @@ int main(int argc, char **argv)
 
   cout << " -- Testing mag-field equation with float.   " << endl;
   cout << " ---------------------------------------------------------------------" << endl;
-  bool okUniformFloat = TestEquation<float, UniformMagneticField>(*pConstantBfield);
-  bool okBxFloat      = TestEquation<float, UniformMagneticField>(Bx);
-  bool okByFloat      = TestEquation<float, UniformMagneticField>(By);
-  bool okBzFloat      = TestEquation<float, UniformMagneticField>(Bz);
-  bool allEqGood      = okUniformFloat && okBxFloat && okByFloat && okBzFloat;
+  // NOTE: No return value of testEquation is queried or used!
+  TestEquation<float, UniformMagneticField>(*pConstantBfield);
+  TestEquation<float, UniformMagneticField>(Bx);
+  TestEquation<float, UniformMagneticField>(By);
+  TestEquation<float, UniformMagneticField>(Bz);
   cout << endl;
 
   cout << " ---------------------------------------------------------------------" << endl;

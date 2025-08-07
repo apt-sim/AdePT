@@ -67,7 +67,6 @@ private:
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
-  int fVerbosity{0};
 // std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
 #ifndef ASYNC_MODE
   std::unique_ptr<AdePTTransportInterface> fAdeptTransport;
@@ -75,6 +74,7 @@ private:
   std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
 #endif
   AdePTConfiguration *const fAdePTConfiguration;
+  int fVerbosity{0};
   unsigned int fTrackCounter{0};
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};

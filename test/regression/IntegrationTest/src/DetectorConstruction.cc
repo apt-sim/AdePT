@@ -26,7 +26,7 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 DetectorConstruction::DetectorConstruction(bool allSensitive)
-    : fAllSensitive(allSensitive), G4VUserDetectorConstruction()
+    : G4VUserDetectorConstruction(), fAllSensitive(allSensitive)
 {
   fDetectorMessenger = new DetectorMessenger(this);
 }

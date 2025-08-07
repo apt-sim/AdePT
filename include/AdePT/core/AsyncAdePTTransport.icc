@@ -86,19 +86,18 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration,
                                                            G4HepEmTrackingManagerSpecialized *hepEmTM)
-    : fNThread{(ushort)configuration.GetNumThreads()},
+    : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
-      fDebugLevel{configuration.GetVerbosity()}, fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
-      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
-      fCPURegionNames{configuration.GetCPURegionNames()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
-      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fAdePTSeed{configuration.GetAdePTSeed()},
+      fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
+      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
+      fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
+      fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
       fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction()},
-      fBfieldFile{configuration.GetCovfieBfieldFile()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
-      fCPUCapacityFactor{configuration.GetCPUCapacityFactor()}
+      fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
+      fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
