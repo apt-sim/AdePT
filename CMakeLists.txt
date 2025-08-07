@@ -53,6 +53,70 @@ option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie libra
 option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 option(ASYNC_MODE "Enable the async transport backend" OFF)
+option(USE_STRICT_FLAGS "Use strict compiler flags, as also used in CMSSW" OFF)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+
+  set(_warn_flags
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Wno-non-template-friend
+    -Wno-long-long
+    -Wreturn-type
+    -Wpessimizing-move
+    -Wclass-memaccess
+    -Wno-cast-function-type
+    -Wno-unused-but-set-parameter
+    -Wno-ignored-qualifiers
+    -Wno-unused-parameter
+    -Wunused
+    -Wparentheses
+    -Wnon-virtual-dtor
+  )
+
+  set(_error_flags
+    -Werror=pointer-arith
+    -Werror=overlength-strings
+    -Werror=overflow
+    -Werror=array-bounds
+    -Werror=format-contains-nul
+    -Werror=type-limits
+    -Werror=return-type
+    -Werror=missing-braces
+    -Werror=unused-value
+    -Werror=unused-label
+    -Werror=address
+    -Werror=format
+    -Werror=sign-compare
+    -Werror=write-strings
+    -Werror=delete-non-virtual-dtor
+    -Werror=strict-aliasing
+    -Werror=narrowing
+    -Werror=unused-but-set-variable
+    -Werror=reorder
+    -Werror=unused-variable
+    -Werror=conversion-null
+    -Werror=return-local-addr
+  )
+
+  # In soft mode, convert all -Werror=foo to just -Wfoo
+  if(NOT USE_STRICT_FLAGS)
+    set(_converted_errors "")
+    foreach(f IN LISTS _error_flags)
+      string(REPLACE "-Werror=" "-W" _wflag "${f}")
+      list(APPEND _converted_errors "${_wflag}")
+    endforeach()
+    set(_final_flags ${_warn_flags} ${_converted_errors})
+  else()
+    message(STATUS "Enabling strict compiler flags")
+    set(_final_flags ${_warn_flags} ${_error_flags})
+  endif()
+
+  string(JOIN " " _final_flags_str ${_final_flags})
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_final_flags_str}")
+endif()
+
 
 #----------------------------------------------------------------------------#
 # Dependencies
@@ -183,11 +247,16 @@ if(Geant4_FOUND)
   # so we do a compile check.
   check_cxx_source_compiles("
     #include \"G4VTrackingManager.hh\"
-    class testtm_ : public G4VTrackingManager {
-    public:
-      void HandOverOneTrack(G4Track*) {}
+    #include \"G4Track.hh\"
+
+    struct testtm_ : G4VTrackingManager {
+      void HandOverOneTrack(G4Track*) override {}
     };
-    int main() { testtm_ model; return 0; }" AdePT_HAS_G4VTRACKINGMANAGER)
+
+    int main() {
+      testtm_ t;
+      return 0;
+    }" AdePT_HAS_G4VTRACKINGMANAGER)
 else()
   message(STATUS "Did not find Geant4")
 endif()
