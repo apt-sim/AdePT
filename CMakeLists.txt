@@ -73,9 +73,14 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     -Wunused
     -Wparentheses
     -Wnon-virtual-dtor
+    -Wno-unused-local-typedefs
+    -Wno-attributes
+    -Wno-psabi
   )
 
   set(_error_flags
+    -Werror=main
+    -Werror=switch
     -Werror=pointer-arith
     -Werror=overlength-strings
     -Werror=overflow
