@@ -112,8 +112,8 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
   // For first cord integration try full cordlength otherwise use last step from previous cord integration
   Real_t htry = cordIters == 0 ? length : vecCore::Min(hgood, length);
 
-  bool done    = false;
-  int numSteps = 0;
+  bool done             = false;
+  unsigned int numSteps = 0;
 
   bool allFailed = true;  // Have all steps until now failed
   bool goodStep  = false; // last step was good
@@ -122,8 +122,7 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 
     goodStep = IntegrateStep(yStart, dydx, chargeInt, stepAdvance, htry, magField, yEnd, dydx_next, hnext);
 
-    Real_t hdid = goodStep ? htry : 0.0;
-    allFailed   = allFailed && !goodStep;
+    allFailed = allFailed && !goodStep;
 
     done  = (stepAdvance >= length);
     hgood = vecCore::Max(hnext, Real_t(fMinimumStep));
@@ -133,7 +132,9 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 #endif
     htry = hgood;
     if (goodStep && !done) {
+#ifdef __CUDA_ARCH__
 #pragma unroll
+#endif
       for (int i = 0; i < Nvar; i++) {
         yStart[i] = yEnd[i];
         dydx[i]   = dydx_next[i]; // Using FSAL property !

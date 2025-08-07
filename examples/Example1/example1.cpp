@@ -20,8 +20,7 @@ int main(int argc, char **argv)
 {
   // Macro name from arguments
   G4String batchMacroName;
-  G4bool useInteractiveMode = true;
-  G4bool useAdePT           = true;
+  G4bool useAdePT     = true;
   G4bool allSensitive = false; // If set, ignores the sensitive detector flags in the GDML and marks all volumes as
                                // sensitive. Useful for validation of geometries with no SD info
   G4String helpMsg("Usage: " + G4String(argv[0]) +
@@ -34,8 +33,7 @@ int main(int argc, char **argv)
       G4cout << helpMsg << G4endl;
       return 0;
     } else if (argument == "-m") {
-      batchMacroName     = G4String(argv[i + 1]);
-      useInteractiveMode = false;
+      batchMacroName = G4String(argv[i + 1]);
       ++i;
     } else if (argument == "--noadept") {
       useAdePT = false;

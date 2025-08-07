@@ -80,7 +80,7 @@ void IntegrateForDistance(const UniformMagneticField &magField, const Real_t max
     done          = (totalDistanceDone >= maxDistance);
     stepSizeTryIn = vecCore::Max(minStepSize, stepSizeNextOut);
     if (goodStep && !done) {
-      for (int i = 0; i < Nvar; i++) {
+      for (unsigned int i = 0; i < Nvar; i++) {
         yCurrentIn[i]    = yNextOut[i];
         dydxCurrentIn[i] = dydxNextOut[i]; // Using FSAL property !
       }
