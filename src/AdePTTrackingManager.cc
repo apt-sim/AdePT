@@ -68,7 +68,22 @@ void AdePTTrackingManager::InitializeAdePT()
 
   // Global initialization: only done once by the first worker thread
   std::call_once(onceFlag, [&]() {
-    fNumThreads = G4MTRunManager::GetMasterRunManager()->GetNumberOfThreads();
+    // get number of threads from config, if available
+    if (fNumThreads <= 0) {
+      auto nThreads = fAdePTConfiguration->GetNumThreads();
+      if (nThreads > 0) fNumThreads = nThreads;
+    }
+
+    // otherwise, try to get the threads frm the G4RunManager
+    if (fNumThreads <= 0) {
+      if (G4MTRunManager::GetMasterRunManager()) {
+        fNumThreads = G4MTRunManager::GetMasterRunManager()->GetNumberOfThreads();
+      } else {
+        throw std::runtime_error(
+            "Number of G4 workers is neither passed via the AdeptConfig nor is the G4MasterRunManager available");
+      }
+    }
+
     std::cout << " NUM OF THREADS ACCORDING TO G4: " << fNumThreads << std::endl;
     fAdePTConfiguration->SetNumThreads(fNumThreads);
 
@@ -117,6 +132,7 @@ void AdePTTrackingManager::InitializeAdePT()
     initCV.wait(lock, [&] { return commonInitDone; });
   }
 
+  // Set the fNumThreads in case it was retrieved from G4RunManager
   // Now the fNumThreads is known and all workers can initialize
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
