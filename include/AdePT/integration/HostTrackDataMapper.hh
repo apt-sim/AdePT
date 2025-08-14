@@ -26,7 +26,7 @@ struct HostTrackData {
   G4LogicalVolume *logicalVolumeAtVertex = nullptr;
   G4ThreeVector vertexPosition;
   G4ThreeVector vertexMomentumDirection;
-  G4double vertexKineticEnergy;
+  G4double vertexKineticEnergy = 0.0;
   char particleType;
 };
 
