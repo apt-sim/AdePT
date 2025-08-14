@@ -94,7 +94,7 @@ private:
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};
   bool fAdePTActivated{true};
-  int fNumThreads;
+  int fNumThreads{-1};
   int fVerbosity{0};
   int fTransportBufferThreshold{200};
   int fCUDAStackLimit{0};
@@ -109,7 +109,6 @@ private:
 
   std::vector<std::string> fGPURegionNames{};
   std::vector<std::string> fCPURegionNames{};
-  int fNThread = -1;
 
   std::string fVecGeomGDML{""};
   std::string fCovfieBfieldFile{""};
