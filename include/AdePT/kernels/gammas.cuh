@@ -565,7 +565,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // setting the finish on CPU status
 
     if (surviveFlag) {
-
       if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf(
@@ -596,6 +595,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     if (surviveFlag) {
       survive(leakReason);
     } else {
+      isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
 #ifdef ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);

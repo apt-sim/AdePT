@@ -964,11 +964,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                  geometryStepLength, geometricalStepLengthFromPhysics, safety);
         surviveFlag = false;
-      }
-    }
-
-    if (surviveFlag) {
-      if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
@@ -989,7 +985,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         leakReason = LeakStatus::FinishEventOnCPU;
       }
     }
-
 #endif
 
     __syncwarp(); // was found to be beneficial after divergent calls
@@ -997,6 +992,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     if (surviveFlag) {
       survive(leakReason);
     } else {
+      isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
 #ifdef ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
