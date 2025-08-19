@@ -367,6 +367,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.zeroStepCounter = 0;
     }
 
+    __syncwarp(); // was found to be beneficial after divergent calls
+
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) {
       printf("| geometryStepLength %g | propagated_pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, %.19f}",
@@ -375,8 +377,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       nextState.Print();
     }
 #endif
-
-    __syncwarp(); // was found to be beneficial after divergent calls
 
     // punish miniscule steps by increasing the looperCounter by 10
     if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
