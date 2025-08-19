@@ -132,6 +132,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
 #endif
     bool isLastStep                          = returnLastStep;
+    bool surviveFlag                         = false;
+    LeakStatus leakReason                    = LeakStatus::NoLeak;
     constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
     constexpr unsigned short kStepsStuckPush = 5;
     constexpr unsigned short kStepsStuckKill = 25;
@@ -144,6 +146,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double globalTime = currentTrack.globalTime;
     double localTime  = currentTrack.localTime;
     double properTime = currentTrack.properTime;
+    vecgeom::NavigationState nextState;
+
     currentTrack.stepCounter++;
     bool printErrors = false;
     bool verbose     = false;
@@ -158,14 +162,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
     printErrors = !gTrackDebug.active || verbose;
 #endif
-    if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
-      if (printErrors)
-        printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
-               currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
-               currentTrack.zeroStepCounter);
-      __syncthreads();
-      continue;
-    }
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       isLastStep              = false; // track survived, do not force return of step
@@ -175,7 +171,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.globalTime = globalTime;
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
-      currentTrack.navState   = navState;
+      currentTrack.navState   = nextState;
       currentTrack.leakStatus = leakReason;
 #ifdef ASYNC_MODE
       // NOTE: When adapting the split kernels for async mode this won't
@@ -211,18 +207,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
 #endif
     };
-
-#ifdef ASYNC_MODE
-    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      if (printErrors)
-        printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-               currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-               currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-      survive(LeakStatus::FinishEventOnCPU);
-      continue;
-    }
-#endif
 
     // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack elTrack;
@@ -317,6 +301,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
     }
 
+    __syncwarp(); // was found to be beneficial after divergent calls
+
     G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
     // Remember MSC values for the next step(s).
@@ -349,7 +335,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     bool propagated    = true;
     long hitsurf_index = -1;
     double geometryStepLength;
-    vecgeom::NavigationState nextState;
     bool zero_first_step = false;
 
     if (gMagneticField) {
@@ -378,8 +363,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     if (geometryStepLength < kPushStuck && geometryStepLength < geometricalStepLengthFromPhysics) {
       currentTrack.zeroStepCounter++;
       if (currentTrack.zeroStepCounter > kStepsStuckPush) pos += kPushStuck * dir;
-    } else
+    } else {
       currentTrack.zeroStepCounter = 0;
+    }
+
+    __syncwarp(); // was found to be beneficial after divergent calls
 
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) {
@@ -505,7 +493,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     bool reached_interaction = true;
-    bool cross_boundary      = false;
 
     const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
     const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
@@ -519,53 +506,45 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         reached_interaction = false;
         // Kill the particle if it left the world.
 
-        if (++currentTrack.looperCounter > 500) {
-          // Kill loopers that are scraping a boundary
-          if (printErrors)
-            printf("Killing looper scraping at a boundary: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
-                   "geoStepLength=%E "
-                   "physicsStepLength=%E "
-                   "safety=%E\n",
-                   eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
-                   geometryStepLength, geometricalStepLengthFromPhysics, safety);
-          continue;
-        } else if (!nextState.IsOutside()) {
-          // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
-          // This will happen after recording the step
-          cross_boundary = true;
-          isLastStep     = false; // the track survives, do not force return of step
-        } else {
-          // Particle left the world, don't enqueue it and release the slot
+        if (!nextState.IsOutside()) {
+
+          // Check if the next volume belongs to the GPU region and push it to the appropriate queue
+          const int nextlvolID = nextState.GetLogicalId();
 #ifdef ASYNC_MODE
-          slotManager.MarkSlotForFreeing(slot);
+          VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+#else
+          VolAuxData const &nextauxData = auxDataArray[nextlvolID];
 #endif
-        }
+          // track has left GPU region
+          if (nextauxData.fGPUregion <= 0) {
+            // To be safe, just push a bit the track exiting the GPU region to make sure
+            // Geant4 does not relocate it again inside the same region
+            pos += kPushDistance * dir;
+
+#if ADEPT_DEBUG_TRACK > 0
+            if (verbose) printf("\n| track leaked to Geant4\n");
+#endif
+            leakReason = LeakStatus::OutOfGPURegion;
+          }
+
+          // the track survives, do not force return of step
+          surviveFlag = true;
+          isLastStep  = false;
+        } // else particle has left the world
 
         winnerProcessIndex = 10; // mark winner process to be transport
       } else if (!propagated || restrictedPhysicalStepLength) {
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
 
-        if (++currentTrack.looperCounter > 500) {
-          // Kill loopers that are not advancing in free space
-          if (printErrors)
-            printf("Killing looper due to lack of advance: E=%E event=%d track=%lu loop=%d energyDeposit=%E "
-                   "geoStepLength=%E "
-                   "physicsStepLength=%E "
-                   "safety=%E\n",
-                   eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
-                   geometryStepLength, geometricalStepLengthFromPhysics, safety);
-          continue;
-        }
-
         // mark winner process to be transport, although this is not strictly true
         winnerProcessIndex = 10;
 
-        survive();
+        surviveFlag         = true;
         reached_interaction = false;
       } else if (winnerProcessIndex < 0) {
         // No discrete process, move on.
-        survive();
+        surviveFlag         = true;
         reached_interaction = false;
       }
     }
@@ -573,14 +552,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // reset Looper counter if limited by discrete interaction or MSC
     if (reached_interaction) currentTrack.looperCounter = 0;
 
-    // keep debug printout for now, needed for identifying more slow particles
-    // if (activeSize == 1) {
-    //   printf("Stuck particle!: E=%E event=%d loop=%d step=%d energyDeposit=%E geoStepLength=%E "
-    //     "physicsStepLength=%E safety=%E  reached_interaction %d winnerProcessIndex %d onBoundary %d propagated %d\n",
-    //     eKin, currentTrack.eventId, currentTrack.looperCounter, currentTrack.stepCounter, energyDeposit,
-    //     geometryStepLength, geometricalStepLengthFromPhysics, safety, reached_interaction, winnerProcessIndex,
-    //     nextState.IsOnBoundary(), propagated);
-    // }
+    __syncwarp(); // was found to be beneficial after divergent calls
 
     if (reached_interaction && !stopped) {
       // Reset number of interaction left for the winner discrete process.
@@ -593,7 +565,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| delta interaction\n");
 #endif
-        survive();
+        // survive();
+        surviveFlag = true;
       } else {
         // Perform the discrete interaction, make sure the branched RNG state is
         // ready to be used.
@@ -681,7 +654,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           }
 
           dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-          survive();
+          surviveFlag = true;
           break;
         }
         case 1: {
@@ -762,7 +735,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #if ADEPT_DEBUG_TRACK > 0
           if (verbose) printf("| new_dir {%.19f, %.19f, %.19f}\n", dir[0], dir[1], dir[2]);
 #endif
-          survive();
+          surviveFlag = true;
           break;
         }
         case 2: {
@@ -867,21 +840,19 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                        gamma2.stepCounter);             // whether this was the first step
             }
           }
-
-          // The current track is killed by not enqueuing into the next activeQueue.
-#ifdef ASYNC_MODE
-          slotManager.MarkSlotForFreeing(slot);
-#endif
           break;
         }
         case 3: {
           // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
-          survive(LeakStatus::LeptonNuclear);
+          surviveFlag = true;
+          leakReason  = LeakStatus::LeptonNuclear;
           break;
         }
         }
       }
     }
+
+    __syncwarp(); // sync warp before atomics in secondary generation
 
     if (stopped) {
       eKin = 0;
@@ -976,14 +947,60 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           }
         }
       }
-      // Particles are killed by not enqueuing them into the new activeQueue (and free the slot in async mode)
+    }
+
+    // PLACEHOLDER: here the stepping actions can be implemented. For now it consists of killing stuck particles and
+    // setting the finish on CPU status
+
+    if (surviveFlag) {
+      if (++currentTrack.looperCounter > 500) {
+        // Kill loopers that are not advancing in free space or are scraping at a boundary
+        if (printErrors)
+          printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
+                 "energyDeposit=%E "
+                 "geoStepLength=%E "
+                 "physicsStepLength=%E "
+                 "safety=%E\n",
+                 eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
+                 geometryStepLength, geometricalStepLengthFromPhysics, safety);
+        surviveFlag = false;
+      } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+        if (printErrors)
+          printf("Killing e-/+ event %d track %ld E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
+                 currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
+                 currentTrack.zeroStepCounter);
+        surviveFlag = false;
+      }
+    }
+
+    // this one always needs to be last as it needs to be done only if the track survives
+#ifdef ASYNC_MODE
+    if (surviveFlag) {
+      if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+          InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+        if (printErrors)
+          printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+                 currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+                 currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+        leakReason = LeakStatus::FinishEventOnCPU;
+      }
+    }
+#endif
+
+    __syncwarp(); // was found to be beneficial after divergent calls
+
+    if (surviveFlag) {
+      survive(leakReason);
+    } else {
+      isLastStep = true;
+      // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
 #ifdef ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
 #endif
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && isLastStep)) {
       adept_scoring::RecordHit(userScoring, currentTrack.trackId, currentTrack.parentId, short(winnerProcessIndex),
                                static_cast<char>(IsElectron ? 0 : 1),       // Particle type
                                elTrack.GetPStepLength(),                    // Step length
@@ -1002,30 +1019,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter);                   // whether this was the first step
-    }
-    if (cross_boundary) {
-      // Move to the next boundary now that the Step is recorded
-      navState = nextState;
-      // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-      const int nextlvolID = navState.GetLogicalId();
-#ifdef ASYNC_MODE
-      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-#else
-      VolAuxData const &nextauxData = auxDataArray[nextlvolID];
-#endif
-      if (nextauxData.fGPUregion > 0)
-        survive();
-      else {
-        // To be safe, just push a bit the track exiting the GPU region to make sure
-        // Geant4 does not relocate it again inside the same region
-        pos += kPushDistance * dir;
-
-#if ADEPT_DEBUG_TRACK > 0
-        if (verbose) printf("\n| track leaked to Geant4\n");
-#endif
-
-        survive(LeakStatus::OutOfGPURegion);
-      }
     }
   }
 }
