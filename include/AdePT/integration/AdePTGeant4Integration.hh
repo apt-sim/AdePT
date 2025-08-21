@@ -70,13 +70,13 @@ public:
 
   /// @brief Takes a range of tracks coming from the device and gives them back to Geant4
   template <typename Iterator>
-  void ReturnTracks(Iterator begin, Iterator end, int debugLevel) const
+  void ReturnTracks(Iterator begin, Iterator end, int debugLevel, bool callUserActions = false) const
   {
     if (debugLevel > 1) {
       G4cout << "Returning " << end - begin << " tracks from device" << G4endl;
     }
     for (Iterator it = begin; it != end; ++it) {
-      ReturnTrack(*it, it - begin, debugLevel);
+      ReturnTrack(*it, it - begin, debugLevel, callUserActions);
     }
   }
 
@@ -98,7 +98,8 @@ private:
                   G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus,
                   bool callUserTrackingAction, bool callUserSteppingAction) const;
 
-  void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel) const;
+  void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel,
+                   bool callUserActions = false) const;
 
   // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
   // this is just a reference to handle gamma-/lepton-nuclear reactions

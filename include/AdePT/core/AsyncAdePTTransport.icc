@@ -95,7 +95,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
       fReturnAllSteps{configuration.GetCallUserSteppingAction()},
-      fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction()},
+      fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
       fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
       fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()}
 {
@@ -440,7 +440,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     G4cout << str.str() << G4endl;
   }
 
-  integrationInstance.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel);
+  integrationInstance.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel, fReturnFirstAndLastStep);
 
   async_adept_impl::FlushScoring(fScoring[threadId]);
   fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);

@@ -327,9 +327,9 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       uint64_t gpuTrackID;
       bool entryExists = trackMapper.tryGetGPUId(aTrack->GetTrackID(), gpuTrackID);
 
-      HostTrackData hostTrackData;
+      // if the entry doesn't exist, it is filled with all the available G4Track information
       if (!entryExists) {
-        hostTrackData = trackMapper.create(gpuTrackID, /*useNewId=*/false);
+        HostTrackData &hostTrackData = trackMapper.create(gpuTrackID, /*useNewId=*/false);
 
         hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
         hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
