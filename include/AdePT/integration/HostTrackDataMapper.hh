@@ -4,13 +4,14 @@
 #ifndef HOSTTRACKDATAMAPPER_H
 #define HOSTTRACKDATAMAPPER_H
 
+#include "G4VUserTrackInformation.hh"
+#include "G4VProcess.hh"
+
 #include <unordered_map>
 #include <cstdint>
 #include <algorithm>
 #include <limits>
-
-#include "G4VUserTrackInformation.hh"
-#include "G4VProcess.hh"
+#include <memory>
 
 // Forward declaration
 class G4PrimaryParticle;
@@ -28,6 +29,14 @@ struct HostTrackData {
   G4ThreeVector vertexMomentumDirection;
   G4double vertexKineticEnergy = 0.0;
   char particleType;
+
+  HostTrackData() = default;
+
+  HostTrackData(HostTrackData &&) noexcept            = default;
+  HostTrackData &operator=(HostTrackData &&) noexcept = default;
+
+  HostTrackData(HostTrackData const &)            = delete;
+  HostTrackData &operator=(HostTrackData const &) = delete;
 };
 
 // This class provides a mapping between G4 id's (int) and AdePT id's (uint64_t).
@@ -62,28 +71,19 @@ public:
   }
 
   /// HOT PATH: 1 hash + bucket probe, returns a reference into the table
-  HostTrackData &getOrCreate(uint64_t gpuId, bool useNewId = true)
+
+  // Assumes caller knows entry exists
+  HostTrackData &get(uint64_t gpuId) noexcept
   {
-    auto it = gpuToIndex.find(gpuId);
-    if (it != gpuToIndex.end()) {
-      // already have a slot
-      return hostDataVec[it->second];
-    }
-    // new track -> assign next slot
-    int idx           = static_cast<int>(hostDataVec.size());
-    gpuToIndex[gpuId] = idx;
-    hostDataVec.push_back({});
-    auto &d             = hostDataVec.back();
-    d.gpuId             = gpuId;
-    d.g4id              = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
-    g4idToGpuId[d.g4id] = gpuId;
-    return d;
+    auto it = gpuToIndex.find(gpuId); // guaranteed to exist here
+    // assert(it != gpuToIndex.end());
+    return hostDataVec[it->second];
   }
 
-  // Assumes caller knows entry exists
-  HostTrackData &get(uint64_t gpuId) { return hostDataVec[gpuToIndex.at(gpuId)]; }
-
-  // Assumes caller knows entry exists
+  /// @brief Sets the gpuid by reference and returns whether the entry already existed
+  /// @param g4id int G4 id that is checked
+  /// @param gpuid uint64 gpu id that is returned
+  /// @return whether the GPU id already existed
   bool tryGetGPUId(int g4id, uint64_t &gpuid)
   {
     auto it = g4idToGpuId.find(g4id);
@@ -95,12 +95,28 @@ public:
     return true;
   }
 
-  // Assumes caller knows entry does not exist yet
+  HostTrackData &getOrCreate(uint64_t gpuId, bool useNewId = true)
+  {
+    auto [it, inserted] = gpuToIndex.emplace(gpuId, -1);
+    if (!inserted) return hostDataVec[it->second];
+
+    const int idx = static_cast<int>(hostDataVec.size());
+    hostDataVec.emplace_back(); // in-place default construction
+    it->second = idx;
+
+    auto &d             = hostDataVec.back();
+    d.gpuId             = gpuId;
+    d.g4id              = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
+    g4idToGpuId[d.g4id] = gpuId;
+    return d;
+  }
+
   HostTrackData &create(uint64_t gpuId, bool useNewId = true)
   {
-    int idx           = static_cast<int>(hostDataVec.size());
+    const int idx     = static_cast<int>(hostDataVec.size());
     gpuToIndex[gpuId] = idx;
-    hostDataVec.push_back({});
+    hostDataVec.emplace_back(); // in-place default construction
+
     auto &d = hostDataVec.back();
     d.gpuId = gpuId;
     d.g4id  = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
