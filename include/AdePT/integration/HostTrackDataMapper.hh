@@ -18,9 +18,9 @@ class G4PrimaryParticle;
 
 /// @brief A helper struct to store the data that is stored exclusively on the CPU
 struct HostTrackData {
-  int g4id                               = 0;  // the Geant4 track ID
-  int g4parentid                         = -1; // the Geant4 parent ID
-  uint64_t gpuId                         = 0;  // the GPU’s 64-bit track ID
+  int g4id                               = 0; // the Geant4 track ID
+  int g4parentid                         = 0; // the Geant4 parent ID
+  uint64_t gpuId                         = 0; // the GPU’s 64-bit track ID
   G4PrimaryParticle *primary             = nullptr;
   G4VProcess *creatorProcess             = nullptr;
   G4VUserTrackInformation *userTrackInfo = nullptr;
