@@ -117,10 +117,12 @@ public:
     gpuToIndex[gpuId] = idx;
     hostDataVec.emplace_back(); // in-place default construction
 
-    auto &d             = hostDataVec.back();
-    d.gpuId             = gpuId;
-    d.g4id              = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
-    g4idToGpuId[d.g4id] = gpuId; // required for CPU↔GPU↔CPU ping-pong
+    auto &d = hostDataVec.back();
+    d.gpuId = gpuId;
+    d.g4id  = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
+    // Note: this is a hot path and increases run time significantly, but is needed for correct re-mapping of tracks
+    // that go from GPU to CPU back to GPU, as they need to be assigned the same ID on the GPU
+    g4idToGpuId[d.g4id] = gpuId;
     return d;
   }
 
