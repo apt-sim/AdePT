@@ -894,6 +894,11 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
 
     // LeakStatus::OutOfGPURegion: just give track back to G4
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
+
+    // the track is now handled on CPU. The hostTrackData can safely be deleted, except for the g4idToGPUid mapping,
+    // as the GPU id would need to be the same for the reproducibility if the track returns to the GPU, as the trackID
+    // is used for seeding the rng
+    fHostTrackDataMapper->retireToCPU(track.trackId);
   }
 }
 

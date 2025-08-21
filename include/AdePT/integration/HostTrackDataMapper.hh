@@ -44,6 +44,16 @@ struct HostTrackData {
 // such as the pointer to the creator process, the G4 primary particle, and the G4VUserTrackInformation
 class HostTrackDataMapper {
 public:
+  ~HostTrackDataMapper()
+  {
+    // Clear all memory upon destruction
+    gpuToIndex.clear();
+    gpuToIndex.rehash(0);
+    g4idToGpuId.clear();
+    g4idToGpuId.rehash(0);
+    std::vector<HostTrackData>().swap(hostDataVec);
+  }
+
   // Using a hash map to find the correct index for a given GPU id and then a vector for all the CPU-only data
   /// Call once at the start of each event, so we can clear and reserve
   void beginEvent(int eventID, size_t expectedTracks = 1'000'000)
@@ -53,8 +63,9 @@ public:
 
       // for debugging:
       // should be 0 unless there are no GPU regions, in that case tracks that are created on the GPU
-      // and die on the CPU will still be in the mapper.
-      // std::cout << " CLEARING HostTrackDataMapper OF SIZE " << gpuToIndex.size() << std::endl;
+      // and die on the CPU will still be listed in g4idToGpuId
+      // std::cout << " CLEARING HostTrackDataMapper size of gpuToIndex " << gpuToIndex.size() << " size of g4idToGPUid
+      // " << g4idToGpuId.size() << " size of hostDataVec " << hostDataVec.size() << std::endl;
 
       gpuToIndex.clear();
       gpuToIndex.max_load_factor(0.5f);
@@ -113,16 +124,18 @@ public:
 
   HostTrackData &create(uint64_t gpuId, bool useNewId = true)
   {
-    const int idx     = static_cast<int>(hostDataVec.size());
-    gpuToIndex[gpuId] = idx;
-    hostDataVec.emplace_back(); // in-place default construction
+    const int idx = static_cast<int>(hostDataVec.size());
+    hostDataVec.emplace_back();            // 1) add the element
+    HostTrackData &d = hostDataVec.back(); // 2) take reference
 
-    auto &d = hostDataVec.back();
     d.gpuId = gpuId;
     d.g4id  = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
+
+    gpuToIndex.emplace(gpuId, idx); // 3) map gpuId -> slot
     // Note: this is a hot path and increases run time significantly, but is needed for correct re-mapping of tracks
     // that go from GPU to CPU back to GPU, as they need to be assigned the same ID on the GPU
-    g4idToGpuId[d.g4id] = gpuId;
+    g4idToGpuId.emplace(d.g4id, gpuId); // 4) reverse map
+
     return d;
   }
 
@@ -133,9 +146,9 @@ public:
     if (it == gpuToIndex.end()) return; // already gone
     int idx  = it->second;
     int last = int(hostDataVec.size()) - 1;
-    // optional: delete unused G4 ids. However, this is problematic as the IDs of killed tracks might require lookup
-    // when the parent id is set. Therefore unused for now int g4idToErase = hostDataVec[idx].g4id; // optional: delete
-    // unused g4 ids
+
+    // unused g4 id
+    const int g4idToErase = hostDataVec[idx].g4id;
     if (idx != last) {
       // move last element into idx
       std::swap(hostDataVec[idx], hostDataVec[last]);
@@ -145,7 +158,27 @@ public:
     hostDataVec.pop_back();
     gpuToIndex.erase(it);
     // second part of deletion of g4 ids
-    // g4idToGpuId.erase(g4idToErase);
+    g4idToGpuId.erase(g4idToErase);
+  }
+
+  // Free the big struct + index, keep g4id->gpuId for possible future reuse
+  // This is needed for reproducibility. Since the track ID is used to seed the RNG
+  // if a particle from the GPU goes to the CPU and then back to the GPU, we must ensure that it gets the same GPU id.
+  // therefore, when we retire to the CPU, we must not delete the g4idToGpuId to keep the link!
+  void retireToCPU(uint64_t gpuId)
+  {
+    auto it = gpuToIndex.find(gpuId);
+    if (it == gpuToIndex.end()) return;
+    int idx  = it->second;
+    int last = int(hostDataVec.size()) - 1;
+
+    if (idx != last) {
+      std::swap(hostDataVec[idx], hostDataVec[last]);
+      gpuToIndex[hostDataVec[idx].gpuId] = idx;
+    }
+    hostDataVec.pop_back();
+    gpuToIndex.erase(it);
+    // NOTE: intentionally *do not* erase g4idToGpuId here
   }
 
   /// @brief Whether an entry exists in the GPU to Index map for the given GPU id
