@@ -23,6 +23,7 @@ enum class EventState : unsigned char {
   Transporting,
   WaitingForTransportToFinish,
   RequestHitFlush,
+  HitBufferSwapped,
   FlushingHits,
   HitsFlushed,
   FlushingTracks,

@@ -716,7 +716,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   constexpr double tolerance = 10. * vecgeom::kTolerance;
 
   // Build the secondaries and put them back on the Geant4 stack
-  if (debugLevel > 1) {
+  if (debugLevel > 6) {
     std::cout << "[" << GetThreadID() << "] fromDevice[ " << trackIndex << "]: pdg " << track.pdg << " parent id "
               << track.parentId << " kinetic energy " << track.eKin << " position " << track.position[0] << " "
               << track.position[1] << " " << track.position[2] << " direction " << track.direction[0] << " "
