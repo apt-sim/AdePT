@@ -1518,8 +1518,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             eventStates[threadId] = EventState::RequestHitFlush;
           }
           if (state >= EventState::RequestHitFlush && gpuState.stats->perEventInFlight[threadId] != 0) {
+            // FIXME: this case should not happen and is related to some late injection that shows up too late in the
+            // perEventInFlight for now, just reset state to WaitingForTransportToFinish and notify with a error message
             std::cerr << "ERROR thread " << threadId << " is in state " << static_cast<unsigned int>(state)
-                      << " and occupancy is " << gpuState.stats->perEventInFlight[threadId] << "\n";
+                      << " and occupancy is " << gpuState.stats->perEventInFlight[threadId]
+                      << " ... Resetting state to WaitingForTransportToFinish\n";
+            eventStates[threadId] = EventState::WaitingForTransportToFinish;
           }
         }
 
