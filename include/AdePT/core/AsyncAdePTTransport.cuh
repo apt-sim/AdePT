@@ -809,7 +809,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     std::unique_lock lock(context->mutex);
     context->cv.wait(lock);
 
-    AdvanceEventStates(EventState::HitBufferSwapped, EventState::FlushingHits, eventStates);
+    AdvanceEventStates(EventState::SwappingHitBuffers, EventState::FlushingHits, eventStates);
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers, debugLevel);
 
@@ -1583,7 +1583,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             COPCORE_CUDA_CHECK(
                 cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
             gpuState.fHitScoring->SwapDeviceBuffers(gpuState.stream);
-            AdvanceEventStates(EventState::RequestHitFlush, EventState::HitBufferSwapped, eventStates);
+            AdvanceEventStates(EventState::RequestHitFlush, EventState::SwappingHitBuffers, eventStates);
             hitProcessing->cv.notify_one();
           }
         }
