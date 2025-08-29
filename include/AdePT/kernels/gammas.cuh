@@ -30,7 +30,10 @@ __global__ void __launch_bounds__(256, 1)
                     Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
                     const bool returnLastStep)
 {
-  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
+ constexpr double m_xmin{ -10000 }, m_ymin{ -10000 }, m_zmin{ -5000 }, m_xmax{ 10000 }, m_ymax{ 10000 }, m_zmax{ 25000 }; 
+
+
+  constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -560,7 +563,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #endif
         // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
         surviveFlag = true;
-        leakReason  = LeakStatus::GammaNuclear;
+        // leakReason  = LeakStatus::GammaNuclear;
       }
       } // end switch (winnerProcessIndex)
 
@@ -570,7 +573,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // setting the finish on CPU status
 
     if (surviveFlag) {
-      if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      // stop particles outside of the Gauss world, this emulates the world cut 
+      if ( pos[0] > m_xmax || pos[0] < m_xmin || pos[1] > m_ymax || pos[1] < m_ymin || pos[2] > m_zmax || pos[2] < m_zmin || eKin < 1. ) { 
+        edep += eKin;
+        eKin = 0;
+        surviveFlag = false;
+      } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf(
               "Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "

@@ -28,6 +28,8 @@
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 
+#include <cinttypes>
+
 using VolAuxData = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
@@ -59,6 +61,9 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, Trac
   constexpr double restMass         = copcore::units::kElectronMassC2;
   constexpr int Nvar                = 6;
   constexpr int max_iterations      = 10;
+
+ constexpr double m_xmin{ -10000 }, m_ymin{ -10000 }, m_zmin{ -5000 }, m_xmax{ 10000 }, m_ymax{ 10000 }, m_zmax{ 25000 }; 
+
 
 #ifdef ADEPT_USE_EXT_BFIELD
   using Field_t = GeneralMagneticField;
@@ -854,7 +859,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         case 3: {
           // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
           surviveFlag = true;
-          leakReason  = LeakStatus::LeptonNuclear;
+          // leakReason  = LeakStatus::LeptonNuclear;
           break;
         }
         }
@@ -964,7 +969,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     // setting the finish on CPU status
 
     if (surviveFlag) {
-      if (++currentTrack.looperCounter > 500) {
+      // stop particles outside of the Gauss world, this emulates the world cut 
+      if ( pos[0] > m_xmax || pos[0] < m_xmin || pos[1] > m_ymax || pos[1] < m_ymin || pos[2] > m_zmax || pos[2] < m_zmin || eKin < 1. ) { 
+        energyDeposit += eKin;
+        eKin = 0;
+        surviveFlag = false;
+      } else if (++currentTrack.looperCounter > 500) {
         // Kill loopers that are not advancing in free space or are scraping at a boundary
         if (printErrors)
           printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
@@ -974,12 +984,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                  geometryStepLength, geometricalStepLengthFromPhysics, safety);
+        energyDeposit += eKin;
+        eKin = 0;
         surviveFlag = false;
       } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
                  currentTrack.zeroStepCounter);
+        energyDeposit += eKin;
+        eKin = 0;
         surviveFlag = false;
       }
     }
