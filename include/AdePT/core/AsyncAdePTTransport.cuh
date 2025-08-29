@@ -809,7 +809,7 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
     std::unique_lock lock(context->mutex);
     context->cv.wait(lock);
 
-    AdvanceEventStates(EventState::RequestHitFlush, EventState::FlushingHits, eventStates);
+    AdvanceEventStates(EventState::SwappingHitBuffers, EventState::FlushingHits, eventStates);
     gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
     const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers, debugLevel);
 
@@ -1275,11 +1275,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // If not extracting tracks from a previous event, freeze the current leak queues and swap the next ones in
         if (gpuState.extractState.load(std::memory_order_acquire) == ExtractState::Idle && leakExtractionNeeded) {
 
-          // if (gpuState.extractState.load(std::memory_order_acquire) == ExtractState::Idle &&
-          //   std::any_of(eventStates.begin(), eventStates.end(), [](const auto &eventState) {
-          //     return eventState.load(std::memory_order_acquire) == EventState::HitsFlushed;
-          //   })) {
-
           // Transport can continue
           leakExtractionNeeded = false;
 
@@ -1523,8 +1518,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             eventStates[threadId] = EventState::RequestHitFlush;
           }
           if (state >= EventState::RequestHitFlush && gpuState.stats->perEventInFlight[threadId] != 0) {
+            // FIXME: this case should not happen and is related to some late injection that shows up too late in the
+            // perEventInFlight for now, just reset state to WaitingForTransportToFinish and notify with a error message
             std::cerr << "ERROR thread " << threadId << " is in state " << static_cast<unsigned int>(state)
-                      << " and occupancy is " << gpuState.stats->perEventInFlight[threadId] << "\n";
+                      << " and occupancy is " << gpuState.stats->perEventInFlight[threadId]
+                      << " ... Resetting state to WaitingForTransportToFinish\n";
+            eventStates[threadId] = EventState::WaitingForTransportToFinish;
           }
         }
 
@@ -1584,6 +1583,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             COPCORE_CUDA_CHECK(
                 cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
             gpuState.fHitScoring->SwapDeviceBuffers(gpuState.stream);
+            AdvanceEventStates(EventState::RequestHitFlush, EventState::SwappingHitBuffers, eventStates);
             hitProcessing->cv.notify_one();
           }
         }
@@ -1600,7 +1600,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
       if (debugLevel >= 3 && inFlight > 0 || (debugLevel >= 2 && iteration % 500 == 0)) {
         auto elapsedTime = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count();
-        std::cerr << "Time elapsed: " << std::fixed << std::setprecision(6) << elapsedTime << "s ";
+        std::cerr << "\nTime elapsed: " << std::fixed << std::setprecision(6) << elapsedTime << "s ";
         std::cerr << inFlight << " in flight ";
         std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
                   << gpuState.stats->inFlight[ParticleType::Positron] << " "
@@ -1618,7 +1618,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         gpuState.fHitScoring->PrintHostBufferState();
         gpuState.fHitScoring->PrintDeviceBufferStates();
         if (debugLevel >= 4) {
-          std::cerr << "\n\tper event: ";
+          std::cerr << "\tper event: ";
           for (unsigned int i = 0; i < numThreads; ++i) {
             std::cerr << i << ": " << gpuState.stats->perEventInFlight[i]
                       << " (s=" << static_cast<unsigned short>(eventStates[i].load(std::memory_order_acquire)) << ")\t";
