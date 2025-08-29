@@ -25,7 +25,9 @@ struct Track {
   double globalTime{0.};
 
   float weight{0.};
+#ifndef USE_SPLIT_KERNELS
   float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
+#endif
   // default values taken from G4HepEmMSCTrackData.hh
   float initialRange{1.0e+21};
   float dynamicRangeFactor{0.04};
@@ -67,6 +69,7 @@ struct Track {
 
 #ifdef USE_SPLIT_KERNELS
   bool propagated{false};
+  bool hepEmTrackExists{false};
 
   // Variables used to store results from G4HepEM
   bool restrictedPhysicalStepLength{false};
@@ -146,12 +149,13 @@ struct Track {
   __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
                                            const vecgeom::NavigationState &parentNavState, double gTime)
   {
+#ifndef USE_SPLIT_KERNELS
     // The caller is responsible to branch a new RNG state and to set the energy.
     this->numIALeft[0] = -1.0;
     this->numIALeft[1] = -1.0;
     this->numIALeft[2] = -1.0;
     this->numIALeft[3] = -1.0;
-
+#endif
     this->initialRange       = 1.0e+21;
     this->dynamicRangeFactor = 0.04;
     this->tlimitMin          = 1.0E-7;

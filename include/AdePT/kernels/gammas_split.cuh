@@ -81,20 +81,19 @@ __global__ void GammaHowFar(Track *gammas, Track *leaks, G4HepEmGammaTrack *hepE
       continue;
     }
 
-    // Init a track with the needed data to call into G4HepEm.
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
-    gammaTrack.ReSet();
-    G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(currentTrack.eKin);
-    theTrack->SetMCIndex(auxData.fMCIndex);
-
+    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
+    if (!currentTrack.hepEmTrackExists) {
+      // Init a track with the needed data to call into G4HepEm.
+      gammaTrack.ReSet();
+      theTrack->SetEKin(currentTrack.eKin);
+      theTrack->SetMCIndex(auxData.fMCIndex);
+      currentTrack.hepEmTrackExists = true;
+    }
     // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
     // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
-    // currentTrack.numIALeft[0] are updated later
-    if (currentTrack.numIALeft[0] <= 0.0) {
+    if (theTrack->GetNumIALeft(0) <= 0.0) {
       theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
-    } else {
-      theTrack->SetNumIALeft(currentTrack.numIALeft[0], 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
@@ -210,7 +209,7 @@ __global__ void GammaSetupInteractions(Track *gammas, Track *leaks, G4HepEmGamma
 
       // Reset number of interaction left for the winner discrete process also in the currentTrack
       // (SampleInteraction() resets it for theTrack), will be resampled in the next iteration.
-      currentTrack.numIALeft[0] = -1.0;
+      theTrack->SetNumIALeft(-1.0, 0);
 
       if (theTrack->GetWinnerProcessIndex() < 3) {
         interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
@@ -274,11 +273,6 @@ __global__ void GammaRelocation(Track *gammas, Track *leaks, G4HepEmGammaTrack *
 
       G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
-      // Save the `number-of-interaction-left` in our track.
-      // Use index 0 since numIALeft stores for gammas only the total macroscopic cross section
-      double numIALeft          = theTrack->GetNumIALeft(0);
-      currentTrack.numIALeft[0] = numIALeft;
-
 #ifdef ADEPT_USE_SURF
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, hitsurf_index, currentTrack.nextState);
 #else
@@ -317,6 +311,7 @@ __global__ void GammaRelocation(Track *gammas, Track *leaks, G4HepEmGammaTrack *
       const int nextlvolID          = currentTrack.navState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
       if (nextauxData.fGPUregion > 0) {
+        theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();
       } else {
         // To be safe, just push a bit the track exiting the GPU region to make sure
@@ -612,7 +607,8 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
     // Using same hardcoded very LowEnergyThreshold as G4HepEm
     if (newEnergyGamma > LowEnergyThreshold) {
       currentTrack.eKin = newEnergyGamma;
-      currentTrack.dir  = newDirGamma;
+      theTrack->SetEKin(currentTrack.eKin);
+      currentTrack.dir = newDirGamma;
       survive();
     } else {
       edep += newEnergyGamma;
