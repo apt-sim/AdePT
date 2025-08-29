@@ -112,30 +112,34 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
       continue;
     }
 
-    // Init a track with the needed data to call into G4HepEm.
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
-    elTrack.ReSet();
-    G4HepEmTrack *theTrack = elTrack.GetTrack();
-    theTrack->SetEKin(currentTrack.eKin);
-    theTrack->SetMCIndex(auxData.fMCIndex);
-    theTrack->SetOnBoundary(currentTrack.navState.IsOnBoundary());
-    theTrack->SetCharge(Charge);
-    G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-    // the default is 1.0e21 but there are float vs double conversions, so we check for 1e20
-    mscData->fIsFirstStep        = currentTrack.initialRange > 1.0e+20;
-    mscData->fInitialRange       = currentTrack.initialRange;
-    mscData->fDynamicRangeFactor = currentTrack.dynamicRangeFactor;
-    mscData->fTlimitMin          = currentTrack.tlimitMin;
+    G4HepEmTrack *theTrack        = elTrack.GetTrack();
+    G4HepEmMSCTrackData *mscData  = elTrack.GetMSCTrackData();
+    if (!currentTrack.hepEmTrackExists) {
+      // Init a track with the needed data to call into G4HepEm.
+      elTrack.ReSet();
+      theTrack->SetEKin(currentTrack.eKin);
+      theTrack->SetMCIndex(auxData.fMCIndex);
+      theTrack->SetOnBoundary(currentTrack.navState.IsOnBoundary());
+      theTrack->SetCharge(Charge);
+      // the default is 1.0e21 but there are float vs double conversions, so we check for 1e20
+      mscData->fIsFirstStep         = currentTrack.initialRange > 1.0e+20;
+      mscData->fInitialRange        = currentTrack.initialRange;
+      mscData->fDynamicRangeFactor  = currentTrack.dynamicRangeFactor;
+      mscData->fTlimitMin           = currentTrack.tlimitMin;
+      currentTrack.hepEmTrackExists = true;
+    } else {
+      theTrack->SetEnergyDeposit(0);
+      mscData->fIsFirstStep = false;
+    }
 
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Sample the `number-of-interaction-left` and put it into the track.
     for (int ip = 0; ip < 4; ++ip) {
-      double numIALeft = currentTrack.numIALeft[ip];
-      if (numIALeft <= 0) {
-        numIALeft = -std::log(currentTrack.Uniform());
+      if (theTrack->GetNumIALeft(ip) <= 0) {
+        theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), ip);
       }
-      theTrack->SetNumIALeft(numIALeft, ip);
     }
 
     G4HepEmElectronManager::HowFarToDiscreteInteraction(&g4HepEmData, &g4HepEmPars, &elTrack);
@@ -187,11 +191,6 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     }
 
     G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
-
-    // Remember MSC values for the next step(s).
-    currentTrack.initialRange       = mscData->fInitialRange;
-    currentTrack.dynamicRangeFactor = mscData->fDynamicRangeFactor;
-    currentTrack.tlimitMin          = mscData->fTlimitMin;
 
     // Particles that were not cut or leaked are added to the queue used by the next kernels
     propagationQueue->push_back(slot);
@@ -355,6 +354,7 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
 
     // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
     currentTrack.eKin = theTrack->GetEKin();
+    theTrack->SetEKin(currentTrack.eKin);
 
     // Update the flight times of the particle
     // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
@@ -430,8 +430,7 @@ __global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepE
 
     // Save the `number-of-interaction-left` in our track.
     for (int ip = 0; ip < 4; ++ip) {
-      double numIALeft           = theTrack->GetNumIALeft(ip);
-      currentTrack.numIALeft[ip] = numIALeft;
+      double numIALeft = theTrack->GetNumIALeft(ip);
     }
 
     // Set Non-stopped, on-boundary tracks for relocation
@@ -473,7 +472,7 @@ __global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepE
         reached_interaction = false;
         // Reset number of interaction left for the winner discrete process.
         // (Will be resampled in the next iteration.)
-        currentTrack.numIALeft[theTrack->GetWinnerProcessIndex()] = -1.0;
+        theTrack->SetNumIALeft(-1.0, theTrack->GetWinnerProcessIndex());
       }
     } else {
       // Stopped positrons annihilate, stopped electrons score and die
@@ -495,7 +494,7 @@ __global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepE
       if (!currentTrack.stopped) {
         // Reset number of interaction left for the winner discrete process.
         // (Will be resampled in the next iteration.)
-        currentTrack.numIALeft[theTrack->GetWinnerProcessIndex()] = -1.0;
+        theTrack->SetNumIALeft(-1.0, theTrack->GetWinnerProcessIndex());
         // Enqueue the particles
         if (theTrack->GetWinnerProcessIndex() < 3) {
           interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
@@ -662,6 +661,7 @@ __global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectr
       const int nextlvolID          = currentTrack.navState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
       if (nextauxData.fGPUregion > 0) {
+        theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();
       } else {
         // To be safe, just push a bit the track exiting the GPU region to make sure
@@ -850,6 +850,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
     }
 
     currentTrack.eKin -= deltaEkin;
+    theTrack->SetEKin(currentTrack.eKin);
 
     // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
     if (currentTrack.eKin < g4HepEmPars.fElectronTrackingCut) {
@@ -982,6 +983,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     }
 
     currentTrack.eKin -= deltaEkin;
+    theTrack->SetEKin(currentTrack.eKin);
 
     // if below tracking cut, deposit energy for electrons (positrons are annihilated later) and stop particles
     if (currentTrack.eKin < g4HepEmPars.fElectronTrackingCut) {
