@@ -859,7 +859,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         case 3: {
           // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
           surviveFlag = true;
-          // leakReason  = LeakStatus::LeptonNuclear;
+          leakReason  = LeakStatus::LeptonNuclear;
           break;
         }
         }

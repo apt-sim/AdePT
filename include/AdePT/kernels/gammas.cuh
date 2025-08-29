@@ -563,7 +563,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #endif
         // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
         surviveFlag = true;
-        // leakReason  = LeakStatus::GammaNuclear;
+        leakReason  = LeakStatus::GammaNuclear;
       }
       } // end switch (winnerProcessIndex)
 
