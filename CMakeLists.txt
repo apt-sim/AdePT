@@ -415,6 +415,18 @@ if(ADEPT_USE_EXT_BFIELD)
   )
 endif()
 
+# Export config macros to consumers (Athena, etc.)
+target_compile_definitions(AdePT_G4_integration
+  INTERFACE
+    ASYNC_MODE=$<IF:$<BOOL:${ASYNC_MODE}>,1,0>
+    ADEPT_USE_SURF=$<IF:$<BOOL:${ADEPT_USE_SURF}>,1,0>
+    ADEPT_MIXED_PRECISION=$<IF:$<BOOL:${ADEPT_MIXED_PRECISION}>,1,0>
+    USE_SPLIT_KERNELS=$<IF:$<BOOL:${USE_SPLIT_KERNELS}>,1,0>
+    DEBUG_SINGLE_THREAD=$<IF:$<BOOL:${DEBUG_SINGLE_THREAD}>,1,0>
+    ADEPT_USE_EXT_BFIELD=$<IF:$<BOOL:${ADEPT_USE_EXT_BFIELD}>,1,0>
+    ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}
+)
+
 #set_target_properties(AdePT_G4_integration
 #  PROPERTIES
 #    CUDA_SEPARABLE_COMPILATION ON
