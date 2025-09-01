@@ -22,6 +22,10 @@
 #include <memory>
 #include <vector>
 
+#ifndef ASYNC_MODE
+#  error "ASYNC_MODE is not defined."
+#endif
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 class AdePTTrackingManager : public G4VTrackingManager {
