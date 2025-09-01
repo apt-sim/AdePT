@@ -895,10 +895,16 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
     // LeakStatus::OutOfGPURegion: just give track back to G4
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
 
-    // the track is now handled on CPU. The hostTrackData can safely be deleted, except for the g4idToGPUid mapping,
-    // as the GPU id would need to be the same for the reproducibility if the track returns to the GPU, as the trackID
-    // is used for seeding the rng
-    fHostTrackDataMapper->retireToCPU(track.trackId);
+    // NOTE: Unfortunately, the retiring of tracks that are leaving the GPU region is not safe this way, as the handling
+    // of leaked tracks may happen before the GPU steps are processed. In that case, if a parent leaves the GPU region
+    // and the track is retired, the produced secondaries cannot find the entries for their parents anymore. Therefore,
+    // this option is disabled for now! Idea: The track is now handled on CPU. The hostTrackData could be safely deleted
+    // (if leaks were guaranteed to be handled after the processing of steps), except for the g4idToGPUid mapping, as
+    // the GPU id would need to be the same for the reproducibility if the track returns to the GPU, as the trackID is
+    // used for seeding the rng
+
+    // unsafe for now, see comment above
+    // fHostTrackDataMapper->retireToCPU(track.trackId);
   }
 }
 
