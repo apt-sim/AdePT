@@ -215,8 +215,8 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
   using Field_t = UniformMagneticField;
 #endif
   using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
 
   auto &magneticField = *gMagneticField;
 
