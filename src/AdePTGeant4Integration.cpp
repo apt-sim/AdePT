@@ -614,7 +614,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
   // aTrack->SetProperTime(0);                                                                // Missing data
   if (const auto preVolume = aPreG4TouchableHandle->GetVolume();
-      preVolume != nullptr) {                          // protect against nullptr if postNavState is outside
+      preVolume != nullptr) {                          // protect against nullptr if NavState is outside
     aTrack->SetTouchableHandle(aPreG4TouchableHandle); // Real data
   }
   if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
