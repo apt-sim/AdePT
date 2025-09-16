@@ -528,6 +528,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
         // the parent must exist in the mapper, as the parent must have been created by AdePT,
         // as e-/e+/gamma created by G4 never arrive with a stepCounter = 0
 
+#ifdef DEBUG
         if (aGPUHit->fStepCounter == 0 && actions && !fHostTrackDataMapper->contains(aGPUHit->fParentID)) {
           std::cerr << "\033[1;31mERROR: PARENT TRACK ID NOT FOUND (trackID = " << aGPUHit->fTrackID
                     << ", parentID = " << aGPUHit->fParentID << ") "
@@ -538,6 +539,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
                     << " thread id " << aGPUHit->threadId << " eventid " << aGPUHit->fEventId << "\033[0m" << std::endl;
           std::abort();
         }
+#endif
 
         HostTrackData &p     = fHostTrackDataMapper->get(aGPUHit->fParentID);
         hostTData.g4parentid = p.g4id;
