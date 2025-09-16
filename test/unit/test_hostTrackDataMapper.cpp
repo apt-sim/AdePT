@@ -21,6 +21,9 @@ static int test_beginEvent_clear_and_reserve()
   // Event 1: create something
   m.beginEvent(/*eventID*/ 1, /*expectedTracks*/ 8);
   auto &d1 = m.create(/*gpuId*/ 100u, /*useNewId=*/false); // g4id = 100
+  CHECK(d1.gpuId == 100u);
+  CHECK(d1.g4id == 100);
+  CHECK(&d1 == &m.get(100u)); // alias check
   CHECK(m.contains(100u));
   uint64_t gotGpu{};
   CHECK(m.getGPUId(/*g4id*/ 100, gotGpu) == true);
