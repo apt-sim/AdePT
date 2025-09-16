@@ -527,6 +527,18 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
       if (aGPUHit->fParentID != 0) {
         // the parent must exist in the mapper, as the parent must have been created by AdePT,
         // as e-/e+/gamma created by G4 never arrive with a stepCounter = 0
+
+        if (aGPUHit->fStepCounter == 0 && actions && !fHostTrackDataMapper->contains(aGPUHit->fParentID)) {
+          std::cerr << "\033[1;31mERROR: PARENT TRACK ID NOT FOUND (trackID = " << aGPUHit->fTrackID
+                    << ", parentID = " << aGPUHit->fParentID << ") "
+                    << " stepLimProcessId " << aGPUHit->fStepLimProcessId << " pdg charge "
+                    << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter
+                    << " steplength " << aGPUHit->fStepLength << " global time " << aGPUHit->fGlobalTime
+                    << " local time " << aGPUHit->fLocalTime << " isLasteStep " << aGPUHit->fLastStepOfTrack
+                    << " thread id " << aGPUHit->threadId << " eventid " << aGPUHit->fEventId << "\033[0m" << std::endl;
+          std::abort();
+        }
+
         HostTrackData &p     = fHostTrackDataMapper->get(aGPUHit->fParentID);
         hostTData.g4parentid = p.g4id;
       } else {
@@ -898,16 +910,11 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
     // LeakStatus::OutOfGPURegion: just give track back to G4
     G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
 
-    // NOTE: Unfortunately, the retiring of tracks that are leaving the GPU region is not safe this way, as the handling
-    // of leaked tracks may happen before the GPU steps are processed. In that case, if a parent leaves the GPU region
-    // and the track is retired, the produced secondaries cannot find the entries for their parents anymore. Therefore,
-    // this option is disabled for now! Idea: The track is now handled on CPU. The hostTrackData could be safely deleted
-    // (if leaks were guaranteed to be handled after the processing of steps), except for the g4idToGPUid mapping, as
-    // the GPU id would need to be the same for the reproducibility if the track returns to the GPU, as the trackID is
-    // used for seeding the rng
-
-    // unsafe for now, see comment above
-    // fHostTrackDataMapper->retireToCPU(track.trackId);
+    // The track is now handled on CPU. To reduce the map lookup time, the hostTrackData can be safely deleted because
+    // the leaks are guaranteed to be handled after the processing of steps. Only the g4idToGPUid mapping cannot be
+    // deleted as the GPU id needs to be the same for the reproducibility if the track returns to the GPU, as the
+    // trackID is used for seeding the rng
+    fHostTrackDataMapper->retireToCPU(track.trackId);
   }
 }
 

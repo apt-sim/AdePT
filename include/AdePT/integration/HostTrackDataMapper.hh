@@ -87,41 +87,11 @@ public:
   HostTrackData &get(uint64_t gpuId) noexcept
   {
     auto it = gpuToIndex.find(gpuId); // guaranteed to exist here
-    // assert(it != gpuToIndex.end());
+    assert(it != gpuToIndex.end());
     return hostDataVec[it->second];
   }
 
-  /// @brief Sets the gpuid by reference and returns whether the entry already existed
-  /// @param g4id int G4 id that is checked
-  /// @param gpuid uint64 gpu id that is returned
-  /// @return whether the GPU id already existed
-  bool tryGetGPUId(int g4id, uint64_t &gpuid)
-  {
-    auto it = g4idToGpuId.find(g4id);
-    if (it == g4idToGpuId.end()) {
-      gpuid = static_cast<uint64_t>(g4id);
-      return false;
-    }
-    gpuid = it->second;
-    return true;
-  }
-
-  HostTrackData &getOrCreate(uint64_t gpuId, bool useNewId = true)
-  {
-    auto [it, inserted] = gpuToIndex.emplace(gpuId, -1);
-    if (!inserted) return hostDataVec[it->second];
-
-    const int idx = static_cast<int>(hostDataVec.size());
-    hostDataVec.emplace_back(); // in-place default construction
-    it->second = idx;
-
-    auto &d             = hostDataVec.back();
-    d.gpuId             = gpuId;
-    d.g4id              = useNewId ? currentGpuReturnG4ID-- : static_cast<int>(gpuId);
-    g4idToGpuId[d.g4id] = gpuId;
-    return d;
-  }
-
+  // creates new entry in HostTrackData map
   HostTrackData &create(uint64_t gpuId, bool useNewId = true)
   {
     const int idx = static_cast<int>(hostDataVec.size());
@@ -137,6 +107,53 @@ public:
     g4idToGpuId.emplace(d.g4id, gpuId); // 4) reverse map
 
     return d;
+  }
+
+  /// Ensure a live HostTrackData slot exists for this GPU track. If the slot was
+  /// retired (or never existed), create it and bind it to the given G4 id.
+  /// Preserves reproducibility by keeping the original g4id.
+  /// @return reference to the active HostTrackData.
+  inline HostTrackData &activateForGPU(uint64_t gpuId, int g4id, bool haveReverse) noexcept
+  {
+    // Single lookup/insert for gpuToIndex:
+    auto [it, inserted] = gpuToIndex.try_emplace(gpuId, static_cast<int>(hostDataVec.size()));
+    if (!inserted) return hostDataVec[it->second];
+
+    // We reserved in beginEvent(), so emplace_back() should not reallocate.
+    hostDataVec.emplace_back();
+    HostTrackData &d = hostDataVec.back();
+    d.gpuId          = gpuId;
+    d.g4id           = g4id; // preserve CPU id for reproducibility
+
+    // Reverse map: only touch if missing
+    if (!haveReverse) {
+      g4idToGpuId.emplace(g4id, gpuId);
+    }
+#ifdef DEBUG
+    else {
+      auto rit = g4idToGpuId.find(g4id);
+      if (rit == g4idToGpuId.end() || rit->second != gpuId) {
+        std::cerr << "HostTrackDataMapper: inconsistent reverse map for g4id=" << g4id << std::endl;
+        std::abort();
+      }
+    }
+#endif
+    return d;
+  }
+
+  /// @brief Sets the gpuid by reference and returns whether the entry already existed
+  /// @param g4id int G4 id that is checked
+  /// @param gpuid uint64 gpu id that is returned
+  /// @return whether the GPU id already existed
+  bool getGPUId(int g4id, uint64_t &gpuid)
+  {
+    auto it = g4idToGpuId.find(g4id);
+    if (it == g4idToGpuId.end()) {
+      gpuid = static_cast<uint64_t>(g4id);
+      return false;
+    }
+    gpuid = it->second;
+    return true;
   }
 
   /// Call when a track (with given gpuId) is completely done:
