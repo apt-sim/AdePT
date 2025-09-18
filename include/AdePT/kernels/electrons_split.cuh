@@ -72,9 +72,10 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
-    currentTrack.preStepEKin = currentTrack.eKin;
-    currentTrack.preStepPos  = currentTrack.pos;
-    currentTrack.preStepDir  = currentTrack.dir;
+    currentTrack.preStepEKin       = currentTrack.eKin;
+    currentTrack.preStepGlobalTime = currentTrack.globalTime;
+    currentTrack.preStepPos        = currentTrack.pos;
+    currentTrack.preStepDir        = currentTrack.dir;
     currentTrack.stepCounter++;
     bool printErrors = false;
     if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
@@ -522,17 +523,20 @@ __global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepE
                                  currentTrack.weight,                                   // Track weight
                                  currentTrack.navState,                                 // Pre-step point navstate
                                  currentTrack.preStepPos,                               // Pre-step point position
-                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
-                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                 currentTrack.nextState,                      // Post-step point navstate
-                                 currentTrack.pos,                            // Post-step point position
-                                 currentTrack.dir,                            // Post-step point momentum direction
-                                 currentTrack.eKin,                           // Post-step point kinetic energy
-                                 currentTrack.globalTime,                     // global time
-                                 currentTrack.localTime,                      // local time
-                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                 isLastStep,                                  // whether this was the last step
-                                 currentTrack.stepCounter);                   // stepcounter
+                                 currentTrack.preStepDir,  // Pre-step point momentum direction
+                                 currentTrack.preStepEKin, // Pre-step point kinetic energy
+                                 currentTrack.nextState,   // Post-step point navstate
+                                 currentTrack.pos,         // Post-step point position
+                                 currentTrack.dir,         // Post-step point momentum direction
+                                 currentTrack.eKin,        // Post-step point kinetic energy
+                                 currentTrack.globalTime,  // global time
+                                 currentTrack.localTime,   // local time
+                                 currentTrack
+                                     .preStepGlobalTime // preStep global time
+                                         currentTrack.eventId,
+                                 currentTrack.threadId,     // eventID and threadID
+                                 isLastStep,                // whether this was the last step
+                                 currentTrack.stepCounter); // stepcounter
     }
   }
 }
@@ -633,26 +637,29 @@ __global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectr
     // Score
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
-                               currentTrack.parentId,                       // parent Track ID
-                               static_cast<short>(/*transport*/ 10),        // step limiting process ID
-                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
-                               elTrack.GetPStepLength(),                    // Step length
-                               energyDeposit,                               // Total Edep
-                               currentTrack.weight,                         // Track weight
-                               currentTrack.navState,                       // Pre-step point navstate
-                               currentTrack.preStepPos,                     // Pre-step point position
-                               currentTrack.preStepDir,                     // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                               currentTrack.nextState,                      // Post-step point navstate
-                               currentTrack.pos,                            // Post-step point position
-                               currentTrack.dir,                            // Post-step point momentum direction
-                               currentTrack.eKin,                           // Post-step point kinetic energy
-                               currentTrack.globalTime,                     // global time
-                               currentTrack.localTime,                      // local time
-                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               isLastStep,                                  // whether this was the last step
-                               currentTrack.stepCounter);                   // stepcounter
+                               currentTrack.trackId,                  // Track ID
+                               currentTrack.parentId,                 // parent Track ID
+                               static_cast<short>(/*transport*/ 10),  // step limiting process ID
+                               static_cast<char>(IsElectron ? 0 : 1), // Particle type
+                               elTrack.GetPStepLength(),              // Step length
+                               energyDeposit,                         // Total Edep
+                               currentTrack.weight,                   // Track weight
+                               currentTrack.navState,                 // Pre-step point navstate
+                               currentTrack.preStepPos,               // Pre-step point position
+                               currentTrack.preStepDir,               // Pre-step point momentum direction
+                               currentTrack.preStepEKin,              // Pre-step point kinetic energy
+                               currentTrack.nextState,                // Post-step point navstate
+                               currentTrack.pos,                      // Post-step point position
+                               currentTrack.dir,                      // Post-step point momentum direction
+                               currentTrack.eKin,                     // Post-step point kinetic energy
+                               currentTrack.globalTime,               // global time
+                               currentTrack.localTime,                // local time
+                               currentTrack
+                                   .preStepGlobalTime // preStep global time
+                                       currentTrack.eventId,
+                               currentTrack.threadId,     // eventID and threadID
+                               isLastStep,                // whether this was the last step
+                               currentTrack.stepCounter); // stepcounter
 
     if (cross_boundary) {
       // Move to the next boundary now that the Step is recorded
@@ -730,6 +737,7 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
                                  gamma1.eKin,                     // Post-step point kinetic energy
                                  gamma1.globalTime,               // global time
                                  0.,                              // local time
+                                 gamma1.globalTime,               // preStep global time for initializing step
                                  gamma1.eventId, gamma1.threadId, // eventID and threadID
                                  false,                           // whether this was the last step
                                  gamma1.stepCounter);             // whether this was the first step
@@ -748,6 +756,7 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
                                  gamma2.eKin,                     // Post-step point kinetic energy
                                  gamma2.globalTime,               // global time
                                  0.,                              // local time
+                                 gamma2.globalTime,               // preStep global time for initializing step
                                  gamma2.eventId, gamma2.threadId, // eventID and threadID
                                  false,                           // whether this was the last step
                                  gamma2.stepCounter);             // whether this was the first step
@@ -843,6 +852,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
                                  secondary.eKin,                        // Post-step point kinetic energy
                                  secondary.globalTime,                  // global time
                                  0.,                                    // local time
+                                 secondary.globalTime,                  // preStep global time for initializing step
                                  secondary.eventId, secondary.threadId, // eventID and threadID
                                  false,                                 // whether this was the last step
                                  secondary.stepCounter);                // whether this was the first step
@@ -885,6 +895,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
@@ -976,6 +987,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
                                  gamma.eKin,                    // Post-step point kinetic energy
                                  gamma.globalTime,              // global time
                                  0.,                            // local time
+                                 gamma.globalTime,              // preStep global time at initializing step
                                  gamma.eventId, gamma.threadId, // eventID and threadID
                                  false,                         // whether this was the last step
                                  gamma.stepCounter);            // whether this was the first step
@@ -1018,6 +1030,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
@@ -1106,6 +1119,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
                                  gamma1.eKin,                     // Post-step point kinetic energy
                                  gamma1.globalTime,               // global time
                                  0.,                              // local time
+                                 gamma1.globalTime,               // preStep global time at initializing step
                                  gamma1.eventId, gamma1.threadId, // eventID and threadID
                                  false,                           // whether this was the last step
                                  gamma1.stepCounter);
@@ -1137,6 +1151,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
                                  gamma2.eKin,                     // Post-step point kinetic energy
                                  gamma2.globalTime,               // global time
                                  0.,                              // local time
+                                 gamma2.globalTime,               // preStep global time at initializing step
                                  gamma2.eventId, gamma2.threadId, // eventID and threadID
                                  false,                           // whether this was the last step
                                  gamma2.stepCounter);
@@ -1166,6 +1181,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
@@ -1236,6 +1252,7 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter

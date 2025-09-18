@@ -80,9 +80,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     vecgeom::Vector3D<Precision> preStepPos(pos);
     auto dir = currentTrack.dir;
     vecgeom::Vector3D<Precision> preStepDir(dir);
-    double globalTime = currentTrack.globalTime;
-    double localTime  = currentTrack.localTime;
-    double properTime = currentTrack.properTime;
+    double globalTime        = currentTrack.globalTime;
+    double preStepGlobalTime = currentTrack.globalTime;
+    double localTime         = currentTrack.localTime;
+    double properTime        = currentTrack.properTime;
     vecgeom::NavigationState nextState;
     // the MCC vector is indexed by the logical volume id
 
@@ -337,20 +338,21 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
                                      /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* electron*/ 0,                     // Particle type
-                                     0,                                   // Step length
-                                     0,                                   // Total Edep
-                                     electron.weight,                     // Track weight
-                                     navState,                            // Pre-step point navstate
-                                     electron.pos,                        // Pre-step point position
-                                     electron.dir,                        // Pre-step point momentum direction
-                                     electron.eKin,                       // Pre-step point kinetic energy
-                                     navState,                            // Post-step point navstate
-                                     electron.pos,                        // Post-step point position
-                                     electron.dir,                        // Post-step point momentum direction
-                                     electron.eKin,                       // Post-step point kinetic energy
-                                     globalTime,                          // global time
-                                     0.,                                  // local time
+                                     /* electron*/ 0, // Particle type
+                                     0,               // Step length
+                                     0,               // Total Edep
+                                     electron.weight, // Track weight
+                                     navState,        // Pre-step point navstate
+                                     electron.pos,    // Pre-step point position
+                                     electron.dir,    // Pre-step point momentum direction
+                                     electron.eKin,   // Pre-step point kinetic energy
+                                     navState,        // Post-step point navstate
+                                     electron.pos,    // Post-step point position
+                                     electron.dir,    // Post-step point momentum direction
+                                     electron.eKin,   // Post-step point kinetic energy
+                                     globalTime,      // global time
+                                     0.,              // local time
+                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
                                      electron.eventId, electron.threadId, // eventID and threadID
                                      false,                               // whether this was the last step
                                      electron.stepCounter);               // whether this was the first step
@@ -381,20 +383,21 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, positron.trackId, positron.parentId,
                                      /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* positron*/ 1,                     // Particle type
-                                     0,                                   // Step length
-                                     0,                                   // Total Edep
-                                     positron.weight,                     // Track weight
-                                     navState,                            // Pre-step point navstate
-                                     positron.pos,                        // Pre-step point position
-                                     positron.dir,                        // Pre-step point momentum direction
-                                     positron.eKin,                       // Pre-step point kinetic energy
-                                     navState,                            // Post-step point navstate
-                                     positron.pos,                        // Post-step point position
-                                     positron.dir,                        // Post-step point momentum direction
-                                     positron.eKin,                       // Post-step point kinetic energy
-                                     globalTime,                          // global time
-                                     0.,                                  // local time
+                                     /* positron*/ 1, // Particle type
+                                     0,               // Step length
+                                     0,               // Total Edep
+                                     positron.weight, // Track weight
+                                     navState,        // Pre-step point navstate
+                                     positron.pos,    // Pre-step point position
+                                     positron.dir,    // Pre-step point momentum direction
+                                     positron.eKin,   // Pre-step point kinetic energy
+                                     navState,        // Post-step point navstate
+                                     positron.pos,    // Post-step point position
+                                     positron.dir,    // Post-step point momentum direction
+                                     positron.eKin,   // Post-step point kinetic energy
+                                     globalTime,      // global time
+                                     0.,              // local time
+                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
                                      positron.eventId, positron.threadId, // eventID and threadID
                                      false,                               // whether this was the last step
                                      positron.stepCounter);               // whether this was the first step
@@ -448,20 +451,21 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
                                      /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* electron*/ 0,                     // Particle type
-                                     0,                                   // Step length
-                                     0,                                   // Total Edep
-                                     electron.weight,                     // Track weight
-                                     navState,                            // Pre-step point navstate
-                                     electron.pos,                        // Pre-step point position
-                                     electron.dir,                        // Pre-step point momentum direction
-                                     electron.eKin,                       // Pre-step point kinetic energy
-                                     navState,                            // Post-step point navstate
-                                     electron.pos,                        // Post-step point position
-                                     electron.dir,                        // Post-step point momentum direction
-                                     electron.eKin,                       // Post-step point kinetic energy
-                                     globalTime,                          // global time
-                                     0.,                                  // local time
+                                     /* electron*/ 0, // Particle type
+                                     0,               // Step length
+                                     0,               // Total Edep
+                                     electron.weight, // Track weight
+                                     navState,        // Pre-step point navstate
+                                     electron.pos,    // Pre-step point position
+                                     electron.dir,    // Pre-step point momentum direction
+                                     electron.eKin,   // Pre-step point kinetic energy
+                                     navState,        // Post-step point navstate
+                                     electron.pos,    // Post-step point position
+                                     electron.dir,    // Post-step point momentum direction
+                                     electron.eKin,   // Post-step point kinetic energy
+                                     globalTime,      // global time
+                                     0.,              // local time
+                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
                                      electron.eventId, electron.threadId, // eventID and threadID
                                      false,                               // whether this was the last step
                                      electron.stepCounter);               // whether this was the first step
@@ -523,20 +527,21 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
                                      /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* electron*/ 0,                     // Particle type
-                                     0,                                   // Step length
-                                     0,                                   // Total Edep
-                                     electron.weight,                     // Track weight
-                                     navState,                            // Pre-step point navstate
-                                     electron.pos,                        // Pre-step point position
-                                     electron.dir,                        // Pre-step point momentum direction
-                                     electron.eKin,                       // Pre-step point kinetic energy
-                                     navState,                            // Post-step point navstate
-                                     electron.pos,                        // Post-step point position
-                                     electron.dir,                        // Post-step point momentum direction
-                                     electron.eKin,                       // Post-step point kinetic energy
-                                     globalTime,                          // global time
-                                     0.,                                  // local time
+                                     /* electron*/ 0, // Particle type
+                                     0,               // Step length
+                                     0,               // Total Edep
+                                     electron.weight, // Track weight
+                                     navState,        // Pre-step point navstate
+                                     electron.pos,    // Pre-step point position
+                                     electron.dir,    // Pre-step point momentum direction
+                                     electron.eKin,   // Pre-step point kinetic energy
+                                     navState,        // Post-step point navstate
+                                     electron.pos,    // Post-step point position
+                                     electron.dir,    // Post-step point momentum direction
+                                     electron.eKin,   // Post-step point kinetic energy
+                                     globalTime,      // global time
+                                     0.,              // local time
+                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
                                      electron.eventId, electron.threadId, // eventID and threadID
                                      false,                               // whether this was the last step
                                      electron.stepCounter);               // whether this was the first step
@@ -622,6 +627,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                                eKin,                                        // Post-step point kinetic energy
                                globalTime,                                  // global time
                                localTime,                                   // local time
+                               preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                isLastStep,                // whether this is the last step of the track
                                currentTrack.stepCounter); // whether this is the first step
