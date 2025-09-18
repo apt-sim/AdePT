@@ -523,20 +523,18 @@ __global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepE
                                  currentTrack.weight,                                   // Track weight
                                  currentTrack.navState,                                 // Pre-step point navstate
                                  currentTrack.preStepPos,                               // Pre-step point position
-                                 currentTrack.preStepDir,  // Pre-step point momentum direction
-                                 currentTrack.preStepEKin, // Pre-step point kinetic energy
-                                 currentTrack.nextState,   // Post-step point navstate
-                                 currentTrack.pos,         // Post-step point position
-                                 currentTrack.dir,         // Post-step point momentum direction
-                                 currentTrack.eKin,        // Post-step point kinetic energy
-                                 currentTrack.globalTime,  // global time
-                                 currentTrack.localTime,   // local time
-                                 currentTrack
-                                     .preStepGlobalTime // preStep global time
-                                         currentTrack.eventId,
-                                 currentTrack.threadId,     // eventID and threadID
-                                 isLastStep,                // whether this was the last step
-                                 currentTrack.stepCounter); // stepcounter
+                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                 currentTrack.nextState,                      // Post-step point navstate
+                                 currentTrack.pos,                            // Post-step point position
+                                 currentTrack.dir,                            // Post-step point momentum direction
+                                 currentTrack.eKin,                           // Post-step point kinetic energy
+                                 currentTrack.globalTime,                     // global time
+                                 currentTrack.localTime,                      // local time
+                                 currentTrack.preStepGlobalTime,              // preStep global time
+                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                 isLastStep,                                  // whether this was the last step
+                                 currentTrack.stepCounter);                   // stepcounter
     }
   }
 }
@@ -637,29 +635,27 @@ __global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectr
     // Score
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                  // Track ID
-                               currentTrack.parentId,                 // parent Track ID
-                               static_cast<short>(/*transport*/ 10),  // step limiting process ID
-                               static_cast<char>(IsElectron ? 0 : 1), // Particle type
-                               elTrack.GetPStepLength(),              // Step length
-                               energyDeposit,                         // Total Edep
-                               currentTrack.weight,                   // Track weight
-                               currentTrack.navState,                 // Pre-step point navstate
-                               currentTrack.preStepPos,               // Pre-step point position
-                               currentTrack.preStepDir,               // Pre-step point momentum direction
-                               currentTrack.preStepEKin,              // Pre-step point kinetic energy
-                               currentTrack.nextState,                // Post-step point navstate
-                               currentTrack.pos,                      // Post-step point position
-                               currentTrack.dir,                      // Post-step point momentum direction
-                               currentTrack.eKin,                     // Post-step point kinetic energy
-                               currentTrack.globalTime,               // global time
-                               currentTrack.localTime,                // local time
-                               currentTrack
-                                   .preStepGlobalTime // preStep global time
-                                       currentTrack.eventId,
-                               currentTrack.threadId,     // eventID and threadID
-                               isLastStep,                // whether this was the last step
-                               currentTrack.stepCounter); // stepcounter
+                               currentTrack.trackId,                        // Track ID
+                               currentTrack.parentId,                       // parent Track ID
+                               static_cast<short>(/*transport*/ 10),        // step limiting process ID
+                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                               elTrack.GetPStepLength(),                    // Step length
+                               energyDeposit,                               // Total Edep
+                               currentTrack.weight,                         // Track weight
+                               currentTrack.navState,                       // Pre-step point navstate
+                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.preStepDir,                     // Pre-step point momentum direction
+                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                               currentTrack.nextState,                      // Post-step point navstate
+                               currentTrack.pos,                            // Post-step point position
+                               currentTrack.dir,                            // Post-step point momentum direction
+                               currentTrack.eKin,                           // Post-step point kinetic energy
+                               currentTrack.globalTime,                     // global time
+                               currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
+                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                               isLastStep,                                  // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
 
     if (cross_boundary) {
       // Move to the next boundary now that the Step is recorded
