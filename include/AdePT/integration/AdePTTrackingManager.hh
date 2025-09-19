@@ -41,6 +41,10 @@ public:
 
   G4HepEmConfig *GetG4HepEmConfig() { return fHepEmTrackingManager->GetConfig(); }
 
+protected:
+  /// @brief Enables to rebind HepEm random engine from derived classes
+  void RebindHepEmRandomEngine() { fHepEmTrackingManager->RebindG4RandomEngine(); }
+
 private:
   /// @brief Steps a particle using the generic G4 tracking, until it dies or enters a user-defined
   /// GPU region, in which case tracking is delegated to AdePT
