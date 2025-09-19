@@ -52,6 +52,7 @@ struct Track {
   vecgeom::Vector3D<Precision> preStepPos;
   vecgeom::Vector3D<Precision> preStepDir;
   double preStepEKin{0};
+  double preStepGlobalTime{0.};
   // Variables used to store navigation results
   double geometryStepLength{0};
   double safeLength{0};

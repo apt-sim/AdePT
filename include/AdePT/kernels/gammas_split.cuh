@@ -36,9 +36,10 @@ __global__ void GammaHowFar(Track *gammas, Track *leaks, G4HepEmGammaTrack *hepE
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
-    currentTrack.preStepEKin = currentTrack.eKin;
-    currentTrack.preStepPos  = currentTrack.pos;
-    currentTrack.preStepDir  = currentTrack.dir;
+    currentTrack.preStepEKin       = currentTrack.eKin;
+    currentTrack.preStepGlobalTime = currentTrack.globalTime;
+    currentTrack.preStepPos        = currentTrack.pos;
+    currentTrack.preStepDir        = currentTrack.dir;
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
@@ -300,6 +301,7 @@ __global__ void GammaRelocation(Track *gammas, Track *leaks, G4HepEmGammaTrack *
                                  currentTrack.eKin,                           // Post-step point kinetic energy
                                  currentTrack.globalTime,                     // global time
                                  currentTrack.localTime,                      // local time
+                                 currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                  false,                     // whether this is the last step of the track
                                  currentTrack.stepCounter); // stepcounter
@@ -343,6 +345,7 @@ __global__ void GammaRelocation(Track *gammas, Track *leaks, G4HepEmGammaTrack *
                                  currentTrack.eKin,                           // Post-step point kinetic energy
                                  currentTrack.globalTime,                     // global time
                                  currentTrack.localTime,                      // local time
+                                 currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                  true,                      // whether this is the last step of the track
                                  currentTrack.stepCounter); // stepcounter
@@ -440,6 +443,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                  electron.eKin,                       // Post-step point kinetic energy
                                  electron.globalTime,                 // global time
                                  0.,                                  // local time
+                                 electron.globalTime,                 // preStep global time at initializing step
                                  electron.eventId, electron.threadId, // eventID and threadID
                                  false,                               // whether this was the last step
                                  electron.stepCounter);               // whether this was the first step
@@ -473,6 +477,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                  positron.eKin,                       // Post-step point kinetic energy
                                  positron.globalTime,                 // global time
                                  0.,                                  // local time
+                                 positron.globalTime,                 // preStep global time
                                  positron.eventId, positron.threadId, // eventID and threadID
                                  false,                               // whether this was the last step
                                  positron.stepCounter);               // whether this was the first step
@@ -504,6 +509,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
                                newEnergyGamma,                              // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                isLastStep,                // whether this is the last step of the track
                                currentTrack.stepCounter); // stepcounter
@@ -594,6 +600,7 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
                                  electron.eKin,                       // Post-step point kinetic energy
                                  electron.globalTime,                 // global time
                                  0.,                                  // local time
+                                 electron.globalTime,                 // preStep global time at initializing step
                                  electron.eventId, electron.threadId, // eventID and threadID
                                  false,                               // whether this was the last step
                                  electron.stepCounter);               // whether this was the first step
@@ -639,6 +646,7 @@ __global__ void GammaCompton(Track *gammas, G4HepEmGammaTrack *hepEMTracks, Seco
                                newEnergyGamma,                              // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                isLastStep, // whether this is the last step of the track
                                currentTrack.stepCounter);
@@ -727,6 +735,7 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
                                  electron.eKin,                       // Post-step point kinetic energy
                                  electron.globalTime,                 // global time
                                  0.,                                  // local time
+                                 electron.globalTime,                 // preStep global time at initializing step
                                  electron.eventId, electron.threadId, // eventID and threadID
                                  false,                               // whether this was the last step
                                  electron.stepCounter);               // whether this was the first step
@@ -761,6 +770,7 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
                                newEnergyGamma,                              // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                isLastStep, // whether this is the last step of the track
                                currentTrack.stepCounter);

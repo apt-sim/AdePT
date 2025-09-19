@@ -646,7 +646,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aPreStepPoint->SetPosition(G4ThreeVector(aGPUHit->fPreStepPoint.fPosition.x(), aGPUHit->fPreStepPoint.fPosition.y(),
                                            aGPUHit->fPreStepPoint.fPosition.z())); // Real data
   // aPreStepPoint->SetLocalTime(0);                                                                // Missing data
-  // aPreStepPoint->SetGlobalTime(0);                                                               // Missing data
+  aPreStepPoint->SetGlobalTime(aGPUHit->fPreGlobalTime); // Real data
   // aPreStepPoint->SetProperTime(0);                                                               // Missing data
   aPreStepPoint->SetMomentumDirection(G4ThreeVector(aGPUHit->fPreStepPoint.fMomentumDirection.x(),
                                                     aGPUHit->fPreStepPoint.fMomentumDirection.y(),
