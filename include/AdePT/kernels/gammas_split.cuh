@@ -123,10 +123,10 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 
     // Check if there's a volume boundary in between.
 #ifdef ADEPT_USE_SURF
-    long hitsurf_index = -1;
+    currentTrack.hitsurfID = -1;
     currentTrack.geometryStepLength =
         AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
-                                                 currentTrack.navState, currentTrack.nextState, hitsurf_index);
+                                                 currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID);
 #else
     currentTrack.geometryStepLength =
         AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
@@ -275,7 +275,8 @@ __global__ void GammaRelocation(Track *gammas, Track *leaks, G4HepEmGammaTrack *
       G4HepEmGammaManager::UpdateNumIALeft(theTrack);
 
 #ifdef ADEPT_USE_SURF
-      AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, hitsurf_index, currentTrack.nextState);
+      AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.hitsurfID,
+                                           currentTrack.nextState);
 #else
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 #endif
