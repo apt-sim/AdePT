@@ -54,6 +54,7 @@ option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 option(ASYNC_MODE "Enable the async transport backend" OFF)
 option(ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
+option(ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 
@@ -339,6 +340,14 @@ if(ADEPT_USE_EXT_BFIELD)
       message(FATAL_ERROR "Fetching covfie failed!")
     endif()
 
+  endif()
+endif()
+
+if(ENABLE_POWER_METER)
+  find_package(RAPL_utils REQUIRED)
+  if(RAPL_utils_FOUND)
+    message(STATUS "RAPL_utils found ${RAPL_utils_INCLUDE_DIR}")
+    add_compile_definitions(RAPL_utils_FOUND)
   endif()
 endif()
 
