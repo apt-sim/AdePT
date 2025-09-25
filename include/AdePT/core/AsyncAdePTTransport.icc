@@ -272,7 +272,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
   // If power measurements are enabled, initialize the counters here
   rapl_utils::energy_init();
   // Start measuring consumption from this point
-  rapl_utils::launch_monitoring_loop();
+  rapl_utils::launch_monitoring_loop(1000);
 
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
