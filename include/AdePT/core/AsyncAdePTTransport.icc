@@ -120,7 +120,9 @@ template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
 {
   async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker);
+#ifdef ENABLE_POWER_METER
   rapl_utils::stop_monitoring_loop();
+#endif
 }
 
 template <typename IntegrationLayer>
@@ -269,10 +271,12 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hep
 template <typename IntegrationLayer>
 void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, int threadId)
 {
+#ifdef ENABLE_POWER_METER
   // If power measurements are enabled, initialize the counters here
   rapl_utils::energy_init();
   // Start measuring consumption from this point
   rapl_utils::launch_monitoring_loop(1000);
+#endif
 
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");

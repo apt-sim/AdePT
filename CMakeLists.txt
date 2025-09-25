@@ -347,7 +347,7 @@ if(ENABLE_POWER_METER)
   find_package(RAPL_utils REQUIRED)
   if(RAPL_utils_FOUND)
     message(STATUS "RAPL_utils found ${RAPL_utils_INCLUDE_DIR}")
-    add_compile_definitions(RAPL_utils_FOUND)
+    add_compile_definitions(ENABLE_POWER_METER)
   endif()
 endif()
 
