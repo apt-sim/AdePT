@@ -413,8 +413,8 @@ cuda_rdc_target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
     G4VG::g4vg
-    RAPL_utils::RAPL_utils
     CUDA::cudart
+    $<$<BOOL:${ENABLE_POWER_METER}>:RAPL_utils::RAPL_utils>
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
