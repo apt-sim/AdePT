@@ -454,7 +454,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     double deltaTime = elTrack.GetPStepLength() / GetVelocity(eKin);
     globalTime += deltaTime;
     localTime += deltaTime;
-    properTime += deltaTime * (restMass / eKin);
+    properTime += deltaTime * (restMass / (restMass + eKin));
 
     // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
     eKin                 = theTrack->GetEKin();
