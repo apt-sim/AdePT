@@ -29,6 +29,8 @@
 #include <G4HepEmMatCutData.hh>
 #include <G4LogicalVolumeStore.hh>
 
+#include <energy_utils.hh>
+
 #include <iomanip>
 
 // std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
@@ -118,6 +120,7 @@ template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
 {
   async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker);
+  rapl_utils::stop_monitoring_loop();
 }
 
 template <typename IntegrationLayer>
@@ -266,6 +269,11 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hep
 template <typename IntegrationLayer>
 void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, int threadId)
 {
+  // If power measurements are enabled, initialize the counters here
+  rapl_utils::energy_init();
+  // Start measuring consumption from this point
+  rapl_utils::launch_monitoring_loop();
+
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
 

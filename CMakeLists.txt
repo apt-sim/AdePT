@@ -413,6 +413,7 @@ cuda_rdc_target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
     G4VG::g4vg
+    RAPL_utils::RAPL_utils
     CUDA::cudart
 )
 if(ADEPT_USE_EXT_BFIELD)
