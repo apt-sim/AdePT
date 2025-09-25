@@ -29,7 +29,9 @@
 #include <G4HepEmMatCutData.hh>
 #include <G4LogicalVolumeStore.hh>
 
+#ifdef ENABLE_POWER_METER
 #include <energy_utils.hh>
+#endif
 
 #include <iomanip>
 
