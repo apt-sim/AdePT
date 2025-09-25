@@ -363,7 +363,7 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
     double deltaTime = elTrack.GetPStepLength() / GetVelocity(currentTrack.eKin);
     currentTrack.globalTime += deltaTime;
     currentTrack.localTime += deltaTime;
-    currentTrack.properTime += deltaTime * (restMass / currentTrack.eKin);
+    currentTrack.properTime += deltaTime * (restMass / (restMass + currentTrack.eKin));
   }
 }
 
