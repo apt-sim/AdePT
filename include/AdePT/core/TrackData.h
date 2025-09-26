@@ -43,7 +43,7 @@ struct TrackData {
   }
 
   // fixme: add include navigation state in operators?
-  friend bool operator==(TrackData const &a, TrackData const &b) { return !(a < b && b < a); }
+  friend bool operator==(TrackData const &a, TrackData const &b) { return !(a < b) && !(b < a); }
   friend bool operator!=(TrackData const &a, TrackData const &b) { return !(a == b); }
   inline bool operator<(TrackData const &t) const
   {
