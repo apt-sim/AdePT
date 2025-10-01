@@ -344,9 +344,9 @@ if(ADEPT_USE_EXT_BFIELD)
 endif()
 
 if(ENABLE_POWER_METER)
-  find_package(RAPL_utils REQUIRED)
-  if(RAPL_utils_FOUND)
-    message(STATUS "RAPL_utils found ${RAPL_utils_INCLUDE_DIR}")
+  find_package(Power_meter REQUIRED)
+  if(Power_meter_FOUND)
+    message(STATUS "Power_meter found ${Power_meter_INCLUDE_DIR}")
     add_compile_definitions(ENABLE_POWER_METER)
   endif()
 endif()
@@ -414,7 +414,7 @@ cuda_rdc_target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmRun
     G4VG::g4vg
     CUDA::cudart
-    $<$<BOOL:${ENABLE_POWER_METER}>:RAPL_utils::RAPL_utils>
+    $<$<BOOL:${ENABLE_POWER_METER}>:Power_meter::Power_meter>
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
