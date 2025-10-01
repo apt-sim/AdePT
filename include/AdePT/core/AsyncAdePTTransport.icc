@@ -274,8 +274,14 @@ template <typename IntegrationLayer>
 void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, int threadId)
 {
 #ifdef ENABLE_POWER_METER
+try{
   // Start measuring consumption from this point
   power_meter::launch_monitoring_loop(1000);
+}catch(const std::exception & ex)
+{
+  std::cerr << ex.what() << std::endl;
+  std::terminate();
+}
 #endif
 
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
