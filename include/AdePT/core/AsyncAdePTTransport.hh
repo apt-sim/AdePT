@@ -130,7 +130,7 @@ public:
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId);
   void ProcessGPUSteps(int threadId, int eventId) override;
-  void Cleanup(bool) override {}
+  void Cleanup(bool) override;
   /// @brief Setup function used only in async AdePT
   /// @param threadId thread Id
   /// @param hepEmTM specialized G4HepEmTrackingManager

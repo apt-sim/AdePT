@@ -344,9 +344,28 @@ if(ADEPT_USE_EXT_BFIELD)
 endif()
 
 if(ENABLE_POWER_METER)
-  find_package(Power_meter REQUIRED)
+  find_package(Power_meter QUIET)
   if(Power_meter_FOUND)
     message(STATUS "Power_meter found ${Power_meter_INCLUDE_DIR}")
+    add_compile_definitions(ENABLE_POWER_METER)
+  else()
+    # Fetch it locally
+    include(FetchContent)
+
+    FetchContent_Declare(
+      power_meter
+      GIT_REPOSITORY https://github.com/apt-sim/power_meter
+      GIT_TAG 458fa2f4f72287d7128de25ed570d2803f0fbe89
+    )
+
+    FetchContent_MakeAvailable(power_meter)
+    message(STATUS "Using FetchContent to build Power_meter")
+
+    FetchContent_GetProperties(power_meter)
+    if(NOT power_meter_POPULATED)
+      message(FATAL_ERROR "Fetching Power_meter failed!")
+    endif()
+
     add_compile_definitions(ENABLE_POWER_METER)
   endif()
 endif()

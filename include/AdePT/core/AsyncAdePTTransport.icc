@@ -122,9 +122,9 @@ template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
 {
   async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker);
-#ifdef ENABLE_POWER_METER
-  power_meter::stop_monitoring_loop();
-#endif
+  // #ifdef ENABLE_POWER_METER
+  //   power_meter::stop_monitoring_loop();
+  // #endif
 }
 
 template <typename IntegrationLayer>
@@ -274,14 +274,14 @@ template <typename IntegrationLayer>
 void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, int threadId)
 {
 #ifdef ENABLE_POWER_METER
-try{
-  // Start measuring consumption from this point
-  power_meter::launch_monitoring_loop(1000);
-}catch(const std::exception & ex)
-{
-  std::cerr << ex.what() << std::endl;
-  std::terminate();
-}
+  try {
+    printf("TRYING TO LAUNCH MONITORING LOOP\n");
+    // Start measuring consumption from this point
+    power_meter::launch_monitoring_loop(1000);
+  } catch (const std::exception &ex) {
+    std::cerr << ex.what() << std::endl;
+    std::terminate();
+  }
 #endif
 
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
@@ -464,6 +464,16 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
 
   async_adept_impl::FlushScoring(fScoring[threadId]);
   fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
+}
+
+template <typename IntegrationLayer>
+void AsyncAdePTTransport<IntegrationLayer>::Cleanup(bool commonInitThread)
+{
+  if (commonInitThread) {
+#ifdef ENABLE_POWER_METER
+    power_meter::stop_monitoring_loop();
+#endif
+  }
 }
 
 } // namespace AsyncAdePT
