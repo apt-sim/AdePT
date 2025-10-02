@@ -40,6 +40,9 @@ AdePTTrackingManager::AdePTTrackingManager(AdePTConfiguration *config, int verbo
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
+#ifdef ENABLE_POWER_METER
+  power_meter::stop_monitoring_loop();
+#endif
   if (fAdeptTransport) fAdeptTransport->Cleanup(fCommonInitThread);
 }
 
@@ -211,6 +214,20 @@ void AdePTTrackingManager::InitializeAdePT()
   fSpeedOfLight = fAdePTConfiguration->GetSpeedOfLight();
 
   fAdePTInitialized = true;
+
+#ifdef ENABLE_POWER_METER
+  // Start measuring power consumption from here
+  static std::once_flag onceFlagPower;
+  std::call_once(onceFlagPower, [&]() {
+    try {
+      // Start measuring consumption from this point
+      power_meter::launch_monitoring_loop(1000);
+    } catch (const std::exception &ex) {
+      std::cerr << ex.what() << std::endl;
+      std::terminate();
+    }
+  });
+#endif
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
