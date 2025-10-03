@@ -29,10 +29,6 @@
 #include <G4HepEmMatCutData.hh>
 #include <G4LogicalVolumeStore.hh>
 
-#ifdef ENABLE_POWER_METER
-#include <power_meter.hh>
-#endif
-
 #include <iomanip>
 
 // std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,

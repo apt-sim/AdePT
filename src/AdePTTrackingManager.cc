@@ -18,6 +18,10 @@
 
 #include <algorithm>
 
+#ifdef ENABLE_POWER_METER
+#include <power_meter.hh>
+#endif
+
 #ifdef ASYNC_MODE
 std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf,
                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
@@ -40,8 +44,12 @@ AdePTTrackingManager::AdePTTrackingManager(AdePTConfiguration *config, int verbo
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
+  auto tid = G4Threading::G4GetThreadId();
 #ifdef ENABLE_POWER_METER
-  power_meter::stop_monitoring_loop();
+  // NOTE: Prior to Geant4 11.3 the destructor for the specialized tracking managers was not
+  // called. In this case the loop will not be stopped and we will get an error at the end of
+  // the run. This should not cause a memory leak however as terminate will be called on the thread
+  if (fPowerMeterRunning) power_meter::stop_monitoring_loop();
 #endif
   if (fAdeptTransport) fAdeptTransport->Cleanup(fCommonInitThread);
 }
@@ -219,12 +227,15 @@ void AdePTTrackingManager::InitializeAdePT()
   // Start measuring power consumption from here
   static std::once_flag onceFlagPower;
   std::call_once(onceFlagPower, [&]() {
+    fPowerMeterRunning = true;
     try {
       // Start measuring consumption from this point
       power_meter::launch_monitoring_loop(1000);
     } catch (const std::exception &ex) {
-      std::cerr << ex.what() << std::endl;
-      std::terminate();
+      fPowerMeterRunning = false;
+      std::cerr << "\033[31m" << ex.what() << "\033[0m" << std::endl;
+      printf("\033[31m ERROR: Power meter could not be initialized, consumption will not be recorded for this run "
+             "\033[0m\n");
     }
   });
 #endif
