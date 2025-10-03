@@ -1116,6 +1116,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
       // *** Enqueue particles that are ready on the device ***
       if (gpuState.injectState == InjectState::ReadyToEnqueue) {
+        gpuState.injectState = InjectState::Enqueueing;
 
         // struct needed for hostCallBack function to change both event and injection state
         struct EnqueueDoneCtx {
