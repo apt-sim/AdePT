@@ -413,6 +413,9 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
   if (aSensitiveDetector != nullptr && hit.fStepCounter != 0) {
     aSensitiveDetector->Hit(fScoringObjects->fG4Step);
   }
+
+  // cleanup of the secondary vector that is created in FillG4Step above
+  fScoringObjects->fG4Step->DeleteSecondaryVector();
 }
 
 void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState,
@@ -488,6 +491,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   if (aGPUHit->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
   // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
   // initialize secondary vector (although it is empty for now)
+  // Note: we own this vector, we are responsible for deleting it!
   aG4Step->NewSecondaryVector();
   // aG4Step->SetSecondary(nullptr);                               // Missing data
 
