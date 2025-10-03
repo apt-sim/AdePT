@@ -930,12 +930,15 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   // Auxiliary struct used to keep track of the queues that need flushing
   AllLeaked allLeaked{nullptr, nullptr, nullptr};
 
-  cudaEvent_t cudaEvent, cudaStatsEvent;
+  cudaEvent_t cudaEvent, cudaStatsEvent, enqueueDoneEvent;
   cudaStream_t hitTransferStream, injectStream, extractStream, statsStream;
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaStatsEvent, cudaEventDisableTiming));
+  COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&enqueueDoneEvent, cudaEventDisableTiming));
   unique_ptr_cuda<cudaEvent_t> cudaEventCleanup{&cudaEvent};
   unique_ptr_cuda<cudaEvent_t> cudaStatsEventCleanup{&cudaStatsEvent};
+  unique_ptr_cuda<cudaEvent_t> enqueueDoneEventCleanup{&enqueueDoneEvent};
+  cudaEventRecord(enqueueDoneEvent, gpuState.stream); // prime first event to avoid possible stall on first iteration
   COPCORE_CUDA_CHECK(cudaStreamCreate(&hitTransferStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&injectStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&extractStream));
@@ -1072,15 +1075,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** Particle injection ***
       // --------------------------
       if (gpuState.injectState == InjectState::Idle) {
-        for (auto &eventState : eventStates) {
-          if (const auto state = eventState.load(std::memory_order_acquire); state == EventState::G4RequestsFlush) {
-            eventState = EventState::Inject;
-          } else if (state == EventState::Inject) {
-            eventState = EventState::InjectionCompleted;
-          }
-        }
 
         if (auto &toDevice = trackBuffer.getActiveBuffer(); toDevice.nTrack > 0) {
+
+          // there are actually tracks that are injected, move state machine
+          AdvanceEventStates(EventState::G4RequestsFlush, EventState::Inject, eventStates);
+
           gpuState.injectState = InjectState::CreatingSlots;
 
           trackBuffer.swapToDeviceBuffers();
@@ -1109,20 +1109,36 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           // Ensure that copy operation completed before releasing lock on to-device buffer
           COPCORE_CUDA_CHECK(cudaEventSynchronize(cudaEvent));
         } else {
-          // No tracks in to-device buffer
-          // Move tracks that requested a flush to InjectionCompleted
-          gpuState.injectState = InjectState::Idle;
+          // No tracks in to-device buffer, we can immediately mark the Injection as completed
+          AdvanceEventStates(EventState::G4RequestsFlush, EventState::InjectionCompleted, eventStates);
         }
       }
 
       // *** Enqueue particles that are ready on the device ***
       if (gpuState.injectState == InjectState::ReadyToEnqueue) {
-        gpuState.injectState = InjectState::Enqueueing;
+
+        // struct needed for hostCallBack function to change both event and injection state
+        struct EnqueueDoneCtx {
+          std::vector<std::atomic<EventState>> *eventStates;
+          std::atomic<InjectState> *injectState;
+        };
+
+        // Enqueue into per-particle queues
         EnqueueTracks<<<1, 256, 0, gpuState.stream>>>(allParticleQueues, gpuState.injectionQueue);
-        // New injection has to wait until particles are enqueued:
-        waitForOtherStream(injectStream, gpuState.stream);
-      } else if (gpuState.injectState == InjectState::Enqueueing) {
-        gpuState.injectState = InjectState::Idle;
+
+        // Event marks enqueue completion for this iteration
+        COPCORE_CUDA_CHECK(cudaEventRecord(enqueueDoneEvent, gpuState.stream));
+
+        auto *ctx = new EnqueueDoneCtx{&eventStates, &gpuState.injectState};
+        COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+            gpuState.stream,
+            [](void *arg) {
+              auto *ctx = static_cast<EnqueueDoneCtx *>(arg);
+              AdvanceEventStates(EventState::Inject, EventState::InjectionCompleted, *ctx->eventStates);
+              ctx->injectState->store(InjectState::Idle, std::memory_order_release);
+              delete ctx;
+            },
+            ctx));
       }
 
       // ------------------
@@ -1275,6 +1291,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         AdvanceEventStates(EventState::Transporting, EventState::WaitingForTransportToFinish, eventStates);
         AdvanceEventStates(EventState::InjectionCompleted, EventState::Transporting, eventStates);
+
+        // ensure that enqueuing is finished. The population count should see the injected tracks
+        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(statsStream, enqueueDoneEvent, 0));
 
         // Reset all counters count the currently flying population
         ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
@@ -1572,22 +1591,15 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         inFlight  = 0;
         numLeaked = 0;
-        // FIXME: Synchronizing with the injectionStream here, along with the stats stream is not
-        // needed by the logic. It is a temporary fix to a long-standing bug where some particles may
-        // be injected after their events have already finished. This synchronization doesn't cause
-        // any measurable slowdown, but it should be removed once the underlying cause of the bug is
-        // understood and fixed
-        COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, injectStream));
+
         // Synchronize with stats count before taking decisions
-        cudaError_t result, injectResult;
-        while ((result = cudaEventQuery(cudaStatsEvent)) == cudaErrorNotReady ||
-               (injectResult = cudaEventQuery(cudaEvent)) == cudaErrorNotReady) {
+        cudaError_t result;
+        while ((result = cudaEventQuery(cudaStatsEvent)) == cudaErrorNotReady) {
           // Cuda uses a busy wait. This reduces CPU consumption by 50%:
           using namespace std::chrono_literals;
           std::this_thread::sleep_for(50us);
         }
         COPCORE_CUDA_CHECK(result);
-        COPCORE_CUDA_CHECK(injectResult);
 
         for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
           inFlight += gpuState.stats->inFlight[i];
