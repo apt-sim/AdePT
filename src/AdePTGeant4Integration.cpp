@@ -487,6 +487,8 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   if (aGPUHit->fStepCounter == 1) aG4Step->SetFirstStepFlag(); // Real data
   if (aGPUHit->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
   // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
+  // initialize secondary vector (although it is empty for now)
+  aG4Step->NewSecondaryVector();
   // aG4Step->SetSecondary(nullptr);                               // Missing data
 
   // G4Track
