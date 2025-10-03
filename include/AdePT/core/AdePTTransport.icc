@@ -44,7 +44,6 @@ void ShowerGPU(IntegrationLayer &integration, int event, TrackBuffer &buffer, GP
 template <typename IntegrationLayer>
 AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configuration,
                                                  G4HepEmTrackingManagerSpecialized *hepEmTM)
-    : fIntegrationLayer(hepEmTM)
 {
   fDebugLevel        = configuration.GetVerbosity();
   fBufferThreshold   = configuration.GetTransportBufferThreshold();
@@ -58,6 +57,7 @@ AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configurati
   fBfieldFile        = configuration.GetCovfieBfieldFile();
   fCapacity          = 1024 * 1024 * configuration.GetMillionsOfTrackSlots() / configuration.GetNumThreads();
   fHitBufferCapacity = 1024 * 1024 * configuration.GetMillionsOfHitSlots() / configuration.GetNumThreads();
+  fIntegrationLayer.SetHepEmTrackingManager(hepEmTM);
 
   printf("AdePT Allocated track capacity: %d tracks\n", fCapacity);
   printf("AdePT Allocated step buffer capacity: %d tracks\n", fHitBufferCapacity);
