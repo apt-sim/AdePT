@@ -91,7 +91,7 @@ public:
   /// @brief Setup function used only in async AdePT
   /// @param threadId thread Id
   /// @param hepEmTM specialized G4HepEmTrackingManager
-  void SetIntegrationLayerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM) override {};
+  void SetHepEmTrackingManagerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM) override {};
   IntegrationLayer &GetIntegrationLayer(int /*threadId*/) { return fIntegrationLayer; }
 
 private:

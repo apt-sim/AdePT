@@ -30,10 +30,7 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
-  explicit AdePTGeant4Integration(G4HepEmTrackingManagerSpecialized *hepEmTM)
-      : fHepEmTrackingManager(hepEmTM), fHostTrackDataMapper(std::make_unique<HostTrackDataMapper>())
-  {
-  }
+  explicit AdePTGeant4Integration() : fHostTrackDataMapper(std::make_unique<HostTrackDataMapper>()) {}
   ~AdePTGeant4Integration();
 
   AdePTGeant4Integration(const AdePTGeant4Integration &)            = delete;
@@ -90,6 +87,11 @@ public:
 
   HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
 
+  void SetHepEmTrackingManager(G4HepEmTrackingManagerSpecialized *hepEmTrackingManager)
+  {
+    fHepEmTrackingManager = hepEmTrackingManager;
+  }
+
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
   void FillG4NavigationHistory(vecgeom::NavigationState aNavState, G4NavigationHistory &aG4NavigationHistory) const;
@@ -103,7 +105,7 @@ private:
 
   // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
   // this is just a reference to handle gamma-/lepton-nuclear reactions
-  G4HepEmTrackingManagerSpecialized *fHepEmTrackingManager;
+  G4HepEmTrackingManagerSpecialized *fHepEmTrackingManager{nullptr};
 
   // helper class to provide the CPU-only data for the returning GPU tracks
   std::unique_ptr<HostTrackDataMapper> fHostTrackDataMapper;

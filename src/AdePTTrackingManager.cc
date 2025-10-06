@@ -19,11 +19,10 @@
 #include <algorithm>
 
 #ifdef ASYNC_MODE
-std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf,
-                                                          G4HepEmTrackingManagerSpecialized *hepEmTM)
+std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmConfig *hepEmConfig)
 {
   static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> AdePT{
-      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmTM)};
+      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmConfig)};
   return AdePT;
 }
 #endif
@@ -107,7 +106,7 @@ void AdePTTrackingManager::InitializeAdePT()
 // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
 // all threads.
 #ifdef ASYNC_MODE
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
+    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
 #else
     fAdeptTransport =
         std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
@@ -137,11 +136,11 @@ void AdePTTrackingManager::InitializeAdePT()
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
 #ifdef ASYNC_MODE
-  // the first G4 worker has already initialized the GPU worker, the other G4 workers need to get their shared pointer
-  // here and need to initialize the integration layer with their own G4HepEmTracking manager (this is required for
-  // nuclear processes)
-  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
-  fAdeptTransport->SetIntegrationLayerForThread(tid, fHepEmTrackingManager.get());
+  // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
+  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
+  // All workers store the pointer to their HepEmTrackingManager in fAdePTTransport. This is required for nuclear
+  // processes
+  fAdeptTransport->SetHepEmTrackingManagerForThread(tid, fHepEmTrackingManager.get());
 #else
   if (!sequential) { // if sequential, the instance is already created
     fAdeptTransport =
