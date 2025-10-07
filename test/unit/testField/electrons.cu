@@ -51,19 +51,15 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           GlobalScoring *globalScoring,
                                                           ScoringPerVolume *scoringPerVolume)
 {
-#ifdef VECGEOM_FLOAT_PRECISION
-  const Precision kPush = 10 * vecgeom::kTolerance;
-#else
-  const Precision kPush = 0.;
-#endif
+  const double kPush    = 0.;
   constexpr int Charge  = IsElectron ? -1 : 1;
   constexpr double Mass = copcore::units::kElectronMassC2;
 
   constexpr int Nvar   = 6;
   using Field_t        = UniformMagneticField; // ToDO:  Change to non-uniform type !!
   using Equation_t     = MagneticFieldEquation<Field_t>;
-  using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, vecgeom::Precision>;
-  using DoPri5Driver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+  using Stepper_t      = DormandPrinceRK45<Equation_t, Field_t, Nvar, double>;
+  using DoPri5Driver_t = RkIntegrationDriver<Stepper_t, double, int, Equation_t, Field_t>;
 
   Field_t magField(vecgeom::Vector3D<float>(0.0, 0.0, *gPtrBzFieldValue_dev));
   // 2.0*copcore::units::tesla) ); // -> Obtain it from object ?
@@ -78,7 +74,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 #endif
 
   // DoPri5Driver_t
-  //  Static method fieldPropagatorRungeKutta<DoPri5Driver_t, vecgeom::Precision>
+  //  Static method fieldPropagatorRungeKutta<DoPri5Driver_t, double>
   //     no object fieldPropagatorRK()
 
   int activeSize = active->size();
@@ -177,34 +173,34 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     double geometryStepLength;
     vecgeom::NavigationState nextState;
 
-    float BzFieldValue = *gPtrBzFieldValue_dev; // Use vecgeom::Precision ?
+    float BzFieldValue = *gPtrBzFieldValue_dev;
     if (BzFieldValue != 0.0) {
       UniformMagneticField magneticFieldB(vecgeom::Vector3D<float>(0.0, 0.0, BzFieldValue));
-      // using fieldPropagatorRK = fieldPropagatorRungetKutta<RkDriver_t, Precision>;
+      // using fieldPropagatorRK = fieldPropagatorRungetKutta<RkDriver_t, double>;
 
       // Set up the Integration using Runge-Kutta DoPri5 method
       //
       constexpr unsigned int Nvar = 6; // Number of integration variables
       using Field_t               = UniformMagneticField;
       using Equation_t            = MagneticFieldEquation<Field_t>;
-      using Stepper_t             = DormandPrinceRK45<Equation_t, Field_t, Nvar, Precision>;
-      using RkDriver_t            = RkIntegrationDriver<Stepper_t, Precision, int, Equation_t, Field_t>;
+      using Stepper_t             = DormandPrinceRK45<Equation_t, Field_t, Nvar, double>;
+      using RkDriver_t            = RkIntegrationDriver<Stepper_t, double, int, Equation_t, Field_t>;
 
       constexpr int max_iterations = 10;
 
 #ifdef CHECK_RESULTS
       // Store starting values
-      const vecgeom::Vector3D<Precision> startPosition  = pos;
-      const vecgeom::Vector3D<Precision> startDirection = dir;
+      const vecgeom::Vector3D<double> startPosition  = pos;
+      const vecgeom::Vector3D<double> startDirection = dir;
 
       // Start Baseline reply
-      vecgeom::Vector3D<Precision> positionHx  = startPosition;
-      vecgeom::Vector3D<Precision> directionHx = startDirection;
+      vecgeom::Vector3D<double> positionHx  = startPosition;
+      vecgeom::Vector3D<double> directionHx = startDirection;
       vecgeom::NavigationState nextStateHx;
       bool propagatedHx;
 
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
-      Precision helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
+      double helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           energy, Mass, Charge, geometricalStepLengthFromPhysics, positionHx, directionHx, navState, nextStateHx,
           hitsurf_index, propagatedHx, safety, max_iterations);
       // activeSize < 100 ? max_iterations : max_iters_tail );
@@ -217,20 +213,20 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       auto B0fieldVec = magneticFieldB.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
 
       double safeLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, double, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
               momentumVec, B0fieldVec, Charge);
 
       int iterDone         = -1;
       bool zero_first_step = false;
       geometryStepLength =
-          fieldPropagatorRungeKutta<Field_t, RkDriver_t, Precision, AdePTNavigator>::ComputeStepAndNextVolume(
+          fieldPropagatorRungeKutta<Field_t, RkDriver_t, double, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
               nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot, zero_first_step);
 #ifdef CHECK_RESULTS
 #define formatBool(b) ((b) ? "yes " : "no")
-      constexpr Precision thresholdDiff = 3.0e-3;
+      constexpr double thresholdDiff = 3.0e-3;
       bool diffLength = false, badPosition = false, badDirection = false;
       vecgeom::NavigationState &currNavState = navState;
       bool sameLevel                         = nextState.GetLevel() == nextStateHx.GetLevel();
@@ -295,7 +291,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     dir.Set(direction[0], direction[1], direction[2]);
     if (!nextState.IsOnBoundary()) {
       const double *mscDisplacement = mscData->GetDisplacement();
-      vecgeom::Vector3D<Precision> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
+      vecgeom::Vector3D<double> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
       const double dLength2            = displacement.Length2();
       constexpr double kGeomMinLength  = 5 * copcore::units::nm;          // 0.05 [nm]
       constexpr double kGeomMinLength2 = kGeomMinLength * kGeomMinLength; // (0.05 [nm])^2

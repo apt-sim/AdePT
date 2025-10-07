@@ -23,8 +23,8 @@ template <typename T>
 using Vector3D = vecgeom::Vector3D<T>;
 
 using Equation_t = MagneticFieldEquation<Field_t>;
-using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, 6, vecgeom::Precision>;
-using RkDriver_t = RkIntegrationDriver<Stepper_t, vecgeom::Precision, int, Equation_t, Field_t>;
+using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, 6, double>;
+using RkDriver_t = RkIntegrationDriver<Stepper_t, double, int, Equation_t, Field_t>;
 
 #include <iostream>
 

@@ -18,39 +18,38 @@
 // Data structures for statistics of propagation chords
 
 class fieldPropagatorConstBz {
-  using Precision = vecgeom::Precision;
-  using Vector3D  = vecgeom::Vector3D<vecgeom::Precision>;
+  using Vector3D = vecgeom::Vector3D<double>;
 
 public:
-  __host__ __device__ fieldPropagatorConstBz(Precision Bz) { BzValue = Bz; }
+  __host__ __device__ fieldPropagatorConstBz(double Bz) { BzValue = Bz; }
   __host__ __device__ ~fieldPropagatorConstBz() {}
 
-  __host__ __device__ Precision ComputeSafeLength(Precision momentumMag, int charge, const Vector3D &direction);
+  __host__ __device__ double ComputeSafeLength(double momentumMag, int charge, const Vector3D &direction);
 
   template <class Navigator = AdePTNavigator>
-  __host__ __device__ Precision ComputeStepAndNextVolume(double kinE, double mass, int charge, Precision physicsStep,
-                                                         Vector3D &position, Vector3D &direction,
-                                                         vecgeom::NavigationState const &current_state,
-                                                         vecgeom::NavigationState &new_state, long &hitsurf_index,
-                                                         bool &propagated, const Precision safety = 0.0,
-                                                         const int max_iteration = 100);
+  __host__ __device__ double ComputeStepAndNextVolume(double kinE, double mass, int charge, double physicsStep,
+                                                      Vector3D &position, Vector3D &direction,
+                                                      vecgeom::NavigationState const &current_state,
+                                                      vecgeom::NavigationState &new_state, long &hitsurf_index,
+                                                      bool &propagated, const double safety = 0.0,
+                                                      const int max_iteration = 100);
 
 private:
-  Precision BzValue;
+  double BzValue;
 };
 
 // -----------------------------------------------------------------------------
 
-__host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precision momentumMag, int charge,
-                                                                        const Vector3D &direction)
+__host__ __device__ double fieldPropagatorConstBz::ComputeSafeLength(double momentumMag, int charge,
+                                                                     const Vector3D &direction)
 {
   // Direction projection in plane perpendicular to field vector
-  Precision dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
+  double dirxy = sqrt((1 - direction[2]) * (1 + direction[2]));
 
-  Precision bend = std::fabs(fieldConstants::kB2C * charge * BzValue) / momentumMag;
+  double bend = std::fabs(fieldConstants::kB2C * charge * BzValue) / momentumMag;
 
   // R = helix radius, curv = 1./R = curvature in plane perpendicular to the field
-  // Precision curv = bend / (dirxy + 1.e-30);
+  // double curv = bend / (dirxy + 1.e-30);
 
   // Distance along the track direction to reach the maximum allowed error
   return sqrt(2 * fieldConstants::deltaChord / (bend * dirxy + 1.e-30));
@@ -59,40 +58,35 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeSafeLength(Precisio
 // Determine the step along curved trajectory for charged particles in a field.
 //  ( Same name as as navigator method. )
 template <class Navigator>
-__host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
-    double kinE, double mass, int charge, Precision physicsStep, vecgeom::Vector3D<vecgeom::Precision> &position,
-    vecgeom::Vector3D<vecgeom::Precision> &direction, vecgeom::NavigationState const &current_state,
-    vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated, const vecgeom::Precision safetyIn,
+__host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
+    double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<double> &position,
+    vecgeom::Vector3D<double> &direction, vecgeom::NavigationState const &current_state,
+    vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated, const double safetyIn,
     const int max_iterations)
 {
-  using Precision = vecgeom::Precision;
-#ifdef VECGEOM_FLOAT_PRECISION
-  const Precision kPush = 10 * vecgeom::kTolerance;
-#else
-  const Precision kPush = 0;
-#endif
+  const double kPush = 0;
 
-  Precision momentumMag = sqrt(kinE * (kinE + 2 * mass));
+  double momentumMag = sqrt(kinE * (kinE + 2 * mass));
 
   // Distance along the track direction to reach the maximum allowed error
-  const Precision safeLength = ComputeSafeLength(momentumMag, charge, direction);
+  const double safeLength = ComputeSafeLength(momentumMag, charge, direction);
 
   ConstBzFieldStepper helixBz(BzValue);
 
-  Precision stepDone           = 0;
-  Precision remains            = physicsStep;
-  const Precision epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
-  int chordIters               = 0;
+  double stepDone           = 0;
+  double remains            = physicsStep;
+  const double epsilon_step = 1.0e-7 * physicsStep; // Ignore remainder if < e_s * PhysicsStep
+  int chordIters            = 0;
 
   bool continueIteration = false;
 
-  Precision safety      = safetyIn;
+  double safety         = safetyIn;
   Vector3D safetyOrigin = position;
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
   next_state.SetBoundaryState(false);
 
-  Precision maxNextSafeMove = safeLength;
+  double maxNextSafeMove = safeLength;
 
   bool lastWasZero = false;
   //  Locate the intersection of the curved trajectory and the boundaries of the current
@@ -100,21 +94,21 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
   do {
     Vector3D endPosition  = position;
     Vector3D endDirection = direction;
-    Precision safeMove    = min(remains, maxNextSafeMove);
+    double safeMove       = min(remains, maxNextSafeMove);
 
-    helixBz.DoStep<Vector3D, Precision, int>(position, direction, charge, momentumMag, safeMove, endPosition,
-                                             endDirection);
+    helixBz.DoStep<Vector3D, double, int>(position, direction, charge, momentumMag, safeMove, endPosition,
+                                          endDirection);
 
-    Vector3D chordVec  = endPosition - position;
-    Precision chordLen = chordVec.Length();
-    Vector3D chordDir  = (1 / chordLen) * chordVec;
+    Vector3D chordVec = endPosition - position;
+    double chordLen   = chordVec.Length();
+    Vector3D chordDir = (1 / chordLen) * chordVec;
 
-    Precision currentSafety = safety - (position - safetyOrigin).Length();
-    Precision move;
+    double currentSafety = safety - (position - safetyOrigin).Length();
+    double move;
     if (currentSafety > chordLen) {
       move = chordLen;
     } else {
-      Precision newSafety = 0;
+      double newSafety = 0;
       if (stepDone > 0) {
         // Use maximum accuracy only if safety is smaller than physicalStepLength
         newSafety = Navigator::ComputeSafety(position, current_state, remains);
@@ -133,8 +127,8 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
       }
     }
 
-    static constexpr Precision ReduceFactor = 0.1;
-    static constexpr int ReduceIters        = 6;
+    static constexpr double ReduceFactor = 0.1;
+    static constexpr int ReduceIters     = 6;
 
     if (lastWasZero && chordIters >= ReduceIters) {
       lastWasZero = false;
@@ -172,9 +166,9 @@ __host__ __device__ Precision fieldPropagatorConstBz::ComputeStepAndNextVolume(
       position = position + move * chordDir;
 
       // Primitive approximation of end direction and move to the crossing point ...
-      Precision fraction = chordLen > 0 ? move / chordLen : 0;
-      direction          = direction * (1.0 - fraction) + endDirection * fraction;
-      direction          = direction.Unit();
+      double fraction = chordLen > 0 ? move / chordLen : 0;
+      direction       = direction * (1.0 - fraction) + endDirection * fraction;
+      direction       = direction.Unit();
       // safeMove is how much the track would have been moved if not hitting the boundary
       // We approximate the actual reduction along the curved trajectory to be the same
       // as the reduction of the full chord due to the boundary crossing.

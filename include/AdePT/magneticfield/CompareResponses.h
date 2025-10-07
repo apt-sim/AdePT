@@ -9,19 +9,19 @@
 #include <VecGeom/base/Vector3D.h>
 
 static __device__ __host__ bool CompareResponseVector3D(
-    int id, vecgeom::Vector3D<Precision> const &originalVec, vecgeom::Vector3D<Precision> const &baselineVec,
-    vecgeom::Vector3D<Precision> const &resultVec, // Output of new method
+    int id, vecgeom::Vector3D<double> const &originalVec, vecgeom::Vector3D<double> const &baselineVec,
+    vecgeom::Vector3D<double> const &resultVec, // Output of new method
     const char *vecName,
-    Precision thresholdRel // fraction difference allowed
+    double thresholdRel // fraction difference allowed
 )
 // Returns 'true' if values are 'bad'...
 {
-  bool bad                              = false; // Good ..
-  Precision magOrig                     = originalVec.Mag();
-  vecgeom::Vector3D<Precision> moveBase = baselineVec - originalVec;
-  vecgeom::Vector3D<Precision> moveRes  = resultVec - originalVec;
-  Precision magMoveBase                 = moveBase.Mag();
-  Precision magDiffRes                  = moveRes.Mag();
+  bool bad                           = false; // Good ..
+  double magOrig                     = originalVec.Mag();
+  vecgeom::Vector3D<double> moveBase = baselineVec - originalVec;
+  vecgeom::Vector3D<double> moveRes  = resultVec - originalVec;
+  double magMoveBase                 = moveBase.Mag();
+  double magDiffRes                  = moveRes.Mag();
 
   if (std::fabs(magDiffRes / magMoveBase) - 1.0 > thresholdRel ||
       (resultVec - baselineVec).Mag() > thresholdRel * magMoveBase) {
@@ -42,9 +42,8 @@ static __device__ __host__ bool CompareResponseVector3D(
   return bad;
 };
 
-static __device__ __host__ void ReportSameMoveVector3D(int id, vecgeom::Vector3D<Precision> const &originalVec,
-                                                       vecgeom::Vector3D<Precision> const &resultVec,
-                                                       const char *vecName)
+static __device__ __host__ void ReportSameMoveVector3D(int id, vecgeom::Vector3D<double> const &originalVec,
+                                                       vecgeom::Vector3D<double> const &resultVec, const char *vecName)
 {
   printf(" id %3d - Same %s: "
          " mv/base: 3v= %14.9f %14.9f %14.9f (mag= %9.4g)"

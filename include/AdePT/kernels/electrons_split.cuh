@@ -202,12 +202,12 @@ template <bool IsElectron>
 __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
                                     adept::MParray *leakedQueue)
 {
-  constexpr Precision kPushDistance        = 1000 * vecgeom::kTolerance;
+  constexpr double kPushDistance           = 1000 * vecgeom::kTolerance;
   constexpr int Charge                     = IsElectron ? -1 : 1;
   constexpr double restMass                = copcore::units::kElectronMassC2;
   constexpr int Nvar                       = 6;
   constexpr int max_iterations             = 10;
-  constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+  constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
   constexpr unsigned short kStepsStuckPush = 5;
 
 #ifdef ADEPT_USE_EXT_BFIELD
@@ -319,7 +319,7 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
     currentTrack.dir.Set(direction[0], direction[1], direction[2]);
     if (!currentTrack.nextState.IsOnBoundary()) {
       const double *mscDisplacement = mscData->GetDisplacement();
-      vecgeom::Vector3D<Precision> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
+      vecgeom::Vector3D<double> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
       const double dLength2            = displacement.Length2();
       constexpr double kGeomMinLength  = 5 * copcore::units::nm;          // 0.05 [nm]
       constexpr double kGeomMinLength2 = kGeomMinLength * kGeomMinLength; // (0.05 [nm])^2
@@ -545,8 +545,8 @@ __global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectr
                                    adept::MParray *relocatingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
                                    const bool returnAllSteps, const bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  int activeSize                    = relocatingQueue->size();
+  constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
+  int activeSize                 = relocatingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot           = (*relocatingQueue)[i];
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
@@ -708,7 +708,7 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
       RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
       Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                                   vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                   vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
                                                    currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       // Reuse the RNG state of the dying track.
@@ -825,10 +825,10 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
       energyDeposit += deltaEkin;
 
     } else {
-      Track &secondary = secondaries.electrons.NextTrack(
-          newRNG, deltaEkin, currentTrack.pos,
-          vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
-          currentTrack, currentTrack.globalTime);
+      Track &secondary =
+          secondaries.electrons.NextTrack(newRNG, deltaEkin, currentTrack.pos,
+                                          vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                                          currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -964,7 +964,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
     } else {
       Track &gamma =
           secondaries.gammas.NextTrack(newRNG, deltaEkin, currentTrack.pos,
-                                       vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                                       vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -1096,7 +1096,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     } else {
       Track &gamma1 =
           secondaries.gammas.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
-                                       vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
+                                       vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -1128,7 +1128,7 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
     } else {
       Track &gamma2 =
           secondaries.gammas.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
-                                       vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
+                                       vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {

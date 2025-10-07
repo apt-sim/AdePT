@@ -132,9 +132,9 @@ __global__ void InitPrimaries(ParticleGenerator generator, int startEvent, int n
       // simulate.
       const double phi = 2. * M_PI * track.rngState.Rndm();
       const double eta = -5. + 10. * track.rngState.Rndm();
-      track.dir.x()    = static_cast<vecgeom::Precision>(cos(phi) / cosh(eta));
-      track.dir.y()    = static_cast<vecgeom::Precision>(sin(phi) / cosh(eta));
-      track.dir.z()    = static_cast<vecgeom::Precision>(tanh(eta));
+      track.dir.x()    = static_cast<double>(cos(phi) / cosh(eta));
+      track.dir.y()    = static_cast<double>(sin(phi) / cosh(eta));
+      track.dir.z()    = static_cast<double>(tanh(eta));
     } else {
       track.dir = {1.0, 0, 0};
     }

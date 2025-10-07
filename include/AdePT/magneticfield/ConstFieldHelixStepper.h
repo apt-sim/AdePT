@@ -24,7 +24,6 @@
  *   ( not just along the z-axis-- for that there is ConstBzFieldHelixStepper )
  */
 class ConstFieldHelixStepper {
-  using Precision = vecgeom::Precision;
 
   template <typename T>
   using Vector3D = vecgeom::Vector3D<T>;
@@ -33,20 +32,20 @@ public:
   // __host__ __device__
   // ConstFieldHelixStepper(); // For default initialisation only
 
-  __host__ __device__ ConstFieldHelixStepper(Precision Bx, Precision By, Precision Bz);
+  __host__ __device__ ConstFieldHelixStepper(double Bx, double By, double Bz);
 
-  __host__ __device__ ConstFieldHelixStepper(Precision Bfield[3]);
+  __host__ __device__ ConstFieldHelixStepper(double Bfield[3]);
 
-  __host__ __device__ ConstFieldHelixStepper(Vector3D<Precision> const &Bfield);
+  __host__ __device__ ConstFieldHelixStepper(Vector3D<double> const &Bfield);
 
-  void __host__ __device__ SetB(Precision Bx, Precision By, Precision Bz)
+  void __host__ __device__ SetB(double Bx, double By, double Bz)
   {
     // fB.Set(Bx, By, Bz);
-    Vector3D<Precision> Bfield(Bx, By, Bz);
+    Vector3D<double> Bfield(Bx, By, Bz);
     CalculateDerived(Bfield);
   }
 
-  __host__ __device__ Vector3D<Precision> const GetFieldVec() const { return fBmag * fUnit; }
+  __host__ __device__ Vector3D<double> const GetFieldVec() const { return fBmag * fUnit; }
 
   /*
   template<typename RT, typename Vector3D>
@@ -86,39 +85,39 @@ public:
                  vecgeom::Vector3D<Real_t> &endPosition, vecgeom::Vector3D<Real_t> &endDirection) const;
 
 protected:
-  inline __host__ __device__ void CalculateDerived(Vector3D<Precision> Bvec);
+  inline __host__ __device__ void CalculateDerived(Vector3D<double> Bvec);
 
   template <typename Real_t>
   inline __host__ __device__ bool CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const;
 
 private:
   // Values below used for speed, code simplicity
-  Vector3D<Precision> fUnit{1, 0, 0}; // direction
-  Precision fBmag = 0;                // magnitude
+  Vector3D<double> fUnit{1, 0, 0}; // direction
+  double fBmag = 0;                // magnitude
 
 }; // end class declaration
 
-inline __host__ __device__ void ConstFieldHelixStepper::CalculateDerived(Vector3D<Precision> Bvec)
+inline __host__ __device__ void ConstFieldHelixStepper::CalculateDerived(Vector3D<double> Bvec)
 {
-  fBmag             = Bvec.Mag();
-  Precision bMagInv = (1 / fBmag);
-  fUnit             = {1, 0, 0};
+  fBmag          = Bvec.Mag();
+  double bMagInv = (1 / fBmag);
+  fUnit          = {1, 0, 0};
   if (fBmag > 0) fUnit = bMagInv * Bvec;
 }
 
-inline __host__ __device__ ConstFieldHelixStepper::ConstFieldHelixStepper(Precision Bx, Precision By,
-                                                                          Precision Bz) // : fB(Bx, By, gBz)
+inline __host__ __device__ ConstFieldHelixStepper::ConstFieldHelixStepper(double Bx, double By,
+                                                                          double Bz) // : fB(Bx, By, gBz)
 {
   CalculateDerived({Bx, By, Bz});
 }
 
-inline __host__ __device__ ConstFieldHelixStepper::ConstFieldHelixStepper(Precision B[3]) // : fB(B[0], B[1], B[2])
+inline __host__ __device__ ConstFieldHelixStepper::ConstFieldHelixStepper(double B[3]) // : fB(B[0], B[1], B[2])
 {
   CalculateDerived({B[0], B[1], B[2]});
 }
 
 inline __host__ __device__
-ConstFieldHelixStepper::ConstFieldHelixStepper(Vector3D<Precision> const &Bfield) // : fB(Bfield)
+ConstFieldHelixStepper::ConstFieldHelixStepper(Vector3D<double> const &Bfield) // : fB(Bfield)
 {
   CalculateDerived(Bfield);
 }
@@ -219,7 +218,7 @@ inline __host__ __device__ void ConstFieldHelixStepper::DoStep(vecgeom::Vector3D
 template <typename Real_t>
 bool ConstFieldHelixStepper::CheckModulus(Real_t &newdirX_v, Real_t &newdirY_v, Real_t &newdirZ_v) const
 {
-  constexpr Precision perMillion = 1.0e-6;
+  constexpr double perMillion = 1.0e-6;
 
   Real_t modulusDir = newdirX_v * newdirX_v + newdirY_v * newdirY_v + newdirZ_v * newdirZ_v;
   typename vecCore::Mask<Real_t> goodDir;

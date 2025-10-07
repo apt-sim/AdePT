@@ -30,7 +30,7 @@ __global__ void __launch_bounds__(256, 1)
                     Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
                     const bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -51,7 +51,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
   constexpr bool returnLastStep     = false;
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Pdg                 = 22;
   int activeSize                    = gammas->fActiveTracks->size();
@@ -71,15 +71,15 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     LeakStatus leakReason                    = LeakStatus::NoLeak;
     short stepDefinedProcessId               = 10; // default for transportation
     double edep                              = 0.;
-    constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+    constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
     constexpr unsigned short kStepsStuckPush = 5;
     constexpr unsigned short kStepsStuckKill = 25;
     auto eKin                                = currentTrack.eKin;
     auto preStepEnergy                       = eKin;
     auto pos                                 = currentTrack.pos;
-    vecgeom::Vector3D<Precision> preStepPos(pos);
+    vecgeom::Vector3D<double> preStepPos(pos);
     auto dir = currentTrack.dir;
-    vecgeom::Vector3D<Precision> preStepDir(dir);
+    vecgeom::Vector3D<double> preStepDir(dir);
     double globalTime        = currentTrack.globalTime;
     double preStepGlobalTime = currentTrack.globalTime;
     double localTime         = currentTrack.localTime;
@@ -88,7 +88,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
-    bool printErrors = false;
+    bool printErrors = true;
 #if ADEPT_DEBUG_TRACK > 0
     bool verbose = false;
     if (gTrackDebug.active) {
@@ -322,7 +322,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #ifdef ASYNC_MODE
           Track &electron = secondaries.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
-              vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
+              vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
 #else
           Track &electron = secondaries.electrons->NextTrack();
@@ -366,7 +366,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #ifdef ASYNC_MODE
           Track &positron = secondaries.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
-              vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
+              vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
 #else
           Track &positron = secondaries.positrons->NextTrack();
@@ -511,7 +511,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           // Create a secondary electron and sample directions.
 #ifdef ASYNC_MODE
           Track &electron = secondaries.electrons.NextTrack(
-              newRNG, photoElecE, pos, vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
+              newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
 #else
           Track &electron = secondaries.electrons->NextTrack();

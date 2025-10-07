@@ -20,7 +20,6 @@
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
-  using Precision = vecgeom::Precision;
   RanluxppDouble rngState;
   double energy;
   double numIALeft[3];
@@ -28,13 +27,13 @@ struct Track {
   double dynamicRangeFactor;
   double tlimitMin;
 
-  vecgeom::Vector3D<Precision> pos;
-  vecgeom::Vector3D<Precision> dir;
+  vecgeom::Vector3D<double> pos;
+  vecgeom::Vector3D<double> dir;
   vecgeom::NavigationState navState;
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
-  __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
+  __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<double> &parentPos,
                                            const vecgeom::NavigationState &parentNavState)
   {
     // The caller is responsible to branch a new RNG state and to set the energy.
