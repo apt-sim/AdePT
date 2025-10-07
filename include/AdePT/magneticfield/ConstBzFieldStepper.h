@@ -26,18 +26,17 @@
  * This class is roughly equivalent to TGeoHelix in ROOT
  */
 class ConstBzFieldStepper {
-  using Precision = vecgeom::Precision;
 
 private:
-  Precision fBz;
+  double fBz;
 
 public:
   __host__ __device__ ConstBzFieldStepper(float Bz = 0.) : fBz(Bz) {}
 
-  void SetBz(Precision Bz) { fBz = Bz; }
-  Precision GetBz() const { return fBz; }
+  void SetBz(double Bz) { fBz = Bz; }
+  double GetBz() const { return fBz; }
 
-  // static constexpr Precision kB2C =
+  // static constexpr double kB2C =
   //    -0.299792458 * (copcore::units::GeV / (copcore::units::tesla * copcore::units::meter));
 
   /*
@@ -90,7 +89,7 @@ inline __attribute__((always_inline)) void ConstBzFieldStepper::DoStep(
     BaseDType const &dz0, BaseIType const &charge, BaseDType const &momentum, BaseDType const &step, BaseDType &x,
     BaseDType &y, BaseDType &z, BaseDType &dx, BaseDType &dy, BaseDType &dz) const
 {
-  const Precision kSmall = 1.E-30;
+  const double kSmall = 1.E-30;
   // could do a fast square root here
   BaseDType dt      = sqrt((dx0 * dx0) + (dy0 * dy0)) + kSmall;
   BaseDType invnorm = 1. / dt;

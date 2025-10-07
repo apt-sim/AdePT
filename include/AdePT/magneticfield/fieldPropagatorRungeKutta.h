@@ -59,13 +59,8 @@ public:
 protected:
   static constexpr unsigned int fMaxTrials = 100;
   static constexpr unsigned int Nvar       = 6; // For position (3) and momentum (3) -- invariant
-
-#ifdef VECGEOM_FLOAT_PRECISION
-  static constexpr Real_t kPush = 10 * vecgeom::kTolerance;
-#else
-  static constexpr Real_t kPush = 0.;
-#endif
-  static constexpr Real_t kDistCheckPush = kPush + Navigator::kBoundaryPush;
+  static constexpr Real_t kPush            = 0.;
+  static constexpr Real_t kDistCheckPush   = kPush + Navigator::kBoundaryPush;
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
 };
 
@@ -161,8 +156,8 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   //  Locate the intersection of the curved trajectory and the boundaries of the current
   //    volume (including daughters).
   do {
-    static constexpr Precision ReduceFactor = 0.1; ///< Factor to reduce the first step in case of crossing
-    static constexpr int ReduceIters        = 6;   ///< Number of reduced step trials to move away from the boundary
+    static constexpr Real_t ReduceFactor = 0.1; ///< Factor to reduce the first step in case of crossing
+    static constexpr int ReduceIters     = 6;   ///< Number of reduced step trials to move away from the boundary
 
     // Position and momentum at the end of the current arc
     vecgeom::Vector3D<double> endPosition    = position;
@@ -186,7 +181,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
     endDirection.Normalize();
 
     // Subtract from the existing safety after the move
-    Precision currentSafety = safety - (endPosition - safetyOrigin).Length();
+    Real_t currentSafety = safety - (endPosition - safetyOrigin).Length();
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) {
       if (chordIters > 0)

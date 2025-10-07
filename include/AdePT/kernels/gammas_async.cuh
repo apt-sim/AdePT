@@ -26,14 +26,10 @@ __global__ void __launch_bounds__(256, 1)
     TransportGammas(Track *gammas, const adept::MParray *active, Secondaries secondaries, adept::MParray *activeQueue,
                     adept::MParray *leakedQueue, Scoring *userScoring, GammaInteractions gammaInteractions)
 {
-  using VolAuxData = adeptint::VolAuxData;
-#ifdef VECGEOM_FLOAT_PRECISION
-  constexpr Precision kPush = 10 * vecgeom::kTolerance;
-#else
-  constexpr Precision kPush = 0.;
-#endif
-  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  const int activeSize               = active->size();
+  using VolAuxData                = adeptint::VolAuxData;
+  constexpr double kPush          = 0.;
+  constexpr double kPushOutRegion = 10 * vecgeom::kTolerance;
+  const int activeSize            = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot           = (*active)[i];
     Track &currentTrack      = gammas[slot];
@@ -216,12 +212,12 @@ __global__ void __launch_bounds__(256, 1)
 
         secondaries.electrons.NextTrack(
             newRNG, elKinEnergy, currentTrack.pos,
-            vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]},
-            currentTrack.navState, currentTrack);
+            vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
+            currentTrack);
         // Reuse the RNG state of the dying track.
         secondaries.positrons.NextTrack(
             currentTrack.rngState, posKinEnergy, currentTrack.pos,
-            vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
+            vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
             currentTrack.navState, currentTrack);
 
         // Kill the original track.
@@ -320,10 +316,9 @@ __global__ void __launch_bounds__(256, 1)
           double dirPhotoElec[3];
           G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
-          secondaries.electrons.NextTrack(
-              newRNG, photoElecE, currentTrack.pos,
-              vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
-              currentTrack);
+          secondaries.electrons.NextTrack(newRNG, photoElecE, currentTrack.pos,
+                                          vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
+                                          currentTrack.navState, currentTrack);
         } else {
           edep = eKin;
         }

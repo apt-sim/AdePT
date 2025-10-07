@@ -53,7 +53,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, Trac
                                                           AllowFinishOffEventArray allowFinishOffEvent,
                                                           const bool returnAllSteps, const bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
@@ -96,7 +96,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
   constexpr bool returnLastStep     = false;
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
@@ -134,15 +134,15 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     bool isLastStep                          = returnLastStep;
     bool surviveFlag                         = false;
     LeakStatus leakReason                    = LeakStatus::NoLeak;
-    constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+    constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
     constexpr unsigned short kStepsStuckPush = 5;
     constexpr unsigned short kStepsStuckKill = 25;
     auto eKin                                = currentTrack.eKin;
     auto preStepEnergy                       = eKin;
     auto pos                                 = currentTrack.pos;
-    vecgeom::Vector3D<Precision> preStepPos(pos);
+    vecgeom::Vector3D<double> preStepPos(pos);
     auto dir = currentTrack.dir;
-    vecgeom::Vector3D<Precision> preStepDir(dir);
+    vecgeom::Vector3D<double> preStepDir(dir);
     double globalTime        = currentTrack.globalTime;
     double preStepGlobalTime = currentTrack.globalTime;
     double localTime         = currentTrack.localTime;
@@ -150,7 +150,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     vecgeom::NavigationState nextState;
 
     currentTrack.stepCounter++;
-    bool printErrors = false;
+    bool printErrors = true;
     bool verbose     = false;
 #if ADEPT_DEBUG_TRACK > 0
     const char *pname[2] = {"e+", "e-"};
@@ -409,7 +409,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     if (!nextState.IsOnBoundary()) {
       const double *mscDisplacement = mscData->GetDisplacement();
-      vecgeom::Vector3D<Precision> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
+      vecgeom::Vector3D<double> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
       const double dLength2            = displacement.Length2();
       constexpr double kGeomMinLength  = 5 * copcore::units::nm;          // 0.05 [nm]
       constexpr double kGeomMinLength2 = kGeomMinLength * kGeomMinLength; // (0.05 [nm])^2
@@ -605,7 +605,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           } else {
 #ifdef ASYNC_MODE
             Track &secondary = secondaries.electrons.NextTrack(
-                newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
             Track &secondary = secondaries.electrons->NextTrack();
@@ -687,7 +687,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           } else {
 #ifdef ASYNC_MODE
             Track &gamma = secondaries.gammas.NextTrack(
-                newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
             Track &gamma = secondaries.gammas->NextTrack();
@@ -767,7 +767,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             Track &gamma1 = secondaries.gammas.NextTrack(
                 newRNG, theGamma1Ekin, pos,
-                vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
+                vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
                 globalTime);
 #else
             Track &gamma1 = secondaries.gammas->NextTrack();
@@ -811,7 +811,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #ifdef ASYNC_MODE
             Track &gamma2 = secondaries.gammas.NextTrack(
                 currentTrack.rngState, theGamma2Ekin, pos,
-                vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
+                vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
                 globalTime);
 #else
             Track &gamma2 = secondaries.gammas->NextTrack();
@@ -888,7 +888,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
 #ifdef ASYNC_MODE
           Track &gamma1 = secondaries.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
-                                                       vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                       vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
                                                        navState, currentTrack, globalTime);
 
           // Reuse the RNG state of the dying track.

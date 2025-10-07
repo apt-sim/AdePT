@@ -23,12 +23,8 @@ __global__ void TransportGammas(Track *gammas, const adept::MParray *active, Sec
                                 adept::MParray *activeQueue, GlobalScoring *globalScoring,
                                 ScoringPerVolume *scoringPerVolume)
 {
-#ifdef VECGEOM_FLOAT_PRECISION
-  const Precision kPush = 10 * vecgeom::kTolerance;
-#else
-  const Precision kPush = 0.;
-#endif
-  int activeSize = active->size();
+  const double kPush = 0.;
+  int activeSize     = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*active)[i];
     Track &currentTrack = gammas[slot];

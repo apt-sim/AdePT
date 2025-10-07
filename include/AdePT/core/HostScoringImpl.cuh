@@ -151,12 +151,12 @@ void FreeGPU(HostScoring *hostScoring, HostScoring *hostScoring_dev)
 template <>
 __device__ void RecordHit(HostScoring *hostScoring_dev, uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId,
                           char aParticleType, double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
-                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<Precision> const &aPrePosition,
-                          vecgeom::Vector3D<Precision> const &aPreMomentumDirection, double aPreEKin,
-                          vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
-                          vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin,
-                          double aGlobalTime, double aLocalTime, double aPreGlobalTime, unsigned int eventID,
-                          short threadID, bool isLastStep, unsigned short stepCounter)
+                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<double> const &aPrePosition,
+                          vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
+                          vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
+                          vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
+                          double aLocalTime, double aPreGlobalTime, unsigned int eventID, short threadID,
+                          bool isLastStep, unsigned short stepCounter)
 {
   // Acquire a hit slot
   GPUHit &aGPUHit = *GetNextFreeHit(hostScoring_dev);

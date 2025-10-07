@@ -78,8 +78,8 @@ struct LeakedTracks {
 //     double PEmxSec; // Only used for photoelectric process
 //     unsigned int slot;
 //     vecgeom::NavigationState preStepNavState;
-//     vecgeom::Vector3D<Precision> preStepPos;
-//     vecgeom::Vector3D<Precision> preStepDir;
+//     vecgeom::Vector3D<double> preStepPos;
+//     vecgeom::Vector3D<double> preStepDir;
 //     double preStepEnergy;
 //   };
 //   adept::MParrayT<Data> *queues[Interaction::NInt];

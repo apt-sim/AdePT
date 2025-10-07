@@ -9,8 +9,8 @@
 #include "VecGeom/navigation/NavigationState.h"
 
 struct GPUStepPoint {
-  vecgeom::Vector3D<Precision> fPosition;
-  vecgeom::Vector3D<Precision> fMomentumDirection;
+  vecgeom::Vector3D<double> fPosition;
+  vecgeom::Vector3D<double> fMomentumDirection;
   double fEKin;
   // Data needed to reconstruct G4 Touchable history
   vecgeom::NavigationState fNavigationState{0}; // VecGeom navigation state, used to identify the touchable
@@ -62,8 +62,8 @@ struct GlobalCounters {
 };
 
 /// @brief Utility function to copy a 3D vector, used for filling the Step Points
-__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const &source,
-                                             vecgeom::Vector3D<Precision> &destination)
+__device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<double> const &source,
+                                             vecgeom::Vector3D<double> &destination)
 {
   destination.x() = source.x();
   destination.y() = source.y();
@@ -74,9 +74,9 @@ __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<Precision> const 
 __device__ __forceinline__ void FillHit(
     GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aStepLimProcessId, char aParticleType,
     double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
-    vecgeom::Vector3D<Precision> const &aPrePosition, vecgeom::Vector3D<Precision> const &aPreMomentumDirection,
-    double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<Precision> const &aPostPosition,
-    vecgeom::Vector3D<Precision> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, double aLocalTime,
+    vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
+    double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
+    vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, double aLocalTime,
     double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter)
 {
   aGPUHit.fEventId = eventID;

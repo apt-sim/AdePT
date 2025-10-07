@@ -107,8 +107,8 @@ __global__ void GammaHowFar(Track *gammas, Track *leaks, G4HepEmGammaTrack *hepE
 
 __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active)
 {
-  constexpr Precision kPushDistance        = 1000 * vecgeom::kTolerance;
-  constexpr Precision kPushStuck           = 100 * vecgeom::kTolerance;
+  constexpr double kPushDistance           = 1000 * vecgeom::kTolerance;
+  constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
   constexpr unsigned short kStepsStuckPush = 5;
 
   int activeSize = active->size();
@@ -232,8 +232,8 @@ __global__ void GammaRelocation(Track *gammas, Track *leaks, G4HepEmGammaTrack *
                                 adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
                                 const bool returnLastStep)
 {
-  constexpr Precision kPushDistance = 1000 * vecgeom::kTolerance;
-  int activeSize                    = relocatingQueue->size();
+  constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
+  int activeSize                 = relocatingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*relocatingQueue)[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;
@@ -423,7 +423,7 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
     } else {
       Track &electron = secondaries.electrons.NextTrack(
           newRNG, elKinEnergy, currentTrack.pos,
-          vecgeom::Vector3D<Precision>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
+          vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
@@ -457,8 +457,8 @@ __global__ void GammaConversion(Track *gammas, G4HepEmGammaTrack *hepEMTracks, S
     } else {
       Track &positron = secondaries.positrons.NextTrack(
           currentTrack.rngState, posKinEnergy, currentTrack.pos,
-          vecgeom::Vector3D<Precision>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]},
-          currentTrack.navState, currentTrack, currentTrack.globalTime);
+          vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, currentTrack.navState,
+          currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -713,10 +713,10 @@ __global__ void GammaPhotoelectric(Track *gammas, G4HepEmGammaTrack *hepEMTracks
       G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
       // Create a secondary electron and sample directions.
-      Track &electron = secondaries.electrons.NextTrack(
-          newRNG, photoElecE, currentTrack.pos,
-          vecgeom::Vector3D<Precision>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
-          currentTrack, currentTrack.globalTime);
+      Track &electron =
+          secondaries.electrons.NextTrack(newRNG, photoElecE, currentTrack.pos,
+                                          vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
+                                          currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {

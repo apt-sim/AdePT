@@ -18,8 +18,6 @@
 // A data structure to represent a particle track. The particle type is implicit
 // by the queue and not stored in memory.
 struct Track {
-  using Precision = vecgeom::Precision;
-
   RanluxppDouble rngState;
   double eKin{0.};
   double globalTime{0.};
@@ -36,8 +34,8 @@ struct Track {
   float localTime{0.f};
   float properTime{0.f};
 
-  vecgeom::Vector3D<Precision> pos;   ///< track position
-  vecgeom::Vector3D<Precision> dir;   ///< track direction
+  vecgeom::Vector3D<double> pos;      ///< track position
+  vecgeom::Vector3D<double> dir;      ///< track direction
   vecgeom::Vector3D<float> safetyPos; ///< last position where the safety was computed
   // TODO: For better clarity in the split kernels, rename this to "stored safety" as opposed to the
   // safety we get from GetSafety(), which is computed in the moment
@@ -49,8 +47,8 @@ struct Track {
   // Variables used to store track info needed for scoring
   vecgeom::NavigationState nextState;
   vecgeom::NavigationState preStepNavState;
-  vecgeom::Vector3D<Precision> preStepPos;
-  vecgeom::Vector3D<Precision> preStepDir;
+  vecgeom::Vector3D<double> preStepPos;
+  vecgeom::Vector3D<double> preStepDir;
   double preStepEKin{0};
   double preStepGlobalTime{0.};
   // Variables used to store navigation results
@@ -96,8 +94,8 @@ struct Track {
 
   /// Construct a secondary from a parent track.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<Precision> &parentPos,
-                   const vecgeom::Vector3D<Precision> &newDirection, const vecgeom::NavigationState &newNavState,
+  __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                   const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack, const double globalTime)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, originNavState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
@@ -126,7 +124,7 @@ struct Track {
   /// @param new_pos Track position
   /// @param accurate_limit Only return non-zero if the recomputed safety if larger than the accurate_limit
   /// @return Recomputed safety.
-  __host__ __device__ VECGEOM_FORCE_INLINE float GetSafety(vecgeom::Vector3D<Precision> const &new_pos,
+  __host__ __device__ VECGEOM_FORCE_INLINE float GetSafety(vecgeom::Vector3D<double> const &new_pos,
                                                            float accurate_limit = 0.f) const
   {
     float dsafe = safety - accurate_limit;
@@ -139,7 +137,7 @@ struct Track {
   /// @brief Set Safety value computed in a new point
   /// @param new_pos Position where the safety is computed
   /// @param safe Safety value
-  __host__ __device__ VECGEOM_FORCE_INLINE void SetSafety(vecgeom::Vector3D<Precision> const &new_pos, float safe)
+  __host__ __device__ VECGEOM_FORCE_INLINE void SetSafety(vecgeom::Vector3D<double> const &new_pos, float safe)
   {
     safetyPos.Set(static_cast<float>(new_pos[0]), static_cast<float>(new_pos[1]), static_cast<float>(new_pos[2]));
     safety = vecCore::math::Max(safe, 0.f);
@@ -147,7 +145,7 @@ struct Track {
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
 
-  __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<Precision> &parentPos,
+  __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<double> &parentPos,
                                            const vecgeom::NavigationState &parentNavState, double gTime)
   {
 #ifndef USE_SPLIT_KERNELS

@@ -47,16 +47,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                                           Secondaries &secondaries, adept::MParray *activeQueue,
                                                           adept::MParray *leakedQueue, Scoring *userScoring)
 {
-  using VolAuxData = adeptint::VolAuxData;
-#ifdef VECGEOM_FLOAT_PRECISION
-  const Precision kPush = 10 * vecgeom::kTolerance;
-#else
-  const Precision kPush = 0.;
-#endif
-  constexpr Precision kPushOutRegion = 10 * vecgeom::kTolerance;
-  constexpr int Charge               = IsElectron ? -1 : 1;
-  constexpr double restMass          = copcore::units::kElectronMassC2;
-  constexpr unsigned short maxSteps  = 10000; // 20'000;
+  using VolAuxData                  = adeptint::VolAuxData;
+  const double kPush                = 0.;
+  constexpr double kPushOutRegion   = 10 * vecgeom::kTolerance;
+  constexpr int Charge              = IsElectron ? -1 : 1;
+  constexpr double restMass         = copcore::units::kElectronMassC2;
+  constexpr unsigned short maxSteps = 10000; // 20'000;
   fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
 
   const int activeSize = active->size();
@@ -69,7 +65,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     auto pos                 = currentTrack.pos;
     const auto preStepPos{pos};
     auto dir = currentTrack.dir;
-    vecgeom::Vector3D<Precision> preStepDir(dir);
+    vecgeom::Vector3D<double> preStepDir(dir);
     auto navState     = currentTrack.navState;
     const auto volume = navState.Top();
     // the MCC vector is indexed by the logical volume id
@@ -220,7 +216,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     dir.Set(direction[0], direction[1], direction[2]);
     if (!nextState.IsOnBoundary()) {
       const double *mscDisplacement = mscData->GetDisplacement();
-      vecgeom::Vector3D<Precision> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
+      vecgeom::Vector3D<double> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
       const double dLength2            = displacement.Length2();
       constexpr double kGeomMinLength  = 5 * copcore::units::nm;          // 0.05 [nm]
       constexpr double kGeomMinLength2 = kGeomMinLength * kGeomMinLength; // (0.05 [nm])^2
@@ -314,7 +310,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
         newRNG.Advance();
         Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, pos,
-                                                     vecgeom::Vector3D<Precision>{sint * cosPhi, sint * sinPhi, cost},
+                                                     vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
                                                      navState, currentTrack);
 
         // Reuse the RNG state of the dying track.
@@ -460,7 +456,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
       Track &secondary = secondaries.electrons.NextTrack(
-          newRNG, deltaEkin, pos, vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+          newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
           navState, currentTrack);
 
       adept_scoring::AccountProduced(userScoring + currentTrack.threadId, /*numElectrons*/ 1, /*numPositrons*/ 0,
@@ -488,7 +484,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                      /*numGammas*/ 1);
 
       secondaries.gammas.NextTrack(newRNG, deltaEkin, pos,
-                                   vecgeom::Vector3D<Precision>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                                   vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                                    navState, currentTrack);
 
       eKin -= deltaEkin;
@@ -508,11 +504,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
                                      /*numGammas*/ 2);
 
       secondaries.gammas.NextTrack(newRNG, theGamma1Ekin, pos,
-                                   vecgeom::Vector3D<Precision>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
+                                   vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
                                    navState, currentTrack);
       // Reuse the RNG state of the dying track.
       secondaries.gammas.NextTrack(currentTrack.rngState, theGamma2Ekin, pos,
-                                   vecgeom::Vector3D<Precision>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
+                                   vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
                                    navState, currentTrack);
 
       // The current track is killed by not enqueuing into the next activeQueue.
