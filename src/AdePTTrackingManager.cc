@@ -44,7 +44,6 @@ AdePTTrackingManager::AdePTTrackingManager(AdePTConfiguration *config, int verbo
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
-  auto tid = G4Threading::G4GetThreadId();
 #ifdef ENABLE_POWER_METER
   // NOTE: Prior to Geant4 11.3 the destructor for the specialized tracking managers was not
   // called. In this case the loop will not be stopped and we will get an error at the end of
