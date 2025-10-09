@@ -54,6 +54,7 @@ option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 option(ASYNC_MODE "Enable the async transport backend" OFF)
 option(ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
+option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 
@@ -342,6 +343,33 @@ if(ADEPT_USE_EXT_BFIELD)
   endif()
 endif()
 
+if(ADEPT_ENABLE_POWER_METER)
+  find_package(Power_meter QUIET)
+  if(Power_meter_FOUND)
+    message(STATUS "Power_meter found ${Power_meter_INCLUDE_DIR}")
+    add_compile_definitions(ENABLE_POWER_METER)
+  else()
+    # Fetch it locally
+    include(FetchContent)
+
+    FetchContent_Declare(
+      power_meter
+      GIT_REPOSITORY https://github.com/apt-sim/power_meter
+      GIT_TAG 458fa2f4f72287d7128de25ed570d2803f0fbe89
+    )
+
+    FetchContent_MakeAvailable(power_meter)
+    message(STATUS "Using FetchContent to build Power_meter")
+
+    FetchContent_GetProperties(power_meter)
+    if(NOT power_meter_POPULATED)
+      message(FATAL_ERROR "Fetching Power_meter failed!")
+    endif()
+
+    add_compile_definitions(ENABLE_POWER_METER)
+  endif()
+endif()
+
 # Set up debugging levels for CUDA:
 # - For RelWithDebInfo (the default), generate line info to enable profiling.
 add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:RelWithDebInfo>>:--generate-line-info>")
@@ -405,6 +433,7 @@ cuda_rdc_target_link_libraries(AdePT_G4_integration
     G4HepEm::g4HepEmRun
     G4VG::g4vg
     CUDA::cudart
+    $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:Power_meter::Power_meter>
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
@@ -424,6 +453,7 @@ target_compile_definitions(AdePT_G4_integration
     $<$<BOOL:${USE_SPLIT_KERNELS}>:USE_SPLIT_KERNELS>
     $<$<AND:$<BOOL:${DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:DEBUG_SINGLE_THREAD>
     $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
+    $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
     $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
 )
 

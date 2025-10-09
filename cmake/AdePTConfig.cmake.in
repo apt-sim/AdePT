@@ -38,6 +38,10 @@ if(@ADEPT_USE_EXT_BFIELD@)
   find_dependency(covfie REQUIRED)
 endif()
 
+if(@ADEPT_ENABLE_POWER_METER@)
+  find_dependency(Power_meter REQUIRED)
+endif()
+
 # Record whether we support G4VTrackingManager.
 # Note that this implies the re-found Geant4 below is the exact same as we
 # were built with, especially if G4VTrackingManager has been backported to < 11.0

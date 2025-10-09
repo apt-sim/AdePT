@@ -80,6 +80,9 @@ private:
   bool fAdePTInitialized{false};
   bool fSpeedOfLight{false};
   bool fCommonInitThread{false};
+#ifdef ENABLE_POWER_METER
+  bool fPowerMeterRunning{false};
+#endif
 };
 
 #ifdef ASYNC_MODE
