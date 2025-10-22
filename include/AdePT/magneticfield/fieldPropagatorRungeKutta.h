@@ -346,7 +346,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   itersDone += chordIters;
   // If the track is not exiting the current volume, reset next_state.fLastExited because it may re-enter the same
   // volume
-  if (next_state.GetLastExited() == current_state.GetLastExited()) next_state.SetLastExited();
+  if (next_state.GetLastExitedState() == current_state.GetLastExitedState()) next_state.SetLastExited();
 
   return stepDone;
 }

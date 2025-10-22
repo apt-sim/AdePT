@@ -26,7 +26,7 @@ template <typename Real_t>
 class SurfNavigator {
 
 public:
-  using Vector3D = vecgeom::Vector3D<vecgeom::double>;
+  using Vector3D = vecgeom::Vector3D<double>;
   using SurfData = vgbrep::SurfData<Real_t>;
   using Real_b   = typename SurfData::Real_b;
 
