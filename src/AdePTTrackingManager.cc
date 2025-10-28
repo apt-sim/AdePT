@@ -289,7 +289,7 @@ void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 
 void AdePTTrackingManager::FlushEvent()
 {
-  if (fVerbosity > 0)
+  if (fVerbosity > 1)
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer." << G4endl;
 
   fAdeptTransport->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(),
