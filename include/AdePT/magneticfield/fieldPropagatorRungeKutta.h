@@ -282,6 +282,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       if (!continueIteration) {
         // Let's move to the other side of this boundary -- this side we cannot progress !!
         move = Navigator_t::kBoundaryPush; // curvedStep
+        position += move * chordDir;
       }
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose)
@@ -302,7 +303,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       // move = fraction * safeArc; // curvedStep
 #ifndef ENDPOINT_ON_CURVE
       // Primitive approximation of end direction and linearStep to the crossing point ...
-      position    = position + move * chordDir; // linearStep
+      position += move * chordDir; // linearStep
       direction   = direction * (1.0 - fraction) + endDirection * fraction;
       direction   = direction.Unit();
       momentumVec = momentumMag * direction;
