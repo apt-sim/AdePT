@@ -267,13 +267,6 @@ void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 {
-
-  // Speed of light: kill all e-+/gamma immediately
-  if (fSpeedOfLight) {
-    delete aTrack;
-    return;
-  }
-
   if (fGPURegions.empty() && !fAdeptTransport->GetTrackInAllRegions()) {
     // if no GPU regions, hand over directly to G4HepEmTrackingManager
     fHepEmTrackingManager->HandOverOneTrack(aTrack);
@@ -346,6 +339,13 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     const bool isGPURegion = trackInAllRegions || fGPURegions.find(region) != fGPURegions.end();
 
     if (isGPURegion && (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0)) {
+
+      // Speed of light: kill all e-+/gamma immediately
+      if (fSpeedOfLight) {
+        delete aTrack;
+        return;
+      }
+
       // If the track is in a GPU region, hand it over to AdePT
       auto pdg = aTrack->GetParticleDefinition()->GetPDGEncoding();
 
