@@ -11,6 +11,7 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/TrackDebug.cuh>
 #include <AdePT/core/AdePTPrecision.hh>
+#include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -30,6 +31,7 @@
 
 #include <cinttypes>
 
+using StepActionParam = adept::SteppingAction::Params;
 using VolAuxData = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
@@ -47,11 +49,11 @@ namespace AsyncAdePT {
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron, typename Scoring, class SteppingActionT>
 static __device__ __forceinline__ void TransportElectrons(Track *electrons, Track *leaks, const adept::MParray *active,
                                                           Secondaries &secondaries, adept::MParray *nextActiveQueue,
                                                           adept::MParray *leakedQueue, Scoring *userScoring,
-                                                          Stats *InFlightStats,
+                                                          Stats *InFlightStats, const StepActionParam params,
                                                           AllowFinishOffEventArray allowFinishOffEvent,
                                                           const bool returnAllSteps, const bool returnLastStep)
 {
@@ -61,9 +63,6 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, Trac
   constexpr double restMass         = copcore::units::kElectronMassC2;
   constexpr int Nvar                = 6;
   constexpr int max_iterations      = 10;
-
- constexpr double m_xmin{ -10000 }, m_ymin{ -10000 }, m_zmin{ -5000 }, m_xmax{ 10000 }, m_ymax{ 10000 }, m_zmax{ 25000 }; 
-
 
 #ifdef ADEPT_USE_EXT_BFIELD
   using Field_t = GeneralMagneticField;
@@ -93,10 +92,10 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, Trac
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 
 #else
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron, typename Scoring, class SteppingActionT>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
                                                           Secondaries &secondaries, MParrayTracks *leakedQueue,
-                                                          Scoring *userScoring, VolAuxData const *auxDataArray)
+                                                          Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
@@ -965,16 +964,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       }
     }
 
-    // PLACEHOLDER: here the stepping actions can be implemented. For now it consists of killing stuck particles and
-    // setting the finish on CPU status
-
     if (surviveFlag) {
-      // stop particles outside of the Gauss world, this emulates the world cut 
-      if ( pos[0] > m_xmax || pos[0] < m_xmin || pos[1] > m_ymax || pos[1] < m_ymin || pos[2] > m_zmax || pos[2] < m_zmin || eKin < 1. ) { 
-        energyDeposit += eKin;
-        eKin = 0;
-        surviveFlag = false;
-      } else if (++currentTrack.looperCounter > 500) {
+      if (++currentTrack.looperCounter > 500) {
         // Kill loopers that are not advancing in free space or are scraping at a boundary
         if (printErrors)
           printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
@@ -995,6 +986,10 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         energyDeposit += eKin;
         eKin = 0;
         surviveFlag = false;
+      } else {
+        // call experiment-specific SteppingAction:
+        SteppingActionT::ElectronAction( surviveFlag, eKin, energyDeposit, leakReason, pos, globalTime, auxData.fMCIndex,
+                                         &g4HepEmData, params);
       }
     }
 
@@ -1051,40 +1046,40 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
 // Instantiate kernels for electrons and positrons.
 #ifdef ASYNC_MODE
-template <typename Scoring>
+template <typename Scoring, class SteppingActionT>
 __global__ void TransportElectrons(Track *electrons, Track *leaks, const adept::MParray *active,
                                    Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats, const StepActionParam params,
                                    AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
                                    const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
-                                                   userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
+  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
+                                                   userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps,
                                                    returnLastStep);
 }
-template <typename Scoring>
+template <typename Scoring, class SteppingActionT>
 __global__ void TransportPositrons(Track *positrons, Track *leaks, const adept::MParray *active,
                                    Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats, const StepActionParam params,
                                    AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
                                    const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
-                                                    userScoring, InFlightStats, allowFinishOffEvent, returnAllSteps,
+  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
+                                                    userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps,
                                                     returnLastStep);
 }
 #else
-template <typename Scoring>
+template <typename Scoring, class SteppingActionT>
 __global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring>(electrons, secondaries, leakedQueue, userScoring, auxDataArray);
+  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, secondaries, leakedQueue, userScoring, auxDataArray, params);
 }
-template <typename Scoring>
+template <typename Scoring, class SteppingActionT>
 __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring>(positrons, secondaries, leakedQueue, userScoring, auxDataArray);
+  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, secondaries, leakedQueue, userScoring, auxDataArray, params);
 }
 #endif
 

@@ -29,6 +29,9 @@
 #include <AdePT/navigation/BVHNavigator.h>
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
+#include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
+using SteppingAction = adept::SteppingAction::Action;
+
 // #include <AdePT/benchmarking/NVTX.h>
 
 #include <VecGeom/base/Config.h>
@@ -863,9 +866,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
     COPCORE_CUDA_CHECK(cudaStreamWaitEvent(waitingStream, cudaEvent));
   };
 
-  // needed for the HOTFIX below
-  int injectIteration[numThreads];
-  std::fill_n(injectIteration, numThreads, -1);
+  // default constructed stepping action parameters (different for CMS or LHCb)
+  adept::SteppingAction::Params steppingActionParams;
 
   std::unique_ptr<HitProcessingContext> hitProcessing{new HitProcessingContext{hitTransferStream}};
   std::thread hitProcessingThread{&HitProcessingLoop,    (HitProcessingContext *)hitProcessing.get(),
@@ -1078,10 +1080,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, secondaries, electrons.queues.nextActive,
             electrons.queues.interactionQueues[1], gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 #else
-        TransportElectrons<PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
+        TransportElectrons<PerEventScoring, SteppingAction><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, electrons.leaks, electrons.queues.initiallyActive, secondaries,
             electrons.queues.nextActive, electrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+            gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
         COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -1125,10 +1127,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, secondaries, positrons.queues.nextActive,
             positrons.queues.interactionQueues[3], gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 #else
-        TransportPositrons<PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(
+        TransportPositrons<PerEventScoring, SteppingAction><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, positrons.leaks, positrons.queues.initiallyActive, secondaries,
             positrons.queues.nextActive, positrons.queues.leakedTracksCurrent, gpuState.fScoring_dev,
-            gpuState.stats_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
+            gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
 
         COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
@@ -1171,9 +1173,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm, secondaries, gammas.queues.nextActive,
             gammas.queues.interactionQueues[2], gpuState.fScoring_dev, returnAllSteps, returnLastStep);
 #else
-        TransportGammas<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+        TransportGammas<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.leaks, gammas.queues.initiallyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, allowFinishOffEvent,
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
             returnAllSteps, returnLastStep); //, gpuState.gammaInteractions);
 #endif
 

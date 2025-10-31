@@ -19,20 +19,18 @@
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
 using VolAuxData = adeptint::VolAuxData;
+using StepActionParam = adept::SteppingAction::Params;
 
 #ifdef ASYNC_MODE
 namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
-template <typename Scoring>
+template <typename Scoring, class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     TransportGammas(Track *gammas, Track *leaks, const adept::MParray *active, Secondaries secondaries,
                     adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                    Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                    Stats *InFlightStats, const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
                     const bool returnLastStep)
 {
- constexpr double m_xmin{ -10000 }, m_ymin{ -10000 }, m_zmin{ -5000 }, m_xmax{ 10000 }, m_ymax{ 10000 }, m_zmax{ 25000 }; 
-
-
   constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
@@ -47,9 +45,9 @@ __global__ void __launch_bounds__(256, 1)
 #else
 
 // Synchronous TransportGammas Interface
-template <typename Scoring>
+template <typename Scoring, class SteppingActionT>
 __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,
-                                Scoring *userScoring, VolAuxData const *auxDataArray)
+                                Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
@@ -569,16 +567,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     } // end if !onBoundary
 
-    // PLACEHOLDER: here the stepping actions can be implemented. For now it consists of killing stuck particles and
-    // setting the finish on CPU status
-
     if (surviveFlag) {
-      // stop particles outside of the Gauss world, this emulates the world cut 
-      if ( pos[0] > m_xmax || pos[0] < m_xmin || pos[1] > m_ymax || pos[1] < m_ymin || pos[2] > m_zmax || pos[2] < m_zmin || eKin < 1. ) { 
-        edep += eKin;
-        eKin = 0;
-        surviveFlag = false;
-      } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf(
               "Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
@@ -586,6 +576,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
               currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
               currentTrack.zeroStepCounter);
         surviveFlag = false;
+      } else {
+        // call experiment-specific SteppingAction:
+        SteppingActionT::GammaAction( surviveFlag, eKin, edep, leakReason, pos, globalTime, auxData.fMCIndex,
+                                        &g4HepEmData, params);
       }
     }
 
