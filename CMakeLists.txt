@@ -56,6 +56,21 @@ option(ASYNC_MODE "Enable the async transport backend" OFF)
 option(ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 
+
+# Compile flag for AdePT SteppingActions on the GPU
+set(ADEPT_STEPPINGACTION "NONE" CACHE STRING "SteppingAction: NONE|CMS|LHCb")
+set_property(CACHE ADEPT_STEPPINGACTION PROPERTY STRINGS NONE CMS LHCb)
+
+if(ADEPT_STEPPINGACTION STREQUAL "CMS")
+  set(_ADEPT_STEPACTION_TYPE 1)
+elseif(ADEPT_STEPPINGACTION STREQUAL "LHCb")
+  set(_ADEPT_STEPACTION_TYPE 2)
+else()
+  set(_ADEPT_STEPACTION_TYPE 0)
+endif()
+
+message(STATUS "AdePT SteppingAction: ${Green}${ADEPT_STEPPINGACTION} ${ColorReset}")
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 
   set(_warn_flags
@@ -444,9 +459,15 @@ if(ADEPT_USE_EXT_BFIELD)
   )
 endif()
 
+# must be defined when compiling AdePT_G4_integration_objects' source files into the objects lib
+target_compile_definitions(AdePT_G4_integration_objects
+  PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
+)
+
 # Export config macros to consumers (Athena, etc.)
 target_compile_definitions(AdePT_G4_integration
   INTERFACE
+    ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
     $<$<BOOL:${ASYNC_MODE}>:ASYNC_MODE>
     $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
     $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>

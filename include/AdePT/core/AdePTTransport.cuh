@@ -30,6 +30,8 @@
 #include <AdePT/copcore/Global.h>
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/copcore/Ranluxpp.h>
+#include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
+using SteppingAction = adept::SteppingAction::Action;
 
 #include <G4HepEmData.hh>
 #include <G4HepEmState.hh>
@@ -443,6 +445,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
                                      buffer.toDevice.size() * sizeof(adeptint::TrackData), cudaMemcpyHostToDevice,
                                      gpuState.stream));
 
+  // default constructed stepping action parameters (different for CMS or LHCb)
+  adept::SteppingAction::Params steppingActionParams;
+
 #ifndef DEBUG_SINGLE_THREAD
   constexpr int initThreads = 32;
 #else
@@ -503,9 +508,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
-      TransportElectrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.trackmgr, secondaries, electrons.leakedTracks, scoring_dev,
-          VolAuxArray::GetInstance().fAuxData_dev);
+      TransportElectrons<AdeptScoring, SteppingAction><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
+          electrons.trackmgr, secondaries, electrons.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev,
+          steppingActionParams);
       COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
     }
@@ -517,9 +522,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
-      TransportPositrons<AdeptScoring><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.trackmgr, secondaries, positrons.leakedTracks, scoring_dev,
-          VolAuxArray::GetInstance().fAuxData_dev);
+      TransportPositrons<AdeptScoring, SteppingAction><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
+          positrons.trackmgr, secondaries, positrons.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev,
+          steppingActionParams);
       COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
     }
@@ -531,8 +536,9 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
-      TransportGammas<AdeptScoring><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev);
+      TransportGammas<AdeptScoring, SteppingAction><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
+          gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev,
+          steppingActionParams);
       COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
     }
