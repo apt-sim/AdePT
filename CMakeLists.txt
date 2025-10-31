@@ -459,6 +459,11 @@ if(ADEPT_USE_EXT_BFIELD)
   )
 endif()
 
+# must be defined when compiling AdePT_G4_integration_objects' source files into the objects lib
+target_compile_definitions(AdePT_G4_integration_objects
+  PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
+)
+
 # Export config macros to consumers (Athena, etc.)
 target_compile_definitions(AdePT_G4_integration
   INTERFACE
