@@ -18,7 +18,7 @@
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 
-using VolAuxData = adeptint::VolAuxData;
+using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
 
 #ifdef ASYNC_MODE
@@ -28,10 +28,10 @@ template <typename Scoring, class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     TransportGammas(Track *gammas, Track *leaks, const adept::MParray *active, Secondaries secondaries,
                     adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                    Stats *InFlightStats, const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                    const bool returnLastStep)
+                    Stats *InFlightStats, const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
+                    const bool returnAllSteps, const bool returnLastStep)
 {
-  constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
+  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   int activeSize                    = active->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -578,8 +578,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         surviveFlag = false;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction( surviveFlag, eKin, edep, leakReason, pos, globalTime, auxData.fMCIndex,
-                                        &g4HepEmData, params);
+        SteppingActionT::GammaAction(surviveFlag, eKin, edep, leakReason, pos, globalTime, auxData.fMCIndex,
+                                     &g4HepEmData, params);
       }
     }
 

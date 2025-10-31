@@ -1175,8 +1175,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 #else
         TransportGammas<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gammas.tracks, gammas.leaks, gammas.queues.initiallyActive, secondaries, gammas.queues.nextActive,
-            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
-            returnAllSteps, returnLastStep); //, gpuState.gammaInteractions);
+            gammas.queues.leakedTracksCurrent, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams,
+            allowFinishOffEvent, returnAllSteps, returnLastStep); //, gpuState.gammaInteractions);
 #endif
 
         // constexpr unsigned int intThreads = 128;

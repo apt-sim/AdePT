@@ -32,7 +32,7 @@
 #include <cinttypes>
 
 using StepActionParam = adept::SteppingAction::Params;
-using VolAuxData = adeptint::VolAuxData;
+using VolAuxData      = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
 __device__ double GetVelocity(double eKin)
@@ -95,7 +95,8 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, Trac
 template <bool IsElectron, typename Scoring, class SteppingActionT>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
                                                           Secondaries &secondaries, MParrayTracks *leakedQueue,
-                                                          Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
+                                                          Scoring *userScoring, VolAuxData const *auxDataArray,
+                                                          const StepActionParam params)
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
@@ -976,7 +977,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                  geometryStepLength, geometricalStepLengthFromPhysics, safety);
         energyDeposit += eKin;
-        eKin = 0;
+        eKin        = 0;
         surviveFlag = false;
       } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
@@ -984,12 +985,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
                  currentTrack.zeroStepCounter);
         energyDeposit += eKin;
-        eKin = 0;
+        eKin        = 0;
         surviveFlag = false;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::ElectronAction( surviveFlag, eKin, energyDeposit, leakReason, pos, globalTime, auxData.fMCIndex,
-                                         &g4HepEmData, params);
+        SteppingActionT::ElectronAction(surviveFlag, eKin, energyDeposit, leakReason, pos, globalTime, auxData.fMCIndex,
+                                        &g4HepEmData, params);
       }
     }
 
@@ -1049,37 +1050,41 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportElectrons(Track *electrons, Track *leaks, const adept::MParray *active,
                                    Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats, const StepActionParam params,
-                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+                                   const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
+                                   const bool returnAllSteps, const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
-                                                   userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps,
-                                                   returnLastStep);
+  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(
+      electrons, leaks, active, secondaries, nextActiveQueue, leakedQueue, userScoring, InFlightStats, params,
+      allowFinishOffEvent, returnAllSteps, returnLastStep);
 }
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportPositrons(Track *positrons, Track *leaks, const adept::MParray *active,
                                    Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats, const StepActionParam params,
-                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+                                   const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
+                                   const bool returnAllSteps, const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, leaks, active, secondaries, nextActiveQueue, leakedQueue,
-                                                    userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps,
-                                                    returnLastStep);
+  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(
+      positrons, leaks, active, secondaries, nextActiveQueue, leakedQueue, userScoring, InFlightStats, params,
+      allowFinishOffEvent, returnAllSteps, returnLastStep);
 }
 #else
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray,
+                                   const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, secondaries, leakedQueue, userScoring, auxDataArray, params);
+  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, secondaries, leakedQueue, userScoring,
+                                                                    auxDataArray, params);
 }
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray,
+                                   const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, secondaries, leakedQueue, userScoring, auxDataArray, params);
+  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, secondaries, leakedQueue, userScoring,
+                                                                     auxDataArray, params);
 }
 #endif
 
