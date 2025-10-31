@@ -4,14 +4,14 @@
 #pragma once
 #include "AdePTSteppingAction.cuh"
 
-#ifndef ADEPT_STEP_KIND
-#error "ADEPT_STEP_KIND is not defined (0=NONE, 1=CMS, 2=LHCb)"
+#ifndef ADEPT_STEPACTION_TYPE
+#error "ADEPT_STEPACTION_TYPE is not defined (0=NONE, 1=CMS, 2=LHCb)"
 #endif
 
 namespace adept::SteppingAction {
-#if (ADEPT_STEP_KIND == 1)
+#if (ADEPT_STEPACTION_TYPE == 1)
 using Action = CMSAction;
-#elif (ADEPT_STEP_KIND == 2)
+#elif (ADEPT_STEPACTION_TYPE == 2)
 using Action = LHCbAction;
 #else
 using Action = NoAction;

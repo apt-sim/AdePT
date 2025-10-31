@@ -29,8 +29,6 @@
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 
-#include <cinttypes>
-
 using StepActionParam = adept::SteppingAction::Params;
 using VolAuxData      = adeptint::VolAuxData;
 
@@ -976,16 +974,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                  geometryStepLength, geometricalStepLengthFromPhysics, safety);
-        energyDeposit += eKin;
-        eKin        = 0;
         surviveFlag = false;
       } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
                  currentTrack.zeroStepCounter);
-        energyDeposit += eKin;
-        eKin        = 0;
         surviveFlag = false;
       } else {
         // call experiment-specific SteppingAction:

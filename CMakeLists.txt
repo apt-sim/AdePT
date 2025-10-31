@@ -62,19 +62,11 @@ set(ADEPT_STEPPINGACTION "NONE" CACHE STRING "SteppingAction: NONE|CMS|LHCb")
 set_property(CACHE ADEPT_STEPPINGACTION PROPERTY STRINGS NONE CMS LHCb)
 
 if(ADEPT_STEPPINGACTION STREQUAL "CMS")
-  set(_ADEPT_STEP_KIND 1)
+  set(_ADEPT_STEPACTION_TYPE 1)
 elseif(ADEPT_STEPPINGACTION STREQUAL "LHCb")
-  set(_ADEPT_STEP_KIND 2)
+  set(_ADEPT_STEPACTION_TYPE 2)
 else()
-  set(_ADEPT_STEP_KIND 0)
-endif()
-
-if(_ADEPT_STEP_KIND EQUAL 1)
-  set(_ADEPT_STEP_NAME "CMS")
-elseif(_ADEPT_STEP_KIND EQUAL 2)
-  set(_ADEPT_STEP_NAME "LHCb")
-else()
-  set(_ADEPT_STEP_NAME "NONE")
+  set(_ADEPT_STEPACTION_TYPE 0)
 endif()
 
 message(STATUS "AdePT SteppingAction: ${Green}${ADEPT_STEPPINGACTION} ${ColorReset}")
@@ -467,19 +459,10 @@ if(ADEPT_USE_EXT_BFIELD)
   )
 endif()
 
-# 1) Needed at compile time for this library's object files
-target_compile_definitions(AdePT_G4_integration_objects
-  PRIVATE ADEPT_STEP_KIND=${_ADEPT_STEP_KIND}
-)
-
-# 2) Also export to consumers (headers may depend on it)
-target_compile_definitions(AdePT_G4_integration
-  PUBLIC ADEPT_STEP_KIND=${_ADEPT_STEP_KIND}
-)
-
 # Export config macros to consumers (Athena, etc.)
 target_compile_definitions(AdePT_G4_integration
   INTERFACE
+    ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
     $<$<BOOL:${ASYNC_MODE}>:ASYNC_MODE>
     $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
     $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
