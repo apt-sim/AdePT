@@ -85,11 +85,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     auto pos            = currentTrack.pos;
     auto dir            = currentTrack.dir;
     auto navState       = currentTrack.navState;
-#ifndef ADEPT_USE_SURF
-    const int volumeID = navState.Top()->GetLogicalVolume()->id();
-#else
-    const int volumeID = navState.GetLogicalId();
-#endif
+    const int volumeID  = navState.GetLogicalId();
 
     // the MCC vector is indexed by the logical volume id
     const int theMCIndex = MCIndex[volumeID];

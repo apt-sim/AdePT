@@ -219,11 +219,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     track.navState = trackinfo[i].navState;
     // nextState is initialized as needed.
 
-#ifndef ADEPT_USE_SURF
-    int lvolID = track.navState.Top()->GetLogicalVolume()->id();
-#else
     int lvolID = track.navState.GetLogicalId();
-#endif
     assert(auxDataArray[lvolID].fGPUregion);
   }
 }
