@@ -43,9 +43,9 @@ namespace adeptint {
 /// @brief Auxiliary logical volume data. This stores in the same structure the material-cuts couple index,
 /// the sensitive volume handler index and the flag if the region is active for AdePT.
 struct VolAuxData {
-  int fSensIndex{-1}; ///< index of handler for sensitive volumes (-1 means non-sensitive)
-  int fMCIndex{0};    ///< material-cut cuple index in G4HepEm
-  int fGPUregion{0};  ///< GPU region index (currently 1 or 0, meaning tracked on GPU or not)
+  int fSensIndex{-1};   ///< index of handler for sensitive volumes (-1 means non-sensitive)
+  int fMCIndex{0};      ///< material-cut cuple index in G4HepEm
+  int fGPUregionId{-1}; ///< GPU region index, corresponds to G4Region.instanceID if tracked on GPU, -1 otherwise
 };
 
 /// @brief Structure holding the arrays of auxiliary volume data on host and device

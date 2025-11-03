@@ -236,7 +236,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         const int nextlvolID          = nextState.GetLogicalId();
         VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
 
-        if (nextauxData.fGPUregion > 0) {
+        if (nextauxData.fGPUregionId >= 0) {
           surviveFlag = true;
         } else {
           // To be safe, just push a bit the track exiting the GPU region to make sure

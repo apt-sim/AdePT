@@ -73,7 +73,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     // TODO: Why do we have a specific AsyncAdePT VolAuxData?
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
-    assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
+    assert(auxData.fGPUregionId >= 0); // make sure we don't get inconsistent region here
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     auto survive = [&](bool leak = false) {
@@ -87,7 +87,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         activeQueue->push_back(slot);
     };
 
-    if (auxData.fGPUregion == 0) {
+    if (auxData.fGPUregionId < 0) {
       printf(__FILE__ ":%d Error: Should kick particle %d lvol %d (%15.12f %15.12f %15.12f) dir=(%f %f %f) "
                       "evt=%d thread=%d "
                       "e=%f safety=%f out of GPU\n",
@@ -337,7 +337,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
         const int nextlvolID = navState.GetLogicalId();
 #endif
         VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-        if (nextauxData.fGPUregion > 0)
+        if (nextauxData.fGPUregionId >= 0)
           survive();
         else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
@@ -386,7 +386,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
     //     const auto nextvolume         = navState.Top();
     //     const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
     //     VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-    //     if (nextauxData.fGPUregion > 0)
+    //     if (nextauxData.fGPUregionId >= 0)
     //       survive();
     //     else {
     //       // To be safe, just push a bit the track exiting the GPU region to make sure

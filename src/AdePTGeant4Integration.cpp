@@ -324,11 +324,11 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
     if (!trackInAllRegions) {
       for (G4Region *gpuRegion : gpuRegions) {
         if (g4_lvol->GetRegion() == gpuRegion) {
-          volAuxData[vg_lvol->id()].fGPUregion = 1;
+          volAuxData[vg_lvol->id()].fGPUregionId = g4_lvol->GetRegion()->GetInstanceID();
         }
       }
     } else {
-      volAuxData[vg_lvol->id()].fGPUregion = 1;
+      volAuxData[vg_lvol->id()].fGPUregionId = g4_lvol->GetRegion()->GetInstanceID();
     }
 
     if (g4_lvol->GetSensitiveDetector() != nullptr) {
