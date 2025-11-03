@@ -509,8 +509,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
       TransportElectrons<AdeptScoring, SteppingAction><<<transportBlocks, TransportThreads, 0, electrons.stream>>>(
-          electrons.trackmgr, secondaries, electrons.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev,
-          steppingActionParams);
+          electrons.trackmgr, secondaries, electrons.leakedTracks, scoring_dev, steppingActionParams);
       COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
     }
@@ -523,8 +522,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
       TransportPositrons<AdeptScoring, SteppingAction><<<transportBlocks, TransportThreads, 0, positrons.stream>>>(
-          positrons.trackmgr, secondaries, positrons.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev,
-          steppingActionParams);
+          positrons.trackmgr, secondaries, positrons.leakedTracks, scoring_dev, steppingActionParams);
       COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
     }
@@ -537,8 +535,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
       TransportGammas<AdeptScoring, SteppingAction><<<transportBlocks, TransportThreads, 0, gammas.stream>>>(
-          gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, VolAuxArray::GetInstance().fAuxData_dev,
-          steppingActionParams);
+          gammas.trackmgr, secondaries, gammas.leakedTracks, scoring_dev, steppingActionParams);
       COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
       COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
     }

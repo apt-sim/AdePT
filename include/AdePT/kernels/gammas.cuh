@@ -38,16 +38,12 @@ __global__ void __launch_bounds__(256, 1)
     const int slot      = (*active)[i];
     auto &slotManager   = *secondaries.gammas.fSlotManager;
     Track &currentTrack = gammas[slot];
-    auto navState       = currentTrack.navState;
-
-    int lvolID                = navState.GetLogicalId();
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
 #else
 
 // Synchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,
-                                Scoring *userScoring, VolAuxData const *auxDataArray, const StepActionParam params)
+                                Scoring *userScoring, const StepActionParam params)
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
@@ -60,12 +56,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     const int slot = (*gammas->fActiveTracks)[i];
     adeptint::TrackData trackdata;
     Track &currentTrack = (*gammas)[slot];
-    auto navState       = currentTrack.navState;
-
-    int lvolID                = navState.GetLogicalId();
-    VolAuxData const &auxData = auxDataArray[lvolID]; // FIXME unify VolAuxData
-
 #endif
+
+    auto navState             = currentTrack.navState;
+    int lvolID                = navState.GetLogicalId();
+    VolAuxData const &auxData = gVolAuxData[lvolID];
 
     bool isLastStep                          = returnLastStep;
     bool surviveFlag                         = false;
@@ -238,13 +233,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #endif
 
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        const int nextlvolID = nextState.GetLogicalId();
-
-#ifdef ASYNC_MODE // FIXME unify VolAuxData
-        VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-#else
-        VolAuxData const &nextauxData = auxDataArray[nextlvolID];
-#endif
+        const int nextlvolID          = nextState.GetLogicalId();
+        VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
 
         if (nextauxData.fGPUregion > 0) {
           surviveFlag = true;
