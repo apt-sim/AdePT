@@ -220,7 +220,7 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
     // nextState is initialized as needed.
 
     int lvolID = track.navState.GetLogicalId();
-    assert(auxDataArray[lvolID].fGPUregion);
+    assert(auxDataArray[lvolID].fGPUregionId >= 0);
   }
 }
 

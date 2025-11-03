@@ -502,7 +502,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           const int nextlvolID          = nextState.GetLogicalId();
           VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
           // track has left GPU region
-          if (nextauxData.fGPUregion <= 0) {
+          if (nextauxData.fGPUregionId < 0) {
             // To be safe, just push a bit the track exiting the GPU region to make sure
             // Geant4 does not relocate it again inside the same region
             pos += kPushDistance * dir;

@@ -663,7 +663,7 @@ __global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectr
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
       const int nextlvolID          = currentTrack.navState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-      if (nextauxData.fGPUregion > 0) {
+      if (nextauxData.fGPUregionId >= 0) {
         theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();
       } else {

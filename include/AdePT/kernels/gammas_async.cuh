@@ -42,7 +42,7 @@ __global__ void __launch_bounds__(256, 1)
     auto navState              = currentTrack.navState;
     const auto preStepNavState = navState;
     VolAuxData const &auxData  = AsyncAdePT::gVolAuxData[currentTrack.navState.Top()->GetLogicalVolume()->id()];
-    assert(auxData.fGPUregion > 0); // make sure we don't get inconsistent region here
+    assert(auxData.fGPUregionId >= 0); // make sure we don't get inconsistent region here
     auto &slotManager = *secondaries.gammas.fSlotManager;
 
     // Write local variables back into track and enqueue
@@ -115,7 +115,7 @@ __global__ void __launch_bounds__(256, 1)
         const auto nextvolume         = navState.Top();
         const int nextlvolID          = nextvolume->GetLogicalVolume()->id();
         VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-        if (nextauxData.fGPUregion > 0)
+        if (nextauxData.fGPUregionId >= 0)
           survive(activeQueue);
         else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
