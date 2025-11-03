@@ -79,22 +79,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, Trac
     SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
 
     Track &currentTrack = electrons[slot];
-    auto navState       = currentTrack.navState;
-    // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF // FIXME remove as soon as surface model branch is merged!
-    const int lvolID = navState.Top()->GetLogicalVolume()->id();
 #else
-    const int lvolID = navState.GetLogicalId();
-#endif
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
-
-#else
 template <bool IsElectron, typename Scoring, class SteppingActionT>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
                                                           Secondaries &secondaries, MParrayTracks *leakedQueue,
-                                                          Scoring *userScoring, VolAuxData const *auxDataArray,
-                                                          const StepActionParam params)
+                                                          Scoring *userScoring, const StepActionParam params)
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
@@ -123,17 +113,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     const int slot = (*electrons->fActiveTracks)[i];
     adeptint::TrackData trackdata;
     Track &currentTrack = (*electrons)[slot];
-    auto navState       = currentTrack.navState;
+#endif
+
+    auto navState = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
-#ifndef ADEPT_USE_SURF
-    const int lvolID = navState.Top()->GetLogicalVolume()->id();
-#else
-    const int lvolID = navState.GetLogicalId();
-#endif
+    const int lvolID          = navState.GetLogicalId();
+    VolAuxData const &auxData = gVolAuxData[lvolID];
 
-    VolAuxData const &auxData = auxDataArray[lvolID];
-
-#endif
     bool isLastStep                          = returnLastStep;
     bool surviveFlag                         = false;
     LeakStatus leakReason                    = LeakStatus::NoLeak;
@@ -513,12 +499,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         if (!nextState.IsOutside()) {
 
           // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-          const int nextlvolID = nextState.GetLogicalId();
-#ifdef ASYNC_MODE
-          VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-#else
-          VolAuxData const &nextauxData = auxDataArray[nextlvolID];
-#endif
+          const int nextlvolID          = nextState.GetLogicalId();
+          VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
           // track has left GPU region
           if (nextauxData.fGPUregion <= 0) {
             // To be safe, just push a bit the track exiting the GPU region to make sure
@@ -1066,19 +1048,17 @@ __global__ void TransportPositrons(Track *positrons, Track *leaks, const adept::
 #else
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray,
-                                   const StepActionParam params)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
 {
   TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, secondaries, leakedQueue, userScoring,
-                                                                    auxDataArray, params);
+                                                                    params);
 }
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, VolAuxData const *auxDataArray,
-                                   const StepActionParam params)
+                                   MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
 {
   TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, secondaries, leakedQueue, userScoring,
-                                                                     auxDataArray, params);
+                                                                     params);
 }
 #endif
 
