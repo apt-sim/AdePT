@@ -85,7 +85,7 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 
 template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                           G4HepEmConfig *hepEmConfig)
+                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
@@ -106,7 +106,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
     std::atomic_init(&eventState, EventState::ScoringRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmConfig);
+  AsyncAdePTTransport::Initialize(hepEmTM);
 }
 
 template <typename IntegrationLayer>
@@ -250,7 +250,7 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hep
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig)
+void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -265,7 +265,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
   // Initialize G4HepEm
-  if (!InitializePhysics(hepEmConfig))
+  if (!InitializePhysics(hepEmTM->GetConfig()))
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
   // Initialize field
@@ -286,7 +286,8 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
   fIntegrationLayerObjects.front().CheckGeometry(fg4hepem_state.get());
   adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
-  fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), fTrackInAllRegions, fGPURegionNames);
+  fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions,
+                                                  fGPURegionNames);
 
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();

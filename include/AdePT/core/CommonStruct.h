@@ -44,7 +44,7 @@ namespace adeptint {
 /// the sensitive volume handler index and the flag if the region is active for AdePT.
 struct VolAuxData {
   int fSensIndex{-1};   ///< index of handler for sensitive volumes (-1 means non-sensitive)
-  int fMCIndex{0};      ///< material-cut cuple index in G4HepEm
+  int fMCIndex{0};      ///< material-cut couple index in G4HepEm
   int fGPUregionId{-1}; ///< GPU region index, corresponds to G4Region.instanceID if tracked on GPU, -1 otherwise
 };
 
@@ -82,6 +82,28 @@ struct TrackBuffer {
     fromDevice.clear();
     nelectrons = npositrons = ngammas = 0;
   }
+};
+
+// Woodcock tracking helper structures
+
+/// @brief Root Volume data of a Woodcock tracking region: Navigation index + G4HepEm material cut couple index
+struct WDTRoot {
+  vecgeom::NavigationState root; // NavState of the root volume
+  int hepemIMC;                  // mat cut index for this root volume
+};
+
+struct WDTRegion {
+  int offset;    // index into roots[]
+  int count;     // how many roots in this region
+  float ekinMin; // kinetic energy threshold (per region or global)
+};
+
+struct WDTDeviceView {
+  const WDTRoot *roots;     // [nRoots]
+  const WDTRegion *regions; // [nRegions] or only WDT regions (then map handles gaps)
+  const int *regionToWDT;   // regionId -> index into regions[] (or -1)
+  int nRoots;
+  int nRegions;
 };
 
 } // end namespace adeptint

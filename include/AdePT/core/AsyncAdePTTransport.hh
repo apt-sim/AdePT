@@ -79,7 +79,7 @@ private:
   ///< G4workers
   double fCPUCopyFraction{0.5};
 
-  void Initialize(G4HepEmConfig *hepEmConfig);
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM);
   void InitBVH();
   bool InitializeBField();
   bool InitializeBField(UniformMagneticField &Bfield);
@@ -87,7 +87,7 @@ private:
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmConfig *hepEmConfig);
+  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
   ~AsyncAdePTTransport();
 

@@ -53,7 +53,8 @@ public:
   static void CheckGeometry(G4HepEmState *hepEmState);
 
   /// @brief Fills the auxiliary data needed for AdePT
-  static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState, bool trackInAllRegions,
+  static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
+                             G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
                              std::vector<std::string> const *gpuRegionNames);
 
   /// @brief Returns a mapping of VecGeom placed volume IDs to Geant4 physical volumes and a mapping of VecGeom logical

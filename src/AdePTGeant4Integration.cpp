@@ -294,8 +294,18 @@ void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
 }
 
 void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
-                                            bool trackInAllRegions, std::vector<std::string> const *gpuRegionNames)
+                                            G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
+                                            std::vector<std::string> const *gpuRegionNames)
 {
+
+  // Data structures  for Woodcock tracking
+  std::vector<adeptint::WDTRoot> h_roots;
+  std::unordered_map<int, std::vector<int>> regionToRootIndices;
+
+  // MUST PASS hepEmTM, or can we use the fHepEmTrackingManager? NOt sure it is already initialized on master thread
+  // here, to be checked!
+  const float ekinMin = (float)hepEmTM->GetWDTKineticEnergyLimit();
+
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
@@ -311,14 +321,37 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   }
 
   // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
-  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
-  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
+  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *, vecgeom::NavigationState)>
+      func_t;
+  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol,
+                             vecgeom::NavigationState currentNavState) {
     const auto g4_lvol = g4_pvol->GetLogicalVolume();
     const auto vg_lvol = vg_pvol->GetLogicalVolume();
+
+    // Push this placed volume into the running NavState
+    currentNavState.Push(vg_pvol);
+    currentNavState.SetBoundaryState(false);
+
     // Fill the MCC index in the array
     int g4mcindex                      = g4_lvol->GetMaterialCutsCouple()->GetIndex();
     int hepemmcindex                   = g4tohepmcindex[g4mcindex];
     volAuxData[vg_lvol->id()].fMCIndex = hepemmcindex;
+
+    const int regionId = g4_lvol->GetRegion()->GetInstanceID();
+
+    // only if region is WDT region (or track-all if you do that)
+    if (trackInAllRegions || hepEmTM->IsWDTRegion(regionId)) {
+      // ask G4HepEm if THIS logical volume is one of the declared WDT ROOT LVs for this region
+      const int rootIMC = hepEmTM->GetWDTCoupleHepEmIndex(regionId, g4_lvol->GetInstanceID());
+      if (rootIMC >= 0) {
+        // this placed instance is a WDT root LV -> record a WDTRoot
+        int idx = (int)h_roots.size();
+        // std::cout << "found woodcock region! rootIMC " << rootIMC << " regionId " << regionId << " navstate " <<
+        // std::endl; currentNavState.Print();
+        h_roots.push_back(adeptint::WDTRoot{currentNavState, rootIMC});
+        regionToRootIndices[regionId].push_back(idx);
+      }
+    }
 
     // Check if the volume belongs to a GPU region
     if (!trackInAllRegions) {
@@ -342,11 +375,51 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
       auto g4pvol_d = g4_lvol->GetDaughter(id);
       auto pvol_d   = vg_lvol->GetDaughters()[id];
 
-      visitGeometry(g4pvol_d, pvol_d);
+      visitGeometry(g4pvol_d, pvol_d, currentNavState);
     }
+
+    // Pop NavState before before returning
+    currentNavState.Pop();
   };
 
-  visitGeometry(g4world, vecgeomWorld);
+  // Initialize root NavState
+  vecgeom::NavigationState rootNavState;
+
+  visitGeometry(g4world, vecgeomWorld, rootNavState);
+
+  auto findRegionName = [](int rid) -> std::string {
+    for (auto *r : *G4RegionStore::GetInstance()) {
+      if (r && r->GetInstanceID() == rid) return r->GetName();
+    }
+    return std::string("<unknown>");
+  };
+
+  std::cout << "\n=== Woodcock tracking summary (host) ===\n";
+  std::cout << "KineticEnergyLimit = " << ekinMin << " [G4 units]\n";
+  std::cout << "Total WDT roots found: " << h_roots.size() << std::endl;
+  std::cout << "Regions with WDT: " << regionToRootIndices.size() << std::endl;
+
+  if (regionToRootIndices.empty()) {
+    std::cout << "  (none)\n";
+  } else {
+    for (const auto &kv : regionToRootIndices) {
+      const int rid    = kv.first;
+      const auto &idxs = kv.second;
+      std::cout << "\nRegionID " << rid << "  (" << findRegionName(rid) << "): " << idxs.size()
+                << " root placed-volume(s)\n";
+
+      // for (size_t i = 0; i < idxs.size(); ++i) {
+      //   const int rootIdx = idxs[i];
+      //   const auto& root  = h_roots[rootIdx];
+
+      //   std::cout << "  [" << i << "] hepemIMC=" << root.hepemIMC << "\n";
+      //   std::cout << "      NavState (level=" << root.root.GetLevel() << "):\n";
+      //   // vecgeom::NavigationState::Print() prints the full stack
+      //   root.root.Print();
+      // }
+    }
+  }
+  std::cout << "=== End Woodcock tracking summary ===\n\n";
 }
 
 void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUserSteppingAction,

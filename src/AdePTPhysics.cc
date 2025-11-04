@@ -46,6 +46,19 @@ void AdePTPhysics::ConstructProcess()
       fAdePTConfiguration->GetMultipleStepsInMSCWithTransportation());
   g4hepemconfig->SetEnergyLossFluctuation(fAdePTConfiguration->GetEnergyLossFluctuation());
 
+  // Apply Woodcock tracking of photons in the EMEC and EMB
+  g4hepemconfig->SetWoodcockTrackingRegion("caloregion");
+  g4hepemconfig->SetWoodcockTrackingRegion("HGCalRegion");
+
+  // g4hepemconfig->SetWoodcockTrackingRegion("ZDCRegion");
+  // g4hepemconfig->SetWoodcockTrackingRegion("MuonSensitive_RPC");
+  // g4hepemconfig->SetWoodcockTrackingRegion("APDRegion");
+
+  // DefaultRegionForTheWorld | DefaultRegionForParallelWorld | ZDCRegion | TrackerDeadRegion | TrackerSensRegion |
+  // MuonChamber | MuonSensitive_RPC | TrackerPixelSensRegion | TrackerPixelDeadRegion | MuonIron | Muon |
+  // MuonSensitive_DT-CSC | HcalRegion | QuadRegion | PreshowerSensRegion | PreshowerRegion | EcalRegion | APDRegion |
+  // InterimRegion | CastorRegion | BeamPipeVacuum | BeamPipe | BeamPipeOutside |
+
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
   G4Positron::Definition()->SetTrackingManager(fTrackingManager);
   G4Gamma::Definition()->SetTrackingManager(fTrackingManager);
