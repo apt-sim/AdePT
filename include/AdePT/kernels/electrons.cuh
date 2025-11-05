@@ -82,7 +82,7 @@ static __device__ __forceinline__ void TransportElectrons(TrackManager &trackMan
 
 template <bool IsElectron, typename Scoring, class SteppingActionT>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
-                                                          TrackManager &trackManager, MParrayTracks *leakedQueue,
+                                                          Secondaries &secondaries, MParrayTracks *leakedQueue,
                                                           Scoring *userScoring, const StepActionParam params)
 {
   using namespace adept_impl;
@@ -574,7 +574,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
-            Track &secondary = trackManager.electrons->NextTrack();
+            Track &secondary = secondaries.electrons->NextTrack();
             secondary.InitAsSecondary(pos, navState, globalTime);
             secondary.parentId = currentTrack.trackId;
             secondary.rngState = newRNG;
@@ -656,7 +656,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
-            Track &gamma = trackManager.gammas->NextTrack();
+            Track &gamma = secondaries.gammas->NextTrack();
             gamma.InitAsSecondary(pos, navState, globalTime);
             gamma.parentId = currentTrack.trackId;
             gamma.rngState = newRNG;
@@ -736,7 +736,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                 vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
                 globalTime);
 #else
-            Track &gamma1 = trackManager.gammas->NextTrack();
+            Track &gamma1 = secondaries.gammas->NextTrack();
             gamma1.InitAsSecondary(pos, navState, globalTime);
             gamma1.parentId = currentTrack.trackId;
             gamma1.rngState = newRNG;
@@ -780,7 +780,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                 vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
                 globalTime);
 #else
-            Track &gamma2 = trackManager.gammas->NextTrack();
+            Track &gamma2 = secondaries.gammas->NextTrack();
             gamma2.InitAsSecondary(pos, navState, globalTime);
             // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut
             // the state is not reused, but this shouldn't be an issue)
@@ -861,8 +861,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           Track &gamma2 = trackManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
                                                         pos, -gamma1.dir, navState, currentTrack, globalTime);
 #else
-          Track &gamma1 = trackManager.gammas->NextTrack();
-          Track &gamma2 = trackManager.gammas->NextTrack();
+          Track &gamma1 = secondaries.gammas->NextTrack();
+          Track &gamma2 = secondaries.gammas->NextTrack();
           gamma1.InitAsSecondary(pos, navState, globalTime);
           gamma1.parentId = currentTrack.trackId;
           gamma1.rngState = newRNG2;
@@ -1022,17 +1022,17 @@ __global__ void TransportPositrons(TrackManager trackManager, Scoring *userScori
 }
 #else
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportElectrons(adept::TrackManager<Track> *electrons, TrackManager trackManager,
+__global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
                                    MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, trackManager, leakedQueue, userScoring,
+  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, secondaries, leakedQueue, userScoring,
                                                                     params);
 }
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportPositrons(adept::TrackManager<Track> *positrons, TrackManager trackManager,
+__global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
                                    MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, trackManager, leakedQueue, userScoring,
+  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, secondaries, leakedQueue, userScoring,
                                                                      params);
 }
 #endif

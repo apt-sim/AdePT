@@ -40,8 +40,8 @@ __global__ void __launch_bounds__(256, 1)
 
 // Synchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportGammas(adept::TrackManager<Track> *gammas, TrackManager trackManager,
-                                MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
+__global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,
+                                Scoring *userScoring, const StepActionParam params)
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
@@ -303,7 +303,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, TrackManager
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
 #else
-          Track &electron = trackManager.electrons->NextTrack();
+          Track &electron = secondaries.electrons->NextTrack();
           electron.InitAsSecondary(pos, navState, globalTime);
           electron.parentId = currentTrack.trackId;
           electron.rngState = newRNG;
@@ -347,7 +347,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, TrackManager
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
 #else
-          Track &positron = trackManager.positrons->NextTrack();
+          Track &positron = secondaries.positrons->NextTrack();
           positron.InitAsSecondary(pos, navState, globalTime);
           // Reuse the RNG state of the dying track.
           positron.parentId = currentTrack.trackId;
@@ -413,7 +413,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, TrackManager
           Track &electron = trackManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 #else
-          Track &electron = trackManager.electrons->NextTrack();
+          Track &electron = secondaries.electrons->NextTrack();
 
           electron.InitAsSecondary(pos, navState, globalTime);
           electron.parentId = currentTrack.trackId;
@@ -492,7 +492,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, TrackManager
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
 #else
-          Track &electron = trackManager.electrons->NextTrack();
+          Track &electron = secondaries.electrons->NextTrack();
           electron.InitAsSecondary(pos, navState, globalTime);
           electron.parentId = currentTrack.trackId;
           electron.rngState = newRNG;
