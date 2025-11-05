@@ -38,6 +38,8 @@ struct TrackBuffer;
 struct GPUstate;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
+void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
+                     adeptint::WDTDeviceView &hViewOut);
 
 template <typename IntegrationLayer>
 class AsyncAdePTTransport : public AdePTTransportInterface {

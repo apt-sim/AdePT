@@ -295,16 +295,14 @@ void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
 
 void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
                                             G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
-                                            std::vector<std::string> const *gpuRegionNames)
+                                            std::vector<std::string> const *gpuRegionNames,
+                                            adeptint::WDTHostRaw &wdtRaw)
 {
 
-  // Data structures  for Woodcock tracking
-  std::vector<adeptint::WDTRoot> h_roots;
-  std::unordered_map<int, std::vector<int>> regionToRootIndices;
-
+  // FIXME
   // MUST PASS hepEmTM, or can we use the fHepEmTrackingManager? NOt sure it is already initialized on master thread
   // here, to be checked!
-  const float ekinMin = (float)hepEmTM->GetWDTKineticEnergyLimit();
+  wdtRaw.ekinMin = (float)hepEmTM->GetWDTKineticEnergyLimit();
 
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
@@ -341,15 +339,15 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
 
     // only if region is WDT region (or track-all if you do that)
     if (trackInAllRegions || hepEmTM->IsWDTRegion(regionId)) {
-      // ask G4HepEm if THIS logical volume is one of the declared WDT ROOT LVs for this region
+      // check if this logical volume is one of the declared WDT root LVs for this region
       const int rootIMC = hepEmTM->GetWDTCoupleHepEmIndex(regionId, g4_lvol->GetInstanceID());
       if (rootIMC >= 0) {
-        // this placed instance is a WDT root LV -> record a WDTRoot
-        int idx = (int)h_roots.size();
+        // this placed volume belongs to a WDT root LV -> record a WDTRoot
+        int idx = (int)wdtRaw.roots.size();
         // std::cout << "found woodcock region! rootIMC " << rootIMC << " regionId " << regionId << " navstate " <<
         // std::endl; currentNavState.Print();
-        h_roots.push_back(adeptint::WDTRoot{currentNavState, rootIMC});
-        regionToRootIndices[regionId].push_back(idx);
+        wdtRaw.roots.push_back(adeptint::WDTRoot{currentNavState, rootIMC});
+        wdtRaw.regionToRootIndices[regionId].push_back(idx);
       }
     }
 
@@ -395,14 +393,14 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   };
 
   std::cout << "\n=== Woodcock tracking summary (host) ===\n";
-  std::cout << "KineticEnergyLimit = " << ekinMin << " [G4 units]\n";
-  std::cout << "Total WDT roots found: " << h_roots.size() << std::endl;
-  std::cout << "Regions with WDT: " << regionToRootIndices.size() << std::endl;
+  std::cout << "KineticEnergyLimit = " << wdtRaw.ekinMin << " [G4 units]\n";
+  std::cout << "Total WDT roots found: " << wdtRaw.roots.size() << std::endl;
+  std::cout << "Regions with WDT: " << wdtRaw.regionToRootIndices.size() << std::endl;
 
-  if (regionToRootIndices.empty()) {
+  if (wdtRaw.regionToRootIndices.empty()) {
     std::cout << "  (none)\n";
   } else {
-    for (const auto &kv : regionToRootIndices) {
+    for (const auto &kv : wdtRaw.regionToRootIndices) {
       const int rid    = kv.first;
       const auto &idxs = kv.second;
       std::cout << "\nRegionID " << rid << "  (" << findRegionName(rid) << "): " << idxs.size()
@@ -410,7 +408,7 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
 
       // for (size_t i = 0; i < idxs.size(); ++i) {
       //   const int rootIdx = idxs[i];
-      //   const auto& root  = h_roots[rootIdx];
+      //   const auto& root  = wdtRaw.roots[rootIdx];
 
       //   std::cout << "  [" << i << "] hepemIMC=" << root.hepemIMC << "\n";
       //   std::cout << "      NavState (level=" << root.root.GetLevel() << "):\n";

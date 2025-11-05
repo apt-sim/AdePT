@@ -286,14 +286,27 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
   fIntegrationLayerObjects.front().CheckGeometry(fg4hepem_state.get());
   adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+  adeptint::WDTHostRaw wdtRaw;
   fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions,
-                                                  fGPURegionNames);
+                                                  fGPURegionNames, wdtRaw);
 
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
   volAuxArray.fNumVolumes = numVolumes;
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
+
+  // Pack host-side WDT
+  adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
+
+  // Upload WDT to device
+  adeptint::WDTDeviceBuffers wdtDev;
+  adeptint::WDTDeviceView wdtViewHostCopy;
+  AsyncAdePT::InitWDTOnDevice(wdtPacked, wdtDev, wdtViewHostCopy);
+
+  // FIXME freeing is missing
+  // (Store wdtDev in a member of your transport so you can FreeWDTOnDevice(...) in dtor/cleanup)
+  // this->fWDTDevBuffers = wdtDev; // e.g. add a member in transport class
 
   // FIXME: The size of the buffer should be more explicitly configured
   // NOTE: Increasing the size of the leak buffer size can probably improve performance

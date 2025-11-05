@@ -12,6 +12,9 @@
 
 #include <G4HepEmRandomEngine.hh>
 
+#include "G4RegionStore.hh"
+#include "G4Region.hh"
+
 #include <atomic>
 #include <array>
 #include <mutex>
@@ -86,25 +89,82 @@ struct TrackBuffer {
 
 // Woodcock tracking helper structures
 
-/// @brief Root Volume data of a Woodcock tracking region: Navigation index + G4HepEm material cut couple index
+/// @brief Root Volume data of a Woodcock tracking region: Navigation index + G4HepEm material cut couple index// Raw
+/// per-root entry
 struct WDTRoot {
-  vecgeom::NavigationState root; // NavState of the root volume
-  int hepemIMC;                  // mat cut index for this root volume
+  vecgeom::NavigationState root; // NavState of the root placed volume
+  int hepemIMC;                  // G4HepEm mat-cut index for this root
 };
 
+// Compact region header
 struct WDTRegion {
-  int offset;    // index into roots[]
-  int count;     // how many roots in this region
-  float ekinMin; // kinetic energy threshold (per region or global)
+  int offset;    // first index in roots[]
+  int count;     // number of roots for this region
+  float ekinMin; // kinetic energy threshold
 };
 
+// Device view (mirrors device allocations)
 struct WDTDeviceView {
   const WDTRoot *roots;     // [nRoots]
-  const WDTRegion *regions; // [nRegions] or only WDT regions (then map handles gaps)
-  const int *regionToWDT;   // regionId -> index into regions[] (or -1)
+  const WDTRegion *regions; // [nRegions] (only WDT-enabled regions)
+  const int *regionToWDT;   // [regionToWDTLen], regionId -> bucket (index into regions[]) or -1
   int nRoots;
   int nRegions;
 };
+
+// Host-side containers before upload
+struct WDTHostRaw {
+  // found during geometry visit (one entry per root placed volume)
+  std::vector<WDTRoot> roots; // indices referenced by regionToRootIndices values
+  // mapping: regionId -> list of indices into `roots`
+  std::unordered_map<int, std::vector<int>> regionToRootIndices;
+  float ekinMin{0.f};
+};
+
+// Host-side compacted arrays ready to upload
+struct WDTHostPacked {
+  std::vector<WDTRoot> roots;     // packed per-region contiguous
+  std::vector<WDTRegion> regions; // one per WDT region
+  std::vector<int> regionToWDT;   // dense by regionId (size = maxRegionId+1)
+};
+
+// Owned device buffers (to manage lifetime)
+struct WDTDeviceBuffers {
+  WDTRoot *d_roots     = nullptr;
+  WDTRegion *d_regions = nullptr;
+  int *d_map           = nullptr;
+};
+
+inline WDTHostPacked PackWDT(const WDTHostRaw &raw)
+{
+  WDTHostPacked packed;
+
+  // Build dense regionId -> bucket index
+  int maxRegionId = -1;
+  for (auto *r : *G4RegionStore::GetInstance())
+    if (r) maxRegionId = std::max(maxRegionId, r->GetInstanceID());
+
+  packed.regionToWDT.assign(maxRegionId + 1, -1);
+
+  packed.roots.reserve(raw.roots.size());
+  packed.regions.reserve(raw.regionToRootIndices.size());
+
+  int runningOffset = 0;
+  for (const auto &kv : raw.regionToRootIndices) {
+    const int rid    = kv.first;
+    const auto &idxs = kv.second;
+
+    packed.regionToWDT[rid] = (int)packed.regions.size();
+    packed.regions.push_back(WDTRegion{runningOffset, (int)idxs.size(), raw.ekinMin});
+
+    for (int idx : idxs) {
+      packed.roots.push_back(raw.roots[idx]); // preserve order per region
+    }
+    runningOffset += (int)idxs.size();
+  }
+
+  return packed;
+}
 
 } // end namespace adeptint
 

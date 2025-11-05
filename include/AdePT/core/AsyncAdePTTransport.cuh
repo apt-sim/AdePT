@@ -1741,6 +1741,8 @@ __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 
+__constant__ __device__ adeptint::WDTDeviceView gWDTData;
+
 /// Transfer volume auxiliary data to GPU
 void InitVolAuxArray(adeptint::VolAuxArray &array)
 {
@@ -1750,6 +1752,50 @@ void InitVolAuxArray(adeptint::VolAuxArray &array)
       cudaMemcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes, cudaMemcpyHostToDevice));
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
 }
+
+void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
+                     adeptint::WDTDeviceView &hViewOut)
+{
+
+  using adeptint::WDTDeviceView;
+  using adeptint::WDTRegion;
+  using adeptint::WDTRoot;
+
+  // allocate
+  COPCORE_CUDA_CHECK(cudaMalloc(&dev.d_roots, src.roots.size() * sizeof(WDTRoot)));
+  COPCORE_CUDA_CHECK(cudaMalloc(&dev.d_regions, src.regions.size() * sizeof(WDTRegion)));
+  COPCORE_CUDA_CHECK(cudaMalloc(&dev.d_map, src.regionToWDT.size() * sizeof(int)));
+
+  // copy
+  COPCORE_CUDA_CHECK(
+      cudaMemcpy(dev.d_roots, src.roots.data(), src.roots.size() * sizeof(WDTRoot), cudaMemcpyHostToDevice));
+  COPCORE_CUDA_CHECK(
+      cudaMemcpy(dev.d_regions, src.regions.data(), src.regions.size() * sizeof(WDTRegion), cudaMemcpyHostToDevice));
+  COPCORE_CUDA_CHECK(
+      cudaMemcpy(dev.d_map, src.regionToWDT.data(), src.regionToWDT.size() * sizeof(int), cudaMemcpyHostToDevice));
+
+  // assemble host view
+  WDTDeviceView view{};
+  view.roots       = dev.d_roots;
+  view.regions     = dev.d_regions;
+  view.regionToWDT = dev.d_map;
+  view.nRoots      = (int)src.roots.size();
+  view.nRegions    = (int)src.regions.size();
+
+  // copy view to constant memory
+  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gWDTData, &view, sizeof(WDTDeviceView)));
+
+  // provide a copy of the view to the caller if they want to cache it too
+  hViewOut = view;
+}
+
+// FIXME free memory
+// inline void FreeWDTOnDevice(WDTDeviceBuffers& dev)
+// {
+//   if (dev.d_roots)   COPCORE_CUDA_CHECK(cudaFree(dev.d_roots)),   dev.d_roots   = nullptr;
+//   if (dev.d_regions) COPCORE_CUDA_CHECK(cudaFree(dev.d_regions)), dev.d_regions = nullptr;
+//   if (dev.d_map)     COPCORE_CUDA_CHECK(cudaFree(dev.d_map)),     dev.d_map     = nullptr;
+// }
 
 /// Initialise the track buffers used to communicate between host and device.
 TrackBuffer::TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, unsigned short nThread)

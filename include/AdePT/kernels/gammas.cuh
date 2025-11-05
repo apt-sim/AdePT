@@ -223,8 +223,36 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const int nextlvolID          = nextState.GetLogicalId();
         VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
+        const auto regionId           = nextauxData.fGPUregionId;
 
         if (nextauxData.fGPUregionId >= 0) {
+
+          // Region has changed, check for woodcock tracking
+          if (nextauxData.fGPUregionId != auxData.fGPUregionId) {
+
+            const adeptint::WDTDeviceView &view = gWDTData;
+            const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
+            if (wdtIdx >= 0) {
+              const adeptint::WDTRegion reg  = view.regions[wdtIdx];
+              const adeptint::WDTRoot *roots = &view.roots[reg.offset];
+
+              bool inWDT = false;
+              for (int i = 0; i < reg.count; ++i) {
+                const vecgeom::NavigationState &rootState = roots[i].root; // compact state
+                if (nextState.IsDescendent(rootState.GetState())) {
+                  inWDT = true;
+
+                  // Minimal debug output (only if you build vecgeom Print() for device)
+                  printf("WDT: region %d -> matched root #%d (hepemIMC=%d), nextLV=%d\n", regionId, i,
+                         roots[i].hepemIMC, nextlvolID);
+                  break;
+                }
+              }
+
+              // (optional) use `inWDT` to switch behavior or pick per-root data, etc.
+            }
+          }
+
           surviveFlag = true;
         } else {
           // To be safe, just push a bit the track exiting the GPU region to make sure

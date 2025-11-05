@@ -245,15 +245,14 @@ void AdePTTrackingManager::InitializeAdePT()
 void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
 {
 
-  // Bulid PhysicsTable for G4HepEm
+  // Build PhysicsTable for G4HepEm
+  // Note: the G4HepEm physics table must be build first, such that the Woodcock tracking helper
+  // is initialized when AdePT gets its data from there
   fHepEmTrackingManager->BuildPhysicsTable(part);
 
   if (!fAdePTInitialized) {
     InitializeAdePT();
   }
-
-  // // Bulid PhysicsTable for G4HepEm
-  // fHepEmTrackingManager->BuildPhysicsTable(part);
 
   // For tracking on GPU by AdePT
 }
