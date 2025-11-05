@@ -26,24 +26,22 @@ namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammas(Track *gammas, Track *leaks, const adept::MParray *active, Secondaries secondaries,
-                    adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                    Stats *InFlightStats, const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
-                    const bool returnAllSteps, const bool returnLastStep)
+    TransportGammas(TrackManager trackManager, Scoring *userScoring, Stats *InFlightStats, const StepActionParam params,
+                    AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
-  int activeSize                    = active->size();
+  auto &slotManager                 = *trackManager.gammas.fSlotManager;
+  const int activeSize              = trackManager.gammas.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    auto &slotManager   = *secondaries.gammas.fSlotManager;
-    Track &currentTrack = gammas[slot];
+    const auto slot     = trackManager.gammas.ActiveAt(i);
+    Track &currentTrack = trackManager.gammas.TrackAt(slot);
 #else
 
 // Synchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,
-                                Scoring *userScoring, const StepActionParam params)
+__global__ void TransportGammas(adept::TrackManager<Track> *gammas, TrackManager trackManager,
+                                MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
 {
   using namespace adept_impl;
   constexpr bool returnAllSteps     = false;
@@ -109,21 +107,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.leakStatus = leakReason;
 #ifdef ASYNC_MODE
       if (leakReason != LeakStatus::NoLeak) {
-        // Get a slot in the leaks array
-        int leakSlot = secondaries.gammas.NextLeakSlot();
-        // Copy the track to the leaks array and store the index in the leak queue
-        leaks[leakSlot] = gammas[slot];
-        auto success    = leakedQueue->push_back(leakSlot);
-        if (!success) {
-          printf("ERROR: No space left in gammas leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-        // Free the slot in the tracks slot manager
-        slotManager.MarkSlotForFreeing(slot);
+        // Copy track at slot to the leaked tracks
+        trackManager.gammas.CopyTrackToLeaked(slot);
       } else {
-        nextActiveQueue->push_back(slot);
+        trackManager.gammas.EnqueueNext(slot);
       }
 #else
       currentTrack.CopyTo(trackdata, Pdg);
@@ -311,12 +298,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           edep = elKinEnergy;
         } else {
 #ifdef ASYNC_MODE
-          Track &electron = secondaries.electrons.NextTrack(
+          Track &electron = trackManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
 #else
-          Track &electron = secondaries.electrons->NextTrack();
+          Track &electron = trackManager.electrons->NextTrack();
           electron.InitAsSecondary(pos, navState, globalTime);
           electron.parentId = currentTrack.trackId;
           electron.rngState = newRNG;
@@ -355,12 +342,12 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
         } else {
 #ifdef ASYNC_MODE
-          Track &positron = secondaries.positrons.NextTrack(
+          Track &positron = trackManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
 #else
-          Track &positron = secondaries.positrons->NextTrack();
+          Track &positron = trackManager.positrons->NextTrack();
           positron.InitAsSecondary(pos, navState, globalTime);
           // Reuse the RNG state of the dying track.
           positron.parentId = currentTrack.trackId;
@@ -423,10 +410,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
 #ifdef ASYNC_MODE
-          Track &electron = secondaries.electrons.NextTrack(
+          Track &electron = trackManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 #else
-          Track &electron = secondaries.electrons->NextTrack();
+          Track &electron = trackManager.electrons->NextTrack();
 
           electron.InitAsSecondary(pos, navState, globalTime);
           electron.parentId = currentTrack.trackId;
@@ -501,11 +488,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
           // Create a secondary electron and sample directions.
 #ifdef ASYNC_MODE
-          Track &electron = secondaries.electrons.NextTrack(
+          Track &electron = trackManager.electrons.NextTrack(
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
 #else
-          Track &electron = secondaries.electrons->NextTrack();
+          Track &electron = trackManager.electrons->NextTrack();
           electron.InitAsSecondary(pos, navState, globalTime);
           electron.parentId = currentTrack.trackId;
           electron.rngState = newRNG;

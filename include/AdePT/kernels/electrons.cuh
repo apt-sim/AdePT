@@ -48,9 +48,7 @@ namespace AsyncAdePT {
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron, typename Scoring, class SteppingActionT>
-static __device__ __forceinline__ void TransportElectrons(Track *electrons, Track *leaks, const adept::MParray *active,
-                                                          Secondaries &secondaries, adept::MParray *nextActiveQueue,
-                                                          adept::MParray *leakedQueue, Scoring *userScoring,
+static __device__ __forceinline__ void TransportElectrons(TrackManager &trackManager, Scoring *userScoring,
                                                           Stats *InFlightStats, const StepActionParam params,
                                                           AllowFinishOffEventArray allowFinishOffEvent,
                                                           const bool returnAllSteps, const bool returnLastStep)
@@ -73,17 +71,18 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, Trac
 
   auto &magneticField = *gMagneticField;
 
-  int activeSize = active->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot           = (*active)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+  auto &electronsOrPositrons = (IsElectron ? trackManager.electrons : trackManager.positrons);
+  SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
 
-    Track &currentTrack = electrons[slot];
+  const int activeSize = electronsOrPositrons.ActiveSize();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const auto slot     = electronsOrPositrons.ActiveAt(i);
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
 #else
 
 template <bool IsElectron, typename Scoring, class SteppingActionT>
 static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
-                                                          Secondaries &secondaries, MParrayTracks *leakedQueue,
+                                                          TrackManager &trackManager, MParrayTracks *leakedQueue,
                                                           Scoring *userScoring, const StepActionParam params)
 {
   using namespace adept_impl;
@@ -164,29 +163,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.navState   = nextState;
       currentTrack.leakStatus = leakReason;
 #ifdef ASYNC_MODE
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
       if (leakReason != LeakStatus::NoLeak) {
-        // Get a slot in the leaks array
-        int leakSlot;
-        if (IsElectron)
-          leakSlot = secondaries.electrons.NextLeakSlot();
-        else
-          leakSlot = secondaries.positrons.NextLeakSlot();
-        // Copy the track to the leaks array and store the index in the leak queue
-        leaks[leakSlot] = electrons[slot];
-        auto success    = leakedQueue->push_back(leakSlot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-        // Free the slot in the tracks slot manager
-        slotManager.MarkSlotForFreeing(slot);
+        // Copy track at slot to the leaked tracks
+        electronsOrPositrons.CopyTrackToLeaked(slot);
       } else {
-        nextActiveQueue->push_back(slot);
+        electronsOrPositrons.EnqueueNext(slot);
       }
 #else
       currentTrack.CopyTo(trackdata, Pdg);
@@ -589,11 +570,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &secondary = secondaries.electrons.NextTrack(
+            Track &secondary = trackManager.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
-            Track &secondary = secondaries.electrons->NextTrack();
+            Track &secondary = trackManager.electrons->NextTrack();
             secondary.InitAsSecondary(pos, navState, globalTime);
             secondary.parentId = currentTrack.trackId;
             secondary.rngState = newRNG;
@@ -671,11 +652,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma = secondaries.gammas.NextTrack(
+            Track &gamma = trackManager.gammas.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
-            Track &gamma = secondaries.gammas->NextTrack();
+            Track &gamma = trackManager.gammas->NextTrack();
             gamma.InitAsSecondary(pos, navState, globalTime);
             gamma.parentId = currentTrack.trackId;
             gamma.rngState = newRNG;
@@ -750,12 +731,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma1 = secondaries.gammas.NextTrack(
+            Track &gamma1 = trackManager.gammas.NextTrack(
                 newRNG, theGamma1Ekin, pos,
                 vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
                 globalTime);
 #else
-            Track &gamma1 = secondaries.gammas->NextTrack();
+            Track &gamma1 = trackManager.gammas->NextTrack();
             gamma1.InitAsSecondary(pos, navState, globalTime);
             gamma1.parentId = currentTrack.trackId;
             gamma1.rngState = newRNG;
@@ -794,12 +775,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma2 = secondaries.gammas.NextTrack(
+            Track &gamma2 = trackManager.gammas.NextTrack(
                 currentTrack.rngState, theGamma2Ekin, pos,
                 vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
                 globalTime);
 #else
-            Track &gamma2 = secondaries.gammas->NextTrack();
+            Track &gamma2 = trackManager.gammas->NextTrack();
             gamma2.InitAsSecondary(pos, navState, globalTime);
             // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut
             // the state is not reused, but this shouldn't be an issue)
@@ -872,16 +853,16 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           RanluxppDouble newRNG2(currentTrack.rngState.Branch());
 
 #ifdef ASYNC_MODE
-          Track &gamma1 = secondaries.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
-                                                       vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                                       navState, currentTrack, globalTime);
+          Track &gamma1 = trackManager.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
+                                                        vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                                        navState, currentTrack, globalTime);
 
           // Reuse the RNG state of the dying track.
-          Track &gamma2 = secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                       pos, -gamma1.dir, navState, currentTrack, globalTime);
+          Track &gamma2 = trackManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                        pos, -gamma1.dir, navState, currentTrack, globalTime);
 #else
-          Track &gamma1 = secondaries.gammas->NextTrack();
-          Track &gamma2 = secondaries.gammas->NextTrack();
+          Track &gamma1 = trackManager.gammas->NextTrack();
+          Track &gamma2 = trackManager.gammas->NextTrack();
           gamma1.InitAsSecondary(pos, navState, globalTime);
           gamma1.parentId = currentTrack.trackId;
           gamma1.rngState = newRNG2;
@@ -1024,40 +1005,34 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 // Instantiate kernels for electrons and positrons.
 #ifdef ASYNC_MODE
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportElectrons(Track *electrons, Track *leaks, const adept::MParray *active,
-                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+__global__ void TransportElectrons(TrackManager trackManager, Scoring *userScoring, Stats *InFlightStats,
                                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
                                    const bool returnAllSteps, const bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(
-      electrons, leaks, active, secondaries, nextActiveQueue, leakedQueue, userScoring, InFlightStats, params,
-      allowFinishOffEvent, returnAllSteps, returnLastStep);
+      trackManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
 }
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportPositrons(Track *positrons, Track *leaks, const adept::MParray *active,
-                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *leakedQueue, Scoring *userScoring, Stats *InFlightStats,
+__global__ void TransportPositrons(TrackManager trackManager, Scoring *userScoring, Stats *InFlightStats,
                                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
                                    const bool returnAllSteps, const bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(
-      positrons, leaks, active, secondaries, nextActiveQueue, leakedQueue, userScoring, InFlightStats, params,
-      allowFinishOffEvent, returnAllSteps, returnLastStep);
+      trackManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
 }
 #else
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
+__global__ void TransportElectrons(adept::TrackManager<Track> *electrons, TrackManager trackManager,
                                    MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, secondaries, leakedQueue, userScoring,
+  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, trackManager, leakedQueue, userScoring,
                                                                     params);
 }
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
+__global__ void TransportPositrons(adept::TrackManager<Track> *positrons, TrackManager trackManager,
                                    MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, secondaries, leakedQueue, userScoring,
+  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, trackManager, leakedQueue, userScoring,
                                                                      params);
 }
 #endif
