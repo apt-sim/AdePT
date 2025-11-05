@@ -52,7 +52,7 @@ public:
   __device__ auto NextSlot() { return fSlotManager->NextSlot(); }
   __device__ auto NextLeakSlot() { return fSlotManagerLeaks->NextSlot(); }
 
-  // enqueue into next-active queue (returns success flag like MParray::push_back)
+  // enqueue into next-active queue
   __device__ __forceinline__ bool EnqueueNext(SlotManager::value_type slot)
   {
     return fNextActiveQueue->push_back(slot);
@@ -82,7 +82,8 @@ public:
     return track;
   }
 
-  ///
+  /// Obtains a leak slot, copies the track from the source slot to the leaks, and marks the slot in the active queue
+  /// for freeing
   __device__ __forceinline__ void CopyTrackToLeaked(SlotManager::value_type srcSlot)
   {
     // get a leak slot
