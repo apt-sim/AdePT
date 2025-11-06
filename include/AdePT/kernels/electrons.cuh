@@ -48,7 +48,7 @@ namespace AsyncAdePT {
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
 template <bool IsElectron, typename Scoring, class SteppingActionT>
-static __device__ __forceinline__ void TransportElectrons(TrackManager &trackManager, Scoring *userScoring,
+static __device__ __forceinline__ void TransportElectrons(ParticleManager &particleManager, Scoring *userScoring,
                                                           Stats *InFlightStats, const StepActionParam params,
                                                           AllowFinishOffEventArray allowFinishOffEvent,
                                                           const bool returnAllSteps, const bool returnLastStep)
@@ -71,7 +71,7 @@ static __device__ __forceinline__ void TransportElectrons(TrackManager &trackMan
 
   auto &magneticField = *gMagneticField;
 
-  auto &electronsOrPositrons = (IsElectron ? trackManager.electrons : trackManager.positrons);
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
 
   const int activeSize = electronsOrPositrons.ActiveSize();
@@ -570,7 +570,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &secondary = trackManager.electrons.NextTrack(
+            Track &secondary = particleManager.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
@@ -652,7 +652,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma = trackManager.gammas.NextTrack(
+            Track &gamma = particleManager.gammas.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
@@ -731,7 +731,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma1 = trackManager.gammas.NextTrack(
+            Track &gamma1 = particleManager.gammas.NextTrack(
                 newRNG, theGamma1Ekin, pos,
                 vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
                 globalTime);
@@ -775,7 +775,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma2 = trackManager.gammas.NextTrack(
+            Track &gamma2 = particleManager.gammas.NextTrack(
                 currentTrack.rngState, theGamma2Ekin, pos,
                 vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
                 globalTime);
@@ -853,13 +853,14 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           RanluxppDouble newRNG2(currentTrack.rngState.Branch());
 
 #ifdef ASYNC_MODE
-          Track &gamma1 = trackManager.gammas.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
-                                                        vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                                        navState, currentTrack, globalTime);
+          Track &gamma1 = particleManager.gammas.NextTrack(
+              newRNG2, double{copcore::units::kElectronMassC2}, pos,
+              vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost}, navState, currentTrack, globalTime);
 
           // Reuse the RNG state of the dying track.
-          Track &gamma2 = trackManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                        pos, -gamma1.dir, navState, currentTrack, globalTime);
+          Track &gamma2 =
+              particleManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, pos,
+                                               -gamma1.dir, navState, currentTrack, globalTime);
 #else
           Track &gamma1 = secondaries.gammas->NextTrack();
           Track &gamma2 = secondaries.gammas->NextTrack();
@@ -1005,20 +1006,20 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 // Instantiate kernels for electrons and positrons.
 #ifdef ASYNC_MODE
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportElectrons(TrackManager trackManager, Scoring *userScoring, Stats *InFlightStats,
+__global__ void TransportElectrons(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
                                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
                                    const bool returnAllSteps, const bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(
-      trackManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
+      particleManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
 }
 template <typename Scoring, class SteppingActionT>
-__global__ void TransportPositrons(TrackManager trackManager, Scoring *userScoring, Stats *InFlightStats,
+__global__ void TransportPositrons(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
                                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
                                    const bool returnAllSteps, const bool returnLastStep)
 {
   TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(
-      trackManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
+      particleManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
 }
 #else
 template <typename Scoring, class SteppingActionT>

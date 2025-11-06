@@ -26,7 +26,7 @@
 namespace AsyncAdePT {
 
 // A bundle of pointers to generate particles of an implicit type.
-struct SpeciesTrackManager {
+struct SpeciesParticleManager {
   Track *fTracks;
   Track *fLeakedTracks;
   SlotManager *fSlotManager;
@@ -36,9 +36,9 @@ struct SpeciesTrackManager {
   adept::MParray *fActiveLeaksQueue;
 
 public:
-  __host__ __device__ SpeciesTrackManager(Track *tracks, Track *leakedTracks, SlotManager *slotManager,
-                                          SlotManager *slotManagerLeaks, adept::MParray *activeQueue,
-                                          adept::MParray *nextActiveQueue, adept::MParray *activeLeaksQueue)
+  __host__ __device__ SpeciesParticleManager(Track *tracks, Track *leakedTracks, SlotManager *slotManager,
+                                             SlotManager *slotManagerLeaks, adept::MParray *activeQueue,
+                                             adept::MParray *nextActiveQueue, adept::MParray *activeLeaksQueue)
       : fTracks(tracks), fLeakedTracks(leakedTracks), fSlotManager(slotManager), fSlotManagerLeaks(slotManagerLeaks),
         fActiveQueue(activeQueue), fNextActiveQueue(nextActiveQueue), fActiveLeaksQueue(activeLeaksQueue)
   {
@@ -130,10 +130,10 @@ struct LeakedTracks {
 // };
 
 // A bundle of generators for the three particle types.
-struct TrackManager {
-  SpeciesTrackManager electrons;
-  SpeciesTrackManager positrons;
-  SpeciesTrackManager gammas;
+struct ParticleManager {
+  SpeciesParticleManager electrons;
+  SpeciesParticleManager positrons;
+  SpeciesParticleManager gammas;
 };
 
 // Holds the leaked track structs for all three particle types

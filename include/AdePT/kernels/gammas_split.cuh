@@ -21,15 +21,16 @@ using VolAuxData = adeptint::VolAuxData;
 
 namespace AsyncAdePT {
 
-__global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, TrackManager trackManager, adept::MParray *propagationQueue,
-                            Stats *InFlightStats, AllowFinishOffEventArray allowFinishOffEvent)
+__global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
+                            adept::MParray *propagationQueue, Stats *InFlightStats,
+                            AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps        = 10'000;
   constexpr unsigned short kStepsStuckKill = 25;
-  const int activeSize                     = trackManager.gammas.ActiveSize();
+  const int activeSize                     = particleManager.gammas.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = trackManager.gammas.ActiveAt(i);
-    Track &currentTrack = trackManager.gammas.TrackAt(slot);
+    const auto slot     = particleManager.gammas.ActiveAt(i);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
@@ -56,7 +57,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, TrackManager trackMa
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
-        trackManager.gammas.CopyTrackToLeaked(slot);
+        particleManager.gammas.CopyTrackToLeaked(slot);
       }
     };
 
@@ -149,13 +150,13 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 
 template <typename Scoring>
 __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const adept::MParray *propagationQueue,
-                                       TrackManager trackManager, AllInteractionQueues interactionQueues,
+                                       ParticleManager particleManager, AllInteractionQueues interactionQueues,
                                        Scoring *userScoring)
 {
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*propagationQueue)[i];
-    Track &currentTrack = trackManager.gammas.TrackAt(slot);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -164,9 +165,9 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
-        trackManager.gammas.CopyTrackToLeaked(slot);
+        particleManager.gammas.CopyTrackToLeaked(slot);
       } else {
-        trackManager.gammas.EnqueueNext(slot);
+        particleManager.gammas.EnqueueNext(slot);
       }
     };
 
@@ -201,16 +202,16 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
 }
 
 template <typename Scoring>
-__global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, TrackManager trackManager,
+__global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                                 adept::MParray *relocatingQueue, Scoring *userScoring, const bool returnAllSteps,
                                 const bool returnLastStep)
 {
   constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
-  auto &slotManager              = *trackManager.gammas.fSlotManager;
+  auto &slotManager              = *particleManager.gammas.fSlotManager;
   int activeSize                 = relocatingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*relocatingQueue)[i];
-    Track &currentTrack = trackManager.gammas.TrackAt(slot);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -219,9 +220,9 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, TrackManager tra
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
-        trackManager.gammas.CopyTrackToLeaked(slot);
+        particleManager.gammas.CopyTrackToLeaked(slot);
       } else {
-        trackManager.gammas.EnqueueNext(slot);
+        particleManager.gammas.EnqueueNext(slot);
       }
     };
 
@@ -318,15 +319,15 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, TrackManager tra
 }
 
 template <typename Scoring>
-__global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, TrackManager trackManager,
+__global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                                 adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
                                 const bool returnLastStep)
 {
-  auto &slotManager = *trackManager.gammas.fSlotManager;
+  auto &slotManager = *particleManager.gammas.fSlotManager;
   int activeSize    = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*interactingQueue)[i];
-    Track &currentTrack = trackManager.gammas.TrackAt(slot);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
@@ -335,7 +336,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, TrackManager tra
     // Write local variables back into track and enqueue
     auto survive = [&]() {
       isLastStep = false; // particle survived
-      trackManager.gammas.EnqueueNext(slot);
+      particleManager.gammas.EnqueueNext(slot);
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
@@ -381,7 +382,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, TrackManager tra
       // Deposit the energy here and kill the secondary
       edep = elKinEnergy;
     } else {
-      Track &electron = trackManager.electrons.NextTrack(
+      Track &electron = particleManager.electrons.NextTrack(
           newRNG, elKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
@@ -415,7 +416,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, TrackManager tra
       // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
       edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
     } else {
-      Track &positron = trackManager.positrons.NextTrack(
+      Track &positron = particleManager.positrons.NextTrack(
           currentTrack.rngState, posKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
@@ -479,15 +480,15 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, TrackManager tra
 }
 
 template <typename Scoring>
-__global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, TrackManager trackManager,
+__global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                              adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
                              const bool returnLastStep)
 {
-  auto &slotManager = *trackManager.gammas.fSlotManager;
+  auto &slotManager = *particleManager.gammas.fSlotManager;
   int activeSize    = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*interactingQueue)[i];
-    Track &currentTrack = trackManager.gammas.TrackAt(slot);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
@@ -496,7 +497,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, TrackManager trackM
     // Write local variables back into track and enqueue
     auto survive = [&]() {
       isLastStep = false; // particle survived
-      trackManager.gammas.EnqueueNext(slot);
+      particleManager.gammas.EnqueueNext(slot);
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
@@ -536,7 +537,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, TrackManager trackM
     // Check the cuts and deposit energy in this volume if needed
     if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
       // Create a secondary electron and sample/compute directions.
-      Track &electron = trackManager.electrons.NextTrack(
+      Track &electron = particleManager.electrons.NextTrack(
           newRNG, energyEl, currentTrack.pos, currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma,
           currentTrack.navState, currentTrack, currentTrack.globalTime);
       electron.dir.Normalize();
@@ -614,15 +615,15 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, TrackManager trackM
 }
 
 template <typename Scoring>
-__global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, TrackManager trackManager,
+__global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                                    adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
                                    const bool returnLastStep)
 {
-  auto &slotManager = *trackManager.gammas.fSlotManager;
+  auto &slotManager = *particleManager.gammas.fSlotManager;
   int activeSize    = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*interactingQueue)[i];
-    Track &currentTrack = trackManager.gammas.TrackAt(slot);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
@@ -631,7 +632,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, TrackManager 
     // Write local variables back into track and enqueue
     auto survive = [&]() {
       isLastStep = false; // particle survived
-      trackManager.gammas.EnqueueNext(slot);
+      particleManager.gammas.EnqueueNext(slot);
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
@@ -669,10 +670,10 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, TrackManager 
       G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
       // Create a secondary electron and sample directions.
-      Track &electron =
-          trackManager.electrons.NextTrack(newRNG, photoElecE, currentTrack.pos,
-                                           vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
-                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
+      Track &electron = particleManager.electrons.NextTrack(
+          newRNG, photoElecE, currentTrack.pos,
+          vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
+          currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {

@@ -26,16 +26,17 @@ namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammas(TrackManager trackManager, Scoring *userScoring, Stats *InFlightStats, const StepActionParam params,
-                    AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps, const bool returnLastStep)
+    TransportGammas(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
+                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
+                    const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
-  auto &slotManager                 = *trackManager.gammas.fSlotManager;
-  const int activeSize              = trackManager.gammas.ActiveSize();
+  auto &slotManager                 = *particleManager.gammas.fSlotManager;
+  const int activeSize              = particleManager.gammas.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = trackManager.gammas.ActiveAt(i);
-    Track &currentTrack = trackManager.gammas.TrackAt(slot);
+    const auto slot     = particleManager.gammas.ActiveAt(i);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 #else
 
 // Synchronous TransportGammas Interface
@@ -108,9 +109,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #ifdef ASYNC_MODE
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
-        trackManager.gammas.CopyTrackToLeaked(slot);
+        particleManager.gammas.CopyTrackToLeaked(slot);
       } else {
-        trackManager.gammas.EnqueueNext(slot);
+        particleManager.gammas.EnqueueNext(slot);
       }
 #else
       currentTrack.CopyTo(trackdata, Pdg);
@@ -298,7 +299,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           edep = elKinEnergy;
         } else {
 #ifdef ASYNC_MODE
-          Track &electron = trackManager.electrons.NextTrack(
+          Track &electron = particleManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
@@ -342,7 +343,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
         } else {
 #ifdef ASYNC_MODE
-          Track &positron = trackManager.positrons.NextTrack(
+          Track &positron = particleManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
@@ -410,7 +411,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
 #ifdef ASYNC_MODE
-          Track &electron = trackManager.electrons.NextTrack(
+          Track &electron = particleManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 #else
           Track &electron = secondaries.electrons->NextTrack();
@@ -488,7 +489,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
           // Create a secondary electron and sample directions.
 #ifdef ASYNC_MODE
-          Track &electron = trackManager.electrons.NextTrack(
+          Track &electron = particleManager.electrons.NextTrack(
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
 #else
