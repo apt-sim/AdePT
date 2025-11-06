@@ -41,9 +41,8 @@ __device__ double GetVelocity(double eKin)
 namespace AsyncAdePT {
 
 template <bool IsElectron>
-__global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                               adept::MParray *nextActiveQueue, adept::MParray *propagationQueue,
-                               adept::MParray *leakedQueue, Stats *InFlightStats,
+__global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronTrack *hepEMTracks,
+                               adept::MParray *propagationQueue, Stats *InFlightStats,
                                AllowFinishOffEventArray allowFinishOffEvent)
 {
   constexpr unsigned short maxSteps        = 10'000;
@@ -63,14 +62,16 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
 
   auto &magneticField = *gMagneticField;
 
-  int activeSize = active->size();
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
+
+  const int activeSize = electronsOrPositrons.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    Track &currentTrack = electrons[slot];
+    const auto slot     = electronsOrPositrons.ActiveAt(i);
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
     currentTrack.preStepEKin       = currentTrack.eKin;
     currentTrack.preStepGlobalTime = currentTrack.globalTime;
@@ -87,20 +88,12 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
     }
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
-        auto success = leakedQueue->push_back(slot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
+        // Copy track at slot to the leaked tracks
+        electronsOrPositrons.CopyTrackToLeaked(slot);
       } else {
-        nextActiveQueue->push_back(slot);
+        electronsOrPositrons.EnqueueNext(slot);
       }
     };
 
@@ -199,8 +192,7 @@ __global__ void ElectronHowFar(Track *electrons, G4HepEmElectronTrack *hepEMTrac
 }
 
 template <bool IsElectron>
-__global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
-                                    adept::MParray *leakedQueue)
+__global__ void ElectronPropagation(ParticleManager particleManager, G4HepEmElectronTrack *hepEMTracks)
 {
   constexpr double kPushDistance           = 1000 * vecgeom::kTolerance;
   constexpr int Charge                     = IsElectron ? -1 : 1;
@@ -221,11 +213,12 @@ __global__ void ElectronPropagation(Track *electrons, G4HepEmElectronTrack *hepE
 
   auto &magneticField = *gMagneticField;
 
-  int activeSize = active->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot = (*active)[i];
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
 
-    Track &currentTrack = electrons[slot];
+  const int activeSize = electronsOrPositrons.ActiveSize();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const auto slot     = electronsOrPositrons.ActiveAt(i);
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -371,22 +364,21 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
  * @brief Adds tracks to interaction and relocation queues depending on their state
  */
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepEmElectronTrack *hepEMTracks,
-                                          const adept::MParray *active, Secondaries secondaries,
-                                          adept::MParray *nextActiveQueue, AllInteractionQueues interactionQueues,
-                                          adept::MParray *leakedQueue, Scoring *userScoring, const bool returnAllSteps,
-                                          const bool returnLastStep)
+__global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, const adept::MParray *propagationQueue,
+                                          ParticleManager particleManager, AllInteractionQueues interactionQueues,
+                                          Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
-  int activeSize = active->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot           = (*active)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
+  SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
 
-    Track &currentTrack = electrons[slot];
+  int activeSize = propagationQueue->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const int slot      = (*propagationQueue)[i];
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       // NOTE: When adapting the split kernels for async mode this won't
@@ -394,25 +386,10 @@ __global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepE
       // a trackdata struct would be better
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
-        // Get a slot in the leaks array
-        int leakSlot;
-        if (IsElectron)
-          leakSlot = secondaries.electrons.NextLeakSlot();
-        else
-          leakSlot = secondaries.positrons.NextLeakSlot();
-        // Copy the track to the leaks array and store the index in the leak queue
-        leaks[leakSlot] = electrons[slot];
-        auto success    = leakedQueue->push_back(leakSlot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-        // Free the slot in the tracks slot manager
-        slotManager.MarkSlotForFreeing(slot);
+        // Copy track at slot to the leaked tracks
+        electronsOrPositrons.CopyTrackToLeaked(slot);
       } else {
-        nextActiveQueue->push_back(slot);
+        electronsOrPositrons.EnqueueNext(slot);
       }
     };
 
@@ -540,22 +517,22 @@ __global__ void ElectronSetupInteractions(Track *electrons, Track *leaks, G4HepE
 }
 
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectronTrack *hepEMTracks,
-                                   Secondaries secondaries, adept::MParray *nextActiveQueue,
-                                   adept::MParray *relocatingQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                                   const bool returnAllSteps, const bool returnLastStep)
+__global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
+                                   adept::MParray *relocatingQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
   constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
-  int activeSize                 = relocatingQueue->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot           = (*relocatingQueue)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
+  auto &electronsOrPositrons     = (IsElectron ? particleManager.electrons : particleManager.positrons);
 
-    Track &currentTrack = electrons[slot];
+  SlotManager &slotManager = *electronsOrPositrons.fSlotManager;
+  int activeSize           = relocatingQueue->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const int slot      = (*relocatingQueue)[i];
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
       // NOTE: When adapting the split kernels for async mode this won't
@@ -563,25 +540,10 @@ __global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectr
       // a trackdata struct would be better
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
-        // Get a slot in the leaks array
-        int leakSlot;
-        if (IsElectron)
-          leakSlot = secondaries.electrons.NextLeakSlot();
-        else
-          leakSlot = secondaries.positrons.NextLeakSlot();
-        // Copy the track to the leaks array and store the index in the leak queue
-        leaks[leakSlot] = electrons[slot];
-        auto success    = leakedQueue->push_back(leakSlot);
-        if (!success) {
-          printf("ERROR: No space left in e-/+ leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-        // Free the slot in the tracks slot manager
-        slotManager.MarkSlotForFreeing(slot);
+        // Copy track at slot to the leaked tracks
+        electronsOrPositrons.CopyTrackToLeaked(slot);
       } else {
-        nextActiveQueue->push_back(slot);
+        electronsOrPositrons.EnqueueNext(slot);
       }
     };
 
@@ -678,7 +640,7 @@ __global__ void ElectronRelocation(Track *electrons, Track *leaks, G4HepEmElectr
 
 template <bool IsElectron, typename Scoring>
 __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track &currentTrack,
-                                                           Secondaries &secondaries, double &energyDeposit,
+                                                           ParticleManager &particleManager, double &energyDeposit,
                                                            SlotManager &slotManager, const bool ApplyCuts,
                                                            const double theGammaCut, Scoring *userScoring,
                                                            const bool returnLastStep = false)
@@ -707,14 +669,15 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
       currentTrack.rngState.Advance();
       RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-      Track &gamma1 = secondaries.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                                   vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                                   currentTrack.navState, currentTrack, currentTrack.globalTime);
+      Track &gamma1 =
+          particleManager.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                           vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
 
       // Reuse the RNG state of the dying track.
-      Track &gamma2 =
-          secondaries.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                       -gamma1.dir, currentTrack.navState, currentTrack, currentTrack.globalTime);
+      Track &gamma2 = particleManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                       currentTrack.pos, -gamma1.dir, currentTrack.navState,
+                                                       currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -764,26 +727,26 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
 }
 
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                   adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                   Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
+__global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
+                                   adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
-  int activeSize = interactingQueue->size();
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
+  SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
+  int activeSize             = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    const int slot           = (*interactingQueue)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
-
-    Track &currentTrack = electrons[slot];
+    const int slot      = (*interactingQueue)[i];
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
     bool isLastStep           = true;
 
     auto survive = [&]() {
       isLastStep = false; // track survived, do not force return of step
-      nextActiveQueue->push_back(slot);
+      electronsOrPositrons.EnqueueNext(slot);
     };
 
     // Retrieve HepEM track
@@ -825,10 +788,10 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
       energyDeposit += deltaEkin;
 
     } else {
-      Track &secondary =
-          secondaries.electrons.NextTrack(newRNG, deltaEkin, currentTrack.pos,
-                                          vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                                          currentTrack.navState, currentTrack, currentTrack.globalTime);
+      Track &secondary = particleManager.electrons.NextTrack(
+          newRNG, deltaEkin, currentTrack.pos,
+          vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
+          currentTrack, currentTrack.globalTime);
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
@@ -864,7 +827,7 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
         energyDeposit += currentTrack.eKin;
       }
       currentTrack.stopped = true;
-      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager,
+      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, particleManager, energyDeposit, slotManager,
                                                       ApplyCuts, theGammaCut, userScoring, returnLastStep);
     } else {
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
@@ -899,17 +862,17 @@ __global__ void ElectronIonization(Track *electrons, G4HepEmElectronTrack *hepEM
 }
 
 template <bool IsElectron, typename Scoring>
-__global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                       adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                       Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
+__global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
+                                       adept::MParray *interactingQueue, Scoring *userScoring,
+                                       const bool returnAllSteps, const bool returnLastStep)
 {
-  int activeSize = interactingQueue->size();
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
+  SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
+  int activeSize             = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    const int slot           = (*interactingQueue)[i];
-    SlotManager &slotManager = IsElectron ? *secondaries.electrons.fSlotManager : *secondaries.positrons.fSlotManager;
-
-    Track &currentTrack = electrons[slot];
+    const int slot      = (*interactingQueue)[i];
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -918,7 +881,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 
     auto survive = [&]() {
       isLastStep = false; // track survived, do not force return of step
-      nextActiveQueue->push_back(slot);
+      electronsOrPositrons.EnqueueNext(slot);
     };
 
     // Retrieve HepEM track
@@ -963,9 +926,9 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 
     } else {
       Track &gamma =
-          secondaries.gammas.NextTrack(newRNG, deltaEkin, currentTrack.pos,
-                                       vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime);
+          particleManager.gammas.NextTrack(newRNG, deltaEkin, currentTrack.pos,
+                                           vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         adept_scoring::RecordHit(userScoring, gamma.trackId, gamma.parentId, /*CreatorProcessId*/ short(1),
@@ -999,7 +962,7 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
         energyDeposit += currentTrack.eKin;
       }
       currentTrack.stopped = true;
-      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager,
+      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, particleManager, energyDeposit, slotManager,
                                                       ApplyCuts, theGammaCut, userScoring, returnLastStep);
     } else {
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
@@ -1034,26 +997,26 @@ __global__ void ElectronBremsstrahlung(Track *electrons, G4HepEmElectronTrack *h
 }
 
 template <typename Scoring>
-__global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks, Secondaries secondaries,
-                                     adept::MParray *nextActiveQueue, adept::MParray *interactingQueue,
-                                     Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
+__global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
+                                     adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
+                                     const bool returnLastStep)
 {
-  int activeSize = interactingQueue->size();
+  SlotManager &slotManager = *particleManager.positrons.fSlotManager;
+  int activeSize           = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    const int slot           = (*interactingQueue)[i];
-    SlotManager &slotManager = *secondaries.positrons.fSlotManager;
+    const int slot = (*interactingQueue)[i];
 
-    Track &currentTrack = electrons[slot];
+    Track &currentTrack = particleManager.positrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
     bool isLastStep           = true;
 
     auto survive = [&]() {
       isLastStep = false; // track survived, do not force return of step
-      nextActiveQueue->push_back(slot);
+      particleManager.positrons.EnqueueNext(slot);
     };
 
     // Retrieve HepEM track
@@ -1095,9 +1058,9 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 
     } else {
       Track &gamma1 =
-          secondaries.gammas.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
-                                       vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime);
+          particleManager.gammas.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
+                                           vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
+                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
@@ -1127,9 +1090,9 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 
     } else {
       Track &gamma2 =
-          secondaries.gammas.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
-                                       vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime);
+          particleManager.gammas.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
+                                           vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
+                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
@@ -1185,18 +1148,17 @@ __global__ void PositronAnnihilation(Track *electrons, G4HepEmElectronTrack *hep
 }
 
 template <typename Scoring>
-__global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
-                                            Secondaries secondaries, adept::MParray *nextActiveQueue,
+__global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
                                             adept::MParray *interactingQueue, Scoring *userScoring,
                                             const bool returnAllSteps, const bool returnLastStep)
 {
-  int activeSize = interactingQueue->size();
+  SlotManager &slotManager = *particleManager.positrons.fSlotManager;
+  int activeSize           = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    const int slot           = (*interactingQueue)[i];
-    SlotManager &slotManager = *secondaries.positrons.fSlotManager;
+    const int slot = (*interactingQueue)[i];
 
-    Track &currentTrack = electrons[slot];
+    Track &currentTrack = particleManager.positrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -1205,7 +1167,7 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
 
     auto survive = [&]() {
       isLastStep = false; // track survived, do not force return of step
-      nextActiveQueue->push_back(slot);
+      particleManager.positrons.EnqueueNext(slot);
     };
 
     // Retrieve HepEM track
@@ -1225,8 +1187,8 @@ __global__ void PositronStoppedAnnihilation(Track *electrons, G4HepEmElectronTra
     // Annihilate the stopped positron into two gammas heading to opposite
     // directions (isotropic).
 
-    PerformStoppedAnnihilation<false, Scoring>(slot, currentTrack, secondaries, energyDeposit, slotManager, ApplyCuts,
-                                               theGammaCut, userScoring, returnLastStep);
+    PerformStoppedAnnihilation<false, Scoring>(slot, currentTrack, particleManager, energyDeposit, slotManager,
+                                               ApplyCuts, theGammaCut, userScoring, returnLastStep);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)

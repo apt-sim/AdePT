@@ -26,18 +26,17 @@ namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammas(Track *gammas, Track *leaks, const adept::MParray *active, Secondaries secondaries,
-                    adept::MParray *nextActiveQueue, adept::MParray *leakedQueue, Scoring *userScoring,
-                    Stats *InFlightStats, const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
+    TransportGammas(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
+                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
                     const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
-  int activeSize                    = active->size();
+  auto &slotManager                 = *particleManager.gammas.fSlotManager;
+  const int activeSize              = particleManager.gammas.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*active)[i];
-    auto &slotManager   = *secondaries.gammas.fSlotManager;
-    Track &currentTrack = gammas[slot];
+    const auto slot     = particleManager.gammas.ActiveAt(i);
+    Track &currentTrack = particleManager.gammas.TrackAt(slot);
 #else
 
 // Synchronous TransportGammas Interface
@@ -109,21 +108,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.leakStatus = leakReason;
 #ifdef ASYNC_MODE
       if (leakReason != LeakStatus::NoLeak) {
-        // Get a slot in the leaks array
-        int leakSlot = secondaries.gammas.NextLeakSlot();
-        // Copy the track to the leaks array and store the index in the leak queue
-        leaks[leakSlot] = gammas[slot];
-        auto success    = leakedQueue->push_back(leakSlot);
-        if (!success) {
-          printf("ERROR: No space left in gammas leaks queue.\n\
-\tThe threshold for flushing the leak buffer may be too high\n\
-\tThe space allocated to the leak buffer may be too small\n");
-          asm("trap;");
-        }
-        // Free the slot in the tracks slot manager
-        slotManager.MarkSlotForFreeing(slot);
+        // Copy track at slot to the leaked tracks
+        particleManager.gammas.CopyTrackToLeaked(slot);
       } else {
-        nextActiveQueue->push_back(slot);
+        particleManager.gammas.EnqueueNext(slot);
       }
 #else
       currentTrack.CopyTo(trackdata, Pdg);
@@ -311,7 +299,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           edep = elKinEnergy;
         } else {
 #ifdef ASYNC_MODE
-          Track &electron = secondaries.electrons.NextTrack(
+          Track &electron = particleManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
@@ -355,7 +343,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
         } else {
 #ifdef ASYNC_MODE
-          Track &positron = secondaries.positrons.NextTrack(
+          Track &positron = particleManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
@@ -423,7 +411,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
 #ifdef ASYNC_MODE
-          Track &electron = secondaries.electrons.NextTrack(
+          Track &electron = particleManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 #else
           Track &electron = secondaries.electrons->NextTrack();
@@ -501,7 +489,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
           // Create a secondary electron and sample directions.
 #ifdef ASYNC_MODE
-          Track &electron = secondaries.electrons.NextTrack(
+          Track &electron = particleManager.electrons.NextTrack(
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
 #else

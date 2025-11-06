@@ -77,6 +77,9 @@ struct Track {
 
   LeakStatus leakStatus{LeakStatus::NoLeak};
 
+  __host__ __device__ Track(const Track &)            = default;
+  __host__ __device__ Track &operator=(const Track &) = default;
+
   /// Construct a new track for GPU transport.
   /// NB: The navState remains uninitialised.
   __device__ Track(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime, float weight,

@@ -26,23 +26,43 @@
 namespace AsyncAdePT {
 
 // A bundle of pointers to generate particles of an implicit type.
-struct ParticleGenerator {
+struct SpeciesParticleManager {
   Track *fTracks;
+  Track *fLeakedTracks;
   SlotManager *fSlotManager;
   SlotManager *fSlotManagerLeaks;
   adept::MParray *fActiveQueue;
+  adept::MParray *fNextActiveQueue;
+  adept::MParray *fActiveLeaksQueue;
 
 public:
-  __host__ __device__ ParticleGenerator(Track *tracks, SlotManager *slotManager, SlotManager *slotManagerLeaks,
-                                        adept::MParray *activeQueue)
-      : fTracks(tracks), fSlotManager(slotManager), fSlotManagerLeaks(slotManagerLeaks), fActiveQueue(activeQueue)
+  __host__ __device__ SpeciesParticleManager(Track *tracks, Track *leakedTracks, SlotManager *slotManager,
+                                             SlotManager *slotManagerLeaks, adept::MParray *activeQueue,
+                                             adept::MParray *nextActiveQueue, adept::MParray *activeLeaksQueue)
+      : fTracks(tracks), fLeakedTracks(leakedTracks), fSlotManager(slotManager), fSlotManagerLeaks(slotManagerLeaks),
+        fActiveQueue(activeQueue), fNextActiveQueue(nextActiveQueue), fActiveLeaksQueue(activeLeaksQueue)
   {
   }
 
+  /// Obtain track and leaked track at given slot position
+  __device__ __forceinline__ Track &TrackAt(SlotManager::value_type slot) { return fTracks[slot]; }
+  __device__ __forceinline__ Track &LeakTrackAt(SlotManager::value_type slot) { return fLeakedTracks[slot]; }
+
   /// Obtain a slot for a track, but don't enqueue.
   __device__ auto NextSlot() { return fSlotManager->NextSlot(); }
-
   __device__ auto NextLeakSlot() { return fSlotManagerLeaks->NextSlot(); }
+
+  // enqueue into next-active queue
+  __device__ __forceinline__ bool EnqueueNext(SlotManager::value_type slot)
+  {
+    return fNextActiveQueue->push_back(slot);
+  }
+
+  // size of the active queue
+  __device__ __forceinline__ int ActiveSize() const { return fActiveQueue->size(); }
+
+  // read slot from active queue by index
+  __device__ __forceinline__ SlotManager::value_type ActiveAt(int i) const { return (*fActiveQueue)[i]; }
 
   /// Construct a track at the given location, forwarding all arguments to the constructor.
   template <typename... Ts>
@@ -56,12 +76,36 @@ public:
   __device__ Track &NextTrack(Ts &&...args)
   {
     const auto slot = NextSlot();
-    fActiveQueue->push_back(slot);
+    // next track is only visible in next GPU iteration, therefore pushed in the NextActiveQueue
+    fNextActiveQueue->push_back(slot);
     auto &track = InitTrack(slot, std::forward<Ts>(args)...);
     return track;
   }
 
-  void SetActiveQueue(adept::MParray *queue) { fActiveQueue = queue; }
+  /// Obtains a leak slot, copies the track from the source slot to the leaks, and marks the slot in the active queue
+  /// for freeing
+  __device__ __forceinline__ void CopyTrackToLeaked(SlotManager::value_type srcSlot)
+  {
+    // get a leak slot
+    const auto leakSlot = NextLeakSlot();
+
+    // Create and construct track from other track
+    new (fLeakedTracks + leakSlot) Track{TrackAt(srcSlot)};
+
+    // enqueue into leak queue
+    const bool success = fActiveLeaksQueue->push_back(leakSlot);
+    if (!success) {
+      printf("ERROR: No space left in leaks queue.\n"
+             "\tThe threshold for flushing the leak buffer may be too high\n"
+             "\tThe space allocated to the leak buffer may be too small\n");
+      asm("trap;");
+    }
+
+    // free the source slot
+    fSlotManager->MarkSlotForFreeing(srcSlot);
+
+    return;
+  }
 };
 
 struct LeakedTracks {
@@ -86,10 +130,10 @@ struct LeakedTracks {
 // };
 
 // A bundle of generators for the three particle types.
-struct Secondaries {
-  ParticleGenerator electrons;
-  ParticleGenerator positrons;
-  ParticleGenerator gammas;
+struct ParticleManager {
+  SpeciesParticleManager electrons;
+  SpeciesParticleManager positrons;
+  SpeciesParticleManager gammas;
 };
 
 // Holds the leaked track structs for all three particle types
