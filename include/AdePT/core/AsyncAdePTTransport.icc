@@ -304,7 +304,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
   adeptint::WDTDeviceView wdtViewHostCopy;
   AsyncAdePT::InitWDTOnDevice(wdtPacked, wdtDev, wdtViewHostCopy);
 
-  // FIXME freeing is missing
+  // FIXMEWDT freeing is missing
   // (Store wdtDev in a member of your transport so you can FreeWDTOnDevice(...) in dtor/cleanup)
   // this->fWDTDevBuffers = wdtDev; // e.g. add a member in transport class
 

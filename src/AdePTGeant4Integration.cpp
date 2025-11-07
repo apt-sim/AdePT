@@ -299,7 +299,7 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
                                             adeptint::WDTHostRaw &wdtRaw)
 {
 
-  // FIXME
+  // FIXMEWDT
   // MUST PASS hepEmTM, or can we use the fHepEmTrackingManager? NOt sure it is already initialized on master thread
   // here, to be checked!
   wdtRaw.ekinMin = (float)hepEmTM->GetWDTKineticEnergyLimit();

@@ -191,8 +191,11 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
       queueIndex = ParticleType::Positron;
       break;
     case 22:
-      speciesTM  = &particleManager.gammas;
-      queueIndex = ParticleType::Gamma;
+      speciesTM = &particleManager.gammas;
+
+      // check for Woodcock tracking
+      const bool useWDT = ShouldUseWDT(trackinfo[i].navState, trackInfo.eKin);
+      queueIndex        = useWDT ? ParticleType::GammaWDT : ParticleType::Gamma;
     };
     assert(speciesTM != nullptr && "Unsupported pdg type");
 
@@ -333,6 +336,13 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       stats->leakedTracks[i]   = all.queues[i].leakedTracksCurrent->size() + all.queues[i].leakedTracksNext->size();
       stats->queueFillLevel[i] = float(all.queues[i].nextActive->size()) / all.queues[i].nextActive->max_size();
     }
+    if (threadIdx.x == 0) {
+      // reset Woodcock tracking gamma queue and add to gammas
+      all.queues[ParticleType::GammaWDT].initiallyActive->clear();
+      stats->inFlight[ParticleType::Gamma] += all.queues[ParticleType::GammaWDT].nextActive->size();
+      stats->queueFillLevel[ParticleType::GammaWDT] = float(all.queues[ParticleType::GammaWDT].nextActive->size()) /
+                                                      all.queues[ParticleType::GammaWDT].nextActive->max_size();
+    }
   } else if (blockIdx.x == 1 && threadIdx.x == 0) {
     // Assert that there are enough slots allocated:
     unsigned int particlesInFlight = 0;
@@ -344,6 +354,11 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       stats->slotFillLevel[i]      = tracksAndSlots.slotManagers[i]->FillLevel();
       stats->slotFillLevelLeaks[i] = tracksAndSlots.slotManagersLeaks[i]->FillLevel();
     }
+
+    // add gammas in Woodcock tracking. As the WDT gammas share the same slot manager as normal gammas, no other action
+    // is needed
+    particlesInFlight += all.queues[ParticleType::GammaWDT].nextActive->size();
+
     if (particlesInFlight > occupiedSlots) {
       printf("Error: %d in flight while %d slots allocated\n", particlesInFlight, occupiedSlots);
       asm("trap;");
@@ -399,9 +414,12 @@ __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, Trac
   constexpr unsigned int N = kMaxThreads;
   __shared__ unsigned int sharedCount[N];
 
-  for (unsigned int particleType = blockIdx.x; particleType < ParticleType::NumParticleTypes;
+  for (unsigned int particleType = blockIdx.x; particleType < ParticleType::NumParticleQueues;
        particleType += gridDim.x) {
-    Track const *const tracks   = tracksAndSlots.tracks[particleType];
+
+    // WDT gammas access the gamma tracks (but have their own queue)
+    const unsigned int tracksId = particleType == ParticleType::GammaWDT ? ParticleType::Gamma : particleType;
+    Track const *const tracks   = tracksAndSlots.tracks[tracksId];
     adept::MParray const *queue = all.queues[particleType].initiallyActive;
 
     for (unsigned int i = threadIdx.x; i < N; i += blockDim.x)
@@ -461,9 +479,11 @@ __global__ void ClearQueues(Args *...queue)
 
 __global__ void ClearAllQueues(AllParticleQueues all)
 {
-  for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+  for (int i = 0; i < ParticleType::NumParticleQueues; i++) {
     all.queues[i].initiallyActive->clear();
     all.queues[i].nextActive->clear();
+    // return after initially and nextActive queues are cleared for WDT, as the other pointers are null
+    if (i == ParticleType::GammaWDT) return;
 #ifdef USE_SPLIT_KERNELS
     all.queues[i].propagation->clear();
     for (int j = 0; j < ParticleQueues::numInteractions; j++) {
@@ -719,6 +739,17 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 #endif
   }
 
+  ParticleQueues &woodcockQueues  = gpuState.woodcockQueues;
+  const size_t nSlot              = trackCapacity * ParticleType::relativeQueueSize[ParticleType::Gamma];
+  const size_t sizeOfQueueStorage = adept::MParray::SizeOfInstance(nSlot);
+  void *gpuPtr                    = nullptr;
+  gpuMalloc(gpuPtr, sizeOfQueueStorage);
+  woodcockQueues.initiallyActive = static_cast<adept::MParray *>(gpuPtr);
+  InitQueue<int><<<1, 1>>>(woodcockQueues.initiallyActive, nSlot);
+  gpuMalloc(gpuPtr, sizeOfQueueStorage);
+  woodcockQueues.nextActive = static_cast<adept::MParray *>(gpuPtr);
+  InitQueue<int><<<1, 1>>>(woodcockQueues.nextActive, nSlot);
+
   // NOTE: deprecated GammaInteractions
   // init gamma interaction queues
   // for (unsigned int i = 0; i < GammaInteractions::NInt; ++i) {
@@ -750,7 +781,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   gpuState.fHitScoring.reset(new HitScoring(scoringCapacity, numThreads, CPUCapacityFactor, CPUCopyFraction));
 
   const auto injectQueueSize = adept::MParrayT<QueueIndexPair>::SizeOfInstance(trackBuffer.fNumToDevice);
-  void *gpuPtr               = nullptr;
+  // void *gpuPtr               = nullptr;
   gpuMalloc(gpuPtr, injectQueueSize);
   gpuState.injectionQueue = static_cast<adept::MParrayT<QueueIndexPair> *>(gpuPtr);
   InitQueue<QueueIndexPair><<<1, 1>>>(gpuState.injectionQueue, trackBuffer.fNumToDevice);
@@ -838,15 +869,16 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
 
-  ParticleType &electrons = gpuState.particles[ParticleType::Electron];
-  ParticleType &positrons = gpuState.particles[ParticleType::Positron];
-  ParticleType &gammas    = gpuState.particles[ParticleType::Gamma];
+  ParticleType &electrons        = gpuState.particles[ParticleType::Electron];
+  ParticleType &positrons        = gpuState.particles[ParticleType::Positron];
+  ParticleType &gammas           = gpuState.particles[ParticleType::Gamma];
+  ParticleQueues &woodcockQueues = gpuState.woodcockQueues;
 
   // Auxiliary struct used to keep track of the queues that need flushing
   AllLeaked allLeaked{nullptr, nullptr, nullptr};
 
   cudaEvent_t cudaEvent, cudaStatsEvent;
-  cudaStream_t hitTransferStream, injectStream, extractStream, statsStream, interactionStream;
+  cudaStream_t hitTransferStream, injectStream, extractStream, statsStream;
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaStatsEvent, cudaEventDisableTiming));
   unique_ptr_cuda<cudaEvent_t> cudaEventCleanup{&cudaEvent};
@@ -855,12 +887,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   COPCORE_CUDA_CHECK(cudaStreamCreate(&injectStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&extractStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&statsStream));
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&interactionStream));
   unique_ptr_cuda<cudaStream_t> cudaStreamCleanup{&hitTransferStream};
   unique_ptr_cuda<cudaStream_t> cudaInjectStreamCleanup{&injectStream};
   unique_ptr_cuda<cudaStream_t> cudaExtractStreamCleanup{&extractStream};
   unique_ptr_cuda<cudaStream_t> cudaStatsStreamCleanup{&statsStream};
-  unique_ptr_cuda<cudaStream_t> cudaInteractionStreamCleanup{&interactionStream};
   auto waitForOtherStream = [&cudaEvent](cudaStream_t waitingStream, cudaStream_t streamToWaitFor) {
     COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, streamToWaitFor));
     COPCORE_CUDA_CHECK(cudaStreamWaitEvent(waitingStream, cudaEvent));
@@ -951,6 +981,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       electrons.queues.SwapActive();
       positrons.queues.SwapActive();
       gammas.queues.SwapActive();
+      woodcockQueues.SwapActive();
 
       const ParticleManager particleManager = {
           .electrons = {electrons.tracks, electrons.leaks, electrons.slotManager, electrons.slotManagerLeaks,
@@ -960,8 +991,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                         positrons.queues.initiallyActive, positrons.queues.nextActive,
                         positrons.queues.leakedTracksCurrent},
           .gammas    = {gammas.tracks, gammas.leaks, gammas.slotManager, gammas.slotManagerLeaks,
-                        gammas.queues.initiallyActive, gammas.queues.nextActive, gammas.queues.leakedTracksCurrent}};
-      const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues}};
+                        gammas.queues.initiallyActive, gammas.queues.nextActive, gammas.queues.leakedTracksCurrent},
+          .gammasWDT = {gammas.tracks, gammas.leaks, gammas.slotManager, gammas.slotManagerLeaks,
+                        woodcockQueues.initiallyActive, woodcockQueues.nextActive, gammas.queues.leakedTracksCurrent}
+          // Note: the Woodcock tracking particleManager uses the same gamma tracks, leaks, and slotManager,
+          // it only has its own initiallyActive and nextActive queues.
+      };
+      const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
 #ifdef USE_SPLIT_KERNELS
       const AllInteractionQueues allGammaInteractionQueues = {
           {gammas.queues.interactionQueues[0], gammas.queues.interactionQueues[1], gammas.queues.interactionQueues[2],
@@ -1165,6 +1201,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         TransportGammas<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             particleManager, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
             returnAllSteps, returnLastStep); //, gpuState.gammaInteractions);
+
+        TransportGammasWoodcock<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
+            particleManager, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
+            returnAllSteps, returnLastStep);
 #endif
 
         // constexpr unsigned int intThreads = 128;
@@ -1185,7 +1225,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         // Reset all counters count the currently flying population
         ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
-        CountCurrentPopulation<<<ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
+        CountCurrentPopulation<<<ParticleType::NumParticleQueues, 128, 0, statsStream>>>(
             allParticleQueues, gpuState.stats_dev, tracksAndSlots);
         // Count leaked tracks. Note that new tracks might be added while/after we count:
         CountLeakedTracks<<<2 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
@@ -1597,7 +1637,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                   << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tqueues:(" << std::setprecision(3)
                   << gpuState.stats->queueFillLevel[ParticleType::Electron] << " "
                   << gpuState.stats->queueFillLevel[ParticleType::Positron] << " "
-                  << gpuState.stats->queueFillLevel[ParticleType::Gamma] << ")";
+                  << gpuState.stats->queueFillLevel[ParticleType::Gamma] << " "
+                  << gpuState.stats->queueFillLevel[ParticleType::GammaWDT] << ")";
         std::cerr << "\t slots [e-, e+, gamma]: [" << gpuState.stats->slotFillLevel[0] << ", "
                   << gpuState.stats->slotFillLevel[1] << ", " << gpuState.stats->slotFillLevel[2] << "], " << numLeaked
                   << " leaked."
@@ -1650,8 +1691,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 #endif
 #endif
     }
-
-    AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
+    AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
     ClearAllQueues<<<1, 1, 0, gpuState.stream>>>(queues);
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
@@ -1789,7 +1829,7 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
   hViewOut = view;
 }
 
-// FIXME free memory
+// FIXMEWDT free memory
 // inline void FreeWDTOnDevice(WDTDeviceBuffers& dev)
 // {
 //   if (dev.d_roots)   COPCORE_CUDA_CHECK(cudaFree(dev.d_roots)),   dev.d_roots   = nullptr;

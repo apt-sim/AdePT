@@ -44,6 +44,37 @@ __device__ double GetVelocity(double eKin)
 #ifdef ASYNC_MODE
 namespace AsyncAdePT {
 
+// Helper function to decide whether a gamma should be processed via Woodcock tracking based on navigation state and
+// kinetic energy
+__device__ __forceinline__ bool ShouldUseWDT(const vecgeom::NavigationState &state, double eKin)
+{
+  // 1) region from current logical volume
+  const int lvolId   = state.GetLogicalId();
+  const auto &aux    = gVolAuxData[lvolId];
+  const int regionId = aux.fGPUregionId;
+  if (regionId < 0) return false;
+
+  // 2) WDT mapping for this region
+  const adeptint::WDTDeviceView &view = gWDTData;
+  const int wdtIdx                    = view.regionToWDT[regionId];
+  if (wdtIdx < 0) return false;
+
+  const adeptint::WDTRegion reg = view.regions[wdtIdx];
+
+  // 3) energy gate
+  if (eKin <= reg.ekinMin) return false;
+
+  // 4) scan roots and do the compact state ancestry test
+  const adeptint::WDTRoot *roots = &view.roots[reg.offset];
+  for (int i = 0; i < reg.count; ++i) {
+    const vecgeom::NavigationState &rootState = roots[i].root;
+    if (state.IsDescendent(rootState.GetState())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
@@ -652,7 +683,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma = particleManager.gammas.NextTrack(
+            // check for Woodcock tracking
+            const bool useWDT      = ShouldUseWDT(navState, deltaEkin);
+            auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+
+            Track &gamma = gammaPartManager.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 #else
@@ -731,10 +766,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma1 = particleManager.gammas.NextTrack(
-                newRNG, theGamma1Ekin, pos,
-                vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
-                globalTime);
+            const bool useWDT      = ShouldUseWDT(navState, theGamma1Ekin);
+            auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+            Track &gamma1 =
+                gammaPartManager.NextTrack(newRNG, theGamma1Ekin, pos,
+                                           vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
+                                           navState, currentTrack, globalTime);
 #else
             Track &gamma1 = secondaries.gammas->NextTrack();
             gamma1.InitAsSecondary(pos, navState, globalTime);
@@ -775,10 +812,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
           } else {
 #ifdef ASYNC_MODE
-            Track &gamma2 = particleManager.gammas.NextTrack(
-                currentTrack.rngState, theGamma2Ekin, pos,
-                vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
-                globalTime);
+            const bool useWDT      = ShouldUseWDT(navState, theGamma2Ekin);
+            auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+            Track &gamma2 =
+                gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, pos,
+                                           vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
+                                           navState, currentTrack, globalTime);
 #else
             Track &gamma2 = secondaries.gammas->NextTrack();
             gamma2.InitAsSecondary(pos, navState, globalTime);
@@ -853,14 +892,17 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           RanluxppDouble newRNG2(currentTrack.rngState.Branch());
 
 #ifdef ASYNC_MODE
-          Track &gamma1 = particleManager.gammas.NextTrack(
-              newRNG2, double{copcore::units::kElectronMassC2}, pos,
-              vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost}, navState, currentTrack, globalTime);
+
+          const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});
+          auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+
+          Track &gamma1 = gammaPartManager.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
+                                                     vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                                     navState, currentTrack, globalTime);
 
           // Reuse the RNG state of the dying track.
-          Track &gamma2 =
-              particleManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, pos,
-                                               -gamma1.dir, navState, currentTrack, globalTime);
+          Track &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                     pos, -gamma1.dir, navState, currentTrack, globalTime);
 #else
           Track &gamma1 = secondaries.gammas->NextTrack();
           Track &gamma2 = secondaries.gammas->NextTrack();
