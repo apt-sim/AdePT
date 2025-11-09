@@ -70,7 +70,7 @@ private:
   /// ID of collection of hits
   G4int fHitCollectionID = -1;
   /// Number of sensitive detectors
-  G4int fNumSensitive{0};
+  std::size_t fNumSensitive{0};
 };
 
 #endif /* SENSITIVEDETECTOR_HH */

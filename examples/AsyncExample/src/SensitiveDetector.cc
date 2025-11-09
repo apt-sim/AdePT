@@ -88,7 +88,7 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
 SimpleHit *SensitiveDetector::RetrieveAndSetupHit(std::size_t hitID)
 {
-  assert(hitID < static_cast<std::size_t>(fNumSensitive));
+  assert(hitID < fNumSensitive);
 
   if (hitID >= fHitsCollection->entries()) {
     G4Exception("SensitiveDetector::RetrieveAndSetupHit()", "InvalidSetup", FatalException,
