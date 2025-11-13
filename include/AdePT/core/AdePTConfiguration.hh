@@ -46,6 +46,7 @@ public:
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
+  void SetMaxWDTIter(int maxIter) { fMaxWDTIter = maxIter; }
   void SetSpeedOfLight(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
   void SetMultipleStepsInMSCWithTransportation(bool setMultipleSteps)
   {
@@ -74,6 +75,7 @@ public:
   uint64_t GetAdePTSeed() { return fAdePTSeed; }
 
   unsigned short GetLastNParticlesOnCPU() { return fLastNParticlesOnCPU; }
+  unsigned short GetMaxWDTIter() { return fMaxWDTIter; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
   float GetCPUCapacityFactor() { return fCPUCapacityFactor; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
@@ -106,6 +108,7 @@ private:
   double fMillionsOfLeakSlots{1};
   double fMillionsOfHitSlots{1};
   unsigned short fLastNParticlesOnCPU{0};
+  unsigned short fMaxWDTIter{5};
 
   std::vector<std::string> fGPURegionNames{};
   std::vector<std::string> fCPURegionNames{};

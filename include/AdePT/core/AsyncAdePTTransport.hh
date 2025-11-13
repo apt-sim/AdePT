@@ -45,17 +45,16 @@ public:
   uint64_t fAdePTSeed = 1234567;
 
 private:
-  unsigned short fNThread{0};             ///< Number of G4 workers
-  unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
-  unsigned int fLeakCapacity{0};          ///< Number of leak slots to allocate on device
-  unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
-  int fDebugLevel{0};                     ///< Debug level
-  int fCUDAStackLimit{0};                 ///< CUDA device stack limit
-  int fCUDAHeapLimit{0};                  ///< CUDA device heap limit
-  unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
-  // note: std::optional is used here as the AdePTGeant4Integration has no default constructor and we need to
-  // resize the vector to the number of threads, and then each worker has to construct its entry at its given slot
-  std::vector<IntegrationLayer> fIntegrationLayerObjects;        //< vector of integration layers per thread
+  unsigned short fNThread{0};                             ///< Number of G4 workers
+  unsigned int fTrackCapacity{0};                         ///< Number of track slots to allocate on device
+  unsigned int fLeakCapacity{0};                          ///< Number of leak slots to allocate on device
+  unsigned int fScoringCapacity{0};                       ///< Number of hit slots to allocate on device
+  int fDebugLevel{0};                                     ///< Debug level
+  int fCUDAStackLimit{0};                                 ///< CUDA device stack limit
+  int fCUDAHeapLimit{0};                                  ///< CUDA device heap limit
+  unsigned short fLastNParticlesOnCPU{0};                 ///< Number N of last N particles that are finished on CPU
+  unsigned short fMaxWDTIter{5};                          ///< Maximum number of Woodcock tracking iterations per step
+  std::vector<IntegrationLayer> fIntegrationLayerObjects; //< vector of integration layers per thread
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
   std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
@@ -87,7 +86,7 @@ private:
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
   void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
-                       adeptint::WDTDeviceView &hViewOut);
+                       adeptint::WDTDeviceView &hViewOut, unsigned short maxIter);
 
 public:
   AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);

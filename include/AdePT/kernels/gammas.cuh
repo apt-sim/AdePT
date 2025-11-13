@@ -235,40 +235,37 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
         if (nextauxData.fGPUregionId >= 0) {
 
-          // Region has changed, check for woodcock tracking
-          if (nextauxData.fGPUregionId != auxData.fGPUregionId) {
+          const adeptint::WDTDeviceView &view = gWDTData;
+          const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
 
-            const adeptint::WDTDeviceView &view = gWDTData;
-            const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
-            if (wdtIdx >= 0) {
-              const adeptint::WDTRegion reg = view.regions[wdtIdx];
+          if (wdtIdx >= 0) {
+            const adeptint::WDTRegion reg = view.regions[wdtIdx];
 
-              if (eKin > reg.ekinMin) {
-                const adeptint::WDTRoot *roots = &view.roots[reg.offset];
+            if (eKin > reg.ekinMin) {
+              const adeptint::WDTRoot *roots = &view.roots[reg.offset];
 
-                for (int i = 0; i < reg.count; ++i) {
-                  const vecgeom::NavigationState &rootState = roots[i].root; // compact state
-                  if (nextState.IsDescendent(rootState.GetState())) {
+              for (int i = 0; i < reg.count; ++i) {
+                const vecgeom::NavigationState &rootState = roots[i].root; // compact state
+                if (nextState.IsDescendent(rootState.GetState())) {
 
-                    // Minimal debug output (only if you build vecgeom Print() for device)
-                    // printf("WDT: region %d -> matched root #%d (hepemIMC=%d), nextLV=%d\n", regionId, i,
-                    //        roots[i].hepemIMC, nextlvolID);
+                  // Minimal debug output (only if you build vecgeom Print() for device)
+                  // printf("WDT: region %d -> matched root #%d (hepemIMC=%d), nextLV=%d\n", regionId, i,
+                  //        roots[i].hepemIMC, nextlvolID);
 
-                    if (verbose) {
-                      printf("| Found woodcock volume! wdt region index %d region index %d wdt mat cut couple index %d "
-                             "State of WDT volume: ",
-                             wdtIdx, regionId, roots[i].hepemIMC);
-                      rootState.Print();
-                    }
-
-                    enterWDTRegion = true;
-                    break;
+                  if (verbose) {
+                    printf("| Found woodcock volume! wdt region index %d region index %d wdt mat cut couple index %d "
+                           "State of WDT volume: ",
+                           wdtIdx, regionId, roots[i].hepemIMC);
+                    rootState.Print();
                   }
+
+                  enterWDTRegion = true;
+                  break;
                 }
               }
-
-              // (optional) use `inWDT` to switch behavior or pick per-root data, etc.
             }
+
+            // (optional) use `inWDT` to switch behavior or pick per-root data, etc.
           }
 
           surviveFlag = true;

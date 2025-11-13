@@ -606,7 +606,7 @@ void FreeBField()
 }
 
 void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
-                     adeptint::WDTDeviceView &hViewOut)
+                     adeptint::WDTDeviceView &hViewOut, unsigned short maxIter)
 {
 
   using adeptint::WDTDeviceView;
@@ -633,6 +633,7 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
   view.regionToWDT = dev.d_map;
   view.nRoots      = (int)src.roots.size();
   view.nRegions    = (int)src.regions.size();
+  view.maxIter     = maxIter;
 
   // copy view to constant memory
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gWDTData, &view, sizeof(WDTDeviceView)));

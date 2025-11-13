@@ -48,7 +48,8 @@ template <typename FieldType>
 bool InitializeBField(FieldType &);
 template <typename FieldType>
 void FreeField();
-void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, adeptint::WDTDeviceView &);
+void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, adeptint::WDTDeviceView &,
+                     unsigned short);
 G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
@@ -94,9 +95,10 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fIntegrationLayerObjects(fNThread), fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
-      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
-      fCPURegionNames{configuration.GetCPURegionNames()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
+      fMaxWDTIter{configuration.GetMaxWDTIter()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
+      fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
+      fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
+      fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
       fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
       fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()}
@@ -304,7 +306,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
   // Upload WDT to device
   adeptint::WDTDeviceBuffers wdtDev;
   adeptint::WDTDeviceView wdtViewHostCopy;
-  async_adept_impl::InitWDTOnDevice(wdtPacked, wdtDev, wdtViewHostCopy);
+  async_adept_impl::InitWDTOnDevice(wdtPacked, wdtDev, wdtViewHostCopy, fMaxWDTIter);
   fWDTDev = wdtDev;
 
   // FIXME: The size of the buffer should be more explicitly configured

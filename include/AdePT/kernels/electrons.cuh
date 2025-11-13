@@ -57,22 +57,17 @@ __device__ __forceinline__ bool ShouldUseWDT(const vecgeom::NavigationState &sta
   // 2) WDT mapping for this region
   const adeptint::WDTDeviceView &view = gWDTData;
   const int wdtIdx                    = view.regionToWDT[regionId];
+  // wdtIdx >= 0 is a Woodcock tracking region
   if (wdtIdx < 0) return false;
 
   const adeptint::WDTRegion reg = view.regions[wdtIdx];
 
-  // 3) energy gate
+  // 3) Check for min energy
   if (eKin <= reg.ekinMin) return false;
 
-  // 4) scan roots and do the compact state ancestry test
-  const adeptint::WDTRoot *roots = &view.roots[reg.offset];
-  for (int i = 0; i < reg.count; ++i) {
-    const vecgeom::NavigationState &rootState = roots[i].root;
-    if (state.IsDescendent(rootState.GetState())) {
-      return true;
-    }
-  }
-  return false;
+  // Now it is 1) a GPU region 2) a Woodcock tracking region and 3) the track has enough energy:
+  // mark for Woodcock tracking
+  return true;
 }
 
 // Compute the physics and geometry step limit, transport the electrons while

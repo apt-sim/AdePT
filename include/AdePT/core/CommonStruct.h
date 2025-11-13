@@ -110,6 +110,7 @@ struct WDTDeviceView {
   const int *regionToWDT;   // [regionToWDTLen], regionId -> bucket (index into regions[]) or -1
   int nRoots;
   int nRegions;
+  unsigned short maxIter; // maximum number of Woodcock iterations
 };
 
 // Temporary, sparse collection built during geometry traversal.

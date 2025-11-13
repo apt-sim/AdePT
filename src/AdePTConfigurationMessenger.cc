@@ -97,6 +97,11 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetFinishOnCpuCmd->SetGuidance("Set N, the number of last N particles per event that are finished on CPU. Default: "
                                   "0. This is an important parameter for handling loopers in a magnetic field");
 
+  fSetMaxWDTIterCmd = new G4UIcmdWithAnInteger("/adept/MaxWDTIterations", this);
+  fSetMaxWDTIterCmd->SetGuidance("Set N, the number of maximum Woodcock tracking iterations per step before giving the "
+                                 "gamma back to the normal gamma kernel. Default: "
+                                 "5. This can be used to optimize the performance in highly granular geometries");
+
   fSetCUDAStackLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAStackLimit", this);
   fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
   fSetCUDAHeapLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAHeapLimit", this);
@@ -141,6 +146,7 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetCPUCapacityFactorCmd;
   delete fSetMultipleStepsInMSCWithTransportationCmd;
   delete fSetEnergyLossFluctuationCmd;
+  delete fSetMaxWDTIterCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -193,6 +199,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetAdePTSeed(fSetAdePTSeedCmd->GetNewIntValue(newValue));
   } else if (command == fSetFinishOnCpuCmd) {
     fAdePTConfiguration->SetLastNParticlesOnCPU(fSetFinishOnCpuCmd->GetNewIntValue(newValue));
+  } else if (command == fSetMaxWDTIterCmd) {
+    fAdePTConfiguration->SetMaxWDTIter(fSetMaxWDTIterCmd->GetNewIntValue(newValue));
   }
 }
 

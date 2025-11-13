@@ -184,7 +184,10 @@ __global__ void __launch_bounds__(256, 1)
     int hepEmIMC        = -1;
     int prevHepEmIMC    = -1;
     bool doStop         = false;
+    unsigned short iWDTLeft =
+        view.maxIter; // maximum number of Woodcock iterations before gamma is put back into normal gamma queue
 
+    // unsigned short iWDT = 0; // FIXMEWDT just for printout, REMOVE
     // While either interacts or hits the boundary of the actual root volume:
     double wdtStepLength      = 0.0;
     bool isWDTReachedBoundary = false;
@@ -270,6 +273,17 @@ __global__ void __launch_bounds__(256, 1)
         }
       }
 
+      // fake interaction, reduce number of Woodcock iterations left. If no iteration is left, give back to normal gamma
+      // queue
+      if (!doStop) {
+        iWDTLeft--;
+        if (iWDTLeft == 0) {
+          doStop = true;
+        }
+      }
+
+      // iWDT++;  // FIXMEWDT just for printout, REMOVE
+
       if (doStop) {
         // Reached the end, i.e. either interaction happens at the current post
         // step point or it hit the WDT volume boundary
@@ -300,6 +314,9 @@ __global__ void __launch_bounds__(256, 1)
           nextState.Print();
         }
 #endif
+
+        // FIXMEWDT just for printout, REMOVE
+        // printf("finished WDT after iWDT %u iterations from max iterations: %u\n", iWDT, view.maxIter);
 
         // Set pre/post step point location and touchable to be the same (as we
         // might have moved the track from a far away volume).
@@ -406,6 +423,9 @@ __global__ void __launch_bounds__(256, 1)
         }
       } // else particle has left the world
 
+    } else if (iWDTLeft == 0) {
+      surviveFlag   = true;
+      leftWDTRegion = true;
     } else { // i.e., !isWDTReachedBoundary
       // a Woodock tracking gamma that has not left the Woodcock root volume undergoes an interaction
 

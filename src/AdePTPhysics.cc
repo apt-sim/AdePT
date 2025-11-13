@@ -47,8 +47,9 @@ void AdePTPhysics::ConstructProcess()
   g4hepemconfig->SetEnergyLossFluctuation(fAdePTConfiguration->GetEnergyLossFluctuation());
 
   // Apply Woodcock tracking of photons in the EMEC and EMB
-  g4hepemconfig->SetWoodcockTrackingRegion("caloregion");
-  // g4hepemconfig->SetWoodcockTrackingRegion("HGCalRegion");
+  // g4hepemconfig->SetWoodcockTrackingRegion("caloregion");
+  g4hepemconfig->SetWoodcockTrackingRegion("HGCalRegion");
+  g4hepemconfig->SetWDTEnergyLimit(0.5); // set to 500 keV instead of 200
   // g4hepemconfig->SetWoodcockTrackingRegion("Layer2");
   // g4hepemconfig->SetWoodcockTrackingRegion("Layer1");
   // g4hepemconfig->SetWoodcockTrackingRegion("Layer2");
