@@ -22,13 +22,18 @@ using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
 
 namespace AsyncAdePT {
-// Asynchronous TransportGammas Interface
+// Asynchronous TransportGammasWoodcock Interface
 template <typename Scoring, class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     TransportGammasWoodcock(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
                             const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
                             const bool returnAllSteps, const bool returnLastStep)
 {
+  // Implementation of the gamma transport using Woodcock tracking. The implementation is taken from
+  // Mihaly Novak's G4HepEm (https://github.com/mnovak42/g4hepem), see G4HepEmWoodcockHelper.hh/cc and
+  // G4HepEmTrackingManager.cc Here, it is adopted and adjusted to AdePT's GPU track structures and using VecGeom
+  // instead of G4 navigation
+
   constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   auto &slotManager                 = *particleManager.gammasWDT.fSlotManager;
@@ -37,45 +42,38 @@ __global__ void __launch_bounds__(256, 1)
     const auto slot     = particleManager.gammasWDT.ActiveAt(i);
     Track &currentTrack = particleManager.gammasWDT.TrackAt(slot);
 
-    auto navState             = currentTrack.navState;
-    int lvolID                = navState.GetLogicalId();
-    VolAuxData const &auxData = gVolAuxData[lvolID];
-
-    bool isLastStep                          = returnLastStep;
-    bool surviveFlag                         = false;
-    bool leftWDTRegion                       = false;
-    LeakStatus leakReason                    = LeakStatus::NoLeak;
-    short stepDefinedProcessId               = 10; // default for transportation
-    double edep                              = 0.;
-    constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
-    constexpr unsigned short kStepsStuckPush = 5;
-    constexpr unsigned short kStepsStuckKill = 25;
-    auto eKin                                = currentTrack.eKin;
-    auto preStepEnergy                       = eKin;
-    auto pos                                 = currentTrack.pos;
-    vecgeom::Vector3D<double> preStepPos(pos);
-    auto dir = currentTrack.dir;
-    vecgeom::Vector3D<double> preStepDir(dir);
-    double globalTime        = currentTrack.globalTime;
-    double preStepGlobalTime = currentTrack.globalTime;
-    double localTime         = currentTrack.localTime;
-    double properTime        = currentTrack.properTime;
-    vecgeom::NavigationState nextState;
-    // the MCC vector is indexed by the logical volume id
-
-    currentTrack.stepCounter++;
+    // Setup of the advanced debug printouts
     bool printErrors = true;
 #if ADEPT_DEBUG_TRACK > 0
     bool verbose = false;
     if (gTrackDebug.active) {
       verbose =
           currentTrack.Matches(gTrackDebug.event_id, gTrackDebug.track_id, gTrackDebug.min_step, gTrackDebug.max_step);
-      if (verbose) currentTrack.Print("gamma");
+      if (verbose) currentTrack.Print("gamma during WDT");
       printErrors = !gTrackDebug.active || verbose;
     }
 #endif
 
-    // Write local variables back into track and enqueue
+    // Local variables that are needed:
+    // get global point from track
+    auto pos = currentTrack.pos;
+    auto dir = currentTrack.dir;
+    vecgeom::Vector3D<double> preStepPos(pos);
+    vecgeom::Vector3D<double> preStepDir(dir);
+
+    auto eKin = currentTrack.eKin;
+
+    bool isLastStep       = returnLastStep;
+    LeakStatus leakReason = LeakStatus::NoLeak;
+    // initialize nextState to current state
+    vecgeom::NavigationState nextState = currentTrack.navState;
+    double globalTime                  = currentTrack.globalTime;
+    double preStepGlobalTime           = currentTrack.globalTime;
+    double localTime                   = currentTrack.localTime;
+
+    //
+    // survive: decide whether to continue woodcock tracking or not:
+    // Write local variables back into track and enqueue to correct queue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak, bool leftWDTRegion = false) {
       isLastStep = false; // set to false even for gamma nuclear, as the hostTrackData is deleted when invoking the
                           // reaction on CPU
@@ -84,7 +82,6 @@ __global__ void __launch_bounds__(256, 1)
       currentTrack.dir        = dir;
       currentTrack.globalTime = globalTime;
       currentTrack.localTime  = localTime;
-      currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
       currentTrack.leakStatus = leakReason;
       if (leakReason != LeakStatus::NoLeak) {
@@ -99,85 +96,274 @@ __global__ void __launch_bounds__(256, 1)
       }
     };
 
-    // Init a track with the needed data to call into G4HepEm.
-    G4HepEmGammaTrack gammaTrack;
-    G4HepEmTrack *theTrack = gammaTrack.GetTrack();
-    theTrack->SetEKin(eKin);
-    theTrack->SetMCIndex(auxData.fMCIndex);
+    //
+    // SETUP OF WOODCOCK TRACKING
+    //
 
-    // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
-    // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
-    // currentTrack.numIALeft[0] are updated later
-    if (currentTrack.numIALeft[0] <= 0.0) {
-      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
-    } else {
-      theTrack->SetNumIALeft(currentTrack.numIALeft[0], 0);
+    // Each gamma that is tracked via Woodcock tracking, must be in one of the root logical volumes of the Woodcock
+    // region First, the root logical volume must be identified, to find the DistanceToOut
+
+    // find region index for current volume
+    auto navState             = currentTrack.navState;
+    const int lvolID          = navState.GetLogicalId();
+    const VolAuxData &auxData = gVolAuxData[lvolID];
+
+    // get region ID and Woodcock tracking data for this region
+    int regionId = auxData.fGPUregionId;
+    assert(regionId >= 0);
+    const adeptint::WDTDeviceView &view = gWDTData;
+    // get index in the Woodcock tracking data array for the region
+    int wdtIdx = view.regionToWDT[regionId];
+
+    // in WDT kernel, the region must be a WDT region (wdtIdx = -1 if not)
+    assert(wdtIdx >= 0);
+
+    // get woodcock region and access the root volumes of that region
+    const adeptint::WDTRegion reg  = view.regions[wdtIdx];
+    const adeptint::WDTRoot *roots = &view.roots[reg.offset];
+    // Store matching ID. Don't copy states directly to avoid multiple copies of navStates
+    int matchIdx = -1;
+    for (int i = 0; i < reg.count; ++i) {
+      const auto &r = roots[i];
+      if (navState.IsDescendent(r.root.GetState())) {
+        matchIdx = i;
+        break;
+      }
     }
+    assert(matchIdx >= 0);
 
-    // Call G4HepEm to compute the physics step limit.
-    G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
-
-    // Get result into variables.
-    double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
-
-#if ADEPT_DEBUG_TRACK > 0
-    if (verbose) printf("| geometricalStepLengthFromPhysics %g ", geometricalStepLengthFromPhysics);
-#endif
-
-    // Leave the range and MFP inside the G4HepEmTrack. If we split kernels, we
-    // also need to carry them over!
-
-    // Check if there's a volume boundary in between.
-    double geometryStepLength;
-    geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
-                                                                  nextState, kPushDistance);
-    if (geometryStepLength < kPushStuck && geometryStepLength < geometricalStepLengthFromPhysics) {
-      currentTrack.zeroStepCounter++;
-      if (currentTrack.zeroStepCounter > kStepsStuckPush) geometryStepLength = kPushStuck;
-    } else
-      currentTrack.zeroStepCounter = 0;
-
-    pos += geometryStepLength * dir;
+    // Now copy the final navigation state and save the G4HepEm material cut couple of root volume
+    const vecgeom::NavigationState rootState = roots[matchIdx].root;
+    const int rootHepemIMC                   = roots[matchIdx].hepemIMC;
 
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) {
-      if (currentTrack.zeroStepCounter > kStepsStuckPush) printf("| STUCK TRACK PUSHED ");
-      printf("| geometryStepLength %g | propagated_pos {%.19f, %.19f, %.19f} ", geometryStepLength, pos[0], pos[1],
-             pos[2]);
-      if (geometryStepLength < 100 * vecgeom::kTolerance) printf("| SMALL STEP ");
-      nextState.Print();
+      printf("Initial WDT: region %d -> matched root #%d (hepemIMC=%d), lvolID=%d\n", regionId, matchIdx,
+             roots[matchIdx].hepemIMC, lvolID);
     }
 #endif
 
-    // Set boundary state in navState so the next step and secondaries get the
-    // correct information (navState = nextState only if relocated
-    // in case of a boundary; see below)
-    navState.SetBoundaryState(nextState.IsOnBoundary());
+    // calculate local point/dir in root volume from global point/dir
+    vecgeom::Vector3D<double> localpoint;
+    vecgeom::Vector3D<double> localdir;
+    vecgeom::Transformation3D m;
+    rootState.TopMatrix(m);
+    localpoint = m.Transform(pos);
+    localdir   = m.TransformDirection(dir);
 
-    // Propagate information from geometrical step to G4HepEm.
-    theTrack->SetGStepLength(geometryStepLength);
-    theTrack->SetOnBoundary(nextState.IsOnBoundary());
+    // calculate distance to leave the root Woodcock tracking volume
+    vecgeom::VPlacedVolume const *rootVolume = rootState.Top();
+    double distToBoundary                    = vecgeom::Max(rootVolume->DistanceToOut(localpoint, localdir), 0.0);
+    // Difference to the original G4HepEm Woodcock tracking loop:
+    // In G4, the boundary must be approached (e.g. to 1e-3) and then the step hitting the boundary + the relocation
+    // must be invoked by G4. This is also error prone, as tracks close to the boundary might already be located in a
+    // different volume. In VecGeom, one can directly calculate the distance to the boundary (and not just approaching
+    // it to 1e-3) because VecGeom allows to do a direct local relocation after leaving a volume, which ensures the
+    // correct navigation state Then, one can directly do the Woodcock tracking until hitting the boundary and do the
+    // local relocation there.
 
-    // Update the flight times of the particle
-    double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
+    // Init a track with the needed data to call into G4HepEm.
+    G4HepEmGammaTrack gammaTrack;
+    G4HepEmTrack *thePrimaryTrack = gammaTrack.GetTrack();
+    thePrimaryTrack->SetEKin(eKin);
+    thePrimaryTrack->SetMCIndex(rootHepemIMC);
+
+    // Compute the WDT reference mxsec (i.e. maximum total mxsec along this step).
+    const double wdtMXsec   = G4HepEmGammaManager::GetTotalMacXSec(&g4HepEmData, &gammaTrack);
+    const double wdtMFP     = wdtMXsec > 0.0 ? 1.0 / wdtMXsec : vecgeom::InfinityLength<double>();
+    const double wdtPEmxSec = gammaTrack.GetPEmxSec();
+
+    //
+    // ACTUAL WOODCOCK TRACKING LOOP
+    //
+
+    // Init some variables before starting Woodcock tracking of the gamma
+    vecgeom::NavigationState wdtNavState; // intermediate navigation state during Woodcock tracking
+    double geometryStep = vecgeom::InfinityLength<double>();
+    double mxsec        = 0.0;
+    int hepEmIMC        = -1;
+    int prevHepEmIMC    = -1;
+    bool doStop         = false;
+
+    // While either interacts or hits the boundary of the actual root volume:
+    double wdtStepLength      = 0.0;
+    bool isWDTReachedBoundary = false;
+    while (!doStop) {
+      // Compute the step length till the next interaction in the WDT material
+      const double pstep = wdtMFP < vecgeom::InfinityLength<double>() ? -std::log(currentTrack.Uniform()) * wdtMFP
+                                                                      : vecgeom::InfinityLength<double>();
+      // Take the minimum of this and the distance to the WDT root volume boundary
+      // while checking if this step hits the volume boundary
+
+      if (distToBoundary < pstep) {
+        wdtStepLength += distToBoundary;
+        isWDTReachedBoundary = true;
+        doStop               = true;
+
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) {
+          printf("| distToBoundary %.10f < pstep %.10f isWDTReachedBoundary %d \n", distToBoundary, pstep,
+                 isWDTReachedBoundary);
+        }
+#endif
+
+      } else {
+        // Particle will be moved by a step length of `pstep` so we reduce the
+        // distance to boundary accordingly.
+        wdtStepLength += pstep;
+        distToBoundary -= pstep;
+
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) {
+          printf("| Doing WDT SubStep!  pstep %.10f wdtStepLength %.10f distToBoundary left %.10f\n", pstep,
+                 wdtStepLength, distToBoundary);
+        }
+#endif
+
+        // Locate the actual post step point in order to get the real material.
+        // This can be done in VecGeom based on the NavState: given a local point within the reference frame of the
+        // NavState, it yields the deepest NavState that contains the point.
+        wdtNavState.Clear();
+        wdtNavState = rootState;
+        AdePTNavigator::LocatePointInNavState(localpoint + wdtStepLength * localdir, wdtNavState, /*top=*/false);
+
+        const int actualLvolID          = wdtNavState.GetLogicalId();
+        const VolAuxData &actualAuxData = gVolAuxData[actualLvolID];
+        hepEmIMC                        = actualAuxData.fMCIndex;
+
+        // Check if the real material of the post-step point is the WDT one?
+        if (hepEmIMC != rootHepemIMC) {
+          // Post step point is NOT in the WDT material: need to check if interacts.
+          // Compute the total macroscopic cross section for that material.
+          if (hepEmIMC != prevHepEmIMC) {
+            // Recompute the total macroscopic cross section only if the material
+            // has changed compared to the previous computation (energy stays const.)
+            prevHepEmIMC = hepEmIMC;
+            thePrimaryTrack->SetMCIndex(hepEmIMC);
+            mxsec = G4HepEmGammaManager::GetTotalMacXSec(&g4HepEmData, &gammaTrack);
+          }
+          // Sample if interaction happens at this post step point:
+          // P(interact) = preStepLambda/wdckMXsec note: preStepLambda <= wdckMXsec
+          doStop = (mxsec * wdtMFP > currentTrack.Uniform());
+          if (doStop) {
+            // Interaction happens: set the track fields required later.
+            // Set the total MFP of the track that will be needed when sampling
+            // the type of the interaction. The HepEm MC index is already set
+            // above while the g4 one is also set here.
+            const double mfp = mxsec > 0.0 ? 1.0 / mxsec : vecgeom::InfinityLength<double>();
+            thePrimaryTrack->SetMFP(mfp, 0);
+            // NOTE: PE mxsec is correct as the last call to `GetTotalMacXSec`
+            // was done above for this material.
+          }
+        } else {
+          // Post step point is in the WDT material: interacts for sure (prob.=1)
+          // Set the total MFP and MC index of the track that will be needed when
+          // sampling the type of the interaction. The g4 MC index is also set here.
+
+          doStop = true;
+          thePrimaryTrack->SetMCIndex(rootHepemIMC);
+          thePrimaryTrack->SetMFP(wdtMFP, 0);
+          // Reset the PE mxsec: set in `G4HepEmGammaManager::GetTotalMacXSec`
+          // that might have been called for an other material above (without
+          // resulting in interaction). Needed for the interaction type sampling.
+          gammaTrack.SetPEmxSec(wdtPEmxSec);
+        }
+      }
+
+      if (doStop) {
+        // Reached the end, i.e. either interaction happens at the current post
+        // step point or it hit the WDT volume boundary
+        // (wdtRegionBoundary=true in this case).
+        // Update the track with its final position and relocate if it hit the boundary.
+        pos += wdtStepLength * dir;
+
+        // If it hit the boundary, it just left the Root logical volume. Then, one can call the RelocatePoint function
+        // in VecGeom, which relocates the point to the correct new state after leaving the current volume. For this,
+        // the Root logical volume must be set as the last exited state, then one need to pass the final local point of
+        // the root logical volume. Since the boundary was crossed, the boundary status is set to true. From this, the
+        // final state is obtained and no AdePTNavigator::RelocateToNextVolume(pos, dir, nextState) needs to be called
+        // anymore
+        if (isWDTReachedBoundary) {
+          nextState = rootState;
+          nextState.SetLastExited();
+          AdePTNavigator::RelocatePoint(localpoint + wdtStepLength * localdir, nextState);
+          nextState.SetBoundaryState(true);
+        } else {
+          // Did not hit the boundary, so the last state when locating within the root volume is the next state
+          nextState = wdtNavState;
+        }
+
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) {
+          currentTrack.Print("\n Track hit interaction / relocation in WDT tracking \n");
+          printf(" isWDTReachedBoundary=%u final after WDT:\n", isWDTReachedBoundary);
+          nextState.Print();
+        }
+#endif
+
+        // Set pre/post step point location and touchable to be the same (as we
+        // might have moved the track from a far away volume).
+        // NOTE: as energy deposit happens only at discrete interactions for gamma,
+        // in case of non-zero energy deposit, i.e. when SD codes are invoked,
+        // the track is never on boundary. So all SD code should work fine with
+        // identical pre- and post-step points.
+        navState   = nextState;
+        preStepPos = pos;
+        preStepDir = dir;
+        // Set all track properties needed later: all pre-step point information are
+        // actually set to be their post step point values!
+
+        // Note, the material is already set correctly via hepEmIMC
+
+        // // NOTE: the number of interaction length left will be cleared in all
+        // // cases when WDT tracking happened (see below).
+      }
+      // If the WDT region boundary has not been reached in this step then delta
+      // interaction happend so just keep moving the post-step point toward the
+      // WDT (root) volume boundary.
+    }; // END OF WHILE ON WDT
+
+    // Update the time based on the accumulated WDT step length
+    double deltaTime = wdtStepLength / copcore::units::kCLight;
     globalTime += deltaTime;
     localTime += deltaTime;
 
+    // After Woodock tracking: interacts or reached the volume boundary
+    // In both cases: reset the number of interaction length left to trigger
+    // resampling in the next call to `HowFar` and prevent its update in this step.
+    thePrimaryTrack->SetNumIALeft(-1, 0);
+    currentTrack.numIALeft[0] = -1; // reset also in the GPU track
+
+    // The track has the total, i.e. the WDT step length.
+    // However, `thePrimaryTrack` has zero which results in: the number of interaction length left is
+    // not updated when invoking `UpdateNumIALeft`.
+    thePrimaryTrack->SetGStepLength(0.0);
+    thePrimaryTrack->SetOnBoundary(nextState.IsOnBoundary());
+
+    // END OF WOODCOCK TRACKING
+    // Woodcock tracking has finished, now either a boundary is hit or a discrete process must be invoked.
+    // For the discrete process, the MFP and EKin of thePrimaryTrack must be set
+
+    // helper variables needed for the processes
+    bool surviveFlag           = false;
+    bool leftWDTRegion         = false;
+    short stepDefinedProcessId = 10; // default for transportation
+    double edep                = 0.;
+    auto preStepEnergy         = eKin;
+
+    currentTrack.stepCounter++;
+
+    // nextAuxData is needed for either finding the correct GPU region for relocation, or the sensitive detector code,
+    // as the initial auxData is obsolete after WDT
+    const int nextlvolID          = nextState.GetLogicalId();
+    VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
+
     int winnerProcessIndex;
-    if (nextState.IsOnBoundary()) {
-      // For now, just count that we hit something.
+    if (isWDTReachedBoundary) {
+      // Left the Woodcock tracking root volume
 
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
-
-        G4HepEmGammaManager::UpdateNumIALeft(theTrack);
-
-        // Save the `number-of-interaction-left` in our track.
-        // Use index 0 since numIALeft stores for gammas only the total macroscopic cross section
-        double numIALeft          = theTrack->GetNumIALeft(0);
-        currentTrack.numIALeft[0] = numIALeft;
-
-        AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
@@ -187,38 +373,24 @@ __global__ void __launch_bounds__(256, 1)
 #endif
 
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        const int nextlvolID          = nextState.GetLogicalId();
-        VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
-        const auto regionId           = nextauxData.fGPUregionId;
+        regionId = nextauxData.fGPUregionId;
 
-        if (nextauxData.fGPUregionId >= 0) {
-
-          // Region has changed, check for woodcock tracking
-          if (nextauxData.fGPUregionId != auxData.fGPUregionId) {
-
-            const adeptint::WDTDeviceView &view = gWDTData;
-            const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
-            if (wdtIdx >= 0) {
-              const adeptint::WDTRegion reg  = view.regions[wdtIdx];
-              const adeptint::WDTRoot *roots = &view.roots[reg.offset];
-
-              bool inWDT = false;
-              for (int i = 0; i < reg.count; ++i) {
-                const vecgeom::NavigationState &rootState = roots[i].root; // compact state
-                if (nextState.IsDescendent(rootState.GetState())) {
-
-                  // Minimal debug output (only if you build vecgeom Print() for device)
-                  // printf("WDT: region %d -> matched root #%d (hepemIMC=%d), nextLV=%d\n", regionId, i,
-                  //        roots[i].hepemIMC, nextlvolID);
-                  inWDT = true;
-                  break;
-                }
-              }
-              if (!inWDT) leftWDTRegion = true;
-              // (optional) use `inWDT` to switch behavior or pick per-root data, etc.
-            }
+        // regionId >= 0 is still on GPU, check for Woodcock tracking region
+        if (regionId >= 0) {
+          // index into view.regions. -1 if region is not a Woodcock tracking region
+          wdtIdx = view.regionToWDT[regionId];
+          if (wdtIdx < 0) {
+            // next region is not in WDT regions, so it left the WDT tracking
+            leftWDTRegion = true;
           }
 
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) {
+            printf("| After WDT check: leftWDTRegion %d \n", leftWDTRegion);
+          }
+#endif
+
+          // particle is still alive
           surviveFlag = true;
         } else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
@@ -234,30 +406,30 @@ __global__ void __launch_bounds__(256, 1)
         }
       } // else particle has left the world
 
-    } else {
-      // a gamma that is not on boundary does an interaction
+    } else { // i.e., !isWDTReachedBoundary
+      // a Woodock tracking gamma that has not left the Woodcock root volume undergoes an interaction
 
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
-      winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+      winnerProcessIndex = thePrimaryTrack->GetWinnerProcessIndex();
+      // Note: SampleInteraction resets numIALeft, but for WDT it is reset anyway, so it is already reset in
+      // currentTrack
 
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose) printf("| winnerProc %d\n", winnerProcessIndex);
 #endif
-
-      // Reset number of interaction left for the winner discrete process also in the currentTrack
-      // (SampleInteraction() resets it for theTrack), will be resampled in the next iteration.
-      currentTrack.numIALeft[0] = -1.0;
 
       // Perform the discrete interaction.
       G4HepEmRandomEngine rnge(&currentTrack.rngState);
       // We might need one branched RNG state, prepare while threads are synchronized.
       RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-      const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecElProdCutE;
-      const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecPosProdCutE;
-      const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fSecGamProdCutE;
+      assert(hepEmIMC >= 0);
 
-      const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
+      const double theElCut    = g4HepEmData.fTheMatCutData->fMatCutData[hepEmIMC].fSecElProdCutE;
+      const double thePosCut   = g4HepEmData.fTheMatCutData->fMatCutData[hepEmIMC].fSecPosProdCutE;
+      const double theGammaCut = g4HepEmData.fTheMatCutData->fMatCutData[hepEmIMC].fSecGamProdCutE;
+
+      const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[hepEmIMC].fG4RegionIndex;
       const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
       // discrete interaction reached, setting the stepDefinedProcess to the winnerProcess
@@ -277,8 +449,8 @@ __global__ void __launch_bounds__(256, 1)
 
         double logEnergy = std::log(eKin);
         double elKinEnergy, posKinEnergy;
-        G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, eKin, logEnergy, auxData.fMCIndex,
-                                                             elKinEnergy, posKinEnergy, &rnge);
+        G4HepEmGammaInteractionConversion::SampleKinEnergies(&g4HepEmData, eKin, logEnergy, hepEmIMC, elKinEnergy,
+                                                             posKinEnergy, &rnge);
 
         double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
         double dirSecondaryEl[3], dirSecondaryPos[3];
@@ -362,7 +534,7 @@ __global__ void __launch_bounds__(256, 1)
         // Invoke Compton scattering of gamma.
 
 #if ADEPT_DEBUG_TRACK > 0
-        if (verbose) printf("| COMPTON ");
+        if (verbose) printf("| COMPTON \n");
 #endif
 
         constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
@@ -437,7 +609,7 @@ __global__ void __launch_bounds__(256, 1)
         const double theLowEnergyThreshold = 1 * copcore::units::eV;
 
         const double bindingEnergy = G4HepEmGammaInteractionPhotoelectric::SelectElementBindingEnergy(
-            &g4HepEmData, auxData.fMCIndex, gammaTrack.GetPEmxSec(), eKin, &rnge);
+            &g4HepEmData, hepEmIMC, gammaTrack.GetPEmxSec(), eKin, &rnge);
 
         edep                    = bindingEnergy;
         const double photoElecE = eKin - edep;
@@ -495,21 +667,19 @@ __global__ void __launch_bounds__(256, 1)
       }
       } // end switch (winnerProcessIndex)
 
-    } // end if !onBoundary
+    } // end if !isWDTReachedBoundary
 
     if (surviveFlag) {
-      if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+      if (currentTrack.stepCounter >= maxSteps) {
         if (printErrors)
-          printf(
-              "Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u. This indicates a "
-              "stuck particle!\n",
-              currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
-              currentTrack.zeroStepCounter);
+          printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps. This indicates a "
+                 "stuck particle!\n",
+                 currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter);
         surviveFlag = false;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction(surviveFlag, eKin, edep, leakReason, pos, globalTime, auxData.fMCIndex,
-                                     &g4HepEmData, params);
+        SteppingActionT::GammaAction(surviveFlag, eKin, edep, leakReason, pos, globalTime, hepEmIMC, &g4HepEmData,
+                                     params);
       }
     }
 
@@ -527,8 +697,13 @@ __global__ void __launch_bounds__(256, 1)
 
     __syncwarp();
 
+    // check for minimal energy for WDT tracking. If too low, move to normal tracking
+    if (eKin < reg.ekinMin) {
+      leftWDTRegion = true;
+    }
+
     if (surviveFlag) {
-      survive(leakReason);
+      survive(leakReason, leftWDTRegion);
     } else {
       isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
@@ -536,13 +711,13 @@ __global__ void __launch_bounds__(256, 1)
     }
 
     // If there is some edep from cutting particles, record the step
-    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && isLastStep)) {
+    if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && isLastStep)) {
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                stepDefinedProcessId,                        // step-defining process id
                                2,                                           // Particle type
-                               geometryStepLength,                          // Step length
+                               wdtStepLength,                               // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
                                navState,                                    // Pre-step point navstate

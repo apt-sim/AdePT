@@ -116,6 +116,8 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         if (!enterWDTRegion) {
           particleManager.gammas.EnqueueNext(slot);
         } else {
+          // printf("Putting gamma to WDT after relocation, since enterWDTRegion= %u\n", enterWDTRegion);
+          // currentTrack.Print("Putting track to WDT in survive\n");
           particleManager.gammasWDT.EnqueueNext(slot);
         }
       }
@@ -251,6 +253,14 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
                     // Minimal debug output (only if you build vecgeom Print() for device)
                     // printf("WDT: region %d -> matched root #%d (hepemIMC=%d), nextLV=%d\n", regionId, i,
                     //        roots[i].hepemIMC, nextlvolID);
+
+                    if (verbose) {
+                      printf("| Found woodcock volume! wdt region index %d region index %d wdt mat cut couple index %d "
+                             "State of WDT volume: ",
+                             wdtIdx, regionId, roots[i].hepemIMC);
+                      rootState.Print();
+                    }
+
                     enterWDTRegion = true;
                     break;
                   }
@@ -614,7 +624,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     __syncwarp();
 
     if (surviveFlag) {
-      survive(leakReason);
+      survive(leakReason, enterWDTRegion);
     } else {
       isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot

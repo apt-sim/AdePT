@@ -38,8 +38,6 @@ struct TrackBuffer;
 struct GPUstate;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
-void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
-                     adeptint::WDTDeviceView &hViewOut);
 
 template <typename IntegrationLayer>
 class AsyncAdePTTransport : public AdePTTransportInterface {
@@ -62,6 +60,7 @@ private:
   std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
+  adeptint::WDTDeviceBuffers fWDTDev{};              ///< device buffers for Woodcock tracking data
   std::thread fGPUWorker;                            ///< Thread to manage GPU
   std::condition_variable fCV_G4Workers;             ///< Communicate with G4 workers
   std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
@@ -87,6 +86,8 @@ private:
   bool InitializeBField(UniformMagneticField &Bfield);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
+  void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
+                       adeptint::WDTDeviceView &hViewOut);
 
 public:
   AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);

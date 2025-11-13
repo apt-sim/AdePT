@@ -103,7 +103,7 @@ struct WDTRegion {
   float ekinMin; // kinetic energy threshold
 };
 
-// Device view (mirrors device allocations)
+// Device view pointing to the GPU data plus the number of roots and regions, required for access
 struct WDTDeviceView {
   const WDTRoot *roots;     // [nRoots]
   const WDTRegion *regions; // [nRegions] (only WDT-enabled regions)
@@ -112,29 +112,39 @@ struct WDTDeviceView {
   int nRegions;
 };
 
-// Host-side containers before upload
+// Temporary, sparse collection built during geometry traversal.
+// - `roots` holds every discovered root volume in a Woodcock tracking region + the material index
+// - `regionToRootIndices[rid]` maps from a region index to the list of indices of the Root volumes (each region can
+// have multiple root volumes)
+// - `ekinMin` is the global Woodcock minimum kinetic energy for Woodcock tracking
 struct WDTHostRaw {
-  // found during geometry visit (one entry per root placed volume)
-  std::vector<WDTRoot> roots; // indices referenced by regionToRootIndices values
   // mapping: regionId -> list of indices into `roots`
   std::unordered_map<int, std::vector<int>> regionToRootIndices;
+  // found during geometry visit (one entry per root placed volume)
+  std::vector<WDTRoot> roots; // List of all Roots. Access for the roots for a given region via the regionToRootIndices
   float ekinMin{0.f};
 };
 
-// Host-side compacted arrays ready to upload
+// Compact, upload-ready representation.
+// - `roots` is packed so that each region's roots are contiguous.
+// - `regions[w]` points to the slice (offset,count) for region index `w`.
+// - `regionToWDT[regionId]` returns `w` (or -1 if that region has no WDT).
 struct WDTHostPacked {
   std::vector<WDTRoot> roots;     // packed per-region contiguous
   std::vector<WDTRegion> regions; // one per WDT region
-  std::vector<int> regionToWDT;   // dense by regionId (size = maxRegionId+1)
+  std::vector<int> regionToWDT;   // dense by regionId (size = number of G4 regions)
 };
 
-// Owned device buffers (to manage lifetime)
+// Owned device buffers to manage lifetime of Woodcock tracking data
 struct WDTDeviceBuffers {
   WDTRoot *d_roots     = nullptr;
   WDTRegion *d_regions = nullptr;
   int *d_map           = nullptr;
 };
 
+/// @brief This packs the Woodcock data from the original map to arrays that can be copied to the GPU
+/// @param raw raw WDT data, stored in a map
+/// @return packed, dense WDT data, ready to be copied to the GPU
 inline WDTHostPacked PackWDT(const WDTHostRaw &raw)
 {
   WDTHostPacked packed;

@@ -337,15 +337,13 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
 
     const int regionId = g4_lvol->GetRegion()->GetInstanceID();
 
-    // only if region is WDT region (or track-all if you do that)
-    if (trackInAllRegions || hepEmTM->IsWDTRegion(regionId)) {
+    // Check if the region is a Woodcock tracking region in G4HepEm
+    if (hepEmTM->IsWDTRegion(regionId)) {
       // check if this logical volume is one of the declared WDT root LVs for this region
       const int rootIMC = hepEmTM->GetWDTCoupleHepEmIndex(regionId, g4_lvol->GetInstanceID());
       if (rootIMC >= 0) {
         // this placed volume belongs to a WDT root LV -> record a WDTRoot
         int idx = (int)wdtRaw.roots.size();
-        // std::cout << "found woodcock region! rootIMC " << rootIMC << " regionId " << regionId << " navstate " <<
-        // std::endl; currentNavState.Print();
         wdtRaw.roots.push_back(adeptint::WDTRoot{currentNavState, rootIMC});
         wdtRaw.regionToRootIndices[regionId].push_back(idx);
       }
@@ -406,15 +404,15 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
       std::cout << "\nRegionID " << rid << "  (" << findRegionName(rid) << "): " << idxs.size()
                 << " root placed-volume(s)\n";
 
-      // for (size_t i = 0; i < idxs.size(); ++i) {
-      //   const int rootIdx = idxs[i];
-      //   const auto& root  = wdtRaw.roots[rootIdx];
+      for (size_t i = 0; i < idxs.size(); ++i) {
+        const int rootIdx = idxs[i];
+        const auto &root  = wdtRaw.roots[rootIdx];
 
-      //   std::cout << "  [" << i << "] hepemIMC=" << root.hepemIMC << "\n";
-      //   std::cout << "      NavState (level=" << root.root.GetLevel() << "):\n";
-      //   // vecgeom::NavigationState::Print() prints the full stack
-      //   root.root.Print();
-      // }
+        std::cout << "  [" << i << "] hepemIMC=" << root.hepemIMC << "\n";
+        std::cout << "      NavState (level=" << root.root.GetLevel() << "):\n";
+        // vecgeom::NavigationState::Print() prints the full stack
+        root.root.Print();
+      }
     }
   }
   std::cout << "=== End Woodcock tracking summary ===\n\n";
