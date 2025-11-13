@@ -299,9 +299,8 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
                                             adeptint::WDTHostRaw &wdtRaw)
 {
 
-  // FIXMEWDT
-  // MUST PASS hepEmTM, or can we use the fHepEmTrackingManager? NOt sure it is already initialized on master thread
-  // here, to be checked!
+  // Note: the hepEmTM must be passed as an argument despite the member fHepEmTrackingManager,
+  // as InitVolAuxData is a static function and cannot call member variables
   wdtRaw.ekinMin = (float)hepEmTM->GetWDTKineticEnergyLimit();
 
   const G4VPhysicalVolume *g4world =
