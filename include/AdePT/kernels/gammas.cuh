@@ -14,7 +14,6 @@
 #include <G4HepEmGammaInteractionConversion.hh>
 #include <G4HepEmGammaInteractionPhotoelectric.hh>
 
-
 using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
 
@@ -78,7 +77,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     double localTime         = currentTrack.localTime;
     double properTime        = currentTrack.properTime;
     vecgeom::NavigationState nextState;
-    // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
     bool printErrors = true;
