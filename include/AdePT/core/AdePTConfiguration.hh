@@ -86,6 +86,7 @@ public:
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
   std::vector<std::string> *GetCPURegionNames() { return &fCPURegionNames; }
+  const std::vector<std::string> &GetWDTRegionNames() const { return fWDTRegionNames; }
 
   // Temporary
   std::string GetVecGeomGDML() { return fVecGeomGDML; }
