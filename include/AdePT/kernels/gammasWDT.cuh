@@ -275,6 +275,13 @@ __global__ void __launch_bounds__(256, 1)
         }
       }
 
+      // Single WDT iteration implementation:
+      currentTrack.looperCounter = doStop ? 0 : currentTrack.looperCounter + 1;
+      // always stop after one iteration
+      doStop = true;
+
+
+
       // fake interaction, reduce number of Woodcock iterations left. If no iteration is left, give back to normal gamma
       // queue
       if (!doStop) {
@@ -425,9 +432,10 @@ __global__ void __launch_bounds__(256, 1)
         }
       } // else particle has left the world
 
-    } else if (iWDTLeft == 0) {
+    // } else if (iWDTLeft == 0) {
+      } else if (currentTrack.looperCounter > 0) {
       surviveFlag   = true;
-      leftWDTRegion = true;
+      leftWDTRegion = (view.maxIter == currentTrack.looperCounter) ? true : false;
     } else { // i.e., !isWDTReachedBoundary
       // a Woodock tracking gamma that has not left the Woodcock root volume undergoes an interaction
 
