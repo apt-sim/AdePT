@@ -1109,7 +1109,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           // Ensure that copy operation completed before releasing lock on to-device buffer
           COPCORE_CUDA_CHECK(cudaEventSynchronize(cudaEvent));
         } else {
-          // No tracks in to-device buffer, we can immediately mark the Injection as completed
+          // No tracks in to-device buffer, can immediately mark the Injection as completed
           AdvanceEventStates(EventState::G4RequestsFlush, EventState::InjectionCompleted, eventStates);
         }
       }
