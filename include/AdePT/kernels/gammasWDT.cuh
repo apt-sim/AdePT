@@ -124,8 +124,10 @@ __global__ void __launch_bounds__(256, 1)
     // Store matching ID. Don't copy states directly to avoid multiple copies of navStates
     int matchIdx = -1;
     for (int i = 0; i < reg.count; ++i) {
-      const auto &r = roots[i];
-      if (navState.IsDescendent(r.root.GetState())) {
+      const auto &rootVol = roots[i];
+      // if the current volume is the root volume or descending from the root volume of that WDT region
+      // then this is correct matching WDT root volume
+      if (navState.GetState() == rootVol.root.GetState() || navState.IsDescendent(rootVol.root.GetState())) {
         matchIdx = i;
         break;
       }
