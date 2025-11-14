@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/navigation/AdePTNavigator.h>
+#include <AdePT/kernels/gammasWDT.cuh>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/TrackDebug.cuh>
@@ -12,12 +13,7 @@
 #include <G4HepEmGammaInteractionCompton.hh>
 #include <G4HepEmGammaInteractionConversion.hh>
 #include <G4HepEmGammaInteractionPhotoelectric.hh>
-// Pull in implementation.
-// #include <G4HepEmGammaManager.icc>
-// #include <G4HepEmGammaInteractionCompton.icc>
-// #include <G4HepEmGammaInteractionConversion.icc>
-// #include <G4HepEmGammaInteractionPhotoelectric.icc>
-#include <AdePT/kernels/gammasWDT.cuh>
+
 
 using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
