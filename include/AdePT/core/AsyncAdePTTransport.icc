@@ -48,8 +48,7 @@ template <typename FieldType>
 bool InitializeBField(FieldType &);
 template <typename FieldType>
 void FreeField();
-void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, adeptint::WDTDeviceView &,
-                     unsigned short);
+void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
 G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
@@ -305,8 +304,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
 
   // Upload WDT to device
   adeptint::WDTDeviceBuffers wdtDev;
-  adeptint::WDTDeviceView wdtViewHostCopy;
-  async_adept_impl::InitWDTOnDevice(wdtPacked, wdtDev, wdtViewHostCopy, fMaxWDTIter);
+  async_adept_impl::InitWDTOnDevice(wdtPacked, wdtDev, fMaxWDTIter);
   fWDTDev = wdtDev;
 
   // FIXME: The size of the buffer should be more explicitly configured

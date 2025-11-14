@@ -605,8 +605,7 @@ void FreeBField()
   }
 }
 
-void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
-                     adeptint::WDTDeviceView &hViewOut, unsigned short maxIter)
+void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter)
 {
 
   using adeptint::WDTDeviceView;
@@ -637,9 +636,6 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
 
   // copy view to constant memory
   COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gWDTData, &view, sizeof(WDTDeviceView)));
-
-  // provide a copy of the view to the caller if they want to cache it too
-  hViewOut = view;
 }
 
 void FreeWDTOnDevice(adeptint::WDTDeviceBuffers &dev)

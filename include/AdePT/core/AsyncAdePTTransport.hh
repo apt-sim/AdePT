@@ -85,8 +85,7 @@ private:
   bool InitializeBField(UniformMagneticField &Bfield);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
-  void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev,
-                       adeptint::WDTDeviceView &hViewOut, unsigned short maxIter);
+  void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);
 
 public:
   AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);
