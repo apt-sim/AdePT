@@ -31,7 +31,7 @@ __global__ void __launch_bounds__(256, 1)
 {
   // Implementation of the gamma transport using Woodcock tracking. The implementation is taken from
   // Mihaly Novak's G4HepEm (https://github.com/mnovak42/g4hepem), see G4HepEmWoodcockHelper.hh/cc and
-  // G4HepEmTrackingManager.cc Here, it is adopted and adjusted to AdePT's GPU track structures and using VecGeom
+  // G4HepEmTrackingManager.cc. Here, it is adopted and adjusted to AdePT's GPU track structures and using VecGeom
   // instead of G4 navigation
 
   constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
