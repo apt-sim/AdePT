@@ -46,6 +46,11 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fAddRegionCmd = new G4UIcmdWithAString("/adept/addGPURegion", this);
   fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
 
+  fAddWDTRegionCmd = new G4UIcmdWithAString("/adept/addWDTRegion", this);
+  fAddWDTRegionCmd->SetGuidance("Add a region in which the gamma transport is done via Woodcock tracking. "
+                                "NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other "
+                                "physics (which is done in LHCb, CMS, ATLAS) then this will have NO effect!");
+
   fRemoveRegionCmd = new G4UIcmdWithAString("/adept/removeGPURegion", this);
   fRemoveRegionCmd->SetGuidance(
       "Remove a region in which transport will be done on GPU (so it will be done on the CPU)");
@@ -102,6 +107,12 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
                                  "gamma back to the normal gamma kernel. Default: "
                                  "5. This can be used to optimize the performance in highly granular geometries");
 
+  fSetWDTKineticEnergyLimitCmd = new G4UIcmdWithADouble("/adept/addWDTKineticEnergyLimit", this);
+  fSetWDTKineticEnergyLimitCmd->SetGuidance(
+      "Sets a kinetic energy limit above which the gamma transport is done via Woodcock tracking in the assigned "
+      "regions. NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other physics (which is done "
+      "in LHCb, CMS, ATLAS) then this will have NO effect!");
+
   fSetCUDAStackLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAStackLimit", this);
   fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
   fSetCUDAHeapLimitCmd = new G4UIcmdWithAnInteger("/adept/setCUDAHeapLimit", this);
@@ -147,6 +158,8 @@ AdePTConfigurationMessenger::~AdePTConfigurationMessenger()
   delete fSetMultipleStepsInMSCWithTransportationCmd;
   delete fSetEnergyLossFluctuationCmd;
   delete fSetMaxWDTIterCmd;
+  delete fSetWDTKineticEnergyLimitCmd;
+  delete fAddWDTRegionCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -169,6 +182,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetEnergyLossFluctuation(fSetEnergyLossFluctuationCmd->GetNewBoolValue(newValue));
   } else if (command == fAddRegionCmd) {
     fAdePTConfiguration->AddGPURegionName(newValue);
+  } else if (command == fAddWDTRegionCmd) {
+    fAdePTConfiguration->AddWDTRegionName(newValue);
   } else if (command == fRemoveRegionCmd) {
     fAdePTConfiguration->RemoveGPURegionName(newValue);
   } else if (command == fActivateAdePTCmd) {
@@ -201,6 +216,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetLastNParticlesOnCPU(fSetFinishOnCpuCmd->GetNewIntValue(newValue));
   } else if (command == fSetMaxWDTIterCmd) {
     fAdePTConfiguration->SetMaxWDTIter(fSetMaxWDTIterCmd->GetNewIntValue(newValue));
+  } else if (command == fSetWDTKineticEnergyLimitCmd) {
+    fAdePTConfiguration->SetWDTKineticEnergyLimit(fSetWDTKineticEnergyLimitCmd->GetNewDoubleValue(newValue));
   }
 }
 

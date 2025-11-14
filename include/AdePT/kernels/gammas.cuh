@@ -116,8 +116,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         if (!enterWDTRegion) {
           particleManager.gammas.EnqueueNext(slot);
         } else {
-          // printf("Putting gamma to WDT after relocation, since enterWDTRegion= %u\n", enterWDTRegion);
-          // currentTrack.Print("Putting track to WDT in survive\n");
           particleManager.gammasWDT.EnqueueNext(slot);
         }
       }

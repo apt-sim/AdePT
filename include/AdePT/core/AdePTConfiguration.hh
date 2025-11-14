@@ -33,6 +33,7 @@ public:
   void SetCallUserTrackingAction(bool callUserTrackingAction) { fCallUserTrackingAction = callUserTrackingAction; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void RemoveGPURegionName(std::string name) { fCPURegionNames.push_back(name); }
+  void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
   void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
   void SetTransportBufferThreshold(int threshold) { fTransportBufferThreshold = threshold; }
@@ -47,6 +48,7 @@ public:
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
   void SetMaxWDTIter(int maxIter) { fMaxWDTIter = maxIter; }
+  void SetWDTKineticEnergyLimit(double ekin) { fWDTKineticEnergyLimit = ekin; }
   void SetSpeedOfLight(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
   void SetMultipleStepsInMSCWithTransportation(bool setMultipleSteps)
   {
@@ -76,6 +78,7 @@ public:
 
   unsigned short GetLastNParticlesOnCPU() { return fLastNParticlesOnCPU; }
   unsigned short GetMaxWDTIter() { return fMaxWDTIter; }
+  double GetWDTKineticEnergyLimit() { return fWDTKineticEnergyLimit; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
   float GetCPUCapacityFactor() { return fCPUCapacityFactor; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
@@ -109,9 +112,11 @@ private:
   double fMillionsOfHitSlots{1};
   unsigned short fLastNParticlesOnCPU{0};
   unsigned short fMaxWDTIter{5};
+  double fWDTKineticEnergyLimit{0.2}; // 200 keV
 
   std::vector<std::string> fGPURegionNames{};
   std::vector<std::string> fCPURegionNames{};
+  std::vector<std::string> fWDTRegionNames{};
 
   std::string fVecGeomGDML{""};
   std::string fCovfieBfieldFile{""};
