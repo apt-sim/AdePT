@@ -28,6 +28,9 @@
 /adept/setTrackInAllRegions $track_in_all_regions
 $regions
 
+# Woodcock tracking regions
+$wdt_regions
+
 /process/em/applyCuts true
 
 ## -----------------------------------------------------------------------------
