@@ -251,7 +251,6 @@ struct AllSlotManagers {
 struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
-  // the queueFillLevel includes the Woodcock gammas, therefore + 1
   float queueFillLevel[ParticleType::NumParticleQueues];
   float slotFillLevel[ParticleType::NumParticleTypes];
   float slotFillLevelLeaks[ParticleType::NumParticleTypes];
