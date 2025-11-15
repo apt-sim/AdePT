@@ -49,7 +49,7 @@ def generate_macro(template_path, output_path, gdml_name, num_threads, num_event
         wdt_region = i.strip()
         if wdt_region:  # Empty wdt regions list or empty region name
             wdt_region_part.append(f"/adept/addWDTRegion {wdt_region}")
-    wdt_region_part = "\n".join(region_part)
+    wdt_region_part = "\n".join(wdt_region_part)
     macro_content = macro_content.replace("$wdt_regions", wdt_region_part)
 
     # Write the output macro file
