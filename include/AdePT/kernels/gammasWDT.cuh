@@ -184,170 +184,150 @@ __global__ void __launch_bounds__(256, 1)
     double geometryStep = vecgeom::InfinityLength<double>();
     double mxsec        = 0.0;
     int hepEmIMC        = -1;
-    int prevHepEmIMC    = -1;
-    bool doStop         = false;
-    unsigned short iWDTLeft =
-        view.maxIter; // maximum number of Woodcock iterations before gamma is put back into normal gamma queue
+    bool realStep       = false;
 
-    // unsigned short iWDT = 0; // FIXMEWDT just for printout, REMOVE
     // While either interacts or hits the boundary of the actual root volume:
     double wdtStepLength      = 0.0;
     bool isWDTReachedBoundary = false;
-    while (!doStop) {
-      // Compute the step length till the next interaction in the WDT material
-      const double pstep = wdtMFP < vecgeom::InfinityLength<double>() ? -std::log(currentTrack.Uniform()) * wdtMFP
-                                                                      : vecgeom::InfinityLength<double>();
-      // Take the minimum of this and the distance to the WDT root volume boundary
-      // while checking if this step hits the volume boundary
 
-      if (distToBoundary < pstep) {
-        wdtStepLength += distToBoundary;
-        isWDTReachedBoundary = true;
-        doStop               = true;
+    // Note: in the original implementation, a while loop started here. The while loop finished
+    // only after a real interaction or boundary was hit. The while loop could be restricted if too many fake
+    // interactions happened. However, it was found most beneficial for the GPU (tested in Athena in the EMEC), if this
+    // is kept divergence free: each kernel launch does only a single WDT step. For a fake interaction, it is just
+    // requeued to the WDT queue. Additionally, there is still the option to put the gamma to the normal gamma queue, in
+    // case of too many fake interactions This is tracked with the looperCounter (otherwise not used for gammas). For
+    // each fake interaction, the looper counter is increased. Above a certain value, the gamma is queued to the normal
+    // gamma kernel
+
+    // Compute the step length till the next interaction in the WDT material
+    const double pstep = wdtMFP < vecgeom::InfinityLength<double>() ? -std::log(currentTrack.Uniform()) * wdtMFP
+                                                                    : vecgeom::InfinityLength<double>();
+    // Take the minimum of this and the distance to the WDT root volume boundary
+    // while checking if this step hits the volume boundary
+
+    if (distToBoundary < pstep) {
+      wdtStepLength += distToBoundary;
+      isWDTReachedBoundary = true;
+      realStep             = true;
 
 #if ADEPT_DEBUG_TRACK > 0
-        if (verbose) {
-          printf("| distToBoundary %.10f < pstep %.10f isWDTReachedBoundary %d \n", distToBoundary, pstep,
-                 isWDTReachedBoundary);
-        }
+      if (verbose) {
+        printf("| distToBoundary %.10f < pstep %.10f isWDTReachedBoundary %d \n", distToBoundary, pstep,
+               isWDTReachedBoundary);
+      }
 #endif
 
+    } else {
+      // Particle will be moved by a step length of `pstep` so we reduce the
+      // distance to boundary accordingly.
+      wdtStepLength += pstep;
+      distToBoundary -= pstep;
+
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) {
+        printf("| Doing WDT SubStep!  pstep %.10f wdtStepLength %.10f distToBoundary left %.10f\n", pstep,
+               wdtStepLength, distToBoundary);
+      }
+#endif
+
+      // Locate the actual post step point in order to get the real material.
+      // This can be done in VecGeom based on the NavState: given a local point within the reference frame of the
+      // NavState, it yields the deepest NavState that contains the point.
+      wdtNavState.Clear();
+      wdtNavState = rootState;
+      AdePTNavigator::LocatePointInNavState(localpoint + wdtStepLength * localdir, wdtNavState, /*top=*/false);
+
+      const int actualLvolID          = wdtNavState.GetLogicalId();
+      const VolAuxData &actualAuxData = gVolAuxData[actualLvolID];
+      hepEmIMC                        = actualAuxData.fMCIndex;
+
+      // Check if the real material of the post-step point is the WDT one?
+      if (hepEmIMC != rootHepemIMC) {
+        // Post step point is NOT in the WDT material: need to check if interacts.
+        // Compute the total macroscopic cross section for that material.
+        thePrimaryTrack->SetMCIndex(hepEmIMC);
+        mxsec = G4HepEmGammaManager::GetTotalMacXSec(&g4HepEmData, &gammaTrack);
+
+        // Sample if interaction happens at this post step point:
+        // P(interact) = preStepLambda/wdckMXsec note: preStepLambda <= wdckMXsec
+        realStep = (mxsec * wdtMFP > currentTrack.Uniform());
+        if (realStep) {
+          // Interaction happens: set the track fields required later.
+          // Set the total MFP of the track that will be needed when sampling
+          // the type of the interaction. The HepEm MC index is already set
+          // above while the g4 one is also set here.
+          const double mfp = mxsec > 0.0 ? 1.0 / mxsec : vecgeom::InfinityLength<double>();
+          thePrimaryTrack->SetMFP(mfp, 0);
+          // NOTE: PE mxsec is correct as the last call to `GetTotalMacXSec`
+          // was done above for this material.
+        }
       } else {
-        // Particle will be moved by a step length of `pstep` so we reduce the
-        // distance to boundary accordingly.
-        wdtStepLength += pstep;
-        distToBoundary -= pstep;
+        // Post step point is in the WDT material: interacts for sure (prob.=1)
+        // Set the total MFP and MC index of the track that will be needed when
+        // sampling the type of the interaction. The g4 MC index is also set here.
+
+        realStep = true;
+        thePrimaryTrack->SetMCIndex(rootHepemIMC);
+        thePrimaryTrack->SetMFP(wdtMFP, 0);
+        // Reset the PE mxsec: set in `G4HepEmGammaManager::GetTotalMacXSec`
+        // that might have been called for an other material above (without
+        // resulting in interaction). Needed for the interaction type sampling.
+        gammaTrack.SetPEmxSec(wdtPEmxSec);
+      }
+    }
+
+    // Single WDT iteration implementation:
+    // If a genuine step (boundary reached or real interaction) happened, the looperCounter is reset.
+    // For a fake interaction, the looper counter is increased.
+    currentTrack.looperCounter = realStep ? 0 : currentTrack.looperCounter + 1;
+
+    // Update the track with its final position and relocate if it hit the boundary.
+    pos += wdtStepLength * dir;
+
+    // If it hit the boundary, it just left the Root logical volume. Then, one can call the RelocatePoint function
+    // in VecGeom, which relocates the point to the correct new state after leaving the current volume. For this,
+    // the Root logical volume must be set as the last exited state, then one need to pass the final local point of
+    // the root logical volume. Since the boundary was crossed, the boundary status is set to true. From this, the
+    // final state is obtained and no AdePTNavigator::RelocateToNextVolume(pos, dir, nextState) needs to be called
+    // anymore
+    if (isWDTReachedBoundary) {
+      nextState = rootState;
+      nextState.SetLastExited();
+      AdePTNavigator::RelocatePoint(localpoint + wdtStepLength * localdir, nextState);
+      nextState.SetBoundaryState(true);
+    } else {
+      // Did not hit the boundary, so the last state when locating within the root volume is the next state
+      nextState = wdtNavState;
+    }
 
 #if ADEPT_DEBUG_TRACK > 0
-        if (verbose) {
-          printf("| Doing WDT SubStep!  pstep %.10f wdtStepLength %.10f distToBoundary left %.10f\n", pstep,
-                 wdtStepLength, distToBoundary);
-        }
+    if (verbose) {
+      currentTrack.Print("\n Track hit interaction / relocation in WDT tracking \n");
+      printf(" isWDTReachedBoundary=%u final after WDT:\n", isWDTReachedBoundary);
+      nextState.Print();
+    }
 #endif
 
-        // Locate the actual post step point in order to get the real material.
-        // This can be done in VecGeom based on the NavState: given a local point within the reference frame of the
-        // NavState, it yields the deepest NavState that contains the point.
-        wdtNavState.Clear();
-        wdtNavState = rootState;
-        AdePTNavigator::LocatePointInNavState(localpoint + wdtStepLength * localdir, wdtNavState, /*top=*/false);
+    // Set pre/post step point location and touchable to be the same (as we
+    // might have moved the track from a far away volume).
+    // NOTE: as energy deposit happens only at discrete interactions for gamma,
+    // in case of non-zero energy deposit, i.e. when SD codes are invoked,
+    // the track is never on boundary. So all SD code should work fine with
+    // identical pre- and post-step points.
+    navState   = nextState;
+    preStepPos = pos;
+    preStepDir = dir;
+    // Set all track properties needed later: all pre-step point information are
+    // actually set to be their post step point values!
 
-        const int actualLvolID          = wdtNavState.GetLogicalId();
-        const VolAuxData &actualAuxData = gVolAuxData[actualLvolID];
-        hepEmIMC                        = actualAuxData.fMCIndex;
+    // Note, the material is already set correctly via hepEmIMC
 
-        // Check if the real material of the post-step point is the WDT one?
-        if (hepEmIMC != rootHepemIMC) {
-          // Post step point is NOT in the WDT material: need to check if interacts.
-          // Compute the total macroscopic cross section for that material.
-          if (hepEmIMC != prevHepEmIMC) {
-            // Recompute the total macroscopic cross section only if the material
-            // has changed compared to the previous computation (energy stays const.)
-            prevHepEmIMC = hepEmIMC;
-            thePrimaryTrack->SetMCIndex(hepEmIMC);
-            mxsec = G4HepEmGammaManager::GetTotalMacXSec(&g4HepEmData, &gammaTrack);
-          }
-          // Sample if interaction happens at this post step point:
-          // P(interact) = preStepLambda/wdckMXsec note: preStepLambda <= wdckMXsec
-          doStop = (mxsec * wdtMFP > currentTrack.Uniform());
-          if (doStop) {
-            // Interaction happens: set the track fields required later.
-            // Set the total MFP of the track that will be needed when sampling
-            // the type of the interaction. The HepEm MC index is already set
-            // above while the g4 one is also set here.
-            const double mfp = mxsec > 0.0 ? 1.0 / mxsec : vecgeom::InfinityLength<double>();
-            thePrimaryTrack->SetMFP(mfp, 0);
-            // NOTE: PE mxsec is correct as the last call to `GetTotalMacXSec`
-            // was done above for this material.
-          }
-        } else {
-          // Post step point is in the WDT material: interacts for sure (prob.=1)
-          // Set the total MFP and MC index of the track that will be needed when
-          // sampling the type of the interaction. The g4 MC index is also set here.
+    // NOTE: the number of interaction length left will be cleared in all
+    // cases when WDT tracking happened (see below).
 
-          doStop = true;
-          thePrimaryTrack->SetMCIndex(rootHepemIMC);
-          thePrimaryTrack->SetMFP(wdtMFP, 0);
-          // Reset the PE mxsec: set in `G4HepEmGammaManager::GetTotalMacXSec`
-          // that might have been called for an other material above (without
-          // resulting in interaction). Needed for the interaction type sampling.
-          gammaTrack.SetPEmxSec(wdtPEmxSec);
-        }
-      }
-
-      // Single WDT iteration implementation:
-      currentTrack.looperCounter = doStop ? 0 : currentTrack.looperCounter + 1;
-      // always stop after one iteration
-      doStop = true;
-
-
-
-      // fake interaction, reduce number of Woodcock iterations left. If no iteration is left, give back to normal gamma
-      // queue
-      if (!doStop) {
-        iWDTLeft--;
-        if (iWDTLeft == 0) {
-          doStop = true;
-        }
-      }
-
-      // iWDT++;  // FIXMEWDT just for printout, REMOVE
-
-      if (doStop) {
-        // Reached the end, i.e. either interaction happens at the current post
-        // step point or it hit the WDT volume boundary
-        // (wdtRegionBoundary=true in this case).
-        // Update the track with its final position and relocate if it hit the boundary.
-        pos += wdtStepLength * dir;
-
-        // If it hit the boundary, it just left the Root logical volume. Then, one can call the RelocatePoint function
-        // in VecGeom, which relocates the point to the correct new state after leaving the current volume. For this,
-        // the Root logical volume must be set as the last exited state, then one need to pass the final local point of
-        // the root logical volume. Since the boundary was crossed, the boundary status is set to true. From this, the
-        // final state is obtained and no AdePTNavigator::RelocateToNextVolume(pos, dir, nextState) needs to be called
-        // anymore
-        if (isWDTReachedBoundary) {
-          nextState = rootState;
-          nextState.SetLastExited();
-          AdePTNavigator::RelocatePoint(localpoint + wdtStepLength * localdir, nextState);
-          nextState.SetBoundaryState(true);
-        } else {
-          // Did not hit the boundary, so the last state when locating within the root volume is the next state
-          nextState = wdtNavState;
-        }
-
-#if ADEPT_DEBUG_TRACK > 0
-        if (verbose) {
-          currentTrack.Print("\n Track hit interaction / relocation in WDT tracking \n");
-          printf(" isWDTReachedBoundary=%u final after WDT:\n", isWDTReachedBoundary);
-          nextState.Print();
-        }
-#endif
-
-        // FIXMEWDT just for printout, REMOVE
-        // printf("finished WDT after iWDT %u iterations from max iterations: %u\n", iWDT, view.maxIter);
-
-        // Set pre/post step point location and touchable to be the same (as we
-        // might have moved the track from a far away volume).
-        // NOTE: as energy deposit happens only at discrete interactions for gamma,
-        // in case of non-zero energy deposit, i.e. when SD codes are invoked,
-        // the track is never on boundary. So all SD code should work fine with
-        // identical pre- and post-step points.
-        navState   = nextState;
-        preStepPos = pos;
-        preStepDir = dir;
-        // Set all track properties needed later: all pre-step point information are
-        // actually set to be their post step point values!
-
-        // Note, the material is already set correctly via hepEmIMC
-
-        // // NOTE: the number of interaction length left will be cleared in all
-        // // cases when WDT tracking happened (see below).
-      }
-      // If the WDT region boundary has not been reached in this step then delta
-      // interaction happend so just keep moving the post-step point toward the
-      // WDT (root) volume boundary.
-    }; // END OF WHILE ON WDT
+    // If the WDT region boundary has not been reached in this step then delta
+    // interaction happend so just keep moving the post-step point toward the
+    // WDT (root) volume boundary.
 
     // Update the time based on the accumulated WDT step length
     double deltaTime = wdtStepLength / copcore::units::kCLight;
@@ -367,7 +347,9 @@ __global__ void __launch_bounds__(256, 1)
     thePrimaryTrack->SetOnBoundary(nextState.IsOnBoundary());
 
     // END OF WOODCOCK TRACKING
-    // Woodcock tracking has finished, now either a boundary is hit or a discrete process must be invoked.
+    // here, the original while loop finished. Now, as it is only a single step.
+    // Woodcock step has finished, now either a boundary is hit, a discrete process must be invoked,
+    // or a fake step happened. In case of the fake step, the track is just requeued to the WDT gammas.
     // For the discrete process, the MFP and EKin of thePrimaryTrack must be set
 
     // helper variables needed for the processes
@@ -385,8 +367,13 @@ __global__ void __launch_bounds__(256, 1)
     VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
 
     int winnerProcessIndex;
-    if (isWDTReachedBoundary) {
-      // Left the Woodcock tracking root volume
+    if (currentTrack.looperCounter > 0) {
+      // Case 1: fake interaction, give particle back to WDT gammas unless it did more fake interactions than allowed,
+      // in that case give back to normal gammas
+      surviveFlag   = true;
+      leftWDTRegion = (view.maxIter == currentTrack.looperCounter) ? true : false;
+    } else if (isWDTReachedBoundary) {
+      // Case 2: Gamma has hit the boundary of the root WDT volume.
 
       // Kill the particle if it left the world.
       if (!nextState.IsOutside()) {
@@ -432,12 +419,8 @@ __global__ void __launch_bounds__(256, 1)
         }
       } // else particle has left the world
 
-    // } else if (iWDTLeft == 0) {
-      } else if (currentTrack.looperCounter > 0) {
-      surviveFlag   = true;
-      leftWDTRegion = (view.maxIter == currentTrack.looperCounter) ? true : false;
-    } else { // i.e., !isWDTReachedBoundary
-      // a Woodock tracking gamma that has not left the Woodcock root volume undergoes an interaction
+    } else {
+      // Case 3: Woodcock tracking gamma undergoes a real interaction
 
       G4HepEmGammaManager::SampleInteraction(&g4HepEmData, &gammaTrack, currentTrack.Uniform());
       winnerProcessIndex = thePrimaryTrack->GetWinnerProcessIndex();
@@ -741,7 +724,8 @@ __global__ void __launch_bounds__(256, 1)
     }
 
     // If there is some edep from cutting particles, record the step
-    if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && isLastStep)) {
+    // Note: record only real steps that either interacted or hit a boundary
+    if (realStep && ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && isLastStep))) {
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
