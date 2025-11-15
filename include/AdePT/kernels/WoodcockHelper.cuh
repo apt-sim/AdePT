@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#pragma once
+
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 
