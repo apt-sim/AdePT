@@ -21,6 +21,8 @@
 #include <AdePT/kernels/electrons.cuh>
 #include <AdePT/kernels/gammas.cuh>
 #endif
+#include <AdePT/kernels/WoodcockHelper.cuh>
+
 #include <AdePT/core/TrackDebug.cuh>
 // deprecated kernels that split the gamma interactions:
 // #include <AdePT/kernels/electrons_async.cuh>

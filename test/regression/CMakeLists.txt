@@ -46,7 +46,7 @@ add_test(NAME reproducibility_regions
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
-if(ASYNC_MODE)
+if(ASYNC_MODE AND NOT USE_SPLIT_KERNELS)
   # Same test as above but using Woodcock tracking in the testEm3 geometry
   add_test(NAME reproducibility_WDT
       COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility_WDT.sh
@@ -71,7 +71,7 @@ add_test(NAME testEm3_validation_regions
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
-if(ASYNC_MODE)
+if(ASYNC_MODE AND NOT USE_SPLIT_KERNELS)
   # Same test as above but using Woodcock tracking in the testEm3 geometry
 add_test(NAME testEm3_validation_WDT
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_WDT.sh
