@@ -23,10 +23,11 @@
 #endif
 
 #ifdef ASYNC_MODE
-std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmConfig *hepEmConfig)
+std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf,
+                                                          G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
   static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> AdePT{
-      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmConfig)};
+      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmTM)};
   return AdePT;
 }
 #endif
@@ -116,14 +117,14 @@ void AdePTTrackingManager::InitializeAdePT()
 // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
 // all threads.
 #ifdef ASYNC_MODE
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
+    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
 #else
     fAdeptTransport =
         std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
-    fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig(), true /*common_data*/);
+    fAdeptTransport->Initialize(fHepEmTrackingManager.get(), true /*common_data*/);
     fCommonInitThread = true;
 #endif
 
@@ -147,7 +148,7 @@ void AdePTTrackingManager::InitializeAdePT()
 
 #ifdef ASYNC_MODE
   // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
-  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager->GetConfig());
+  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
   // All workers store the pointer to their HepEmTrackingManager in fAdePTTransport. This is required for nuclear
   // processes
   fAdeptTransport->SetHepEmTrackingManagerForThread(tid, fHepEmTrackingManager.get());
@@ -157,7 +158,7 @@ void AdePTTrackingManager::InitializeAdePT()
         std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
   }
   // Initialize per-thread data
-  fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
+  fAdeptTransport->Initialize(fHepEmTrackingManager.get());
 #endif
 
   // Initialize the GPU region list
@@ -243,12 +244,15 @@ void AdePTTrackingManager::InitializeAdePT()
 
 void AdePTTrackingManager::BuildPhysicsTable(const G4ParticleDefinition &part)
 {
+
+  // Build PhysicsTable for G4HepEm
+  // Note: the G4HepEm physics table must be build first, such that the Woodcock tracking helper
+  // is initialized when AdePT gets its data from there
+  fHepEmTrackingManager->BuildPhysicsTable(part);
+
   if (!fAdePTInitialized) {
     InitializeAdePT();
   }
-
-  // Bulid PhysicsTable for G4HepEm
-  fHepEmTrackingManager->BuildPhysicsTable(part);
 
   // For tracking on GPU by AdePT
 }

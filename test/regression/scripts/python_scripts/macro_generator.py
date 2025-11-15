@@ -7,7 +7,8 @@ import argparse
 import os
 
 
-def generate_macro(template_path, output_path, gdml_name, num_threads, num_events, num_trackslots, num_leakslots, num_hitslots, gun_type, event_file, track_in_all_regions, regions):
+def generate_macro(template_path, output_path, gdml_name, num_threads, num_events, num_trackslots,
+                   num_leakslots, num_hitslots, gun_type, event_file, track_in_all_regions, regions, wdt_regions):
     # Read the template file
     with open(template_path, 'r') as template_file:
         template_content = template_file.read()
@@ -42,6 +43,15 @@ def generate_macro(template_path, output_path, gdml_name, num_threads, num_event
     region_part = "\n".join(region_part)
     macro_content = macro_content.replace("$regions", region_part)
 
+    # Woodcock tracking regions should be a comma-separated list of region names
+    wdt_region_part = []
+    for i in wdt_regions.split(","):
+        wdt_region = i.strip()
+        if wdt_region:  # Empty wdt regions list or empty region name
+            wdt_region_part.append(f"/adept/addWDTRegion {wdt_region}")
+    wdt_region_part = "\n".join(wdt_region_part)
+    macro_content = macro_content.replace("$wdt_regions", wdt_region_part)
+
     # Write the output macro file
     with open(output_path, 'w') as output_file:
         output_file.write(macro_content)
@@ -75,6 +85,8 @@ def main():
                         default="True", help="True or False")
     parser.add_argument("--regions", type=str, required=False, default="",
                         help="Comma-separated list of regions in which to do GPU transport, only if track_in_all_regions is False")
+    parser.add_argument("--wdt_regions", type=str, required=False, default="",
+                        help="Comma-separated list of Woodcock tracking regions")
     args = parser.parse_args()
 
     if str(args.gun_type) not in ["hepmc", "setDefault"]:
@@ -100,7 +112,8 @@ def main():
         gun_type=args.gun_type,
         event_file=args.event_file,
         track_in_all_regions=args.track_in_all_regions,
-        regions=args.regions
+        regions=args.regions,
+        wdt_regions=args.wdt_regions
     )
 
 

@@ -48,6 +48,7 @@ template <typename FieldType>
 bool InitializeBField(FieldType &);
 template <typename FieldType>
 void FreeField();
+void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
 G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
 void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
@@ -59,7 +60,8 @@ std::thread LaunchGPUWorker(int, int, int, int, AsyncAdePT::TrackBuffer &, Async
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
     int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
     std::vector<AdePTScoring> &scoring, double CPUCapacityFactor, double CPUCopyFraction);
-void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, G4HepEmState &, std::thread &);
+void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, G4HepEmState &, std::thread &,
+             adeptint::WDTDeviceBuffers &);
 } // namespace async_adept_impl
 
 namespace AsyncAdePT {
@@ -85,16 +87,17 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 
 template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                           G4HepEmConfig *hepEmConfig)
+                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fIntegrationLayerObjects(fNThread), fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
-      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
-      fCPURegionNames{configuration.GetCPURegionNames()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
+      fMaxWDTIter{configuration.GetMaxWDTIter()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
+      fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
+      fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
+      fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
       fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
       fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()}
@@ -106,13 +109,13 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
     std::atomic_init(&eventState, EventState::ScoringRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmConfig);
+  AsyncAdePTTransport::Initialize(hepEmTM);
 }
 
 template <typename IntegrationLayer>
 AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
 {
-  async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker);
+  async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker, fWDTDev);
 }
 
 template <typename IntegrationLayer>
@@ -250,7 +253,7 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hep
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig)
+void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -265,7 +268,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
   // Initialize G4HepEm
-  if (!InitializePhysics(hepEmConfig))
+  if (!InitializePhysics(hepEmTM->GetConfig()))
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
   // Initialize field
@@ -286,13 +289,23 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfi
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
   fIntegrationLayerObjects.front().CheckGeometry(fg4hepem_state.get());
   adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
-  fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), fTrackInAllRegions, fGPURegionNames);
+  adeptint::WDTHostRaw wdtRaw;
+  fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions,
+                                                  fGPURegionNames, wdtRaw);
 
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
   volAuxArray.fNumVolumes = numVolumes;
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
+
+  // Pack host-side WDT
+  adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
+
+  // Upload WDT to device
+  adeptint::WDTDeviceBuffers wdtDev;
+  async_adept_impl::InitWDTOnDevice(wdtPacked, wdtDev, fMaxWDTIter);
+  fWDTDev = wdtDev;
 
   // FIXME: The size of the buffer should be more explicitly configured
   // NOTE: Increasing the size of the leak buffer size can probably improve performance

@@ -12,6 +12,9 @@
 
 #include <G4HepEmRandomEngine.hh>
 
+#include "G4RegionStore.hh"
+#include "G4Region.hh"
+
 #include <atomic>
 #include <array>
 #include <mutex>
@@ -44,7 +47,7 @@ namespace adeptint {
 /// the sensitive volume handler index and the flag if the region is active for AdePT.
 struct VolAuxData {
   int fSensIndex{-1};   ///< index of handler for sensitive volumes (-1 means non-sensitive)
-  int fMCIndex{0};      ///< material-cut cuple index in G4HepEm
+  int fMCIndex{0};      ///< material-cut couple index in G4HepEm
   int fGPUregionId{-1}; ///< GPU region index, corresponds to G4Region.instanceID if tracked on GPU, -1 otherwise
 };
 
@@ -83,6 +86,96 @@ struct TrackBuffer {
     nelectrons = npositrons = ngammas = 0;
   }
 };
+
+// Woodcock tracking helper structures
+
+/// @brief Root Volume data of a Woodcock tracking region: Navigation index + G4HepEm material cut couple index// Raw
+/// per-root entry
+struct WDTRoot {
+  vecgeom::NavigationState root; // NavState of the root placed volume
+  int hepemIMC;                  // G4HepEm mat-cut index for this root
+};
+
+// Compact region header
+struct WDTRegion {
+  int offset;    // first index in roots[]
+  int count;     // number of roots for this region
+  float ekinMin; // kinetic energy threshold
+};
+
+// Device view pointing to the GPU data plus the number of roots and regions, required for access
+struct WDTDeviceView {
+  const WDTRoot *roots;     // [nRoots]
+  const WDTRegion *regions; // [nRegions] (only WDT-enabled regions)
+  const int *regionToWDT;   // [regionToWDTLen], regionId -> bucket (index into regions[]) or -1
+  int nRoots;
+  int nRegions;
+  unsigned short maxIter; // maximum number of Woodcock iterations
+};
+
+// Temporary, sparse collection built during geometry traversal.
+// - `roots` holds every discovered root volume in a Woodcock tracking region + the material index
+// - `regionToRootIndices[rid]` maps from a region index to the list of indices of the Root volumes (each region can
+// have multiple root volumes)
+// - `ekinMin` is the global Woodcock minimum kinetic energy for Woodcock tracking
+struct WDTHostRaw {
+  // mapping: regionId -> list of indices into `roots`
+  std::unordered_map<int, std::vector<int>> regionToRootIndices;
+  // found during geometry visit (one entry per root placed volume)
+  std::vector<WDTRoot> roots; // List of all Roots. Access for the roots for a given region via the regionToRootIndices
+  float ekinMin{0.f};
+};
+
+// Compact, upload-ready representation.
+// - `roots` is packed so that each region's roots are contiguous.
+// - `regions[w]` points to the slice (offset,count) for region index `w`.
+// - `regionToWDT[regionId]` returns `w` (or -1 if that region has no WDT).
+struct WDTHostPacked {
+  std::vector<WDTRoot> roots;     // packed per-region contiguous
+  std::vector<WDTRegion> regions; // one per WDT region
+  std::vector<int> regionToWDT;   // dense by regionId (size = number of G4 regions)
+};
+
+// Owned device buffers to manage lifetime of Woodcock tracking data
+struct WDTDeviceBuffers {
+  WDTRoot *d_roots     = nullptr;
+  WDTRegion *d_regions = nullptr;
+  int *d_map           = nullptr;
+};
+
+/// @brief This packs the Woodcock data from the original map to arrays that can be copied to the GPU
+/// @param raw raw WDT data, stored in a map
+/// @return packed, dense WDT data, ready to be copied to the GPU
+inline WDTHostPacked PackWDT(const WDTHostRaw &raw)
+{
+  WDTHostPacked packed;
+
+  // Build dense regionId -> bucket index
+  int maxRegionId = -1;
+  for (auto *r : *G4RegionStore::GetInstance())
+    if (r) maxRegionId = std::max(maxRegionId, r->GetInstanceID());
+
+  packed.regionToWDT.assign(maxRegionId + 1, -1);
+
+  packed.roots.reserve(raw.roots.size());
+  packed.regions.reserve(raw.regionToRootIndices.size());
+
+  int runningOffset = 0;
+  for (const auto &kv : raw.regionToRootIndices) {
+    const int rid    = kv.first;
+    const auto &idxs = kv.second;
+
+    packed.regionToWDT[rid] = (int)packed.regions.size();
+    packed.regions.push_back(WDTRegion{runningOffset, (int)idxs.size(), raw.ekinMin});
+
+    for (int idx : idxs) {
+      packed.roots.push_back(raw.roots[idx]); // preserve order per region
+    }
+    runningOffset += (int)idxs.size();
+  }
+
+  return packed;
+}
 
 } // end namespace adeptint
 

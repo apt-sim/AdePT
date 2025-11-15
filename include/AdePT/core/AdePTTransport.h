@@ -82,7 +82,7 @@ public:
   std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   /// @brief Create material-cut couple index array
   /// @brief Initialize service and copy geometry & physics data on device
-  void Initialize(G4HepEmConfig *hepEmConfig, bool common_data = false);
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, bool common_data = false);
   /// @brief Final cleanup
   void Cleanup(bool commonInitThread);
   /// @brief Interface for transporting a buffer of tracks in AdePT.

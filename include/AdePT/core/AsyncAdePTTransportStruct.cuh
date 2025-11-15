@@ -134,6 +134,7 @@ struct ParticleManager {
   SpeciesParticleManager electrons;
   SpeciesParticleManager positrons;
   SpeciesParticleManager gammas;
+  SpeciesParticleManager gammasWDT;
 };
 
 // Holds the leaked track structs for all three particle types
@@ -205,6 +206,11 @@ struct ParticleType {
     Gamma    = 2,
 
     NumParticleTypes,
+    // alias for Woodcock tracking gammas:
+    // as there is no explicit Woodcock tracking ParticleType, but the NumParticle types is used to loop over the
+    // AllParticleQueues (which contain the Woodcock tracking gammas), an alias is used here to mark their access
+    GammaWDT          = NumParticleTypes,
+    NumParticleQueues = NumParticleTypes + 1
   };
   static constexpr double relativeQueueSize[] = {0.35, 0.15, 0.5};
 };
@@ -232,7 +238,8 @@ struct TracksAndSlots {
 
 // A bundle of queues for the three particle types.
 struct AllParticleQueues {
-  ParticleQueues queues[ParticleType::NumParticleTypes];
+  // AllParticleQueues has queues for each particle type + one for Woodcock tracking
+  ParticleQueues queues[ParticleType::NumParticleQueues];
 };
 
 struct AllSlotManagers {
@@ -244,7 +251,7 @@ struct AllSlotManagers {
 struct Stats {
   int inFlight[ParticleType::NumParticleTypes];
   int leakedTracks[ParticleType::NumParticleTypes];
-  float queueFillLevel[ParticleType::NumParticleTypes];
+  float queueFillLevel[ParticleType::NumParticleQueues];
   float slotFillLevel[ParticleType::NumParticleTypes];
   float slotFillLevelLeaks[ParticleType::NumParticleTypes];
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
@@ -270,6 +277,10 @@ struct QueueIndexPair {
 struct GPUstate {
   ParticleType particles[ParticleType::NumParticleTypes];
   // GammaInteractions gammaInteractions; // Note: deprecated gammaInteractions for split gamma kernels
+
+  // particle queues for gammas doing woodcock tracking. Only the `initiallyActive` and `nextActive` queue are
+  // allocated, for the leaks the normal gamma queues inside particles[ParticleType::Gamma] are used.
+  ParticleQueues woodcockQueues;
 
   std::vector<void *> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
@@ -348,6 +359,8 @@ extern __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 // Pointer for array of volume auxiliary data on device
 extern __constant__ __device__ adeptint::VolAuxData *gVolAuxData;
+
+extern __constant__ __device__ adeptint::WDTDeviceView gWDTData;
 
 constexpr double kPush = 1.e-8 * copcore::units::cm;
 #ifdef ADEPT_USE_EXT_BFIELD

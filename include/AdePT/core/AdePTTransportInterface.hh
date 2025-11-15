@@ -55,7 +55,7 @@ public:
   virtual void SetAdePTSeed(uint64_t seed)                    = 0;
 
   /// @brief Initialize service and copy geometry & physics data on device
-  virtual void Initialize(G4HepEmConfig *hepEmConfig, bool common_data = false) = 0;
+  virtual void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, bool common_data = false) = 0;
   /// @brief Interface for transporting a buffer of tracks in AdePT.
   virtual void Shower(int event, int threadId)            = 0;
   virtual void Cleanup(bool commonInitThread)             = 0;

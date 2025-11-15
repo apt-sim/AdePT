@@ -46,6 +46,13 @@ void AdePTPhysics::ConstructProcess()
       fAdePTConfiguration->GetMultipleStepsInMSCWithTransportation());
   g4hepemconfig->SetEnergyLossFluctuation(fAdePTConfiguration->GetEnergyLossFluctuation());
 
+  // Loop over all configured Woodcock regions and register them
+  for (const auto &regionName : fAdePTConfiguration->GetWDTRegionNames()) {
+    g4hepemconfig->SetWoodcockTrackingRegion(regionName);
+  }
+  // set Woodcock tracking energy limit
+  g4hepemconfig->SetWDTEnergyLimit(fAdePTConfiguration->GetWDTKineticEnergyLimit());
+
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
   G4Positron::Definition()->SetTrackingManager(fTrackingManager);
   G4Gamma::Definition()->SetTrackingManager(fTrackingManager);

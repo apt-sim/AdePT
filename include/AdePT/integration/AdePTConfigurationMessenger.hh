@@ -37,6 +37,8 @@ private:
   G4UIcmdWithAnInteger *fSetCUDAHeapLimitCmd;
   G4UIcmdWithAnInteger *fSetAdePTSeedCmd;
   G4UIcmdWithAnInteger *fSetFinishOnCpuCmd;
+  G4UIcmdWithAnInteger *fSetMaxWDTIterCmd;
+  G4UIcmdWithADouble *fSetWDTKineticEnergyLimitCmd;
   G4UIcmdWithABool *fSetTrackInAllRegionsCmd;
   G4UIcmdWithABool *fSetCallUserSteppingActionCmd;
   G4UIcmdWithABool *fSetCallUserTrackingActionCmd;
@@ -45,6 +47,7 @@ private:
   G4UIcmdWithABool *fSetEnergyLossFluctuationCmd;
   G4UIcmdWithAString *fAddRegionCmd;
   G4UIcmdWithAString *fRemoveRegionCmd;
+  G4UIcmdWithAString *fAddWDTRegionCmd;
   G4UIcmdWithABool *fActivateAdePTCmd;
   G4UIcmdWithAnInteger *fSetVerbosityCmd;
   G4UIcmdWithAnInteger *fSetTransportBufferThresholdCmd;

@@ -45,21 +45,21 @@ public:
   uint64_t fAdePTSeed = 1234567;
 
 private:
-  unsigned short fNThread{0};             ///< Number of G4 workers
-  unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
-  unsigned int fLeakCapacity{0};          ///< Number of leak slots to allocate on device
-  unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
-  int fDebugLevel{0};                     ///< Debug level
-  int fCUDAStackLimit{0};                 ///< CUDA device stack limit
-  int fCUDAHeapLimit{0};                  ///< CUDA device heap limit
-  unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
-  // note: std::optional is used here as the AdePTGeant4Integration has no default constructor and we need to
-  // resize the vector to the number of threads, and then each worker has to construct its entry at its given slot
-  std::vector<IntegrationLayer> fIntegrationLayerObjects;        //< vector of integration layers per thread
+  unsigned short fNThread{0};                             ///< Number of G4 workers
+  unsigned int fTrackCapacity{0};                         ///< Number of track slots to allocate on device
+  unsigned int fLeakCapacity{0};                          ///< Number of leak slots to allocate on device
+  unsigned int fScoringCapacity{0};                       ///< Number of hit slots to allocate on device
+  int fDebugLevel{0};                                     ///< Debug level
+  int fCUDAStackLimit{0};                                 ///< CUDA device stack limit
+  int fCUDAHeapLimit{0};                                  ///< CUDA device heap limit
+  unsigned short fLastNParticlesOnCPU{0};                 ///< Number N of last N particles that are finished on CPU
+  unsigned short fMaxWDTIter{5};                          ///< Maximum number of Woodcock tracking iterations per step
+  std::vector<IntegrationLayer> fIntegrationLayerObjects; //< vector of integration layers per thread
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
   std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
+  adeptint::WDTDeviceBuffers fWDTDev{};              ///< device buffers for Woodcock tracking data
   std::thread fGPUWorker;                            ///< Thread to manage GPU
   std::condition_variable fCV_G4Workers;             ///< Communicate with G4 workers
   std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
@@ -79,15 +79,16 @@ private:
   ///< G4workers
   double fCPUCopyFraction{0.5};
 
-  void Initialize(G4HepEmConfig *hepEmConfig);
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM);
   void InitBVH();
   bool InitializeBField();
   bool InitializeBField(UniformMagneticField &Bfield);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
+  void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmConfig *hepEmConfig);
+  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
   ~AsyncAdePTTransport();
 
@@ -120,7 +121,7 @@ public:
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() override { return fCPURegionNames; }
   /// No effect
-  void Initialize(G4HepEmConfig *hepEmConfig, bool) override {}
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, bool) override {}
   /// @brief Finish GPU transport, bring hits and tracks to host
   /// @details The shower call exists to maintain the same interface as the
   /// synchronous AdePT mode, since in this case the transport loop is always

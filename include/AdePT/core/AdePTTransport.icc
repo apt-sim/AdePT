@@ -166,7 +166,7 @@ bool AdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hepEmCon
 }
 
 template <typename IntegrationLayer>
-void AdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig, bool common_data)
+void AdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, bool common_data)
 {
   if (fInit) return;
   if (fMaxBatch <= 0)
@@ -188,7 +188,7 @@ void AdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig, bo
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize: Cannot initialize geometry on GPU");
 
     // Initialize G4HepEm
-    if (!InitializePhysics(hepEmConfig))
+    if (!InitializePhysics(hepEmTM->GetConfig()))
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize physics on GPU");
 
 #ifdef ADEPT_USE_EXT_BFIELD
@@ -209,9 +209,13 @@ void AdePTTransport<IntegrationLayer>::Initialize(G4HepEmConfig *hepEmConfig, bo
 
     // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
     fIntegrationLayer.CheckGeometry(fg4hepem_state);
+
+    // not used in sync AdePT, but required to have same interface for InitVolAuxData
+    adeptint::WDTHostRaw wdtRaw;
+
     adeptint::VolAuxData *auxData =
         new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
-    fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state, fTrackInAllRegions, fGPURegionNames);
+    fIntegrationLayer.InitVolAuxData(auxData, fg4hepem_state, hepEmTM, fTrackInAllRegions, fGPURegionNames, wdtRaw);
 
     // Initialize volume auxiliary data on device
     auto &volAuxArray       = VolAuxArray::GetInstance();
