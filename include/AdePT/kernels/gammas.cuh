@@ -226,8 +226,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         const auto regionId           = nextauxData.fGPUregionId;
 
         // next region is a GPU region
-        if (nextauxData.fGPUregionId >= 0) {
+        if (regionId >= 0) {
 
+#ifdef ASYNC_MODE
           const adeptint::WDTDeviceView &view = gWDTData;
           const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
 
@@ -239,6 +240,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
               enterWDTRegion = true;
             }
           }
+#endif
 
           surviveFlag = true;
         } else {

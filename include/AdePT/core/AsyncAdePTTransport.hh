@@ -121,7 +121,7 @@ public:
   std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() override { return fCPURegionNames; }
   /// No effect
-  void Initialize(G4HepEmConfig *hepEmConfig, bool) override {}
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, bool) override {}
   /// @brief Finish GPU transport, bring hits and tracks to host
   /// @details The shower call exists to maintain the same interface as the
   /// synchronous AdePT mode, since in this case the transport loop is always

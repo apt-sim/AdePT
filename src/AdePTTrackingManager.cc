@@ -124,7 +124,7 @@ void AdePTTrackingManager::InitializeAdePT()
 
     // Initialize common data:
     // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
-    fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig(), true /*common_data*/);
+    fAdeptTransport->Initialize(fHepEmTrackingManager.get(), true /*common_data*/);
     fCommonInitThread = true;
 #endif
 
@@ -158,7 +158,7 @@ void AdePTTrackingManager::InitializeAdePT()
         std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
   }
   // Initialize per-thread data
-  fAdeptTransport->Initialize(fHepEmTrackingManager->GetConfig());
+  fAdeptTransport->Initialize(fHepEmTrackingManager.get());
 #endif
 
   // Initialize the GPU region list
