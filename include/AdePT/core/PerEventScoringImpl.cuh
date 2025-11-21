@@ -526,20 +526,6 @@ public:
             fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::ReadyToBeFilled);
   }
 
-  bool ReadyToSwapBuffers1() const
-  {
-    // we can swap if the next device state is free and the hostBuffer has been submitted to the HitQueue
-    return std::any_of(fDeviceState.begin(), fDeviceState.end(), [](const auto &deviceState) {
-      return deviceState.load(std::memory_order_acquire) == DeviceState::Free;
-    });
-  }
-
-  bool ReadyToSwapBuffers2() const
-  {
-    // we can swap if the next device state is free and the hostBuffer has been submitted to the HitQueue
-    return (fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::ReadyToBeFilled);
-  }
-
   std::string GetDeviceStateName(DeviceState state) const
   {
     switch (state) {
