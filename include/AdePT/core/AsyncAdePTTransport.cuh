@@ -1630,9 +1630,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // next step could fail because there are too tracks in flight. A track can cause multiple hits (one for each
         // secondary and one for itself). The safety factor should be as low as possible to prevent stalling, but must
         // be as high as needed to avoid crashes.
-        bool nextStepMightFail = static_cast<int>(gpuState.stats->hitBufferOccupancy) >=
-                                 static_cast<int>(gpuState.fHitScoring->HitCapacity() / numThreads) -
-                                     hitBufferSafetyFactor * static_cast<int>(maxInFlight);
+        bool nextStepMightFail = gpuState.stats->hitBufferOccupancy + hitBufferSafetyFactor * maxInFlight >=
+                                 gpuState.fHitScoring->HitCapacity() / numThreads;
 
         if (!gpuState.fHitScoring->ReadyToSwapBuffers() && !nextStepMightFail) {
           hitProcessing->cv.notify_one();
