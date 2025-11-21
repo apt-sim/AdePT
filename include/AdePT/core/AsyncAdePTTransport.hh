@@ -78,6 +78,8 @@ private:
   ///< Filling fraction of the ScoringCapacity on host when the hits are copied out and not taken directly by the
   ///< G4workers
   double fCPUCopyFraction{0.5};
+  ///< Needed to stall the GPU, in case the nPartInFlight * fHitBufferSafetyFactor > available HitSlots
+  double fHitBufferSafetyFactor{1.5};
 
   void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM);
   void InitBVH();

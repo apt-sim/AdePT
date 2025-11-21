@@ -56,7 +56,7 @@ std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, A
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
-                            std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short);
+                            std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short, const double);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
     int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
     std::vector<AdePTScoring> &scoring, double CPUCapacityFactor, double CPUCopyFraction);
@@ -100,7 +100,8 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
       fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
       fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
-      fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()}
+      fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
+      fHitBufferSafetyFactor{configuration.GetHitBufferSafetyFactor()}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -157,7 +158,7 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(
                          static_cast<short>(threadId)};
   if (fDebugLevel >= 2) {
     fGPUNetEnergy[threadId] += energy;
-    if (fDebugLevel >= 6) {
+    if (fDebugLevel >= 8) {
       G4cout << "\n[_in," << eventId << "," << trackId << "]: " << track << "\tGPU net energy " << std::setprecision(6)
              << fGPUNetEnergy[threadId] << G4endl;
     }
@@ -317,11 +318,12 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
 
   assert(fBuffer != nullptr);
 
-  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
-                                               fScoring, fCPUCapacityFactor, fCPUCopyFraction);
-  fGPUWorker = async_adept_impl::LaunchGPUWorker(
-      fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate, fEventStates, fCV_G4Workers,
-      fScoring, fAdePTSeed, fDebugLevel, fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU);
+  fGPUstate = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
+                                              fScoring, fCPUCapacityFactor, fCPUCopyFraction);
+  fGPUWorker =
+      async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
+                                        fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel, fReturnAllSteps,
+                                        fReturnFirstAndLastStep, fLastNParticlesOnCPU, fHitBufferSafetyFactor);
 }
 
 template <typename IntegrationLayer>
@@ -412,7 +414,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
     for (const auto &track : tracks) {
 
       fGPUNetEnergy[threadId] -= track.eKin;
-      if (fDebugLevel >= 5) {
+      if (fDebugLevel >= 8) {
         G4cout << "\n[out," << track.eventId << "," << trackId++ << "]: " << track << "\tGPU net energy "
                << std::setprecision(6) << fGPUNetEnergy[threadId] << G4endl;
       }

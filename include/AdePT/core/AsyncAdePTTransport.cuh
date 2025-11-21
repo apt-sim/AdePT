@@ -914,7 +914,8 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
 void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
                    GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                    std::condition_variable &cvG4Workers, std::vector<AdePTScoring> &scoring, int adeptSeed,
-                   int debugLevel, bool returnAllSteps, bool returnLastStep, unsigned short lastNParticlesOnCPU)
+                   int debugLevel, bool returnAllSteps, bool returnLastStep, unsigned short lastNParticlesOnCPU,
+                   const double hitBufferSafetyFactor)
 {
   // NVTXTracer tracer{"TransportLoop"};
 
@@ -1626,9 +1627,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                        "/adept/setMillionsOfHitSlots or reduce /run/numberOfThreads!"
                     << std::endl;
 
-        // next step could fail because there are more tracks in flight than hit slots left..
-        bool nextStepMightFail =
-            gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads - 1.5 * maxInFlight;
+        // next step could fail because there are too tracks in flight. A track can cause multiple hits (one for each
+        // secondary and one for itself). The safety factor should be as low as possible to prevent stalling, but must
+        // be as high as needed to avoid crashes.
+        bool nextStepMightFail = static_cast<int>(gpuState.stats->hitBufferOccupancy) >=
+                                 static_cast<int>(gpuState.fHitScoring->HitCapacity() / numThreads) -
+                                     hitBufferSafetyFactor * static_cast<int>(maxInFlight);
 
         if (!gpuState.fHitScoring->ReadyToSwapBuffers() && !nextStepMightFail) {
           hitProcessing->cv.notify_one();
@@ -1779,7 +1783,7 @@ std::thread LaunchGPUWorker(int trackCapacity, int leakCapacity, int scoringCapa
                             TrackBuffer &trackBuffer, GPUstate &gpuState,
                             std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                             std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel, bool returnAllSteps,
-                            bool returnLastStep, unsigned short lastNParticlesOnCPU)
+                            bool returnLastStep, unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor)
 {
   return std::thread{&TransportLoop,
                      trackCapacity,
@@ -1795,7 +1799,8 @@ std::thread LaunchGPUWorker(int trackCapacity, int leakCapacity, int scoringCapa
                      debugLevel,
                      returnAllSteps,
                      returnLastStep,
-                     lastNParticlesOnCPU};
+                     lastNParticlesOnCPU,
+                     hitBufferSafetyFactor};
 }
 
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, G4HepEmState &g4hepem_state,
