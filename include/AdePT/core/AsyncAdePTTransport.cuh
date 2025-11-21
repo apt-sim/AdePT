@@ -252,8 +252,8 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
     nRemainingLeaks_dev = total - nToCopy;
   }
 
-  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred;
-       i < nAlreadyTransferred + maxFromDeviceBuffer; i += blockDim.x * gridDim.x) {
+  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred; i < nAlreadyTransferred + nToCopy;
+       i += blockDim.x * gridDim.x) {
     LeakedTracks *leakedTracks = nullptr;
     unsigned int queueSlot     = 0;
     int pdg                    = 0;
