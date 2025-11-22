@@ -252,8 +252,8 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
     nRemainingLeaks_dev = total - nToCopy;
   }
 
-  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred;
-       i < nAlreadyTransferred + maxFromDeviceBuffer; i += blockDim.x * gridDim.x) {
+  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred; i < nAlreadyTransferred + nToCopy;
+       i += blockDim.x * gridDim.x) {
     LeakedTracks *leakedTracks = nullptr;
     unsigned int queueSlot     = 0;
     int pdg                    = 0;
@@ -275,36 +275,34 @@ __global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs
     const auto trackSlot     = (*leakedTracks->fLeakedQueue)[queueSlot];
     Track const *const track = leakedTracks->fTracks + trackSlot;
 
-    if (nAlreadyTransferred <= i && i < nAlreadyTransferred + nToCopy) {
-      // Offset i by nAlreadyTransferred to get the index in the fromDevice buffer
-      auto idx = i - nAlreadyTransferred;
+    // Offset i by nAlreadyTransferred to get the index in the fromDevice buffer
+    auto idx = i - nAlreadyTransferred;
 
-      // NOTE: Sync transport copies data into trackData structs during transport.
-      // Async transport stores the slots and copies to trackdata structs for transfer to
-      // host here. These approaches should be unified.
-      fromDevice[idx].position[0]    = track->pos[0];
-      fromDevice[idx].position[1]    = track->pos[1];
-      fromDevice[idx].position[2]    = track->pos[2];
-      fromDevice[idx].direction[0]   = track->dir[0];
-      fromDevice[idx].direction[1]   = track->dir[1];
-      fromDevice[idx].direction[2]   = track->dir[2];
-      fromDevice[idx].eKin           = track->eKin;
-      fromDevice[idx].globalTime     = track->globalTime;
-      fromDevice[idx].localTime      = track->localTime;
-      fromDevice[idx].properTime     = track->properTime;
-      fromDevice[idx].weight         = track->weight;
-      fromDevice[idx].pdg            = pdg;
-      fromDevice[idx].eventId        = track->eventId;
-      fromDevice[idx].threadId       = track->threadId;
-      fromDevice[idx].navState       = track->navState;
-      fromDevice[idx].originNavState = track->originNavState;
-      fromDevice[idx].leakStatus     = track->leakStatus;
-      fromDevice[idx].parentId       = track->parentId;
-      fromDevice[idx].trackId        = track->trackId;
-      fromDevice[idx].stepCounter    = track->stepCounter;
+    // NOTE: Sync transport copies data into trackData structs during transport.
+    // Async transport stores the slots and copies to trackdata structs for transfer to
+    // host here. These approaches should be unified.
+    fromDevice[idx].position[0]    = track->pos[0];
+    fromDevice[idx].position[1]    = track->pos[1];
+    fromDevice[idx].position[2]    = track->pos[2];
+    fromDevice[idx].direction[0]   = track->dir[0];
+    fromDevice[idx].direction[1]   = track->dir[1];
+    fromDevice[idx].direction[2]   = track->dir[2];
+    fromDevice[idx].eKin           = track->eKin;
+    fromDevice[idx].globalTime     = track->globalTime;
+    fromDevice[idx].localTime      = track->localTime;
+    fromDevice[idx].properTime     = track->properTime;
+    fromDevice[idx].weight         = track->weight;
+    fromDevice[idx].pdg            = pdg;
+    fromDevice[idx].eventId        = track->eventId;
+    fromDevice[idx].threadId       = track->threadId;
+    fromDevice[idx].navState       = track->navState;
+    fromDevice[idx].originNavState = track->originNavState;
+    fromDevice[idx].leakStatus     = track->leakStatus;
+    fromDevice[idx].parentId       = track->parentId;
+    fromDevice[idx].trackId        = track->trackId;
+    fromDevice[idx].stepCounter    = track->stepCounter;
 
-      leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
-    }
+    leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
   }
 }
 
