@@ -42,6 +42,7 @@ public:
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
   void SetCPUCapacityFactor(float CPUCapacityFactor) { fCPUCapacityFactor = CPUCapacityFactor; }
+  void SetHitBufferSafetyFactor(double HitBufferSafetyFactor) { fHitBufferSafetyFactor = HitBufferSafetyFactor; }
   void SetAdePTSeed(int seed) { fAdePTSeed = static_cast<uint64_t>(seed); }
 
   void SetCUDAStackLimit(int limit) { fCUDAStackLimit = limit; }
@@ -81,6 +82,7 @@ public:
   double GetWDTKineticEnergyLimit() { return fWDTKineticEnergyLimit; }
   float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
   float GetCPUCapacityFactor() { return fCPUCapacityFactor; }
+  double GetHitBufferSafetyFactor() { return fHitBufferSafetyFactor; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
   double GetMillionsOfLeakSlots() { return fMillionsOfLeakSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
@@ -108,6 +110,7 @@ private:
   uint64_t fAdePTSeed{1234567};
   float fHitBufferFlushThreshold{0.8};
   float fCPUCapacityFactor{2.5};
+  double fHitBufferSafetyFactor{1.5};
   double fMillionsOfTrackSlots{1};
   double fMillionsOfLeakSlots{1};
   double fMillionsOfHitSlots{1};
