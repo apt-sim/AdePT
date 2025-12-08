@@ -332,8 +332,11 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, eventID);
   }
 
-  // setup touchable to be able to get region from GetNextVolume
-  steppingManager->SetInitialStep(aTrack);
+  // If this is the first step, set touchable and next touchable via SetInitialStep
+  // All other tracks should have a current and next touchable being set
+  if (aTrack->GetCurrentStepNumber() == 0) {
+    steppingManager->SetInitialStep(aTrack);
+  }
 
   // Track the particle Step-by-Step while it is alive
   while ((aTrack->GetTrackStatus() == fAlive) || (aTrack->GetTrackStatus() == fStopButAlive)) {
