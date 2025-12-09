@@ -161,7 +161,14 @@ public:
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return; // already gone
-    int idx  = it->second;
+    int idx = it->second;
+
+    // As the data of the userTrackInfo is owned by AdePT, it has to be deleted here
+    if (hostDataVec[idx].userTrackInfo) {
+      delete hostDataVec[idx].userTrackInfo;
+      hostDataVec[idx].userTrackInfo = nullptr;
+    }
+
     int last = int(hostDataVec.size()) - 1;
 
     // unused g4 id

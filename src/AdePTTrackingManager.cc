@@ -446,6 +446,13 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // The track dies from the point of view of Geant4
       aTrack->SetTrackStatus(fStopAndKill);
 
+      // After the track has been offloaded to the GPU, it can be deleted on the CPU.
+      // However, the HostTrackData is now owning and therefore responsible for deleting the TrackUserInfo data
+      // To avoid deletion of the TrackUserInfo data when the track is deleted, the pointer must be reset.
+      // Then, the underlying data is either deleted via hostTrackData.removeTrack in case the track is finished on GPU,
+      // or the ownership is transferred back to G4, when the track is given back to the CPU
+      aTrack->SetUserInformation(nullptr);
+
     } else { // If the particle is not in a GPU region, track it on CPU
              // Track the particle step by step until it dies or enters a GPU region in the (specialized)
              // G4HepEmTrackingManager
@@ -454,8 +461,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   }
 
   // delete track after finishing offloading to AdePT or finished tracking in G4HepEmTrackingManager
-  aTrack->SetUserInformation(
-      nullptr); // set UserInformation to null as its memory would otherwise be deleted when we delete the track
   delete aTrack;
 }
 

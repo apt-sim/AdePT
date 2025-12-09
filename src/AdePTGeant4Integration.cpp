@@ -484,6 +484,12 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
 
   // cleanup of the secondary vector that is created in FillG4Step above
   fScoringObjects->fG4Step->DeleteSecondaryVector();
+
+  // If this was the last step of a track, the hostTrackData of that track can be safely deleted.
+  // Note: This deletes the AdePT-owned UserTrackInfo data
+  if (hit.fLastStepOfTrack) {
+    fHostTrackDataMapper->removeTrack(hit.fTrackID);
+  }
 }
 
 void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState,
@@ -794,11 +800,6 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(aTrack);
   }
-
-  // remove killed tracks from storage to reduce lookup table size
-  if (aGPUHit->fLastStepOfTrack) {
-    fHostTrackDataMapper->removeTrack(aGPUHit->fTrackID);
-  }
 }
 
 void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel,
@@ -938,14 +939,19 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
           // Give secondaries to G4
           G4EventManager::GetEventManager()->StackTracks(&secondaries);
 
-          // Since we do not give back the track to G4, we have to delete it here
+          // As Gamma-nuclear kills the track, and the track is owned by AdePT, it has to be deleted. This includes:
+          // 1. deleting the HostTrackData, which also deletes the UserTrackInfo
+          // 2. Setting the UserInformation pointer in the track to nullptr (as the data was just deleted)
+          // 3. deleting the track
+          // Note that it is safe to remove the track and the hostTrackData here, as the hits are always handled
+          // before the leaks and hits with Gamma-nuclear are not marked as last step.
+          fHostTrackDataMapper->removeTrack(track.trackId);
+          // as the UserTrackInfo was just deleted by removeTrack, the pointer must be set to null to avoid double
+          // deletion
+          leakedTrack->SetUserInformation(nullptr);
+          // Now the track and step can be safely deleted
           delete leakedTrack;
           delete step;
-
-          // gamma nuclear kills the track, so we safely remove it from the hostTrackData map, as the hits are always
-          // handled before the leaked tracks
-          fHostTrackDataMapper->removeTrack(track.trackId);
-
         } else {
           // no gamma nuclear process attached, just give back the track to G4 to put it back on GPU
           G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
