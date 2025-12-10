@@ -1076,15 +1076,19 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // --------------------------
       if (gpuState.injectState == InjectState::Idle) {
 
-        if (auto &toDevice = trackBuffer.getActiveBuffer(); toDevice.nTrack > 0) {
+        // get current buffer and lock it
+        auto &toDevice = trackBuffer.getActiveBuffer();
+        std::scoped_lock lock{toDevice.mutex};
+
+        if (toDevice.nTrack > 0) {
 
           // there are actually tracks that are injected, move state machine
           AdvanceEventStates(EventState::G4RequestsFlush, EventState::Inject, eventStates);
-
           gpuState.injectState = InjectState::CreatingSlots;
 
           trackBuffer.swapToDeviceBuffers();
-          std::scoped_lock lock{toDevice.mutex};
+
+          // determine the numbers to inject from the now swapped-out buffer and reset the nTrack
           const auto nInject = std::min(toDevice.nTrack.load(), toDevice.maxTracks);
           toDevice.nTrack    = 0;
 
