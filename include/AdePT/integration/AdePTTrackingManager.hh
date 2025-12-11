@@ -9,7 +9,7 @@
 
 #include "globals.hh"
 #include <AdePT/core/AdePTTransportInterface.hh>
-#ifndef ASYNC_MODE
+#ifndef ADEPT_ASYNC_MODE
 #include <AdePT/core/AdePTTransport.h>
 #else
 #include <AdePT/core/AsyncAdePTTransport.hh>
@@ -68,7 +68,7 @@ private:
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
 // std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
-#ifndef ASYNC_MODE
+#ifndef ADEPT_ASYNC_MODE
   std::unique_ptr<AdePTTransportInterface> fAdeptTransport;
 #else
   std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
@@ -85,7 +85,7 @@ private:
 #endif
 };
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> GetAdePTInstance();
 #endif
 

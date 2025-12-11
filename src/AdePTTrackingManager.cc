@@ -22,7 +22,7 @@
 #include <power_meter.hh>
 #endif
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf,
                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
@@ -55,7 +55,7 @@ AdePTTrackingManager::~AdePTTrackingManager()
 
 void AdePTTrackingManager::InitializeAdePT()
 {
-#ifndef ASYNC_MODE
+#ifndef ADEPT_ASYNC_MODE
   // in Sync AdePT, check if this is a sequential run
   G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
   bool sequential             = (rmType == G4RunManager::sequentialRM);
@@ -116,7 +116,7 @@ void AdePTTrackingManager::InitializeAdePT()
 
 // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
 // all threads.
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
     fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
 #else
     fAdeptTransport =
@@ -146,7 +146,7 @@ void AdePTTrackingManager::InitializeAdePT()
   // Now the fNumThreads is known and all workers can initialize
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
   // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
   fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
   // All workers store the pointer to their HepEmTrackingManager in fAdePTTransport. This is required for nuclear
@@ -308,7 +308,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   fAdeptTransport->ProcessGPUSteps(threadId, eventID);
 
   // need to cast to avoid the pitfall of the untemplated AdePTTransportInterface that cannot hold the IntegrationLayer
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
   auto *Transport = static_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
 #else
   auto *Transport = static_cast<AdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());

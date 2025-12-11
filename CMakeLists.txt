@@ -48,14 +48,20 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_MIXED_PRECISION "Use B-field integration and surface model in mixed precision" OFF)
-option(USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
+option(ADEPT_USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
-option(DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
+option(ADEPT_DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
-option(ASYNC_MODE "Enable the async transport backend" OFF)
-option(ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
+option(ADEPT_ASYNC_MODE "Enable the async transport backend" OFF)
+option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
+option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
+option(ADEPT_BUILD_EXAMPLES "Build examples" OFF)
 
+# Ensure that ctest is enabled when ADEPT_BUILD_TESTING is ON
+if(ADEPT_BUILD_TESTING)
+ set(BUILD_TESTING ON)
+endif()
 
 # Compile flag for AdePT SteppingActions on the GPU
 set(ADEPT_STEPPINGACTION "NONE" CACHE STRING "SteppingAction: NONE|CMS|LHCb")
@@ -122,7 +128,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   )
 
   # In soft mode, convert all -Werror=foo to just -Wfoo
-  if(NOT ENFORCE_STRICT_FLAGS)
+  if(NOT ADEPT_ENFORCE_STRICT_FLAGS)
     set(_converted_errors "")
     foreach(f IN LISTS _error_flags)
       string(REPLACE "-Werror=" "-W" _wflag "${f}")
@@ -213,24 +219,24 @@ endif()
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
 endif()
-if(ASYNC_MODE)
-  add_compile_definitions(ASYNC_MODE)
+if(ADEPT_ASYNC_MODE)
+  add_compile_definitions(ADEPT_ASYNC_MODE)
   message(STATUS "${Green}Using the asynchronous transport backend${ColorReset}")
 else()
   message(STATUS "${Red}Async backend is disabled${ColorReset}")
 endif()
 # Run split kernels
-if (USE_SPLIT_KERNELS)
-  if(ASYNC_MODE)
-    add_compile_definitions(USE_SPLIT_KERNELS)
+if (ADEPT_USE_SPLIT_KERNELS)
+  if(ADEPT_ASYNC_MODE)
+    add_compile_definitions(ADEPT_USE_SPLIT_KERNELS)
     message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
   else()
-    message(FATAL_ERROR "In order to run with split kernels, AdePT must be compiled in ASYNC_MODE")
+    message(FATAL_ERROR "In order to run with split kernels, AdePT must be compiled in ADEPT_ASYNC_MODE")
   endif()
 endif()
 # Debugging in single-thread mode
-if (DEBUG_SINGLE_THREAD)
-  add_compile_definitions("$<$<CONFIG:Debug>:DEBUG_SINGLE_THREAD>")
+if (ADEPT_DEBUG_SINGLE_THREAD)
+  add_compile_definitions("$<$<CONFIG:Debug>:ADEPT_DEBUG_SINGLE_THREAD>")
   message(STATUS "${Magenta}Transport is running in single-thread mode${ColorReset}")
 endif()
 # Check for RK integration precision
@@ -468,11 +474,11 @@ target_compile_definitions(AdePT_G4_integration_objects
 target_compile_definitions(AdePT_G4_integration
   INTERFACE
     ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
-    $<$<BOOL:${ASYNC_MODE}>:ASYNC_MODE>
+    $<$<BOOL:${ADEPT_ASYNC_MODE}>:ADEPT_ASYNC_MODE>
     $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
     $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
-    $<$<BOOL:${USE_SPLIT_KERNELS}>:USE_SPLIT_KERNELS>
-    $<$<AND:$<BOOL:${DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:DEBUG_SINGLE_THREAD>
+    $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
+    $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>
     $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
     $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
     $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
@@ -485,16 +491,17 @@ target_compile_definitions(AdePT_G4_integration
 #)
 
 # Optional library to activate NVTX annotations for profiling:
-option(NVTX OFF "Add NVTX instrumentation for profiling (only for annotated examples)")
+option(ADEPT_NVTX OFF "Add NVTX instrumentation for profiling (only for annotated examples)")
 add_library(NVTX INTERFACE)
-if(NVTX)
+if(ADEPT_NVTX)
   target_link_libraries(NVTX INTERFACE nvToolsExt)
   target_compile_definitions(NVTX INTERFACE -DUSE_NVTX)
 endif()
 
-if(BUILD_TESTING)
+if(ADEPT_BUILD_TESTING)
   add_subdirectory(test)
-  # This might become a separate option, e.g. "ADEPT_BUILD_EXAMPLES"
+endif()
+if(ADEPT_BUILD_EXAMPLES)
   add_subdirectory(examples)
 endif()
 

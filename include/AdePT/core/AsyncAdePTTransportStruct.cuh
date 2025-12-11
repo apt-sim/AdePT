@@ -18,7 +18,7 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmGammaTrack.hh>
 #endif
@@ -179,7 +179,7 @@ dynamic allocations
   static constexpr char numInteractions = 5;
   adept::MParray *nextActive;
   adept::MParray *initiallyActive;
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
   adept::MParray *propagation;
   adept::MParray *interactionQueues[numInteractions];
 #endif
@@ -215,7 +215,7 @@ struct ParticleType {
   static constexpr double relativeQueueSize[] = {0.35, 0.15, 0.5};
 };
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
 struct HepEmBuffers {
   G4HepEmElectronTrack *electronsHepEm;
   G4HepEmElectronTrack *positronsHepEm;
@@ -292,7 +292,7 @@ struct GPUstate {
   SlotManager *slotManager_dev{nullptr};      // All device slot managers
   SlotManager *slotManagerLeaks_dev{nullptr}; // All device leak slot managers
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
   HepEmBuffers hepEmBuffers_d; // All device buffers of hepem tracks
 #endif
 

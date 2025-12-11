@@ -24,6 +24,10 @@ endmacro()
 # G4 App-based Tests
 #----------------------------------------------------------------------------#
 
+# Move files needed for testing to the build directory. These files are stored under examples/data, but eventually may be moved to a common directory
+configure_file(${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
+configure_file(${PROJECT_SOURCE_DIR}/examples/data/ppttbar.hepmc3 ${PROJECT_BINARY_DIR}/ppttbar.hepmc3)
+
 add_subdirectory(IntegrationTest)
 
 # Scripts
@@ -46,7 +50,7 @@ add_test(NAME reproducibility_regions
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
-if(ASYNC_MODE AND NOT USE_SPLIT_KERNELS)
+if(ADEPT_ASYNC_MODE AND NOT ADEPT_USE_SPLIT_KERNELS)
   # Same test as above but using Woodcock tracking in the testEm3 geometry
   add_test(NAME reproducibility_WDT
       COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility_WDT.sh
@@ -71,7 +75,13 @@ add_test(NAME testEm3_validation_regions
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
-if(ASYNC_MODE AND NOT USE_SPLIT_KERNELS)
+# Test that simply checks if a simulation can run and finish without issues
+add_test(NAME run_only_test
+  COMMAND $<TARGET_FILE:integrationTest> -m ${PROJECT_SOURCE_DIR}/test/regression/macros/integrationtest.mac.in
+  WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+)
+
+if(ADEPT_ASYNC_MODE AND NOT ADEPT_USE_SPLIT_KERNELS)
   # Same test as above but using Woodcock tracking in the testEm3 geometry
 add_test(NAME testEm3_validation_WDT
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_WDT.sh

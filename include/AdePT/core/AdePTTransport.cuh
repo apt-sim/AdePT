@@ -444,7 +444,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   // default constructed stepping action parameters (different for CMS or LHCb)
   adept::SteppingAction::Params steppingActionParams;
 
-#ifndef DEBUG_SINGLE_THREAD
+#ifndef ADEPT_DEBUG_SINGLE_THREAD
   constexpr int initThreads = 32;
 #else
   constexpr int initThreads = 1;
@@ -463,7 +463,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
   gpuState.allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight    = buffer.ngammas;
 
   constexpr float compactThreshold = 0.9;
-#ifdef DEBUG_SINGLE_THREAD
+#ifdef ADEPT_DEBUG_SINGLE_THREAD
   constexpr int TransportThreads = 1;
 #else
   constexpr int MaxBlocks        = 1024;
@@ -500,7 +500,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     // *** ELECTRONS ***
     int numElectrons = gpuState.allmgr_h.trackmgr[ParticleType::Electron]->fStats.fInFlight;
     if (numElectrons > 0) {
-#ifndef DEBUG_SINGLE_THREAD
+#ifndef ADEPT_DEBUG_SINGLE_THREAD
       transportBlocks = (numElectrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
@@ -513,7 +513,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     // *** POSITRONS ***
     int numPositrons = gpuState.allmgr_h.trackmgr[ParticleType::Positron]->fStats.fInFlight;
     if (numPositrons > 0) {
-#ifndef DEBUG_SINGLE_THREAD
+#ifndef ADEPT_DEBUG_SINGLE_THREAD
       transportBlocks = (numPositrons + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif
@@ -526,7 +526,7 @@ void ShowerGPU(IntegrationLayer &integration, int event, adeptint::TrackBuffer &
     // *** GAMMAS ***
     int numGammas = gpuState.allmgr_h.trackmgr[ParticleType::Gamma]->fStats.fInFlight;
     if (numGammas > 0) {
-#ifndef DEBUG_SINGLE_THREAD
+#ifndef ADEPT_DEBUG_SINGLE_THREAD
       transportBlocks = (numGammas + TransportThreads - 1) / TransportThreads;
       transportBlocks = std::min(transportBlocks, MaxBlocks);
 #endif

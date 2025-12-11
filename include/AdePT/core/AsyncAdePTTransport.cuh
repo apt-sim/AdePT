@@ -14,7 +14,7 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/copcore/Ranluxpp.h>
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
 #include <AdePT/kernels/electrons_split.cuh>
 #include <AdePT/kernels/gammas_split.cuh>
 #else
@@ -121,7 +121,7 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTranspo
 {
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.initiallyActive);
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.nextActive);
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.propagation);
   for (int i = 0; i < ParticleQueues::numInteractions; i++) {
     adept::MParray::MakeInstanceAt(CapacityTransport, queues.interactionQueues[i]);
@@ -326,7 +326,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     // Clear queues and write statistics
     for (int i = threadIdx.x; i < ParticleType::NumParticleTypes; i += blockDim.x) {
       all.queues[i].initiallyActive->clear();
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
       all.queues[i].propagation->clear();
       for (int j = 0; j < ParticleQueues::numInteractions; j++) {
         all.queues[i].interactionQueues[j]->clear();
@@ -484,7 +484,7 @@ __global__ void ClearAllQueues(AllParticleQueues all)
     all.queues[i].nextActive->clear();
     // return after initially and nextActive queues are cleared for WDT, as the other pointers are null
     if (i == ParticleType::GammaWDT) return;
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
     all.queues[i].propagation->clear();
     for (int j = 0; j < ParticleQueues::numInteractions; j++) {
       all.queues[i].interactionQueues[j]->clear();
@@ -740,7 +740,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     particleType.queues.initiallyActive = static_cast<adept::MParray *>(gpuPtr);
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
     particleType.queues.nextActive = static_cast<adept::MParray *>(gpuPtr);
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
     particleType.queues.propagation = static_cast<adept::MParray *>(gpuPtr);
     for (int j = 0; j < ParticleQueues::numInteractions; j++) {
@@ -773,7 +773,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
            ParticleType::relativeQueueSize[i] * 100, trackCapacity);
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
     // Allocate an array of HepEm tracks per particle type
     switch (i) {
     case 0: // Electrons
@@ -1051,7 +1051,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           // it only has its own initiallyActive and nextActive queues.
       };
       const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
       const AllInteractionQueues allGammaInteractionQueues = {
           {gammas.queues.interactionQueues[0], gammas.queues.interactionQueues[1], gammas.queues.interactionQueues[2],
            nullptr, gammas.queues.interactionQueues[4]}};
@@ -1146,7 +1146,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(electrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
         ElectronHowFar<true><<<blocks, threads, 0, electrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, gpuState.stats_dev,
             allowFinishOffEvent);
@@ -1182,7 +1182,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(positrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
         ElectronHowFar<false><<<blocks, threads, 0, positrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, gpuState.stats_dev,
             allowFinishOffEvent);
@@ -1225,7 +1225,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gammas.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
         GammaHowFar<<<blocks, threads, 0, gammas.stream>>>(gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
                                                            gammas.queues.propagation, gpuState.stats_dev,
                                                            allowFinishOffEvent);

@@ -17,7 +17,7 @@
 using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
@@ -102,7 +102,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
       currentTrack.leakStatus = leakReason;
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
         particleManager.gammas.CopyTrackToLeaked(slot);
@@ -228,7 +228,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // next region is a GPU region
         if (regionId >= 0) {
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
           const adeptint::WDTDeviceView &view = gWDTData;
           const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
 
@@ -315,7 +315,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           // Deposit the energy here and kill the secondary
           edep = elKinEnergy;
         } else {
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
           Track &electron = particleManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
@@ -359,7 +359,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
         } else {
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
           Track &positron = particleManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
@@ -427,7 +427,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
           Track &electron = particleManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 #else
@@ -505,7 +505,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
           // Create a secondary electron and sample directions.
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
           Track &electron = particleManager.electrons.NextTrack(
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
@@ -580,7 +580,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     // finishing on CPU must be last one only sets the LeakStatus but does not affect survival of the track
     if (surviveFlag && leakReason == LeakStatus::NoLeak) {
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
         printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
@@ -599,7 +599,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     } else {
       isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
 #endif
     }
@@ -632,6 +632,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
   } // end for loop over tracks
 }
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 } // namespace AsyncAdePT
 #endif
