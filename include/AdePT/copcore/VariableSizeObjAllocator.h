@@ -51,7 +51,7 @@ public:
 
     value_type *result   = nullptr;
     std::size_t obj_size = T::SizeOfAlignAware(fCapacity);
-    COPCORE_CUDA_CHECK(cudaMallocManaged(&result, n * obj_size));
+    ADEPT_DEVICE_API_CALL(MallocManaged(&result, n * obj_size));
     char *buff = (char *)result;
 
     // allocate all objects at their aligned positions in the buffer
@@ -78,7 +78,7 @@ public:
     }
 
     // Release the memory
-    COPCORE_CUDA_CHECK(cudaFree(ptr));
+    ADEPT_DEVICE_API_CALL(Free(ptr));
     SetDevice(old_device);
   }
 
@@ -90,8 +90,8 @@ private:
   static int SetDevice(int new_device)
   {
     int old_device = -1;
-    COPCORE_CUDA_CHECK(cudaGetDevice(&old_device));
-    COPCORE_CUDA_CHECK(cudaSetDevice(new_device));
+    ADEPT_DEVICE_API_CALL(GetDevice(&old_device));
+    ADEPT_DEVICE_API_CALL(SetDevice(new_device));
     return old_device;
   }
 

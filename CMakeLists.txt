@@ -9,7 +9,7 @@ include(cmake/RecordCmdLine.cmake)
 project(AdePT
   VERSION 0.1.0
   DESCRIPTION "Accelerated demonstrator of electromagnetic Particle Transport"
-  LANGUAGES C CXX CUDA
+  LANGUAGES C CXX
 )
 
 #----------------------------------------------------------------------------#
@@ -56,6 +56,23 @@ option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used i
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
 option(ADEPT_BUILD_EXAMPLES "Build examples" OFF)
+option(ADEPT_USE_CUDA "Compile with nvcc" OFF)
+option(ADEPT_USE_HIP "Compile with hipcc" OFF)
+
+# Validate that only one of the GPU backends is selected
+if(ADEPT_USE_CUDA AND ADEPT_USE_HIP)
+  message(FATAL_ERROR "${Red}ADEPT_USE_CUDA and ADEPT_USE_HIP cannot both be ON.${ColorReset}")
+elseif(NOT ADEPT_USE_CUDA AND NOT ADEPT_USE_HIP)
+  message(FATAL_ERROR "${Red}Both ADEPT_USE_CUDA and ADEPT_USE_HIP are OFF, please enable one backend.${ColorReset}")
+endif()
+
+if(ADEPT_USE_CUDA)
+  enable_language(CUDA)
+  message(STATUS "${Green}CUDA backend enabled${ColorReset}")
+else()
+  message(STATUS "${Green}HIP backend enabled${ColorReset}")
+endif()
+
 
 # Ensure that ctest is enabled when ADEPT_BUILD_TESTING is ON
 if(ADEPT_BUILD_TESTING)
@@ -147,8 +164,10 @@ endif()
 #----------------------------------------------------------------------------#
 # Dependencies
 #----------------------------------------------------------------------------#
-# With CUDA language enabled above, this should find the toolkit alongside the compiler
-find_package(CUDAToolkit REQUIRED)
+if(ADEPT_USE_CUDA)
+  # With CUDA language enabled above, this should find the toolkit alongside the compiler
+  find_package(CUDAToolkit REQUIRED)
+endif()
 
 #Find VecCore with correct backend
 set(VecCore_VERSION 0.5.2)

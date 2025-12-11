@@ -10,7 +10,7 @@
 #include <AdePT/core/PerEventScoringImpl.cuh>
 #include <AdePT/core/Track.cuh>
 #include <AdePT/magneticfield/GeneralMagneticField.cuh>
-#include <AdePT/magneticfield/UniformMagneticField.cuh>
+#include <AdePT/magneticfield/UniformMagneticField.h>
 
 #include <AdePT/base/SlotManager.cuh>
 #include <AdePT/base/ResourceManagement.cuh>
@@ -338,15 +338,15 @@ struct GPUstate {
 
   ~GPUstate()
   {
-    if (stats) COPCORE_CUDA_CHECK(cudaFreeHost(stats));
-    if (stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
+    if (stats) ADEPT_DEVICE_API_CALL(FreeHost(stats));
+    if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(stream));
 
     for (ParticleType &particleType : particles) {
-      if (particleType.stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(particleType.stream));
-      if (particleType.event) COPCORE_CUDA_CHECK(cudaEventDestroy(particleType.event));
+      if (particleType.stream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.stream));
+      if (particleType.event) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.event));
     }
     for (void *ptr : allCudaPointers) {
-      COPCORE_CUDA_CHECK(cudaFree(ptr));
+      ADEPT_DEVICE_API_CALL(Free(ptr));
     }
     allCudaPointers.clear();
   }

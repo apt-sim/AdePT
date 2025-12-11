@@ -3,6 +3,8 @@
 #ifndef RESOURCE_MANAGEMENT_CUH
 #define RESOURCE_MANAGEMENT_CUH
 
+#include <AdePT/core/Portability.hh>
+
 #include <memory>
 #include <AdePT/base/ResourceManagement.hh>
 #include "AdePT/copcore/Global.h"
@@ -11,22 +13,22 @@ namespace AsyncAdePT {
 
 void freeCuda(void *ptr)
 {
-  if (ptr) COPCORE_CUDA_CHECK(cudaFree(ptr));
+  if (ptr) ADEPT_DEVICE_API_CALL(Free(ptr));
 }
 
 void freeCudaHost(void *ptr)
 {
-  if (ptr) COPCORE_CUDA_CHECK(cudaFreeHost(ptr));
+  if (ptr) ADEPT_DEVICE_API_CALL(FreeHost(ptr));
 }
 
 void freeCudaStream(void *stream)
 {
-  if (stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(*static_cast<cudaStream_t *>(stream)));
+  if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(*static_cast<cudaStream_t *>(stream)));
 }
 
 void freeCudaEvent(void *event)
 {
-  if (event) COPCORE_CUDA_CHECK(cudaEventDestroy(*static_cast<cudaEvent_t *>(event)));
+  if (event) ADEPT_DEVICE_API_CALL(EventDestroy(*static_cast<cudaEvent_t *>(event)));
 }
 
 // Instantiate the deleters for specific types.

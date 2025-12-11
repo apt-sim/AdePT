@@ -41,7 +41,8 @@ public:
   __host__ __device__ ~SlotManager()
   {
 #ifndef __CUDA_ARCH__
-    if (fSlotList) COPCORE_CUDA_CHECK(cudaFree(fSlotList));
+    // FIXME: Add try-catch here
+    if (fSlotList) ADEPT_DEVICE_API_CALL(Free(fSlotList));
 #endif
   }
 
