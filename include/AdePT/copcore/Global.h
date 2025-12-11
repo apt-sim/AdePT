@@ -13,6 +13,8 @@
 #include <type_traits>
 #include <AdePT/copcore/Macros.h>
 
+#include <AdePT/core/Portability.hh>
+
 #ifdef COPCORE_CUDA_COMPILER
 // Compiling with nvcc
 #define COPCORE_IMPL cuda
@@ -63,8 +65,8 @@ static inline int get_num_SMs()
 static inline int get_num_SMs()
 {
   int deviceId, numSMs;
-  COPCORE_CUDA_CHECK(cudaGetDevice(&deviceId));
-  COPCORE_CUDA_CHECK(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, deviceId));
+  ADEPT_DEVICE_API_CALL(GetDevice(&deviceId));
+  ADEPT_DEVICE_API_CALL(DeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, deviceId));
   return numSMs;
 }
 #endif
@@ -79,7 +81,7 @@ struct StreamType {
 template <>
 struct StreamType<BackendType::CUDA> {
   using value_type = cudaStream_t;
-  static void CreateStream(value_type &stream) { COPCORE_CUDA_CHECK(cudaStreamCreate(&stream)); }
+  static void CreateStream(value_type &stream) { ADEPT_DEVICE_API_CALL(StreamCreate(&stream)); }
 };
 #endif
 

@@ -33,6 +33,8 @@ using cuda_field_t = covfie::field<
 using field_view_t = typename cuda_field_t::view_t;
 #endif
 
+// namespace adept_impl {
+
 class GeneralMagneticField {
 public:
   GeneralMagneticField() = default;
@@ -62,9 +64,9 @@ public:
     // Create the field view for the device data
     field_view_t fieldView(*fFieldMap);
     // Allocate device memory for the field view
-    COPCORE_CUDA_CHECK(cudaMalloc(&fFieldView, sizeof(field_view_t)));
+    ADEPT_DEVICE_API_CALL(Malloc(&fFieldView, sizeof(field_view_t)));
     // Copy the field view to device
-    COPCORE_CUDA_CHECK(cudaMemcpy(fFieldView, &fieldView, sizeof(field_view_t), cudaMemcpyHostToDevice));
+    ADEPT_DEVICE_API_CALL(Memcpy(fFieldView, &fieldView, sizeof(field_view_t), cudaMemcpyHostToDevice));
     return true;
 #endif
     return false;
@@ -111,5 +113,7 @@ private:
   field_view_t *fFieldView = nullptr;      // Device-stored field view, needed to access the data
 #endif
 };
+
+// } // namespace adept_impl
 
 #endif // GeneralMagneticField_H__
