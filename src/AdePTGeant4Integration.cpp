@@ -486,7 +486,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
   fScoringObjects->fG4Step->DeleteSecondaryVector();
 }
 
-void AdePTGeant4Integration::FillG4NavigationHistory(vecgeom::NavigationState aNavState,
+void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
                                                      G4NavigationHistory &aG4NavigationHistory) const
 {
   // Get the current depth of the history (corresponding to the previous reconstructed touchable)
@@ -895,15 +895,18 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
     leakedTrack->SetTrackStatus(fStopButAlive);
   }
 
+  // Set the Touchable and NextTouchable handle. This is always needed, as either
+  // gamma-/lepton-nuclear need it, or potentially any user stacking action, as this is called
+  // before the track is handed back to AdePT
+  auto NavigationHistory = std::make_unique<G4NavigationHistory>();
+  FillG4NavigationHistory(track.navState, *NavigationHistory);
+  auto TouchableHistory = std::make_unique<G4TouchableHistory>(*NavigationHistory);
+  G4TouchableHandle TouchableHandle(TouchableHistory.release() /* Now owned by G4TouchableHandle */);
+  leakedTrack->SetTouchableHandle(TouchableHandle);
+  leakedTrack->SetNextTouchableHandle(TouchableHandle);
+
   // handle gamma- and lepton-nuclear directly in G4HepEm
   if (track.leakStatus == LeakStatus::GammaNuclear || track.leakStatus == LeakStatus::LeptonNuclear) {
-
-    // AS ABOVE the current touchable is set as it is needed for gamma-/lepton- nuclear
-    auto NavigationHistory = std::make_unique<G4NavigationHistory>();
-    FillG4NavigationHistory(track.navState, *NavigationHistory);
-    auto TouchableHistory = std::make_unique<G4TouchableHistory>(*NavigationHistory);
-    G4TouchableHandle TouchableHandle(TouchableHistory.release() /* Now owned by G4TouchableHandle */);
-    leakedTrack->SetTouchableHandle(TouchableHandle);
 
     // create a new step
     G4Step *step = new G4Step();
