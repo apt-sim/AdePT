@@ -1294,11 +1294,16 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // *** Count detailed event statistics ***
       // ---------------------------------------
       {
+        // Advancing the state machine from Injection to WaitingForTransportToFinish:
+        // InjectionCompleted is set via a host function callback as soon as the EnqueueTracks kernel finishes.
+        // However, as the EnqueueTracks and CountCurrentPopulation can run in parallel, the population count in this
+        // iteration does not guarantee to include the tracks that were enqueued in this iteration. Thus, when the
+        // EventState is advanced one iteration later from Transporting to WaitingForTransportToFinish it IS guaranteed
+        // that the injection must have finished in the iteration before and that the counting of the population
+        // includes all injected tracks correctly. Therefore, if the EventState WaitingForTransportToFinish is reached
+        // and a population of 0, it guarantees that indeed the transport has finished
         AdvanceEventStates(EventState::Transporting, EventState::WaitingForTransportToFinish, eventStates);
         AdvanceEventStates(EventState::InjectionCompleted, EventState::Transporting, eventStates);
-
-        // ensure that enqueuing is finished. The population count should see the injected tracks
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(statsStream, enqueueDoneEvent, 0));
 
         // Reset all counters count the currently flying population
         ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
