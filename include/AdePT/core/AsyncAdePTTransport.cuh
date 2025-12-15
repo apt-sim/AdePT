@@ -930,15 +930,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   // Auxiliary struct used to keep track of the queues that need flushing
   AllLeaked allLeaked{nullptr, nullptr, nullptr};
 
-  cudaEvent_t cudaEvent, cudaStatsEvent, enqueueDoneEvent;
+  cudaEvent_t cudaEvent, cudaStatsEvent;
   cudaStream_t hitTransferStream, injectStream, extractStream, statsStream;
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
   COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaStatsEvent, cudaEventDisableTiming));
-  COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&enqueueDoneEvent, cudaEventDisableTiming));
   unique_ptr_cuda<cudaEvent_t> cudaEventCleanup{&cudaEvent};
   unique_ptr_cuda<cudaEvent_t> cudaStatsEventCleanup{&cudaStatsEvent};
-  unique_ptr_cuda<cudaEvent_t> enqueueDoneEventCleanup{&enqueueDoneEvent};
-  cudaEventRecord(enqueueDoneEvent, gpuState.stream); // prime first event to avoid possible stall on first iteration
   COPCORE_CUDA_CHECK(cudaStreamCreate(&hitTransferStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&injectStream));
   COPCORE_CUDA_CHECK(cudaStreamCreate(&extractStream));
@@ -1130,9 +1127,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         // Enqueue into per-particle queues
         EnqueueTracks<<<1, 256, 0, gpuState.stream>>>(allParticleQueues, gpuState.injectionQueue);
-
-        // Event marks enqueue completion for this iteration
-        COPCORE_CUDA_CHECK(cudaEventRecord(enqueueDoneEvent, gpuState.stream));
 
         auto *ctx = new EnqueueDoneCtx{&eventStates, &gpuState.injectState};
         COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
