@@ -65,6 +65,7 @@ __global__ void __launch_bounds__(256, 1)
 
     bool isLastStep       = returnLastStep;
     LeakStatus leakReason = LeakStatus::NoLeak;
+    bool leftWDTRegion    = false;
     // initialize nextState to current state
     vecgeom::NavigationState nextState = currentTrack.navState;
     double globalTime                  = currentTrack.globalTime;
@@ -74,7 +75,7 @@ __global__ void __launch_bounds__(256, 1)
     //
     // survive: decide whether to continue woodcock tracking or not:
     // Write local variables back into track and enqueue to correct queue
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak, bool leftWDTRegion = false) {
+    auto survive = [&]() {
       isLastStep = false; // set to false even for gamma nuclear, as the hostTrackData is deleted when invoking the
                           // reaction on CPU
       currentTrack.eKin       = eKin;
@@ -354,7 +355,6 @@ __global__ void __launch_bounds__(256, 1)
 
     // helper variables needed for the processes
     bool surviveFlag           = false;
-    bool leftWDTRegion         = false;
     short stepDefinedProcessId = 10; // default for transportation
     double edep                = 0.;
     auto preStepEnergy         = eKin;
@@ -716,7 +716,7 @@ __global__ void __launch_bounds__(256, 1)
     }
 
     if (surviveFlag) {
-      survive(leakReason, leftWDTRegion);
+      survive();
     } else {
       isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
