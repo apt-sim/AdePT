@@ -6,7 +6,7 @@
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 namespace AsyncAdePT {
 
 // Helper function to decide whether a gamma should be processed via Woodcock tracking based on navigation state and

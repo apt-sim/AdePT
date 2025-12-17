@@ -11,7 +11,7 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavigationState.h>
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
 #include <G4HepEmRandomEngine.hh>
 #endif
 
@@ -23,7 +23,7 @@ struct Track {
   double globalTime{0.};
 
   float weight{0.};
-#ifndef USE_SPLIT_KERNELS
+#ifndef ADEPT_USE_SPLIT_KERNELS
   float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
 #endif
   // default values taken from G4HepEmMSCTrackData.hh
@@ -43,7 +43,7 @@ struct Track {
   vecgeom::NavigationState navState;       ///< current navigation state
   vecgeom::NavigationState originNavState; ///< navigation state where the vertex was created
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
   // Variables used to store track info needed for scoring
   vecgeom::NavigationState nextState;
   vecgeom::NavigationState preStepNavState;
@@ -66,7 +66,7 @@ struct Track {
   unsigned short looperCounter{0};
   unsigned short zeroStepCounter{0};
 
-#ifdef USE_SPLIT_KERNELS
+#ifdef ADEPT_USE_SPLIT_KERNELS
   bool propagated{false};
   bool hepEmTrackExists{false};
 
@@ -151,7 +151,7 @@ struct Track {
   __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<double> &parentPos,
                                            const vecgeom::NavigationState &parentNavState, double gTime)
   {
-#ifndef USE_SPLIT_KERNELS
+#ifndef ADEPT_USE_SPLIT_KERNELS
     // The caller is responsible to branch a new RNG state and to set the energy.
     this->numIALeft[0] = -1.0;
     this->numIALeft[1] = -1.0;

@@ -42,7 +42,7 @@ __device__ double GetVelocity(double eKin)
   return copcore::units::kCLight * beta;
 }
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 namespace AsyncAdePT {
 
 // Compute the physics and geometry step limit, transport the electrons while
@@ -163,7 +163,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
       currentTrack.leakStatus = leakReason;
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
         electronsOrPositrons.CopyTrackToLeaked(slot);
@@ -570,7 +570,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
 
           } else {
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
             Track &secondary = particleManager.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
@@ -652,7 +652,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             if (verbose) printf("| secondary killed by cut \n");
 #endif
           } else {
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
             // check for Woodcock tracking
             const bool useWDT      = ShouldUseWDT(navState, deltaEkin);
             auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
@@ -735,7 +735,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += theGamma1Ekin;
 
           } else {
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
             const bool useWDT      = ShouldUseWDT(navState, theGamma1Ekin);
             auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
             Track &gamma1 =
@@ -781,7 +781,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += theGamma2Ekin;
 
           } else {
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
             const bool useWDT      = ShouldUseWDT(navState, theGamma2Ekin);
             auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
             Track &gamma2 =
@@ -861,7 +861,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // as the branched newRNG may have already been used by interactions before, we need to create a new one
           RanluxppDouble newRNG2(currentTrack.rngState.Branch());
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 
           const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});
           auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
@@ -965,7 +965,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // this one always needs to be last as it needs to be done only if the track survives
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
     if (surviveFlag) {
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
@@ -985,7 +985,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     } else {
       isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
 #endif
     }
@@ -1016,7 +1016,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 }
 
 // Instantiate kernels for electrons and positrons.
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportElectrons(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
                                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
@@ -1050,6 +1050,6 @@ __global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Second
 }
 #endif
 
-#ifdef ASYNC_MODE
+#ifdef ADEPT_ASYNC_MODE
 } // namespace AsyncAdePT
 #endif

@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ASYNC_MODE
+#ifndef ADEPT_ASYNC_MODE
 #include <AdePT/core/AdePTTransport.cuh>
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 #else
 #include <AdePT/core/AsyncAdePTTransport.cuh>
 #endif
 
-#ifndef ASYNC_MODE
+#ifndef ADEPT_ASYNC_MODE
 
 // Explicit instantiation of the ShowerGPU<AdePTGeant4Integration> function
 namespace adept_impl {
