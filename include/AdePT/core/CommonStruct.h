@@ -252,8 +252,8 @@ struct TrackBuffer {
 
   TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, unsigned short nThread);
 
-  ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex]; }
-  void swapToDeviceBuffers() { toDeviceIndex = (toDeviceIndex + 1) % 2; }
+  ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex.load()]; }
+  void swapToDeviceBuffers() { toDeviceIndex.store((toDeviceIndex + 1) % 2); }
 
   /// A handle to access TrackData vectors while holding a lock
   struct TrackHandle {
@@ -269,20 +269,34 @@ struct TrackBuffer {
   {
     bool warningIssued = false;
     while (true) {
-      auto &toDevice = getActiveBuffer();
-      std::shared_lock lock{toDevice.mutex};
-      const auto slot = toDevice.nTrack.fetch_add(1, std::memory_order_relaxed);
+      // get the current device buffer and store the index
+      auto idx       = toDeviceIndex.load();
+      auto &toDevice = toDeviceBuffer[idx];
 
-      if (slot < toDevice.maxTracks)
-        return TrackHandle{toDevice.tracks[slot], std::move(lock)};
-      else {
-        if (!warningIssued) {
-          std::cerr << __FILE__ << ':' << __LINE__ << " Contention in to-device queue; thread sleeping" << std::endl;
-          warningIssued = true;
+      {
+        // grab a shared lock.
+        // Attention: between grabbing the current buffer and locking here, the buffer may have been swapped out by the
+        // AdePT transport thread
+        std::shared_lock lock{toDevice.mutex};
+
+        // Re-check whether this is still the active buffer
+        if (toDeviceIndex.load() != idx) {
+          // Locked an old buffer; release lock and retry with the new one.
+          continue;
         }
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(1ms);
+        const auto slot = toDevice.nTrack.fetch_add(1, std::memory_order_relaxed);
+
+        if (slot < toDevice.maxTracks) {
+          return TrackHandle{toDevice.tracks[slot], std::move(lock)};
+        }
+      } // shared lock goes out of scope before sleeping
+
+      if (!warningIssued) {
+        std::cerr << __FILE__ << ':' << __LINE__ << " Contention in to-device queue; thread sleeping" << std::endl;
+        warningIssued = true;
       }
+      using namespace std::chrono_literals;
+      std::this_thread::sleep_for(1ms);
     }
   }
 
