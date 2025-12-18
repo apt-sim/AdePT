@@ -91,7 +91,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 #endif
 
     // Write local variables back into track and enqueue
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak, bool enterWDTRegion = false) {
+    auto survive = [&]() {
       isLastStep = false; // set to false even for gamma nuclear, as the hostTrackData is deleted when invoking the
                           // reaction on CPU
       currentTrack.eKin       = eKin;
@@ -595,7 +595,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
     __syncwarp();
 
     if (surviveFlag) {
-      survive(leakReason, enterWDTRegion);
+      survive();
     } else {
       isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot

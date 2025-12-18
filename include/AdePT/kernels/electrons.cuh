@@ -153,7 +153,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     printErrors = !gTrackDebug.active || verbose;
 #endif
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
+    auto survive = [&]() {
       isLastStep              = false; // track survived, do not force return of step
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
@@ -533,7 +533,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| delta interaction\n");
 #endif
-        // survive();
         surviveFlag = true;
       } else {
         // Perform the discrete interaction, make sure the branched RNG state is
@@ -981,7 +980,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     __syncwarp(); // was found to be beneficial after divergent calls
 
     if (surviveFlag) {
-      survive(leakReason);
+      survive();
     } else {
       isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
