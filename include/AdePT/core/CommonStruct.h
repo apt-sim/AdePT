@@ -252,8 +252,8 @@ struct TrackBuffer {
 
   TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, unsigned short nThread);
 
-  ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex.load(std::memory_order_acquire)]; }
-  void swapToDeviceBuffers() { toDeviceIndex = (toDeviceIndex + 1) % 2; }
+  ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex.load()]; }
+  void swapToDeviceBuffers() { toDeviceIndex.store((toDeviceIndex + 1) % 2); }
 
   /// A handle to access TrackData vectors while holding a lock
   struct TrackHandle {
