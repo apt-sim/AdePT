@@ -270,7 +270,7 @@ struct TrackBuffer {
     bool warningIssued = false;
     while (true) {
       // get the current device buffer and store the index
-      auto idx       = toDeviceIndex.load(std::memory_order_acquire);
+      auto idx       = toDeviceIndex.load();
       auto &toDevice = toDeviceBuffer[idx];
 
       {
@@ -280,7 +280,7 @@ struct TrackBuffer {
         std::shared_lock lock{toDevice.mutex};
 
         // Re-check whether this is still the active buffer
-        if (toDeviceIndex.load(std::memory_order_acquire) != idx) {
+        if (toDeviceIndex.load() != idx) {
           // Locked an old buffer; release lock and retry with the new one.
           continue;
         }
