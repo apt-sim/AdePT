@@ -76,6 +76,7 @@ __host__ __device__ static void to_ranlux(const uint64_t *lcg, uint64_t *ranlux,
     uint64_t ranlux_i = ranlux[i];
     ranlux_i          = add_overflow(ranlux_i, carry, carry);
     ranlux_i          = add_carry(ranlux_i, c1, carry);
+    ranlux[i]         = ranlux_i;
   }
 
   c_out = carry;
