@@ -466,6 +466,10 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
   case 2:
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
     break;
+  default:
+    std::cerr << "Error: unknown particle type " << static_cast<int>(static_cast<unsigned char>(hit.fParticleType))
+              << "\n";
+    std::abort();
   }
   FillG4Step(&hit, fScoringObjects->fG4Step, *fScoringObjects->fPreG4TouchableHistoryHandle,
              *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,

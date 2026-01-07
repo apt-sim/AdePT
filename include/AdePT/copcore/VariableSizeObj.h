@@ -171,6 +171,7 @@ public:
     // Copy data content using memcpy, limited by the respective size
     // of the the object.  If this is smaller there is data truncation,
     // if this is larger the extra datum are zero to zero.
+    if (this == &rhs) return *this;
 
     if (rhs.fN == fN) {
       memcpy(GetValues(), rhs.GetValues(), rhs.fN * sizeof(V));
