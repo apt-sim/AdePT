@@ -126,8 +126,8 @@ public:
 
     n -= left;
     // Need to advance and possibly skip over blocks.
-    int nPerState = kMaxPos / w;
-    int skip      = (n / nPerState);
+    const uint64_t nPerState = static_cast<uint64_t>(kMaxPos / w);
+    const uint64_t skip      = n / nPerState;
 
     uint64_t a_skip[9];
     powermod(kA, a_skip, skip + 1);
@@ -138,7 +138,8 @@ public:
     to_ranlux(lcg, fState, fCarry);
 
     // Potentially skip numbers in the freshly generated block.
-    int remaining = n - skip * nPerState;
+    // 'remaining' is in [0, nPerState), so it safely fits in int.
+    const int remaining = static_cast<int>(n - skip * nPerState);
     assert(remaining >= 0 && "should not end up at a negative position!");
     fPosition = remaining * w;
     assert(fPosition <= kMaxPos && "position out of range!");
