@@ -9,7 +9,7 @@
 // #include <AdePT/core/AsyncAdePTTransport.hh>
 #include <AdePT/core/PerEventScoringImpl.cuh>
 #include <AdePT/core/Track.cuh>
-#include <AdePT/magneticfield/GeneralMagneticField.h>
+#include <AdePT/magneticfield/GeneralMagneticField.cuh>
 #include <AdePT/magneticfield/UniformMagneticField.h>
 
 #include <AdePT/base/SlotManager.cuh>
@@ -275,6 +275,12 @@ struct QueueIndexPair {
 };
 
 struct GPUstate {
+
+#ifdef ADEPT_USE_EXT_BFIELD
+  // If using a general magnetic field, GPUstate will store the host-side instance
+  GeneralMagneticField magneticField;
+#endif
+
   ParticleType particles[ParticleType::NumParticleTypes];
   // GammaInteractions gammaInteractions; // Note: deprecated gammaInteractions for split gamma kernels
 

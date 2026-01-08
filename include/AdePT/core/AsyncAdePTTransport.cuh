@@ -671,7 +671,7 @@ void FlushScoring(AdePTScoring &scoring)
 std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int leakCapacity, int scoringCapacity,
                                                          int numThreads, TrackBuffer &trackBuffer,
                                                          std::vector<AdePTScoring> &scoring, double CPUCapacityFactor,
-                                                         double CPUCopyFraction)
+                                                         double CPUCopyFraction, std::string &bfieldFile)
 {
   auto gpuState_ptr  = std::unique_ptr<GPUstate, GPUstateDeleter>(new GPUstate());
   GPUstate &gpuState = *gpuState_ptr;
@@ -701,6 +701,20 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     }
     if (emplaceForAutoDelete) gpuState.allCudaPointers.push_back(devPtr);
   };
+
+#ifdef ADEPT_USE_EXT_BFIELD
+  if (!bfieldFile.empty()) {
+    // Initialize magnetic field data from file
+    if (!gpuState.magneticField.InitializeFromFile(bfieldFile)) {
+      throw std::runtime_error("AsyncAdePTTransport::InitializeGPU cannot initialize GeneralMagneticField on GPU");
+    }
+
+    // Copy the GeneralMagneticField instance to GPU and setup the global view pointer
+    if (!async_adept_impl::InitializeBField(gpuState.magneticField)) {
+      throw std::runtime_error("AsyncAdePTTransport::InitializeBField cannot initialize GeneralMagneticField on GPU");
+    }
+  }
+#endif
 
   // Create a stream to synchronize kernels of all particle types.
   COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
