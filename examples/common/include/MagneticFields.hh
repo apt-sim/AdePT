@@ -61,7 +61,7 @@ public:
       if (!ifs.good()) throw std::runtime_error("Failed to open field file: " + filename);
 
       // Covfie requires that the B field type of the writer is the same as the B field type of the reader
-      // For the GPU B field in `GeneralMagneticField.h` no clamping of the field is possible, as this is done
+      // For the GPU B field in `GeneralMagneticField.cuh` no clamping of the field is possible, as this is done
       // automatically by the texture memory. Therefore, unclamped B fields must be generated as the IO B field. To
       // avoid out-of-bounds accesses on the CPU, a clamped field is generated and used on the CPU
       cpu_field_t IoField = cpu_field_t(ifs);

@@ -24,14 +24,10 @@
 namespace adept_impl {
 /// Forward declarations for methods implemented in AdePTTransport.cu
 using TrackBuffer = adeptint::TrackBuffer;
-template <typename FieldType>
-bool InitializeBField(FieldType &);
-template <typename FieldType>
-void FreeField();
 bool InitializeVolAuxArray(adeptint::VolAuxArray &);
 void FreeVolAuxArray(adeptint::VolAuxArray &);
 G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
-GPUstate *InitializeGPU(TrackBuffer &, int, int);
+GPUstate *InitializeGPU(TrackBuffer &, int, int, std::string &, const std::vector<float> &);
 AdeptScoring *InitializeScoringGPU(AdeptScoring *scoring);
 void CopySurfaceModelToGPU();
 void FreeGPU(GPUstate &, G4HepEmState *, bool);
@@ -61,37 +57,6 @@ AdePTTransport<IntegrationLayer>::AdePTTransport(AdePTConfiguration &configurati
 
   printf("AdePT Allocated track capacity: %d tracks\n", fCapacity);
   printf("AdePT Allocated step buffer capacity: %d tracks\n", fHitBufferCapacity);
-}
-
-template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializeBField()
-{
-  if (!fBfieldFile.empty()) {
-    // Initialize magnetic field data from file
-    if (!fMagneticField.InitializeFromFile(fBfieldFile)) {
-      return false;
-    }
-
-    // Delegate the setup of the global view pointer to adept_impl
-    return adept_impl::InitializeBField(fMagneticField);
-  }
-  return true; // no file provided, but no error encountered, so true is returned
-}
-
-template <typename IntegrationLayer>
-bool AdePTTransport<IntegrationLayer>::InitializeBField(UniformMagneticField &Bfield)
-{
-  vecgeom::Vector3D<float> position{
-      0.,
-      0.,
-      0.,
-  };
-  auto field_value = Bfield.Evaluate(position);
-  if (field_value.Mag2() > 0) {
-    // Delegate the setup of the global view pointer to adept_impl
-    return adept_impl::InitializeBField(Bfield);
-  }
-  return true; // no B field provided, but no error encountered, so true is returned
 }
 
 template <typename IntegrationLayer>
@@ -191,19 +156,6 @@ void AdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpeciali
     if (!InitializePhysics(hepEmTM->GetConfig()))
       throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize physics on GPU");
 
-#ifdef ADEPT_USE_EXT_BFIELD
-    // Try to initialize field from file
-    if (!InitializeBField()) {
-      throw std::runtime_error(
-          "AdePTTransport<IntegrationLayer>::Initialize cannot initialize GeneralMagneticField on GPU");
-    }
-#else
-    auto field_values                            = fIntegrationLayer.GetUniformField(); // Get the field value
-    std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(field_values);
-    if (!InitializeBField(*Bfield))
-      throw std::runtime_error("AdePTTransport<IntegrationLayer>::Initialize cannot initialize field on GPU");
-#endif
-
     // Do the material-cut couple index mapping once
     // as well as set flags for sensitive volumes and region
 
@@ -237,7 +189,8 @@ void AdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpeciali
   fScoring = new AdeptScoring(fHitBufferCapacity);
 
   // Initialize the transport engine for the current thread
-  fGPUstate    = adept_impl::InitializeGPU(fBuffer, fCapacity, fMaxBatch);
+  fGPUstate =
+      adept_impl::InitializeGPU(fBuffer, fCapacity, fMaxBatch, fBfieldFile, fIntegrationLayer.GetUniformField());
   fScoring_dev = adept_impl::InitializeScoringGPU(fScoring);
 
   fInit = true;

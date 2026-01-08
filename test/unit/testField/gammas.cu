@@ -4,6 +4,7 @@
 #include "testField.cuh"
 
 #include <AdePT/navigation/AdePTNavigator.h>
+#include <AdePT/magneticfield/UniformMagneticField.cuh>
 
 #include <AdePT/copcore/PhysicalConstants.h>
 

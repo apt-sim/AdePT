@@ -9,7 +9,7 @@
 
 #include <VecGeom/base/Vector3D.h>
 #include <AdePT/magneticfield/MagneticFieldEquation.h>
-#include <AdePT/magneticfield/UniformMagneticField.h>
+#include <AdePT/magneticfield/UniformMagneticField.cuh>
 #include <AdePT/magneticfield/PrintFieldVectors.h>
 #include <AdePT/magneticfield/ConstFieldHelixStepper.h>
 #include <AdePT/magneticfield/DormandPrinceRK45.h>

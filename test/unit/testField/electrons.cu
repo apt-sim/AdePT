@@ -12,6 +12,7 @@
 #include <AdePT/magneticfield/DormandPrinceRK45.h>
 #include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
 #include <AdePT/magneticfield/fieldPropagatorConstBz.h>
+#include <AdePT/magneticfield/UniformMagneticField.cuh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>

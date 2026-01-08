@@ -13,8 +13,6 @@
 #include <AdePT/core/AdePTScoringTemplate.cuh>
 #include <AdePT/core/HostScoringStruct.cuh>
 #include <AdePT/core/AdePTConfiguration.hh>
-#include <AdePT/magneticfield/GeneralMagneticField.h>
-#include <AdePT/magneticfield/UniformMagneticField.h>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
@@ -112,17 +110,14 @@ private:
   TrackBuffer fBuffer;                                 ///< Vector of buffers of tracks to/from device (per thread)
   std::vector<std::string> const *fGPURegionNames{};   ///< Regions that are run on GPU
   std::vector<std::string> const *fCPURegionNames{};   ///< Regions that are run on CPU
-  IntegrationLayer fIntegrationLayer;  ///< Provides functionality needed for integration with the simulation toolkit
-  bool fInit{false};                   ///< Service initialized flag
-  bool fTrackInAllRegions;             ///< Whether the whole geometry is a GPU region
-  std::string fBfieldFile{""};         ///< Path to magnetic field file (in the covfie format)
-  GeneralMagneticField fMagneticField; ///< arbitrary magnetic field
+  IntegrationLayer fIntegrationLayer; ///< Provides functionality needed for integration with the simulation toolkit
+  bool fInit{false};                  ///< Service initialized flag
+  bool fTrackInAllRegions;            ///< Whether the whole geometry is a GPU region
+  std::string fBfieldFile{""};        ///< Path to magnetic field file (in the covfie format)
 
   /// @brief Used to map VecGeom to Geant4 volumes for scoring
   void InitializeSensitiveVolumeMapping(const G4VPhysicalVolume *g4world, const vecgeom::VPlacedVolume *world);
   void InitBVH();
-  bool InitializeBField();
-  bool InitializeBField(UniformMagneticField &Bfield);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
 };

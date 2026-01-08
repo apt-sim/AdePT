@@ -16,8 +16,6 @@
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/PerEventScoringStruct.cuh>
-#include <AdePT/magneticfield/GeneralMagneticField.h>
-#include <AdePT/magneticfield/UniformMagneticField.h>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
@@ -71,8 +69,7 @@ private:
   // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction
   bool fReturnAllSteps         = false;
   bool fReturnFirstAndLastStep = false;
-  std::string fBfieldFile{""};         ///< Path to magnetic field file (in the covfie format)
-  GeneralMagneticField fMagneticField; ///< arbitrary magnetic field
+  std::string fBfieldFile{""}; ///< Path to magnetic field file (in the covfie format)
   double fCPUCapacityFactor{
       2.5}; ///< Factor by which the ScoringCapacity on Host is larger than on Device. Must be at least 2
   ///< Filling fraction of the ScoringCapacity on host when the hits are copied out and not taken directly by the
@@ -83,8 +80,6 @@ private:
 
   void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM);
   void InitBVH();
-  bool InitializeBField();
-  bool InitializeBField(UniformMagneticField &Bfield);
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
   void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);

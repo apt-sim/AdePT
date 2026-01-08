@@ -10,7 +10,6 @@
 
 #include "fieldConstants.h" // For kB2C factor with units
 
-#include "UniformMagneticField.h"
 #include <AdePT/magneticfield/RkIntegrationDriver.h>
 
 #include <VecGeom/navigation/NavigationState.h>

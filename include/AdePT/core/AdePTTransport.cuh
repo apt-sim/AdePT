@@ -8,7 +8,7 @@
 #include <AdePT/core/HostScoringStruct.cuh>
 #include <AdePT/core/HostScoringImpl.cuh>
 #include <AdePT/core/AdePTTransportStruct.cuh>
-#include <AdePT/magneticfield/GeneralMagneticField.h>
+#include <AdePT/magneticfield/GeneralMagneticField.cuh>
 
 #include <AdePT/base/Atomic.h>
 #include <AdePT/navigation/AdePTNavigator.h>
@@ -333,11 +333,41 @@ void CopySurfaceModelToGPU()
 #endif
 }
 
-GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatch)
+GPUstate *InitializeGPU(adeptint::TrackBuffer &buffer, int capacity, int maxbatch, std::string &generalBfieldFile,
+                        const std::vector<float> &uniformBfieldValues)
 {
   using TrackData   = adeptint::TrackData;
   auto gpuState_ptr = new GPUstate;
   auto &gpuState    = *gpuState_ptr;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+  if (!generalBfieldFile.empty()) {
+    // Initialize magnetic field data from file
+    if (!gpuState.magneticField.InitializeFromFile(generalBfieldFile)) {
+      throw std::runtime_error("AsyncAdePTTransport::InitializeGPU cannot initialize GeneralMagneticField on GPU");
+    }
+
+    // Copy the GeneralMagneticField instance to GPU and setup the global view pointer
+    if (!adept_impl::InitializeBField(gpuState.magneticField)) {
+      throw std::runtime_error("AsyncAdePTTransport::InitializeBField cannot initialize GeneralMagneticField on GPU");
+    }
+  }
+#else
+  vecgeom::Vector3D<float> bfieldValues({uniformBfieldValues[0], uniformBfieldValues[1], uniformBfieldValues[2]});
+  std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(bfieldValues);
+
+  vecgeom::Vector3D<float> position{
+      0.,
+      0.,
+      0.,
+  };
+  auto field_value = Bfield->Evaluate(position);
+  if (field_value.Mag2() > 0) {
+    if (!InitializeBField(*Bfield))
+      throw std::runtime_error("AsyncAdePTTransport::InitializeBField cannot initialize UniformMagneticField on GPU");
+  }
+#endif
+
   // Allocate track managers, streams and synchronization events.
   const size_t kQueueSize = MParrayTracks::SizeOfInstance(capacity);
   // Create a stream to synchronize kernels of all particle types.
