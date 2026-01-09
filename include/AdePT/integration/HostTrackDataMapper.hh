@@ -28,7 +28,7 @@ struct HostTrackData {
   G4ThreeVector vertexPosition;
   G4ThreeVector vertexMomentumDirection;
   G4double vertexKineticEnergy = 0.0;
-  char particleType;
+  unsigned char particleType;
 
   HostTrackData() = default;
 
