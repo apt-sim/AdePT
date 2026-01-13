@@ -146,5 +146,8 @@ def buildAndTest() {
     export CMAKE_BINARY_DIR=BUILD_MIXED_PRECISION
     export ExtraCMakeOptions="-DADEPT_ASYNC_MODE=ON -DADEPT_MIXED_PRECISION=ON -DADEPT_BUILD_TESTING=ON"
     ctest -V --output-on-failure --timeout 2400 -R run_only_test -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+    export CMAKE_BINARY_DIR=BUILD_EXT_BFIELD
+    export ExtraCMakeOptions="-DADEPT_ASYNC_MODE=ON -DADEPT_USE_EXT_BFIELD=ON -DADEPT_BUILD_TESTING=ON"
+    ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
 }
