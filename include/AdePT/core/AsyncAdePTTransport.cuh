@@ -579,7 +579,6 @@ G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
 template <typename FieldType>
 bool InitializeBField(FieldType &magneticField)
 {
-
   // Allocate and copy the FieldType instance (not the field array itself), and set the global device pointer
   FieldType *dMagneticFieldInstance = nullptr;
   COPCORE_CUDA_CHECK(cudaMalloc(&dMagneticFieldInstance, sizeof(FieldType)));
@@ -671,7 +670,8 @@ void FlushScoring(AdePTScoring &scoring)
 std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int leakCapacity, int scoringCapacity,
                                                          int numThreads, TrackBuffer &trackBuffer,
                                                          std::vector<AdePTScoring> &scoring, double CPUCapacityFactor,
-                                                         double CPUCopyFraction)
+                                                         double CPUCopyFraction, std::string &generalBfieldFile,
+                                                         const std::vector<float> &uniformBfieldValues)
 {
   auto gpuState_ptr  = std::unique_ptr<GPUstate, GPUstateDeleter>(new GPUstate());
   GPUstate &gpuState = *gpuState_ptr;
@@ -701,6 +701,33 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     }
     if (emplaceForAutoDelete) gpuState.allCudaPointers.push_back(devPtr);
   };
+
+#ifdef ADEPT_USE_EXT_BFIELD
+  if (!generalBfieldFile.empty()) {
+    // Initialize magnetic field data from file
+    if (!gpuState.magneticField.InitializeFromFile(generalBfieldFile)) {
+      throw std::runtime_error("AsyncAdePTTransport::InitializeGPU cannot initialize GeneralMagneticField on GPU");
+    }
+    // Copy the GeneralMagneticField instance to GPU and setup the global view pointer
+    if (!async_adept_impl::InitializeBField(gpuState.magneticField)) {
+      throw std::runtime_error("AsyncAdePTTransport::InitializeBField cannot initialize GeneralMagneticField on GPU");
+    }
+  }
+#else
+  vecgeom::Vector3D<float> bfieldValues({uniformBfieldValues[0], uniformBfieldValues[1], uniformBfieldValues[2]});
+  std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(bfieldValues);
+
+  vecgeom::Vector3D<float> position{
+      0.,
+      0.,
+      0.,
+  };
+  auto field_value = Bfield->Evaluate(position);
+  if (field_value.Mag2() > 0) {
+    if (!InitializeBField(*Bfield))
+      throw std::runtime_error("AsyncAdePTTransport::InitializeBField cannot initialize UniformMagneticField on GPU");
+  }
+#endif
 
   // Create a stream to synchronize kernels of all particle types.
   COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));

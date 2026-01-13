@@ -13,7 +13,7 @@
 
 #include <AdePT/magneticfield/MagneticFieldEquation.h>
 
-#include <AdePT/magneticfield/UniformMagneticField.h>
+#include <AdePT/magneticfield/UniformMagneticField.cuh>
 
 #include <AdePT/magneticfield/PrintFieldVectors.h>
 

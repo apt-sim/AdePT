@@ -6,8 +6,8 @@
 
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/HostScoringStruct.cuh>
-#include <AdePT/magneticfield/GeneralMagneticField.h>
-#include <AdePT/magneticfield/UniformMagneticField.h>
+#include <AdePT/magneticfield/GeneralMagneticField.cuh>
+#include <AdePT/magneticfield/UniformMagneticField.cuh>
 
 #include "Track.cuh"
 #include <AdePT/base/TrackManager.cuh>
@@ -58,6 +58,11 @@ struct Stats {
 
 struct GPUstate {
   using TrackData = adeptint::TrackData;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+  // If using a general magnetic field, GPUstate will store the host-side instance
+  GeneralMagneticField magneticField;
+#endif
 
   ParticleType particles[ParticleType::NumParticleTypes];
   AllTrackManagers allmgr_h; ///< Host pointers for track managers

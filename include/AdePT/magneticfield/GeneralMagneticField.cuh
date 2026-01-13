@@ -61,9 +61,9 @@ public:
 
     // Create the field view for the device data
     field_view_t fieldView(*fFieldMap);
-
     // Allocate device memory for the field view
     COPCORE_CUDA_CHECK(cudaMalloc(&fFieldView, sizeof(field_view_t)));
+    // Copy the field view to device
     COPCORE_CUDA_CHECK(cudaMemcpy(fFieldView, &fieldView, sizeof(field_view_t), cudaMemcpyHostToDevice));
     return true;
 #endif
@@ -107,7 +107,7 @@ public:
 
 private:
 #ifdef ADEPT_USE_EXT_BFIELD
-  std::unique_ptr<cuda_field_t> fFieldMap; // Device-stored field data
+  std::unique_ptr<cuda_field_t> fFieldMap; // Field data
   field_view_t *fFieldView = nullptr;      // Device-stored field view, needed to access the data
 #endif
 };
