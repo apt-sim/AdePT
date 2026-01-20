@@ -124,35 +124,27 @@ void AsyncAdePTTransport<IntegrationLayer>::SetHepEmTrackingManagerForThread(int
 }
 
 template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::AddTrack(
-    int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx, double diry,
-    double dirz, double globalTime, double localTime, double properTime, float weight, unsigned short stepCounter,
-    int threadId, unsigned int eventId, vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState)
+void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy,
+                                                     double x, double y, double z, double dirx, double diry,
+                                                     double dirz, double globalTime, double localTime,
+                                                     double properTime, float weight, unsigned short stepCounter,
+                                                     int threadId, unsigned int eventId,
+                                                     vecgeom::NavigationState &&state)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
     return;
   }
 
-  TrackDataWithIDs track{pdg,
-                         trackId,
-                         parentId,
-                         energy,
-                         x,
-                         y,
-                         z,
-                         dirx,
-                         diry,
-                         dirz,
-                         globalTime,
-                         localTime,
-                         properTime,
-                         weight,
-                         stepCounter,
-                         std::move(state),
-                         std::move(originState),
-                         eventId,
-                         static_cast<short>(threadId)};
+  TrackDataWithIDs track{pdg,         trackId,
+                         parentId,    energy,
+                         x,           y,
+                         z,           dirx,
+                         diry,        dirz,
+                         globalTime,  localTime,
+                         properTime,  weight,
+                         stepCounter, std::move(state),
+                         eventId,     static_cast<short>(threadId)};
   if (fDebugLevel >= 2) {
     fGPUNetEnergy[threadId] += energy;
     if (fDebugLevel >= 8) {

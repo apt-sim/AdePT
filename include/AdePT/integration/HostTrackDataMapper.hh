@@ -6,6 +6,7 @@
 
 #include "G4VUserTrackInformation.hh"
 #include "G4VProcess.hh"
+#include "G4TouchableHandle.hh"
 
 #include <unordered_map>
 #include <cstdint>
@@ -27,6 +28,7 @@ struct HostTrackData {
   G4LogicalVolume *logicalVolumeAtVertex = nullptr;
   G4ThreeVector vertexPosition;
   G4ThreeVector vertexMomentumDirection;
+  std::unique_ptr<G4TouchableHandle> originTouchableHandle;
   G4double vertexKineticEnergy = 0.0;
   unsigned char particleType;
 

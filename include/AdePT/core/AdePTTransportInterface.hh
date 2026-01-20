@@ -23,7 +23,7 @@ public:
   virtual void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z,
                         double dirx, double diry, double dirz, double globalTime, double localTime, double properTime,
                         float weight, unsigned short stepCounter, int threadId, unsigned int eventId,
-                        vecgeom::NavigationState &&state, vecgeom::NavigationState &&originState) = 0;
+                        vecgeom::NavigationState &&state) = 0;
 
   /// @brief Set capacity of on-GPU track buffer.
   virtual void SetTrackCapacity(size_t capacity) = 0;
@@ -41,6 +41,7 @@ public:
   virtual void SetTrackInAllRegions(bool trackInAllRegions) = 0;
   /// @brief Check whether AdePT should transport particles across the whole geometry
   virtual bool GetTrackInAllRegions() const = 0;
+  virtual bool GetCallUserActions() const   = 0;
   /// @brief Set Geant4 region which are run on GPU
   virtual void SetGPURegionNames(std::vector<std::string> const *regionNames) = 0;
   /// @brief Set Geant4 region which are run on CPU

@@ -98,6 +98,8 @@ private:
   void FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
                                G4NavigationHistory &aG4NavigationHistory) const;
 
+  G4TouchableHandle MakeTouchableFromNavState(vecgeom::NavigationState const &navState) const;
+
   void FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
                   G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus,
                   bool callUserTrackingAction, bool callUserSteppingAction) const;

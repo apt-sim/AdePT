@@ -39,9 +39,8 @@ struct Track {
   vecgeom::Vector3D<float> safetyPos; ///< last position where the safety was computed
   // TODO: For better clarity in the split kernels, rename this to "stored safety" as opposed to the
   // safety we get from GetSafety(), which is computed in the moment
-  float safety{0.f};                       ///< last computed safety value
-  vecgeom::NavigationState navState;       ///< current navigation state
-  vecgeom::NavigationState originNavState; ///< navigation state where the vertex was created
+  float safety{0.f};                 ///< last computed safety value
+  vecgeom::NavigationState navState; ///< current navigation state
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
   // Variables used to store track info needed for scoring
@@ -101,7 +100,7 @@ struct Track {
                    const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack, const double globalTime)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, originNavState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
+        navState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
         parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, weight{parentTrack.weight}, stepCounter{0},
         looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
@@ -169,9 +168,6 @@ struct Track {
     this->safety   = 0.0f;
     this->navState = parentNavState;
 
-    // Set the origin for this track
-    this->originNavState = parentNavState;
-
     // Caller is responsible to set the weight of the track
 
     // The global time is inherited from the parent
@@ -188,24 +184,23 @@ struct Track {
 
   __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
   {
-    tdata.pdg            = pdg;
-    tdata.trackId        = trackId;
-    tdata.parentId       = parentId;
-    tdata.position[0]    = pos[0];
-    tdata.position[1]    = pos[1];
-    tdata.position[2]    = pos[2];
-    tdata.direction[0]   = dir[0];
-    tdata.direction[1]   = dir[1];
-    tdata.direction[2]   = dir[2];
-    tdata.eKin           = eKin;
-    tdata.globalTime     = globalTime;
-    tdata.localTime      = localTime;
-    tdata.properTime     = properTime;
-    tdata.navState       = navState;
-    tdata.originNavState = originNavState;
-    tdata.weight         = weight;
-    tdata.leakStatus     = leakStatus;
-    tdata.stepCounter    = stepCounter;
+    tdata.pdg          = pdg;
+    tdata.trackId      = trackId;
+    tdata.parentId     = parentId;
+    tdata.position[0]  = pos[0];
+    tdata.position[1]  = pos[1];
+    tdata.position[2]  = pos[2];
+    tdata.direction[0] = dir[0];
+    tdata.direction[1] = dir[1];
+    tdata.direction[2] = dir[2];
+    tdata.eKin         = eKin;
+    tdata.globalTime   = globalTime;
+    tdata.localTime    = localTime;
+    tdata.properTime   = properTime;
+    tdata.navState     = navState;
+    tdata.weight       = weight;
+    tdata.leakStatus   = leakStatus;
+    tdata.stepCounter  = stepCounter;
   }
 };
 #endif
