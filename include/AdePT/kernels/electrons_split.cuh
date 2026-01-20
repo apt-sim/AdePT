@@ -824,7 +824,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       if (IsElectron) {
         energyDeposit += currentTrack.eKin;
       }
-      if (IsElectron) {
+      if (!IsElectron) {
         PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
                                             userScoring, returnLastStep);
       }
@@ -961,7 +961,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       if (IsElectron) {
         energyDeposit += currentTrack.eKin;
       }
-      if (IsElectron) {
+      if (!IsElectron) {
         PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
                                             userScoring, returnLastStep);
       }
