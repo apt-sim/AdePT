@@ -27,7 +27,9 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
 {
   constexpr unsigned short maxSteps        = 10'000;
   constexpr unsigned short kStepsStuckKill = 25;
-  const int activeSize                     = particleManager.gammas.ActiveSize();
+  auto &slotManager                        = *particleManager.gammas.fSlotManager;
+
+  const int activeSize = particleManager.gammas.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const auto slot     = particleManager.gammas.ActiveAt(i);
     Track &currentTrack = particleManager.gammas.TrackAt(slot);
@@ -49,6 +51,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                "stuck particle!\n",
                currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
                currentTrack.zeroStepCounter);
+      slotManager.MarkSlotForFreeing(slot);
       continue;
     }
 
@@ -274,7 +277,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       currentTrack.navState = currentTrack.nextState;
       // printf("  -> pvol=%d pos={%g, %g, %g} \n", navState.TopId(), pos[0], pos[1], pos[2]);
       //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
-      const int nextlvolID          = currentTrack.navState.GetLogicalId();
+      const int nextlvolID          = currentTrack.nextState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
       if (nextauxData.fGPUregionId >= 0) {
         theTrack->SetMCIndex(nextauxData.fMCIndex);
@@ -330,7 +333,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
     bool isLastStep           = true;
 
     // Write local variables back into track and enqueue
@@ -362,7 +365,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
     if (currentTrack.eKin < 2 * copcore::units::kElectronMassC2) {
       survive();
-      break;
+      continue;
     }
 
     double logEnergy = std::log(currentTrack.eKin);
@@ -522,7 +525,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
     constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
     if (currentTrack.eKin < LowEnergyThreshold) {
       survive();
-      break;
+      continue;
     }
     const double origDirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
     double dirPrimary[3];
@@ -626,14 +629,8 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
     Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
     bool isLastStep           = true;
-
-    // Write local variables back into track and enqueue
-    auto survive = [&]() {
-      isLastStep = false; // particle survived
-      particleManager.gammas.EnqueueNext(slot);
-    };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();

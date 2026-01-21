@@ -63,6 +63,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
   auto &magneticField = *gMagneticField;
 
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
+  SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
 
   const int activeSize = electronsOrPositrons.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -84,6 +85,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
         printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
                currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
                currentTrack.zeroStepCounter);
+      slotManager.MarkSlotForFreeing(slot);
       continue;
     }
 
@@ -432,6 +434,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
                    "safety=%E\n",
                    currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
                    currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
+          slotManager.MarkSlotForFreeing(slot);
           continue;
         }
 
@@ -572,6 +575,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                "safety=%E\n",
                currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
                currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
+      slotManager.MarkSlotForFreeing(slot);
       continue;
     }
 
@@ -623,7 +627,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       // Move to the next boundary now that the Step is recorded
       currentTrack.navState = currentTrack.nextState;
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-      const int nextlvolID          = currentTrack.navState.GetLogicalId();
+      const int nextlvolID          = currentTrack.nextState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
       if (nextauxData.fGPUregionId >= 0) {
         theTrack->SetMCIndex(nextauxData.fMCIndex);
@@ -638,92 +642,86 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   }
 }
 
-template <bool IsElectron, typename Scoring>
+template <typename Scoring>
 __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track &currentTrack,
                                                            ParticleManager &particleManager, double &energyDeposit,
-                                                           SlotManager &slotManager, const bool ApplyCuts,
-                                                           const double theGammaCut, Scoring *userScoring,
-                                                           const bool returnLastStep = false)
+                                                           const bool ApplyCuts, const double theGammaCut,
+                                                           Scoring *userScoring, const bool returnLastStep = false)
 {
   currentTrack.eKin = 0;
-  if (!IsElectron) {
-    // Annihilate the stopped positron into two gammas heading to opposite
-    // directions (isotropic).
+  // Annihilate the stopped positron into two gammas heading to opposite
+  // directions (isotropic).
 
-    // Apply cuts
-    if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
-      // Deposit the energy here and don't initialize any secondaries
-      energyDeposit += 2 * copcore::units::kElectronMassC2;
-    } else {
+  // Apply cuts
+  if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
+    // Deposit the energy here and don't initialize any secondaries
+    energyDeposit += 2 * copcore::units::kElectronMassC2;
+  } else {
 
-      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
+    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
-      const double cost = 2 * currentTrack.Uniform() - 1;
-      const double sint = sqrt(1 - cost * cost);
-      const double phi  = k2Pi * currentTrack.Uniform();
-      double sinPhi, cosPhi;
-      sincos(phi, &sinPhi, &cosPhi);
+    const double cost = 2 * currentTrack.Uniform() - 1;
+    const double sint = sqrt(1 - cost * cost);
+    const double phi  = k2Pi * currentTrack.Uniform();
+    double sinPhi, cosPhi;
+    sincos(phi, &sinPhi, &cosPhi);
 
-      // as the other branched newRNG may have already been used by interactions before, we need to advance and create a
-      // new one
-      currentTrack.rngState.Advance();
-      RanluxppDouble newRNG(currentTrack.rngState.Branch());
+    // as the other branched newRNG may have already been used by interactions before, we need to advance and create a
+    // new one
+    currentTrack.rngState.Advance();
+    RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-      Track &gamma1 =
-          particleManager.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                           vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
+    Track &gamma1 = particleManager.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                                     vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
 
-      // Reuse the RNG state of the dying track.
-      Track &gamma2 = particleManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                       currentTrack.pos, -gamma1.dir, currentTrack.navState,
-                                                       currentTrack, currentTrack.globalTime);
+    // Reuse the RNG state of the dying track.
+    Track &gamma2 = particleManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                     currentTrack.pos, -gamma1.dir, currentTrack.navState, currentTrack,
+                                                     currentTrack.globalTime);
 
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
-                                 /* gamma*/ 2,                    // Particle type
-                                 0,                               // Step length
-                                 0,                               // Total Edep
-                                 gamma1.weight,                   // Track weight
-                                 gamma1.navState,                 // Pre-step point navstate
-                                 gamma1.pos,                      // Pre-step point position
-                                 gamma1.dir,                      // Pre-step point momentum direction
-                                 gamma1.eKin,                     // Pre-step point kinetic energy
-                                 gamma1.navState,                 // Post-step point navstate
-                                 gamma1.pos,                      // Post-step point position
-                                 gamma1.dir,                      // Post-step point momentum direction
-                                 gamma1.eKin,                     // Post-step point kinetic energy
-                                 gamma1.globalTime,               // global time
-                                 0.,                              // local time
-                                 gamma1.globalTime,               // preStep global time for initializing step
-                                 gamma1.eventId, gamma1.threadId, // eventID and threadID
-                                 false,                           // whether this was the last step
-                                 gamma1.stepCounter);             // whether this was the first step
-        adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
-                                 /* gamma*/ 2,                    // Particle type
-                                 0,                               // Step length
-                                 0,                               // Total Edep
-                                 gamma2.weight,                   // Track weight
-                                 gamma2.navState,                 // Pre-step point navstate
-                                 gamma2.pos,                      // Pre-step point position
-                                 gamma2.dir,                      // Pre-step point momentum direction
-                                 gamma2.eKin,                     // Pre-step point kinetic energy
-                                 gamma2.navState,                 // Post-step point navstate
-                                 gamma2.pos,                      // Post-step point position
-                                 gamma2.dir,                      // Post-step point momentum direction
-                                 gamma2.eKin,                     // Post-step point kinetic energy
-                                 gamma2.globalTime,               // global time
-                                 0.,                              // local time
-                                 gamma2.globalTime,               // preStep global time for initializing step
-                                 gamma2.eventId, gamma2.threadId, // eventID and threadID
-                                 false,                           // whether this was the last step
-                                 gamma2.stepCounter);             // whether this was the first step
-      }
+    // if tracking or stepping action is called, return initial step
+    if (returnLastStep) {
+      adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
+                               /* gamma*/ 2,                    // Particle type
+                               0,                               // Step length
+                               0,                               // Total Edep
+                               gamma1.weight,                   // Track weight
+                               gamma1.navState,                 // Pre-step point navstate
+                               gamma1.pos,                      // Pre-step point position
+                               gamma1.dir,                      // Pre-step point momentum direction
+                               gamma1.eKin,                     // Pre-step point kinetic energy
+                               gamma1.navState,                 // Post-step point navstate
+                               gamma1.pos,                      // Post-step point position
+                               gamma1.dir,                      // Post-step point momentum direction
+                               gamma1.eKin,                     // Post-step point kinetic energy
+                               gamma1.globalTime,               // global time
+                               0.,                              // local time
+                               gamma1.globalTime,               // preStep global time for initializing step
+                               gamma1.eventId, gamma1.threadId, // eventID and threadID
+                               false,                           // whether this was the last step
+                               gamma1.stepCounter);             // whether this was the first step
+      adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
+                               /* gamma*/ 2,                    // Particle type
+                               0,                               // Step length
+                               0,                               // Total Edep
+                               gamma2.weight,                   // Track weight
+                               gamma2.navState,                 // Pre-step point navstate
+                               gamma2.pos,                      // Pre-step point position
+                               gamma2.dir,                      // Pre-step point momentum direction
+                               gamma2.eKin,                     // Pre-step point kinetic energy
+                               gamma2.navState,                 // Post-step point navstate
+                               gamma2.pos,                      // Post-step point position
+                               gamma2.dir,                      // Post-step point momentum direction
+                               gamma2.eKin,                     // Post-step point kinetic energy
+                               gamma2.globalTime,               // global time
+                               0.,                              // local time
+                               gamma2.globalTime,               // preStep global time for initializing step
+                               gamma2.eventId, gamma2.threadId, // eventID and threadID
+                               false,                           // whether this was the last step
+                               gamma2.stepCounter);             // whether this was the first step
     }
   }
-  // Particles are killed by not enqueuing them into the new activeQueue (and free the slot in async mode)
-  slotManager.MarkSlotForFreeing(slot);
 }
 
 template <bool IsElectron, typename Scoring>
@@ -826,9 +824,11 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       if (IsElectron) {
         energyDeposit += currentTrack.eKin;
       }
-      currentTrack.stopped = true;
-      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, particleManager, energyDeposit, slotManager,
-                                                      ApplyCuts, theGammaCut, userScoring, returnLastStep);
+      if (!IsElectron) {
+        PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
+                                            userScoring, returnLastStep);
+      }
+      slotManager.MarkSlotForFreeing(slot);
     } else {
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
@@ -961,9 +961,11 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       if (IsElectron) {
         energyDeposit += currentTrack.eKin;
       }
-      currentTrack.stopped = true;
-      PerformStoppedAnnihilation<IsElectron, Scoring>(slot, currentTrack, particleManager, energyDeposit, slotManager,
-                                                      ApplyCuts, theGammaCut, userScoring, returnLastStep);
+      if (!IsElectron) {
+        PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
+                                            userScoring, returnLastStep);
+      }
+      slotManager.MarkSlotForFreeing(slot);
     } else {
       currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
@@ -1004,7 +1006,6 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
   SlotManager &slotManager = *particleManager.positrons.fSlotManager;
   int activeSize           = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    // const int slot           = (*active)[i];
     const int slot = (*interactingQueue)[i];
 
     Track &currentTrack = particleManager.positrons.TrackAt(slot);
@@ -1013,11 +1014,6 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
     bool isLastStep           = true;
-
-    auto survive = [&]() {
-      isLastStep = false; // track survived, do not force return of step
-      particleManager.positrons.EnqueueNext(slot);
-    };
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -1155,20 +1151,14 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
   SlotManager &slotManager = *particleManager.positrons.fSlotManager;
   int activeSize           = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    // const int slot           = (*active)[i];
     const int slot = (*interactingQueue)[i];
 
     Track &currentTrack = particleManager.positrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
     bool isLastStep           = true;
-
-    auto survive = [&]() {
-      isLastStep = false; // track survived, do not force return of step
-      particleManager.positrons.EnqueueNext(slot);
-    };
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -1187,8 +1177,9 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     // Annihilate the stopped positron into two gammas heading to opposite
     // directions (isotropic).
 
-    PerformStoppedAnnihilation<false, Scoring>(slot, currentTrack, particleManager, energyDeposit, slotManager,
-                                               ApplyCuts, theGammaCut, userScoring, returnLastStep);
+    PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
+                                        userScoring, returnLastStep);
+    slotManager.MarkSlotForFreeing(slot);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
