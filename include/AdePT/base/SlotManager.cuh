@@ -41,8 +41,12 @@ public:
   __host__ __device__ ~SlotManager()
   {
 #ifndef __CUDA_ARCH__
-    // FIXME: Add try-catch here
-    if (fSlotList) ADEPT_DEVICE_API_CALL(Free(fSlotList));
+    try {
+      if (fSlotList) ADEPT_DEVICE_API_CALL(Free(fSlotList));
+    } catch (const std::exception &e) {
+      std::cerr << "\033[31m" << "SlotManager::~SlotManager : Error during Free" << "\033[0m" << std::endl;
+      std::cerr << "\033[31m" << e.what() << "\033[0m" << std::endl;
+    }
 #endif
   }
 
