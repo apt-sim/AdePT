@@ -70,6 +70,7 @@ if(ADEPT_USE_CUDA)
   enable_language(CUDA)
   message(STATUS "${Green}CUDA backend enabled${ColorReset}")
 else()
+  enable_language(HIP)
   message(STATUS "${Green}HIP backend enabled${ColorReset}")
 endif()
 
@@ -412,6 +413,9 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecog
 if(ADEPT_DEBUG_TRACK GREATER 0)
   add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-DADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>")
 endif()
+if(ADEPT_USE_HIP)
+  add_compile_options("$<$<COMPILE_LANGUAGE:HIP>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma;-rdc=true>")
+endif()
 
 find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)
@@ -441,6 +445,11 @@ target_include_directories(CopCore
 cuda_rdc_add_library(AdePT_G4_integration SHARED
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
+
+if(ADEPT_USE_HIP)
+  set_source_files_properties(src/AdePTTrackingManager.cu PROPERTIES LANGUAGE HIP)
+endif()
+
 cuda_rdc_target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

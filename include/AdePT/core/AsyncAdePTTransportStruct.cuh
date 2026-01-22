@@ -10,7 +10,7 @@
 #include <AdePT/core/PerEventScoringImpl.cuh>
 #include <AdePT/core/Track.cuh>
 #include <AdePT/magneticfield/GeneralMagneticField.cuh>
-#include <AdePT/magneticfield/UniformMagneticField.h>
+#include <AdePT/magneticfield/UniformMagneticField.cuh>
 
 #include <AdePT/base/SlotManager.cuh>
 #include <AdePT/base/ResourceManagement.cuh>
@@ -338,15 +338,20 @@ struct GPUstate {
 
   ~GPUstate()
   {
-    if (stats) ADEPT_DEVICE_API_CALL(FreeHost(stats));
-    if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(stream));
+    try {
+      if (stats) ADEPT_DEVICE_API_CALL(FreeHost(stats));
+      if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(stream));
 
-    for (ParticleType &particleType : particles) {
-      if (particleType.stream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.stream));
-      if (particleType.event) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.event));
-    }
-    for (void *ptr : allCudaPointers) {
-      ADEPT_DEVICE_API_CALL(Free(ptr));
+      for (ParticleType &particleType : particles) {
+        if (particleType.stream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.stream));
+        if (particleType.event) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.event));
+      }
+      for (void *ptr : allCudaPointers) {
+        ADEPT_DEVICE_API_CALL(Free(ptr));
+      }
+    } catch (const std::exception &e) {
+      std::cerr << "\033[31m" << "GPUstate::~GPUstate : Error during device API call" << "\033[0m" << std::endl;
+      std::cerr << "\033[31m" << e.what() << "\033[0m" << std::endl;
     }
     allCudaPointers.clear();
   }

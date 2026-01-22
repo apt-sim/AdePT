@@ -154,7 +154,7 @@
 
 #if !defined(__HIP__) && !defined(__CUDA_ARCH__)
 // Throw in host code
-#define ADEPT_DEBUG_THROW_(MSG, WHICH) throw ::temp_namespace::make_debug_error(#WHICH, MSG, __FILE__, __LINE__)
+#define ADEPT_DEBUG_THROW_(MSG, WHICH) throw ::portability::make_debug_error(#WHICH, MSG, __FILE__, __LINE__)
 #elif defined(__CUDA_ARCH__) && !defined(NDEBUG)
 // Use the assert macro for CUDA when supported
 #define ADEPT_DEBUG_THROW_(MSG, WHICH) assert(false && sizeof(#WHICH ": " MSG))
@@ -162,13 +162,13 @@
 // Use a special device function to emulate assertion failure if HIP
 // (assertion from multiple threads simultaneously can cause unexpected device
 // failures on AMD hardware) or if NDEBUG is in use with CUDA
-#define ADEPT_DEBUG_THROW_(MSG, WHICH) ::temp_namespace::device_debug_error(#WHICH, MSG, __FILE__, __LINE__)
+#define ADEPT_DEBUG_THROW_(MSG, WHICH) ::portability::device_debug_error(#WHICH, MSG, __FILE__, __LINE__)
 #endif
 
 #define ADEPT_DEBUG_FAIL(MSG, WHICH) \
   do {                               \
     ADEPT_DEBUG_THROW_(MSG, WHICH);  \
-    ::temp_namespace::unreachable(); \
+    ::portability::unreachable();    \
   } while (0)
 #define ADEPT_DEBUG_ASSERT_(COND, WHICH) \
   do {                                   \
@@ -187,12 +187,12 @@
 #define ADEPT_ASSERT_UNREACHABLE() ADEPT_DEBUG_FAIL("unreachable code point encountered", unreachable)
 #else
 #define ADEPT_ASSERT(COND) ADEPT_NOASSERT_(COND)
-#define ADEPT_ASSERT_UNREACHABLE() ::temp_namespace::unreachable()
+#define ADEPT_ASSERT_UNREACHABLE() ::portability::unreachable()
 #endif
 
 #if !ADEPT_DEVICE_COMPILE
 #define ADEPT_RUNTIME_THROW(WHICH, WHAT, COND) \
-  throw ::temp_namespace::make_runtime_error(WHICH, WHAT, COND, __FILE__, __LINE__)
+  throw ::portability::make_runtime_error(WHICH, WHAT, COND, __FILE__, __LINE__)
 #else
 #define ADEPT_RUNTIME_THROW(WHICH, WHAT, COND) \
   ADEPT_DEBUG_FAIL("Runtime errors cannot be thrown from device code", unreachable);
@@ -208,11 +208,11 @@
     }                                                                       \
   } while (0)
 #else
-#define ADEPT_VALIDATE(COND, MSG)                                                                   \
-  do {                                                                                              \
-    if (ADEPT_UNLIKELY(!(COND))) {                                                                  \
-      ADEPT_RUNTIME_THROW("runtime", (::temp_namespace::detail::StreamlikeIdentity {} MSG), #COND); \
-    }                                                                                               \
+#define ADEPT_VALIDATE(COND, MSG)                                                                \
+  do {                                                                                           \
+    if (ADEPT_UNLIKELY(!(COND))) {                                                               \
+      ADEPT_RUNTIME_THROW("runtime", (::portability::detail::StreamlikeIdentity {} MSG), #COND); \
+    }                                                                                            \
   } while (0)
 #endif
 
@@ -253,7 +253,7 @@
   } while (0)
 #endif
 */
-namespace temp_namespace {
+namespace portability {
 //---------------------------------------------------------------------------//
 // FUNCTION DECLARATIONS
 //---------------------------------------------------------------------------//
@@ -375,6 +375,6 @@ inline ADEPT_ATT_HOST_DEVICE char const *operator<<(StreamlikeIdentity const &, 
 }
 } // namespace detail
 
-} // namespace temp_namespace
+} // namespace portability
 
 #endif
