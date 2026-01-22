@@ -300,6 +300,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   const bool trackInAllRegions       = fAdeptTransport->GetTrackInAllRegions();
+  const bool callUserActions         = fAdeptTransport->GetCallUserActions();
 
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 
@@ -426,23 +427,30 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // Get VecGeom Navigation state from G4History
       vecgeom::NavigationState converted = GetVecGeomFromG4State(*aTrack);
 
-      // Get the VecGeom Navigation state at the track's origin
-      vecgeom::NavigationState convertedOrigin;
-      if (aTrack->GetParentID() == 0 && aTrack->GetCurrentStepNumber() == 0) {
-        // For the first step of primary tracks, the origin touchable handle is not set,
-        // so we need to use the track's current position
-        // If the vertex is not in a GPU region, the origin touchable handle will be set by the HepEmTrackingManager
-        convertedOrigin = GetVecGeomFromG4State(*aTrack->GetTouchable()->GetHistory());
-
-      } else {
-        // For secondary tracks, the origin touchable handle is set when they are stacked
-        convertedOrigin = GetVecGeomFromG4State(*aTrack->GetOriginTouchableHandle()->GetHistory());
+      // Setting of the touchable should only be done when the userActions are called,
+      // as this otherwise leaves the touchable data for tracks that die on the GPU intact,
+      // causing a destructor fiasco when G4 is already shut down
+      if (callUserActions) {
+        if (aTrack->GetParentID() == 0 && aTrack->GetCurrentStepNumber() == 0) {
+          // For the first step of primary tracks, the origin touchable handle is not set,
+          // so we need to use the track's current position
+          // If the vertex is not in a GPU region, the origin touchable handle will be set by the HepEmTrackingManager
+          if (aTrack->GetTouchable()) {
+            hostTrackData.originTouchableHandle = std::make_unique<G4TouchableHandle>(aTrack->GetTouchableHandle());
+          }
+        } else {
+          // For secondary tracks, the origin touchable handle is set when they are stacked
+          if (aTrack->GetOriginTouchable()) {
+            hostTrackData.originTouchableHandle =
+                std::make_unique<G4TouchableHandle>(aTrack->GetOriginTouchableHandle());
+          }
+        }
       }
 
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 globalTime, localTime, properTime, weight, stepNumber, G4Threading::G4GetThreadId(),
-                                eventID, std::move(converted), std::move(convertedOrigin));
+                                eventID, std::move(converted));
 
       fTrackCounter++; // increment the track counter for AdePT
 

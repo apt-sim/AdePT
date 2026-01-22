@@ -92,8 +92,8 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
-                unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state,
-                vecgeom::NavigationState &&originState) override;
+                unsigned short stepCounter, int threadId, unsigned int eventId,
+                vecgeom::NavigationState &&state) override;
   /// @brief Set track capacity on GPU
   void SetTrackCapacity(size_t capacity) override { fTrackCapacity = capacity; }
   /// @brief Set leak capacity on GPU
@@ -108,6 +108,7 @@ public:
   void SetDebugLevel(int level) override { fDebugLevel = level; }
   void SetTrackInAllRegions(bool trackInAllRegions) override { fTrackInAllRegions = trackInAllRegions; }
   bool GetTrackInAllRegions() const override { return fTrackInAllRegions; }
+  bool GetCallUserActions() const { return fReturnFirstAndLastStep; }
   void SetGPURegionNames(std::vector<std::string> const *regionNames) override { fGPURegionNames = regionNames; }
   void SetCPURegionNames(std::vector<std::string> const *regionNames) override { fCPURegionNames = regionNames; }
   /// @brief Set path to covfie Bfield file

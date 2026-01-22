@@ -211,9 +211,6 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, int star
 
     track.weight = trackinfo[i].weight;
 
-    track.originNavState.Clear();
-    track.originNavState = trackinfo[i].originNavState;
-
     // setting up the NavState
     track.navState.Clear();
     track.navState = trackinfo[i].navState;

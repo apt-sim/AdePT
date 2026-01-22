@@ -44,8 +44,7 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
-                unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state,
-                vecgeom::NavigationState &&originState);
+                unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state);
 
   void SetTrackCapacity(size_t capacity) { fCapacity = capacity; }
   /// @brief Get the track capacity on GPU
@@ -67,6 +66,7 @@ public:
   /// @brief Set whether AdePT should transport particles across the whole geometry
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
+  bool GetCallUserActions() const { return false; } // doesn't exist in sync AdePT
   /// @brief Set Geant4 region to which it applies
   void SetGPURegionNames(std::vector<std::string> const *regionNames) { fGPURegionNames = regionNames; }
   void SetCPURegionNames(std::vector<std::string> const *regionNames) { fCPURegionNames = regionNames; }

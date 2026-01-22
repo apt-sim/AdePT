@@ -547,6 +547,25 @@ void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationSt
   if (aG4HistoryDepth >= aLevel) aG4NavigationHistory.BackLevel(aG4HistoryDepth - aLevel + 1);
 }
 
+G4TouchableHandle AdePTGeant4Integration::MakeTouchableFromNavState(vecgeom::NavigationState const &navState) const
+{
+  // Reconstruct the origin touchable history from a VecGeom NavigationState
+  // - We can't update the track's navigation history in place as it is a const member
+  // - For the same reason, we need to fill a navigation history and then create a touchable history from it
+  auto navigationHistory = std::make_unique<G4NavigationHistory>();
+  FillG4NavigationHistory(navState, *navigationHistory);
+
+  // G4TouchableHistory constructor does a shallow copy of the navigation history
+  // There is no way to transfer ownership of this pointer to the G4TouchableHistory, as the other available method,
+  // UpdateYourself() does a shallow copy as well.
+  // The only way to avoid a memory leak is to do the shallow copy and then allow our instance to be deleted, which will
+  // call G4NavigationHistoryPool::DeRegister()
+  auto touchableHistory = std::make_unique<G4TouchableHistory>(*navigationHistory);
+
+  // Give ownership of the touchable history to a newly created touchable handle, which will now manage its lifetime
+  return G4TouchableHandle(touchableHistory.release());
+}
+
 void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
                                         G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
@@ -639,6 +658,10 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
           G4ThreeVector{aGPUHit->fPostStepPoint.fMomentumDirection.x(), aGPUHit->fPostStepPoint.fMomentumDirection.y(),
                         aGPUHit->fPostStepPoint.fMomentumDirection.z()};
       hostTData.vertexKineticEnergy = aGPUHit->fPostStepPoint.fEKin;
+      if (hostTData.originTouchableHandle) {
+        hostTData.originTouchableHandle =
+            std::make_unique<G4TouchableHandle>(MakeTouchableFromNavState(aGPUHit->fPostStepPoint.fNavigationState));
+      }
 
       // For the initializing step, the step defining process ID is the creator process
       const int stepId = aGPUHit->fStepLimProcessId;
@@ -869,23 +892,9 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   leakedTrack->SetVertexMomentumDirection(hostTData.vertexMomentumDirection);
   leakedTrack->SetVertexKineticEnergy(hostTData.vertexKineticEnergy);
   leakedTrack->SetLogicalVolumeAtVertex(hostTData.logicalVolumeAtVertex);
-
-  // Reconstruct the origin touchable history and update it on the track
-  // - We can't update the track's navigation history in place as it is a const member
-  // - For the same reason, we need to fill a navigation history and then create a touchable history from it
-  auto originNavigationHistory = std::make_unique<G4NavigationHistory>();
-  FillG4NavigationHistory(track.originNavState, *originNavigationHistory);
-
-  // G4TouchableHistory constructor does a shallow copy of the navigation history
-  // There is no way to transfer ownership of this pointer to the G4TouchableHistory, as the other available method,
-  // UpdateYourself() does a shallow copy as well.
-  // The only way to avoid a memory leak is to do the shallow copy and then allow our instance to be deleted, which will
-  // call G4NavigationHistoryPool::DeRegister()
-  auto originTouchableHistory = std::make_unique<G4TouchableHistory>(*originNavigationHistory);
-
-  // Give ownership of the touchable history to the touchable handle, which will now manage its lifetime
-  G4TouchableHandle originTouchableHandle(originTouchableHistory.release() /* Now owned by G4TouchableHandle */);
-  leakedTrack->SetOriginTouchableHandle(originTouchableHandle);
+  if (hostTData.originTouchableHandle) {
+    leakedTrack->SetOriginTouchableHandle(*hostTData.originTouchableHandle);
+  }
 
   // ------ Handle leaked tracks according to their status, if not LeakStatus::OutOfGPURegion ---------
 
@@ -903,10 +912,7 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   // Set the Touchable and NextTouchable handle. This is always needed, as either
   // gamma-/lepton-nuclear need it, or potentially any user stacking action, as this is called
   // before the track is handed back to AdePT
-  auto NavigationHistory = std::make_unique<G4NavigationHistory>();
-  FillG4NavigationHistory(track.navState, *NavigationHistory);
-  auto TouchableHistory = std::make_unique<G4TouchableHistory>(*NavigationHistory);
-  G4TouchableHandle TouchableHandle(TouchableHistory.release() /* Now owned by G4TouchableHandle */);
+  auto TouchableHandle = MakeTouchableFromNavState(track.navState);
   leakedTrack->SetTouchableHandle(TouchableHandle);
   leakedTrack->SetNextTouchableHandle(TouchableHandle);
 
@@ -963,6 +969,8 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
           // no gamma nuclear process attached, just give back the track to G4 to put it back on GPU
           G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
           delete step;
+          // Track is how handled by CPU
+          fHostTrackDataMapper->retireToCPU(track.trackId);
         }
       } else {
         // case LeakStatus::LeptonNuclear
@@ -989,6 +997,8 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
           G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
           delete step;
         }
+        // Track is how handled by CPU
+        fHostTrackDataMapper->retireToCPU(track.trackId);
       }
     } else {
       throw std::runtime_error("Specialized HepEmTrackingManager not longer valid in integration!");

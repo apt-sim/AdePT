@@ -64,11 +64,10 @@ void AdePTTransport<IntegrationLayer>::AddTrack(int pdg, uint64_t trackId, uint6
                                                 double y, double z, double dirx, double diry, double dirz,
                                                 double globalTime, double localTime, double properTime, float weight,
                                                 unsigned short stepCounter, int /*threadId*/, unsigned int eventId,
-                                                vecgeom::NavigationState &&state,
-                                                vecgeom::NavigationState &&originState)
+                                                vecgeom::NavigationState &&state)
 {
   fBuffer.toDevice.emplace_back(pdg, trackId, parentId, energy, x, y, z, dirx, diry, dirz, globalTime, localTime,
-                                properTime, weight, stepCounter, std::move(state), std::move(originState));
+                                properTime, weight, stepCounter, std::move(state));
   if (pdg == 11)
     fBuffer.nelectrons++;
   else if (pdg == -11)
