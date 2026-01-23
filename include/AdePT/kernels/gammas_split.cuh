@@ -154,7 +154,7 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
 template <typename Scoring>
 __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const adept::MParray *propagationQueue,
                                        ParticleManager particleManager, AllInteractionQueues interactionQueues,
-                                       Scoring *userScoring)
+                                       Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -195,10 +195,34 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
       } else {
         // IMPORTANT: This is necessary just for getting numerically identical results,
         // but should be removed once confirmed that results are good
-        G4HepEmRandomEngine rnge(&currentTrack.rngState);
-        RanluxppDouble newRNG(currentTrack.rngState.Branch());
         // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
         survive(LeakStatus::GammaNuclear);
+
+        // Record last step to enable UserPostTrackingAction to be called
+        if (returnAllSteps || returnLastStep) {
+          adept_scoring::RecordHit(userScoring,
+                                   currentTrack.trackId,                        // Track ID
+                                   currentTrack.parentId,                       // parent Track ID
+                                   static_cast<short>(3),                       // step defining process ID
+                                   2,                                           // Particle type
+                                   currentTrack.geometryStepLength,             // Step length
+                                   0,                                           // Total Edep
+                                   currentTrack.weight,                         // Track weight
+                                   currentTrack.navState,                       // Pre-step point navstate
+                                   currentTrack.preStepPos,                     // Pre-step point position
+                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                   currentTrack.nextState,                      // Post-step point navstate
+                                   currentTrack.pos,                            // Post-step point position
+                                   currentTrack.dir,                            // Post-step point momentum direction
+                                   0,                                           // Post-step point kinetic energy
+                                   currentTrack.globalTime,                     // global time
+                                   currentTrack.localTime,                      // local time
+                                   currentTrack.preStepGlobalTime,              // preStep global time
+                                   currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                                   1, // whether this is the last step of the track
+                                   currentTrack.stepCounter);
+        }
       }
     }
   }
