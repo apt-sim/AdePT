@@ -220,7 +220,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
                                    currentTrack.localTime,                      // local time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                   1, // whether this is the last step of the track
+                                   true, // whether this is the last step of the track
                                    currentTrack.stepCounter);
         }
       }
