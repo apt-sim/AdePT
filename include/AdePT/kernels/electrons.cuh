@@ -42,7 +42,6 @@ __device__ double GetVelocity(double eKin)
   return copcore::units::kCLight * beta;
 }
 
-#ifdef ADEPT_ASYNC_MODE
 namespace AsyncAdePT {
 
 // Compute the physics and geometry step limit, transport the electrons while
@@ -79,41 +78,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const auto slot     = electronsOrPositrons.ActiveAt(i);
     Track &currentTrack = electronsOrPositrons.TrackAt(slot);
-#else
-
-template <bool IsElectron, typename Scoring, class SteppingActionT>
-static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Track> *electrons,
-                                                          Secondaries &secondaries, MParrayTracks *leakedQueue,
-                                                          Scoring *userScoring, const StepActionParam params)
-{
-  using namespace adept_impl;
-  constexpr bool returnAllSteps     = false;
-  constexpr bool returnLastStep     = false;
-  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
-  constexpr unsigned short maxSteps = 10'000;
-  constexpr int Charge              = IsElectron ? -1 : 1;
-  constexpr double restMass         = copcore::units::kElectronMassC2;
-  constexpr int Pdg                 = IsElectron ? 11 : -11;
-  constexpr int Nvar                = 6;
-  constexpr int max_iterations      = 10;
-
-#ifdef ADEPT_USE_EXT_BFIELD
-  using Field_t = GeneralMagneticField;
-#else
-  using Field_t = UniformMagneticField;
-#endif
-  using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
-
-  auto &magneticField = *gMagneticField;
-
-  int activeSize = electrons->fActiveTracks->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot = (*electrons->fActiveTracks)[i];
-    adeptint::TrackData trackdata;
-    Track &currentTrack = (*electrons)[slot];
-#endif
 
     auto navState = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
@@ -161,21 +125,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
       currentTrack.leakStatus = leakReason;
-#ifdef ADEPT_ASYNC_MODE
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
         electronsOrPositrons.CopyTrackToLeaked(slot);
       } else {
         electronsOrPositrons.EnqueueNext(slot);
       }
-#else
-      currentTrack.CopyTo(trackdata, Pdg);
-      if (leakReason != LeakStatus::NoLeak) {
-        leakedQueue->push_back(trackdata);
-      } else {
-        electrons->fNextTracks->push_back(slot);
-      }
-#endif
     };
 
     // Init a track with the needed data to call into G4HepEm.
@@ -566,20 +521,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
 
           } else {
-#ifdef ADEPT_ASYNC_MODE
             Track &secondary = particleManager.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
-#else
-            Track &secondary = secondaries.electrons->NextTrack();
-            secondary.InitAsSecondary(pos, navState, globalTime);
-            secondary.parentId = currentTrack.trackId;
-            secondary.rngState = newRNG;
-            secondary.trackId  = secondary.rngState.IntRndm64();
-            secondary.eKin     = deltaEkin;
-            secondary.weight   = currentTrack.weight;
-            secondary.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
-#endif
 
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
@@ -648,7 +592,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             if (verbose) printf("| secondary killed by cut \n");
 #endif
           } else {
-#ifdef ADEPT_ASYNC_MODE
             // check for Woodcock tracking
             const bool useWDT      = ShouldUseWDT(navState, deltaEkin);
             auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
@@ -656,16 +599,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             Track &gamma = gammaPartManager.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
-#else
-            Track &gamma = secondaries.gammas->NextTrack();
-            gamma.InitAsSecondary(pos, navState, globalTime);
-            gamma.parentId = currentTrack.trackId;
-            gamma.rngState = newRNG;
-            gamma.trackId  = gamma.rngState.IntRndm64();
-            gamma.eKin     = deltaEkin;
-            gamma.weight   = currentTrack.weight;
-            gamma.dir.Set(dirSecondary[0], dirSecondary[1], dirSecondary[2]);
-#endif
+
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               adept_scoring::RecordHit(
@@ -731,23 +665,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += theGamma1Ekin;
 
           } else {
-#ifdef ADEPT_ASYNC_MODE
             const bool useWDT      = ShouldUseWDT(navState, theGamma1Ekin);
             auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
             Track &gamma1 =
                 gammaPartManager.NextTrack(newRNG, theGamma1Ekin, pos,
                                            vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
                                            navState, currentTrack, globalTime);
-#else
-            Track &gamma1 = secondaries.gammas->NextTrack();
-            gamma1.InitAsSecondary(pos, navState, globalTime);
-            gamma1.parentId = currentTrack.trackId;
-            gamma1.rngState = newRNG;
-            gamma1.trackId  = gamma1.rngState.IntRndm64();
-            gamma1.eKin     = theGamma1Ekin;
-            gamma1.weight   = currentTrack.weight;
-            gamma1.dir.Set(theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]);
-#endif
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               adept_scoring::RecordHit(
@@ -777,25 +700,12 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
             energyDeposit += theGamma2Ekin;
 
           } else {
-#ifdef ADEPT_ASYNC_MODE
             const bool useWDT      = ShouldUseWDT(navState, theGamma2Ekin);
             auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
             Track &gamma2 =
                 gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, pos,
                                            vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
                                            navState, currentTrack, globalTime);
-#else
-            Track &gamma2 = secondaries.gammas->NextTrack();
-            gamma2.InitAsSecondary(pos, navState, globalTime);
-            // Reuse the RNG state of the dying track. (This is done for efficiency, if the particle is cut
-            // the state is not reused, but this shouldn't be an issue)
-            gamma2.parentId = currentTrack.trackId;
-            gamma2.rngState = currentTrack.rngState;
-            gamma2.trackId  = gamma2.rngState.IntRndm64();
-            gamma2.eKin     = theGamma2Ekin;
-            gamma2.weight   = currentTrack.weight;
-            gamma2.dir.Set(theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]);
-#endif
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               adept_scoring::RecordHit(
@@ -857,8 +767,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // as the branched newRNG may have already been used by interactions before, we need to create a new one
           RanluxppDouble newRNG2(currentTrack.rngState.Branch());
 
-#ifdef ADEPT_ASYNC_MODE
-
           const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});
           auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
 
@@ -869,26 +777,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           // Reuse the RNG state of the dying track.
           Track &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
                                                      pos, -gamma1.dir, navState, currentTrack, globalTime);
-#else
-          Track &gamma1 = secondaries.gammas->NextTrack();
-          Track &gamma2 = secondaries.gammas->NextTrack();
-          gamma1.InitAsSecondary(pos, navState, globalTime);
-          gamma1.parentId = currentTrack.trackId;
-          gamma1.rngState = newRNG2;
-          gamma1.trackId  = gamma1.rngState.IntRndm64();
-          gamma1.eKin     = copcore::units::kElectronMassC2;
-          gamma1.weight   = currentTrack.weight;
-          gamma1.dir.Set(sint * cosPhi, sint * sinPhi, cost);
-
-          gamma2.InitAsSecondary(pos, navState, globalTime);
-          // Reuse the RNG state of the dying track.
-          gamma2.parentId = currentTrack.trackId;
-          gamma2.rngState = currentTrack.rngState;
-          gamma2.trackId  = gamma2.rngState.IntRndm64();
-          gamma2.eKin     = copcore::units::kElectronMassC2;
-          gamma2.weight   = currentTrack.weight;
-          gamma2.dir      = -gamma1.dir;
-#endif
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
@@ -961,7 +849,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // this one always needs to be last as it needs to be done only if the track survives
-#ifdef ADEPT_ASYNC_MODE
     if (trackSurvives) {
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
@@ -972,7 +859,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         leakReason = LeakStatus::FinishEventOnCPU;
       }
     }
-#endif
 
     __syncwarp(); // was found to be beneficial after divergent calls
 
@@ -980,9 +866,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
       survive();
     } else {
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
-#ifdef ADEPT_ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
-#endif
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
@@ -1011,7 +895,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 }
 
 // Instantiate kernels for electrons and positrons.
-#ifdef ADEPT_ASYNC_MODE
 template <typename Scoring, class SteppingActionT>
 __global__ void TransportElectrons(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
                                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
@@ -1028,23 +911,5 @@ __global__ void TransportPositrons(ParticleManager particleManager, Scoring *use
   TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(
       particleManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
 }
-#else
-template <typename Scoring, class SteppingActionT>
-__global__ void TransportElectrons(adept::TrackManager<Track> *electrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
-{
-  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(electrons, secondaries, leakedQueue, userScoring,
-                                                                    params);
-}
-template <typename Scoring, class SteppingActionT>
-__global__ void TransportPositrons(adept::TrackManager<Track> *positrons, Secondaries secondaries,
-                                   MParrayTracks *leakedQueue, Scoring *userScoring, const StepActionParam params)
-{
-  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(positrons, secondaries, leakedQueue, userScoring,
-                                                                     params);
-}
-#endif
 
-#ifdef ADEPT_ASYNC_MODE
 } // namespace AsyncAdePT
-#endif

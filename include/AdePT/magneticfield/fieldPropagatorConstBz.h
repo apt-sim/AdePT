@@ -8,7 +8,6 @@
 #include <VecGeom/base/Vector3D.h>
 #include <AdePT/copcore/PhysicalConstants.h>
 
-#include <AdePT/base/BlockData.h>
 #include <AdePT/navigation/AdePTNavigator.h>
 
 #include "fieldConstants.h"

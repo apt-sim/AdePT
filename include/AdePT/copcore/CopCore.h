@@ -11,7 +11,6 @@
 
 #include <AdePT/copcore/Macros.h>
 #include <AdePT/copcore/Global.h>
-#include <AdePT/copcore/Allocator.h>
 #include <AdePT/copcore/VariableSizeObj.h>
 #include <AdePT/copcore/VariableSizeObjAllocator.h>
 

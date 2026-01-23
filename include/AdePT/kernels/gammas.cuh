@@ -17,7 +17,6 @@
 using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
 
-#ifdef ADEPT_ASYNC_MODE
 namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
 template <typename Scoring, class SteppingActionT>
@@ -33,25 +32,6 @@ __global__ void __launch_bounds__(256, 1)
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const auto slot     = particleManager.gammas.ActiveAt(i);
     Track &currentTrack = particleManager.gammas.TrackAt(slot);
-#else
-
-// Synchronous TransportGammas Interface
-template <typename Scoring, class SteppingActionT>
-__global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries secondaries, MParrayTracks *leakedQueue,
-                                Scoring *userScoring, const StepActionParam params)
-{
-  using namespace adept_impl;
-  constexpr bool returnAllSteps     = false;
-  constexpr bool returnLastStep     = false;
-  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
-  constexpr unsigned short maxSteps = 10'000;
-  constexpr int Pdg                 = 22;
-  int activeSize                    = gammas->fActiveTracks->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot = (*gammas->fActiveTracks)[i];
-    adeptint::TrackData trackdata;
-    Track &currentTrack = (*gammas)[slot];
-#endif
 
     auto navState             = currentTrack.navState;
     int lvolID                = navState.GetLogicalId();
@@ -99,7 +79,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
       currentTrack.leakStatus = leakReason;
-#ifdef ADEPT_ASYNC_MODE
       if (leakReason != LeakStatus::NoLeak) {
         // Copy track at slot to the leaked tracks
         particleManager.gammas.CopyTrackToLeaked(slot);
@@ -110,14 +89,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           particleManager.gammasWDT.EnqueueNext(slot);
         }
       }
-#else
-      currentTrack.CopyTo(trackdata, Pdg);
-      if (leakReason != LeakStatus::NoLeak) {
-        leakedQueue->push_back(trackdata);
-      } else {
-        gammas->fNextTracks->push_back(slot);
-      }
-#endif
     };
 
     // Init a track with the needed data to call into G4HepEm.
@@ -225,7 +196,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // next region is a GPU region
         if (regionId >= 0) {
 
-#ifdef ADEPT_ASYNC_MODE
           const adeptint::WDTDeviceView &view = gWDTData;
           const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
 
@@ -237,8 +207,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
               enterWDTRegion = true;
             }
           }
-#endif
-
           trackSurvives = true;
         } else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
@@ -312,21 +280,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           // Deposit the energy here and kill the secondary
           edep = elKinEnergy;
         } else {
-#ifdef ADEPT_ASYNC_MODE
           Track &electron = particleManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
-#else
-          Track &electron = secondaries.electrons->NextTrack();
-          electron.InitAsSecondary(pos, navState, globalTime);
-          electron.parentId = currentTrack.trackId;
-          electron.rngState = newRNG;
-          electron.trackId  = electron.rngState.IntRndm64();
-          electron.eKin     = elKinEnergy;
-          electron.weight   = currentTrack.weight;
-          electron.dir.Set(dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]);
-#endif
+
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
@@ -356,22 +314,11 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
         } else {
-#ifdef ADEPT_ASYNC_MODE
           Track &positron = particleManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
-#else
-          Track &positron = secondaries.positrons->NextTrack();
-          positron.InitAsSecondary(pos, navState, globalTime);
-          // Reuse the RNG state of the dying track.
-          positron.parentId = currentTrack.trackId;
-          positron.rngState = currentTrack.rngState;
-          positron.trackId  = positron.rngState.IntRndm64();
-          positron.eKin     = posKinEnergy;
-          positron.weight   = currentTrack.weight;
-          positron.dir.Set(dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]);
-#endif
+
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, positron.trackId, positron.parentId,
@@ -424,20 +371,9 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
-#ifdef ADEPT_ASYNC_MODE
           Track &electron = particleManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
-#else
-          Track &electron = secondaries.electrons->NextTrack();
 
-          electron.InitAsSecondary(pos, navState, globalTime);
-          electron.parentId = currentTrack.trackId;
-          electron.rngState = newRNG;
-          electron.trackId  = electron.rngState.IntRndm64();
-          electron.eKin     = energyEl;
-          electron.weight   = currentTrack.weight;
-          electron.dir      = eKin * dir - newEnergyGamma * newDirGamma;
-#endif
           electron.dir.Normalize();
 
           // if tracking or stepping action is called, return initial step
@@ -502,20 +438,10 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
           G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
           // Create a secondary electron and sample directions.
-#ifdef ADEPT_ASYNC_MODE
           Track &electron = particleManager.electrons.NextTrack(
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
-#else
-          Track &electron = secondaries.electrons->NextTrack();
-          electron.InitAsSecondary(pos, navState, globalTime);
-          electron.parentId = currentTrack.trackId;
-          electron.rngState = newRNG;
-          electron.trackId  = electron.rngState.IntRndm64();
-          electron.eKin     = photoElecE;
-          electron.weight   = currentTrack.weight;
-          electron.dir.Set(dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]);
-#endif
+
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
@@ -576,7 +502,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
     // finishing on CPU must be last one only sets the LeakStatus but does not affect survival of the track
     if (trackSurvives && leakReason == LeakStatus::NoLeak) {
-#ifdef ADEPT_ASYNC_MODE
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
         printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
@@ -585,7 +510,6 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
 
         leakReason = LeakStatus::FinishEventOnCPU;
       }
-#endif
     }
 
     __syncwarp();
@@ -597,9 +521,7 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
       survive();
     } else {
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
-#ifdef ADEPT_ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
-#endif
     }
 
     // If there is some edep from cutting particles, record the step
@@ -630,6 +552,4 @@ __global__ void TransportGammas(adept::TrackManager<Track> *gammas, Secondaries 
   } // end for loop over tracks
 }
 
-#ifdef ADEPT_ASYNC_MODE
 } // namespace AsyncAdePT
-#endif

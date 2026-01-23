@@ -22,7 +22,6 @@
 #include <power_meter.hh>
 #endif
 
-#ifdef ADEPT_ASYNC_MODE
 std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf,
                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
@@ -30,7 +29,6 @@ std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &co
       new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmTM)};
   return AdePT;
 }
-#endif
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -55,12 +53,6 @@ AdePTTrackingManager::~AdePTTrackingManager()
 
 void AdePTTrackingManager::InitializeAdePT()
 {
-#ifndef ADEPT_ASYNC_MODE
-  // in Sync AdePT, check if this is a sequential run
-  G4RunManager::RMType rmType = G4RunManager::GetRunManager()->GetRunManagerType();
-  bool sequential             = (rmType == G4RunManager::sequentialRM);
-#endif
-
   auto tid = G4Threading::G4GetThreadId();
 
   // Master thread cannot initialize AdePT as the number of G4 worker threads may not yet be known in applications.
@@ -114,19 +106,9 @@ void AdePTTrackingManager::InitializeAdePT()
     if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
 #endif
 
-// Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
-// all threads.
-#ifdef ADEPT_ASYNC_MODE
+    // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
+    // all threads.
     fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
-#else
-    fAdeptTransport =
-        std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
-
-    // Initialize common data:
-    // G4HepEM, Upload VecGeom geometry to GPU, Geometry check, Create volume auxiliary data
-    fAdeptTransport->Initialize(fHepEmTrackingManager.get(), true /*common_data*/);
-    fCommonInitThread = true;
-#endif
 
     // common init done, can notify other workers to proceed their initialization
     {
@@ -146,20 +128,11 @@ void AdePTTrackingManager::InitializeAdePT()
   // Now the fNumThreads is known and all workers can initialize
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
-#ifdef ADEPT_ASYNC_MODE
   // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
   fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
   // All workers store the pointer to their HepEmTrackingManager in fAdePTTransport. This is required for nuclear
   // processes
   fAdeptTransport->SetHepEmTrackingManagerForThread(tid, fHepEmTrackingManager.get());
-#else
-  if (!sequential) { // if sequential, the instance is already created
-    fAdeptTransport =
-        std::make_unique<AdePTTransport<AdePTGeant4Integration>>(*fAdePTConfiguration, fHepEmTrackingManager.get());
-  }
-  // Initialize per-thread data
-  fAdeptTransport->Initialize(fHepEmTrackingManager.get());
-#endif
 
   // Initialize the GPU region list
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
@@ -309,11 +282,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   fAdeptTransport->ProcessGPUSteps(threadId, eventID);
 
   // need to cast to avoid the pitfall of the untemplated AdePTTransportInterface that cannot hold the IntegrationLayer
-#ifdef ADEPT_ASYNC_MODE
   auto *Transport = static_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
-#else
-  auto *Transport = static_cast<AdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
-#endif
+
   if (!Transport) {
     G4Exception("AdePTTrackingManager::ProcessTrack", "", FatalException,
                 "fAdeptTransport is not of type AsyncAdePTTransport<AdePTGeant4Integration>");
