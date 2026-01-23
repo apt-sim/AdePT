@@ -120,8 +120,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     const int lvolID          = navState.GetLogicalId();
     VolAuxData const &auxData = gVolAuxData[lvolID];
 
-    bool isLastStep                          = returnLastStep;
-    bool surviveFlag                         = false;
+    bool trackSurvives                       = false;
     LeakStatus leakReason                    = LeakStatus::NoLeak;
     constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
     constexpr unsigned short kStepsStuckPush = 5;
@@ -154,7 +153,6 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #endif
 
     auto survive = [&]() {
-      isLastStep              = false; // track survived, do not force return of step
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
@@ -397,7 +395,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           pos += displacement;
         } else {
           // Recompute safety.
-          // Use maximum accuracy only if safety is samller than physicalStepLength
+          // Use maximum accuracy only if safety is smaller than physicalStepLength
           safety = AdePTNavigator::ComputeSafety(pos, navState, dispR);
           currentTrack.SetSafety(pos, safety);
           reducedSafety = sFact * safety;
@@ -496,8 +494,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           }
 
           // the track survives, do not force return of step
-          surviveFlag = true;
-          isLastStep  = false;
+          trackSurvives = true;
         } // else particle has left the world
 
         winnerProcessIndex = 10; // mark winner process to be transport
@@ -508,11 +505,11 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
         // mark winner process to be transport, although this is not strictly true
         winnerProcessIndex = 10;
 
-        surviveFlag         = true;
+        trackSurvives       = true;
         reached_interaction = false;
       } else if (winnerProcessIndex < 0) {
         // No discrete process, move on.
-        surviveFlag         = true;
+        trackSurvives       = true;
         reached_interaction = false;
       }
     }
@@ -533,7 +530,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| delta interaction\n");
 #endif
-        surviveFlag = true;
+        trackSurvives = true;
       } else {
         // Perform the discrete interaction, make sure the branched RNG state is
         // ready to be used.
@@ -606,7 +603,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                   globalTime,       // global time at preStepPoint, for initializingStep its the globalTime
                   secondary.eventId, secondary.threadId, // eventID and threadID
                   false,                                 // whether this was the last step
-                  secondary.stepCounter);                // whether this was the first step
+                  secondary.stepCounter);                // stepcounter
             }
           }
 
@@ -623,7 +620,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
           }
 
           dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-          surviveFlag = true;
+          trackSurvives = true;
           break;
         }
         case 1: {
@@ -690,7 +687,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                   globalTime,                    // global time at preStepPoint, for initializingStep its the globalTime
                   gamma.eventId, gamma.threadId, // eventID and threadID
                   false,                         // whether this was the last step
-                  gamma.stepCounter);            // whether this was the first step
+                  gamma.stepCounter);            // stepcounter
             }
           }
 
@@ -710,7 +707,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 #if ADEPT_DEBUG_TRACK > 0
           if (verbose) printf("| new_dir {%.19f, %.19f, %.19f}\n", dir[0], dir[1], dir[2]);
 #endif
-          surviveFlag = true;
+          trackSurvives = true;
           break;
         }
         case 2: {
@@ -772,7 +769,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                   globalTime,    // global time at preStepPoint, for initializingStep its the globalTime
                   gamma1.eventId, gamma1.threadId, // eventID and threadID
                   false,                           // whether this was the last step
-                  gamma1.stepCounter);             // whether this was the first step
+                  gamma1.stepCounter);             // stepcounter
             }
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -820,15 +817,15 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                   globalTime,    // global time at preStepPoint, for initializingStep its the globalTime
                   gamma2.eventId, gamma2.threadId, // eventID and threadID
                   false,                           // whether this was the last step
-                  gamma2.stepCounter);             // whether this was the first step
+                  gamma2.stepCounter);             // stepcounter
             }
           }
           break;
         }
         case 3: {
           // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
-          surviveFlag = true;
-          leakReason  = LeakStatus::LeptonNuclear;
+          trackSurvives = true;
+          leakReason    = LeakStatus::LeptonNuclear;
           break;
         }
         }
@@ -913,7 +910,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                      globalTime, // global time at preStepPoint, for initializingStep its the globalTime
                                      gamma1.eventId, gamma1.threadId, // eventID and threadID
                                      false,                           // whether this was the last step
-                                     gamma1.stepCounter);             // whether this was the first step
+                                     gamma1.stepCounter);             // stepcounter
             adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),
                                      /* gamma*/ 2,  // Particle type
                                      0,             // Step length
@@ -932,13 +929,13 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                      globalTime, // global time at preStepPoint, for initializingStep its the globalTime
                                      gamma2.eventId, gamma2.threadId, // eventID and threadID
                                      false,                           // whether this was the last step
-                                     gamma2.stepCounter);             // whether this was the first step
+                                     gamma2.stepCounter);             // stepcounter
           }
         }
       }
     }
 
-    if (surviveFlag) {
+    if (trackSurvives) {
       if (++currentTrack.looperCounter > 500) {
         // Kill loopers that are not advancing in free space or are scraping at a boundary
         if (printErrors)
@@ -949,23 +946,23 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                  "safety=%E\n",
                  eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                  geometryStepLength, geometricalStepLengthFromPhysics, safety);
-        surviveFlag = false;
+        trackSurvives = false;
       } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
                  currentTrack.zeroStepCounter);
-        surviveFlag = false;
+        trackSurvives = false;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::ElectronAction(surviveFlag, eKin, energyDeposit, leakReason, pos, globalTime, auxData.fMCIndex,
-                                        &g4HepEmData, params);
+        SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, leakReason, pos, globalTime,
+                                        auxData.fMCIndex, &g4HepEmData, params);
       }
     }
 
     // this one always needs to be last as it needs to be done only if the track survives
 #ifdef ADEPT_ASYNC_MODE
-    if (surviveFlag) {
+    if (trackSurvives) {
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
         if (printErrors)
@@ -979,10 +976,9 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
 
     __syncwarp(); // was found to be beneficial after divergent calls
 
-    if (surviveFlag) {
+    if (trackSurvives) {
       survive();
     } else {
-      isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
 #ifdef ADEPT_ASYNC_MODE
       slotManager.MarkSlotForFreeing(slot);
@@ -990,7 +986,7 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && isLastStep)) {
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives)) {
       adept_scoring::RecordHit(userScoring, currentTrack.trackId, currentTrack.parentId, short(winnerProcessIndex),
                                static_cast<char>(IsElectron ? 0 : 1),       // Particle type
                                elTrack.GetPStepLength(),                    // Step length
@@ -1008,8 +1004,8 @@ static __device__ __forceinline__ void TransportElectrons(adept::TrackManager<Tr
                                localTime,                                   // local time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               isLastStep,                                  // whether this was the last step
-                               currentTrack.stepCounter);                   // whether this was the first step
+                               !trackSurvives,                              // whether this was the last step
+                               currentTrack.stepCounter);                   // stepcounter
     }
   }
 }
