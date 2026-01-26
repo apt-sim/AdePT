@@ -129,9 +129,8 @@ The table below shows the available CMake options for AdePT that may be used to 
 
 |Option|Default|Description|
 |------|:-----:|-----------|
-|ADEPT_ASYNC_MODE|OFF|Enable the asynchronous kernel scheduling mode. Recommended and significantly faster than the synchronous mode in many occasions |
 |ADEPT_USE_EXT_BFIELD|OFF|Use external B field from file via the covfie library. If ON, the constant field values are ignored and only B fields from file are accepted! |
-|ADEPT_USE_SPLIT_KERNELS|OFF| Run split version of the transport kernels. Requires ADEPT_ASYNC_MODE=ON |
+|ADEPT_USE_SPLIT_KERNELS|OFF| Run split version of the transport kernels |
 |ADEPT_USE_SURF|OFF| Enable surface model navigation on GPU (still in development, unstable for geometries with overlaps) |
 |ADEPT_MIXED_PRECISION|OFF|Use B-field integration and surface model in mixed precision|
 |ADEPT_DEBUG_SINGLE_THREAD|OFF| Run transport kernels in single thread mode |

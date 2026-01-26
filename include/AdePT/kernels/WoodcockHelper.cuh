@@ -6,7 +6,6 @@
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 
-#ifdef ADEPT_ASYNC_MODE
 namespace AsyncAdePT {
 
 // Helper function to decide whether a gamma should be processed via Woodcock tracking based on navigation state and
@@ -36,4 +35,3 @@ __device__ __forceinline__ bool ShouldUseWDT(const vecgeom::NavigationState &sta
 }
 
 } // namespace AsyncAdePT
-#endif

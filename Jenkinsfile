@@ -135,16 +135,13 @@ def buildAndTest() {
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
     env | sort | sed 's/:/:?     /g' | tr '?' '\n'
     export CMAKE_BINARY_DIR=BUILD_ASYNC_ON
-    export ExtraCMakeOptions="-DADEPT_ASYNC_MODE=ON -DADEPT_BUILD_TESTING=ON"
+    export ExtraCMakeOptions="-DADEPT_BUILD_TESTING=ON"
     ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
     export CMAKE_BINARY_DIR=BUILD_SPLIT_ON
-    export ExtraCMakeOptions="-DADEPT_ASYNC_MODE=ON -DADEPT_USE_SPLIT_KERNELS=ON -DADEPT_BUILD_TESTING=ON"
+    export ExtraCMakeOptions="-DADEPT_USE_SPLIT_KERNELS=ON -DADEPT_BUILD_TESTING=ON"
     ctest -V --output-on-failure --timeout 2400 -R testEm3_validation -S AdePT/jenkins/adept-ctest.cmake,$MODEL
-    export CMAKE_BINARY_DIR=BUILD_ASYNC_OFF
-    export ExtraCMakeOptions="-DADEPT_ASYNC_MODE=OFF -DADEPT_USE_SPLIT_KERNELS=OFF -DADEPT_BUILD_TESTING=ON"
-    ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
     export CMAKE_BINARY_DIR=BUILD_MIXED_PRECISION
-    export ExtraCMakeOptions="-DADEPT_ASYNC_MODE=ON -DADEPT_MIXED_PRECISION=ON -DADEPT_BUILD_TESTING=ON"
+    export ExtraCMakeOptions="-DADEPT_MIXED_PRECISION=ON -DADEPT_BUILD_TESTING=ON"
     ctest -V --output-on-failure --timeout 2400 -R run_only_test -S AdePT/jenkins/adept-ctest.cmake,$MODEL
   """
 }

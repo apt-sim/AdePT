@@ -52,7 +52,6 @@ option(ADEPT_USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(ADEPT_DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
-option(ADEPT_ASYNC_MODE "Enable the async transport backend" OFF)
 option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
@@ -219,20 +218,10 @@ endif()
 if(NOT TARGET VecGeom::vgdml)
   message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
 endif()
-if(ADEPT_ASYNC_MODE)
-  add_compile_definitions(ADEPT_ASYNC_MODE)
-  message(STATUS "${Green}Using the asynchronous transport backend${ColorReset}")
-else()
-  message(STATUS "${Red}Async backend is disabled${ColorReset}")
-endif()
 # Run split kernels
 if (ADEPT_USE_SPLIT_KERNELS)
-  if(ADEPT_ASYNC_MODE)
-    add_compile_definitions(ADEPT_USE_SPLIT_KERNELS)
-    message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
-  else()
-    message(FATAL_ERROR "In order to run with split kernels, AdePT must be compiled in ADEPT_ASYNC_MODE")
-  endif()
+  add_compile_definitions(ADEPT_USE_SPLIT_KERNELS)
+  message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
 endif()
 # Debugging in single-thread mode
 if (ADEPT_DEBUG_SINGLE_THREAD)
@@ -474,7 +463,6 @@ target_compile_definitions(AdePT_G4_integration_objects
 target_compile_definitions(AdePT_G4_integration
   INTERFACE
     ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
-    $<$<BOOL:${ADEPT_ASYNC_MODE}>:ADEPT_ASYNC_MODE>
     $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
     $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
     $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
