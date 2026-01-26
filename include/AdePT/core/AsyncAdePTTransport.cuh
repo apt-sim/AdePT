@@ -318,7 +318,6 @@ __global__ void FreeSlots2(Ts... slotManagers)
 
 // Finish iteration: clear queues and fill statistics.
 __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
-//, GammaInteractions gammaInteractions) // Note: deprecated gammaInteractions
 {
   if (blockIdx.x == 0) {
     // Clear queues and write statistics
@@ -362,10 +361,6 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       asm("trap;");
     }
   } else if (blockIdx.x == 2) {
-    // Note: deprecated gammainteractions
-    // if (threadIdx.x < gammaInteractions.NInt) {
-    //   gammaInteractions.queues[threadIdx.x]->clear();
-    // }
     if (threadIdx.x == 0) {
       // Note: hitBufferOccupancy gives the maximum occupancy of all threads combined
       stats->hitBufferOccupancy = AsyncAdePT::gHitScoringBuffer_dev.GetMaxSlotCount();
@@ -828,17 +823,6 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   woodcockQueues.nextActive = static_cast<adept::MParray *>(gpuPtr);
   InitQueue<int><<<1, 1>>>(woodcockQueues.nextActive, nSlot);
 
-  // NOTE: deprecated GammaInteractions
-  // init gamma interaction queues
-  // for (unsigned int i = 0; i < GammaInteractions::NInt; ++i) {
-  //   const auto capacity     = trackCapacity / 6;
-  //   const auto instanceSize = adept::MParrayT<GammaInteractions::Data>::SizeOfInstance(capacity);
-  //   void *gpuPtr            = nullptr;
-  //   gpuMalloc(gpuPtr, instanceSize);
-  //   gpuState.gammaInteractions.queues[i] = static_cast<adept::MParrayT<GammaInteractions::Data> *>(gpuPtr);
-  //   InitQueue<GammaInteractions::Data><<<1, 1>>>(gpuState.gammaInteractions.queues[i], capacity);
-  // }
-
   // initialize statistics
   gpuMalloc(gpuState.stats_dev, 1);
   COPCORE_CUDA_CHECK(cudaMallocHost(&gpuState.stats, sizeof(Stats)));
@@ -1293,17 +1277,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 #else
         TransportGammas<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             particleManager, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
-            returnAllSteps, returnLastStep); //, gpuState.gammaInteractions);
+            returnAllSteps, returnLastStep);
 
         TransportGammasWoodcock<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             particleManager, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
             returnAllSteps, returnLastStep);
 #endif
-
-        // constexpr unsigned int intThreads = 128;
-        // ApplyGammaInteractions<PerEventScoring><<<dim3(20, 3, 1), intThreads, 0, gammas.stream>>>(
-        //     gammas.tracks, particleManager, gammas.queues.nextActive, gpuState.fScoring_dev,
-        //     gpuState.gammaInteractions);
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
@@ -1566,7 +1545,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       // This kernel needs to wait that all of the above work (except for asynchronous particle transfer) is done.
       // Don't forget to synchronise any of the transport or event counting with it.
       FinishIteration<<<4, 32, 0, gpuState.stream>>>(allParticleQueues, gpuState.stats_dev, tracksAndSlots);
-      //, gpuState.gammaInteractions); // Note: deprecated gammainteractions
 
       // Try to free slots if one of the queues is half full
       if (gpuState.injectState != InjectState::CreatingSlots) {

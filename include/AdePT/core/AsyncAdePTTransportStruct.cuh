@@ -282,7 +282,6 @@ struct GPUstate {
 #endif
 
   ParticleType particles[ParticleType::NumParticleTypes];
-  // GammaInteractions gammaInteractions; // Note: deprecated gammaInteractions for split gamma kernels
 
   // particle queues for gammas doing woodcock tracking. Only the `initiallyActive` and `nextActive` queue are
   // allocated, for the leaks the normal gamma queues inside particles[ParticleType::Gamma] are used.
