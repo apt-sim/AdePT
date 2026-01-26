@@ -63,7 +63,6 @@ __global__ void __launch_bounds__(256, 1)
 
     auto eKin = currentTrack.eKin;
 
-    bool isLastStep       = returnLastStep;
     LeakStatus leakReason = LeakStatus::NoLeak;
     bool leftWDTRegion    = false;
     // initialize nextState to current state
@@ -76,8 +75,6 @@ __global__ void __launch_bounds__(256, 1)
     // survive: decide whether to continue woodcock tracking or not:
     // Write local variables back into track and enqueue to correct queue
     auto survive = [&]() {
-      isLastStep = false; // set to false even for gamma nuclear, as the hostTrackData is deleted when invoking the
-                          // reaction on CPU
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
       currentTrack.dir        = dir;
@@ -354,7 +351,7 @@ __global__ void __launch_bounds__(256, 1)
     // For the discrete process, the MFP and EKin of thePrimaryTrack must be set
 
     // helper variables needed for the processes
-    bool surviveFlag           = false;
+    bool trackSurvives         = false;
     short stepDefinedProcessId = 10; // default for transportation
     double edep                = 0.;
     auto preStepEnergy         = eKin;
@@ -370,7 +367,7 @@ __global__ void __launch_bounds__(256, 1)
     if (currentTrack.looperCounter > 0) {
       // Case 1: fake interaction, give particle back to WDT gammas unless it did more fake interactions than allowed,
       // in that case give back to normal gammas
-      surviveFlag   = true;
+      trackSurvives = true;
       leftWDTRegion = (view.maxIter == currentTrack.looperCounter) ? true : false;
     } else if (isWDTReachedBoundary) {
       // Case 2: Gamma has hit the boundary of the root WDT volume.
@@ -404,7 +401,7 @@ __global__ void __launch_bounds__(256, 1)
 #endif
 
           // particle is still alive
-          surviveFlag = true;
+          trackSurvives = true;
         } else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region
@@ -414,8 +411,8 @@ __global__ void __launch_bounds__(256, 1)
           if (verbose) printf("\n| track leaked to Geant4\n");
 #endif
 
-          surviveFlag = true;
-          leakReason  = LeakStatus::OutOfGPURegion;
+          trackSurvives = true;
+          leakReason    = LeakStatus::OutOfGPURegion;
         }
       } // else particle has left the world
 
@@ -452,7 +449,7 @@ __global__ void __launch_bounds__(256, 1)
       case 0: {
         // Invoke gamma conversion to e-/e+ pairs, if the energy is above the threshold.
         if (eKin < 2 * copcore::units::kElectronMassC2) {
-          surviveFlag = true;
+          trackSurvives = true;
           break;
         }
 
@@ -552,7 +549,7 @@ __global__ void __launch_bounds__(256, 1)
 
         constexpr double LowEnergyThreshold = 100 * copcore::units::eV;
         if (eKin < LowEnergyThreshold) {
-          surviveFlag = true;
+          trackSurvives = true;
           break;
         }
         const double origDirPrimary[] = {dir.x(), dir.y(), dir.z()};
@@ -603,9 +600,9 @@ __global__ void __launch_bounds__(256, 1)
         // Check the new gamma energy and deposit if below threshold.
         // Using same hardcoded very LowEnergyThreshold as G4HepEm
         if (newEnergyGamma > LowEnergyThreshold) {
-          eKin        = newEnergyGamma;
-          dir         = newDirGamma;
-          surviveFlag = true;
+          eKin          = newEnergyGamma;
+          dir           = newDirGamma;
+          trackSurvives = true;
         } else {
           edep += newEnergyGamma;
           eKin = 0.;
@@ -675,29 +672,28 @@ __global__ void __launch_bounds__(256, 1)
         if (verbose) printf("| GAMMA-NUCLEAR ");
 #endif
         // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
-        surviveFlag = true;
-        leakReason  = LeakStatus::GammaNuclear;
+        leakReason = LeakStatus::GammaNuclear;
       }
       } // end switch (winnerProcessIndex)
 
     } // end if !isWDTReachedBoundary
 
-    if (surviveFlag) {
+    if (trackSurvives) {
       if (currentTrack.stepCounter >= maxSteps) {
         if (printErrors)
           printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps. This indicates a "
                  "stuck particle!\n",
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter);
-        surviveFlag = false;
+        trackSurvives = false;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction(surviveFlag, eKin, edep, leakReason, pos, globalTime, hepEmIMC, &g4HepEmData,
+        SteppingActionT::GammaAction(trackSurvives, eKin, edep, leakReason, pos, globalTime, hepEmIMC, &g4HepEmData,
                                      params);
       }
     }
 
     // finishing on CPU must be last one only sets the LeakStatus but does not affect survival of the track
-    if (surviveFlag && leakReason == LeakStatus::NoLeak) {
+    if (trackSurvives && leakReason == LeakStatus::NoLeak) {
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
         printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
@@ -715,17 +711,20 @@ __global__ void __launch_bounds__(256, 1)
       leftWDTRegion = true;
     }
 
-    if (surviveFlag) {
+    // A track that survives must be enqueued to the leaks or the next queue.
+    // Note: gamma nuclear does not survive but must still be leaked to the CPU, which is done
+    // inside survive()
+    if (trackSurvives || leakReason == LeakStatus::GammaNuclear) {
       survive();
     } else {
-      isLastStep = true;
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
       slotManager.MarkSlotForFreeing(slot);
     }
 
     // If there is some edep from cutting particles, record the step
     // Note: record only real steps that either interacted or hit a boundary
-    if (realStep && ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && isLastStep))) {
+    if (realStep &&
+        ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives))) {
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
@@ -746,8 +745,8 @@ __global__ void __launch_bounds__(256, 1)
                                localTime,                                   // local time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               isLastStep,                // whether this is the last step of the track
-                               currentTrack.stepCounter); // whether this is the first step
+                               !trackSurvives,            // whether this is the last step of the track
+                               currentTrack.stepCounter); // stepcounter
     }
   } // end for loop over tracks
 }

@@ -491,7 +491,11 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
 
   // If this was the last step of a track, the hostTrackData of that track can be safely deleted.
   // Note: This deletes the AdePT-owned UserTrackInfo data
-  if (hit.fLastStepOfTrack) {
+  // Exception: gamma-nuclear steps (fParticleType == 2 and fStepLimProcessId == 3):
+  // Steps are processed before the leaked tracks, and the hostTrackData is still used for invoking
+  // gamma-nuclear when the track is returned to the host (although it will die then). Thus, the hostTrackData must be
+  // kept alive until the invokation of the gamma-nuclear reaction
+  if (hit.fLastStepOfTrack && !(hit.fParticleType == 2 && hit.fStepLimProcessId == 3)) {
     fHostTrackDataMapper->removeTrack(hit.fTrackID);
   }
 }
@@ -797,6 +801,16 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   aPostStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data
   // aPostStepPoint->SetWeight(0);                                                                    // Missing data
+
+  // adjust for gamma-nuclear steps:
+  // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
+  // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
+  if (aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+    aTrack->SetKineticEnergy(0.);
+    // aTrack->SetVelocity(0.);              // Not set in other cases, so also not set here
+    aPostStepPoint->SetKineticEnergy(0.);
+    // aPostStepPoint->SetVelocity(0.);      // Not set in other cases, so also not set here
+  }
 
   // Last, call tracking and stepping actions
   // call UserSteppingAction if required

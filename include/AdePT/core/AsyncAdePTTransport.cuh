@@ -1271,9 +1271,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                                                            allowFinishOffEvent);
         GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
                                                                 gammas.queues.propagation);
-        GammaSetupInteractions<PerEventScoring>
-            <<<blocks, threads, 0, gammas.stream>>>(gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation,
-                                                    particleManager, allGammaInteractionQueues, gpuState.fScoring_dev);
+        GammaSetupInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
+            gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, particleManager, allGammaInteractionQueues,
+            gpuState.fScoring_dev, returnAllSteps, returnLastStep);
         GammaRelocation<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.interactionQueues[4],
             gpuState.fScoring_dev, returnAllSteps, returnLastStep);
