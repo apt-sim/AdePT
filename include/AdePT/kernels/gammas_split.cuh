@@ -193,8 +193,6 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
       if (theTrack->GetWinnerProcessIndex() < 3) {
         interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
       } else {
-        // IMPORTANT: This is necessary just for getting numerically identical results,
-        // but should be removed once confirmed that results are good
         // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
         survive(LeakStatus::GammaNuclear);
 
