@@ -36,8 +36,8 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
     --output ${CI_TMP_DIR}/reproducibility_WDT.mac \
     --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_wdt.gdml \
-    --num_threads 1 \
-    --num_events 1 \
+    --num_threads 4 \
+    --num_events 50 \
     --num_trackslots 3 \
     --num_leakslots 0.3 \
     --num_hitslots 15 \
