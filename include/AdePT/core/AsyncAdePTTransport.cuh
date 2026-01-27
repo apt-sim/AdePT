@@ -206,13 +206,12 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
     // we need to scramble the initial seed with some more trackinfo to generate a unique seed.
     // otherwise, if a particle returns from the device and is injected again (i.e., via lepton nuclear), it would have
     // the same random number state, causing collisions in the track IDs
-    auto seed    = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
-    Track &track = speciesTM->InitTrack(
-        slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
-        static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position, trackInfo.direction,
-        trackInfo.eventId, trackInfo.trackId, trackInfo.parentId, trackInfo.threadId, trackInfo.stepCounter);
-    track.navState.Clear();
-    track.navState = trackinfo[i].navState;
+    auto seed = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
+    Track &track =
+        speciesTM->InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+                             static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
+                             trackInfo.direction, trackinfo[i].navState, trackInfo.eventId, trackInfo.trackId,
+                             trackInfo.parentId, trackInfo.threadId, trackInfo.stepCounter);
     toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
   }
 }
