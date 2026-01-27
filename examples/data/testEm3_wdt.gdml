@@ -1,0 +1,1668 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!-- SPDX-FileCopyrightText: 2022 CERN -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<gdml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://service-spi.web.cern.ch/service-spi/app/releases/GDML/schema/gdml.xsd">
+
+  <define>
+    <position name="G4_Pb_pos" unit="mm" x="-2.85" y="0" z="0"/>
+    <position name="G4_lApos" unit="mm" x="1.15" y="0" z="0"/>
+  </define>
+
+  <materials>
+    <material name="G4_Galactic" state="gas">
+      <T unit="K" value="2.73"/>
+      <P unit="pascal" value="3e-18"/>
+      <MEE unit="eV" value="21.8"/>
+      <D unit="g/cm3" value="1e-25"/>
+      <fraction n="1" ref="H"/>
+    </material>
+    <isotope N="204" Z="82" name="Pb204">
+      <atom unit="g/mole" value="203.973"/>
+    </isotope>
+    <isotope N="206" Z="82" name="Pb206">
+      <atom unit="g/mole" value="205.974"/>
+    </isotope>
+    <isotope N="207" Z="82" name="Pb207">
+      <atom unit="g/mole" value="206.976"/>
+    </isotope>
+    <isotope N="208" Z="82" name="Pb208">
+      <atom unit="g/mole" value="207.977"/>
+    </isotope>
+    <element name="Pb">
+      <fraction n="0.014" ref="Pb204"/>
+      <fraction n="0.241" ref="Pb206"/>
+      <fraction n="0.221" ref="Pb207"/>
+      <fraction n="0.524" ref="Pb208"/>
+    </element>
+    <material name="G4_Pb" state="solid">
+      <T unit="K" value="293.15"/>
+      <MEE unit="eV" value="823"/>
+      <D unit="g/cm3" value="11.35"/>
+      <fraction n="1" ref="Pb"/>
+    </material>
+    <isotope N="36" Z="18" name="Ar36">
+      <atom unit="g/mole" value="35.9675"/>
+    </isotope>
+    <isotope N="38" Z="18" name="Ar38">
+      <atom unit="g/mole" value="37.9627"/>
+    </isotope>
+    <isotope N="40" Z="18" name="Ar40">
+      <atom unit="g/mole" value="39.9624"/>
+    </isotope>
+    <element name="Ar">
+      <fraction n="0.003365" ref="Ar36"/>
+      <fraction n="0.000632" ref="Ar38"/>
+      <fraction n="0.996003" ref="Ar40"/>
+    </element>
+    <material name="G4_lAr" state="liquid">
+      <T unit="K" value="293.15"/>
+      <MEE unit="eV" value="188"/>
+      <D unit="g/cm3" value="1.396"/>
+      <fraction n="1" ref="Ar"/>
+    </material>
+    <isotope N="1" Z="1" name="H1">
+      <atom unit="g/mole" value="1.00782503081372"/>
+    </isotope>
+    <isotope N="2" Z="1" name="H2">
+      <atom unit="g/mole" value="2.01410199966617"/>
+    </isotope>
+    <element name="H">
+      <fraction n="0.999885" ref="H1"/>
+      <fraction n="0.000115" ref="H2"/>
+    </element>
+  </materials>
+
+  <solids>
+    
+    <box name="WDT_10_40" lunit="mm" x="248" y="400" z="400"/>
+    <box lunit="mm" name="Absorber1" x="2.3" y="400" z="400"/>
+    <box lunit="mm" name="Absorber2" x="5.7" y="400" z="400"/>
+    <box lunit="mm" name="Layer" x="8" y="400" z="400"/>
+    <box lunit="mm" name="Calorimeter" x="400" y="400" z="400"/>
+    <box lunit="mm" name="World" x="480" y="480" z="480"/>
+  </solids>
+
+  <structure>
+    <volume name="G4_Pb1">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr1">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb2">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr2">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb3">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr3">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb4">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr4">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb5">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr5">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb6">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr6">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb7">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr7">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb8">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr8">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb9">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr9">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb10">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr10">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb11">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr11">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb12">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr12">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb13">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr13">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb14">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr14">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb15">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr15">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb16">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr16">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb17">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr17">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb18">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr18">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb19">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr19">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb20">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr20">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb21">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr21">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb22">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr22">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb23">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr23">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb24">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr24">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb25">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr25">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb26">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr26">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb27">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr27">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb28">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr28">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb29">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr29">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb30">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr30">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb31">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr31">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb32">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr32">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb33">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr33">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb34">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr34">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb35">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr35">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb36">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr36">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb37">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr37">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb38">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr38">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb39">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr39">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb40">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr40">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb41">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr41">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb42">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr42">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb43">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr43">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb44">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr44">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb45">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr45">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb46">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr46">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb47">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr47">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb48">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr48">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb49">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr49">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="G4_Pb50">
+      <materialref ref="G4_Pb"/>
+      <solidref ref="Absorber1"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="1"/>
+    </volume>
+    <volume name="G4_lAr50">
+      <materialref ref="G4_lAr"/>
+      <solidref ref="Absorber2"/>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="2"/>
+    </volume>
+
+    <volume name="Layer1">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb1"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr1"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer2">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb2"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr2"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer3">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb3"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr3"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer4">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb4"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr4"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer5">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb5"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr5"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer6">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb6"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr6"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer7">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb7"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr7"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer8">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb8"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr8"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer9">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb9"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr9"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer10">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb10"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr10"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer11">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb11"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr11"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer12">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb12"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr12"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer13">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb13"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr13"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer14">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb14"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr14"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer15">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb15"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr15"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer16">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb16"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr16"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer17">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb17"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr17"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer18">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb18"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr18"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer19">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb19"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr19"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer20">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb20"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr20"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer21">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb21"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr21"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer22">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb22"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr22"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer23">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb23"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr23"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer24">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb24"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr24"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer25">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb25"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr25"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer26">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb26"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr26"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer27">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb27"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr27"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer28">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb28"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr28"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer29">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb29"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr29"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer30">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb30"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr30"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer31">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb31"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr31"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer32">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb32"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr32"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer33">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb33"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr33"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer34">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb34"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr34"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer35">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb35"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr35"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer36">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb36"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr36"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer37">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb37"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr37"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer38">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb38"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr38"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer39">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb39"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr39"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer40">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb40"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr40"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer41">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb41"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr41"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer42">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb42"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr42"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer43">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb43"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr43"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer44">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb44"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr44"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer45">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb45"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr45"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer46">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb46"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr46"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer47">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb47"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr47"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer48">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb48"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr48"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer49">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb49"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr49"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+
+    <volume name="Layer50">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Layer"/>
+      <physvol copynumber="1" name="G4_Pb">
+        <volumeref ref="G4_Pb50"/>
+        <positionref ref="G4_Pb_pos"/>
+      </physvol>
+      <physvol copynumber="2" name="G4_lA">
+        <volumeref ref="G4_lAr50"/>
+        <positionref ref="G4_lApos"/>
+      </physvol>
+    </volume>
+    <volume name="WDTEnv_10_40">
+      <materialref ref="G4_Galactic" />
+      <solidref ref="WDT_10_40" />
+      <physvol name="WDTEnv_10_40_Layer10" copynumber="10">
+        <volumeref ref="Layer10" />
+        <position name="WDTEnv_10_40_Layer10_pos" unit="mm" x="-120" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer11" copynumber="11">
+        <volumeref ref="Layer11" />
+        <position name="WDTEnv_10_40_Layer11_pos" unit="mm" x="-112" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer12" copynumber="12">
+        <volumeref ref="Layer12" />
+        <position name="WDTEnv_10_40_Layer12_pos" unit="mm" x="-104" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer13" copynumber="13">
+        <volumeref ref="Layer13" />
+        <position name="WDTEnv_10_40_Layer13_pos" unit="mm" x="-96" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer14" copynumber="14">
+        <volumeref ref="Layer14" />
+        <position name="WDTEnv_10_40_Layer14_pos" unit="mm" x="-88" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer15" copynumber="15">
+        <volumeref ref="Layer15" />
+        <position name="WDTEnv_10_40_Layer15_pos" unit="mm" x="-80" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer16" copynumber="16">
+        <volumeref ref="Layer16" />
+        <position name="WDTEnv_10_40_Layer16_pos" unit="mm" x="-72" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer17" copynumber="17">
+        <volumeref ref="Layer17" />
+        <position name="WDTEnv_10_40_Layer17_pos" unit="mm" x="-64" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer18" copynumber="18">
+        <volumeref ref="Layer18" />
+        <position name="WDTEnv_10_40_Layer18_pos" unit="mm" x="-56" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer19" copynumber="19">
+        <volumeref ref="Layer19" />
+        <position name="WDTEnv_10_40_Layer19_pos" unit="mm" x="-48" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer20" copynumber="20">
+        <volumeref ref="Layer20" />
+        <position name="WDTEnv_10_40_Layer20_pos" unit="mm" x="-40" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer21" copynumber="21">
+        <volumeref ref="Layer21" />
+        <position name="WDTEnv_10_40_Layer21_pos" unit="mm" x="-32" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer22" copynumber="22">
+        <volumeref ref="Layer22" />
+        <position name="WDTEnv_10_40_Layer22_pos" unit="mm" x="-24" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer23" copynumber="23">
+        <volumeref ref="Layer23" />
+        <position name="WDTEnv_10_40_Layer23_pos" unit="mm" x="-16" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer24" copynumber="24">
+        <volumeref ref="Layer24" />
+        <position name="WDTEnv_10_40_Layer24_pos" unit="mm" x="-8" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer25" copynumber="25">
+        <volumeref ref="Layer25" />
+        <position name="WDTEnv_10_40_Layer25_pos" unit="mm" x="0" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer26" copynumber="26">
+        <volumeref ref="Layer26" />
+        <position name="WDTEnv_10_40_Layer26_pos" unit="mm" x="8" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer27" copynumber="27">
+        <volumeref ref="Layer27" />
+        <position name="WDTEnv_10_40_Layer27_pos" unit="mm" x="16" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer28" copynumber="28">
+        <volumeref ref="Layer28" />
+        <position name="WDTEnv_10_40_Layer28_pos" unit="mm" x="24" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer29" copynumber="29">
+        <volumeref ref="Layer29" />
+        <position name="WDTEnv_10_40_Layer29_pos" unit="mm" x="32" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer30" copynumber="30">
+        <volumeref ref="Layer30" />
+        <position name="WDTEnv_10_40_Layer30_pos" unit="mm" x="40" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer31" copynumber="31">
+        <volumeref ref="Layer31" />
+        <position name="WDTEnv_10_40_Layer31_pos" unit="mm" x="48" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer32" copynumber="32">
+        <volumeref ref="Layer32" />
+        <position name="WDTEnv_10_40_Layer32_pos" unit="mm" x="56" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer33" copynumber="33">
+        <volumeref ref="Layer33" />
+        <position name="WDTEnv_10_40_Layer33_pos" unit="mm" x="64" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer34" copynumber="34">
+        <volumeref ref="Layer34" />
+        <position name="WDTEnv_10_40_Layer34_pos" unit="mm" x="72" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer35" copynumber="35">
+        <volumeref ref="Layer35" />
+        <position name="WDTEnv_10_40_Layer35_pos" unit="mm" x="80" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer36" copynumber="36">
+        <volumeref ref="Layer36" />
+        <position name="WDTEnv_10_40_Layer36_pos" unit="mm" x="88" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer37" copynumber="37">
+        <volumeref ref="Layer37" />
+        <position name="WDTEnv_10_40_Layer37_pos" unit="mm" x="96" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer38" copynumber="38">
+        <volumeref ref="Layer38" />
+        <position name="WDTEnv_10_40_Layer38_pos" unit="mm" x="104" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer39" copynumber="39">
+        <volumeref ref="Layer39" />
+        <position name="WDTEnv_10_40_Layer39_pos" unit="mm" x="112" y="0" z="0" />
+      </physvol>
+      <physvol name="WDTEnv_10_40_Layer40" copynumber="40">
+        <volumeref ref="Layer40" />
+        <position name="WDTEnv_10_40_Layer40_pos" unit="mm" x="120" y="0" z="0" />
+      </physvol>
+      <auxiliary auxtype="g4matcutcouple" auxvalue="0" />
+    </volume>
+
+
+
+    <volume name="Calorimeter">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="Calorimeter"/>
+      <physvol copynumber="1" name="Layer0x560dcd38d7b0">
+        <volumeref ref="Layer1"/>
+        <position name="Layer0x560dcd38d7b0_pos" unit="mm" x="-196" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="2" name="Layer0x560dcd38d8c0">
+        <volumeref ref="Layer2"/>
+        <position name="Layer0x560dcd38d8c0_pos" unit="mm" x="-188" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="3" name="Layer0x560dcd38d970">
+        <volumeref ref="Layer3"/>
+        <position name="Layer0x560dcd38d970_pos" unit="mm" x="-180" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="4" name="Layer0x560dcd38da60">
+        <volumeref ref="Layer4"/>
+        <position name="Layer0x560dcd38da60_pos" unit="mm" x="-172" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="5" name="Layer0x560dcd38daf0">
+        <volumeref ref="Layer5"/>
+        <position name="Layer0x560dcd38daf0_pos" unit="mm" x="-164" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="6" name="Layer0x560dcd38dc20">
+        <volumeref ref="Layer6"/>
+        <position name="Layer0x560dcd38dc20_pos" unit="mm" x="-156" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="7" name="Layer0x560dcd38dc80">
+        <volumeref ref="Layer7"/>
+        <position name="Layer0x560dcd38dc80_pos" unit="mm" x="-148" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="8" name="Layer0x560dcd38dce0">
+        <volumeref ref="Layer8"/>
+        <position name="Layer0x560dcd38dce0_pos" unit="mm" x="-140" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="9" name="Layer0x560dcd38dd70">
+        <volumeref ref="Layer9"/>
+        <position name="Layer0x560dcd38dd70_pos" unit="mm" x="-132" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="41" name="Layer0x560dcd38f1a0">
+        <volumeref ref="Layer41"/>
+        <position name="Layer0x560dcd38f1a0_pos" unit="mm" x="124" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="42" name="Layer0x560dcd38f230">
+        <volumeref ref="Layer42"/>
+        <position name="Layer0x560dcd38f230_pos" unit="mm" x="132" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="43" name="Layer0x560dcd38f2c0">
+        <volumeref ref="Layer43"/>
+        <position name="Layer0x560dcd38f2c0_pos" unit="mm" x="140" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="44" name="Layer0x560dcd38f350">
+        <volumeref ref="Layer44"/>
+        <position name="Layer0x560dcd38f350_pos" unit="mm" x="148" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="45" name="Layer0x560dcd38f3e0">
+        <volumeref ref="Layer45"/>
+        <position name="Layer0x560dcd38f3e0_pos" unit="mm" x="156" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="46" name="Layer0x560dcd38f470">
+        <volumeref ref="Layer46"/>
+        <position name="Layer0x560dcd38f470_pos" unit="mm" x="164" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="47" name="Layer0x560dcd38f500">
+        <volumeref ref="Layer47"/>
+        <position name="Layer0x560dcd38f500_pos" unit="mm" x="172" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="48" name="Layer0x560dcd38f590">
+        <volumeref ref="Layer48"/>
+        <position name="Layer0x560dcd38f590_pos" unit="mm" x="180" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="49" name="Layer0x560dcd38f620">
+        <volumeref ref="Layer49"/>
+        <position name="Layer0x560dcd38f620_pos" unit="mm" x="188" y="0" z="0"/>
+      </physvol>
+      <physvol copynumber="50" name="Layer0x560dcd38f6b0">
+        <volumeref ref="Layer50"/>
+        <position name="Layer0x560dcd38f6b0_pos" unit="mm" x="196" y="0" z="0"/>
+      </physvol>
+      <physvol name="WDTEnv_10_40">
+        <volumeref ref="WDTEnv_10_40" />
+        <position name="WDTEnv_10_40_pos" unit="mm" x="-4" y="0" z="0" />
+      </physvol>
+
+      <auxiliary auxtype="g4matcutcouple" auxvalue="0"/>
+    </volume>
+    <volume name="World">
+      <materialref ref="G4_Galactic"/>
+      <solidref ref="World"/>
+      <physvol name="Calorimeter">
+        <volumeref ref="Calorimeter"/>
+      </physvol>
+    </volume>
+  </structure>
+
+  <userinfo>
+    
+    <auxiliary auxtype="Region" auxvalue="WDT_Region_layers_10_40">
+      <auxiliary auxtype="volume" auxvalue="WDTEnv_10_40" />
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7" />
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7" />
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7" />
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7" />
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="caloregion">
+      <auxiliary auxtype="volume" auxvalue="Calorimeter"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer1">
+      <auxiliary auxtype="volume" auxvalue="Layer1"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer2">
+      <auxiliary auxtype="volume" auxvalue="Layer2"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer3">
+      <auxiliary auxtype="volume" auxvalue="Layer3"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer4">
+      <auxiliary auxtype="volume" auxvalue="Layer4"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer5">
+      <auxiliary auxtype="volume" auxvalue="Layer5"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer6">
+      <auxiliary auxtype="volume" auxvalue="Layer6"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer7">
+      <auxiliary auxtype="volume" auxvalue="Layer7"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer8">
+      <auxiliary auxtype="volume" auxvalue="Layer8"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer9">
+      <auxiliary auxtype="volume" auxvalue="Layer9"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer41">
+      <auxiliary auxtype="volume" auxvalue="Layer41"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer42">
+      <auxiliary auxtype="volume" auxvalue="Layer42"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer43">
+      <auxiliary auxtype="volume" auxvalue="Layer43"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer44">
+      <auxiliary auxtype="volume" auxvalue="Layer44"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer45">
+      <auxiliary auxtype="volume" auxvalue="Layer45"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer46">
+      <auxiliary auxtype="volume" auxvalue="Layer46"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer47">
+      <auxiliary auxtype="volume" auxvalue="Layer47"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer48">
+      <auxiliary auxtype="volume" auxvalue="Layer48"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer49">
+      <auxiliary auxtype="volume" auxvalue="Layer49"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    <auxiliary auxtype="Region" auxvalue="Layer50">
+      <auxiliary auxtype="volume" auxvalue="Layer50"/>
+      <auxiliary auxtype="gamcut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="ecut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="poscut" auxunit="mm" auxvalue="0.7"/>
+      <auxiliary auxtype="pcut" auxunit="mm" auxvalue="0.7"/>
+    </auxiliary>
+    
+  </userinfo>
+
+  <setup name="Default" version="1.0">
+    <world ref="World"/>
+  </setup>
+
+</gdml>
