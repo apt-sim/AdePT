@@ -56,7 +56,7 @@ option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used i
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
 option(ADEPT_BUILD_EXAMPLES "Build examples" OFF)
-option(ADEPT_USE_CUDA "Compile with nvcc" OFF)
+option(ADEPT_USE_CUDA "Compile with nvcc" ON)
 option(ADEPT_USE_HIP "Compile with hipcc" OFF)
 
 # Validate that only one of the GPU backends is selected
@@ -414,6 +414,9 @@ if(ADEPT_DEBUG_TRACK GREATER 0)
   add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-DADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>")
 endif()
 if(ADEPT_USE_HIP)
+  # This is a temporary solution, needed in order to test compilation with hip
+  # Due to our dependency on VecGeom, we can't compile AdePT for the hip backend yet, however we can test 
+  # compiling the hip API calls for the cuda backend. Here we add the necessary flags to nvcc
   add_compile_options("$<$<COMPILE_LANGUAGE:HIP>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma;-rdc=true>")
 endif()
 
