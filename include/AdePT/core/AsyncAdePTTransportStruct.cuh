@@ -114,21 +114,6 @@ struct LeakedTracks {
   SlotManager *fSlotManager;
 };
 
-// Note: deprecated GammaInteractions for split gamma kernels
-// struct GammaInteractions {
-//   enum Interaction : unsigned int { PairCreation = 0, ComptonScattering = 1, PhotoelectricProcess = 2, NInt };
-//   struct Data {
-//     double geometryStepLength;
-//     double PEmxSec; // Only used for photoelectric process
-//     unsigned int slot;
-//     vecgeom::NavigationState preStepNavState;
-//     vecgeom::Vector3D<double> preStepPos;
-//     vecgeom::Vector3D<double> preStepDir;
-//     double preStepEnergy;
-//   };
-//   adept::MParrayT<Data> *queues[Interaction::NInt];
-// };
-
 // A bundle of generators for the three particle types.
 struct ParticleManager {
   SpeciesParticleManager electrons;
