@@ -35,15 +35,15 @@ mkdir -p ${CI_TMP_DIR}
 $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
     --output ${CI_TMP_DIR}/validation_testem3_WDT.mac \
-    --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3.gdml \
+    --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_wdt.gdml \
     --num_threads 8 \
     --num_events 400 \
     --num_trackslots 3 \
     --num_hitslots 12 \
     --num_leakslots 3 \
-    --track_in_all_regions False\
+    --track_in_all_regions True\
     --gun_type setDefault\
-    --wdt_regions "caloregion"
+    --wdt_regions "WDT_Region_layers_10_40,Layer5,Layer44,Layer45"
 
 # run test
 $ADEPT_EXECUTABLE --do_validation --allsensitive --accumulated_events \

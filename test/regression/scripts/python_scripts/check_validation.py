@@ -23,19 +23,30 @@ def compare_csv(file1, file2, n1, n2, tol=0.01, plot_file=None):
         print(f"Error loading files: {e}")
         sys.exit(1)
 
+    # hardcoded number of layers for testEm3 (currently: 50)
+    nLayers = 50
+
     # Sum rows to combine events into total energy deposition per column
     sum1 = np.sum(data1, axis=0)
     sum2 = np.sum(data2, axis=0)
 
     # drop the first index as it doesn't correspond to energy deposition
     sum1 = sum1[1:]
-    sum2 = sum2[1:] 
+    sum2 = sum2[1:]
+    # Keep only the first 2*nLayers columns (Pb + LAr per layer)
+    # This needs to be done before the sum, as otherwise the number of columns might be odd, 
+    # causing errors in the sum
+    maxEntry = 2 * nLayers
+    if sum1.shape[0] < maxEntry or sum2.shape[0] < maxEntry:
+        print(f"Error: not enough columns for {nLayers} layers: "
+              f"file1 has {sum1.shape[0]} energy cols, file2 has {sum2.shape[0]} energy cols")
+        sys.exit(1)
+
+    sum1 = sum1[:maxEntry]
+    sum2 = sum2[:maxEntry]
     # Sum every two consecutive values two sum lead and liquid argon layer energy deposition into one combined layer
     sum1 = sum1[::2] + sum1[1::2] 
     sum2 = sum2[::2] + sum2[1::2] 
-    # ignore output past first 50 layers
-    sum1 = sum1[:50]
-    sum2 = sum2[:50]
 
     sum1_normalized = sum1 / n1
     sum2_normalized = sum2 / n2
@@ -55,7 +66,7 @@ def compare_csv(file1, file2, n1, n2, tol=0.01, plot_file=None):
         from matplotlib import pyplot as plt
 
         # Generate a plot
-        layers = np.arange(1, 51)
+        layers = np.arange(1, nLayers+1)
         fig, ax = plt.subplots(2, 1, figsize=(8, 6))
 
         # Mean energy deposit plot
