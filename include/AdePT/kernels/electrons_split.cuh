@@ -382,20 +382,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        electronsOrPositrons.CopyTrackToLeaked(slot);
-      } else {
-        electronsOrPositrons.EnqueueNext(slot);
-      }
-    };
-
-    bool isLastStep = false;
+    bool trackSurvives = true;
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -408,17 +395,14 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
     bool reached_interaction = true;
     bool printErrors         = false;
 
-    // Save the `number-of-interaction-left` in our track.
-    for (int ip = 0; ip < 4; ++ip) {
-      double numIALeft = theTrack->GetNumIALeft(ip);
-    }
-
     // Set Non-stopped, on-boundary tracks for relocation
     if (currentTrack.nextState.IsOnBoundary() && !currentTrack.stopped) {
       // Add particle to relocation queue
       interactionQueues.queues[4]->push_back(slot);
       continue;
     }
+
+    auto winnerProcessIndex = theTrack->GetWinnerProcessIndex();
 
     // Now check whether the non-relocating tracks reached an interaction
     if (!currentTrack.stopped) {
@@ -439,27 +423,24 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         }
 
         // mark winner process to be transport, although this is not strictly true
-        theTrack->SetWinnerProcessIndex(10);
+        winnerProcessIndex = 10;
 
-        survive();
         reached_interaction = false;
-      } else if (theTrack->GetWinnerProcessIndex() < 0) {
+      } else if (winnerProcessIndex < 0) {
         // No discrete process, move on.
-        survive();
         reached_interaction = false;
       } else if (G4HepEmElectronManager::CheckDelta(&g4HepEmData, theTrack, currentTrack.Uniform())) {
         // If there was a delta interaction, the track survives but does not move onto the next kernel
-        survive();
         reached_interaction = false;
         // Reset number of interaction left for the winner discrete process.
         // (Will be resampled in the next iteration.)
-        theTrack->SetNumIALeft(-1.0, theTrack->GetWinnerProcessIndex());
+        theTrack->SetNumIALeft(-1.0, winnerProcessIndex);
       }
     } else {
       // Stopped positrons annihilate, stopped electrons score and die
       if (IsElectron) {
         reached_interaction = false;
-        isLastStep          = true;
+        trackSurvives       = false;
         // Ekin = 0 for correct scoring
         currentTrack.eKin = 0;
         // Particle is killed by not enqueuing it for the next iteration. Free the slot it occupies
@@ -467,42 +448,56 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       }
     }
 
-    // Now push the particles that reached their interaction into the per-interaction queues
-    if (reached_interaction) {
+    // Now push the particles that reached their interaction into the per-interaction queues,
+    // except for lepton nuclear (winnerProcessIndex == 3), which is sent back to the CPU
+    if (reached_interaction && winnerProcessIndex != 3) {
       // reset Looper counter if limited by discrete interaction or MSC
       currentTrack.looperCounter = 0;
 
       if (!currentTrack.stopped) {
         // Reset number of interaction left for the winner discrete process.
         // (Will be resampled in the next iteration.)
-        theTrack->SetNumIALeft(-1.0, theTrack->GetWinnerProcessIndex());
+        theTrack->SetNumIALeft(-1.0, winnerProcessIndex);
         // Enqueue the particles
-        if (theTrack->GetWinnerProcessIndex() < 3) {
-          interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
-        } else {
-          // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
-          survive(LeakStatus::LeptonNuclear);
-        }
+        interactionQueues.queues[winnerProcessIndex]->push_back(slot);
       } else {
         // Stopped positron
         interactionQueues.queues[3]->push_back(slot);
       }
 
     } else {
+
+      // if not already dead, check for SteppingAction and survive
+      if (trackSurvives) {
+
+        // possible hook to SteppingAction here
+
+        // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
+        auto leakReason = winnerProcessIndex == 3 ? LeakStatus::LeptonNuclear : LeakStatus::NoLeak;
+
+        // --- Survive --- //
+        currentTrack.leakStatus = leakReason;
+        if (leakReason == LeakStatus::LeptonNuclear) {
+          // Copy track at slot to the leaked tracks
+          electronsOrPositrons.CopyTrackToLeaked(slot);
+        } else {
+          electronsOrPositrons.EnqueueNext(slot);
+        }
+      }
+
       // Only non-interacting, non-relocating tracks score here
-      // Note: In this kernel returnLastStep is only true for particles that left the world
       // Score the edep for particles that didn't reach the interaction
-      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
+      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives))
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                                  // Track ID
-                                 currentTrack.parentId,                                 // parent Track ID
-                                 static_cast<short>(theTrack->GetWinnerProcessIndex()), // step defining process
-                                 static_cast<char>(IsElectron ? 0 : 1),                 // Particle type
-                                 elTrack.GetPStepLength(),                              // Step length
-                                 energyDeposit,                                         // Total Edep
-                                 currentTrack.weight,                                   // Track weight
-                                 currentTrack.navState,                                 // Pre-step point navstate
-                                 currentTrack.preStepPos,                               // Pre-step point position
+                                 currentTrack.trackId,                        // Track ID
+                                 currentTrack.parentId,                       // parent Track ID
+                                 static_cast<short>(winnerProcessIndex),      // step defining process
+                                 static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                                 elTrack.GetPStepLength(),                    // Step length
+                                 energyDeposit,                               // Total Edep
+                                 currentTrack.weight,                         // Track weight
+                                 currentTrack.navState,                       // Pre-step point navstate
+                                 currentTrack.preStepPos,                     // Pre-step point position
                                  currentTrack.preStepDir,                     // Pre-step point momentum direction
                                  currentTrack.preStepEKin,                    // Pre-step point kinetic energy
                                  currentTrack.nextState,                      // Post-step point navstate
@@ -513,7 +508,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
                                  currentTrack.localTime,                      // local time
                                  currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                 isLastStep,                                  // whether this was the last step
+                                 !trackSurvives,                              // whether this was the last step
                                  currentTrack.stepCounter);                   // stepcounter
     }
   }
