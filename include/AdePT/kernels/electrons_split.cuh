@@ -471,7 +471,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       if (trackSurvives) {
 
         // possible hook to SteppingAction here
-        
+
         // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
         auto leakReason = winnerProcessIndex == 3 ? LeakStatus::LeptonNuclear : LeakStatus::NoLeak;
 
@@ -486,9 +486,8 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       }
 
       // Only non-interacting, non-relocating tracks score here
-      // Note: In this kernel returnLastStep is only true for particles that left the world
       // Score the edep for particles that didn't reach the interaction
-      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep  )
+      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives))
         adept_scoring::RecordHit(userScoring,
                                  currentTrack.trackId,                        // Track ID
                                  currentTrack.parentId,                       // parent Track ID
