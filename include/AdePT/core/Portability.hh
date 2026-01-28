@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Celeritas contributors
+// SPDX-License-Identifier: (Apache-2.0 OR MIT)
+
 //------------------------------- -*- C++ -*- -------------------------------//
 // Copyright Celeritas contributors: see https://github.com/celeritas-project/celeritas?tab=License-1-ov-file
 // SPDX-License-Identifier: (Apache-2.0 OR MIT)

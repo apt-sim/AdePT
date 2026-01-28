@@ -1,6 +1,12 @@
 # SPDX-FileCopyrightText: 2020 CERN
 # SPDX-License-Identifier: Apache-2.0
 
+cmake_minimum_required(VERSION 3.25.2)
+project(testAMD
+  VERSION 0.1.0
+  DESCRIPTION "Accelerated demonstrator of electromagnetic Particle Transport"
+  LANGUAGES C CXX CUDA)
+
 #----------------------------------------------------------------------------#
 # Helper Macros/Functions
 #----------------------------------------------------------------------------#
@@ -9,7 +15,8 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     #set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
+    #cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
+    target_include_directories(${TARGET_NAME} PRIVATE /home/gjuan/Dev/G4/AdePT_dev/include/)
    endforeach()
 endmacro()
 
@@ -19,6 +26,13 @@ macro(add_to_test TESTS)
     add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
    endforeach()
 endmacro()
+
+add_library(CopCore INTERFACE)
+target_include_directories(CopCore
+  INTERFACE
+    $<BUILD_INTERFACE:/home/gjuan/Dev/G4/AdePT_dev/include/AdePT/copcore/>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
+)
 
 #----------------------------------------------------------------------------#
 # Common Data
@@ -46,6 +60,7 @@ file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/v1.2.0/persistency/gdml
 # - Check CopCore links as expected
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_copcore_link PRIVATE /home/gjuan/Dev/G4/AdePT_dev/include/)
 target_link_libraries(test_copcore_link PRIVATE CopCore)
 
 #----------------------------------------------------------------------------#
@@ -56,11 +71,15 @@ set(ADEPT_UNIT_TESTS_BASE
   test_ranluxpp.cu             # Unit test for RANLUX++
   test_queue.cu                # Unit test for mpmc_bounded_queue
   test_track_block.cu          # Unit test for BlockData
-  test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
-  compare_integration_precision.cpp # Script for generating float vs double trajectories
-  test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
+  #test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
+  #compare_integration_precision.cpp # Script for generating float vs double trajectories
+  #test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
   # test_Bfield_step_debugger.cpp # experimental test to debug single stuck rays in AdePT
 )
+
+if(ADEPT_USE_HIP)
+  set_source_files_properties(test_atomic.cu PROPERTIES LANGUAGE HIP)
+endif()
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 

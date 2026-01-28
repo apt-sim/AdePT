@@ -428,15 +428,15 @@ endif()
 #----------------------------------------------------------------------------#
 # Build Targets
 #----------------------------------------------------------------------------#
-set(ADEPT_G4_INTEGRATION_SRCS
-  src/G4HepEmTrackingManagerSpecialized.cc
-  src/AdePTTrackingManager.cc
-  src/AdePTPhysics.cc
-  src/HepEMPhysics.cc
-  src/AdePTGeant4Integration.cpp
-  src/AdePTConfigurationMessenger.cc
-  src/AdePTTrackingManager.cu
-)
+# set(ADEPT_G4_INTEGRATION_SRCS
+#   src/G4HepEmTrackingManagerSpecialized.cc
+#   src/AdePTTrackingManager.cc
+#   src/AdePTPhysics.cc
+#   src/HepEMPhysics.cc
+#   src/AdePTGeant4Integration.cpp
+#   src/AdePTConfigurationMessenger.cc
+#   src/AdePTTrackingManager.cu
+# )
 
 add_library(CopCore INTERFACE)
 target_include_directories(CopCore
@@ -445,63 +445,63 @@ target_include_directories(CopCore
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
-cuda_rdc_add_library(AdePT_G4_integration SHARED
-  ${ADEPT_G4_INTEGRATION_SRCS}
-)
+# cuda_rdc_add_library(AdePT_G4_integration SHARED
+#   ${ADEPT_G4_INTEGRATION_SRCS}
+# )
 
-if(ADEPT_USE_HIP)
-  set_source_files_properties(src/AdePTTrackingManager.cu PROPERTIES LANGUAGE HIP)
-endif()
+# if(ADEPT_USE_HIP)
+#   set_source_files_properties(src/AdePTTrackingManager.cu PROPERTIES LANGUAGE HIP)
+# endif()
 
-cuda_rdc_target_include_directories(AdePT_G4_integration
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
-)
+# cuda_rdc_target_include_directories(AdePT_G4_integration
+#   PUBLIC
+#     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
+# )
 # This needs to be after the cuda_rdc_target_include_directories when
 # using v10 of CudaRdcUtils.cmake
-cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
+# cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
 
-cuda_rdc_target_link_libraries(AdePT_G4_integration
-  PUBLIC
-    CopCore
-    VecGeom::vecgeom
-    VecGeom::vgdml
-    ${Geant4_LIBRARIES}
-    G4HepEm::g4HepEm
-    G4HepEm::g4HepEmData
-    G4HepEm::g4HepEmInit
-    G4HepEm::g4HepEmRun
-    G4VG::g4vg
-    CUDA::cudart
-    $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:Power_meter::Power_meter>
-)
-if(ADEPT_USE_EXT_BFIELD)
-  # link covfie if external magnetic field usage is enabled
-  cuda_rdc_target_link_libraries(AdePT_G4_integration
-    PUBLIC
-      covfie::core
-      covfie::cuda
-  )
-endif()
+# cuda_rdc_target_link_libraries(AdePT_G4_integration
+#   PUBLIC
+#     CopCore
+#     VecGeom::vecgeom
+#     VecGeom::vgdml
+#     ${Geant4_LIBRARIES}
+#     G4HepEm::g4HepEm
+#     G4HepEm::g4HepEmData
+#     G4HepEm::g4HepEmInit
+#     G4HepEm::g4HepEmRun
+#     G4VG::g4vg
+#     CUDA::cudart
+#     $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:Power_meter::Power_meter>
+# )
+# if(ADEPT_USE_EXT_BFIELD)
+#   # link covfie if external magnetic field usage is enabled
+#   cuda_rdc_target_link_libraries(AdePT_G4_integration
+#     PUBLIC
+#       covfie::core
+#       covfie::cuda
+#   )
+# endif()
 
 # must be defined when compiling AdePT_G4_integration_objects' source files into the objects lib
-target_compile_definitions(AdePT_G4_integration_objects
-  PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
-)
+# target_compile_definitions(AdePT_G4_integration_objects
+#   PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
+# )
 
 # Export config macros to consumers (Athena, etc.)
-target_compile_definitions(AdePT_G4_integration
-  INTERFACE
-    ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
-    $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
-    $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
-    $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
-    $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>
-    $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
-    $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
-    $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
-)
+# target_compile_definitions(AdePT_G4_integration
+#   INTERFACE
+#     ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
+#     $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
+#     $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
+#     $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
+#     $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>
+#     $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
+#     $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
+#     $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
+# )
 
 #set_target_properties(AdePT_G4_integration
 #  PROPERTIES
@@ -510,12 +510,12 @@ target_compile_definitions(AdePT_G4_integration
 #)
 
 # Optional library to activate NVTX annotations for profiling:
-option(ADEPT_NVTX OFF "Add NVTX instrumentation for profiling (only for annotated examples)")
-add_library(NVTX INTERFACE)
-if(ADEPT_NVTX)
-  target_link_libraries(NVTX INTERFACE nvToolsExt)
-  target_compile_definitions(NVTX INTERFACE -DUSE_NVTX)
-endif()
+# option(ADEPT_NVTX OFF "Add NVTX instrumentation for profiling (only for annotated examples)")
+# add_library(NVTX INTERFACE)
+# if(ADEPT_NVTX)
+#   target_link_libraries(NVTX INTERFACE nvToolsExt)
+#   target_compile_definitions(NVTX INTERFACE -DUSE_NVTX)
+# endif()
 
 if(ADEPT_BUILD_TESTING)
   add_subdirectory(test)
@@ -526,39 +526,39 @@ endif()
 
 ####################################################################################################
 
-include(CMakePackageConfigHelpers)
-#Generate the configuration file from the template and save it to the build directory
-configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
-  "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  PATH_VARS CMAKE_INSTALL_INCLUDEDIR
-)
+# include(CMakePackageConfigHelpers)
+# #Generate the configuration file from the template and save it to the build directory
+# configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
+#   "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"
+#   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+#   PATH_VARS CMAKE_INSTALL_INCLUDEDIR
+# )
 
-#Install the libraries
-cuda_rdc_install(TARGETS CopCore AdePT_G4_integration
-  EXPORT ${PROJECT_NAME}Targets
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-)
+# #Install the libraries
+# cuda_rdc_install(TARGETS CopCore AdePT_G4_integration
+#   EXPORT ${PROJECT_NAME}Targets
+#   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+#   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+#   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+# )
 
-#Install the headers
-install(DIRECTORY include/AdePT
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+# #Install the headers
+# install(DIRECTORY include/AdePT
+#   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+# )
 
-#Install the configuration file
-install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
+# #Install the configuration file
+# install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
+#   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+# )
 
-#Export the targets file
-export(TARGETS CopCore AdePT_G4_integration
-  FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
-)
+# #Export the targets file
+# export(TARGETS CopCore AdePT_G4_integration
+#   FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
+# )
 
-#Install the targets file
-install(EXPORT ${PROJECT_NAME}Targets
-  NAMESPACE ${PROJECT_NAME}::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
+# #Install the targets file
+# install(EXPORT ${PROJECT_NAME}Targets
+#   NAMESPACE ${PROJECT_NAME}::
+#   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+# )
