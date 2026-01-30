@@ -13,6 +13,8 @@
 #include "G4UImessenger.hh"
 #include "globals.hh"
 
+#include <memory>
+
 class AdePTConfiguration;
 class G4UIdirectory;
 class G4UIcmdWithAnInteger;
