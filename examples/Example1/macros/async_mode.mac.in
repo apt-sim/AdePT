@@ -18,8 +18,6 @@
 # Temporary workaround since we don't have a G4 to VecGeom converter
 /adept/setVecGeomGDML cms2018_sd.gdml
 /adept/setVerbosity 0
-## Threshold for buffering tracks before sending to GPU
-/adept/setTransportBufferThreshold 2000
 ## Total number of GPU track slots (not per thread)
 /adept/setMillionsOfTrackSlots 4
 /adept/setMillionsOfHitSlots 4
