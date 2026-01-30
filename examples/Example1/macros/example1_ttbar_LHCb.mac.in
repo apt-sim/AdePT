@@ -18,8 +18,6 @@
 /detector/filename lhcb2024_downstream_calos.gdml
 
 /adept/setVerbosity 0
-## Threshold for buffering tracks before sending to GPU
-/adept/setTransportBufferThreshold 2000
 ## Total number of GPU track slots (not per thread)
 /adept/setMillionsOfTrackSlots 4
 /adept/setMillionsOfHitSlots 1
