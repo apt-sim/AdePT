@@ -495,8 +495,8 @@ __global__ void __launch_bounds__(256, 1)
         trackSurvives = false;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction(trackSurvives, eKin, edep, leakReason, pos, globalTime, auxData.fMCIndex,
-                                     &g4HepEmData, params);
+        SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, auxData.fMCIndex, &g4HepEmData,
+                                     params);
       }
     }
 

@@ -16,7 +16,7 @@
 namespace adept::SteppingAction {
 
 ///< @brief helper function to kill a track and deposit its energy
-__device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &edep, LeakStatus &leak)
+__device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &edep)
 {
   if (!alive) return;
   // NOTE: currently, positrons are killed directly. If done correctly,
@@ -25,7 +25,6 @@ __device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &ede
   alive = false;
   edep += eKin;
   eKin = 0.0;
-  leak = LeakStatus::NoLeak;
 }
 
 // ---------- No-op (NONE) ----------
@@ -34,15 +33,14 @@ struct NoAction {
   // empty placeholder struct
   struct Params {};
 
-  __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, LeakStatus &,
-                                                        vecgeom::Vector3D<double> const &, double const &, int const &,
-                                                        G4HepEmData const *, Params const &)
+  __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
+                                                        double const &, int const &, G4HepEmData const *,
+                                                        Params const &)
   {
   }
 
-  __device__ __forceinline__ static void GammaAction(bool &, double &, double &, LeakStatus &,
-                                                     vecgeom::Vector3D<double> const &, double const &, int const &,
-                                                     G4HepEmData const *, Params const &)
+  __device__ __forceinline__ static void GammaAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
+                                                     double const &, int const &, G4HepEmData const *, Params const &)
   {
   }
 };
@@ -57,50 +55,51 @@ struct CMSAction {
     double density = 1e-15 * (copcore::units::g / copcore::units::cm3); // density for the vacuum cut
   };
 
-  __device__ __forceinline__ static void AllParticleCheck(bool &alive, double &eKin, double &edep, LeakStatus &leak,
+  __device__ __forceinline__ static void AllParticleCheck(bool &alive, double &eKin, double &edep,
                                                           vecgeom::Vector3D<double> const &pos,
                                                           double const &globalTime, Params const &params)
   {
     // dead-region cut:
-    // use OutOfGPURegion to mark dead material regions
-    // NOTE: currently not used, as we cannot offload the full detector yet
-    // This check can be activated again when the parametrized shower is implemented on GPU
-    if (leak == LeakStatus::OutOfGPURegion) {
-      KillTrack(alive, eKin, edep, leak);
-      return;
-    }
+    // Missing: mark dead material regions in CMS
+    // Before, it was done via the LeakStatus, but it is not clear whether the parametrized shower will ever be used on
+    // the GPU, so the LeakStatus::OutOfGPURegion is a bad marker. Just left here for documenting purposes. Instead, the
+    // dead regions must be implemented for CMS, to check with the NavigationState if (leak ==
+    // LeakStatus::OutOfGPURegion) {
+    //   KillTrack(alive, eKin, edep, leak);
+    //   return;
+    // }
 
     // Out-of-time and out-of-z cut
     if (globalTime > params.tmax && fabs(pos.z()) >= params.zmax) {
-      KillTrack(alive, eKin, edep, leak);
+      KillTrack(alive, eKin, edep);
       return;
     }
   }
 
-  __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep, LeakStatus &leak,
+  __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
                                                         vecgeom::Vector3D<double> const &pos, double const &globalTime,
                                                         int const &mcIndex, G4HepEmData const *g4HepEmData,
                                                         Params const &params)
   {
     if (!alive) return;
-    AllParticleCheck(alive, eKin, edep, leak, pos, globalTime, params);
+    AllParticleCheck(alive, eKin, edep, pos, globalTime, params);
     if (!alive) return;
 
     // e-/e+ in vacuum cut
     const int hmi        = g4HepEmData->fTheMatCutData->fMatCutData[mcIndex].fHepEmMatIndex;
     const double density = g4HepEmData->fTheMaterialData->fMaterialData[hmi].fDensity; // g/cm^3
     if (eKin < params.ecut && density < params.density) {
-      KillTrack(alive, eKin, edep, leak);
+      KillTrack(alive, eKin, edep);
     }
   }
 
-  __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double &edep, LeakStatus &leak,
+  __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double &edep,
                                                      vecgeom::Vector3D<double> const &pos, double const &globalTime,
                                                      int const & /*mcIndex*/, G4HepEmData const * /*g4HepEmData*/,
                                                      Params const &params)
   {
     if (!alive) return;
-    AllParticleCheck(alive, eKin, edep, leak, pos, globalTime, params);
+    AllParticleCheck(alive, eKin, edep, pos, globalTime, params);
   }
 };
 
@@ -116,7 +115,7 @@ struct LHCbAction {
     double ecut = 1.0 * copcore::units::MeV;
   };
 
-  __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep, LeakStatus &leak,
+  __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
                                                         vecgeom::Vector3D<double> const &pos,
                                                         double const & /*globalTime*/, int const & /*mcIndex*/,
                                                         G4HepEmData const * /*g4HepEmData*/, Params const &params)
@@ -126,17 +125,17 @@ struct LHCbAction {
     // out-of-world and energy tracking cut
     if (pos.x() > params.xmax || pos.x() < params.xmin || pos.y() > params.ymax || pos.y() < params.ymin ||
         pos.z() > params.zmax || pos.z() < params.zmin || eKin < params.ecut) {
-      KillTrack(alive, eKin, edep, leak);
+      KillTrack(alive, eKin, edep);
     }
   }
 
-  __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double &edep, LeakStatus &leak,
+  __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double &edep,
                                                      vecgeom::Vector3D<double> const &pos,
                                                      double const & /*globalTime*/, int const & /*mcIndex*/,
                                                      G4HepEmData const *g4HepEmData, Params const &params)
   {
     // same as electron stepping action
-    ElectronAction(alive, eKin, edep, leak, pos, /*globalTime*/ 0.0, /*mcIndex*/ 0, g4HepEmData, params);
+    ElectronAction(alive, eKin, edep, pos, /*globalTime*/ 0.0, /*mcIndex*/ 0, g4HepEmData, params);
   }
 };
 
