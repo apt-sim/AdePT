@@ -685,6 +685,8 @@ __global__ void __launch_bounds__(256, 1)
                  "stuck particle!\n",
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter);
         trackSurvives = false;
+        edep += eKin;
+        eKin = 0.;
       } else {
         // call experiment-specific SteppingAction:
         SteppingActionT::GammaAction(trackSurvives, eKin, edep, leakReason, pos, globalTime, hepEmIMC, &g4HepEmData,
