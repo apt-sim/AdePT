@@ -34,9 +34,7 @@ public:
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void RemoveGPURegionName(std::string name) { fCPURegionNames.push_back(name); }
   void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
-  void SetAdePTActivation(bool activateAdePT) { fAdePTActivated = activateAdePT; }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
-  void SetTransportBufferThreshold(int threshold) { fTransportBufferThreshold = threshold; }
   void SetMillionsOfTrackSlots(double millionSlots) { fMillionsOfTrackSlots = millionSlots; }
   void SetMillionsOfLeakSlots(double millionSlots) { fMillionsOfLeakSlots = millionSlots; }
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
@@ -69,10 +67,8 @@ public:
   bool GetSpeedOfLight() { return fSpeedOfLight; }
   bool GetMultipleStepsInMSCWithTransportation() { return fSetMultipleStepsInMSCWithTransportation; }
   bool GetEnergyLossFluctuation() { return fSetEnergyLossFluctuation; }
-  bool IsAdePTActivated() { return fAdePTActivated; }
   int GetNumThreads() { return fNumThreads; };
   int GetVerbosity() { return fVerbosity; };
-  int GetTransportBufferThreshold() { return fTransportBufferThreshold; }
   int GetCUDAStackLimit() { return fCUDAStackLimit; }
   int GetCUDAHeapLimit() { return fCUDAHeapLimit; }
   uint64_t GetAdePTSeed() { return fAdePTSeed; }
@@ -101,10 +97,8 @@ private:
   bool fSpeedOfLight{false};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};
-  bool fAdePTActivated{true};
   int fNumThreads{-1};
   int fVerbosity{0};
-  int fTransportBufferThreshold{200};
   int fCUDAStackLimit{0};
   int fCUDAHeapLimit{0};
   uint64_t fAdePTSeed{1234567};
