@@ -251,28 +251,29 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
 
         // Record last step to enable UserPostTrackingAction to be called
         if (returnAllSteps || returnLastStep) {
-          adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,                        // Track ID
-                                   currentTrack.parentId,                       // parent Track ID
-                                   static_cast<short>(3),                       // step defining process ID
-                                   2,                                           // Particle type
-                                   currentTrack.geometryStepLength,             // Step length
-                                   0,                                           // Total Edep
-                                   currentTrack.weight,                         // Track weight
-                                   currentTrack.navState,                       // Pre-step point navstate
-                                   currentTrack.preStepPos,                     // Pre-step point position
-                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
-                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                   currentTrack.nextState,                      // Post-step point navstate
-                                   currentTrack.pos,                            // Post-step point position
-                                   currentTrack.dir,                            // Post-step point momentum direction
-                                   0,                                           // Post-step point kinetic energy
-                                   currentTrack.globalTime,                     // global time
-                                   currentTrack.localTime,                      // local time
-                                   currentTrack.preStepGlobalTime,              // preStep global time
-                                   currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                   true, // whether this is the last step of the track
-                                   currentTrack.stepCounter);
+          adept_scoring::RecordHit(
+              userScoring,
+              currentTrack.trackId,                        // Track ID
+              currentTrack.parentId,                       // parent Track ID
+              static_cast<short>(3),                       // step defining process ID
+              2,                                           // Particle type
+              currentTrack.geometryStepLength,             // Step length
+              0,                                           // Total Edep
+              currentTrack.weight,                         // Track weight
+              currentTrack.navState,                       // Pre-step point navstate
+              currentTrack.preStepPos,                     // Pre-step point position
+              currentTrack.preStepDir,                     // Pre-step point momentum direction
+              currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+              currentTrack.nextState,                      // Post-step point navstate
+              currentTrack.pos,                            // Post-step point position
+              currentTrack.dir,                            // Post-step point momentum direction
+              0,                                           // Post-step point kinetic energy
+              currentTrack.globalTime,                     // global time
+              currentTrack.localTime,                      // local time
+              currentTrack.preStepGlobalTime,              // preStep global time
+              currentTrack.eventId, currentTrack.threadId, // event and thread ID
+              true, // whether this is the last step of the track: true as gamma nuclear kills the gamma
+              currentTrack.stepCounter);
         }
       }
     }
@@ -369,28 +370,29 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
       // particle has left the world, record hit if last or all steps are returned
       if (returnAllSteps || returnLastStep)
-        adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                        // Track ID
-                                 currentTrack.parentId,                       // parent Track ID
-                                 static_cast<short>(10),                      // step defining process ID
-                                 2,                                           // Particle type
-                                 currentTrack.geometryStepLength,             // Step length
-                                 0,                                           // Total Edep
-                                 currentTrack.weight,                         // Track weight
-                                 currentTrack.navState,                       // Pre-step point navstate
-                                 currentTrack.preStepPos,                     // Pre-step point position
-                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
-                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                 currentTrack.nextState,                      // Post-step point navstate
-                                 currentTrack.pos,                            // Post-step point position
-                                 currentTrack.dir,                            // Post-step point momentum direction
-                                 currentTrack.eKin,                           // Post-step point kinetic energy
-                                 currentTrack.globalTime,                     // global time
-                                 currentTrack.localTime,                      // local time
-                                 currentTrack.preStepGlobalTime,              // preStep global time
-                                 currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                 true,                      // whether this is the last step of the track
-                                 currentTrack.stepCounter); // stepcounter
+        adept_scoring::RecordHit(
+            userScoring,
+            currentTrack.trackId,                        // Track ID
+            currentTrack.parentId,                       // parent Track ID
+            static_cast<short>(10),                      // step defining process ID
+            2,                                           // Particle type
+            currentTrack.geometryStepLength,             // Step length
+            0,                                           // Total Edep
+            currentTrack.weight,                         // Track weight
+            currentTrack.navState,                       // Pre-step point navstate
+            currentTrack.preStepPos,                     // Pre-step point position
+            currentTrack.preStepDir,                     // Pre-step point momentum direction
+            currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+            currentTrack.nextState,                      // Post-step point navstate
+            currentTrack.pos,                            // Post-step point position
+            currentTrack.dir,                            // Post-step point momentum direction
+            currentTrack.eKin,                           // Post-step point kinetic energy
+            currentTrack.globalTime,                     // global time
+            currentTrack.localTime,                      // local time
+            currentTrack.preStepGlobalTime,              // preStep global time
+            currentTrack.eventId, currentTrack.threadId, // event and thread ID
+            true, // whether this is the last step of the track: true, as particle has left the world
+            currentTrack.stepCounter); // stepcounter
     }
     continue;
   }
@@ -527,28 +529,29 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
-                               currentTrack.parentId,                       // parent Track ID
-                               static_cast<short>(0),                       // step defining process ID
-                               2,                                           // Particle type
-                               currentTrack.geometryStepLength,             // Step length
-                               edep,                                        // Total Edep
-                               currentTrack.weight,                         // Track weight
-                               currentTrack.navState,                       // Pre-step point navstate
-                               currentTrack.preStepPos,                     // Pre-step point position
-                               currentTrack.preStepDir,                     // Pre-step point momentum direction
-                               currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                               currentTrack.nextState,                      // Post-step point navstate
-                               currentTrack.pos,                            // Post-step point position
-                               currentTrack.dir,                            // Post-step point momentum direction
-                               newEnergyGamma,                              // Post-step point kinetic energy
-                               currentTrack.globalTime,                     // global time
-                               currentTrack.localTime,                      // local time
-                               currentTrack.preStepGlobalTime,              // preStep global time
-                               currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               true,                      // whether this is the last step of the track
-                               currentTrack.stepCounter); // stepcounter
+      adept_scoring::RecordHit(
+          userScoring,
+          currentTrack.trackId,                        // Track ID
+          currentTrack.parentId,                       // parent Track ID
+          static_cast<short>(0),                       // step defining process ID
+          2,                                           // Particle type
+          currentTrack.geometryStepLength,             // Step length
+          edep,                                        // Total Edep
+          currentTrack.weight,                         // Track weight
+          currentTrack.navState,                       // Pre-step point navstate
+          currentTrack.preStepPos,                     // Pre-step point position
+          currentTrack.preStepDir,                     // Pre-step point momentum direction
+          currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+          currentTrack.nextState,                      // Post-step point navstate
+          currentTrack.pos,                            // Post-step point position
+          currentTrack.dir,                            // Post-step point momentum direction
+          newEnergyGamma,                              // Post-step point kinetic energy
+          currentTrack.globalTime,                     // global time
+          currentTrack.localTime,                      // local time
+          currentTrack.preStepGlobalTime,              // preStep global time
+          currentTrack.eventId, currentTrack.threadId, // event and thread ID
+          true, // whether this is the last step of the track: always true as gammas undergoing conversion are killed
+          currentTrack.stepCounter); // stepcounter
     }
   }
 }
@@ -797,7 +800,8 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               true, // whether this is the last step of the track
+                               true, // whether this is the last step of the track: always true as gammas undergoing the
+                                     // PhotoElectric effect are killed
                                currentTrack.stepCounter);
     }
   }

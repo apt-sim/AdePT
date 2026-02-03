@@ -70,9 +70,8 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 
   const int activeSize = electronsOrPositrons.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot               = electronsOrPositrons.ActiveAt(i);
-    Track &currentTrack           = electronsOrPositrons.TrackAt(slot);
-    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
+    const auto slot     = electronsOrPositrons.ActiveAt(i);
+    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -147,35 +146,37 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
       // In case the last steps are recorded, record it now, as this track is killed
       if (returnLastStep) {
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                        // Track ID
-                                 currentTrack.parentId,                       // parent Track ID
-                                 static_cast<short>(10),                      // step limiting process ID
-                                 static_cast<char>(IsElectron ? 0 : 1),       // Particle type
-                                 elTrack.GetPStepLength(),                    // Step length
-                                 energyDeposit,                               // Total Edep
-                                 currentTrack.weight,                         // Track weight
-                                 currentTrack.navState,                       // Pre-step point navstate
-                                 currentTrack.preStepPos,                     // Pre-step point position
-                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
-                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                 currentTrack.navState,                       // Post-step point navstate
-                                 currentTrack.pos,                            // Post-step point position
-                                 currentTrack.dir,                            // Post-step point momentum direction
-                                 currentTrack.eKin,                           // Post-step point kinetic energy
-                                 currentTrack.globalTime,                     // global time
-                                 currentTrack.localTime,                      // local time
-                                 currentTrack.preStepGlobalTime,              // preStep global time
-                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                 true,                                        // whether this was the last step
-                                 currentTrack.stepCounter);                   // stepcounter
+                                 currentTrack.trackId,                  // Track ID
+                                 currentTrack.parentId,                 // parent Track ID
+                                 static_cast<short>(10),                // step limiting process ID
+                                 static_cast<char>(IsElectron ? 0 : 1), // Particle type
+                                 0.,                       // Step length is 0, as post and prestep point are the same
+                                 energyDeposit,            // Total Edep
+                                 currentTrack.weight,      // Track weight
+                                 currentTrack.navState,    // Pre-step point navstate
+                                 currentTrack.preStepPos,  // Pre-step point position
+                                 currentTrack.preStepDir,  // Pre-step point momentum direction
+                                 currentTrack.preStepEKin, // Pre-step point kinetic energy
+                                 currentTrack.navState,    // Post-step point navstate
+                                 currentTrack.pos,         // Post-step point position
+                                 currentTrack.dir,         // Post-step point momentum direction
+                                 currentTrack.eKin,        // Post-step point kinetic energy
+                                 currentTrack.globalTime,  // global time
+                                 currentTrack.localTime,   // local time
+                                 currentTrack.preStepGlobalTime, // preStep global time
+                                 currentTrack.eventId,           // eventID
+                                 currentTrack.threadId,          // threadID
+                                 true,                           // whether this was the last step
+                                 currentTrack.stepCounter);      // stepcounter
       }
       continue; // track is killed, can stop here
     }
 
     // ---- End of SteppingAction
 
-    G4HepEmTrack *theTrack       = elTrack.GetTrack();
-    G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
+    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = elTrack.GetTrack();
+    G4HepEmMSCTrackData *mscData  = elTrack.GetMSCTrackData();
     if (!currentTrack.hepEmTrackExists) {
       // Init a track with the needed data to call into G4HepEm.
       elTrack.ReSet();
@@ -1175,8 +1176,8 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               true,                                        // whether this was the last step
-                               currentTrack.stepCounter);                   // stepcounter
+                               true, // whether this was the last step: always true for annihilating positrons
+                               currentTrack.stepCounter); // stepcounter
   }
 }
 
@@ -1239,8 +1240,8 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               true,                                        // whether this was the last step
-                               currentTrack.stepCounter);                   // stepcounter
+                               true, // whether this was the last step: always true for annihilating positrons
+                               currentTrack.stepCounter); // stepcounter
   }
 }
 
