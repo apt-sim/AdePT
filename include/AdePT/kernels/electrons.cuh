@@ -835,12 +835,20 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                  eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
                  geometryStepLength, geometricalStepLengthFromPhysics, safety);
         trackSurvives = false;
+        // For electrons, simply deposit the kinetic energy, for positrons also the 2 m_e that would be added from
+        // annihilation at rest
+        energyDeposit += IsElectron ? eKin : eKin + 2 * copcore::units::kElectronMassC2;
+        eKin = 0.;
       } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
         if (printErrors)
           printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
                  currentTrack.eventId, currentTrack.trackId, eKin, lvolID, currentTrack.stepCounter,
                  currentTrack.zeroStepCounter);
         trackSurvives = false;
+        // For electrons, simply deposit the kinetic energy, for positrons also the 2 m_e that would be added from
+        // annihilation at rest
+        energyDeposit += IsElectron ? eKin : eKin + 2 * copcore::units::kElectronMassC2;
+        eKin = 0.;
       } else {
         // call experiment-specific SteppingAction:
         SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, pos, globalTime, auxData.fMCIndex,
