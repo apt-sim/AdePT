@@ -843,8 +843,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         trackSurvives = false;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, leakReason, pos, globalTime,
-                                        auxData.fMCIndex, &g4HepEmData, params);
+        SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, pos, globalTime, auxData.fMCIndex,
+                                        &g4HepEmData, params);
       }
     }
 
