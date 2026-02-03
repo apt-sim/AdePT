@@ -10,6 +10,7 @@
 
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/AdePTPrecision.hh>
+#include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -27,7 +28,8 @@
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 
-using VolAuxData = adeptint::VolAuxData;
+using StepActionParam = adept::SteppingAction::Params;
+using VolAuxData      = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
 __device__ double GetVelocity(double eKin)
@@ -40,10 +42,11 @@ __device__ double GetVelocity(double eKin)
 
 namespace AsyncAdePT {
 
-template <bool IsElectron>
+template <bool IsElectron, typename Scoring, class SteppingActionT>
 __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronTrack *hepEMTracks,
-                               adept::MParray *propagationQueue, Stats *InFlightStats,
-                               AllowFinishOffEventArray allowFinishOffEvent)
+                               adept::MParray *propagationQueue, Stats *InFlightStats, const StepActionParam params,
+                               Scoring *userScoring, AllowFinishOffEventArray allowFinishOffEvent,
+                               const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr unsigned short maxSteps        = 10'000;
   constexpr int Charge                     = IsElectron ? -1 : 1;
@@ -67,8 +70,9 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 
   const int activeSize = electronsOrPositrons.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = electronsOrPositrons.ActiveAt(i);
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const auto slot               = electronsOrPositrons.ActiveAt(i);
+    Track &currentTrack           = electronsOrPositrons.TrackAt(slot);
+    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -80,37 +84,98 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
     currentTrack.preStepDir        = currentTrack.dir;
     currentTrack.stepCounter++;
     bool printErrors = false;
-    if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+
+    // ---- Begin of SteppingAction:
+    // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
+
+    // Unlike the monolithic kernels, the SteppingAction in the split kernels is done at the beginning of the step, as
+    // this is one central place to do it This is similar but not the same as killing them at the end of the monolithic
+    // kernels, as the NavState and the preStepPoints are already updated. Doing the stepping action before updating the
+    // variables has the disadvantage that the NavigationState would need to be updated by the NextNavState at the
+    // beginning of each step, which means that the NextNavState would have to be initialized as well. Given the fact,
+    // that the killed tracks should not play a relevant role in the user code, this was not a priority
+    bool trackSurvives   = true;
+    double energyDeposit = 0.;
+
+    // check for loopers
+    if (currentTrack.looperCounter > 500) {
+      // Kill loopers that are not advancing in free space or are scraping at a boundary
+      if (printErrors)
+        printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
+               "energyDeposit=%E "
+               "geoStepLength=%E "
+               "safety=%E\n",
+               currentTrack.eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
+               currentTrack.geometryStepLength, currentTrack.safety);
+      trackSurvives = false;
+      energyDeposit += IsElectron ? currentTrack.eKin : currentTrack.eKin + 2 * copcore::units::kElectronMassC2;
+      currentTrack.eKin = 0.;
+      // check for max steps and stuck tracks
+    } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
       if (printErrors)
         printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
                currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
                currentTrack.zeroStepCounter);
-      slotManager.MarkSlotForFreeing(slot);
-      continue;
+      trackSurvives = false;
+      energyDeposit += IsElectron ? currentTrack.eKin : currentTrack.eKin + 2 * copcore::units::kElectronMassC2;
+      currentTrack.eKin = 0.;
+      // check for experiment-specific SteppingAction
+    } else {
+      SteppingActionT::ElectronAction(trackSurvives, currentTrack.eKin, energyDeposit, currentTrack.pos,
+                                      currentTrack.globalTime, auxData.fMCIndex, &g4HepEmData, params);
     }
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
+    // this one always needs to be last as it needs to be done only if the track survives
+    if (trackSurvives) {
+      if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+          InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+        if (printErrors) {
+          printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+                 currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+                 currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
+        }
+
+        // Set LeakStatus and copy to leaked queue
+        currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
         electronsOrPositrons.CopyTrackToLeaked(slot);
-      } else {
-        electronsOrPositrons.EnqueueNext(slot);
+        continue;
       }
-    };
+    } else {
+      // Free the slot of the killed track
+      slotManager.MarkSlotForFreeing(slot);
 
-    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-             currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-             currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
-      survive(LeakStatus::FinishEventOnCPU);
-      continue;
+      // In case the last steps are recorded, record it now, as this track is killed
+      if (returnLastStep) {
+        adept_scoring::RecordHit(userScoring,
+                                 currentTrack.trackId,                        // Track ID
+                                 currentTrack.parentId,                       // parent Track ID
+                                 static_cast<short>(10),                      // step limiting process ID
+                                 static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                                 elTrack.GetPStepLength(),                    // Step length
+                                 energyDeposit,                               // Total Edep
+                                 currentTrack.weight,                         // Track weight
+                                 currentTrack.navState,                       // Pre-step point navstate
+                                 currentTrack.preStepPos,                     // Pre-step point position
+                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                 currentTrack.navState,                       // Post-step point navstate
+                                 currentTrack.pos,                            // Post-step point position
+                                 currentTrack.dir,                            // Post-step point momentum direction
+                                 currentTrack.eKin,                           // Post-step point kinetic energy
+                                 currentTrack.globalTime,                     // global time
+                                 currentTrack.localTime,                      // local time
+                                 currentTrack.preStepGlobalTime,              // preStep global time
+                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                 true,                                        // whether this was the last step
+                                 currentTrack.stepCounter);                   // stepcounter
+      }
+      continue; // track is killed, can stop here
     }
 
-    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
-    G4HepEmTrack *theTrack        = elTrack.GetTrack();
-    G4HepEmMSCTrackData *mscData  = elTrack.GetMSCTrackData();
+    // ---- End of SteppingAction
+
+    G4HepEmTrack *theTrack       = elTrack.GetTrack();
+    G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
     if (!currentTrack.hepEmTrackExists) {
       // Init a track with the needed data to call into G4HepEm.
       elTrack.ReSet();
@@ -393,7 +458,6 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool reached_interaction = true;
-    bool printErrors         = false;
 
     // Set Non-stopped, on-boundary tracks for relocation
     if (currentTrack.nextState.IsOnBoundary() && !currentTrack.stopped) {
@@ -410,17 +474,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
 
-        if (++currentTrack.looperCounter > 500) {
-          // Kill loopers that are not advancing in free space
-          if (printErrors)
-            printf("Killing looper due to lack of advance: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
-                   "physicsStepLength=%E "
-                   "safety=%E\n",
-                   currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
-                   currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
-          slotManager.MarkSlotForFreeing(slot);
-          continue;
-        }
+        ++currentTrack.looperCounter;
 
         // mark winner process to be transport, although this is not strictly true
         winnerProcessIndex = 10;
@@ -545,7 +599,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       }
     };
 
-    bool isLastStep = false;
+    bool trackSurvives = true;
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -554,7 +608,6 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool cross_boundary = false;
-    bool printErrors    = false;
 
     // Relocate to have the correct next state before RecordHit is called
 
@@ -562,17 +615,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     // - Set cross boundary flag in order to set the correct navstate after scoring
     // - Kill particles that left the world
 
-    if (++currentTrack.looperCounter > 500) {
-      // Kill loopers that are scraping a boundary
-      if (printErrors)
-        printf("Killing looper scraping at a boundary: E=%E event=%d loop=%d energyDeposit=%E geoStepLength=%E "
-               "physicsStepLength=%E "
-               "safety=%E\n",
-               currentTrack.eKin, currentTrack.eventId, currentTrack.looperCounter, energyDeposit,
-               currentTrack.geometryStepLength, theTrack->GetGStepLength(), currentTrack.safety);
-      slotManager.MarkSlotForFreeing(slot);
-      continue;
-    }
+    ++currentTrack.looperCounter;
 
     if (!currentTrack.nextState.IsOutside()) {
       // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
@@ -590,11 +633,11 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     } else {
       // Particle left the world, don't enqueue it and release the slot
       slotManager.MarkSlotForFreeing(slot);
-      isLastStep = true;
+      trackSurvives = false;
     }
 
     // Score
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
@@ -615,7 +658,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               isLastStep,                                  // whether this was the last step
+                               !trackSurvives,                              // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
 
     if (cross_boundary) {
@@ -735,10 +778,10 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     const int lvolID = currentTrack.navState.GetLogicalId();
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
-    bool isLastStep           = true;
+    bool trackSurvives        = false;
 
     auto survive = [&]() {
-      isLastStep = false; // track survived, do not force return of step
+      trackSurvives = true;
       electronsOrPositrons.EnqueueNext(slot);
     };
 
@@ -830,7 +873,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
@@ -851,7 +894,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               isLastStep,                                  // whether this was the last step
+                               !trackSurvives,                              // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
   }
 }
@@ -871,11 +914,11 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID]; // FIXME unify VolAuxData
-    bool isLastStep           = true;
+    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    bool trackSurvives        = false;
 
     auto survive = [&]() {
-      isLastStep = false; // track survived, do not force return of step
+      trackSurvives = true;
       electronsOrPositrons.EnqueueNext(slot);
     };
 
@@ -967,7 +1010,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     }
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep)
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
@@ -988,7 +1031,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               isLastStep,                                  // whether this was the last step
+                               !trackSurvives,                              // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
   }
 }
@@ -1008,7 +1051,6 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
     const int lvolID = currentTrack.navState.GetLogicalId();
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
-    bool isLastStep           = true;
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -1133,7 +1175,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               isLastStep,                                  // whether this was the last step
+                               true,                                        // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
   }
 }
@@ -1153,7 +1195,6 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     const int lvolID = currentTrack.navState.GetLogicalId();
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
-    bool isLastStep           = true;
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -1198,7 +1239,7 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               isLastStep,                                  // whether this was the last step
+                               true,                                        // whether this was the last step
                                currentTrack.stepCounter);                   // stepcounter
   }
 }

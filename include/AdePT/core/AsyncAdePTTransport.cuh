@@ -1170,9 +1170,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        ElectronHowFar<true><<<blocks, threads, 0, electrons.stream>>>(
+        ElectronHowFar<true, PerEventScoring, SteppingAction><<<blocks, threads, 0, electrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, gpuState.stats_dev,
-            allowFinishOffEvent);
+            steppingActionParams, gpuState.fScoring_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
         ElectronPropagation<true>
             <<<blocks, threads, 0, electrons.stream>>>(particleManager, gpuState.hepEmBuffers_d.electronsHepEm);
         ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
@@ -1206,9 +1206,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        ElectronHowFar<false><<<blocks, threads, 0, positrons.stream>>>(
+        ElectronHowFar<false, PerEventScoring, SteppingAction><<<blocks, threads, 0, positrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, gpuState.stats_dev,
-            allowFinishOffEvent);
+            steppingActionParams, gpuState.fScoring_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
         ElectronPropagation<false>
             <<<blocks, threads, 0, positrons.stream>>>(particleManager, gpuState.hepEmBuffers_d.positronsHepEm);
         ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
@@ -1249,9 +1249,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        GammaHowFar<<<blocks, threads, 0, gammas.stream>>>(gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-                                                           gammas.queues.propagation, gpuState.stats_dev,
-                                                           allowFinishOffEvent);
+        GammaHowFar<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
+            gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
+            steppingActionParams, gpuState.fScoring_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
         GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
                                                                 gammas.queues.propagation);
         GammaSetupInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
