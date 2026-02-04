@@ -34,8 +34,6 @@
 #include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
 using SteppingAction = adept::SteppingAction::Action;
 
-// #include <AdePT/benchmarking/NVTX.h>
-
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
@@ -923,7 +921,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                    int debugLevel, bool returnAllSteps, bool returnLastStep, unsigned short lastNParticlesOnCPU,
                    const double hitBufferSafetyFactor)
 {
-  // NVTXTracer tracer{"TransportLoop"};
 
   using InjectState                             = GPUstate::InjectState;
   using ExtractState                            = GPUstate::ExtractState;
@@ -989,7 +986,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   }
 
   while (gpuState.runTransport) {
-    // NVTXTracer nvtx1{"Setup"}, nvtx2{"Setup2"};
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
     COPCORE_CUDA_CHECK(cudaMemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
@@ -1013,30 +1009,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
     COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
 
-    // #ifdef USE_NVTX
-    //     std::map<AsyncAdePTTransport::EventState, std::string> stateMap{
-    //         {EventState::NewTracksFromG4, "NewTracksFromG4"},
-    //         {EventState::G4RequestsFlush, "G4RequestsFlush"},
-    //         {EventState::Inject, "Inject"},
-    //         {EventState::InjectionCompleted, "InjectionCompleted"},
-    //         {EventState::Transporting, "Transporting"},
-    //         {EventState::WaitingForTransportToFinish, "WaitingForTransportToFinish"},
-    //         {EventState::RequestHitFlush, "RequestHitFlush"},
-    //         {EventState::HitsFlushed, "HitsFlushed"},
-    //         {EventState::FlushingTracks, "FlushingTracks"},
-    //         {EventState::DeviceFlushed, "DeviceFlushed"},
-    //         {EventState::LeakedTracksRetrieved, "LeakedTracksRetrieved"},
-    //         {EventState::ScoringRetrieved, "ScoringRetrieved"}};
-    // #endif
-
     for (unsigned int iteration = 0;
          inFlight > 0 || gpuState.injectState != InjectState::Idle || gpuState.extractState != ExtractState::Idle ||
          std::any_of(eventStates.begin(), eventStates.end(), needTransport);
          ++iteration) {
-      // #ifdef USE_NVTX
-      //       nvtx1.setTag(stateMap[eventStates[0].load()].data());
-      //       nvtx2.setTag(stateMap[eventStates[1].load()].data());
-      // #endif
 
       // Swap the queues for the next iteration.
       electrons.queues.SwapActive();

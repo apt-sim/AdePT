@@ -478,14 +478,6 @@ target_compile_definitions(AdePT_G4_integration
 #    CUDA_RESOLVE_DEVICE_SYMBOLS ON
 #)
 
-# Optional library to activate NVTX annotations for profiling:
-option(ADEPT_NVTX OFF "Add NVTX instrumentation for profiling (only for annotated examples)")
-add_library(NVTX INTERFACE)
-if(ADEPT_NVTX)
-  target_link_libraries(NVTX INTERFACE nvToolsExt)
-  target_compile_definitions(NVTX INTERFACE -DUSE_NVTX)
-endif()
-
 if(ADEPT_BUILD_TESTING)
   add_subdirectory(test)
 endif()

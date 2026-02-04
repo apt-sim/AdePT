@@ -84,7 +84,6 @@ target_include_directories(AsyncExample PRIVATE
 target_link_libraries(AsyncExample
   PRIVATE
     ExamplesCommon
-    NVTX
     ROOT::Core
     ROOT::Hist
     ROOT::RIO
