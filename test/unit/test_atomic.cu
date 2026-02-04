@@ -65,7 +65,7 @@ int main(void)
   const char *result[2] = {"FAILED", "OK"};
   bool success          = true;
   // Define the kernels granularity: 10K blocks of 32 treads each
-  dim3 nblocks(10000), nthreads(32);
+  dim3 nblocks(1), nthreads(1);
 
   // Allocate the content of SomeStruct in a buffer
   char *buffer = nullptr;

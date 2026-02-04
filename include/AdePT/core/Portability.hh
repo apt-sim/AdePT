@@ -56,7 +56,6 @@
 #define ADEPT_DEVICE_PLATFORM_UPPER_STR "CUDA"
 #define ADEPT_DEVICE_API_SYMBOL(TOK) cuda##TOK
 #elif defined(__HIP__)
-// NOTE: not yet implemented
 #define ADEPT_DEVICE_PLATFORM hip
 #define ADEPT_DEVICE_PLATFORM_UPPER_STR "HIP"
 #define ADEPT_DEVICE_API_SYMBOL(TOK) hip##TOK
@@ -261,18 +260,19 @@ namespace portability {
 // FUNCTION DECLARATIONS
 //---------------------------------------------------------------------------//
 
-#ifndef ADEPT_DEVICE_COMPILE // Not defined for code that runs on device
-[[nodiscard]] std::logic_error make_debug_error(char const *which, char const *condition, char const *file, int line);
+// #ifndef __CUDA_ARCH__ // Not defined for code that runs on device
+// [[nodiscard]] std::logic_error make_debug_error(char const *which, char const *condition, char const *file, int
+// line);
 
-[[nodiscard]] std::runtime_error make_runtime_error(char const *which, char const *what, char const *condition,
-                                                    char const *file, int line);
-#endif
+// [[nodiscard]] std::runtime_error make_runtime_error(char const *which, char const *what, char const *condition,
+//                                                     char const *file, int line);
+// #endif
 
 //---------------------------------------------------------------------------//
 // FUNCTION DEFINITIONS
 //---------------------------------------------------------------------------//
 
-#ifndef ADEPT_DEVICE_COMPILE // Not defined for code that runs on device
+// #ifndef ADEPT_DEVICE_COMPILE // Not defined for code that runs on device
 // TODO: It doesn't make sense in principle that this file is included in a translation unit compiled
 // by gcc, because gcc wouldn't be able to compile API calls either. Also, the macro changes between
 // cuda/hip by detecting the compiler, so it won't even work with gcc. Then, where does the error if
@@ -285,7 +285,8 @@ The macros defined in Portability.hh are needed in both translation units, in or
 of these functions, this code is only compiled by nvcc/hip, and the host compiler will only see the
 declarations.
 */
-#ifdef ADEPT_DEVICE_SOURCE
+// #ifdef ADEPT_DEVICE_SOURCE
+#ifndef __CUDA_ARCH__
 [[nodiscard]] inline std::logic_error make_debug_error(char const *which, char const *condition, char const *file,
                                                        int line)
 {
@@ -322,8 +323,9 @@ declarations.
   msg += std::to_string(line);
   return std::runtime_error(std::move(msg));
 }
-#endif // ADEPT_DEVICE_SOURCE
-#endif // ADEPT_DEVICE_COMPILE
+#endif
+// #endif // ADEPT_DEVICE_SOURCE
+// #endif // ADEPT_DEVICE_COMPILE
 
 //---------------------------------------------------------------------------//
 // INLINE FUNCTION DEFINITIONS

@@ -82,6 +82,8 @@ if(ADEPT_USE_HIP)
 endif()
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Debug>>:--device-debug>")
+add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Debug>>>:--source-in-ptx>")
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
