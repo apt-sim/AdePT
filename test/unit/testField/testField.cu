@@ -245,7 +245,6 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
                ScoringPerVolume *scoringPerVolume_host, GlobalScoring *globalScoring_host, int numVolumes,
                int numPlaced, G4HepEmState *state, bool rotatingParticleGun)
 {
-  // NVTXTracer tracer("InitG4HepEM");
   InitG4HepEmGPU(state);
 
   // Transfer MC indices.
