@@ -64,6 +64,7 @@ private:
   std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
   std::vector<double> fGPUNetEnergy;
   bool fTrackInAllRegions = false;
+  bool fHasWDTRegions     = false;
   std::vector<std::string> const *fGPURegionNames;
   std::vector<std::string> const *fCPURegionNames;
   // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction

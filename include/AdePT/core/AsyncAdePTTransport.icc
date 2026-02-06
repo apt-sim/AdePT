@@ -52,7 +52,7 @@ std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, A
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
-                            std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short, const double);
+                            std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short, const double, bool);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
     int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
     std::vector<AdePTScoring> &scoring, double CPUCapacityFactor, double CPUCopyFraction,
@@ -245,6 +245,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
 
   // Pack host-side WDT
   adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
+  fHasWDTRegions                    = !wdtPacked.regions.empty(); // set the flag whether WDT regions are enabled
 
   // Upload WDT to device
   adeptint::WDTDeviceBuffers wdtDev;
@@ -261,13 +262,13 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
 
   assert(fBuffer != nullptr);
 
-  fGPUstate = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
-                                              fScoring, fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile,
-                                              fIntegrationLayerObjects.front().GetUniformField());
-  fGPUWorker =
-      async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
-                                        fEventStates, fCV_G4Workers, fScoring, fAdePTSeed, fDebugLevel, fReturnAllSteps,
-                                        fReturnFirstAndLastStep, fLastNParticlesOnCPU, fHitBufferSafetyFactor);
+  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
+                                               fScoring, fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile,
+                                               fIntegrationLayerObjects.front().GetUniformField());
+  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
+                                                 *fGPUstate, fEventStates, fCV_G4Workers, fScoring, fAdePTSeed,
+                                                 fDebugLevel, fReturnAllSteps, fReturnFirstAndLastStep,
+                                                 fLastNParticlesOnCPU, fHitBufferSafetyFactor, fHasWDTRegions);
 }
 
 template <typename IntegrationLayer>

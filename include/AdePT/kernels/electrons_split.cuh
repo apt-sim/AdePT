@@ -11,6 +11,7 @@
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/core/AdePTPrecision.hh>
 #include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
+#include <AdePT/kernels/WoodcockHelper.cuh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>
@@ -710,14 +711,16 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
     currentTrack.rngState.Advance();
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
-    Track &gamma1 = particleManager.gammas.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                                     vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
+    const bool useWDT      = ShouldUseWDT(currentTrack.navState, double{copcore::units::kElectronMassC2});
+    auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+    Track &gamma1 = gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                               vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                               currentTrack.navState, currentTrack, currentTrack.globalTime);
 
     // Reuse the RNG state of the dying track.
-    Track &gamma2 = particleManager.gammas.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                     currentTrack.pos, -gamma1.dir, currentTrack.navState, currentTrack,
-                                                     currentTrack.globalTime);
+    Track &gamma2 =
+        gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                   -gamma1.dir, currentTrack.navState, currentTrack, currentTrack.globalTime);
 
     // if tracking or stepping action is called, return initial step
     if (returnLastStep) {
@@ -964,10 +967,12 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       energyDeposit += deltaEkin;
 
     } else {
+      const bool useWDT      = ShouldUseWDT(currentTrack.navState, deltaEkin);
+      auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
       Track &gamma =
-          particleManager.gammas.NextTrack(newRNG, deltaEkin, currentTrack.pos,
-                                           vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
+          gammaPartManager.NextTrack(newRNG, deltaEkin, currentTrack.pos,
+                                     vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         adept_scoring::RecordHit(userScoring, gamma.trackId, gamma.parentId, /*CreatorProcessId*/ short(1),
@@ -1091,10 +1096,12 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       energyDeposit += theGamma1Ekin;
 
     } else {
+      const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma1Ekin);
+      auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
       Track &gamma1 =
-          particleManager.gammas.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
-                                           vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
-                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
+          gammaPartManager.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
+                                     vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
+                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         adept_scoring::RecordHit(userScoring, gamma1.trackId, gamma1.parentId, /*CreatorProcessId*/ short(2),
@@ -1123,10 +1130,12 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       energyDeposit += theGamma2Ekin;
 
     } else {
+      const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma2Ekin);
+      auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
       Track &gamma2 =
-          particleManager.gammas.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
-                                           vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
-                                           currentTrack.navState, currentTrack, currentTrack.globalTime);
+          gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
+                                     vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
+                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         adept_scoring::RecordHit(userScoring, gamma2.trackId, gamma2.parentId, /*CreatorProcessId*/ short(2),

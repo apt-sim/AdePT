@@ -50,14 +50,12 @@ add_test(NAME reproducibility_regions
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
-if(NOT ADEPT_USE_SPLIT_KERNELS)
-  # Same test as above but using Woodcock tracking in the testEm3 geometry
-  add_test(NAME reproducibility_WDT
-      COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility_WDT.sh
-      "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
-      WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-  )
-endif()
+# Same test as above but using Woodcock tracking in the testEm3 geometry
+add_test(NAME reproducibility_WDT
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility_WDT.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
 
 # test that compares the physics output of a full AdePT run against a high-statistics Geant4 simulation using G4HepEm.
 # The energy deposition per layer error must be < 1% to pass the test
@@ -81,14 +79,12 @@ add_test(NAME run_only_test
   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
 )
 
-if(NOT ADEPT_USE_SPLIT_KERNELS)
-  # Same test as above but using Woodcock tracking in the testEm3 geometry
+# Same test as above but using Woodcock tracking in the testEm3 geometry
 add_test(NAME testEm3_validation_WDT
-    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_WDT.sh
-    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-  )
-endif()
+  COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_WDT.sh
+  "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+  WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
 
 set(APP_TESTS
 
