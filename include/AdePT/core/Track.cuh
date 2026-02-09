@@ -25,11 +25,11 @@ struct Track {
   float weight{0.};
 #ifndef ADEPT_USE_SPLIT_KERNELS
   float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
-#endif
   // default values taken from G4HepEmMSCTrackData.hh
   float initialRange{1.0e+21};
   float dynamicRangeFactor{0.04};
   float tlimitMin{1.0E-7};
+#endif
 
   float localTime{0.f};
   float properTime{0.f};
@@ -45,13 +45,11 @@ struct Track {
 #ifdef ADEPT_USE_SPLIT_KERNELS
   // Variables used to store track info needed for scoring
   vecgeom::NavigationState nextState;
-  vecgeom::NavigationState preStepNavState;
   vecgeom::Vector3D<double> preStepPos;
   vecgeom::Vector3D<double> preStepDir;
   double preStepEKin{0};
   double preStepGlobalTime{0.};
   // Variables used to store navigation results
-  double geometryStepLength{0};
   double safeLength{0};
   long hitsurfID{0};
 #endif
@@ -146,61 +144,5 @@ struct Track {
   }
 
   __host__ __device__ double Uniform() { return rngState.Rndm(); }
-
-  __host__ __device__ void InitAsSecondary(const vecgeom::Vector3D<double> &parentPos,
-                                           const vecgeom::NavigationState &parentNavState, double gTime)
-  {
-#ifndef ADEPT_USE_SPLIT_KERNELS
-    // The caller is responsible to branch a new RNG state and to set the energy.
-    this->numIALeft[0] = -1.0;
-    this->numIALeft[1] = -1.0;
-    this->numIALeft[2] = -1.0;
-    this->numIALeft[3] = -1.0;
-#endif
-    this->initialRange       = 1.0e+21;
-    this->dynamicRangeFactor = 0.04;
-    this->tlimitMin          = 1.0E-7;
-
-    // A secondary inherits the position of its parent; the caller is responsible
-    // to update the directions.
-    this->pos = parentPos;
-    this->safetyPos.Set(0.f, 0.f, 0.f);
-    this->safety   = 0.0f;
-    this->navState = parentNavState;
-
-    // Caller is responsible to set the weight of the track
-
-    // The global time is inherited from the parent
-    this->globalTime = gTime;
-    this->localTime  = 0.;
-    this->properTime = 0.;
-
-    this->stepCounter     = 0;
-    this->looperCounter   = 0;
-    this->zeroStepCounter = 0;
-
-    this->leakStatus = LeakStatus::NoLeak;
-  }
-
-  __host__ __device__ void CopyTo(adeptint::TrackData &tdata, int pdg)
-  {
-    tdata.pdg          = pdg;
-    tdata.trackId      = trackId;
-    tdata.parentId     = parentId;
-    tdata.position[0]  = pos[0];
-    tdata.position[1]  = pos[1];
-    tdata.position[2]  = pos[2];
-    tdata.direction[0] = dir[0];
-    tdata.direction[1] = dir[1];
-    tdata.direction[2] = dir[2];
-    tdata.eKin         = eKin;
-    tdata.globalTime   = globalTime;
-    tdata.localTime    = localTime;
-    tdata.properTime   = properTime;
-    tdata.navState     = navState;
-    tdata.weight       = weight;
-    tdata.leakStatus   = leakStatus;
-    tdata.stepCounter  = stepCounter;
-  }
 };
 #endif

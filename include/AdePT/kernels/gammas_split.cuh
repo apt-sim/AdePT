@@ -46,6 +46,21 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
     currentTrack.stepCounter++;
     bool printErrors = false;
 
+    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
+    if (!currentTrack.hepEmTrackExists) {
+      // Init a track with the needed data to call into G4HepEm.
+      gammaTrack.ReSet();
+      theTrack->SetEKin(currentTrack.eKin);
+      theTrack->SetMCIndex(auxData.fMCIndex);
+      currentTrack.hepEmTrackExists = true;
+    }
+    // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
+    // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
+    if (theTrack->GetNumIALeft(0) <= 0.0) {
+      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
+    }
+
     {
       // ---- Begin of SteppingAction:
       // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
@@ -103,7 +118,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                                    currentTrack.parentId,                       // parent Track ID
                                    static_cast<short>(10),                      // step limiting process ID
                                    2,                                           // Particle type
-                                   currentTrack.geometryStepLength,             // Step length
+                                   theTrack->GetGStepLength(),                  // Step length
                                    energyDeposit,                               // Total Edep
                                    currentTrack.weight,                         // Track weight
                                    currentTrack.navState,                       // Pre-step point navstate
@@ -125,21 +140,6 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
       }
 
       // ---- End of SteppingAction
-    }
-
-    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
-    G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
-    if (!currentTrack.hepEmTrackExists) {
-      // Init a track with the needed data to call into G4HepEm.
-      gammaTrack.ReSet();
-      theTrack->SetEKin(currentTrack.eKin);
-      theTrack->SetMCIndex(auxData.fMCIndex);
-      currentTrack.hepEmTrackExists = true;
-    }
-    // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
-    // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
-    if (theTrack->GetNumIALeft(0) <= 0.0) {
-      theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
@@ -169,11 +169,11 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
     // Check if there's a volume boundary in between.
 #ifdef ADEPT_USE_SURF
     currentTrack.hitsurfID = -1;
-    currentTrack.geometryStepLength =
+    auto geometryStepLength =
         AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
                                                  currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID);
 #else
-    currentTrack.geometryStepLength =
+    auto geometryStepLength =
         AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
                                                  currentTrack.navState, currentTrack.nextState, kPushDistance);
 #endif
@@ -181,13 +181,13 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
     //  geometryStepLength,
     //         nextState.IsOnBoundary(), pos[0], pos[1], pos[2], dir[0], dir[1], dir[2]);
 
-    if (currentTrack.geometryStepLength < kPushStuck && currentTrack.geometryStepLength < theTrack->GetGStepLength()) {
+    if (geometryStepLength < kPushStuck && geometryStepLength < theTrack->GetGStepLength()) {
       currentTrack.zeroStepCounter++;
       if (currentTrack.zeroStepCounter > kStepsStuckPush) currentTrack.pos += kPushStuck * currentTrack.dir;
     } else
       currentTrack.zeroStepCounter = 0;
 
-    currentTrack.pos += currentTrack.geometryStepLength * currentTrack.dir;
+    currentTrack.pos += geometryStepLength * currentTrack.dir;
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -195,11 +195,11 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
     currentTrack.navState.SetBoundaryState(currentTrack.nextState.IsOnBoundary());
 
     // Propagate information from geometrical step to G4HepEm.
-    theTrack->SetGStepLength(currentTrack.geometryStepLength);
+    theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(currentTrack.nextState.IsOnBoundary());
 
     // Update the flight times of the particle
-    double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
+    double deltaTime = geometryStepLength / copcore::units::kCLight;
     currentTrack.globalTime += deltaTime;
     currentTrack.localTime += deltaTime;
   }
@@ -258,7 +258,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
               currentTrack.parentId,                       // parent Track ID
               static_cast<short>(3),                       // step defining process ID
               2,                                           // Particle type
-              currentTrack.geometryStepLength,             // Step length
+              theTrack->GetGStepLength(),                  // Step length
               0,                                           // Total Edep
               currentTrack.weight,                         // Track weight
               currentTrack.navState,                       // Pre-step point navstate
@@ -337,7 +337,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
                                  currentTrack.parentId,                       // parent Track ID
                                  static_cast<short>(10),                      // step defining process ID
                                  2,                                           // Particle type
-                                 currentTrack.geometryStepLength,             // Step length
+                                 theTrack->GetGStepLength(),                  // Step length
                                  0,                                           // Total Edep
                                  currentTrack.weight,                         // Track weight
                                  currentTrack.navState,                       // Pre-step point navstate
@@ -394,7 +394,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
             currentTrack.parentId,                       // parent Track ID
             static_cast<short>(10),                      // step defining process ID
             2,                                           // Particle type
-            currentTrack.geometryStepLength,             // Step length
+            theTrack->GetGStepLength(),                  // Step length
             0,                                           // Total Edep
             currentTrack.weight,                         // Track weight
             currentTrack.navState,                       // Pre-step point navstate
@@ -560,7 +560,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
           currentTrack.parentId,                       // parent Track ID
           static_cast<short>(0),                       // step defining process ID
           2,                                           // Particle type
-          currentTrack.geometryStepLength,             // Step length
+          theTrack->GetGStepLength(),                  // Step length
           edep,                                        // Total Edep
           currentTrack.weight,                         // Track weight
           currentTrack.navState,                       // Pre-step point navstate
@@ -700,7 +700,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(1),                       // step defining process ID
                                2,                                           // Particle type
-                               currentTrack.geometryStepLength,             // Step length
+                               theTrack->GetGStepLength(),                  // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
                                currentTrack.navState,                       // Pre-step point navstate
@@ -815,7 +815,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(2),                       // step defining process ID
                                2,                                           // Particle type
-                               currentTrack.geometryStepLength,             // Step length
+                               theTrack->GetGStepLength(),                  // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
                                currentTrack.navState,                       // Pre-step point navstate

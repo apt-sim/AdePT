@@ -84,6 +84,16 @@ __global__ void __launch_bounds__(256, 1)
       }
     };
 
+    // Init a track with the needed data to call into G4HepEm.
+    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
+    G4HepEmTrack *thePrimaryTrack = gammaTrack.GetTrack();
+    if (!currentTrack.hepEmTrackExists) {
+      // Init a track with the needed data to call into G4HepEm.
+      gammaTrack.ReSet();
+      thePrimaryTrack->SetEKin(currentTrack.eKin);
+      currentTrack.hepEmTrackExists = true;
+    }
+
     {
       // ---- Begin of SteppingAction:
       // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
@@ -141,7 +151,7 @@ __global__ void __launch_bounds__(256, 1)
                                    currentTrack.parentId,                       // parent Track ID
                                    static_cast<short>(10),                      // step limiting process ID
                                    2,                                           // Particle type
-                                   currentTrack.geometryStepLength,             // Step length
+                                   thePrimaryTrack->GetGStepLength(),           // Step length
                                    energyDeposit,                               // Total Edep
                                    currentTrack.weight,                         // Track weight
                                    currentTrack.navState,                       // Pre-step point navstate
@@ -229,15 +239,6 @@ __global__ void __launch_bounds__(256, 1)
     // correct navigation state Then, one can directly do the Woodcock tracking until hitting the boundary and do the
     // local relocation there.
 
-    // Init a track with the needed data to call into G4HepEm.
-    G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
-    G4HepEmTrack *thePrimaryTrack = gammaTrack.GetTrack();
-    if (!currentTrack.hepEmTrackExists) {
-      // Init a track with the needed data to call into G4HepEm.
-      gammaTrack.ReSet();
-      thePrimaryTrack->SetEKin(currentTrack.eKin);
-      currentTrack.hepEmTrackExists = true;
-    }
     thePrimaryTrack->SetMCIndex(rootHepemIMC); // always reset MC index to root WDT volume
 
     // Compute the WDT reference mxsec (i.e. maximum total mxsec along this step).
@@ -384,10 +385,9 @@ __global__ void __launch_bounds__(256, 1)
     // in case of non-zero energy deposit, i.e. when SD codes are invoked,
     // the track is never on boundary. So all SD code should work fine with
     // identical pre- and post-step points.
-    currentTrack.navState           = currentTrack.nextState;
-    currentTrack.preStepPos         = currentTrack.pos;
-    currentTrack.preStepDir         = currentTrack.dir;
-    currentTrack.geometryStepLength = wdtStepLength;
+    currentTrack.navState   = currentTrack.nextState;
+    currentTrack.preStepPos = currentTrack.pos;
+    currentTrack.preStepDir = currentTrack.dir;
     // Set all track properties needed later: all pre-step point information are
     // actually set to be their post step point values!
 
@@ -412,9 +412,12 @@ __global__ void __launch_bounds__(256, 1)
     thePrimaryTrack->SetNumIALeft(-1, 0);
 
     // The track has the total, i.e. the WDT step length.
-    // However, `thePrimaryTrack` has zero which results in: the number of interaction length left is
-    // not updated when invoking `UpdateNumIALeft`.
-    thePrimaryTrack->SetGStepLength(0.0);
+    // Note: in the original implementation, the GStepLength is set to 0, as this prevents the update of the
+    // number of interaction length left when invoking `UpdateNumIALeft`. To avoid caching the geometricStepLength in
+    // the AdePT track, we fully rely on propagating the geometric step length in the G4HepEmTrack. Therefore, by
+    // setting it to the wdt step length, we have to ensure that `UpdateNumIALeft` is not called. This is only called in
+    // the GammaRelocation kernel, which is never accessed by Woodcock tracked gammas.
+    thePrimaryTrack->SetGStepLength(wdtStepLength);
     thePrimaryTrack->SetOnBoundary(currentTrack.nextState.IsOnBoundary());
 
     // END OF WOODCOCK TRACKING
