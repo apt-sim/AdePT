@@ -5,6 +5,7 @@
 
 #include <AdePT/copcore/PhysicalConstants.h>
 #include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
+#include <AdePT/kernels/gammasWDT_split.cuh>
 
 #include <G4HepEmGammaManager.hh>
 #include <G4HepEmGammaTrack.hh>
@@ -12,11 +13,6 @@
 #include <G4HepEmGammaInteractionCompton.hh>
 #include <G4HepEmGammaInteractionConversion.hh>
 #include <G4HepEmGammaInteractionPhotoelectric.hh>
-// Pull in implementation.
-#include <G4HepEmGammaManager.icc>
-#include <G4HepEmGammaInteractionCompton.icc>
-#include <G4HepEmGammaInteractionConversion.icc>
-#include <G4HepEmGammaInteractionPhotoelectric.icc>
 
 using StepActionParam = adept::SteppingAction::Params;
 using VolAuxData      = adeptint::VolAuxData;
@@ -50,81 +46,86 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
     currentTrack.stepCounter++;
     bool printErrors = false;
 
-    // ---- Begin of SteppingAction:
-    // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
+    {
+      // ---- Begin of SteppingAction:
+      // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
 
-    // Unlike the monolithic kernels, the SteppingAction in the split kernels is done at the beginning of the step, as
-    // this is one central place to do it This is similar but not the same as killing them at the end of the monolithic
-    // kernels, as the NavState and the preStepPoints are already updated. Doing the stepping action before updating the
-    // variables has the disadvantage that the NavigationState would need to be updated by the NextNavState at the
-    // beginning of each step, which means that the NextNavState would have to be initialized as well. Given the fact,
-    // that the killed tracks should not play a relevant role in the user code, this was not a priority
-    bool trackSurvives   = true;
-    double energyDeposit = 0.;
+      // Unlike the monolithic kernels, the SteppingAction in the split kernels is done at the beginning of the step, as
+      // this is one central place to do it This is similar but not the same as killing them at the end of the
+      // monolithic kernels, as the NavState and the preStepPoints are already updated. Doing the stepping action before
+      // updating the variables has the disadvantage that the NavigationState would need to be updated by the
+      // NextNavState at the beginning of each step, which means that the NextNavState would have to be initialized as
+      // well. Given the fact, that the killed tracks should not play a relevant role in the user code, this was not a
+      // priority
+      bool trackSurvives   = true;
+      double energyDeposit = 0.;
 
-    // check for max steps and stuck tracks
-    if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
-      if (printErrors)
-        printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
-               currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
-               currentTrack.zeroStepCounter);
-      trackSurvives = false;
-      energyDeposit += currentTrack.eKin;
-      currentTrack.eKin = 0.;
-      // check for experiment-specific SteppingAction
-    } else {
-      SteppingActionT::GammaAction(trackSurvives, currentTrack.eKin, energyDeposit, currentTrack.pos,
-                                   currentTrack.globalTime, auxData.fMCIndex, &g4HepEmData, params);
-    }
+      // check for max steps and stuck tracks
+      if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+        if (printErrors)
+          printf("Killing gamma event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
+                 currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
+                 currentTrack.zeroStepCounter);
+        trackSurvives = false;
+        energyDeposit += currentTrack.eKin;
+        currentTrack.eKin = 0.;
+        // check for experiment-specific SteppingAction
+      } else {
+        SteppingActionT::GammaAction(trackSurvives, currentTrack.eKin, energyDeposit, currentTrack.pos,
+                                     currentTrack.globalTime, auxData.fMCIndex, &g4HepEmData, params);
+      }
 
-    // this one always needs to be last as it needs to be done only if the track survives
-    if (trackSurvives) {
-      if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-          InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-        if (printErrors) {
-          printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-                 currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-                 currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
+      // this one always needs to be last as it needs to be done only if the track survives
+      if (trackSurvives) {
+        if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] <
+                allowFinishOffEvent[currentTrack.threadId] &&
+            InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+          if (printErrors) {
+            printf(
+                "Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+                currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+                currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
+          }
+
+          // Set LeakStatus and copy to leaked queue
+          currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
+          particleManager.gammas.CopyTrackToLeaked(slot);
+          continue;
         }
+      } else {
+        // Free the slot of the killed track
+        slotManager.MarkSlotForFreeing(slot);
 
-        // Set LeakStatus and copy to leaked queue
-        currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
-        particleManager.gammas.CopyTrackToLeaked(slot);
-        continue;
+        // In case the last steps are recorded, record it now, as this track is killed
+        if (returnLastStep) {
+          adept_scoring::RecordHit(userScoring,
+                                   currentTrack.trackId,                        // Track ID
+                                   currentTrack.parentId,                       // parent Track ID
+                                   static_cast<short>(10),                      // step limiting process ID
+                                   2,                                           // Particle type
+                                   currentTrack.geometryStepLength,             // Step length
+                                   energyDeposit,                               // Total Edep
+                                   currentTrack.weight,                         // Track weight
+                                   currentTrack.navState,                       // Pre-step point navstate
+                                   currentTrack.preStepPos,                     // Pre-step point position
+                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                   currentTrack.navState,                       // Post-step point navstate
+                                   currentTrack.pos,                            // Post-step point position
+                                   currentTrack.dir,                            // Post-step point momentum direction
+                                   currentTrack.eKin,                           // Post-step point kinetic energy
+                                   currentTrack.globalTime,                     // global time
+                                   currentTrack.localTime,                      // local time
+                                   currentTrack.preStepGlobalTime,              // preStep global time
+                                   currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                   true,                                        // whether this was the last step
+                                   currentTrack.stepCounter);                   // stepcounter
+        }
+        continue; // track is killed, can stop here
       }
-    } else {
-      // Free the slot of the killed track
-      slotManager.MarkSlotForFreeing(slot);
 
-      // In case the last steps are recorded, record it now, as this track is killed
-      if (returnLastStep) {
-        adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                        // Track ID
-                                 currentTrack.parentId,                       // parent Track ID
-                                 static_cast<short>(10),                      // step limiting process ID
-                                 2,                                           // Particle type
-                                 currentTrack.geometryStepLength,             // Step length
-                                 energyDeposit,                               // Total Edep
-                                 currentTrack.weight,                         // Track weight
-                                 currentTrack.navState,                       // Pre-step point navstate
-                                 currentTrack.preStepPos,                     // Pre-step point position
-                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
-                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                 currentTrack.navState,                       // Post-step point navstate
-                                 currentTrack.pos,                            // Post-step point position
-                                 currentTrack.dir,                            // Post-step point momentum direction
-                                 currentTrack.eKin,                           // Post-step point kinetic energy
-                                 currentTrack.globalTime,                     // global time
-                                 currentTrack.localTime,                      // local time
-                                 currentTrack.preStepGlobalTime,              // preStep global time
-                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                 true,                                        // whether this was the last step
-                                 currentTrack.stepCounter);                   // stepcounter
-      }
-      continue; // track is killed, can stop here
+      // ---- End of SteppingAction
     }
-
-    // ---- End of SteppingAction
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
@@ -292,7 +293,8 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     const int slot      = (*relocatingQueue)[i];
     Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
-    int lvolID = currentTrack.navState.GetLogicalId();
+    int lvolID          = currentTrack.navState.GetLogicalId();
+    bool enterWDTRegion = false;
 
     // Write local variables back into track and enqueue
     auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
@@ -301,7 +303,11 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
         // Copy track at slot to the leaked tracks
         particleManager.gammas.CopyTrackToLeaked(slot);
       } else {
-        particleManager.gammas.EnqueueNext(slot);
+        if (!enterWDTRegion) {
+          particleManager.gammas.EnqueueNext(slot);
+        } else {
+          particleManager.gammasWDT.EnqueueNext(slot);
+        }
       }
     };
 
@@ -356,6 +362,18 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
       if (nextauxData.fGPUregionId >= 0) {
+
+        // Check whether next region is a Woodcock tracking region
+        const adeptint::WDTDeviceView &view = gWDTData;
+        const int wdtIdx = view.regionToWDT[nextauxData.fGPUregionId]; // index into view.regions (or -1)
+        if (wdtIdx >= 0) {
+          const adeptint::WDTRegion reg = view.regions[wdtIdx];
+          // minimal energy for Woodcock tracking succeeded, do Woodcock tracking
+          if (currentTrack.eKin > reg.ekinMin) {
+            enterWDTRegion = true;
+          }
+        }
+
         theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();
       } else {
@@ -413,7 +431,14 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
     // Write local variables back into track and enqueue
-    auto survive = [&]() { particleManager.gammas.EnqueueNext(slot); };
+    auto survive = [&]() {
+      const bool useWDT = ShouldUseWDT(currentTrack.navState, currentTrack.eKin);
+      if (!useWDT) {
+        particleManager.gammas.EnqueueNext(slot);
+      } else {
+        particleManager.gammasWDT.EnqueueNext(slot);
+      }
+    };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
@@ -573,8 +598,13 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
 
     // Write local variables back into track and enqueue
     auto survive = [&]() {
-      trackSurvives = true; // particle survived
-      particleManager.gammas.EnqueueNext(slot);
+      trackSurvives     = true; // particle survived
+      const bool useWDT = ShouldUseWDT(currentTrack.navState, currentTrack.eKin);
+      if (!useWDT) {
+        particleManager.gammas.EnqueueNext(slot);
+      } else {
+        particleManager.gammasWDT.EnqueueNext(slot);
+      }
     };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];

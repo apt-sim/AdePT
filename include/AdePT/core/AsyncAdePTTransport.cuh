@@ -919,7 +919,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                    GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                    std::condition_variable &cvG4Workers, std::vector<AdePTScoring> &scoring, int adeptSeed,
                    int debugLevel, bool returnAllSteps, bool returnLastStep, unsigned short lastNParticlesOnCPU,
-                   const double hitBufferSafetyFactor)
+                   const double hitBufferSafetyFactor, bool hasWDTRegions)
 {
 
   using InjectState                             = GPUstate::InjectState;
@@ -1230,6 +1230,14 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             steppingActionParams, gpuState.fScoring_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
         GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
                                                                 gammas.queues.propagation);
+        if (hasWDTRegions) {
+          // The GammaWoodcock kernel has to run after the HowFar and Propagation, GammaPropagation uses the propagation
+          // queue and GammaWockcock can add slots the the propagationqueue, as it will be consumed in the
+          // SetupInteractions kernel
+          GammaWoodcock<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
+              gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.fScoring_dev,
+              gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        }
         GammaSetupInteractions<PerEventScoring><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, particleManager, allGammaInteractionQueues,
             gpuState.fScoring_dev, returnAllSteps, returnLastStep);
@@ -1254,9 +1262,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             particleManager, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
             returnAllSteps, returnLastStep);
 
-        TransportGammasWoodcock<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
-            particleManager, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
-            returnAllSteps, returnLastStep);
+        if (hasWDTRegions) {
+          TransportGammasWoodcock<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
+              particleManager, gpuState.fScoring_dev, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent,
+              returnAllSteps, returnLastStep);
+        }
 #endif
 
         COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
@@ -1774,7 +1784,8 @@ std::thread LaunchGPUWorker(int trackCapacity, int leakCapacity, int scoringCapa
                             TrackBuffer &trackBuffer, GPUstate &gpuState,
                             std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                             std::vector<AdePTScoring> &scoring, int adeptSeed, int debugLevel, bool returnAllSteps,
-                            bool returnLastStep, unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor)
+                            bool returnLastStep, unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor,
+                            bool hasWDTRegions)
 {
   return std::thread{&TransportLoop,
                      trackCapacity,
@@ -1791,7 +1802,8 @@ std::thread LaunchGPUWorker(int trackCapacity, int leakCapacity, int scoringCapa
                      returnAllSteps,
                      returnLastStep,
                      lastNParticlesOnCPU,
-                     hitBufferSafetyFactor};
+                     hitBufferSafetyFactor,
+                     hasWDTRegions};
 }
 
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, G4HepEmState &g4hepem_state,
