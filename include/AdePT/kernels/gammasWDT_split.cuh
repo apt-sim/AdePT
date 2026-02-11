@@ -167,7 +167,9 @@ __global__ void __launch_bounds__(256, 1)
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    true,                                        // whether this was the last step
-                                   currentTrack.stepCounter);                   // stepcounter
+                                   currentTrack.stepCounter,                    // stepcounter
+                                   nullptr,                                     // pointer to secondary init data
+                                   0);                                          // number of secondaries
         }
         continue; // track is killed, can stop here
       }

@@ -24,7 +24,8 @@ __device__ void RecordHit(Scoring *scoring_dev, uint64_t aTrackID, uint64_t aPar
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
                           vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
                           double aLocalTime, double aPreGlobalTime, unsigned int eventId, short threadId,
-                          bool isLastStep, unsigned short stepCounter);
+                          bool isLastStep, unsigned short stepCounter, SecondaryInitData const *secondaryData,
+                          unsigned int nSecondaries);
 
 template <typename Scoring>
 __device__ void AccountProduced(Scoring *scoring_dev, int num_ele, int num_pos, int num_gam);

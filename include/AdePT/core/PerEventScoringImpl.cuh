@@ -51,14 +51,19 @@ struct HitScoringBuffer {
     return maxVal;
   }
 
-  __device__ GPUHit &GetNextSlot(unsigned int threadId)
+  __device__ unsigned int ReserveHitSlots(unsigned int threadId, unsigned int nSlots)
   {
-    const auto slotIndex = atomicAdd(&fSlotCounter[threadId], 1);
-    if (slotIndex >= fNSlot) {
-      printf("Trying to score hit #%d with only %d slots\n", slotIndex, fNSlot);
+    const auto slotStartIndex = atomicAdd(&fSlotCounter[threadId], nSlots);
+    if (slotStartIndex + nSlots > fNSlot) {
+      printf("Trying to score hit #%d with only %d slots\n", slotStartIndex, fNSlot);
       COPCORE_EXCEPTION("Out of slots in HitScoringBuffer::NextSlot");
     }
-    return hitBuffer_dev[threadId * fNSlot + slotIndex];
+    return slotStartIndex;
+  }
+
+  __device__ GPUHit &GetSlot(unsigned int threadId, unsigned int slot)
+  {
+    return hitBuffer_dev[threadId * fNSlot + slot];
   }
 };
 
@@ -707,15 +712,40 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
                           vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
                           double aLocalTime, double aPreGlobalTime, unsigned int eventID, short threadID,
-                          bool isLastStep, unsigned short stepCounter)
+                          bool isLastStep, unsigned short stepCounter, SecondaryInitData const *secondaryData,
+                          unsigned int nSecondaries)
 {
-  // Acquire a hit slot
-  GPUHit &aGPUHit = AsyncAdePT::gHitScoringBuffer_dev.GetNextSlot(threadID);
 
-  // Fill the required data
-  FillHit(aGPUHit, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit, aTrackWeight,
-          aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition, aPostMomentumDirection,
-          aPostEKin, aGlobalTime, aLocalTime, aPreGlobalTime, eventID, threadID, isLastStep, stepCounter);
+  // defensive check
+  if (nSecondaries > 0 && secondaryData == nullptr) {
+    COPCORE_EXCEPTION("secondaryData is null but nSecondaries > 0");
+  }
+
+  // allocate hit slots: one for the parent and then one for each secondary
+  auto slotStartIndex = AsyncAdePT::gHitScoringBuffer_dev.ReserveHitSlots(threadID, 1u + nSecondaries);
+
+  // NOTE: to be consistent with the previous implementation and to ensure that a new secondary arrives before the last
+  // step of the parent (otherwise, the hostTrackmapper might delete the parent, which is then not accessible in the
+  // processing of the secondary step anymore), the secondaries are processed before the parent. Next step will be to
+  // switch that order, such that the secondaries can be associated to the parent directly
+
+  // Fill the steps for the secondaries
+  for (unsigned int i = 0; i < nSecondaries; ++i) {
+    // The index should be slotStartInidex + 1u + i when the parent step is processed first
+    GPUHit &secondaryStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex + i);
+    FillHit(secondaryStep, secondaryData[i].trackId, aTrackID, stepLimProcessId, secondaryData[i].particleType,
+            /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
+            secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin, aGlobalTime,
+            /*localTime*/ 0., aGlobalTime, eventID, threadID, /*isLastStep*/ false, /*stepCounter*/ 0);
+  }
+
+  // The index should simply be slotStartIndex when the parent is processed before the secondaries
+  GPUHit &parentStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex + nSecondaries);
+  // Fill the required data for the parent step
+  FillHit(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
+          aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
+          aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aPreGlobalTime, eventID, threadID, isLastStep,
+          stepCounter);
 }
 
 /// @brief Account for the number of produced secondaries

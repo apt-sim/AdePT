@@ -40,6 +40,15 @@ struct GPUHit {
   char fParticleType{0}; // Particle type ID
 };
 
+/// @brief Minimal data struct that is needed along with the parent track to provide the initial track information that
+/// is sent back to the CPU
+struct SecondaryInitData {
+  uint64_t trackId;
+  vecgeom::Vector3D<double> dir;
+  double eKin;
+  char particleType{0};
+};
+
 /// @brief Stores information used for comparison with Geant4 (Number of steps, Number of produced particles, etc)
 struct GlobalCounters {
   double energyDeposit;
