@@ -364,6 +364,9 @@ __global__ void __launch_bounds__(256, 1)
     VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
 
     int winnerProcessIndex;
+    // data structure for possible secondaries that are generated
+    SecondaryInitData secondaryData[3];
+    unsigned int nSecondaries = 0;
     if (currentTrack.looperCounter > 0) {
       // Case 1: fake interaction, give particle back to WDT gammas unless it did more fake interactions than allowed,
       // in that case give back to normal gammas
@@ -481,26 +484,7 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
-                                     /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* electron*/ 0, // Particle type
-                                     0,               // Step length
-                                     0,               // Total Edep
-                                     electron.weight, // Track weight
-                                     navState,        // Pre-step point navstate
-                                     electron.pos,    // Pre-step point position
-                                     electron.dir,    // Pre-step point momentum direction
-                                     electron.eKin,   // Pre-step point kinetic energy
-                                     navState,        // Post-step point navstate
-                                     electron.pos,    // Post-step point position
-                                     electron.dir,    // Post-step point momentum direction
-                                     electron.eKin,   // Post-step point kinetic energy
-                                     globalTime,      // global time
-                                     0.,              // local time
-                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
-                                     electron.eventId, electron.threadId, // eventID and threadID
-                                     false,                               // whether this was the last step
-                                     electron.stepCounter);               // whether this was the first step
+            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
           }
         }
 
@@ -515,26 +499,7 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            adept_scoring::RecordHit(userScoring, positron.trackId, positron.parentId,
-                                     /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* positron*/ 1, // Particle type
-                                     0,               // Step length
-                                     0,               // Total Edep
-                                     positron.weight, // Track weight
-                                     navState,        // Pre-step point navstate
-                                     positron.pos,    // Pre-step point position
-                                     positron.dir,    // Pre-step point momentum direction
-                                     positron.eKin,   // Pre-step point kinetic energy
-                                     navState,        // Post-step point navstate
-                                     positron.pos,    // Post-step point position
-                                     positron.dir,    // Post-step point momentum direction
-                                     positron.eKin,   // Post-step point kinetic energy
-                                     globalTime,      // global time
-                                     0.,              // local time
-                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
-                                     positron.eventId, positron.threadId, // eventID and threadID
-                                     false,                               // whether this was the last step
-                                     positron.stepCounter);               // whether this was the first step
+            secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin, /*particle type*/ char(1)};
           }
         }
         eKin = 0.;
@@ -572,26 +537,7 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
-                                     /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* electron*/ 0, // Particle type
-                                     0,               // Step length
-                                     0,               // Total Edep
-                                     electron.weight, // Track weight
-                                     navState,        // Pre-step point navstate
-                                     electron.pos,    // Pre-step point position
-                                     electron.dir,    // Pre-step point momentum direction
-                                     electron.eKin,   // Pre-step point kinetic energy
-                                     navState,        // Post-step point navstate
-                                     electron.pos,    // Post-step point position
-                                     electron.dir,    // Post-step point momentum direction
-                                     electron.eKin,   // Post-step point kinetic energy
-                                     globalTime,      // global time
-                                     0.,              // local time
-                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
-                                     electron.eventId, electron.threadId, // eventID and threadID
-                                     false,                               // whether this was the last step
-                                     electron.stepCounter);               // whether this was the first step
+            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
           }
         } else {
           edep = energyEl;
@@ -638,26 +584,7 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            adept_scoring::RecordHit(userScoring, electron.trackId, electron.parentId,
-                                     /*CreatorProcessId*/ short(winnerProcessIndex),
-                                     /* electron*/ 0, // Particle type
-                                     0,               // Step length
-                                     0,               // Total Edep
-                                     electron.weight, // Track weight
-                                     navState,        // Pre-step point navstate
-                                     electron.pos,    // Pre-step point position
-                                     electron.dir,    // Pre-step point momentum direction
-                                     electron.eKin,   // Pre-step point kinetic energy
-                                     navState,        // Post-step point navstate
-                                     electron.pos,    // Post-step point position
-                                     electron.dir,    // Post-step point momentum direction
-                                     electron.eKin,   // Post-step point kinetic energy
-                                     globalTime,      // global time
-                                     0.,              // local time
-                                     globalTime, // global time at preStepPoint, for initializingStep its the globalTime
-                                     electron.eventId, electron.threadId, // eventID and threadID
-                                     false,                               // whether this was the last step
-                                     electron.stepCounter);               // whether this was the first step
+            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
           }
         } else {
           // If the secondary electron is cut, deposit all the energy of the gamma in this volume
@@ -722,10 +649,12 @@ __global__ void __launch_bounds__(256, 1)
       slotManager.MarkSlotForFreeing(slot);
     }
 
+    assert(nSecondaries <= 3);
+
     // If there is some edep from cutting particles, record the step
     // Note: record only real steps that either interacted or hit a boundary
-    if (realStep &&
-        ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives))) {
+    if (realStep && ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps ||
+                     (returnLastStep && (nSecondaries > 0 || !trackSurvives)))) {
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
@@ -746,8 +675,10 @@ __global__ void __launch_bounds__(256, 1)
                                localTime,                                   // local time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               !trackSurvives,            // whether this is the last step of the track
-                               currentTrack.stepCounter); // stepcounter
+                               !trackSurvives,           // whether this is the last step of the track
+                               currentTrack.stepCounter, // stepcounter
+                               secondaryData,            // pointer to secondary init data
+                               nSecondaries);            // number of secondaries
     }
   } // end for loop over tracks
 }
