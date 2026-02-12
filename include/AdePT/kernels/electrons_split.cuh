@@ -85,96 +85,6 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
     currentTrack.stepCounter++;
     bool printErrors = false;
 
-    // ---- Begin of SteppingAction:
-    // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
-
-    // Unlike the monolithic kernels, the SteppingAction in the split kernels is done at the beginning of the step, as
-    // this is one central place to do it This is similar but not the same as killing them at the end of the monolithic
-    // kernels, as the NavState and the preStepPoints are already updated. Doing the stepping action before updating the
-    // variables has the disadvantage that the NavigationState would need to be updated by the NextNavState at the
-    // beginning of each step, which means that the NextNavState would have to be initialized as well. Given the fact,
-    // that the killed tracks should not play a relevant role in the user code, this was not a priority
-    bool trackSurvives   = true;
-    double energyDeposit = 0.;
-
-    // check for loopers
-    if (currentTrack.looperCounter > 500) {
-      // Kill loopers that are not advancing in free space or are scraping at a boundary
-      if (printErrors)
-        printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
-               "energyDeposit=%E "
-               "geoStepLength=%E "
-               "safety=%E\n",
-               currentTrack.eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter, energyDeposit,
-               currentTrack.geometryStepLength, currentTrack.safety);
-      trackSurvives = false;
-      energyDeposit += IsElectron ? currentTrack.eKin : currentTrack.eKin + 2 * copcore::units::kElectronMassC2;
-      currentTrack.eKin = 0.;
-      // check for max steps and stuck tracks
-    } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
-      if (printErrors)
-        printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
-               currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
-               currentTrack.zeroStepCounter);
-      trackSurvives = false;
-      energyDeposit += IsElectron ? currentTrack.eKin : currentTrack.eKin + 2 * copcore::units::kElectronMassC2;
-      currentTrack.eKin = 0.;
-      // check for experiment-specific SteppingAction
-    } else {
-      SteppingActionT::ElectronAction(trackSurvives, currentTrack.eKin, energyDeposit, currentTrack.pos,
-                                      currentTrack.globalTime, auxData.fMCIndex, &g4HepEmData, params);
-    }
-
-    // this one always needs to be last as it needs to be done only if the track survives
-    if (trackSurvives) {
-      if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-          InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-        if (printErrors) {
-          printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-                 currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-                 currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
-        }
-
-        // Set LeakStatus and copy to leaked queue
-        currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
-        electronsOrPositrons.CopyTrackToLeaked(slot);
-        continue;
-      }
-    } else {
-      // Free the slot of the killed track
-      slotManager.MarkSlotForFreeing(slot);
-
-      // In case the last steps are recorded, record it now, as this track is killed
-      if (returnLastStep) {
-        adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                  // Track ID
-                                 currentTrack.parentId,                 // parent Track ID
-                                 static_cast<short>(10),                // step limiting process ID
-                                 static_cast<char>(IsElectron ? 0 : 1), // Particle type
-                                 0.,                       // Step length is 0, as post and prestep point are the same
-                                 energyDeposit,            // Total Edep
-                                 currentTrack.weight,      // Track weight
-                                 currentTrack.navState,    // Pre-step point navstate
-                                 currentTrack.preStepPos,  // Pre-step point position
-                                 currentTrack.preStepDir,  // Pre-step point momentum direction
-                                 currentTrack.preStepEKin, // Pre-step point kinetic energy
-                                 currentTrack.navState,    // Post-step point navstate
-                                 currentTrack.pos,         // Post-step point position
-                                 currentTrack.dir,         // Post-step point momentum direction
-                                 currentTrack.eKin,        // Post-step point kinetic energy
-                                 currentTrack.globalTime,  // global time
-                                 currentTrack.localTime,   // local time
-                                 currentTrack.preStepGlobalTime, // preStep global time
-                                 currentTrack.eventId,           // eventID
-                                 currentTrack.threadId,          // threadID
-                                 true,                           // whether this was the last step
-                                 currentTrack.stepCounter);      // stepcounter
-      }
-      continue; // track is killed, can stop here
-    }
-
-    // ---- End of SteppingAction
-
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
     G4HepEmMSCTrackData *mscData  = elTrack.GetMSCTrackData();
@@ -185,16 +95,106 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
       theTrack->SetMCIndex(auxData.fMCIndex);
       theTrack->SetOnBoundary(currentTrack.navState.IsOnBoundary());
       theTrack->SetCharge(Charge);
-      // the default is 1.0e21 but there are float vs double conversions, so we check for 1e20
-      mscData->fIsFirstStep         = currentTrack.initialRange > 1.0e+20;
-      mscData->fInitialRange        = currentTrack.initialRange;
-      mscData->fDynamicRangeFactor  = currentTrack.dynamicRangeFactor;
-      mscData->fTlimitMin           = currentTrack.tlimitMin;
+      mscData->ReSet();
       currentTrack.hepEmTrackExists = true;
     } else {
       theTrack->SetEnergyDeposit(0);
       mscData->fIsFirstStep = false;
     }
+
+    // ---- Begin of SteppingAction:
+    {
+      // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
+
+      // Unlike the monolithic kernels, the SteppingAction in the split kernels is done at the beginning of the step, as
+      // this is one central place to do it This is similar but not the same as killing them at the end of the
+      // monolithic kernels, as the NavState and the preStepPoints are already updated. Doing the stepping action before
+      // updating the variables has the disadvantage that the NavigationState would need to be updated by the
+      // NextNavState at the beginning of each step, which means that the NextNavState would have to be initialized as
+      // well. Given the fact, that the killed tracks should not play a relevant role in the user code, this was not a
+      // priority
+      bool trackSurvives   = true;
+      double energyDeposit = 0.;
+
+      // check for loopers
+      if (currentTrack.looperCounter > 500) {
+        // Kill loopers that are not advancing in free space or are scraping at a boundary
+        if (printErrors)
+          printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
+                 "energyDeposit=%E "
+                 "geoStepLength=%E "
+                 "safety=%E\n",
+                 currentTrack.eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter,
+                 energyDeposit, theTrack->GetGStepLength(), currentTrack.safety);
+        trackSurvives = false;
+        energyDeposit += IsElectron ? currentTrack.eKin : currentTrack.eKin + 2 * copcore::units::kElectronMassC2;
+        currentTrack.eKin = 0.;
+        // check for max steps and stuck tracks
+      } else if (currentTrack.stepCounter >= maxSteps || currentTrack.zeroStepCounter > kStepsStuckKill) {
+        if (printErrors)
+          printf("Killing e-/+ event %d track %lu E=%f lvol=%d after %d steps with zeroStepCounter %u\n",
+                 currentTrack.eventId, currentTrack.trackId, currentTrack.eKin, lvolID, currentTrack.stepCounter,
+                 currentTrack.zeroStepCounter);
+        trackSurvives = false;
+        energyDeposit += IsElectron ? currentTrack.eKin : currentTrack.eKin + 2 * copcore::units::kElectronMassC2;
+        currentTrack.eKin = 0.;
+        // check for experiment-specific SteppingAction
+      } else {
+        SteppingActionT::ElectronAction(trackSurvives, currentTrack.eKin, energyDeposit, currentTrack.pos,
+                                        currentTrack.globalTime, auxData.fMCIndex, &g4HepEmData, params);
+      }
+
+      // this one always needs to be last as it needs to be done only if the track survives
+      if (trackSurvives) {
+        if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] <
+                allowFinishOffEvent[currentTrack.threadId] &&
+            InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+          if (printErrors) {
+            printf(
+                "Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+                currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+                currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
+          }
+
+          // Set LeakStatus and copy to leaked queue
+          currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
+          electronsOrPositrons.CopyTrackToLeaked(slot);
+          continue;
+        }
+      } else {
+        // Free the slot of the killed track
+        slotManager.MarkSlotForFreeing(slot);
+
+        // In case the last steps are recorded, record it now, as this track is killed
+        if (returnLastStep) {
+          adept_scoring::RecordHit(userScoring,
+                                   currentTrack.trackId,                  // Track ID
+                                   currentTrack.parentId,                 // parent Track ID
+                                   static_cast<short>(10),                // step limiting process ID
+                                   static_cast<char>(IsElectron ? 0 : 1), // Particle type
+                                   0.,                       // Step length is 0, as post and prestep point are the same
+                                   energyDeposit,            // Total Edep
+                                   currentTrack.weight,      // Track weight
+                                   currentTrack.navState,    // Pre-step point navstate
+                                   currentTrack.preStepPos,  // Pre-step point position
+                                   currentTrack.preStepDir,  // Pre-step point momentum direction
+                                   currentTrack.preStepEKin, // Pre-step point kinetic energy
+                                   currentTrack.navState,    // Post-step point navstate
+                                   currentTrack.pos,         // Post-step point position
+                                   currentTrack.dir,         // Post-step point momentum direction
+                                   currentTrack.eKin,        // Post-step point kinetic energy
+                                   currentTrack.globalTime,  // global time
+                                   currentTrack.localTime,   // local time
+                                   currentTrack.preStepGlobalTime, // preStep global time
+                                   currentTrack.eventId,           // eventID
+                                   currentTrack.threadId,          // threadID
+                                   true,                           // whether this was the last step
+                                   currentTrack.stepCounter);      // stepcounter
+        }
+        continue; // track is killed, can stop here
+      }
+    }
+    // ---- End of SteppingAction
 
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
@@ -301,11 +301,12 @@ __global__ void ElectronPropagation(ParticleManager particleManager, G4HepEmElec
     // Check if there's a volume boundary in between.
     currentTrack.propagated = true;
     currentTrack.hitsurfID  = -1;
-    bool zero_first_step    = false;
+    double geometryStepLength;
+    bool zero_first_step = false;
 
     if (gMagneticField) {
       int iterDone = -1;
-      currentTrack.geometryStepLength =
+      geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticField, currentTrack.eKin, restMass, Charge, theTrack->GetGStepLength(), currentTrack.safeLength,
               currentTrack.pos, currentTrack.dir, currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID,
@@ -320,25 +321,25 @@ __global__ void ElectronPropagation(ParticleManager particleManager, G4HepEmElec
 
     } else {
 #ifdef ADEPT_USE_SURF
-      currentTrack.geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(
-          currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(), currentTrack.navState, currentTrack.nextState,
-          currentTrack.hitsurfID);
+      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir,
+                                                                    theTrack->GetGStepLength(), currentTrack.navState,
+                                                                    currentTrack.nextState, currentTrack.hitsurfID);
 #else
-      currentTrack.geometryStepLength =
+      geometryStepLength =
           AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
                                                    currentTrack.navState, currentTrack.nextState, kPushDistance);
 #endif
-      currentTrack.pos += currentTrack.geometryStepLength * currentTrack.dir;
+      currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
 
-    if (currentTrack.geometryStepLength < kPushStuck && currentTrack.geometryStepLength < theTrack->GetGStepLength()) {
+    if (geometryStepLength < kPushStuck && geometryStepLength < theTrack->GetGStepLength()) {
       currentTrack.zeroStepCounter++;
       if (currentTrack.zeroStepCounter > kStepsStuckPush) currentTrack.pos += kPushStuck * currentTrack.dir;
     } else
       currentTrack.zeroStepCounter = 0;
 
     // punish miniscule steps by increasing the looperCounter by 10
-    if (currentTrack.geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
+    if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -348,7 +349,7 @@ __global__ void ElectronPropagation(ParticleManager particleManager, G4HepEmElec
 
     // Propagate information from geometrical step to MSC.
     theTrack->SetDirection(currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z());
-    theTrack->SetGStepLength(currentTrack.geometryStepLength);
+    theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(currentTrack.nextState.IsOnBoundary());
   }
 }
