@@ -104,7 +104,7 @@ private:
   uint64_t fAdePTSeed{1234567};
   float fHitBufferFlushThreshold{0.8};
   float fCPUCapacityFactor{2.5};
-  double fHitBufferSafetyFactor{2.5};
+  double fHitBufferSafetyFactor{1.5};
   double fMillionsOfTrackSlots{1};
   double fMillionsOfLeakSlots{1};
   double fMillionsOfHitSlots{1};
