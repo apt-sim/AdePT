@@ -769,7 +769,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       slotManager.MarkSlotForFreeing(slot);
     }
 
-    assert(nSecondaries <= 2);
+    assert(nSecondaries <= 3);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
