@@ -572,8 +572,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
              *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,
              callUserSteppingAction);
   FillG4Track(gpuStep, fScoringObjects->fG4Step->GetTrack(), parentTData,
-              *fScoringObjects->fPreG4TouchableHistoryHandle, *fScoringObjects->fPostG4TouchableHistoryHandle,
-              preStepStatus, postStepStatus, callUserTrackingAction, callUserSteppingAction);
+              *fScoringObjects->fPreG4TouchableHistoryHandle, *fScoringObjects->fPostG4TouchableHistoryHandle);
 
   // Create and attach secondaries
   const unsigned char nSec = gpuStep->fNumSecondaries;
@@ -600,8 +599,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
 
       // 4. Fill data for secondary track
       FillG4Track(secHit, secTrack, secTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
-                  *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus,
-                  callUserTrackingAction, callUserSteppingAction);
+                  *fScoringObjects->fPostG4TouchableHistoryHandle);
 
       // 5. call PreUserTrackingAction as this might set up the G4UserInformation
       if (callUserTrackingAction || callUserSteppingAction) {
@@ -756,18 +754,15 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *
 #endif
 
   secTData.particleType = secHit->fParticleType;
+  secTData.g4parentid   = g4ParentID;
 
-  secTData.g4parentid = g4ParentID;
-
+  secTData.originNavState        = secHit->fPostStepPoint.fNavigationState;
   secTData.logicalVolumeAtVertex = preTouchable->GetVolume()->GetLogicalVolume();
-
   secTData.vertexPosition = G4ThreeVector(secHit->fPostStepPoint.fPosition.x(), secHit->fPostStepPoint.fPosition.y(),
                                           secHit->fPostStepPoint.fPosition.z());
-
   secTData.vertexMomentumDirection =
       G4ThreeVector(secHit->fPostStepPoint.fMomentumDirection.x(), secHit->fPostStepPoint.fMomentumDirection.y(),
                     secHit->fPostStepPoint.fMomentumDirection.z());
-
   secTData.vertexKineticEnergy = secHit->fPostStepPoint.fEKin;
 
   // For the initializing step, the step defining process ID is the creator process
@@ -778,18 +773,11 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *
   } else if (ptype == 2) {
     secTData.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[stepId];
   }
-
-  // FIXME: this is incredibly slow, to be fixed in another PR
-  // secTData.originTouchableHandle =
-  //   std::make_unique<G4TouchableHandle>(
-  //     MakeTouchableFromNavState(secHit->fPostStepPoint.fNavigationState));
 }
 
 void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack, const HostTrackData &hostTData,
                                          G4TouchableHandle &aPreG4TouchableHandle,
-                                         G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
-                                         G4StepStatus aPostStepStatus, bool callUserTrackingAction,
-                                         bool callUserSteppingAction) const
+                                         G4TouchableHandle &aPostG4TouchableHandle) const
 {
 
   const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
@@ -839,7 +827,10 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
   aTrack->SetUserInformation(hostTData.userTrackInfo); // Real data
   // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
 
-  if (aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+  // adjust for gamma-nuclear steps:
+  // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
+  // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
+  if (gpuStep->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
     aTrack->SetKineticEnergy(0.);
     // aTrack->SetVelocity(0.);              // Not set in other cases, so also not set here
   }
@@ -954,7 +945,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   // adjust for gamma-nuclear steps:
   // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
   // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+  if (gpuStep->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
     aPostStepPoint->SetKineticEnergy(0.);
     // aPostStepPoint->SetVelocity(0.);      // Not set in other cases, so also not set here
   }

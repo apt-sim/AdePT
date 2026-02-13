@@ -107,9 +107,7 @@ private:
                                             G4TouchableHandle &preTouchable) const;
 
   void FillG4Track(GPUHit const *aGPUHit, G4Track *aG4Track, const HostTrackData &hostTData,
-                   G4TouchableHandle &aPreG4TouchableHandle, G4TouchableHandle &aPostG4TouchableHandle,
-                   G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus, bool callUserTrackingAction,
-                   bool callUserSteppingAction) const;
+                   G4TouchableHandle &aPreG4TouchableHandle, G4TouchableHandle &aPostG4TouchableHandle) const;
 
   void FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, const HostTrackData &hostTData,
                   G4TouchableHandle &aPreG4TouchableHandle, G4TouchableHandle &aPostG4TouchableHandle,
