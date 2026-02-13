@@ -724,28 +724,25 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
   // allocate hit slots: one for the parent and then one for each secondary
   auto slotStartIndex = AsyncAdePT::gHitScoringBuffer_dev.ReserveHitSlots(threadID, 1u + nSecondaries);
 
-  // NOTE: to be consistent with the previous implementation and to ensure that a new secondary arrives before the last
-  // step of the parent (otherwise, the hostTrackmapper might delete the parent, which is then not accessible in the
-  // processing of the secondary step anymore), the secondaries are processed before the parent. Next step will be to
-  // switch that order, such that the secondaries can be associated to the parent directly
-
-  // Fill the steps for the secondaries
-  for (unsigned int i = 0; i < nSecondaries; ++i) {
-    // The index should be slotStartInidex + 1u + i when the parent step is processed first
-    GPUHit &secondaryStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex + i);
-    FillHit(secondaryStep, secondaryData[i].trackId, aTrackID, stepLimProcessId, secondaryData[i].particleType,
-            /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
-            secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin, aGlobalTime,
-            /*localTime*/ 0., aGlobalTime, eventID, threadID, /*isLastStep*/ false, /*stepCounter*/ 0);
-  }
-
-  // The index should simply be slotStartIndex when the parent is processed before the secondaries
-  GPUHit &parentStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex + nSecondaries);
+  // The ProcessGPUSteps on the Host expects the step of the parent track first, and then all secondaries
+  // that were generated in that step.
+  GPUHit &parentStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex);
   // Fill the required data for the parent step
   FillHit(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
           aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
           aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aPreGlobalTime, eventID, threadID, isLastStep,
-          stepCounter);
+          stepCounter, nSecondaries);
+
+  // Fill the steps for the secondaries
+  for (unsigned int i = 0; i < nSecondaries; ++i) {
+    // The index is the startIndex + 1 (for the parent) + i for the current secondary
+    GPUHit &secondaryStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex + 1u + i);
+    FillHit(secondaryStep, secondaryData[i].trackId, aTrackID, stepLimProcessId, secondaryData[i].particleType,
+            /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
+            secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin, aGlobalTime,
+            /*localTime*/ 0., aGlobalTime, eventID, threadID, /*isLastStep*/ false, /*stepCounter*/ 0,
+            /*nSecondaries*/ 0);
+  }
 }
 
 /// @brief Account for the number of produced secondaries

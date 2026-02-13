@@ -34,10 +34,10 @@ struct GPUHit {
   short fStepLimProcessId{-1};
   int fEventId{0};
   short threadId{-1};
-  // bool fFirstStepInVolume{false};
-  bool fLastStepOfTrack{false};
   unsigned short fStepCounter{0};
+  bool fLastStepOfTrack{false};
   char fParticleType{0}; // Particle type ID
+  unsigned char fNumSecondaries{0};
 };
 
 /// @brief Minimal data struct that is needed along with the parent track to provide the initial track information that
@@ -86,7 +86,8 @@ __device__ __forceinline__ void FillHit(
     vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
     double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
     vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, double aLocalTime,
-    double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter)
+    double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter,
+    unsigned char aNumSecondaries)
 {
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
@@ -104,6 +105,7 @@ __device__ __forceinline__ void FillHit(
   aGPUHit.fGlobalTime         = aGlobalTime;
   aGPUHit.fLocalTime          = aLocalTime;
   aGPUHit.fPreGlobalTime      = aPreGlobalTime;
+  aGPUHit.fNumSecondaries     = aNumSecondaries;
   // Pre step point
   aGPUHit.fPreStepPoint.fNavigationState = aPreState;
   Copy3DVector(aPrePosition, aGPUHit.fPreStepPoint.fPosition);
