@@ -662,10 +662,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
           G4ThreeVector{aGPUHit->fPostStepPoint.fMomentumDirection.x(), aGPUHit->fPostStepPoint.fMomentumDirection.y(),
                         aGPUHit->fPostStepPoint.fMomentumDirection.z()};
       hostTData.vertexKineticEnergy = aGPUHit->fPostStepPoint.fEKin;
-      if (hostTData.originTouchableHandle) {
-        hostTData.originTouchableHandle =
-            std::make_unique<G4TouchableHandle>(MakeTouchableFromNavState(aGPUHit->fPostStepPoint.fNavigationState));
-      }
+      hostTData.originNavState      = aGPUHit->fPostStepPoint.fNavigationState;
 
       // For the initializing step, the step defining process ID is the creator process
       const int stepId = aGPUHit->fStepLimProcessId;
@@ -906,8 +903,9 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   leakedTrack->SetVertexMomentumDirection(hostTData.vertexMomentumDirection);
   leakedTrack->SetVertexKineticEnergy(hostTData.vertexKineticEnergy);
   leakedTrack->SetLogicalVolumeAtVertex(hostTData.logicalVolumeAtVertex);
-  if (hostTData.originTouchableHandle) {
-    leakedTrack->SetOriginTouchableHandle(*hostTData.originTouchableHandle);
+  if (callUserActions) {
+    auto originTouchableHandle = MakeTouchableFromNavState(hostTData.originNavState);
+    leakedTrack->SetOriginTouchableHandle(originTouchableHandle);
   }
 
   // ------ Handle leaked tracks according to their status, if not LeakStatus::OutOfGPURegion ---------

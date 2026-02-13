@@ -57,8 +57,11 @@ private:
   /// @brief Get the corresponding VecGeom NavigationState from the track's G4NavigationHistory, and set the boundary
   /// status based on the track's state
   /// @param aG4Track The G4Track from which to extract the NavigationState
+  /// @param aG4NavigationHistory Navigation history that is used to define the navState. If not provided, it will
+  /// default to aG4Track.GetNextTouchableHandle()->GetHistory()
   /// @return The corresponding vecgeom::NavigationState
-  const vecgeom::NavigationState GetVecGeomFromG4State(const G4Track &aG4Track);
+  const vecgeom::NavigationState GetVecGeomFromG4State(const G4Track &aG4Track,
+                                                       const G4NavigationHistory *aG4NavigationHistory = nullptr);
 
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   static inline int fNumThreads{0};
