@@ -397,23 +397,21 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // Get VecGeom Navigation state from G4History
       vecgeom::NavigationState converted = GetVecGeomFromG4State(*aTrack);
 
-      // Setting of the touchable should only be done when the userActions are called,
-      // as this otherwise leaves the touchable data for tracks that die on the GPU intact,
-      // causing a destructor fiasco when G4 is already shut down
+      // The VecGeom NavState is stored in the hostTrackData; in principle, the G4TouchableHandle could also be stored
+      // directly, but it has proven to be very expensive to create new G4TouchableHandle objects for each track in the
+      // HostTrackData. Instead, it was much cheaper to just store the vecgeom::NavState and create the
+      // G4TouchableHandle only when the track is returned from the GPU
       if (callUserActions) {
         if (aTrack->GetParentID() == 0 && aTrack->GetCurrentStepNumber() == 0) {
           // For the first step of primary tracks, the origin touchable handle is not set,
           // so we need to use the track's current position
           // If the vertex is not in a GPU region, the origin touchable handle will be set by the HepEmTrackingManager
-          if (aTrack->GetTouchable()) {
-            hostTrackData.originTouchableHandle = std::make_unique<G4TouchableHandle>(aTrack->GetTouchableHandle());
-          }
+          hostTrackData.originNavState = converted;
         } else {
           // For secondary tracks, the origin touchable handle is set when they are stacked
-          if (aTrack->GetOriginTouchable()) {
-            hostTrackData.originTouchableHandle =
-                std::make_unique<G4TouchableHandle>(aTrack->GetOriginTouchableHandle());
-          }
+          vecgeom::NavigationState convertedOrigin =
+              GetVecGeomFromG4State(*aTrack, aTrack->GetOriginTouchableHandle()->GetHistory());
+          hostTrackData.originNavState = convertedOrigin;
         }
       }
 
@@ -494,9 +492,15 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(
   return aNavState;
 }
 
-const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(const G4Track &aG4Track)
+const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(
+    const G4Track &aG4Track, const G4NavigationHistory *aG4NavigationHistory)
 {
-  auto aNavState = GetVecGeomFromG4State(*aG4Track.GetNextTouchableHandle()->GetHistory());
+
+  if (!aG4NavigationHistory) {
+    aG4NavigationHistory = aG4Track.GetNextTouchableHandle()->GetHistory();
+  }
+
+  auto aNavState = GetVecGeomFromG4State(*aG4NavigationHistory);
 
   // Set boundary status based on the track
   if (aG4Track.GetStep() != nullptr) { // at initialization, the G4Step is not set yet, then we put OnBoundary to false
