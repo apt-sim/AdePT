@@ -43,10 +43,11 @@ namespace AdePTGeant4Integration_detail {
 /// This also keeps all these objects much closer in memory.
 struct ScoringObjects {
 
-  static constexpr int kMaxSecElectrons = 1;
-  static constexpr int kMaxSecPositrons = 1;
-  static constexpr int kMaxSecGammas    = 3;
-  static constexpr int kMaxSecondaries  = kMaxSecElectrons + kMaxSecPositrons + kMaxSecGammas;
+  static constexpr int kMaxSecElectrons     = 1;
+  static constexpr int kMaxSecPositrons     = 1;
+  static constexpr int kMaxSecGammas        = 3;
+  static constexpr int kMaxTotalSecondaries = kMaxSecElectrons + kMaxSecPositrons + kMaxSecGammas;
+  static constexpr int kMaxSecondaries      = 3;
 
   G4NavigationHistory fPreG4NavigationHistory;
   G4NavigationHistory fPostG4NavigationHistory;
@@ -79,11 +80,14 @@ struct ScoringObjects {
   G4ParticleDefinition *fPositronDef;
   G4ParticleDefinition *fGammaDef;
 
-  std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type secDynStorage[kMaxSecondaries];
-  std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type secTrackStorage[kMaxSecondaries];
+  std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type secDynStorage[kMaxTotalSecondaries];
+  std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type secTrackStorage[kMaxTotalSecondaries];
 
-  G4DynamicParticle *secDyn[kMaxSecondaries] = {nullptr};
-  G4Track *secTrk[kMaxSecondaries]           = {nullptr};
+  G4DynamicParticle *secDyn[kMaxTotalSecondaries] = {nullptr};
+  G4Track *secTrk[kMaxTotalSecondaries]           = {nullptr};
+
+  std::aligned_storage<sizeof(G4TrackVector), alignof(G4TrackVector)>::type secondaryStorage;
+  G4TrackVector *fSecondaryVector = nullptr;
 
   // Indices for each type inside the flat pool
   int secEBase = 0;            // size 1
@@ -114,6 +118,10 @@ struct ScoringObjects {
     fG4Step = new (&stepStorage) G4Step;
     fG4Step->SetPreStepPoint(::new (&stepPointStorage[0]) G4StepPoint());
     fG4Step->SetPostStepPoint(::new (&stepPointStorage[1]) G4StepPoint());
+
+    fSecondaryVector = ::new (&secondaryStorage) G4TrackVector;
+    fSecondaryVector->reserve(kMaxSecondaries);
+    fG4Step->SetSecondary(fSecondaryVector);
 
     // Touchable handles
     fPreG4TouchableHistoryHandle =
@@ -507,6 +515,8 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
 
   // Reset secondary tracks, as their dynamic properties change from returned step to step
   fScoringObjects->ResetSecondaryTracks();
+  // Clear the persistent secondary vector
+  fScoringObjects->fSecondaryVector->clear();
 
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
   vecgeom::NavigationState const &preNavState = gpuStep->fPreStepPoint.fNavigationState;
@@ -616,8 +626,8 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
         }
       }
 
-      // 6. Attach secondaries to G4Step
-      fScoringObjects->fG4Step->GetfSecondary()->push_back(secTrack);
+      // 6. Attach secondaries to G4Step: the fSecondaryVector is the persistent storage for the G4Step->SecondaryVector
+      fScoringObjects->fSecondaryVector->push_back(secTrack);
     }
   }
 
@@ -646,9 +656,6 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
   if (aSensitiveDetector != nullptr && gpuStep->fStepCounter != 0) {
     aSensitiveDetector->Hit(fScoringObjects->fG4Step);
   }
-
-  // cleanup of the secondary vector that is created in FillG4Step above
-  fScoringObjects->fG4Step->DeleteSecondaryVector();
 
   // If this was the last step of a track, the hostTrackData of that track can be safely deleted.
   // Note: This deletes the AdePT-owned UserTrackInfo data
@@ -830,7 +837,7 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
   // adjust for gamma-nuclear steps:
   // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
   // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (gpuStep->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
     aTrack->SetKineticEnergy(0.);
     // aTrack->SetVelocity(0.);              // Not set in other cases, so also not set here
   }
@@ -857,10 +864,6 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   if (aGPUHit->fStepCounter == 1) aG4Step->SetFirstStepFlag(); // Real data
   if (aGPUHit->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
   // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
-  // initialize secondary vector (although it is empty for now)
-  // Note: we own this vector, we are responsible for deleting it!
-  aG4Step->NewSecondaryVector();
-  // aG4Step->SetSecondary(nullptr);                               // Missing data
 
   // G4Track
   G4Track *aTrack = aG4Step->GetTrack();
@@ -945,7 +948,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   // adjust for gamma-nuclear steps:
   // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
   // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (gpuStep->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
     aPostStepPoint->SetKineticEnergy(0.);
     // aPostStepPoint->SetVelocity(0.);      // Not set in other cases, so also not set here
   }
