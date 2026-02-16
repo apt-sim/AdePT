@@ -84,6 +84,11 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetCPUCapacityFactorCmd->SetParameterName("CPUCapacityFactor", false);
   fSetCPUCapacityFactorCmd->SetRange("CPUCapacityFactor>=2.5");
 
+  fSetHitBufferSafetyFactorCmd = std::make_unique<G4UIcmdWithADouble>("/adept/setHitBufferSafetyFactor", this);
+  fSetHitBufferSafetyFactorCmd->SetGuidance(
+      "Sets the HitBuffer safety factor for stalling the GPU. If nParticlesInFlight * HitBufferSafetyFactor > "
+      "NumHitSlotsLeft, the GPU will stall. Default: 1.5 ");
+
   fSetGDMLCmd = std::make_unique<G4UIcmdWithAString>("/adept/setVecGeomGDML", this);
   fSetGDMLCmd->SetGuidance("Temporary method for setting the geometry to use with VecGeom");
 
@@ -165,6 +170,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetHitBufferFlushThreshold(fSetHitBufferFlushThresholdCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetCPUCapacityFactorCmd.get()) {
     fAdePTConfiguration->SetCPUCapacityFactor(fSetCPUCapacityFactorCmd->GetNewDoubleValue(newValue));
+  } else if (command == fSetHitBufferSafetyFactorCmd.get()) {
+    fAdePTConfiguration->SetHitBufferSafetyFactor(fSetHitBufferSafetyFactorCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetGDMLCmd.get()) {
     fAdePTConfiguration->SetVecGeomGDML(newValue);
   } else if (command == fSetCovfieFileCmd.get()) {

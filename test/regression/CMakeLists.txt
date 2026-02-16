@@ -86,6 +86,13 @@ add_test(NAME testEm3_validation_WDT
   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
+# Testing all UI commands of AdePT
+add_test(NAME test_UI_commands
+  COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_UI_commands.sh
+  "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+  WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+
 set(APP_TESTS
 
 )

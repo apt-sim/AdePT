@@ -56,6 +56,7 @@ private:
   std::unique_ptr<G4UIcmdWithADouble> fSetMillionsOfHitSlotsCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetHitBufferFlushThresholdCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetCPUCapacityFactorCmd;
+  std::unique_ptr<G4UIcmdWithADouble> fSetHitBufferSafetyFactorCmd;
 
   // Temporary method for setting the VecGeom geometry.
   // In the future the geometry will be converted from Geant4 rather than loaded from GDML.
