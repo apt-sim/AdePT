@@ -578,11 +578,13 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
   // Bind a reference *without* touching the mapper unless actions==true
   HostTrackData &parentTData = actions ? fHostTrackDataMapper->get(gpuStep->fTrackID) : dummy;
 
+  // Fill the G4Step, fill the G4Track, and intertwine them
   FillG4Step(gpuStep, fScoringObjects->fG4Step, parentTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
              *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,
              callUserSteppingAction);
   FillG4Track(gpuStep, fScoringObjects->fG4Step->GetTrack(), parentTData,
               *fScoringObjects->fPreG4TouchableHistoryHandle, *fScoringObjects->fPostG4TouchableHistoryHandle);
+  fScoringObjects->fG4Step->GetTrack()->SetStep(fScoringObjects->fG4Step);
 
   // Create and attach secondaries
   const unsigned char nSec = gpuStep->fNumSecondaries;
