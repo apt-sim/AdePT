@@ -737,7 +737,8 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
   for (unsigned int i = 0; i < nSecondaries; ++i) {
     // The index is the startIndex + 1 (for the parent) + i for the current secondary
     GPUHit &secondaryStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex + 1u + i);
-    FillHit(secondaryStep, secondaryData[i].trackId, aTrackID, stepLimProcessId, secondaryData[i].particleType,
+    FillHit(secondaryStep, secondaryData[i].trackId, aTrackID, secondaryData[i].creatorProcessId,
+            secondaryData[i].particleType,
             /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
             secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin, aGlobalTime,
             /*localTime*/ 0., aGlobalTime, eventID, threadID, /*isLastStep*/ false, /*stepCounter*/ 0,

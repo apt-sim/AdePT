@@ -733,8 +733,10 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
 
     // if tracking or stepping action is called, return initial step
     if (returnLastStep) {
-      secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*particle type*/ char(2)};
-      secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*particle type*/ char(2)};
+      secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
+                                       /*particle type*/ char(2)};
+      secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
+                                       /*particle type*/ char(2)};
     }
   }
 }
@@ -812,7 +814,8 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {secondary.trackId, secondary.dir, secondary.eKin, /*particle type*/ char(0)};
+        secondaryData[nSecondaries++] = {secondary.trackId, secondary.dir, secondary.eKin, /*creator process*/ short(0),
+                                         /*particle type*/ char(0)};
       }
     }
 
@@ -943,7 +946,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
                                      currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin, /*particle type*/ char(2)};
+        secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin, /*creator process*/ short(1),
+                                         /*particle type*/ char(2)};
       }
     }
 
@@ -1065,7 +1069,8 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
                                      currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*particle type*/ char(2)};
+        secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
+                                         /*particle type*/ char(2)};
       }
     }
     if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -1081,7 +1086,8 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
                                      currentTrack.navState, currentTrack, currentTrack.globalTime);
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*particle type*/ char(2)};
+        secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
+                                         /*particle type*/ char(2)};
       }
     }
 

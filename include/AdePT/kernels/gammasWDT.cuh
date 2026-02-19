@@ -484,7 +484,8 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
+            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin,
+                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(0)};
           }
         }
 
@@ -499,7 +500,8 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin, /*particle type*/ char(1)};
+            secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin,
+                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(1)};
           }
         }
         eKin = 0.;
@@ -537,7 +539,8 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
+            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin,
+                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(0)};
           }
         } else {
           edep = energyEl;
@@ -584,7 +587,8 @@ __global__ void __launch_bounds__(256, 1)
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
+            secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin,
+                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(0)};
           }
         } else {
           // If the secondary electron is cut, deposit all the energy of the gamma in this volume
