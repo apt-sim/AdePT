@@ -66,22 +66,18 @@ struct ScoringObjects {
 
   // We need the dynamic particle associated to the track to have the correct particle definition, however this can
   // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
-  // For this reason we create one track per particle type, to be reused
-  // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
-  // The same goes for the G4Track global time and position
+  // For this reason we create one track per particle type for the parent track and up to kMaxTotalSecondaries tracks
+  // for the secondary tracks that could be processed for each parent step, to be reused We set position to nullptr and
+  // kinetic energy to 0 for the dynamic particle since they need to be updated per hit The same goes for the G4Track
+  // global time and position
   std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type dynParticleStorage[3];
+  std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type secDynStorage[kMaxTotalSecondaries];
   std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type trackStorage[3];
+  std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type secTrackStorage[kMaxTotalSecondaries];
 
   G4Track *fElectronTrack = nullptr;
   G4Track *fPositronTrack = nullptr;
   G4Track *fGammaTrack    = nullptr;
-
-  G4ParticleDefinition *fElectronDef;
-  G4ParticleDefinition *fPositronDef;
-  G4ParticleDefinition *fGammaDef;
-
-  std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type secDynStorage[kMaxTotalSecondaries];
-  std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type secTrackStorage[kMaxTotalSecondaries];
 
   G4DynamicParticle *secDyn[kMaxTotalSecondaries] = {nullptr};
   G4Track *secTrk[kMaxTotalSecondaries]           = {nullptr};
@@ -110,9 +106,9 @@ struct ScoringObjects {
 
     // Cache particle definitions once
     auto *particleTable = G4ParticleTable::GetParticleTable();
-    fElectronDef        = particleTable->FindParticle("e-");
-    fPositronDef        = particleTable->FindParticle("e+");
-    fGammaDef           = particleTable->FindParticle("gamma");
+    auto *electronDef   = particleTable->FindParticle("e-");
+    auto *positronDef   = particleTable->FindParticle("e+");
+    auto *gammaDef      = particleTable->FindParticle("gamma");
 
     // Assign step points in local storage and take ownership of the StepPoints
     fG4Step = new (&stepStorage) G4Step;
@@ -131,33 +127,33 @@ struct ScoringObjects {
 
     // Tracks
     fElectronTrack = ::new (&trackStorage[0])
-        G4Track{::new (&dynParticleStorage[0]) G4DynamicParticle{fElectronDef, G4ThreeVector(0, 0, 0), 0}, 0,
+        G4Track{::new (&dynParticleStorage[0]) G4DynamicParticle{electronDef, G4ThreeVector(0, 0, 0), 0}, 0,
                 G4ThreeVector(0, 0, 0)};
     fPositronTrack = ::new (&trackStorage[1])
-        G4Track{::new (&dynParticleStorage[1]) G4DynamicParticle{fPositronDef, G4ThreeVector(0, 0, 0), 0}, 0,
+        G4Track{::new (&dynParticleStorage[1]) G4DynamicParticle{positronDef, G4ThreeVector(0, 0, 0), 0}, 0,
                 G4ThreeVector(0, 0, 0)};
     fGammaTrack = ::new (&trackStorage[2])
-        G4Track{::new (&dynParticleStorage[2]) G4DynamicParticle{fGammaDef, G4ThreeVector(0, 0, 0), 0}, 0,
+        G4Track{::new (&dynParticleStorage[2]) G4DynamicParticle{gammaDef, G4ThreeVector(0, 0, 0), 0}, 0,
                 G4ThreeVector(0, 0, 0)};
 
     // Secondary electron track(s)
     for (int i = 0; i < kMaxSecElectrons; ++i) {
       const int slot = secEBase + i;
-      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{fElectronDef, G4ThreeVector(0, 0, 0), 0.0};
+      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{electronDef, G4ThreeVector(0, 0, 0), 0.0};
       secTrk[slot]   = ::new (&secTrackStorage[slot]) G4Track{secDyn[slot], 0.0, G4ThreeVector(0, 0, 0)};
     }
 
     // Secondary positron track(s)
     for (int i = 0; i < kMaxSecPositrons; ++i) {
       const int slot = secPBase + i;
-      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{fPositronDef, G4ThreeVector(0, 0, 0), 0.0};
+      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{positronDef, G4ThreeVector(0, 0, 0), 0.0};
       secTrk[slot]   = ::new (&secTrackStorage[slot]) G4Track{secDyn[slot], 0.0, G4ThreeVector(0, 0, 0)};
     }
 
     // Secondary gamma track(s)
     for (int i = 0; i < kMaxSecGammas; ++i) {
       const int slot = secGBase + i;
-      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{fGammaDef, G4ThreeVector(0, 0, 0), 0.0};
+      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{gammaDef, G4ThreeVector(0, 0, 0), 0.0};
       secTrk[slot]   = ::new (&secTrackStorage[slot]) G4Track{secDyn[slot], 0.0, G4ThreeVector(0, 0, 0)};
     }
   }
@@ -506,7 +502,7 @@ G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *se
   std::abort();
 }
 
-void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const callUserSteppingAction,
+void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction,
                                             bool const callUserTrackingAction)
 {
   if (!fScoringObjects) {
@@ -518,15 +514,18 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
   // Clear the persistent secondary vector
   fScoringObjects->fSecondaryVector->clear();
 
+  // first step in the span is the parent step
+  const GPUHit &parentStep = gpuSteps[0];
+
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
-  vecgeom::NavigationState const &preNavState = gpuStep->fPreStepPoint.fNavigationState;
+  vecgeom::NavigationState const &preNavState = parentStep.fPreStepPoint.fNavigationState;
   // Reconstruct Pre-Step point G4NavigationHistory
   FillG4NavigationHistory(preNavState, fScoringObjects->fPreG4NavigationHistory);
   (*fScoringObjects->fPreG4TouchableHistoryHandle)
       ->UpdateYourself(fScoringObjects->fPreG4NavigationHistory.GetTopVolume(),
                        &fScoringObjects->fPreG4NavigationHistory);
   // Reconstruct Post-Step point G4NavigationHistory
-  vecgeom::NavigationState const &postNavState = gpuStep->fPostStepPoint.fNavigationState;
+  vecgeom::NavigationState const &postNavState = parentStep.fPostStepPoint.fNavigationState;
   if (!postNavState.IsOutside()) {
     FillG4NavigationHistory(postNavState, fScoringObjects->fPostG4NavigationHistory);
     (*fScoringObjects->fPostG4TouchableHistoryHandle)
@@ -550,7 +549,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
   }
 
   // Reconstruct G4Step
-  switch (gpuStep->fParticleType) {
+  switch (parentStep.fParticleType) {
   case 0:
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fElectronTrack);
     break;
@@ -561,8 +560,8 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
     break;
   default:
-    std::cerr << "Error: unknown particle type " << static_cast<int>(static_cast<unsigned char>(gpuStep->fParticleType))
-              << "\n";
+    std::cerr << "Error: unknown particle type "
+              << static_cast<int>(static_cast<unsigned char>(parentStep.fParticleType)) << "\n";
     std::abort();
   }
 
@@ -576,18 +575,18 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
   const bool actions = (callUserTrackingAction || callUserSteppingAction);
 
   // Bind a reference *without* touching the mapper unless actions==true
-  HostTrackData &parentTData = actions ? fHostTrackDataMapper->get(gpuStep->fTrackID) : dummy;
+  HostTrackData &parentTData = actions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
 
   // Fill the G4Step, fill the G4Track, and intertwine them
-  FillG4Step(gpuStep, fScoringObjects->fG4Step, parentTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
+  FillG4Step(&parentStep, fScoringObjects->fG4Step, parentTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
              *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,
              callUserSteppingAction);
-  FillG4Track(gpuStep, fScoringObjects->fG4Step->GetTrack(), parentTData,
+  FillG4Track(&parentStep, fScoringObjects->fG4Step->GetTrack(), parentTData,
               *fScoringObjects->fPreG4TouchableHistoryHandle, *fScoringObjects->fPostG4TouchableHistoryHandle);
   fScoringObjects->fG4Step->GetTrack()->SetStep(fScoringObjects->fG4Step);
 
   // Create and attach secondaries
-  const unsigned char nSec = gpuStep->fNumSecondaries;
+  const unsigned char nSec = parentStep.fNumSecondaries;
 
   if (nSec > 0) {
 
@@ -598,19 +597,21 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
     // Loop over secondaries, create and fill info, and attach to secondary vector of the GPUStep
     for (unsigned char i = 0; i < nSec; ++i) {
 
-      const GPUHit *secHit = gpuStep + 1 + i;
+      // following steps in the span are the initializing steps for the secondaries
+      const GPUHit &secStep = gpuSteps[1 + i];
 
       // 1. Create HostTrackData
-      HostTrackData &secTData = fHostTrackDataMapper->create(secHit->fTrackID);
+      HostTrackData &secTData = fHostTrackDataMapper->create(secStep.fTrackID);
 
       // 2. Initialize from parent
-      InitSecondaryHostTrackDataFromParent(secHit, secTData, parentID, *fScoringObjects->fPreG4TouchableHistoryHandle);
+      InitSecondaryHostTrackDataFromParent(&secStep, secTData, parentID,
+                                           *fScoringObjects->fPreG4TouchableHistoryHandle);
 
       // 3. Construct G4Track in place
-      G4Track *secTrack = ConstructSecondaryTrackInPlace(secHit);
+      G4Track *secTrack = ConstructSecondaryTrackInPlace(&secStep);
 
       // 4. Fill data for secondary track
-      FillG4Track(secHit, secTrack, secTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
+      FillG4Track(&secStep, secTrack, secTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
                   *fScoringObjects->fPostG4TouchableHistoryHandle);
 
       // 5. call PreUserTrackingAction as this might set up the G4UserInformation
@@ -642,7 +643,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
   }
 
   // call UserTrackingAction if required
-  if (gpuStep->fLastStepOfTrack && (callUserTrackingAction || callUserSteppingAction)) {
+  if (parentStep.fLastStepOfTrack && (callUserTrackingAction)) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
@@ -655,7 +656,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
           ->GetSensitiveDetector();
 
   // Call scoring if SD is defined and it is not the initializing step
-  if (aSensitiveDetector != nullptr && gpuStep->fStepCounter != 0) {
+  if (aSensitiveDetector != nullptr && parentStep.fStepCounter != 0) {
     aSensitiveDetector->Hit(fScoringObjects->fG4Step);
   }
 
@@ -665,8 +666,8 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const *gpuStep, bool const ca
   // Steps are processed before the leaked tracks, and the hostTrackData is still used for invoking
   // gamma-nuclear when the track is returned to the host (although it will die then). Thus, the hostTrackData must be
   // kept alive until the invokation of the gamma-nuclear reaction
-  if (gpuStep->fLastStepOfTrack && !(gpuStep->fParticleType == 2 && gpuStep->fStepLimProcessId == 3)) {
-    fHostTrackDataMapper->removeTrack(gpuStep->fTrackID);
+  if (parentStep.fLastStepOfTrack && !(parentStep.fParticleType == 2 && parentStep.fStepLimProcessId == 3)) {
+    fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
   }
 }
 

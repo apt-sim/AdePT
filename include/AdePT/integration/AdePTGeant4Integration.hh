@@ -18,6 +18,7 @@
 #include <G4Event.hh>
 
 #include <unordered_map>
+#include <span>
 
 struct G4HepEmState;
 
@@ -63,7 +64,7 @@ public:
                              std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map);
 
   /// @brief Reconstructs GPU hits on host and calls the user-defined sensitive detector code
-  void ProcessGPUStep(GPUHit const *hit, bool const callUserSteppingAction = false,
+  void ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction = false,
                       bool const callUserTrackingaction = false);
 
   /// @brief Takes a range of tracks coming from the device and gives them back to Geant4
