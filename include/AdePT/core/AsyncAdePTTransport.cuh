@@ -1149,8 +1149,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         ElectronHowFar<true, PerEventScoring, SteppingAction><<<blocks, threads, 0, electrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, gpuState.stats_dev,
             steppingActionParams, gpuState.fScoring_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
-        ElectronPropagation<true>
-            <<<blocks, threads, 0, electrons.stream>>>(particleManager, gpuState.hepEmBuffers_d.electronsHepEm);
+        ElectronPropagation<true><<<blocks, threads, 0, electrons.stream>>>(
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronSetupInteractions<true, PerEventScoring><<<blocks, threads, 0, electrons.stream>>>(
@@ -1185,8 +1185,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         ElectronHowFar<false, PerEventScoring, SteppingAction><<<blocks, threads, 0, positrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, gpuState.stats_dev,
             steppingActionParams, gpuState.fScoring_dev, allowFinishOffEvent, returnAllSteps, returnLastStep);
-        ElectronPropagation<false>
-            <<<blocks, threads, 0, positrons.stream>>>(particleManager, gpuState.hepEmBuffers_d.positronsHepEm);
+        ElectronPropagation<false><<<blocks, threads, 0, positrons.stream>>>(
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronSetupInteractions<false, PerEventScoring><<<blocks, threads, 0, positrons.stream>>>(

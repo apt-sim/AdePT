@@ -263,7 +263,8 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 }
 
 template <bool IsElectron>
-__global__ void ElectronPropagation(ParticleManager particleManager, G4HepEmElectronTrack *hepEMTracks)
+__global__ void ElectronPropagation(Track *electronsOrPositrons, G4HepEmElectronTrack *hepEMTracks,
+                                    const adept::MParray *propagationQueue)
 {
   constexpr double kPushDistance           = 1000 * vecgeom::kTolerance;
   constexpr int Charge                     = IsElectron ? -1 : 1;
@@ -284,12 +285,10 @@ __global__ void ElectronPropagation(ParticleManager particleManager, G4HepEmElec
 
   auto &magneticField = *gMagneticField;
 
-  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
-
-  const int activeSize = electronsOrPositrons.ActiveSize();
+  int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = electronsOrPositrons.ActiveAt(i);
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const int slot      = (*propagationQueue)[i];
+    Track &currentTrack = electronsOrPositrons[slot];
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
