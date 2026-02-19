@@ -1,0 +1,155 @@
+# SPDX-FileCopyrightText: 2023 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+## =============================================================================
+## Geant4 macro for modelling simplified sampling calorimeters
+## =============================================================================
+
+/run/numberOfThreads 1
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+/event/verbose 0
+
+/detector/filename $gdml_name
+
+## =============================================================================
+## Testing ALL AdePT UI commands, ordered by topics
+## =============================================================================
+
+### MISC
+
+/adept/setVerbosity 0
+# Set verbosity level for the AdePT integration layer
+
+
+
+### SETTING UP THE GPU
+
+/adept/setMillionsOfTrackSlots 1
+# Set the total number of track slots that will be allocated on the GPU, in millions
+
+/adept/setMillionsOfLeakSlots 1
+# Set the total number of leak slots that will be allocated on the GPU, in millions
+
+/adept/setMillionsOfHitSlots 1
+# Set the total number of hit slots that will be allocated on the GPU, in millions 
+
+/adept/setHitBufferThreshold 0.8
+# Set the fractional threshold at which the GPU steps are copied from the buffer and not taken 
+# directly by the G4 workers 
+
+/adept/setCPUCapacityFactor 3
+# Sets the CPUCapacity factor for scoring with respect to the GPU (see: /adept/setMillionsOfHitSlots). "
+# Must at least be 2.5
+
+/adept/setHitBufferSafetyFactor 1.5  
+# Sets the HitBuffer safety factor for stalling the GPU. If nParticlesInFlight * HitBufferSafetyFactor > "
+# NumHitSlotsLeft, the GPU will stall. Default: 1.5
+
+/adept/setCUDAStackLimit 8192
+
+
+
+### ------------
+### Specifying where the GPU
+
+/adept/setTrackInAllRegions false 
+# If true, particles are tracked on the GPU across the whole geometry (unless removed via /adept/removeGPURegion )
+
+/adept/addGPURegion Layer1
+/adept/addGPURegion Layer2
+# Add a region in which transport will be done on GPU
+
+/adept/removeGPURegion Layer3
+# Remove a region in which transport will be done on GPU (so it will be done on the CPU)
+
+
+
+### ------------
+### UserActions
+/adept/CallUserSteppingAction true
+# If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that 
+# means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the 
+# secondary before the primary has finished its track.
+# NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance
+
+/adept/CallUserTrackingAction true
+# If true, the PostUserTrackingAction is called for on every track. NOTE: This 
+# means that the last step of every track is recorded on GPU and send back to CPU
+
+
+
+### ------------
+### Special Settings:
+
+/adept/setSeed 1242342
+# Set the base seed for the rng. Default: 1234567 
+
+#/adept/setCovfieBfieldFile 
+# Set the path the the covfie file for reading in an external magnetic field
+
+/adept/SpeedOfLight false
+# If true, all electrons, positrons, gammas handed over to the GPU are immediately killed. That means, for region-based offload,
+# that tracking happens normally in non-GPU regions. 
+# WARNING: Only to be used for testing the speed and fraction of EM, all results are wrong!
+
+/adept/setVecGeomGDML $gdml_name
+# Sets the geometry via VecGeom through a gdml. 
+# WARNING: this will not convert the G4 geometry anymore, so there can be a mismatch between CPU and GPU geometry if used incorrectly!
+
+/adept/FinishLastNParticlesOnCPU 100
+# Set N, the number of last N particles per event that are finished on CPU. Default: 0. 
+# This is an important parameter for handling loopers in a magnetic field, but breaks reproducibility!
+
+/adept/MaxWDTIterations 5
+# Set N, the number of maximum Woodcock tracking iterations per step before giving the gamma back to the normal gamma kernel.
+# Default: 5. This can be used to optimize the performance in highly granular geometries
+
+### ------------
+### Special settings for the AdePTPhysics (ONLY USED INSIDE EXAMPLES) ###
+
+/adept/addWDTRegion Layer1
+# Add a region in which the gamma transport is done via Woodcock tracking. 
+# NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other physics 
+# (which is done in LHCb, CMS, ATLAS) then this will have NO effect!
+
+/adept/addWDTKineticEnergyLimit 200 keV
+# Sets a kinetic energy limit above which the gamma transport is done via Woodcock tracking in the assigned
+# regions. NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other physics (which is done
+# in LHCb, CMS, ATLAS) then this will have NO effect!
+
+/adept/SetMultipleStepsInMSCWithTransportation true
+# If true, this configures G4HepEm to use multiple steps in MSC on CPU. This does not affect GPU transport
+
+/adept/SetEnergyLossFluctuation true
+# if true, this configures G4HepEm to use energy loss fluctuations. This affects both CPU and GPU transport
+# NOTE: This is only true for the AdePTPhysics in the examples! In all other physics lists the setting is
+# taken directly from Geant4 and this parameter does not change it.
+
+
+## =============================================================================
+## Finalize the setup and run with the required G4 UI commands
+## =============================================================================
+
+/run/setCut 0.7 mm
+/run/initialize
+
+/gun/setDefault
+/gun/particle e-
+/gun/energy 1 keV
+/gun/number 1
+/gun/position -220 0 0 mm
+/gun/direction 1 0 0
+/gun/print true
+
+## -----------------------------------------------------------------------------
+## Run the simulation with the given number of events and print list of processes
+## -----------------------------------------------------------------------------
+
+
+# run events with parametrised simulation
+# by default all created models are active
+/run/beamOn 1
+
