@@ -17,6 +17,8 @@
 #include <atomic>
 #endif
 
+#include "hip/hip_runtime.h"
+
 namespace adept {
 /**
  * @brief A portable atomic type. Not all base types are supported by CUDA.
@@ -68,6 +70,7 @@ struct AtomicBase_t {
    * If not loads the old value into expected. Returns true if swap was successful. */
   bool compare_exchange_strong(Type &expected, Type desired)
   {
+    printf("compare_exchange_strong\n");
     return fData.compare_exchange_strong(expected, desired);
   }
 

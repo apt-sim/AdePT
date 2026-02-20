@@ -28,6 +28,8 @@
 #include <cassert>
 #endif
 
+#include <stdio.h> 
+
 #define ADEPT_ATT_HOST __host__
 #define ADEPT_ATT_DEVICE __device__
 #define ADEPT_ATT_HOST_DEVICE __host__ __device__
@@ -361,12 +363,12 @@ inline __host__ void device_debug_error(char const *which, char const *condition
 
 //! Device-only call for HIP (must always be declared; only used if
 //! NDEBUG)
-inline __attribute__((noinline)) __device__ void device_debug_error(char const *, char const *condition,
-                                                                    char const *file, int line)
-{
-  printf("%s:%u:\nvecgeom: internal assertion failed: %s\n", file, line, condition);
-  abort();
-}
+//inline __attribute__((noinline)) __device__ void device_debug_error(char const *, char const *condition,
+//                                                                    char const *file, int line)
+//{
+//  printf("%s:%u:\nvecgeom: internal assertion failed: %s\n", file, line, condition);
+//  abort();
+//}
 #endif
 
 namespace detail {
@@ -383,3 +385,4 @@ inline ADEPT_ATT_HOST_DEVICE char const *operator<<(StreamlikeIdentity const &, 
 } // namespace portability
 
 #endif
+

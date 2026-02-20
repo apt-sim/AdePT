@@ -70,7 +70,7 @@
 // Definition of __CUDA_ARCH__ means we are compiling CUDA *and*
 // on the device compile pass
 // COPCORE_DEVICE_COMPILATION is defined in this case
-#ifdef __CUDA_ARCH__
+#if defined (__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 #define COPCORE_DEVICE_COMPILATION
 #endif
 
