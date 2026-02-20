@@ -66,6 +66,7 @@ __global__ void __launch_bounds__(256, 1)
     currentTrack.preStepGlobalTime = currentTrack.globalTime;
     currentTrack.preStepPos        = currentTrack.pos;
     currentTrack.preStepDir        = currentTrack.dir;
+    currentTrack.stepCounter++;
 
     bool leftWDTRegion = false;
 
@@ -430,8 +431,6 @@ __global__ void __launch_bounds__(256, 1)
 
     // helper variables needed for the processes
     bool reached_interaction = true;
-
-    currentTrack.stepCounter++;
 
     if (currentTrack.looperCounter > 0) {
       // Case 1: fake interaction, give particle back to WDT gammas unless it did more fake interactions than allowed,

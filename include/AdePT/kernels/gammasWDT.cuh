@@ -54,6 +54,8 @@ __global__ void __launch_bounds__(256, 1)
     }
 #endif
 
+    currentTrack.stepCounter++;
+
     // Local variables that are needed:
     // get global point from track
     auto pos = currentTrack.pos;
@@ -355,8 +357,6 @@ __global__ void __launch_bounds__(256, 1)
     short stepDefinedProcessId = 10; // default for transportation
     double edep                = 0.;
     auto preStepEnergy         = eKin;
-
-    currentTrack.stepCounter++;
 
     // nextAuxData is needed for either finding the correct GPU region for relocation, or the sensitive detector code,
     // as the initial auxData is obsolete after WDT
