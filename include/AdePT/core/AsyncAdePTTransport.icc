@@ -288,7 +288,12 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
 
   while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
          nullptr) {
-    for (auto it = range.first; it != range.second; ++it) {
+
+    // Loop over returned GPU steps. The steps are ordered like this:
+    // [parent1][secondary1_1][secondary1_2][parent2][parent3][secondary3_1]
+    // In processing the steps of the parent tracks, the secondaries are also consumed and
+    // therefore the counter must advance by 1 + it->fNumSecondaries
+    for (auto it = range.first; it != range.second;) {
       // important sanity check: thread should only process its own hits and only from the current event
       if (it->threadId != threadId)
         std::cerr << "\033[1;31mError, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
@@ -301,7 +306,10 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
                   << " ptype " << static_cast<short>(it->fParticleType) << " stepLimit / creator process "
                   << it->fStepLimProcessId << "\033[0m" << std::endl;
       }
-      integrationInstance.ProcessGPUStep(*it, fReturnAllSteps, fReturnFirstAndLastStep);
+      auto blockSize = 1 + it->fNumSecondaries;
+      std::span<const GPUHit> gpuStepWithSecondaries(it, blockSize);
+      integrationInstance.ProcessGPUStep(gpuStepWithSecondaries, fReturnAllSteps, fReturnFirstAndLastStep);
+      it += 1 + it->fNumSecondaries;
     }
     async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
   }

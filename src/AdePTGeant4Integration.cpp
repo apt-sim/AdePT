@@ -42,6 +42,13 @@ namespace AdePTGeant4Integration_detail {
 /// and then the objects' destructors are called.
 /// This also keeps all these objects much closer in memory.
 struct ScoringObjects {
+
+  static constexpr int kMaxSecElectrons     = 1;
+  static constexpr int kMaxSecPositrons     = 1;
+  static constexpr int kMaxSecGammas        = 3;
+  static constexpr int kMaxTotalSecondaries = kMaxSecElectrons + kMaxSecPositrons + kMaxSecGammas;
+  static constexpr int kMaxSecondaries      = 3;
+
   G4NavigationHistory fPreG4NavigationHistory;
   G4NavigationHistory fPostG4NavigationHistory;
 
@@ -59,22 +66,58 @@ struct ScoringObjects {
 
   // We need the dynamic particle associated to the track to have the correct particle definition, however this can
   // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
-  // For this reason we create one track per particle type, to be reused
-  // We set position to nullptr and kinetic energy to 0 for the dynamic particle since they need to be updated per hit
-  // The same goes for the G4Track global time and position
+  // For this reason we create one track per particle type for the parent track and up to kMaxTotalSecondaries tracks
+  // for the secondary tracks that could be processed for each parent step, to be reused We set position to nullptr and
+  // kinetic energy to 0 for the dynamic particle since they need to be updated per hit The same goes for the G4Track
+  // global time and position
   std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type dynParticleStorage[3];
+  std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type secDynStorage[kMaxTotalSecondaries];
   std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type trackStorage[3];
+  std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type secTrackStorage[kMaxTotalSecondaries];
 
   G4Track *fElectronTrack = nullptr;
   G4Track *fPositronTrack = nullptr;
   G4Track *fGammaTrack    = nullptr;
 
+  G4DynamicParticle *secDyn[kMaxTotalSecondaries] = {nullptr};
+  G4Track *secTrk[kMaxTotalSecondaries]           = {nullptr};
+
+  std::aligned_storage<sizeof(G4TrackVector), alignof(G4TrackVector)>::type secondaryStorage;
+  G4TrackVector *fSecondaryVector = nullptr;
+
+  // Indices for each type inside the flat pool
+  int secEBase = 0;            // size 1
+  int secPBase = secEBase + 1; // size 1
+  int secGBase = secPBase + 1; // size 3
+
+  int secEUsed = 0;
+  int secPUsed = 0;
+  int secGUsed = 0;
+
+  void ResetSecondaryTracks()
+  {
+    secEUsed = 0;
+    secPUsed = 0;
+    secGUsed = 0;
+  }
+
   ScoringObjects()
   {
+
+    // Cache particle definitions once
+    auto *particleTable = G4ParticleTable::GetParticleTable();
+    auto *electronDef   = particleTable->FindParticle("e-");
+    auto *positronDef   = particleTable->FindParticle("e+");
+    auto *gammaDef      = particleTable->FindParticle("gamma");
+
     // Assign step points in local storage and take ownership of the StepPoints
     fG4Step = new (&stepStorage) G4Step;
     fG4Step->SetPreStepPoint(::new (&stepPointStorage[0]) G4StepPoint());
     fG4Step->SetPostStepPoint(::new (&stepPointStorage[1]) G4StepPoint());
+
+    fSecondaryVector = ::new (&secondaryStorage) G4TrackVector;
+    fSecondaryVector->reserve(kMaxSecondaries);
+    fG4Step->SetSecondary(fSecondaryVector);
 
     // Touchable handles
     fPreG4TouchableHistoryHandle =
@@ -83,18 +126,36 @@ struct ScoringObjects {
         ::new (&toucheableHandleStorage[1]) G4TouchableHandle{::new (&toucheableHistoryStorage[1]) G4TouchableHistory};
 
     // Tracks
-    fElectronTrack = ::new (&trackStorage[0]) G4Track{
-        ::new (&dynParticleStorage[0])
-            G4DynamicParticle{G4ParticleTable::GetParticleTable()->FindParticle("e-"), G4ThreeVector(0, 0, 0), 0},
-        0, G4ThreeVector(0, 0, 0)};
-    fPositronTrack = ::new (&trackStorage[1]) G4Track{
-        ::new (&dynParticleStorage[1])
-            G4DynamicParticle{G4ParticleTable::GetParticleTable()->FindParticle("e+"), G4ThreeVector(0, 0, 0), 0},
-        0, G4ThreeVector(0, 0, 0)};
-    fGammaTrack = ::new (&trackStorage[2]) G4Track{
-        ::new (&dynParticleStorage[2])
-            G4DynamicParticle{G4ParticleTable::GetParticleTable()->FindParticle("gamma"), G4ThreeVector(0, 0, 0), 0},
-        0, G4ThreeVector(0, 0, 0)};
+    fElectronTrack = ::new (&trackStorage[0])
+        G4Track{::new (&dynParticleStorage[0]) G4DynamicParticle{electronDef, G4ThreeVector(0, 0, 0), 0}, 0,
+                G4ThreeVector(0, 0, 0)};
+    fPositronTrack = ::new (&trackStorage[1])
+        G4Track{::new (&dynParticleStorage[1]) G4DynamicParticle{positronDef, G4ThreeVector(0, 0, 0), 0}, 0,
+                G4ThreeVector(0, 0, 0)};
+    fGammaTrack = ::new (&trackStorage[2])
+        G4Track{::new (&dynParticleStorage[2]) G4DynamicParticle{gammaDef, G4ThreeVector(0, 0, 0), 0}, 0,
+                G4ThreeVector(0, 0, 0)};
+
+    // Secondary electron track(s)
+    for (int i = 0; i < kMaxSecElectrons; ++i) {
+      const int slot = secEBase + i;
+      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{electronDef, G4ThreeVector(0, 0, 0), 0.0};
+      secTrk[slot]   = ::new (&secTrackStorage[slot]) G4Track{secDyn[slot], 0.0, G4ThreeVector(0, 0, 0)};
+    }
+
+    // Secondary positron track(s)
+    for (int i = 0; i < kMaxSecPositrons; ++i) {
+      const int slot = secPBase + i;
+      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{positronDef, G4ThreeVector(0, 0, 0), 0.0};
+      secTrk[slot]   = ::new (&secTrackStorage[slot]) G4Track{secDyn[slot], 0.0, G4ThreeVector(0, 0, 0)};
+    }
+
+    // Secondary gamma track(s)
+    for (int i = 0; i < kMaxSecGammas; ++i) {
+      const int slot = secGBase + i;
+      secDyn[slot]   = ::new (&secDynStorage[slot]) G4DynamicParticle{gammaDef, G4ThreeVector(0, 0, 0), 0.0};
+      secTrk[slot]   = ::new (&secTrackStorage[slot]) G4Track{secDyn[slot], 0.0, G4ThreeVector(0, 0, 0)};
+    }
   }
 
   // Note: no destructor needed since we’re intentionally *not* calling dtors on the placement-new'ed objects
@@ -417,22 +478,56 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   std::cout << "=== End Woodcock tracking summary ===\n\n";
 }
 
-void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUserSteppingAction,
+G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *secHit) const
+{
+  auto &so = *fScoringObjects;
+
+  const int ptype = static_cast<int>(secHit->fParticleType);
+
+  if (ptype == 0) { // e-
+    if (so.secEUsed >= so.kMaxSecElectrons) std::abort();
+    return so.secTrk[so.secEBase + so.secEUsed++];
+  }
+
+  if (ptype == 1) { // e+
+    if (so.secPUsed >= so.kMaxSecPositrons) std::abort();
+    return so.secTrk[so.secPBase + so.secPUsed++];
+  }
+
+  if (ptype == 2) { // gamma
+    if (so.secGUsed >= so.kMaxSecGammas) std::abort();
+    return so.secTrk[so.secGBase + so.secGUsed++];
+  }
+
+  std::abort();
+}
+
+void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction,
                                             bool const callUserTrackingAction)
 {
   if (!fScoringObjects) {
     fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());
   }
 
+  // Reset secondary tracks, as their dynamic properties change from returned step to step
+  fScoringObjects->ResetSecondaryTracks();
+  // Clear the persistent secondary vector
+  fScoringObjects->fSecondaryVector->clear();
+
+  // first step in the span is the parent step
+  const GPUHit &parentStep = gpuSteps[0];
+
+  assert(gpuSteps.size() == 1 + parentStep.fNumSecondaries);
+
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
-  vecgeom::NavigationState const &preNavState = hit.fPreStepPoint.fNavigationState;
+  vecgeom::NavigationState const &preNavState = parentStep.fPreStepPoint.fNavigationState;
   // Reconstruct Pre-Step point G4NavigationHistory
   FillG4NavigationHistory(preNavState, fScoringObjects->fPreG4NavigationHistory);
   (*fScoringObjects->fPreG4TouchableHistoryHandle)
       ->UpdateYourself(fScoringObjects->fPreG4NavigationHistory.GetTopVolume(),
                        &fScoringObjects->fPreG4NavigationHistory);
   // Reconstruct Post-Step point G4NavigationHistory
-  vecgeom::NavigationState const &postNavState = hit.fPostStepPoint.fNavigationState;
+  vecgeom::NavigationState const &postNavState = parentStep.fPostStepPoint.fNavigationState;
   if (!postNavState.IsOutside()) {
     FillG4NavigationHistory(postNavState, fScoringObjects->fPostG4NavigationHistory);
     (*fScoringObjects->fPostG4TouchableHistoryHandle)
@@ -456,7 +551,7 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
   }
 
   // Reconstruct G4Step
-  switch (hit.fParticleType) {
+  switch (parentStep.fParticleType) {
   case 0:
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fElectronTrack);
     break;
@@ -467,13 +562,90 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
     break;
   default:
-    std::cerr << "Error: unknown particle type " << static_cast<int>(static_cast<unsigned char>(hit.fParticleType))
-              << "\n";
+    std::cerr << "Error: unknown particle type "
+              << static_cast<int>(static_cast<unsigned char>(parentStep.fParticleType)) << "\n";
     std::abort();
   }
-  FillG4Step(&hit, fScoringObjects->fG4Step, *fScoringObjects->fPreG4TouchableHistoryHandle,
+
+  // For all steps, the HostTrackData Mapper must already exist:
+  // - for particles created on CPU, it was created in the AdePTTrackingManager when offloading to GPU,
+  // - for particles createdon GPU, it was created in InitSecondaryHostTrackDataFromParent below
+
+  HostTrackData dummy; // default constructed dummy if no advanced information is available
+
+  // if the userActions are used, advanced track information is available
+  const bool actions = (callUserTrackingAction || callUserSteppingAction);
+
+  // Bind a reference *without* touching the mapper unless actions==true
+  HostTrackData &parentTData = actions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
+
+  // Fill the G4Step, fill the G4Track, and intertwine them
+  FillG4Step(&parentStep, fScoringObjects->fG4Step, parentTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
              *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,
              callUserSteppingAction);
+  FillG4Track(&parentStep, fScoringObjects->fG4Step->GetTrack(), parentTData,
+              *fScoringObjects->fPreG4TouchableHistoryHandle, *fScoringObjects->fPostG4TouchableHistoryHandle);
+  fScoringObjects->fG4Step->GetTrack()->SetStep(fScoringObjects->fG4Step);
+
+  // Create and attach secondaries
+  {
+    // Attention!!! The reference parentTData to the hostTrackDataMapper will be invalidated by inserting a new element
+    // via create()! Therefore, the g4id that is needed as a parent ID for the secondaries must be saved before!
+    const auto parentID = parentTData.g4id;
+
+    // the steps after the first one in the span are the initializing steps for the secondaries
+    std::span<const GPUHit> secondaries = gpuSteps.subspan(1);
+    // Loop over secondaries, create and fill info, and attach to secondary vector of the GPUStep
+    for (const GPUHit &secStep : secondaries) {
+
+      // 1. Create HostTrackData
+      HostTrackData &secTData = fHostTrackDataMapper->create(secStep.fTrackID);
+
+      // 2. Initialize from parent
+      InitSecondaryHostTrackDataFromParent(&secStep, secTData, parentID,
+                                           *fScoringObjects->fPreG4TouchableHistoryHandle);
+
+      // 3. Construct G4Track in place
+      G4Track *secTrack = ConstructSecondaryTrackInPlace(&secStep);
+
+      // 4. Fill data for secondary track
+      FillG4Track(&secStep, secTrack, secTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
+                  *fScoringObjects->fPostG4TouchableHistoryHandle);
+
+      // 5. call PreUserTrackingAction as this might set up the G4UserInformation
+      if (callUserTrackingAction || callUserSteppingAction) {
+        auto *evtMgr             = G4EventManager::GetEventManager();
+        auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+        if (userTrackingAction) {
+          userTrackingAction->PreUserTrackingAction(secTrack);
+
+          // if userTrackInfo didn't exist before but exists now, update the map as a new TrackInfo was attached for
+          // the first time
+          if (secTData.userTrackInfo == nullptr && secTrack->GetUserInformation() != nullptr) {
+            secTData.userTrackInfo = secTrack->GetUserInformation();
+          }
+        }
+      }
+
+      // 6. Attach secondaries to G4Step: the fSecondaryVector is the persistent storage for the G4Step->SecondaryVector
+      fScoringObjects->fSecondaryVector->push_back(secTrack);
+    }
+  }
+
+  // Now, the G4Step is fully initialized and also contains the secondaries created in that step.
+
+  if (callUserSteppingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userSteppingAction = evtMgr->GetUserSteppingAction();
+    if (userSteppingAction) userSteppingAction->UserSteppingAction(fScoringObjects->fG4Step);
+  }
+
+  // call UserTrackingAction if required
+  if (parentStep.fLastStepOfTrack && (callUserTrackingAction)) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
+  }
 
   // Call SD code
   G4VSensitiveDetector *aSensitiveDetector =
@@ -482,12 +654,9 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
           ->GetSensitiveDetector();
 
   // Call scoring if SD is defined and it is not the initializing step
-  if (aSensitiveDetector != nullptr && hit.fStepCounter != 0) {
+  if (aSensitiveDetector != nullptr && parentStep.fStepCounter != 0) {
     aSensitiveDetector->Hit(fScoringObjects->fG4Step);
   }
-
-  // cleanup of the secondary vector that is created in FillG4Step above
-  fScoringObjects->fG4Step->DeleteSecondaryVector();
 
   // If this was the last step of a track, the hostTrackData of that track can be safely deleted.
   // Note: This deletes the AdePT-owned UserTrackInfo data
@@ -495,8 +664,8 @@ void AdePTGeant4Integration::ProcessGPUStep(GPUHit const &hit, bool const callUs
   // Steps are processed before the leaked tracks, and the hostTrackData is still used for invoking
   // gamma-nuclear when the track is returned to the host (although it will die then). Thus, the hostTrackData must be
   // kept alive until the invokation of the gamma-nuclear reaction
-  if (hit.fLastStepOfTrack && !(hit.fParticleType == 2 && hit.fStepLimProcessId == 3)) {
-    fHostTrackDataMapper->removeTrack(hit.fTrackID);
+  if (parentStep.fLastStepOfTrack && !(parentStep.fParticleType == 2 && parentStep.fStepLimProcessId == 3)) {
+    fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
   }
 }
 
@@ -570,7 +739,112 @@ G4TouchableHandle AdePTGeant4Integration::MakeTouchableFromNavState(vecgeom::Nav
   return G4TouchableHandle(touchableHistory.release());
 }
 
-void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
+void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *secHit, HostTrackData &secTData,
+                                                                  int g4ParentID, G4TouchableHandle &preTouchable) const
+{
+#ifdef DEBUG
+  if (secHit->fStepCounter != 0) {
+    std::cerr << "\033[1;31mERROR: secondary init called with stepCounter != 0\033[0m\n";
+    std::abort();
+  }
+  if (secHit->fParentID == 0) {
+    std::cerr << "\033[1;31mERROR: secondary init called with parentID == 0\033[0m\n";
+    std::abort();
+  }
+  if (secHit->fStepCounter == 0 && fHostTrackDataMapper->contains(secHit->fTrackID)) {
+    std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << secHit->fTrackID
+              << ", parentID = " << secHit->fParentID << ") "
+              << " stepLimProcessId " << secHit->fStepLimProcessId << " pdg charge "
+              << static_cast<int>(secHit->fParticleType) << " stepCounter " << secHit->fStepCounter << "\033[0m"
+              << std::endl;
+    std::abort();
+  }
+#endif
+
+  secTData.particleType = secHit->fParticleType;
+  secTData.g4parentid   = g4ParentID;
+
+  secTData.originNavState        = secHit->fPostStepPoint.fNavigationState;
+  secTData.logicalVolumeAtVertex = preTouchable->GetVolume()->GetLogicalVolume();
+  secTData.vertexPosition = G4ThreeVector(secHit->fPostStepPoint.fPosition.x(), secHit->fPostStepPoint.fPosition.y(),
+                                          secHit->fPostStepPoint.fPosition.z());
+  secTData.vertexMomentumDirection =
+      G4ThreeVector(secHit->fPostStepPoint.fMomentumDirection.x(), secHit->fPostStepPoint.fMomentumDirection.y(),
+                    secHit->fPostStepPoint.fMomentumDirection.z());
+  secTData.vertexKineticEnergy = secHit->fPostStepPoint.fEKin;
+
+  // For the initializing step, the step defining process ID is the creator process
+  const int stepId = secHit->fStepLimProcessId;
+  const int ptype  = static_cast<int>(secTData.particleType);
+  if (ptype == 0 || ptype == 1) {
+    secTData.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[stepId];
+  } else if (ptype == 2) {
+    secTData.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[stepId];
+  }
+}
+
+void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack, const HostTrackData &hostTData,
+                                         G4TouchableHandle &aPreG4TouchableHandle,
+                                         G4TouchableHandle &aPostG4TouchableHandle) const
+{
+
+  const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
+                                                      aGPUHit->fPostStepPoint.fMomentumDirection.y(),
+                                                      aGPUHit->fPostStepPoint.fMomentumDirection.z());
+  const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(),
+                                             aGPUHit->fPostStepPoint.fPosition.y(),
+                                             aGPUHit->fPostStepPoint.fPosition.z());
+
+  // must const-cast as GetDynamicParticle only returns const
+  aTrack->SetCreatorProcess(hostTData.creatorProcess);
+  auto *dyn = const_cast<G4DynamicParticle *>(aTrack->GetDynamicParticle());
+  dyn->SetPrimaryParticle(hostTData.primary);
+
+  aTrack->SetTrackID(hostTData.g4id);          // Real data
+  aTrack->SetParentID(hostTData.g4parentid);   // ID of the initial particle that entered AdePT
+  aTrack->SetPosition(aPostStepPointPosition); // Real data
+  aTrack->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
+  aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
+  // aTrack->SetProperTime(0);                                                                // Missing data
+  if (const auto preVolume = aPreG4TouchableHandle->GetVolume();
+      preVolume != nullptr) {                          // protect against nullptr if NavState is outside
+    aTrack->SetTouchableHandle(aPreG4TouchableHandle); // Real data
+  }
+  if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
+      postVolume != nullptr) {                              // protect against nullptr if postNavState is outside
+    aTrack->SetNextTouchableHandle(aPostG4TouchableHandle); // Real data
+  }
+  // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
+  aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
+  aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
+  // aTrack->SetVelocity(0);                                                                  // Missing data
+  // aTrack->SetPolarization(); // Missing Data data
+  // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
+  // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
+  // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
+  aTrack->SetStepLength(aGPUHit->fStepLength);                           // Real data
+  aTrack->SetVertexPosition(hostTData.vertexPosition);                   // Real data
+  aTrack->SetVertexMomentumDirection(hostTData.vertexMomentumDirection); // Real data
+  aTrack->SetVertexKineticEnergy(hostTData.vertexKineticEnergy);         // Real data
+  aTrack->SetLogicalVolumeAtVertex(hostTData.logicalVolumeAtVertex);     // Real data
+  // aTrack->SetCreatorModelID(0);                                                            // Missing data
+  // aTrack->SetParentResonanceDef(nullptr);                                                  // Missing data
+  // aTrack->SetParentResonanceID(0);                                                         // Missing data
+  aTrack->SetWeight(aGPUHit->fTrackWeight);
+  // if it exists, add UserTrackInfo
+  aTrack->SetUserInformation(hostTData.userTrackInfo); // Real data
+  // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
+
+  // adjust for gamma-nuclear steps:
+  // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
+  // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
+  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+    aTrack->SetKineticEnergy(0.);
+    // aTrack->SetVelocity(0.);              // Not set in other cases, so also not set here
+  }
+}
+
+void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, const HostTrackData &hostTData,
                                         G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
                                         G4StepStatus aPostStepStatus, bool callUserTrackingAction,
@@ -591,100 +865,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   if (aGPUHit->fStepCounter == 1) aG4Step->SetFirstStepFlag(); // Real data
   if (aGPUHit->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
   // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
-  // initialize secondary vector (although it is empty for now)
-  // Note: we own this vector, we are responsible for deleting it!
-  aG4Step->NewSecondaryVector();
-  // aG4Step->SetSecondary(nullptr);                               // Missing data
 
   // G4Track
   G4Track *aTrack = aG4Step->GetTrack();
-
-  HostTrackData dummy; // default constructed dummy if no advanced information is available
-
-  // if the userActions are used, advanced track information is available
-  const bool actions = (callUserTrackingAction || callUserSteppingAction);
-
-#ifdef DEBUG
-  if (aGPUHit->fStepCounter == 0 && actions && fHostTrackDataMapper->contains(aGPUHit->fTrackID)) {
-    std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << aGPUHit->fTrackID
-              << ", parentID = " << aGPUHit->fParentID << ") "
-              << " stepLimProcessId " << aGPUHit->fStepLimProcessId << " pdg charge "
-              << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter << "\033[0m"
-              << std::endl;
-    std::abort();
-  }
-#endif
-
-  // Bind a reference *without* touching the mapper unless actions==true
-  HostTrackData &hostTData =
-      actions ? (aGPUHit->fStepCounter == 0
-                     ? fHostTrackDataMapper->create(aGPUHit->fTrackID) // new trackData for initializing step
-                     : fHostTrackDataMapper->get(aGPUHit->fTrackID))   // existing trackData for later steps
-              : dummy;                                                 // no map access, just use the dummy
-
-  if (actions) {
-    // When the user Actions are used, the 0th and the last step is returned. The 0th step is used to initialize the
-    // hostTrackData, which includes all the host only pointers to the creator process, primary particle, G4VUserActions
-    // etc.
-
-    // initializing step
-    if (aGPUHit->fStepCounter == 0) {
-      hostTData.particleType = aGPUHit->fParticleType;
-
-      if (aGPUHit->fParentID != 0) {
-        // the parent must exist in the mapper, as the parent must have been created by AdePT,
-        // as e-/e+/gamma created by G4 never arrive with a stepCounter = 0
-
-#ifdef DEBUG
-        if (aGPUHit->fStepCounter == 0 && actions && !fHostTrackDataMapper->contains(aGPUHit->fParentID)) {
-          std::cerr << "\033[1;31mERROR: PARENT TRACK ID NOT FOUND (trackID = " << aGPUHit->fTrackID
-                    << ", parentID = " << aGPUHit->fParentID << ") "
-                    << " stepLimProcessId " << aGPUHit->fStepLimProcessId << " pdg charge "
-                    << static_cast<int>(aGPUHit->fParticleType) << " stepCounter " << aGPUHit->fStepCounter
-                    << " steplength " << aGPUHit->fStepLength << " global time " << aGPUHit->fGlobalTime
-                    << " local time " << aGPUHit->fLocalTime << " isLasteStep " << aGPUHit->fLastStepOfTrack
-                    << " thread id " << aGPUHit->threadId << " eventid " << aGPUHit->fEventId << "\033[0m" << std::endl;
-          std::abort();
-        }
-#endif
-
-        HostTrackData &p     = fHostTrackDataMapper->get(aGPUHit->fParentID);
-        hostTData.g4parentid = p.g4id;
-      } else {
-        hostTData.g4parentid = 0;
-      }
-
-      hostTData.logicalVolumeAtVertex = aPreG4TouchableHandle->GetVolume()->GetLogicalVolume();
-      hostTData.vertexPosition =
-          G4ThreeVector{aGPUHit->fPostStepPoint.fPosition.x(), aGPUHit->fPostStepPoint.fPosition.y(),
-                        aGPUHit->fPostStepPoint.fPosition.z()};
-      hostTData.vertexMomentumDirection =
-          G4ThreeVector{aGPUHit->fPostStepPoint.fMomentumDirection.x(), aGPUHit->fPostStepPoint.fMomentumDirection.y(),
-                        aGPUHit->fPostStepPoint.fMomentumDirection.z()};
-      hostTData.vertexKineticEnergy = aGPUHit->fPostStepPoint.fEKin;
-      hostTData.originNavState      = aGPUHit->fPostStepPoint.fNavigationState;
-
-      // For the initializing step, the step defining process ID is the creator process
-      const int stepId = aGPUHit->fStepLimProcessId;
-      const int ptype  = static_cast<int>(hostTData.particleType);
-      if (aGPUHit->fParentID != 0) {
-        if (ptype == 0 || ptype == 1) {
-          hostTData.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[stepId];
-        } else if (ptype == 2) {
-          hostTData.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[stepId];
-        }
-      } else {
-        hostTData.creatorProcess = nullptr; // primary
-      }
-    }
-
-    // Now the hostTrackData is surely initialized and we can set the creator process and the dynamic particle
-
-    // must const-cast as GetDynamicParticle only returns const
-    aG4Step->GetTrack()->SetCreatorProcess(hostTData.creatorProcess);
-    auto *dyn = const_cast<G4DynamicParticle *>(aG4Step->GetTrack()->GetDynamicParticle());
-    dyn->SetPrimaryParticle(hostTData.primary);
-  }
 
   // set the step-defining process for non-initializing steps
   G4VProcess *stepDefiningProcess = nullptr;
@@ -712,42 +895,6 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
                                 : fHepEmTrackingManager->GetGammaNoProcessVector()[stepId]; // discrete interactions
     }
   }
-
-  aTrack->SetTrackID(hostTData.g4id);          // Real data
-  aTrack->SetParentID(hostTData.g4parentid);   // ID of the initial particle that entered AdePT
-  aTrack->SetPosition(aPostStepPointPosition); // Real data
-  aTrack->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
-  aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
-  // aTrack->SetProperTime(0);                                                                // Missing data
-  if (const auto preVolume = aPreG4TouchableHandle->GetVolume();
-      preVolume != nullptr) {                          // protect against nullptr if NavState is outside
-    aTrack->SetTouchableHandle(aPreG4TouchableHandle); // Real data
-  }
-  if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
-      postVolume != nullptr) {                              // protect against nullptr if postNavState is outside
-    aTrack->SetNextTouchableHandle(aPostG4TouchableHandle); // Real data
-  }
-  // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
-  aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
-  aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
-  // aTrack->SetVelocity(0);                                                                  // Missing data
-  // aTrack->SetPolarization(); // Missing Data data
-  // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
-  // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
-  // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
-  aTrack->SetStep(aG4Step);                                              // Real data
-  aTrack->SetStepLength(aGPUHit->fStepLength);                           // Real data
-  aTrack->SetVertexPosition(hostTData.vertexPosition);                   // Real data
-  aTrack->SetVertexMomentumDirection(hostTData.vertexMomentumDirection); // Real data
-  aTrack->SetVertexKineticEnergy(hostTData.vertexKineticEnergy);         // Real data
-  aTrack->SetLogicalVolumeAtVertex(hostTData.logicalVolumeAtVertex);     // Real data
-  // aTrack->SetCreatorModelID(0);                                                            // Missing data
-  // aTrack->SetParentResonanceDef(nullptr);                                                  // Missing data
-  // aTrack->SetParentResonanceID(0);                                                         // Missing data
-  aTrack->SetWeight(aGPUHit->fTrackWeight);
-  // if it exists, add UserTrackInfo
-  aTrack->SetUserInformation(hostTData.userTrackInfo); // Real data
-  // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
 
   // Pre-Step Point
   G4StepPoint *aPreStepPoint = aG4Step->GetPreStepPoint();
@@ -802,41 +949,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step,
   // adjust for gamma-nuclear steps:
   // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
   // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
-    aTrack->SetKineticEnergy(0.);
-    // aTrack->SetVelocity(0.);              // Not set in other cases, so also not set here
+  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
     aPostStepPoint->SetKineticEnergy(0.);
     // aPostStepPoint->SetVelocity(0.);      // Not set in other cases, so also not set here
-  }
-
-  // Last, call tracking and stepping actions
-  // call UserSteppingAction if required
-
-  if (aGPUHit->fStepCounter == 0 && (callUserTrackingAction || callUserSteppingAction)) {
-    auto *evtMgr             = G4EventManager::GetEventManager();
-    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
-    if (userTrackingAction) {
-      userTrackingAction->PreUserTrackingAction(aTrack);
-
-      // if userTrackInfo didn't exist before but exists now, update the map as a new TrackInfo was attached for
-      // the first time
-      if (hostTData.userTrackInfo == nullptr && aTrack->GetUserInformation() != nullptr) {
-        hostTData.userTrackInfo = aTrack->GetUserInformation();
-      }
-    }
-  }
-
-  if (callUserSteppingAction) {
-    auto *evtMgr             = G4EventManager::GetEventManager();
-    auto *userSteppingAction = evtMgr->GetUserSteppingAction();
-    if (userSteppingAction) userSteppingAction->UserSteppingAction(aG4Step);
-  }
-
-  // call UserTrackingAction if required
-  if (aGPUHit->fLastStepOfTrack && (callUserTrackingAction || callUserSteppingAction)) {
-    auto *evtMgr             = G4EventManager::GetEventManager();
-    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
-    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(aTrack);
   }
 }
 
