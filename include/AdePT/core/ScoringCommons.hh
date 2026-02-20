@@ -46,6 +46,7 @@ struct SecondaryInitData {
   uint64_t trackId;
   vecgeom::Vector3D<double> dir;
   double eKin;
+  short creatorProcessId{-1};
   char particleType{0};
 };
 

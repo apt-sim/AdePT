@@ -532,6 +532,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               secondaryData[nSecondaries++] = {secondary.trackId, secondary.dir, secondary.eKin,
+                                               /*creator process*/ short(winnerProcessIndex),
                                                /*particle type*/ char(0)};
             }
           }
@@ -587,7 +588,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
-              secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin, /*particle type*/ char(2)};
+              secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin,
+                                               /*creator process*/ short(winnerProcessIndex),
+                                               /*particle type*/ char(2)};
             }
           }
 
@@ -639,7 +642,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                            navState, currentTrack, globalTime);
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
-              secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*particle type*/ char(2)};
+              secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin,
+                                               /*creator process*/ short(winnerProcessIndex),
+                                               /*particle type*/ char(2)};
             }
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -655,7 +660,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                            navState, currentTrack, globalTime);
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
-              secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*particle type*/ char(2)};
+              secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin,
+                                               /*creator process*/ short(winnerProcessIndex),
+                                               /*particle type*/ char(2)};
             }
           }
           break;
@@ -708,8 +715,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
-            secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*particle type*/ char(2)};
-            secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*particle type*/ char(2)};
+            secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin,
+                                             /*creator process: annihilation*/ short(2), /*particle type*/ char(2)};
+            secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin,
+                                             /*creator process: annihilation*/ short(2), /*particle type*/ char(2)};
           }
         }
       }

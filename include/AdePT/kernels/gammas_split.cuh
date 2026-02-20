@@ -501,7 +501,8 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
+        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(0),
+                                         /*particle type*/ char(0)};
       }
     }
 
@@ -516,7 +517,8 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin, /*particle type*/ char(1)};
+        secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin, /*creator process*/ short(0),
+                                         /*particle type*/ char(1)};
       }
     }
 
@@ -630,7 +632,8 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
+        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(1),
+                                         /*particle type*/ char(0)};
       }
 
     } else {
@@ -747,7 +750,8 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
-        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*particle type*/ char(0)};
+        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(2),
+                                         /*particle type*/ char(0)};
       }
 
     } else {

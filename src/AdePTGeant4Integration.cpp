@@ -775,7 +775,8 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *
 
   // For the initializing step, the step defining process ID is the creator process
   const int stepId = secHit->fStepLimProcessId;
-  const int ptype  = static_cast<int>(secTData.particleType);
+  assert(stepId >= 0);
+  const int ptype = static_cast<int>(secTData.particleType);
   if (ptype == 0 || ptype == 1) {
     secTData.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[stepId];
   } else if (ptype == 2) {
