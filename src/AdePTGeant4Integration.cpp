@@ -517,6 +517,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   // first step in the span is the parent step
   const GPUHit &parentStep = gpuSteps[0];
 
+  assert(gpuSteps.size() == 1 + parentStep.fNumSecondaries);
+
   // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
   vecgeom::NavigationState const &preNavState = parentStep.fPreStepPoint.fNavigationState;
   // Reconstruct Pre-Step point G4NavigationHistory
@@ -586,19 +588,15 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   fScoringObjects->fG4Step->GetTrack()->SetStep(fScoringObjects->fG4Step);
 
   // Create and attach secondaries
-  const unsigned char nSec = parentStep.fNumSecondaries;
-
-  if (nSec > 0) {
-
+  {
     // Attention!!! The reference parentTData to the hostTrackDataMapper will be invalidated by inserting a new element
     // via create()! Therefore, the g4id that is needed as a parent ID for the secondaries must be saved before!
     const auto parentID = parentTData.g4id;
 
+    // the steps after the first one in the span are the initializing steps for the secondaries
+    std::span<const GPUHit> secondaries = gpuSteps.subspan(1);
     // Loop over secondaries, create and fill info, and attach to secondary vector of the GPUStep
-    for (unsigned char i = 0; i < nSec; ++i) {
-
-      // following steps in the span are the initializing steps for the secondaries
-      const GPUHit &secStep = gpuSteps[1 + i];
+    for (const GPUHit &secStep : secondaries) {
 
       // 1. Create HostTrackData
       HostTrackData &secTData = fHostTrackDataMapper->create(secStep.fTrackID);
