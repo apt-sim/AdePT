@@ -656,8 +656,7 @@ __global__ void __launch_bounds__(256, 1)
 
     assert(nSecondaries <= 3);
 
-    // If there is some edep from cutting particles, record the step
-    // Note: record only real steps that either interacted or hit a boundary
+    // If there is some edep from cutting particles or if it is the last step, record the step
     if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(userScoring,
