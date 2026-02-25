@@ -303,7 +303,8 @@ __global__ void __launch_bounds__(256, 1)
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) {
       currentTrack.Print("\n Track hit interaction / relocation in WDT tracking \n");
-      printf(" isWDTReachedBoundary=%u final after WDT:\n", isWDTReachedBoundary);
+      printf(" isWDTReachedBoundary=%u Loopercounter %u final NavState after WDT:\n", isWDTReachedBoundary,
+             currentTrack.looperCounter);
       nextState.Print();
     }
 #endif
@@ -657,8 +658,8 @@ __global__ void __launch_bounds__(256, 1)
 
     // If there is some edep from cutting particles, record the step
     // Note: record only real steps that either interacted or hit a boundary
-    if (realStep && ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps ||
-                     (returnLastStep && (nSecondaries > 0 || !trackSurvives)))) {
+    if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps ||
+        (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(userScoring,
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
