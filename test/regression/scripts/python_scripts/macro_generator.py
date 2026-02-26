@@ -36,7 +36,9 @@ def generate_macro(template_path, output_path, args):
     macro_content = macro_content.replace("$num_trackslots", str(args.num_trackslots))
     macro_content = macro_content.replace("$num_leakslots", str(args.num_leakslots))
     macro_content = macro_content.replace("$num_hitslots", str(args.num_hitslots))
+    macro_content = macro_content.replace("$adept_seed", str(args.adept_seed))
     macro_content = macro_content.replace("$gun_type", str(args.gun_type))
+    macro_content = macro_content.replace("$gun_number", str(args.gun_number))
     macro_content = macro_content.replace("$track_in_all_regions", str(args.track_in_all_regions))
 
     if str(args.gun_type) == "hepmc":
@@ -88,8 +90,12 @@ def main():
                         help="Number of leakslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--num_hitslots", type=int, default=12,
                         help="Number of hitslots in million. Should be chosen according to the GPU memory")
+    parser.add_argument("--adept_seed", type=int, default=1234567,
+                        help="Base seed for AdePT RNG (default: 1234567)")
     parser.add_argument("--gun_type", default="setDefault",
                         help="Type of particle gun. Must be 'hepmc' or 'setDefault'.")
+    parser.add_argument("--gun_number", type=int, default=100,
+                        help="Number of primary particles per event (default: 100)")
     parser.add_argument("--event_file", help="Path to the hepmc3 event file")
     parser.add_argument("--track_in_all_regions", default="True", help="True or False")
     parser.add_argument("--regions", type=str, required=False, default="",

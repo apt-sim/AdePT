@@ -16,6 +16,7 @@
 
 /detector/filename $gdml_name
 /adept/setVerbosity 0
+/adept/setSeed $adept_seed
 ## Total number of GPU track slots (not per thread)
 /adept/setMillionsOfTrackSlots $num_trackslots
 /adept/setMillionsOfLeakSlots $num_leakslots
@@ -50,7 +51,7 @@ $hepmc_part
 
 /gun/particle e-
 /gun/energy 10 GeV
-/gun/number 100
+/gun/number $gun_number
 /gun/position -220 0 0 mm
 /gun/direction 1 0 0
 /gun/print true
