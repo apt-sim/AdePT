@@ -70,4 +70,4 @@ generate_validation_macro "${PR_SOURCE_DIR}" "${PR_MACRO}"
 "${CI_TEST_DIR}/python_scripts/check_reproducibility.py" \
     --file1 "${MASTER_TMP_DIR}/${MASTER_OUTPUT}.csv" \
     --file2 "${PR_TMP_DIR}/${PR_OUTPUT}.csv" \
-    --tol 0.0 --n1 20 --n2 20
+    --tol 0.0
