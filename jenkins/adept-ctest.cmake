@@ -24,7 +24,9 @@ elseif(DEFINED ENV{container} AND DEFINED ENV{NODE_NAME})
   set(CTEST_SITE "$ENV{NODE_NAME}-$ENV{container}")
 else()
   find_program(HOSTNAME_CMD NAMES hostname)
-  exec_program(${HOSTNAME_CMD} ARGS OUTPUT_VARIABLE CTEST_SITE)
+  execute_process(COMMAND ${HOSTNAME_CMD}
+                  OUTPUT_VARIABLE CTEST_SITE
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 
 # Cdash Model (CTEST_MODEL)-----------------------------------------------------
