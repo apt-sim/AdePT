@@ -25,6 +25,20 @@ PR_MACRO="${PR_TMP_DIR}/pr_validation_testem3.mac"
 MASTER_OUTPUT="master_em3_1evt_1particle"
 PR_OUTPUT="pr_em3_1evt_1particle"
 
+run_with_output_on_failure() {
+  local step_name=$1
+  shift
+  local step_log="${CI_TMP_DIR}/${step_name}.log"
+
+  if ! "$@" >"${step_log}" 2>&1; then
+    echo "Step '${step_name}' failed. Command output:"
+    cat "${step_log}"
+    return 1
+  fi
+
+  rm -f "${step_log}"
+}
+
 cleanup() {
   echo "Cleaning up temporary files..."
   rm -rf "${CI_TMP_DIR}"
@@ -54,20 +68,27 @@ generate_validation_macro() {
       --adept_seed 1234567
 }
 
-generate_validation_macro "${MASTER_SOURCE_DIR}" "${MASTER_MACRO}"
-generate_validation_macro "${PR_SOURCE_DIR}" "${PR_MACRO}"
+run_with_output_on_failure "generate_master_macro" \
+  generate_validation_macro "${MASTER_SOURCE_DIR}" "${MASTER_MACRO}"
+run_with_output_on_failure "generate_pr_macro" \
+  generate_validation_macro "${PR_SOURCE_DIR}" "${PR_MACRO}"
 
-"${MASTER_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
-                       -m "${MASTER_MACRO}" \
-                       --output_dir "${MASTER_TMP_DIR}" \
-                       --output_file "${MASTER_OUTPUT}"
+run_with_output_on_failure "run_master_validation" \
+  "${MASTER_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
+                         -m "${MASTER_MACRO}" \
+                         --output_dir "${MASTER_TMP_DIR}" \
+                         --output_file "${MASTER_OUTPUT}"
 
-"${PR_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
-                   -m "${PR_MACRO}" \
-                   --output_dir "${PR_TMP_DIR}" \
-                   --output_file "${PR_OUTPUT}"
+run_with_output_on_failure "run_pr_validation" \
+  "${PR_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
+                     -m "${PR_MACRO}" \
+                     --output_dir "${PR_TMP_DIR}" \
+                     --output_file "${PR_OUTPUT}"
 
-"${CI_TEST_DIR}/python_scripts/check_reproducibility.py" \
-    --file1 "${MASTER_TMP_DIR}/${MASTER_OUTPUT}.csv" \
-    --file2 "${PR_TMP_DIR}/${PR_OUTPUT}.csv" \
-    --tol 0.0
+run_with_output_on_failure "compare_master_pr_outputs" \
+  "${CI_TEST_DIR}/python_scripts/check_reproducibility.py" \
+  --file1 "${MASTER_TMP_DIR}/${MASTER_OUTPUT}.csv" \
+  --file2 "${PR_TMP_DIR}/${PR_OUTPUT}.csv" \
+  --tol 0.0
+
+echo "Master vs PR validation outputs are identical."
