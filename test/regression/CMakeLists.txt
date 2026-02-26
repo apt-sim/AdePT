@@ -93,6 +93,22 @@ add_test(NAME test_UI_commands
   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
+set(PHYSICS_DRIFT_SCENARIOS
+  default
+  regions
+  wdt
+  bfield
+)
+
+foreach(SCENARIO IN LISTS PHYSICS_DRIFT_SCENARIOS)
+  add_test(NAME physics_drift_${SCENARIO}
+      COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_master_vs_pr.sh
+      "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${PROJECT_BINARY_DIR}/physics_drift_tmp_${SCENARIO}" "${SCENARIO}"
+      WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+  )
+  set_tests_properties(physics_drift_${SCENARIO} PROPERTIES LABELS "physics_drift")
+endforeach()
+
 set(APP_TESTS
 
 )

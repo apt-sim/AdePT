@@ -137,7 +137,7 @@ def buildAndTest() {
     export CMAKE_BINARY_DIR=BUILD_ASYNC_ON
     export ExtraCMakeOptions="-DADEPT_BUILD_TESTING=ON"
 
-    ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+    ctest -V --output-on-failure --timeout 2400 -E '^physics_drift_' -S AdePT/jenkins/adept-ctest.cmake,$MODEL
     export CMAKE_BINARY_DIR=BUILD_SPLIT_ON
     export ExtraCMakeOptions="-DADEPT_USE_SPLIT_KERNELS=ON -DADEPT_BUILD_TESTING=ON"
     ctest -V --output-on-failure --timeout 2400 -R '^(testEm3_validation(_(regions|WDT))?|reproducibility_(regions|WDT))\$' \
@@ -145,14 +145,25 @@ def buildAndTest() {
     export CMAKE_BINARY_DIR=BUILD_MIXED_PRECISION
     export ExtraCMakeOptions="-DADEPT_MIXED_PRECISION=ON -DADEPT_BUILD_TESTING=ON"
     ctest -V --output-on-failure --timeout 2400 -R run_only_test -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+  """
 
-    # Regression testing: compare deterministic low-stat physics output between master and PR builds
-    if [ -n "\${ghprbPullId:-}" ]; then
+  // Run non-blocking physics drift checks only for PR jobs.
+  // Differences mark the build UNSTABLE but do not fail the CI.
+  if (params.ghprbPullId) {
+    def driftStatus = sh(label: 'physics_drift', returnStatus: true, script: """
+      set +x
+      source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
+      set -x
+      export CUDA_CAPABILITY=${CUDA_CAPABILITY}
       bash AdePT/jenkins/master_vs_pr_validation.sh \\
            "\$PWD" \\
            "\$PWD/AdePT" \\
            "\$BUILDTYPE" \\
-           "\${CUDA_CAPABILITY}"
-    fi
-  """
+           "\${CUDA_CAPABILITY}" \\
+           "\$MODEL"
+    """)
+    if (driftStatus != 0) {
+      unstable('physics_drift differences detected against master (non-blocking)')
+    }
+  }
 }
