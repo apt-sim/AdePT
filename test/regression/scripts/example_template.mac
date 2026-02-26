@@ -35,7 +35,7 @@ $wdt_regions
 ## -----------------------------------------------------------------------------
 ## Optionally, set a constant magnetic field:
 ## -----------------------------------------------------------------------------
-/detector/setField 0 0 0 tesla
+/detector/setField $detector_field tesla
 
 ## -----------------------------------------------------------------------------
 ## Set secondary production threshold, init. the run and set primary properties

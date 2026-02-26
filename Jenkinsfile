@@ -137,16 +137,6 @@ def buildAndTest() {
     export CMAKE_BINARY_DIR=BUILD_ASYNC_ON
     export ExtraCMakeOptions="-DADEPT_BUILD_TESTING=ON"
 
-    # Regression testing: compare deterministic low-stat physics output between master and PR builds
-    if [ -n "\${ghprbPullId:-}" ]; then
-      bash AdePT/jenkins/master_vs_pr_validation.sh \\
-           "\$PWD" \\
-           "\$PWD/AdePT" \\
-           "\$PWD/BUILD_ASYNC_ON/BuildProducts/bin/integrationTest" \\
-           "\$BUILDTYPE" \\
-           "\${CUDA_CAPABILITY}"
-    fi
-
     ctest -V --output-on-failure --timeout 2400 -S AdePT/jenkins/adept-ctest.cmake,$MODEL
     export CMAKE_BINARY_DIR=BUILD_SPLIT_ON
     export ExtraCMakeOptions="-DADEPT_USE_SPLIT_KERNELS=ON -DADEPT_BUILD_TESTING=ON"
@@ -155,5 +145,14 @@ def buildAndTest() {
     export CMAKE_BINARY_DIR=BUILD_MIXED_PRECISION
     export ExtraCMakeOptions="-DADEPT_MIXED_PRECISION=ON -DADEPT_BUILD_TESTING=ON"
     ctest -V --output-on-failure --timeout 2400 -R run_only_test -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+
+    # Regression testing: compare deterministic low-stat physics output between master and PR builds
+    if [ -n "\${ghprbPullId:-}" ]; then
+      bash AdePT/jenkins/master_vs_pr_validation.sh \\
+           "\$PWD" \\
+           "\$PWD/AdePT" \\
+           "\$BUILDTYPE" \\
+           "\${CUDA_CAPABILITY}"
+    fi
   """
 }
