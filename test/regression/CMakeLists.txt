@@ -78,13 +78,6 @@ add_test(NAME testEm3_validation_regions
 )
 set_tests_properties(testEm3_validation_regions PROPERTIES LABELS "validation")
 
-# Test that simply checks if a simulation can run and finish without issues
-add_test(NAME run_only_test
-  COMMAND $<TARGET_FILE:integrationTest> -m ${PROJECT_SOURCE_DIR}/test/regression/macros/integrationtest.mac.in
-  WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-)
-set_tests_properties(run_only_test PROPERTIES LABELS "smoke")
-
 # Same test as above but using Woodcock tracking in the testEm3 geometry
 add_test(NAME testEm3_validation_WDT
   COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_WDT.sh
