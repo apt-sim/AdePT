@@ -124,46 +124,101 @@ def preCheckNode() {
   }
 }
 
-def buildAndTest() {
-  dir('AdePT') {
-    sh 'git submodule update --init'
-  }
-  sh label: 'build_and_test', script: """
+def runLabeledCiTest(String stepLabel, String binaryDir, String includeLabel) {
+  sh label: stepLabel, script: """
     set +x
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
     set -x
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
-    env | sort | sed 's/:/:?     /g' | tr '?' '\n'
-    export CMAKE_BINARY_DIR=BUILD_ASYNC_ON
-    export ExtraCMakeOptions="-DADEPT_BUILD_TESTING=ON"
 
-    ctest -V --output-on-failure --timeout 2400 -E '^physics_drift_' -S AdePT/jenkins/adept-ctest.cmake,$MODEL
-    export CMAKE_BINARY_DIR=BUILD_SPLIT_ON
-    export ExtraCMakeOptions="-DADEPT_USE_SPLIT_KERNELS=ON -DADEPT_BUILD_TESTING=ON"
-    ctest -V --output-on-failure --timeout 2400 -R '^(testEm3_validation(_(regions|WDT))?|reproducibility_(regions|WDT))\$' \
-      -S AdePT/jenkins/adept-ctest.cmake,\$MODEL
-    export CMAKE_BINARY_DIR=BUILD_MIXED_PRECISION
-    export ExtraCMakeOptions="-DADEPT_MIXED_PRECISION=ON -DADEPT_BUILD_TESTING=ON"
-    ctest -V --output-on-failure --timeout 2400 -R run_only_test -S AdePT/jenkins/adept-ctest.cmake,$MODEL
+    export CMAKE_SOURCE_DIR="\$PWD/AdePT"
+    export CMAKE_BINARY_DIR="${binaryDir}"
+    export CTEST_INCLUDE_LABEL="${includeLabel}"
+    ctest -V --output-on-failure --timeout 2400 -S "\$PWD/AdePT/jenkins/adept-ctest-ci.cmake,\$MODEL"
   """
+}
 
-  // Run non-blocking physics drift checks only for PR jobs.
-  // Differences mark the build UNSTABLE but do not fail the CI.
-  if (params.ghprbPullId) {
+def runBuildMatrix(String stepLabel, String sourceDir, String buildPrefix) {
+  sh label: stepLabel, script: """
+    set +x
+    source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
+    set -x
+    export CUDA_CAPABILITY=${CUDA_CAPABILITY}
+
+    run_build_slot() {
+      local source_dir=\$1
+      local binary_dir=\$2
+      shift 2
+      local extra_opts="\$*"
+
+      export CMAKE_SOURCE_DIR="\${source_dir}"
+      export CMAKE_BINARY_DIR="\${binary_dir}"
+      export ExtraCMakeOptions="-DADEPT_BUILD_TESTING=ON \${extra_opts}"
+      ctest -V --output-on-failure --timeout 2400 -S "\$PWD/AdePT/jenkins/adept-ctest-build.cmake,\$MODEL"
+    }
+
+    run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_ASYNC_ON"
+    run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_SPLIT_ON" "-DADEPT_USE_SPLIT_KERNELS=ON"
+    run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_MIXED_PRECISION" "-DADEPT_MIXED_PRECISION=ON"
+  """
+}
+
+def buildAndTest() {
+  dir('AdePT') {
+    sh 'git submodule update --init'
+  }
+  boolean isPrBuild = params.ghprbPullId?.trim()
+  boolean runValidationTests = true
+
+  runBuildMatrix('build_pr_matrix', '$PWD/AdePT', 'BUILD')
+
+  if (isPrBuild) {
+    sh label: 'prepare_master_reference', script: """
+      set +x
+      source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
+      set -x
+
+      git -C "\$PWD/AdePT" worktree remove --force "\$PWD/AdePT_master_reference" >/dev/null 2>&1 || true
+      rm -rf "\$PWD/AdePT_master_reference"
+
+      git -C "\$PWD/AdePT" fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
+      git -C "\$PWD/AdePT" worktree add --force "\$PWD/AdePT_master_reference" origin/master
+      git -C "\$PWD/AdePT_master_reference" submodule update --init
+    """
+
+    runBuildMatrix('build_master_reference_matrix', '$PWD/AdePT_master_reference', 'BUILD_MASTER_REFERENCE')
+
     def driftStatus = sh(label: 'physics_drift', returnStatus: true, script: """
       set +x
       source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
       set -x
       export CUDA_CAPABILITY=${CUDA_CAPABILITY}
-      bash AdePT/jenkins/master_vs_pr_validation.sh \\
+      bash "\$PWD/AdePT/jenkins/master_vs_pr_validation.sh" \\
            "\$PWD" \\
            "\$PWD/AdePT" \\
-           "\$BUILDTYPE" \\
-           "\${CUDA_CAPABILITY}" \\
+           "\$PWD/AdePT_master_reference" \\
            "\$MODEL"
     """)
+
     if (driftStatus != 0) {
       unstable('physics_drift differences detected against master (non-blocking)')
+      runValidationTests = true
+    } else if (params.MODEL == 'nightly') {
+      runValidationTests = true
+      echo 'physics_drift passed, but this is a nightly model: running validation.'
+    } else {
+      runValidationTests = false
+      echo 'physics_drift passed: skipping validation tests for this PR build.'
     }
+  }
+
+  runLabeledCiTest('run_unit_tests', '$PWD/BUILD_ASYNC_ON', 'unit')
+  runLabeledCiTest('run_smoke_tests', '$PWD/BUILD_MIXED_PRECISION', 'smoke')
+
+  if (runValidationTests) {
+    runLabeledCiTest('run_validation_async', '$PWD/BUILD_ASYNC_ON', 'validation')
+    runLabeledCiTest('run_validation_split', '$PWD/BUILD_SPLIT_ON', 'validation')
+  } else {
+    echo 'Validation tests skipped because PR physics drift matched master exactly.'
   }
 }

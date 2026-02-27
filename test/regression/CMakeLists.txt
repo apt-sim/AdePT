@@ -41,6 +41,7 @@ add_test(NAME reproducibility_cms_ttbar
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+set_tests_properties(reproducibility_cms_ttbar PROPERTIES LABELS "validation")
 
 # This test checks the reproducibility of AdePT with transport only in some regions by running 50 e- events in the testEm3 geometry
 # and checking that the energy deposition is exactly the same.
@@ -49,6 +50,7 @@ add_test(NAME reproducibility_regions
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+set_tests_properties(reproducibility_regions PROPERTIES LABELS "validation")
 
 # Same test as above but using Woodcock tracking in the testEm3 geometry
 add_test(NAME reproducibility_WDT
@@ -56,6 +58,7 @@ add_test(NAME reproducibility_WDT
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+set_tests_properties(reproducibility_WDT PROPERTIES LABELS "validation")
 
 # test that compares the physics output of a full AdePT run against a high-statistics Geant4 simulation using G4HepEm.
 # The energy deposition per layer error must be < 1% to pass the test
@@ -64,6 +67,7 @@ add_test(NAME testEm3_validation
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+set_tests_properties(testEm3_validation PROPERTIES LABELS "validation")
 
 # test that compares the physics output of a full AdePT run with transport only in some regions against a high-statistics 
 # Geant4 simulation using G4HepEm. The energy deposition per layer error must be < 1% to pass the test
@@ -72,12 +76,14 @@ add_test(NAME testEm3_validation_regions
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+set_tests_properties(testEm3_validation_regions PROPERTIES LABELS "validation")
 
 # Test that simply checks if a simulation can run and finish without issues
 add_test(NAME run_only_test
   COMMAND $<TARGET_FILE:integrationTest> -m ${PROJECT_SOURCE_DIR}/test/regression/macros/integrationtest.mac.in
   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
 )
+set_tests_properties(run_only_test PROPERTIES LABELS "smoke")
 
 # Same test as above but using Woodcock tracking in the testEm3 geometry
 add_test(NAME testEm3_validation_WDT
@@ -85,6 +91,7 @@ add_test(NAME testEm3_validation_WDT
   "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+set_tests_properties(testEm3_validation_WDT PROPERTIES LABELS "validation")
 
 # Testing all UI commands of AdePT
 add_test(NAME test_UI_commands
@@ -92,6 +99,7 @@ add_test(NAME test_UI_commands
   "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
+set_tests_properties(test_UI_commands PROPERTIES LABELS "unit")
 
 set(PHYSICS_DRIFT_SCENARIOS
   default
@@ -106,7 +114,7 @@ foreach(SCENARIO IN LISTS PHYSICS_DRIFT_SCENARIOS)
       "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${PROJECT_BINARY_DIR}/physics_drift_tmp_${SCENARIO}" "${SCENARIO}"
       WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
   )
-  set_tests_properties(physics_drift_${SCENARIO} PROPERTIES LABELS "physics_drift")
+  set_tests_properties(physics_drift_${SCENARIO} PROPERTIES LABELS "drift;physics_drift")
 endforeach()
 
 set(APP_TESTS
