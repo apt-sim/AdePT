@@ -103,7 +103,7 @@ set(PHYSICS_DRIFT_SCENARIOS
 
 foreach(SCENARIO IN LISTS PHYSICS_DRIFT_SCENARIOS)
   add_test(NAME physics_drift_${SCENARIO}
-      COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_master_vs_pr.sh
+      COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_drift_test.sh
       "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${PROJECT_BINARY_DIR}/physics_drift_tmp_${SCENARIO}" "${SCENARIO}"
       WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
   )
