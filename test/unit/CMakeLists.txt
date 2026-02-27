@@ -66,3 +66,14 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
+
+set(ADEPT_UNIT_TEST_NAMES
+  test_atomic
+  test_ranluxpp
+  test_queue
+  test_track_block
+  test_magfieldRK
+  compare_integration_precision
+  test_hostTrackDataMapper
+)
+set_tests_properties(${ADEPT_UNIT_TEST_NAMES} PROPERTIES LABELS "unit")
