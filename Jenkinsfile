@@ -157,7 +157,7 @@ def runBuildMatrix(String stepLabel, String sourceDir, String buildPrefix) {
       ctest -V --output-on-failure --timeout 2400 -S "\$PWD/AdePT/jenkins/adept-ctest-build.cmake,\$MODEL"
     }
 
-    run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_ASYNC_ON"
+    run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_MONOL"
     run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_SPLIT_ON" "-DADEPT_USE_SPLIT_KERNELS=ON"
     run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_MIXED_PRECISION" "-DADEPT_MIXED_PRECISION=ON"
   """
@@ -212,10 +212,10 @@ def buildAndTest() {
     }
   }
 
-  runLabeledCiTest('run_unit_tests', '$PWD/BUILD_ASYNC_ON', 'unit')
+  runLabeledCiTest('run_unit_tests', '$PWD/BUILD_MONOL', 'unit')
 
   if (runValidationTests) {
-    runLabeledCiTest('run_validation_async', '$PWD/BUILD_ASYNC_ON', 'validation')
+    runLabeledCiTest('run_validation_monol', '$PWD/BUILD_MONOL', 'validation')
     runLabeledCiTest('run_validation_split', '$PWD/BUILD_SPLIT_ON', 'validation')
   } else {
     echo 'Validation tests skipped because PR physics drift matched master exactly.'

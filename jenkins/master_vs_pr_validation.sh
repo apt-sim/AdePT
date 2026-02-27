@@ -56,7 +56,7 @@ run_config_comparison() {
 
 overall_status=0
 
-run_config_comparison "ASYNC_ON" "${WORKSPACE_DIR}/BUILD_ASYNC_ON" "${WORKSPACE_DIR}/BUILD_MASTER_REFERENCE_ASYNC_ON" || overall_status=1
+run_config_comparison "MONOL" "${WORKSPACE_DIR}/BUILD_MONOL" "${WORKSPACE_DIR}/BUILD_MASTER_REFERENCE_MONOL" || overall_status=1
 run_config_comparison "SPLIT_ON" "${WORKSPACE_DIR}/BUILD_SPLIT_ON" "${WORKSPACE_DIR}/BUILD_MASTER_REFERENCE_SPLIT_ON" || overall_status=1
 run_config_comparison "MIXED_PRECISION" "${WORKSPACE_DIR}/BUILD_MIXED_PRECISION" "${WORKSPACE_DIR}/BUILD_MASTER_REFERENCE_MIXED_PRECISION" || overall_status=1
 
