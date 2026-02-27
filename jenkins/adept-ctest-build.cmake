@@ -5,10 +5,10 @@
 # Expected environment variables:
 # CMAKE_SOURCE_DIR        // CMake source directory
 # CMAKE_BINARY_DIR        // CMake binary directory
-# CMAKE_INSTALL_PREFIX    // Installation prefix
-# BUILDTYPE               // CMake build type
-# COMPILER                // Compiler keyword
-# MODEL                   // CTest model
+# CMAKE_INSTALL_PREFIX    // Installation prefix for CMake (Jenkins trigger)
+# BUILDTYPE               // CMake build type: Debug, Release
+# COMPILER                // Compiler keyword: gcc8, clang10
+# MODEL                   // CTest model (Experimental, Continuous, or Nightly)
 # ExtraCMakeOptions       // Additional CMake configure flags
 ################################################################################
 
@@ -103,11 +103,11 @@ ctest_configure(BUILD   ${CTEST_BINARY_DIRECTORY}
 ctest_submit(PARTS Configure Notes)
 
 ctest_build(BUILD ${CTEST_BINARY_DIRECTORY}
-            TARGET integrationTest
+            TARGET all
             RETURN_VALUE build_result
             APPEND)
 ctest_submit(PARTS Build)
 
 if(build_result)
-  message(FATAL_ERROR "Failed to build integrationTest")
+  message(FATAL_ERROR "Failed to build all targets")
 endif()
