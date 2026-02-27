@@ -56,5 +56,5 @@ endif()
 
 # Tests
 add_test(NAME testField
-  COMMAND $<TARGET_FILE:testField> -gdml_file ${PROJECT_BINARY_DIR}/cms2018.gdml
+  COMMAND $<TARGET_FILE:testField> -gdml_file ${PROJECT_BINARY_DIR}/cms2018_sd.gdml
 )
