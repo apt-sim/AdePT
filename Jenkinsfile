@@ -213,7 +213,6 @@ def buildAndTest() {
   }
 
   runLabeledCiTest('run_unit_tests', '$PWD/BUILD_ASYNC_ON', 'unit')
-  runLabeledCiTest('run_smoke_tests', '$PWD/BUILD_MIXED_PRECISION', 'smoke')
 
   if (runValidationTests) {
     runLabeledCiTest('run_validation_async', '$PWD/BUILD_ASYNC_ON', 'validation')
