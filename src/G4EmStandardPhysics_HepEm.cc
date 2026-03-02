@@ -8,8 +8,7 @@
 #include "G4HepEmTrackingManager.hh"
 #include "G4Positron.hh"
 
-G4EmStandardPhysics_HepEm::G4EmStandardPhysics_HepEm(G4int ver, const G4String &name)
-    : G4EmStandardPhysics(ver, name)
+G4EmStandardPhysics_HepEm::G4EmStandardPhysics_HepEm(G4int ver, const G4String &name) : G4EmStandardPhysics(ver, name)
 {
 }
 
