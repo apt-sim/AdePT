@@ -247,12 +247,9 @@ def checkoutReferenceSource() {
       $class: 'GitSCM',
       branches: [[name: '*/master']],
       doGenerateSubmoduleConfigurations: false,
-      extensions: [
-        [$class: 'CleanBeforeCheckout'],
-        [$class: 'SubmoduleOption', parentCredentials: true, recursiveSubmodules: true]
-      ],
       userRemoteConfigs: [remoteConfig]
     ])
+    sh 'git submodule update --init'
   }
 }
 
