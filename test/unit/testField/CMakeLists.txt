@@ -58,3 +58,4 @@ endif()
 add_test(NAME testField
   COMMAND $<TARGET_FILE:testField> -gdml_file ${PROJECT_BINARY_DIR}/cms2018.gdml
 )
+set_tests_properties(testField PROPERTIES LABELS "unit")
