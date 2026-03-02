@@ -4,9 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # PR-vs-master physics drift check for one scenario.
-# Master executable and source directory are provided via environment:
+# Master executable is provided via environment:
 #   ADEPT_MASTER_EXECUTABLE
-#   ADEPT_MASTER_SOURCE_DIR
 
 set -eu -o pipefail
 
@@ -18,19 +17,11 @@ CI_TMP_DIR=$4
 SCENARIO=$5
 
 MASTER_EXECUTABLE=${ADEPT_MASTER_EXECUTABLE:-}
-MASTER_SOURCE_DIR=${ADEPT_MASTER_SOURCE_DIR:-}
 
 if [ -z "${MASTER_EXECUTABLE}" ] || [ ! -x "${MASTER_EXECUTABLE}" ]; then
   echo "Skipping physics_drift '${SCENARIO}': ADEPT_MASTER_EXECUTABLE is not set to a valid executable."
   exit 0
 fi
-if [ -z "${MASTER_SOURCE_DIR}" ]; then
-  echo "Skipping physics_drift '${SCENARIO}': ADEPT_MASTER_SOURCE_DIR is not set."
-  exit 0
-fi
-
-MASTER_TMP_DIR="${CI_TMP_DIR}/master"
-PR_TMP_DIR="${CI_TMP_DIR}/pr"
 NUM_THREADS=1
 NUM_EVENTS=1
 NUM_TRACKSLOTS=1
@@ -45,29 +36,12 @@ REGIONS_LIST="caloregion, Layer1, Layer2, Layer3, Layer4, Layer5, Layer6, Layer7
             Layer41, Layer42, Layer43, Layer44, Layer45, Layer46, Layer47, Layer48, Layer49, Layer50"
 WDT_REGIONS_LIST="WDT_Region_layers_10_40,Layer5,Layer44,Layer45"
 
-run_with_output_on_failure() {
-  local step_name=$1
-  shift
-  local step_log="${CI_TMP_DIR}/${step_name}.log"
-
-  if ! "$@" >"${step_log}" 2>&1; then
-    echo "Step '${step_name}' failed. Command output:"
-    cat "${step_log}"
-    return 1
-  fi
-
-  rm -f "${step_log}"
-}
-
 cleanup() {
-  echo "Cleaning up temporary files..."
   rm -rf "${CI_TMP_DIR}"
 }
 
 trap cleanup EXIT
 cleanup
-
-mkdir -p "${MASTER_TMP_DIR}" "${PR_TMP_DIR}"
 
 SCENARIO_GDML=""
 SCENARIO_TRACK_IN_ALL_REGIONS=""
@@ -125,40 +99,33 @@ generate_validation_macro() {
       --adept_seed "${ADEPT_SEED}" \
       --regions "${regions_list}" \
       --wdt_regions "${wdt_regions_list}" \
-      --detector_field "${detector_field}"
+	  --detector_field "${detector_field}"
 }
 
-MASTER_SCENARIO_DIR="${MASTER_TMP_DIR}/${SCENARIO}"
-PR_SCENARIO_DIR="${PR_TMP_DIR}/${SCENARIO}"
-MASTER_MACRO="${MASTER_SCENARIO_DIR}/master_${SCENARIO}.mac"
-PR_MACRO="${PR_SCENARIO_DIR}/pr_${SCENARIO}.mac"
+SCENARIO_TMP_DIR="${CI_TMP_DIR}/${SCENARIO}"
+MASTER_SCENARIO_DIR="${SCENARIO_TMP_DIR}/master"
+PR_SCENARIO_DIR="${SCENARIO_TMP_DIR}/pr"
+SCENARIO_MACRO="${SCENARIO_TMP_DIR}/${SCENARIO}.mac"
 MASTER_OUTPUT="master_${SCENARIO}"
 PR_OUTPUT="pr_${SCENARIO}"
 
 mkdir -p "${MASTER_SCENARIO_DIR}" "${PR_SCENARIO_DIR}"
 
-run_with_output_on_failure "generate_master_macro_${SCENARIO}" \
-  generate_validation_macro "${MASTER_SOURCE_DIR}" "${MASTER_MACRO}" \
-    "${SCENARIO_GDML}" "${SCENARIO_TRACK_IN_ALL_REGIONS}" "${SCENARIO_REGIONS}" "${SCENARIO_WDT_REGIONS}" "${SCENARIO_FIELD}"
+# Use one macro for both binaries to ensure identical runtime input.
+generate_validation_macro "${PR_SOURCE_DIR}" "${SCENARIO_MACRO}" \
+  "${SCENARIO_GDML}" "${SCENARIO_TRACK_IN_ALL_REGIONS}" "${SCENARIO_REGIONS}" "${SCENARIO_WDT_REGIONS}" "${SCENARIO_FIELD}"
 
-run_with_output_on_failure "generate_pr_macro_${SCENARIO}" \
-  generate_validation_macro "${PR_SOURCE_DIR}" "${PR_MACRO}" \
-    "${SCENARIO_GDML}" "${SCENARIO_TRACK_IN_ALL_REGIONS}" "${SCENARIO_REGIONS}" "${SCENARIO_WDT_REGIONS}" "${SCENARIO_FIELD}"
+"${MASTER_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
+                       -m "${SCENARIO_MACRO}" \
+                       --output_dir "${MASTER_SCENARIO_DIR}" \
+                       --output_file "${MASTER_OUTPUT}"
 
-run_with_output_on_failure "run_master_validation_${SCENARIO}" \
-  "${MASTER_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
-                         -m "${MASTER_MACRO}" \
-                         --output_dir "${MASTER_SCENARIO_DIR}" \
-                         --output_file "${MASTER_OUTPUT}"
+"${PR_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
+                   -m "${SCENARIO_MACRO}" \
+                   --output_dir "${PR_SCENARIO_DIR}" \
+                   --output_file "${PR_OUTPUT}"
 
-run_with_output_on_failure "run_pr_validation_${SCENARIO}" \
-  "${PR_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
-                     -m "${PR_MACRO}" \
-                     --output_dir "${PR_SCENARIO_DIR}" \
-                     --output_file "${PR_OUTPUT}"
-
-run_with_output_on_failure "compare_master_pr_outputs_${SCENARIO}" \
-  "${CI_TEST_DIR}/python_scripts/check_reproducibility.py" \
+"${CI_TEST_DIR}/python_scripts/check_reproducibility.py" \
   --file1 "${MASTER_SCENARIO_DIR}/${MASTER_OUTPUT}.csv" \
   --file2 "${PR_SCENARIO_DIR}/${PR_OUTPUT}.csv" \
   --tol 0.0
