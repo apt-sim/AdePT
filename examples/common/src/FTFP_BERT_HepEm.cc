@@ -13,9 +13,8 @@
 #include "G4Material.hh"
 #include "G4MaterialTable.hh"
 
-#include <AdePT/integration/HepEMPhysics.hh>
+#include <AdePT/integration/G4EmStandardPhysics_HepEm.hh>
 #include "G4DecayPhysics.hh"
-#include "G4EmStandardPhysics.hh"
 #include "G4EmExtraPhysics.hh"
 #include "G4IonPhysics.hh"
 #include "G4StoppingPhysics.hh"
@@ -35,12 +34,7 @@ FTFP_BERT_HepEm::FTFP_BERT_HepEm(G4int ver)
   SetVerboseLevel(ver);
 
   // EM Physics
-  // Note: The EM processes for e-, e+ and gammas are registered, but not used as the
-  // partices are tracked by the specialized tracking manager
-  RegisterPhysics(new G4EmStandardPhysics(ver));
-
-  // Register the HepEM physics
-  RegisterPhysics(new HepEMPhysics(ver));
+  RegisterPhysics(new G4EmStandardPhysics_HepEm(ver));
 
   // Synchroton Radiation & GN Physics
   RegisterPhysics(new G4EmExtraPhysics(ver));
