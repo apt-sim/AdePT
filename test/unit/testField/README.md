@@ -14,7 +14,7 @@ New feature is
    - fixed accuracy of integration (constant in source)
 
 The features carried over from Example13 are:
- * arbitrary geometry via gdml file (tested with cms2018.gdml from VecGeom persistency/gdml/gdmls folder) and optionally a magnetic field with constant Bz,
+ * arbitrary geometry via gdml file (tested with the in-repo `cms2018_sd.gdml`) and optionally a magnetic field with constant Bz,
  * geometry read as Geant4 geometry, reading in regions and cuts, to initialize G4HepEm data
  * geometry read then into VecGeom, and synchronized to GPU
  * G4HepEm material-cuts couple indices mapped to VecGeom logical volume id's

@@ -23,17 +23,8 @@ endmacro()
 #----------------------------------------------------------------------------#
 # Common Data
 #----------------------------------------------------------------------------#
-set(TESTING_GDML "${PROJECT_BINARY_DIR}/trackML.gdml")
-file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/v1.2.0/persistency/gdml/gdmls/trackML.gdml
-  "${TESTING_GDML}"
-  EXPECTED_HASH SHA256=2c53e0f2f4673c61f8679702532647bf71ec64c1613aae330fa835e7d7087064
-)
-
-set(CMS2018_GDML "${PROJECT_BINARY_DIR}/cms2018.gdml")
-file(DOWNLOAD https://gitlab.cern.ch/VecGeom/VecGeom/raw/v1.2.0/persistency/gdml/gdmls/cms2018.gdml
-  "${CMS2018_GDML}"
-  EXPECTED_HASH SHA256=a6538d8f196fbfe4c14e806df3439d5a0d7050d538d364faabe882c750970e63
-)
+# Keep unit tests aligned with regression tests by using the in-repo geometry.
+configure_file(${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 
 #----------------------------------------------------------------------------#
 # Detailed tests
