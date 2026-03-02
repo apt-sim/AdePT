@@ -147,7 +147,7 @@ def runLabeledCiTest(String stepLabel, String binaryDir, String includeLabel) {
     export CMAKE_SOURCE_DIR="\$PWD/AdePT"
     export CMAKE_BINARY_DIR="${binaryDir}"
     export CTEST_INCLUDE_LABEL="${includeLabel}"
-    ctest -V --output-on-failure --timeout 2400 -S "\$PWD/AdePT/jenkins/adept-ctest-ci.cmake,\$MODEL"
+    ctest -V --output-on-failure -S "\$PWD/AdePT/jenkins/adept-ctest-ci.cmake,\$MODEL"
   """)
 }
 
@@ -162,7 +162,7 @@ def runBuildMatrix(String stepLabel, String sourceDir, String buildPrefix) {
       export CMAKE_SOURCE_DIR="\${source_dir}"
       export CMAKE_BINARY_DIR="\${binary_dir}"
       export ExtraCMakeOptions="-DADEPT_BUILD_TESTING=ON \${extra_opts}"
-      ctest -V --output-on-failure --timeout 2400 -S "\$PWD/AdePT/jenkins/adept-ctest-build.cmake,\$MODEL"
+      ctest -V --output-on-failure -S "\$PWD/AdePT/jenkins/adept-ctest-build.cmake,\$MODEL"
     }
 
     run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_MONOL"
@@ -193,10 +193,8 @@ def buildAndTest() {
     runBuildMatrix('build_master_reference_matrix', '$PWD/AdePT_master_reference', 'BUILD_MASTER_REFERENCE')
 
     def driftStatus = runWithLcgEnvStatus('physics_drift', """
-      bash "\$PWD/AdePT/jenkins/master_vs_pr_validation.sh" \\
+      bash "\$PWD/AdePT/jenkins/run_physics_drift_tests.sh" \\
            "\$PWD" \\
-           "\$PWD/AdePT" \\
-           "\$PWD/AdePT_master_reference" \\
            "\$MODEL"
     """)
 

@@ -18,9 +18,17 @@ SCENARIO=$5
 
 MASTER_EXECUTABLE=${ADEPT_MASTER_EXECUTABLE:-}
 
-if [ -z "${MASTER_EXECUTABLE}" ] || [ ! -x "${MASTER_EXECUTABLE}" ]; then
-  echo "Skipping physics_drift '${SCENARIO}': ADEPT_MASTER_EXECUTABLE is not set to a valid executable."
-  exit 0
+if [ -z "${MASTER_EXECUTABLE}" ]; then
+  echo "Error: physics_drift '${SCENARIO}' requires ADEPT_MASTER_EXECUTABLE."
+  echo "Set ADEPT_MASTER_EXECUTABLE to the integrationTest executable path of the master branch."
+  echo "Example:"
+  echo "  ADEPT_MASTER_EXECUTABLE=/path/to/build_of_master_branch/BuildProducts/bin/integrationTest ctest --output-on-failure -R drift"
+  exit 2
+fi
+
+if [ ! -x "${MASTER_EXECUTABLE}" ]; then
+  echo "Error: ADEPT_MASTER_EXECUTABLE is not an executable file: ${MASTER_EXECUTABLE}"
+  exit 2
 fi
 NUM_THREADS=1
 NUM_EVENTS=1
