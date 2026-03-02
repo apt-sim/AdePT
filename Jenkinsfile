@@ -124,27 +124,35 @@ def preCheckNode() {
   }
 }
 
-def runLabeledCiTest(String stepLabel, String binaryDir, String includeLabel) {
-  sh label: stepLabel, script: """
+def withLcgEnvScript(String body) {
+  return """
     set +x
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
     set -x
     export CUDA_CAPABILITY=${CUDA_CAPABILITY}
+    ${body}
+  """
+}
 
+def runWithLcgEnv(String stepLabel, String body) {
+  sh label: stepLabel, script: withLcgEnvScript(body)
+}
+
+def runWithLcgEnvStatus(String stepLabel, String body) {
+  return sh(label: stepLabel, returnStatus: true, script: withLcgEnvScript(body))
+}
+
+def runLabeledCiTest(String stepLabel, String binaryDir, String includeLabel) {
+  runWithLcgEnv(stepLabel, """
     export CMAKE_SOURCE_DIR="\$PWD/AdePT"
     export CMAKE_BINARY_DIR="${binaryDir}"
     export CTEST_INCLUDE_LABEL="${includeLabel}"
     ctest -V --output-on-failure --timeout 2400 -S "\$PWD/AdePT/jenkins/adept-ctest-ci.cmake,\$MODEL"
-  """
+  """)
 }
 
 def runBuildMatrix(String stepLabel, String sourceDir, String buildPrefix) {
-  sh label: stepLabel, script: """
-    set +x
-    source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
-    set -x
-    export CUDA_CAPABILITY=${CUDA_CAPABILITY}
-
+  runWithLcgEnv(stepLabel, """
     run_build_slot() {
       local source_dir=\$1
       local binary_dir=\$2
@@ -160,7 +168,7 @@ def runBuildMatrix(String stepLabel, String sourceDir, String buildPrefix) {
     run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_MONOL"
     run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_SPLIT_ON" "-DADEPT_USE_SPLIT_KERNELS=ON"
     run_build_slot "${sourceDir}" "\$PWD/${buildPrefix}_MIXED_PRECISION" "-DADEPT_MIXED_PRECISION=ON"
-  """
+  """)
 }
 
 def buildAndTest() {
@@ -173,26 +181,18 @@ def buildAndTest() {
   runBuildMatrix('build_pr_matrix', '$PWD/AdePT', 'BUILD')
 
   if (isPrBuild) {
-    sh label: 'prepare_master_reference', script: """
-      set +x
-      source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
-      set -x
-
+    runWithLcgEnv('prepare_master_reference', """
       git -C "\$PWD/AdePT" worktree remove --force "\$PWD/AdePT_master_reference" >/dev/null 2>&1 || true
       rm -rf "\$PWD/AdePT_master_reference"
 
       git -C "\$PWD/AdePT" fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
       git -C "\$PWD/AdePT" worktree add --force "\$PWD/AdePT_master_reference" origin/master
       git -C "\$PWD/AdePT_master_reference" submodule update --init
-    """
+    """)
 
     runBuildMatrix('build_master_reference_matrix', '$PWD/AdePT_master_reference', 'BUILD_MASTER_REFERENCE')
 
-    def driftStatus = sh(label: 'physics_drift', returnStatus: true, script: """
-      set +x
-      source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
-      set -x
-      export CUDA_CAPABILITY=${CUDA_CAPABILITY}
+    def driftStatus = runWithLcgEnvStatus('physics_drift', """
       bash "\$PWD/AdePT/jenkins/master_vs_pr_validation.sh" \\
            "\$PWD" \\
            "\$PWD/AdePT" \\
