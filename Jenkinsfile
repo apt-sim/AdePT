@@ -28,6 +28,9 @@ pipeline {
   }
 
   agent none
+  options {
+    skipDefaultCheckout(true)
+  }
 
   stages {
     //------------------------------------------------------------------------------------------------------------------
@@ -58,15 +61,41 @@ pipeline {
         }
       }
       stages {
-        stage('Build&Test') {
+        stage('CheckoutPR') {
           steps {
-            buildAndTest()
+            checkoutPrSource()
           }
-          post {
-            success {
-              deleteDir()
-            }
+        }
+        stage('CheckoutReference') {
+          when {
+            expression { params.ghprbPullId?.trim() }
           }
+          steps {
+            checkoutReferenceSource()
+          }
+        }
+        stage('BuildPR') {
+          steps {
+            buildMatrixFromSource('build_pr_matrix', 'AdePT', 'BUILD')
+          }
+        }
+        stage('BuildReference') {
+          when {
+            expression { params.ghprbPullId?.trim() }
+          }
+          steps {
+            buildMatrixFromSource('build_master_reference_matrix', 'AdePT_master_reference', 'BUILD_MASTER_REFERENCE')
+          }
+        }
+        stage('Test') {
+          steps {
+            runTestsForBuiltMatrices()
+          }
+        }
+      }
+      post {
+        success {
+          deleteDir()
         }
       }
     }
@@ -84,15 +113,41 @@ pipeline {
             preCheckNode()
           }
         }
-        stage('Build&Test') {
+        stage('CheckoutPR') {
           steps {
-            buildAndTest()
+            checkoutPrSource()
           }
-          post {
-            success {
-              deleteDir()
-            }
+        }
+        stage('CheckoutReference') {
+          when {
+            expression { params.ghprbPullId?.trim() }
           }
+          steps {
+            checkoutReferenceSource()
+          }
+        }
+        stage('BuildPR') {
+          steps {
+            buildMatrixFromSource('build_pr_matrix', 'AdePT', 'BUILD')
+          }
+        }
+        stage('BuildReference') {
+          when {
+            expression { params.ghprbPullId?.trim() }
+          }
+          steps {
+            buildMatrixFromSource('build_master_reference_matrix', 'AdePT_master_reference', 'BUILD_MASTER_REFERENCE')
+          }
+        }
+        stage('Test') {
+          steps {
+            runTestsForBuiltMatrices()
+          }
+        }
+      }
+      post {
+        success {
+          deleteDir()
         }
       }
     }
@@ -171,27 +226,44 @@ def runBuildMatrix(String stepLabel, String sourceDir, String buildPrefix) {
   """)
 }
 
-def buildAndTest() {
+def checkoutPrSource() {
   dir('AdePT') {
+    deleteDir()
+    checkout scm
     sh 'git submodule update --init'
   }
+}
+
+def checkoutReferenceSource() {
+  def remoteConfig = [url: scm.userRemoteConfigs[0].url]
+  if (scm.userRemoteConfigs[0].credentialsId) {
+    remoteConfig.credentialsId = scm.userRemoteConfigs[0].credentialsId
+  }
+
+  dir('AdePT_master_reference') {
+    deleteDir()
+    checkout([
+      $class: 'GitSCM',
+      branches: [[name: '*/master']],
+      doGenerateSubmoduleConfigurations: false,
+      extensions: [
+        [$class: 'CleanBeforeCheckout'],
+        [$class: 'SubmoduleOption', parentCredentials: true, recursiveSubmodules: true]
+      ],
+      userRemoteConfigs: [remoteConfig]
+    ])
+  }
+}
+
+def buildMatrixFromSource(String stepLabel, String sourceSubdir, String buildPrefix) {
+  runBuildMatrix(stepLabel, "\$PWD/${sourceSubdir}", buildPrefix)
+}
+
+def runTestsForBuiltMatrices() {
   boolean isPrBuild = params.ghprbPullId?.trim()
   boolean runValidationTests = true
 
-  runBuildMatrix('build_pr_matrix', '$PWD/AdePT', 'BUILD')
-
   if (isPrBuild) {
-    runWithLcgEnv('prepare_master_reference', """
-      git -C "\$PWD/AdePT" worktree remove --force "\$PWD/AdePT_master_reference" >/dev/null 2>&1 || true
-      rm -rf "\$PWD/AdePT_master_reference"
-
-      git -C "\$PWD/AdePT" fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
-      git -C "\$PWD/AdePT" worktree add --force "\$PWD/AdePT_master_reference" origin/master
-      git -C "\$PWD/AdePT_master_reference" submodule update --init
-    """)
-
-    runBuildMatrix('build_master_reference_matrix', '$PWD/AdePT_master_reference', 'BUILD_MASTER_REFERENCE')
-
     def driftStatus = runWithLcgEnvStatus('physics_drift', """
       bash "\$PWD/AdePT/jenkins/run_physics_drift_tests.sh" \\
            "\$PWD" \\
