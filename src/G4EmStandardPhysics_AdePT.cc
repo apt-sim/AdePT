@@ -18,8 +18,7 @@ G4EmStandardPhysics_AdePT::G4EmStandardPhysics_AdePT(G4int ver, const G4String &
 G4EmStandardPhysics_AdePT::~G4EmStandardPhysics_AdePT()
 {
   delete fAdePTConfiguration;
-  // Deleting the tracking manager can crash on some Geant4 releases.
-  // Keep Geant4-owned cleanup behavior for compatibility.
+  // Keep Geant4-owned cleanup behavior for tracking manager deletion.
 }
 
 void G4EmStandardPhysics_AdePT::ConstructProcess()
@@ -27,9 +26,7 @@ void G4EmStandardPhysics_AdePT::ConstructProcess()
   // First register the standard Geant4 EM processes for this constructor.
   G4EmStandardPhysics::ConstructProcess();
 
-  if (fTrackingManager == nullptr) {
-    fTrackingManager = new AdePTTrackingManager(fAdePTConfiguration, /*verbosity=*/0);
-  }
+  fTrackingManager = new AdePTTrackingManager(fAdePTConfiguration, /*verbosity=*/0);
 
   auto g4hepemconfig = fTrackingManager->GetG4HepEmConfig();
   g4hepemconfig->SetMultipleStepsInMSCWithTransportation(

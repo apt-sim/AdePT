@@ -22,9 +22,7 @@ void G4EmStandardPhysics_HepEm::ConstructProcess()
   // First register the standard Geant4 EM processes for this constructor.
   G4EmStandardPhysics::ConstructProcess();
 
-  if (fTrackingManager == nullptr) {
-    fTrackingManager = new G4HepEmTrackingManager();
-  }
+  fTrackingManager = new G4HepEmTrackingManager();
 
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
   G4Positron::Definition()->SetTrackingManager(fTrackingManager);
