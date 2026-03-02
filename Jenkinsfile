@@ -25,6 +25,7 @@ pipeline {
     CMAKE_SOURCE_DIR     = 'AdePT'
     CMAKE_BINARY_DIR     = 'build'
     CMAKE_INSTALL_PREFIX = 'install'
+    CUDA_CAPABILITY      = '75'
   }
 
   agent none
@@ -158,8 +159,6 @@ pipeline {
 //---Common Functions---------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 
-def CUDA_CAPABILITY = '75'  // Default is 7.5
-
 def setJobName() {
   if (params.ghprbPullId) {
     currentBuild.displayName = "#${BUILD_NUMBER}" + '-' + params.ghprbPullAuthorLogin + '#' +  params.ghprbPullId + '-' + params.COMPILER + '-' + params.BUILDTYPE
@@ -173,9 +172,9 @@ def preCheckNode() {
   def deviceQuery = '/usr/local/cuda/extras/demo_suite/deviceQuery'
   sh (script: '/usr/bin/nvidia-smi')
   if (fileExists(deviceQuery)) {
-    dev_out = sh (script: deviceQuery, returnStdout: true)
-    CUDA_CAPABILITY = ( dev_out =~ 'CUDA Capability.*([0-9]+[.][0-9]+)')[0][1].replace('.','')
-    print('Cuda capability version is = ' + CUDA_CAPABILITY)
+    def dev_out = sh (script: deviceQuery, returnStdout: true)
+    env.CUDA_CAPABILITY = ( dev_out =~ 'CUDA Capability.*([0-9]+[.][0-9]+)')[0][1].replace('.','')
+    print('Cuda capability version is = ' + env.CUDA_CAPABILITY)
   }
 }
 
@@ -184,7 +183,7 @@ def withLcgEnvScript(String body) {
     set +x
     source /cvmfs/sft.cern.ch/lcg/views/${EXTERNALS}/x86_64-${OS}-${COMPILER}-opt/setup.sh
     set -x
-    export CUDA_CAPABILITY=${CUDA_CAPABILITY}
+    export CUDA_CAPABILITY=${env.CUDA_CAPABILITY}
     ${body}
   """
 }
@@ -227,9 +226,11 @@ def runBuildMatrix(String stepLabel, String sourceDir, String buildPrefix) {
 }
 
 def checkoutPrSource() {
+  // `checkout scm` already carries the job-configured target dir (AdePT),
+  // so run it at workspace root to avoid nesting into AdePT/AdePT.
+  deleteDir()
+  checkout scm
   dir('AdePT') {
-    deleteDir()
-    checkout scm
     sh 'git submodule update --init'
   }
 }
