@@ -29,7 +29,7 @@
 #define RUNACTION_HH
 
 #include "G4UserRunAction.hh"
-#include <VecGeom/base/Stopwatch.h>
+#include "G4Timer.hh"
 class G4Run;
 
 /**
@@ -53,7 +53,7 @@ public:
   virtual void EndOfRunAction(const G4Run *) final;
 
 private:
-  vecgeom::Stopwatch fTimer;
+  G4Timer fTimer;
 };
 
 #endif /* RUNACTION_HH */

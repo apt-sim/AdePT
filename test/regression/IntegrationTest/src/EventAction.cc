@@ -41,8 +41,7 @@
 #include <AdePT/benchmarking/TestManagerStore.h>
 #include "Run.hh"
 
-EventAction::EventAction(RunAction *aRunAction)
-    : G4UserEventAction(), fHitCollectionID(-1), fTimer(), fRunAction(aRunAction)
+EventAction::EventAction(RunAction *aRunAction) : G4UserEventAction(), fHitCollectionID(-1), fRunAction(aRunAction)
 {
   fMessenger = new EventActionMessenger(this);
 }
@@ -55,7 +54,7 @@ EventAction::~EventAction() {}
 
 void EventAction::BeginOfEventAction(const G4Event *)
 {
-  fTimer.Start();
+  RunAction::StartRunTimerFromFirstEvent();
 
   // Get the Run object associated to this thread and start the timer for this event
   Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
@@ -74,8 +73,6 @@ void EventAction::BeginOfEventAction(const G4Event *)
 void EventAction::EndOfEventAction(const G4Event *aEvent)
 {
   auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
-
-  fTimer.Stop();
 
   // Get the Run object associated to this thread and stop the timer for this event
   Run *currentRun   = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
@@ -108,7 +105,6 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << ": positrons " << number_positrons << G4endl;
     G4cout << "EndOfEventAction " << eventId << ": gammas    " << number_gammas << G4endl;
     G4cout << "EndOfEventAction " << eventId << ": killed    " << number_killed << G4endl;
-    G4cout << "EndOfEventAction " << eventId << ": real time " << fTimer.GetRealElapsed() << G4endl;
   }
 
   // Store the original IO precission and width

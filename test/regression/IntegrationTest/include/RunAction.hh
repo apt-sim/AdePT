@@ -29,8 +29,9 @@
 #define RUNACTION_HH
 
 #include "G4UserRunAction.hh"
-#include <VecGeom/base/Stopwatch.h>
 #include "G4String.hh"
+#include "G4Timer.hh"
+#include <mutex>
 
 class G4Run;
 class Run;
@@ -59,6 +60,9 @@ public:
 
   G4Run *GenerateRun() override;
 
+  // Start/stop the run wall-time timer around actual event processing only.
+  static void StartRunTimerFromFirstEvent();
+
   bool &GetDoBenchmark() { return fDoBenchmark; };
   bool &GetDoValidation() { return fDoValidation; };
   bool &GetDoAccumulatedEvents() { return fDoAccumulatedEvents; };
@@ -73,7 +77,11 @@ private:
   bool fDoBenchmark;
   bool fDoValidation;
   bool fDoAccumulatedEvents;
-  vecgeom::Stopwatch fTimer;
+  static double StopRunTimerOnMaster();
+
+  static G4Timer fgRunTimer;
+  static std::mutex fgRunTimerMutex;
+  static bool fgRunTimerStarted;
   Run *fRun;
 };
 

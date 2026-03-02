@@ -29,7 +29,7 @@
 #define EVENTACTION_HH
 
 #include "G4UserEventAction.hh"
-#include "G4Timer.hh"
+#include "G4Types.hh"
 
 #include "RunAction.hh"
 
@@ -67,8 +67,6 @@ private:
   G4int fVerbosity{0};
   /// ID of a hit collection to analyse
   G4int fHitCollectionID;
-  /// Timer measurement
-  G4Timer fTimer;
   /// Messenger for this
   EventActionMessenger *fMessenger{nullptr};
   RunAction *fRunAction{nullptr};

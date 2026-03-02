@@ -27,6 +27,7 @@
 //
 #include "EventAction.hh"
 #include "EventActionMessenger.hh"
+#include "RunAction.hh"
 #include "SimpleHit.hh"
 
 #include "G4SDManager.hh"
@@ -37,7 +38,7 @@
 #include "G4PhysicalVolumeStore.hh"
 #include "G4SystemOfUnits.hh"
 
-EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1), fTimer()
+EventAction::EventAction() : G4UserEventAction(), fHitCollectionID(-1)
 {
   fMessenger = new EventActionMessenger(this);
 }
@@ -50,7 +51,7 @@ EventAction::~EventAction() {}
 
 void EventAction::BeginOfEventAction(const G4Event *)
 {
-  fTimer.Start();
+  RunAction::StartRunTimerFromFirstEvent();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -58,8 +59,6 @@ void EventAction::BeginOfEventAction(const G4Event *)
 void EventAction::EndOfEventAction(const G4Event *aEvent)
 {
   auto eventId = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
-
-  fTimer.Stop();
 
   // Get hits collection ID (only once)
   if (fHitCollectionID == -1) {
