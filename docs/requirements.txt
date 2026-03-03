@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
 sphinx>=7
 myst-parser>=2
 breathe>=4.35

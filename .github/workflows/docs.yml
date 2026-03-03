@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+name: Docs Build Check
+
+on: [pull_request, push]
+
+jobs:
+  docs-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install docs dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r docs/requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y doxygen
+
+      - name: Generate runtime-parameters page
+        run: |
+          # Generator is strict by default and fails if messenger/macro/docs
+          # metadata is inconsistent.
+          python docs/scripts/generate_runtime_parameters.py
+
+      - name: Build docs (warnings allowed)
+        run: make -C docs html

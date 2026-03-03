@@ -168,13 +168,16 @@ def _format_command_rows(
     return "".join(chunks)
 
 
-def generate(output_path: Path, messenger_path: Path, template_path: Path) -> None:
+def generate(output_path: Path, messenger_path: Path, template_path: Path) -> dict[str, object]:
     commands, section_order = parse_messenger_commands(messenger_path)
     examples = parse_ci_template(template_path)
 
     source_commands = {c["command"] for c in commands}
     template_commands = set(examples)
     unknown_template_commands = sorted(template_commands - source_commands)
+    if not commands:
+        print("WARNING: no /adept/ commands parsed from messenger source")
+
     if unknown_template_commands:
         print("WARNING: commands present in template but not in messenger source:")
         for cmd in unknown_template_commands:
@@ -213,6 +216,12 @@ def generate(output_path: Path, messenger_path: Path, template_path: Path) -> No
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(content, encoding="utf-8")
 
+    return {
+        "command_count": len(commands),
+        "unknown_template_commands": unknown_template_commands,
+        "uncategorized_commands": uncategorized,
+    }
+
 
 def main() -> int:
     docs_dir = Path(__file__).resolve().parents[1]
@@ -222,8 +231,23 @@ def main() -> int:
     template_path = repo_root / "test" / "regression" / "scripts" / "test_ui_commands_template.mac"
     output_path = docs_dir / "user" / "runtime-parameters.md"
 
-    generate(output_path, messenger_path, template_path)
+    diagnostics = generate(output_path, messenger_path, template_path)
     print(f"Generated {output_path}")
+
+    strict_failures = []
+    if diagnostics["command_count"] == 0:
+        strict_failures.append("no commands parsed from messenger source")
+    if diagnostics["unknown_template_commands"]:
+        strict_failures.append("template contains commands not found in messenger source")
+    if diagnostics["uncategorized_commands"]:
+        strict_failures.append("some commands are missing ADEPT_DOCS_SECTION markers")
+
+    if strict_failures:
+        print("ERROR: runtime-parameters generation failed strict validation:")
+        for failure in strict_failures:
+            print(f"  - {failure}")
+        return 1
+
     return 0
 
 
