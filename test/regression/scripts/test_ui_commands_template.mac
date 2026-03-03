@@ -112,7 +112,7 @@
 # Default: 5. This can be used to optimize the performance in highly granular geometries
 
 ### ------------
-### Special settings for the AdePTPhysics (only used inside the AdePT examples) ###
+### Special settings for G4EmStandard_AdePT physics constructor ###
 
 /adept/addWDTRegion Layer1
 # Add a region in which the gamma transport is done via Woodcock tracking. 

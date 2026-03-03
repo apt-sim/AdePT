@@ -7,6 +7,18 @@ SPDX-License-Identifier: CC-BY-4.0
 
 This site is the home for AdePT installation, user guide, and API reference.
 
+## Introduction
+
+AdePT is a lightweight Geant4 plugin designed to accelerate high-energy
+physics simulation by offloading electromagnetic transport to GPUs.
+Currently, it targets electrons, positrons, and gammas.
+
+AdePT relies on
+[G4HepEm](https://github.com/mnovak42/g4hepem), which provides specialized,
+optimized tracking for electrons, positrons, and gammas. AdePT provides the
+GPU transport implementation and integrates it with Geant4
+applications.
+
 ```{toctree}
 :maxdepth: 2
 :caption: Installation
