@@ -187,6 +187,10 @@ def generate(output_path: Path, messenger_path: Path, template_path: Path) -> No
             print(f"  - {cmd}")
 
     header = (
+        "<!--\n"
+        "SPDX-FileCopyrightText: 2026 CERN\n"
+        "SPDX-License-Identifier: CC-BY-4.0\n"
+        "-->\n\n"
         "# Runtime Parameters\n\n"
         "<!--\n"
         "This file is auto-generated.\n"

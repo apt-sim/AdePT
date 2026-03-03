@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 CERN
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # AdePT Documentation
 
 This site is the home for AdePT installation, user guide, and API reference.
