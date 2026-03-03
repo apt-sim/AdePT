@@ -42,3 +42,7 @@ PREDEFINED             += __constant__=
 PREDEFINED             += __managed__=
 PREDEFINED             += __launch_bounds__(x)=
 PREDEFINED             += __align__(x)=
+PREDEFINED             += __forceinline__=inline
+PREDEFINED             += __forceinline=inline
+PREDEFINED             += __restrict__=
+PREDEFINED             += __restrict=

@@ -7,21 +7,46 @@ on: [pull_request, push]
 
 jobs:
   docs-build:
+    name: Docs (${{ matrix.name }})
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: stable
+            python: "3.11"
+            experimental: false
+            install_mode: stable
+          - name: latest-sphinx9
+            python: "3.12"
+            experimental: true
+            install_mode: latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "${{ matrix.python }}"
 
       - name: Install docs dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r docs/requirements.txt
+          if [ "${{ matrix.install_mode }}" = "stable" ]; then
+            python -m pip install -r docs/requirements.txt
+          else
+            # Compatibility probe against latest Sphinx 9 toolchain.
+            python -m pip install -U "sphinx>=9,<10" "breathe>=4.36" "myst-parser>=5" "sphinx-rtd-theme>=3"
+          fi
           sudo apt-get update
           sudo apt-get install -y doxygen
+
+      - name: Show docs tool versions
+        run: |
+          python -c "import sys; print(sys.version)"
+          python -c "import sphinx, breathe, myst_parser; print('sphinx', sphinx.__version__); print('breathe', breathe.__version__); print('myst-parser', myst_parser.__version__)"
+          doxygen --version
 
       - name: Generate runtime-parameters page
         run: |
