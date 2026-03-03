@@ -22,6 +22,7 @@ void G4EmStandardPhysics_HepEm::ConstructProcess()
   // First register the standard Geant4 EM processes for this constructor.
   G4EmStandardPhysics::ConstructProcess();
 
+  // Register custom G4HepEm tracking manager for e-/e+ and gammas.
   fTrackingManager = new G4HepEmTrackingManager();
 
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);

@@ -26,6 +26,7 @@ void G4EmStandardPhysics_AdePT::ConstructProcess()
   // First register the standard Geant4 EM processes for this constructor.
   G4EmStandardPhysics::ConstructProcess();
 
+  // Register custom tracking manager for e-/e+ and gammas.
   fTrackingManager = new AdePTTrackingManager(fAdePTConfiguration, /*verbosity=*/0);
 
   auto g4hepemconfig = fTrackingManager->GetG4HepEmConfig();
@@ -33,9 +34,11 @@ void G4EmStandardPhysics_AdePT::ConstructProcess()
       fAdePTConfiguration->GetMultipleStepsInMSCWithTransportation());
   g4hepemconfig->SetEnergyLossFluctuation(fAdePTConfiguration->GetEnergyLossFluctuation());
 
+  // Loop over all configured Woodcock regions and register them
   for (const auto &regionName : fAdePTConfiguration->GetWDTRegionNames()) {
     g4hepemconfig->SetWoodcockTrackingRegion(regionName);
   }
+  // set Woodcock tracking energy limit
   g4hepemconfig->SetWDTEnergyLimit(fAdePTConfiguration->GetWDTKineticEnergyLimit());
 
   G4Electron::Definition()->SetTrackingManager(fTrackingManager);
