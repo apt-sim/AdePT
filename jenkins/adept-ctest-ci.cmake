@@ -61,6 +61,11 @@ message("CI test dashboard script configuration:\n${vars}\n")
 include("${CTEST_SOURCE_DIRECTORY}/CTestConfig.cmake")
 
 set(ENV{CTEST_OUTPUT_ON_FAILURE} 1)
+if(DEFINED ENV{CTEST_TEST_TIMEOUT} AND NOT "$ENV{CTEST_TEST_TIMEOUT}" STREQUAL "")
+  set(CTEST_TEST_TIMEOUT "$ENV{CTEST_TEST_TIMEOUT}")
+else()
+  set(CTEST_TEST_TIMEOUT 2400)
+endif()
 
 ctest_start(${CTEST_MODEL} TRACK ${CTEST_MODEL})
 ctest_test(BUILD ${CTEST_BINARY_DIRECTORY}
