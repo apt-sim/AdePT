@@ -37,3 +37,5 @@
 # Editor files and temporaries
 .vscode
 build
+docs/_build
+docs/__pycache__

@@ -23,41 +23,17 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fDir = std::make_unique<G4UIdirectory>("/adept/");
   fDir->SetGuidance("adept configuration messenger");
 
-  fSetTrackInAllRegionsCmd = std::make_unique<G4UIcmdWithABool>("/adept/setTrackInAllRegions", this);
-  fSetTrackInAllRegionsCmd->SetGuidance("If true, particles are tracked on the GPU across the whole geometry");
-
-  fSetCallUserSteppingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserSteppingAction", this);
-  fSetCallUserSteppingActionCmd->SetGuidance(
-      "If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that "
-      "means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the "
-      "secondary before the primary has finished its track."
-      " NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance");
-
-  fSetCallUserTrackingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserTrackingAction", this);
-  fSetCallUserTrackingActionCmd->SetGuidance(
-      "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
-      "means that the last step of every track is recorded on GPU and send back to CPU");
-
-  fSetSpeedOfLightCmd = std::make_unique<G4UIcmdWithABool>("/adept/SpeedOfLight", this);
-  fSetSpeedOfLightCmd->SetGuidance(
-      "If true, all electrons, positrons, gammas handed over to AdePT are immediately killed. WARNING: Only to be used "
-      "for testing the speed and fraction of EM, all results are wrong!");
-
-  fAddRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/addGPURegion", this);
-  fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
-
-  fAddWDTRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/addWDTRegion", this);
-  fAddWDTRegionCmd->SetGuidance("Add a region in which the gamma transport is done via Woodcock tracking. "
-                                "NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other "
-                                "physics (which is done in LHCb, CMS, ATLAS) then this will have NO effect!");
-
-  fRemoveRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/removeGPURegion", this);
-  fRemoveRegionCmd->SetGuidance(
-      "Remove a region in which transport will be done on GPU (so it will be done on the CPU)");
-
+  // NOTE: The ADEPT_DOCS_SECTION markers are parsed by
+  // docs/scripts/generate_runtime_parameters.py. Keep the marker prefix and
+  // section names stable unless the generator is updated.
+  // ADEPT_DOCS_SECTION: Misc
   fSetVerbosityCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/setVerbosity", this);
   fSetVerbosityCmd->SetGuidance("Set verbosity level for the AdePT integration layer");
 
+  fSetAdePTSeedCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/setSeed", this);
+  fSetAdePTSeedCmd->SetGuidance("Set the base seed for the rng. Default: 1234567");
+
+  // ADEPT_DOCS_SECTION: Setting Up the GPU
   fSetMillionsOfTrackSlotsCmd = std::make_unique<G4UIcmdWithADouble>("/adept/setMillionsOfTrackSlots", this);
   fSetMillionsOfTrackSlotsCmd->SetGuidance(
       "Set the total number of track slots that will be allocated on the GPU, in millions");
@@ -89,6 +65,42 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "Sets the HitBuffer safety factor for stalling the GPU. If nParticlesInFlight * HitBufferSafetyFactor > "
       "NumHitSlotsLeft, the GPU will stall. Default: 1.5 ");
 
+  fSetCUDAStackLimitCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/setCUDAStackLimit", this);
+  fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
+
+  fSetCUDAHeapLimitCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/setCUDAHeapLimit", this);
+  fSetCUDAHeapLimitCmd->SetGuidance("Set the CUDA device heap limit");
+
+  // ADEPT_DOCS_SECTION: Specify the regions where the GPU is used
+  fSetTrackInAllRegionsCmd = std::make_unique<G4UIcmdWithABool>("/adept/setTrackInAllRegions", this);
+  fSetTrackInAllRegionsCmd->SetGuidance("If true, particles are tracked on the GPU across the whole geometry");
+
+  fAddRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/addGPURegion", this);
+  fAddRegionCmd->SetGuidance("Add a region in which transport will be done on GPU");
+
+  fRemoveRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/removeGPURegion", this);
+  fRemoveRegionCmd->SetGuidance(
+      "Remove a region in which transport will be done on GPU (so it will be done on the CPU)");
+
+  // ADEPT_DOCS_SECTION: User Actions
+  fSetCallUserSteppingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserSteppingAction", this);
+  fSetCallUserSteppingActionCmd->SetGuidance(
+      "If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that "
+      "means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the "
+      "secondary before the primary has finished its track."
+      " NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance");
+
+  fSetCallUserTrackingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserTrackingAction", this);
+  fSetCallUserTrackingActionCmd->SetGuidance(
+      "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
+      "means that the last step of every track is recorded on GPU and send back to CPU");
+
+  // ADEPT_DOCS_SECTION: Special Settings
+  fSetSpeedOfLightCmd = std::make_unique<G4UIcmdWithABool>("/adept/SpeedOfLight", this);
+  fSetSpeedOfLightCmd->SetGuidance(
+      "If true, all electrons, positrons, gammas handed over to AdePT are immediately killed. WARNING: Only to be used "
+      "for testing the speed and fraction of EM, all results are wrong!");
+
   fSetGDMLCmd = std::make_unique<G4UIcmdWithAString>("/adept/setVecGeomGDML", this);
   fSetGDMLCmd->SetGuidance("Temporary method for setting the geometry to use with VecGeom");
 
@@ -104,19 +116,17 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
                                  "gamma back to the normal gamma kernel. Default: "
                                  "5. This can be used to optimize the performance in highly granular geometries");
 
+  // ADEPT_DOCS_SECTION: Special settings for G4EmStandard_AdePT physics constructor
+  fAddWDTRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/addWDTRegion", this);
+  fAddWDTRegionCmd->SetGuidance("Add a region in which the gamma transport is done via Woodcock tracking. "
+                                "NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other "
+                                "physics (which is done in LHCb, CMS, ATLAS) then this will have NO effect!");
+
   fSetWDTKineticEnergyLimitCmd = std::make_unique<G4UIcmdWithADouble>("/adept/addWDTKineticEnergyLimit", this);
   fSetWDTKineticEnergyLimitCmd->SetGuidance(
       "Sets a kinetic energy limit above which the gamma transport is done via Woodcock tracking in the assigned "
       "regions. NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other physics (which is done "
       "in LHCb, CMS, ATLAS) then this will have NO effect!");
-
-  fSetCUDAStackLimitCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/setCUDAStackLimit", this);
-  fSetCUDAStackLimitCmd->SetGuidance("Set the CUDA device stack limit");
-  fSetCUDAHeapLimitCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/setCUDAHeapLimit", this);
-  fSetCUDAHeapLimitCmd->SetGuidance("Set the CUDA device heap limit");
-
-  fSetAdePTSeedCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/setSeed", this);
-  fSetAdePTSeedCmd->SetGuidance("Set the base seed for the rng. Default: 1234567");
 
   fSetMultipleStepsInMSCWithTransportationCmd =
       std::make_unique<G4UIcmdWithABool>("/adept/SetMultipleStepsInMSCWithTransportation", this);
