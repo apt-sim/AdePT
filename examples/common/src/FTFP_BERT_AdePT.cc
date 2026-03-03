@@ -14,7 +14,6 @@
 #include "G4MaterialTable.hh"
 
 #include "G4DecayPhysics.hh"
-#include "G4EmStandardPhysics.hh"
 #include "G4EmExtraPhysics.hh"
 #include "G4IonPhysics.hh"
 #include "G4StoppingPhysics.hh"
@@ -22,8 +21,7 @@
 #include "G4NeutronTrackingCut.hh"
 #include "G4HadronPhysicsFTFP_BERT.hh"
 
-#include <AdePT/integration/HepEMPhysics.hh>
-#include <AdePT/integration/AdePTPhysics.hh>
+#include <AdePT/integration/G4EmStandardPhysics_AdePT.hh>
 #include "FTFP_BERT_AdePT.hh"
 
 FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
@@ -37,14 +35,9 @@ FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)
 
   // EM Physics
 
-  // Register the EM physics to use for tracking on CPU
-  // Note: The EM processes for e-, e+ and gammas are registered, but not used as the
-  // partices are tracked by the specialized tracking manager
-  RegisterPhysics(new G4EmStandardPhysics());
-
-  // Register the AdePT physics
-  // Note: The AdePT tracking manager uses the G4HepEM tracking manager outside of GPU regions
-  RegisterPhysics(new AdePTPhysics(ver));
+  // Register EM with AdePT integration as one constructor to avoid overlapping
+  // EM constructor state from separate modules.
+  RegisterPhysics(new G4EmStandardPhysics_AdePT(ver));
 
   // Synchroton Radiation & GN Physics
   RegisterPhysics(new G4EmExtraPhysics(ver));

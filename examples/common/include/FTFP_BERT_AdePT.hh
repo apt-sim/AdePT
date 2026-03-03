@@ -4,9 +4,6 @@
 #ifndef FTFP_BERT_AdePT_h
 #define FTFP_BERT_AdePT_h 1
 
-#include <AdePT/integration/AdePTTrackingManager.hh>
-#include <AdePT/integration/AdePTPhysics.hh>
-
 #include <CLHEP/Units/SystemOfUnits.h>
 
 #include "globals.hh"
@@ -19,12 +16,6 @@ public:
 
   FTFP_BERT_AdePT(const FTFP_BERT_AdePT &)            = delete;
   FTFP_BERT_AdePT &operator=(const FTFP_BERT_AdePT &) = delete;
-
-  AdePTPhysics *GetAdePTPhysicsList() { return fAdePTPhysicsList; }
-
-private:
-  // NEVER INITIALIZED!
-  AdePTPhysics *fAdePTPhysicsList{nullptr};
 };
 
 #endif

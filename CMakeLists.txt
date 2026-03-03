@@ -405,8 +405,8 @@ endif()
 set(ADEPT_G4_INTEGRATION_SRCS
   src/G4HepEmTrackingManagerSpecialized.cc
   src/AdePTTrackingManager.cc
-  src/AdePTPhysics.cc
-  src/HepEMPhysics.cc
+  src/G4EmStandardPhysics_AdePT.cc
+  src/G4EmStandardPhysics_HepEm.cc
   src/AdePTGeant4Integration.cpp
   src/AdePTConfigurationMessenger.cc
   src/AdePTTrackingManager.cu

@@ -1,43 +1,31 @@
-// SPDX-FileCopyrightText: 2023 CERN
+// SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdePTPhysics.hh>
+#include <AdePT/integration/G4EmStandardPhysics_AdePT.hh>
 
-#include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/core/AdePTConfiguration.hh>
-#include <AdePT/core/AdePTTransportInterface.hh>
 #include <AdePT/integration/AdePTTrackingManager.hh>
 
-#include "G4ParticleDefinition.hh"
 #include "G4Electron.hh"
-#include "G4Positron.hh"
 #include "G4Gamma.hh"
-#include "G4EmParameters.hh"
-#include "G4BuilderType.hh"
+#include "G4Positron.hh"
 
-AdePTPhysics::AdePTPhysics(int ver, const G4String &name) : G4VPhysicsConstructor(name)
+G4EmStandardPhysics_AdePT::G4EmStandardPhysics_AdePT(G4int ver, const G4String &name)
+    : G4EmStandardPhysics(ver, name), fAdePTConfiguration(new AdePTConfiguration())
 {
-  fAdePTConfiguration = new AdePTConfiguration();
-
-  G4EmParameters *param = G4EmParameters::Instance();
-  param->SetDefaults();
-  param->SetVerbose(1);
-
-  // Range factor: (can be set from the G4 macro)
-  // param->SetMscRangeFactor(0.04); // 0.04 is the default set by SetDefaults
-
-  SetPhysicsType(bUnknown);
 }
 
-AdePTPhysics::~AdePTPhysics()
+G4EmStandardPhysics_AdePT::~G4EmStandardPhysics_AdePT()
 {
   delete fAdePTConfiguration;
-  // the delete below causes a crash with G4.10.7
-  // delete fTrackingManager;
+  // Keep Geant4-owned cleanup behavior for tracking manager deletion.
 }
 
-void AdePTPhysics::ConstructProcess()
+void G4EmStandardPhysics_AdePT::ConstructProcess()
 {
+  // First register the standard Geant4 EM processes for this constructor.
+  G4EmStandardPhysics::ConstructProcess();
+
   // Register custom tracking manager for e-/e+ and gammas.
   fTrackingManager = new AdePTTrackingManager(fAdePTConfiguration, /*verbosity=*/0);
 
