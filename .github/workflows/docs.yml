@@ -8,17 +8,19 @@ on: [pull_request, push]
 jobs:
   docs-build:
     name: Docs (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: stable
+            os: ubuntu-22.04
             python: "3.11"
             experimental: false
             install_mode: stable
           - name: latest-sphinx9
+            os: ubuntu-22.04
             python: "3.12"
             experimental: true
             install_mode: latest
@@ -46,7 +48,13 @@ jobs:
         run: |
           python -c "import sys; print(sys.version)"
           python -c "import sphinx, breathe, myst_parser; print('sphinx', sphinx.__version__); print('breathe', breathe.__version__); print('myst-parser', myst_parser.__version__)"
-          doxygen --version
+          DOXYGEN_VERSION=$(doxygen --version)
+          echo "doxygen ${DOXYGEN_VERSION}"
+          # Keep CI/local behavior aligned: docs were validated on Jammy's Doxygen 1.9.1.
+          if [ "${{ matrix.os }}" = "ubuntu-22.04" ] && [ "${DOXYGEN_VERSION}" != "1.9.1" ]; then
+            echo "Unexpected doxygen version on ubuntu-22.04: ${DOXYGEN_VERSION}"
+            exit 1
+          fi
 
       - name: Generate runtime-parameters page
         run: |
@@ -56,3 +64,13 @@ jobs:
 
       - name: Build docs (warnings allowed)
         run: make -C docs html
+
+      - name: Upload docs debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-debug-${{ matrix.name }}
+          if-no-files-found: ignore
+          path: |
+            /tmp/sphinx-err-*.log
+            docs/_build/doxygen/xml
