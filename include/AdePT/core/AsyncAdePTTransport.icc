@@ -5,13 +5,13 @@
 
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
-#include <VecGeom/base/Stopwatch.h>
 #include <VecGeom/management/BVHManager.h>
 #include <VecGeom/management/GeoManager.h>
 #ifdef ADEPT_USE_SURF
 #include <VecGeom/surfaces/BrepHelper.h>
 #endif
 
+#include <G4Timer.hh>
 #include <G4RunManager.hh>
 #include <G4Threading.hh>
 #include <G4Proton.hh>
@@ -184,11 +184,12 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cx
   using SurfData   = vgbrep::SurfData<double>;
   using BrepHelper = vgbrep::BrepHelper<double>;
 #endif
-  vecgeom::Stopwatch timer;
+  G4Timer timer;
   timer.Start();
   if (!BrepHelper::Instance().Convert()) return 1;
   BrepHelper::Instance().PrintSurfData();
-  std::cout << "== Conversion to surface model done in " << timer.Stop() << " [s]\n";
+  timer.Stop();
+  std::cout << "== Conversion to surface model done in " << timer.GetRealElapsed() << " [s]\n";
   // Upload only navigation table to the GPU
   cudaManager.SynchronizeNavigationTable();
   async_adept_impl::CopySurfaceModelToGPU();

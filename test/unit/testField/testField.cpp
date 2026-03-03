@@ -23,7 +23,7 @@
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
 
-#include <VecGeom/base/Stopwatch.h>
+#include <G4Timer.hh>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/management/BVHManager.h>
 #include <VecGeom/gdml/Frontend.h>
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
-  vecgeom::Stopwatch timer;
+  G4Timer timer;
   timer.Start();
 
   // Initialize Geant4
@@ -267,7 +267,8 @@ int main(int argc, char *argv[])
 #endif
   InitBVH();
 
-  auto time_cpu = timer.Stop();
+  timer.Stop();
+  auto time_cpu = timer.GetRealElapsed();
   std::cout << "Initialization took: " << time_cpu << " sec\n";
 
   int NumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();

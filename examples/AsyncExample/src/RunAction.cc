@@ -49,7 +49,8 @@ void RunAction::BeginOfRunAction(const G4Run *)
 void RunAction::EndOfRunAction(const G4Run *)
 {
   static std::mutex print_mutex;
-  auto time = fTimer.Stop();
+  fTimer.Stop();
+  auto time = fTimer.GetRealElapsed();
   auto tid  = G4Threading::G4GetThreadId();
   // Just protect the printout to avoid interlacing text
   const std::scoped_lock<std::mutex> lock(print_mutex);

@@ -13,7 +13,7 @@
 #include <AdePT/copcore/Ranluxpp.h>
 
 #include <VecGeom/base/Config.h>
-#include <VecGeom/base/Stopwatch.h>
+#include <G4Timer.hh>
 #include <VecGeom/management/GeoManager.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
@@ -346,7 +346,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   SetBzFieldPtr<<<1, 1>>>(BzFieldValue_dev);
   COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
 
-  vecgeom::Stopwatch timer;
+  G4Timer timer;
   timer.Start();
 
   std::cout << "Entering loop to simulate " << numParticles << " particles. " << std::flush;
@@ -516,7 +516,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   }
   std::cout << "\ndone!" << std::endl;
 
-  auto time = timer.Stop();
+  timer.Stop();
+  auto time = timer.GetRealElapsed();
   std::cout << "Run time: " << time << "\n";
 
   // Transfer back scoring.

@@ -29,8 +29,9 @@
 #define RUNACTION_HH
 
 #include "G4UserRunAction.hh"
-#include <VecGeom/base/Stopwatch.h>
 #include "G4String.hh"
+#include "G4Timer.hh"
+#include <mutex>
 
 class G4Run;
 class Run;
@@ -55,10 +56,15 @@ public:
   /// Write and close the file
   virtual void EndOfRunAction(const G4Run *) final;
 
+  // Start/stop the run wall-time timer around actual event processing only.
+  static void StartRunTimerFromFirstEvent();
+
 private:
-  /// Pointer to detector construction to retrieve the detector dimensions to
-  /// setup the histograms
-  vecgeom::Stopwatch fTimer;
+  static double StopRunTimerOnMaster();
+
+  static G4Timer fgRunTimer;
+  static std::mutex fgRunTimerMutex;
+  static bool fgRunTimerStarted;
 };
 
 #endif /* RUNACTION_HH */

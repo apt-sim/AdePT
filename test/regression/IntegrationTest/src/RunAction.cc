@@ -30,8 +30,11 @@
 #include "G4Threading.hh"
 #include <AdePT/benchmarking/TestManager.h>
 
-#include <thread>
 #include <mutex>
+
+G4Timer RunAction::fgRunTimer{};
+std::mutex RunAction::fgRunTimerMutex{};
+bool RunAction::fgRunTimerStarted = false;
 
 RunAction::RunAction() : G4UserRunAction(), fOutputDirectory(""), fOutputFilename("") {}
 
@@ -50,9 +53,12 @@ RunAction::~RunAction() {}
 
 void RunAction::BeginOfRunAction(const G4Run *)
 {
-  fTimer.Start();
   auto tid = G4Threading::G4GetThreadId();
   if (tid < 0) {
+    {
+      std::lock_guard<std::mutex> lock(fgRunTimerMutex);
+      fgRunTimerStarted = false;
+    }
     if (fDoBenchmark) {
       fRun->GetTestManager()->timerStart(Run::timers::TOTAL);
     }
@@ -64,8 +70,7 @@ void RunAction::BeginOfRunAction(const G4Run *)
 void RunAction::EndOfRunAction(const G4Run *)
 {
   static std::mutex print_mutex;
-  auto time = fTimer.Stop();
-  auto tid  = G4Threading::G4GetThreadId();
+  auto tid = G4Threading::G4GetThreadId();
   // Just protect the printout to avoid interlacing text
   const std::lock_guard<std::mutex> lock(print_mutex);
 
@@ -76,6 +81,7 @@ void RunAction::EndOfRunAction(const G4Run *)
 
   // Print timer just for the master thread since this is called when all workers are done
   if (tid < 0) {
+    const auto time = StopRunTimerOnMaster();
     std::cout << "Run time: " << time << "\n";
     if (fDoBenchmark) {
       fRun->GetTestManager()->timerStop(Run::timers::TOTAL);
@@ -90,4 +96,24 @@ G4Run *RunAction::GenerateRun()
 {
   fRun = new Run(this);
   return fRun;
+}
+
+void RunAction::StartRunTimerFromFirstEvent()
+{
+  std::lock_guard<std::mutex> lock(fgRunTimerMutex);
+  if (!fgRunTimerStarted) {
+    fgRunTimer.Start();
+    fgRunTimerStarted = true;
+  }
+}
+
+double RunAction::StopRunTimerOnMaster()
+{
+  std::lock_guard<std::mutex> lock(fgRunTimerMutex);
+  if (!fgRunTimerStarted) return 0.0;
+
+  fgRunTimer.Stop();
+  auto time         = fgRunTimer.GetRealElapsed();
+  fgRunTimerStarted = false;
+  return time;
 }
