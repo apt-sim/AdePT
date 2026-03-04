@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-# Known-good docs toolchain (validated with Python 3.11).
-# Keep pinned for reproducible CI/local behavior.
-sphinx==9.0.4
-breathe==4.36.0
-myst-parser==5.0.0
-sphinx-rtd-theme==3.1.0
+# Compatible ranges within tested major versions.
+sphinx>=9,<10
+breathe>=4.36,<5
+myst-parser>=5,<6
+sphinx-rtd-theme>=3,<4

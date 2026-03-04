@@ -8,14 +8,15 @@ on: [pull_request, push]
 jobs:
   docs-build:
     name: Docs
-    runs-on: ubuntu-22.04
+    # Keep in sync with .readthedocs.yaml to avoid CI/RTD drift.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install docs dependencies
         run: |
@@ -24,33 +25,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y doxygen
 
-      - name: Show docs tool versions
+      - name: Print docs tool versions
         run: |
           python -c "import sys; print(sys.version)"
           python -c "import sphinx, breathe, myst_parser; print('sphinx', sphinx.__version__); print('breathe', breathe.__version__); print('myst-parser', myst_parser.__version__)"
-          DOXYGEN_VERSION=$(doxygen --version)
-          echo "doxygen ${DOXYGEN_VERSION}"
-          # Keep CI/local behavior aligned: docs were validated on Jammy's Doxygen 1.9.1.
-          if [ "${DOXYGEN_VERSION}" != "1.9.1" ]; then
-            echo "Unexpected doxygen version: ${DOXYGEN_VERSION}"
-            exit 1
-          fi
+          python -c "import subprocess; from packaging.version import Version; v=subprocess.check_output(['doxygen','--version'], text=True).strip(); print(f'doxygen {v}'); assert Version(v) >= Version('1.9.1'), f'doxygen {v} is too old; require >= 1.9.1'"
 
-      - name: Generate runtime-parameters page
+      - name: Read the Docs pre_build parity
         run: |
-          # Generator is strict by default and fails if messenger/macro/docs
+          # Generator fails if messenger/macro/docs
           # metadata is inconsistent.
           python docs/scripts/generate_runtime_parameters.py
+          cd docs && mkdir -p _build/doxygen && doxygen Doxyfile
 
-      - name: Build docs (warnings allowed)
-        run: make -C docs html
-
-      - name: Upload docs debug artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docs-debug
-          if-no-files-found: ignore
-          path: |
-            /tmp/sphinx-err-*.log
-            docs/_build/doxygen/xml
+      - name: Read the Docs sphinx parity
+        run: sphinx-build -b html docs docs/_build/html
