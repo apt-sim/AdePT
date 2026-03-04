@@ -11,6 +11,7 @@ INPUT                  = ../include/AdePT ../src
 RECURSIVE              = YES
 FILE_PATTERNS          = *.h *.hh *.hpp *.hxx *.cuh *.icc *.cc *.cpp *.cu
 EXCLUDE_PATTERNS       = */build/* */adept-build/* */_deps/*
+EXCLUDE_SYMBOLS        = @*
 
 GENERATE_HTML          = NO
 GENERATE_XML           = YES
@@ -21,6 +22,7 @@ EXTRACT_ALL            = YES
 EXTRACT_PRIVATE        = NO
 EXTRACT_STATIC         = NO
 EXTRACT_LOCAL_CLASSES  = YES
+EXTRACT_ANON_NSPACES   = NO
 
 JAVADOC_AUTOBRIEF      = YES
 MULTILINE_CPP_IS_BRIEF = YES
