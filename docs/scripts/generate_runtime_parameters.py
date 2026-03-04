@@ -26,10 +26,12 @@ TYPE_MAP = {
 
 
 def _normalize_text(text: str) -> str:
+    """Collapse whitespace so C++ string fragments become readable prose."""
     return " ".join(text.split())
 
 
 def _extract_joined_cpp_strings(argument_body: str) -> str:
+    """Extract and join C++ string literals from calls like SetGuidance("a" "b")."""
     parts = re.findall(r'"((?:\\.|[^"\\])*)"', argument_body, flags=re.S)
     if not parts:
         return ""
@@ -39,6 +41,7 @@ def _extract_joined_cpp_strings(argument_body: str) -> str:
 
 
 def _find_section_for_position(section_markers: list[tuple[int, str]], position: int) -> str:
+    """Return the most recent ADEPT_DOCS_SECTION marker before a command."""
     current = "Uncategorized"
     for marker_pos, section_name in section_markers:
         if marker_pos <= position:
@@ -49,8 +52,18 @@ def _find_section_for_position(section_markers: list[tuple[int, str]], position:
 
 
 def parse_messenger_commands(path: Path) -> tuple[list[dict[str, str]], list[str]]:
+    """Parse command metadata from AdePTConfigurationMessenger.cc.
+
+    Parsing is intentionally lightweight/regex-based:
+    - creation_re identifies command creation (type + UI path + variable name)
+    - guidance/range/parameter regexes enrich those command rows
+    - section markers group commands for output ordering
+    """
     text = path.read_text(encoding="utf-8")
 
+    # NOTE: This expects commands to be created as:
+    #   fCmd = std::make_unique<G4UIcmdWith...>("/adept/...", this);
+    # Keep this pattern stable or update the regex.
     creation_re = re.compile(
         r"^\s*(f\w+)\s*=\s*std::make_unique<([^>]+)>\(\"(/adept/[^\"]+)\",\s*this\);",
         flags=re.M,
@@ -67,6 +80,8 @@ def parse_messenger_commands(path: Path) -> tuple[list[dict[str, str]], list[str
             section_order.append(section_name)
 
     commands: list[dict[str, str]] = []
+    # Fast lookup so later SetGuidance/SetRange/SetParameterName calls can
+    # update the row associated with a command variable.
     by_var: dict[str, dict[str, str]] = {}
 
     for m in creation_re.finditer(text):
@@ -104,6 +119,7 @@ def parse_messenger_commands(path: Path) -> tuple[list[dict[str, str]], list[str
 
 
 def parse_ci_template(path: Path) -> dict[str, str]:
+    """Extract one example invocation per /adept command from CI macro."""
     command_to_example: dict[str, str] = {}
 
     for raw_line in path.read_text(encoding="utf-8").splitlines():
@@ -111,6 +127,7 @@ def parse_ci_template(path: Path) -> dict[str, str]:
 
         if line.startswith("/adept/"):
             cmd = line.split()[0]
+            # Keep the first occurrence to preserve a stable, concise example.
             command_to_example.setdefault(cmd, line)
             continue
 
@@ -126,6 +143,7 @@ def _format_command_rows(
     examples: dict[str, str],
     section_order: list[str],
 ) -> str:
+    """Render grouped command metadata into markdown tables."""
     grouped: "OrderedDict[str, list[dict[str, str]]]" = OrderedDict()
 
     for cmd in commands:
@@ -169,12 +187,14 @@ def _format_command_rows(
 
 
 def generate(output_path: Path, messenger_path: Path, template_path: Path) -> dict[str, object]:
+    """Generate runtime-parameters.md and return diagnostics for CI checks."""
     commands, section_order = parse_messenger_commands(messenger_path)
     examples = parse_ci_template(template_path)
 
     source_commands = {c["command"] for c in commands}
     template_commands = set(examples)
     unknown_template_commands = sorted(template_commands - source_commands)
+    # Soft warnings here; main() decides whether to fail CI in strict mode.
     if not commands:
         print("WARNING: no /adept/ commands parsed from messenger source")
 
@@ -224,6 +244,7 @@ def generate(output_path: Path, messenger_path: Path, template_path: Path) -> di
 
 
 def main() -> int:
+    """Entry point used by local generation and CI."""
     docs_dir = Path(__file__).resolve().parents[1]
     repo_root = docs_dir.parent
 
@@ -234,6 +255,7 @@ def main() -> int:
     diagnostics = generate(output_path, messenger_path, template_path)
     print(f"Generated {output_path}")
 
+    # Keep CI strict by default: generator must stay aligned with source + macro.
     strict_failures = []
     if diagnostics["command_count"] == 0:
         strict_failures.append("no commands parsed from messenger source")
