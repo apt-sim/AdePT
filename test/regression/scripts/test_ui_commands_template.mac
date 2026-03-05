@@ -25,7 +25,7 @@
 
 
 
-### SETTING UP THE GPU
+### Setting of the GPU parameters
 
 /adept/setMillionsOfTrackSlots 1
 # Set the total number of track slots that will be allocated on the GPU, in millions
@@ -49,11 +49,15 @@
 # NumHitSlotsLeft, the GPU will stall. Default: 1.5
 
 /adept/setCUDAStackLimit 8192
+# Set the CUDA device stack limit
+
+/adept/setCUDAHeapLimit 8192
+# Set the CUDA device heap limit
 
 
 
 ### ------------
-### Specifying where the GPU
+### Specifying where the GPU is used:
 
 /adept/setTrackInAllRegions false 
 # If true, particles are tracked on the GPU across the whole geometry (unless removed via /adept/removeGPURegion )
@@ -68,7 +72,7 @@
 
 
 ### ------------
-### UserActions
+### UserActions:
 /adept/CallUserSteppingAction true
 # If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that 
 # means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the 
@@ -108,7 +112,7 @@
 # Default: 5. This can be used to optimize the performance in highly granular geometries
 
 ### ------------
-### Special settings for the AdePTPhysics (ONLY USED INSIDE EXAMPLES) ###
+### Special settings for G4EmStandard_AdePT physics constructor ###
 
 /adept/addWDTRegion Layer1
 # Add a region in which the gamma transport is done via Woodcock tracking. 
@@ -152,4 +156,3 @@
 # run events with parametrised simulation
 # by default all created models are active
 /run/beamOn 1
-

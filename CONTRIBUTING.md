@@ -101,7 +101,7 @@ $ git clang-format HEAD~1
 
 Run `git clang-format -h` for further options. The AdePT CI system will **FIXME** automatically check code reformatting using the provided clang-format configuration on pull requests. However, developers are encouraged to use code formating locally to reduce conflicts due to formatting issues.
 
-In addition, some conventions are used in AdePT code, details can be found [here](https://AdePT.readthedocs.io/en/latest/codeguide.html). For Doxygen documentation, please follow these recommendations:
+In addition, some conventions are used in AdePT code. For Doxygen documentation, please follow these recommendations:
 
 - Put all documentation in the header files.
 - Use `///` as block comment (instead of `/* ... */`).
