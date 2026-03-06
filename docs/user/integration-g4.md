@@ -54,5 +54,4 @@ In practice this means your Geant4 macro configures `/adept/*` before
 See repository examples and regression integration test:
 
 - `examples/Example1`
-- `examples/AsyncExample`
 - `test/regression/IntegrationTest`
