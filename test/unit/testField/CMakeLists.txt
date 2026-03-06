@@ -35,9 +35,10 @@ cuda_rdc_target_link_libraries(testField
   PRIVATE
     CopCore
     VecGeom::vecgeom
-    VecGeom::vgdml
+    $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
     ${Geant4_LIBRARIES}
     ${G4HepEm_LIBRARIES}
+    G4VG::g4vg
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled

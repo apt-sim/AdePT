@@ -214,10 +214,15 @@ endif()
 
 ### end version check for VecGeom
 
-# Make sure VecGeom::vgdml is enabled
-if(NOT TARGET VecGeom::vgdml)
-  message(FATAL_ERROR "AdePT requires VecGeom compiled with GDML support")
+# Check whether VecGeom::vgdml is enabled
+if(TARGET VecGeom::vgdml)
+  set(VECGEOM_GDML_SUPPORT TRUE)
+  add_compile_definitions(VECGEOM_GDML_SUPPORT)
+else()
+  set(VECGEOM_GDML_SUPPORT FALSE)
+  message(STATUS "VecGeom was compiled without GDML support, only in-memory geometry conversion via g4vg will be available")
 endif()
+
 # Run split kernels
 if (ADEPT_USE_SPLIT_KERNELS)
   add_compile_definitions(ADEPT_USE_SPLIT_KERNELS)
@@ -435,7 +440,7 @@ cuda_rdc_target_link_libraries(AdePT_G4_integration
   PUBLIC
     CopCore
     VecGeom::vecgeom
-    VecGeom::vgdml
+    $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
     ${Geant4_LIBRARIES}
     G4HepEm::g4HepEm
     G4HepEm::g4HepEmData

@@ -183,7 +183,12 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
   } else if (command == fSetHitBufferSafetyFactorCmd.get()) {
     fAdePTConfiguration->SetHitBufferSafetyFactor(fSetHitBufferSafetyFactorCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetGDMLCmd.get()) {
+#ifdef VECGEOM_GDML_SUPPORT
     fAdePTConfiguration->SetVecGeomGDML(newValue);
+#else
+    throw std::runtime_error("Attempting to load geometry via VGDML, but VecGeom was compiled without GDML support, "
+                             "unset /adept/setVecGeomGDML to load via g4vg");
+#endif
   } else if (command == fSetCovfieFileCmd.get()) {
     fAdePTConfiguration->SetCovfieBfieldFile(newValue);
   } else if (command == fSetCUDAStackLimitCmd.get()) {
