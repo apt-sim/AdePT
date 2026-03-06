@@ -6,6 +6,7 @@
 #ifndef SCORING_COMMONS_HH
 #define SCORING_COMMONS_HH
 
+#include <AdePT/core/ParticleTypes.hh>
 #include "VecGeom/navigation/NavigationState.h"
 
 struct GPUStepPoint {
@@ -36,7 +37,7 @@ struct GPUHit {
   short threadId{-1};
   unsigned short fStepCounter{0};
   bool fLastStepOfTrack{false};
-  char fParticleType{0}; // Particle type ID
+  ParticleType fParticleType{ParticleType::Electron};
   unsigned char fNumSecondaries{0};
 };
 
@@ -47,7 +48,7 @@ struct SecondaryInitData {
   vecgeom::Vector3D<double> dir;
   double eKin;
   short creatorProcessId{-1};
-  char particleType{0};
+  ParticleType particleType{ParticleType::Electron};
 };
 
 /// @brief Stores information used for comparison with Geant4 (Number of steps, Number of produced particles, etc)
@@ -82,7 +83,7 @@ __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<double> const &so
 
 /// @brief Fill the provided hit with the given data
 __device__ __forceinline__ void FillHit(
-    GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aStepLimProcessId, char aParticleType,
+    GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aStepLimProcessId, ParticleType aParticleType,
     double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
     vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
     double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,

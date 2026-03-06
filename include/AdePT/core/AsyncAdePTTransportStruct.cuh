@@ -175,8 +175,12 @@ dynamic allocations
   void SwapLeakedQueue() { std::swap(leakedTracksCurrent, leakedTracksNext); }
 };
 
-// Holds all information needed to manage in-flight tracks of one type
-struct ParticleType {
+/// @brief Holds all GPU resources needed to manage in-flight tracks of one particle species:
+///        track buffer, leak buffer, slot managers, interaction queues, CUDA stream and event.
+///
+/// The nested enum provides array-index constants for the three species plus Woodcock-tracking
+/// sentinels.  For physics data (hits, scoring) use the free @ref ParticleType enum class instead.
+struct SpeciesState {
   Track *tracks;
   Track *leaks;
   SlotManager *slotManager;
@@ -192,7 +196,7 @@ struct ParticleType {
 
     NumParticleTypes,
     // alias for Woodcock tracking gammas:
-    // as there is no explicit Woodcock tracking ParticleType, but the NumParticle types is used to loop over the
+    // as there is no explicit Woodcock tracking species, but NumParticleTypes is used to loop over
     // AllParticleQueues (which contain the Woodcock tracking gammas), an alias is used here to mark their access
     GammaWDT          = NumParticleTypes,
     NumParticleQueues = NumParticleTypes + 1
@@ -215,35 +219,35 @@ struct AllInteractionQueues {
 
 // Pointers to track storage for each particle type
 struct TracksAndSlots {
-  Track *const tracks[ParticleType::NumParticleTypes];
-  Track *const leaks[ParticleType::NumParticleTypes];
-  SlotManager *const slotManagers[ParticleType::NumParticleTypes];
-  SlotManager *const slotManagersLeaks[ParticleType::NumParticleTypes];
+  Track *const tracks[SpeciesState::NumParticleTypes];
+  Track *const leaks[SpeciesState::NumParticleTypes];
+  SlotManager *const slotManagers[SpeciesState::NumParticleTypes];
+  SlotManager *const slotManagersLeaks[SpeciesState::NumParticleTypes];
 };
 
 // A bundle of queues for the three particle types.
 struct AllParticleQueues {
   // AllParticleQueues has queues for each particle type + one for Woodcock tracking
-  ParticleQueues queues[ParticleType::NumParticleQueues];
+  ParticleQueues queues[SpeciesState::NumParticleQueues];
 };
 
 struct AllSlotManagers {
-  SlotManager slotManagers[ParticleType::NumParticleTypes];
-  SlotManager slotManagersLeaks[ParticleType::NumParticleTypes];
+  SlotManager slotManagers[SpeciesState::NumParticleTypes];
+  SlotManager slotManagersLeaks[SpeciesState::NumParticleTypes];
 };
 
 // A data structure to transfer statistics after each iteration.
 struct Stats {
-  int inFlight[ParticleType::NumParticleTypes];
-  int leakedTracks[ParticleType::NumParticleTypes];
-  float queueFillLevel[ParticleType::NumParticleQueues];
-  float slotFillLevel[ParticleType::NumParticleTypes];
-  float slotFillLevelLeaks[ParticleType::NumParticleTypes];
+  int inFlight[SpeciesState::NumParticleTypes];
+  int leakedTracks[SpeciesState::NumParticleTypes];
+  float queueFillLevel[SpeciesState::NumParticleQueues];
+  float slotFillLevel[SpeciesState::NumParticleTypes];
+  float slotFillLevelLeaks[SpeciesState::NumParticleTypes];
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
   unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
   unsigned int perEventLeaked[kMaxThreads];
-  unsigned int nLeakedCurrent[ParticleType::NumParticleTypes];
-  unsigned int nLeakedNext[ParticleType::NumParticleTypes];
+  unsigned int nLeakedCurrent[SpeciesState::NumParticleTypes];
+  unsigned int nLeakedNext[SpeciesState::NumParticleTypes];
   unsigned int hitBufferOccupancy;
 };
 
@@ -266,10 +270,10 @@ struct GPUstate {
   GeneralMagneticField magneticField;
 #endif
 
-  ParticleType particles[ParticleType::NumParticleTypes];
+  SpeciesState particles[SpeciesState::NumParticleTypes];
 
   // particle queues for gammas doing woodcock tracking. Only the `initiallyActive` and `nextActive` queue are
-  // allocated, for the leaks the normal gamma queues inside particles[ParticleType::Gamma] are used.
+  // allocated, for the leaks the normal gamma queues inside particles[SpeciesState::Gamma] are used.
   ParticleQueues woodcockQueues;
 
   std::vector<void *> allCudaPointers;
@@ -325,7 +329,7 @@ struct GPUstate {
     if (stats) COPCORE_CUDA_CHECK(cudaFreeHost(stats));
     if (stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
 
-    for (ParticleType &particleType : particles) {
+    for (SpeciesState &particleType : particles) {
       if (particleType.stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(particleType.stream));
       if (particleType.event) COPCORE_CUDA_CHECK(cudaEventDestroy(particleType.event));
     }

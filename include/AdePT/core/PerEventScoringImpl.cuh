@@ -705,8 +705,8 @@ namespace adept_scoring {
 /// @brief Record a hit
 template <>
 __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aTrackID, uint64_t aParentID,
-                          short stepLimProcessId, char aParticleType, double aStepLength, double aTotalEnergyDeposit,
-                          float aTrackWeight, vecgeom::NavigationState const &aPreState,
+                          short stepLimProcessId, ParticleType aParticleType, double aStepLength,
+                          double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
                           vecgeom::Vector3D<double> const &aPrePosition,
                           vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,

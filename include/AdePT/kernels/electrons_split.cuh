@@ -168,10 +168,10 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
         // In case the last steps are recorded, record it now, as this track is killed
         if (returnLastStep) {
           adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,                  // Track ID
-                                   currentTrack.parentId,                 // parent Track ID
-                                   static_cast<short>(10),                // step limiting process ID
-                                   static_cast<char>(IsElectron ? 0 : 1), // Particle type
+                                   currentTrack.trackId,   // Track ID
+                                   currentTrack.parentId,  // parent Track ID
+                                   static_cast<short>(10), // step limiting process ID
+                                   IsElectron ? ParticleType::Electron : ParticleType::Positron,
                                    0.,                       // Step length is 0, as post and prestep point are the same
                                    energyDeposit,            // Total Edep
                                    currentTrack.weight,      // Track weight
@@ -547,13 +547,13 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       // Score the edep for particles that didn't reach the interaction
       if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives)) {
         adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                        // Track ID
-                                 currentTrack.parentId,                       // parent Track ID
-                                 static_cast<short>(winnerProcessIndex),      // step defining process
-                                 static_cast<char>(IsElectron ? 0 : 1),       // Particle type
-                                 elTrack.GetPStepLength(),                    // Step length
-                                 energyDeposit,                               // Total Edep
-                                 currentTrack.weight,                         // Track weight
+                                 currentTrack.trackId,                                         // Track ID
+                                 currentTrack.parentId,                                        // parent Track ID
+                                 static_cast<short>(winnerProcessIndex),                       // step defining process
+                                 IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                                 elTrack.GetPStepLength(),                                     // Step length
+                                 energyDeposit,                                                // Total Edep
+                                 currentTrack.weight,                                          // Track weight
                                  currentTrack.navState,                       // Pre-step point navstate
                                  currentTrack.preStepPos,                     // Pre-step point position
                                  currentTrack.preStepDir,                     // Pre-step point momentum direction
@@ -646,15 +646,15 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     // Score
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
-                               currentTrack.parentId,                       // parent Track ID
-                               static_cast<short>(/*transport*/ 10),        // step limiting process ID
-                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
-                               elTrack.GetPStepLength(),                    // Step length
-                               energyDeposit,                               // Total Edep
-                               currentTrack.weight,                         // Track weight
-                               currentTrack.navState,                       // Pre-step point navstate
-                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.trackId,                                         // Track ID
+                               currentTrack.parentId,                                        // parent Track ID
+                               static_cast<short>(/*transport*/ 10),                         // step limiting process ID
+                               IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                               elTrack.GetPStepLength(),                                     // Step length
+                               energyDeposit,                                                // Total Edep
+                               currentTrack.weight,                                          // Track weight
+                               currentTrack.navState,                                        // Pre-step point navstate
+                               currentTrack.preStepPos,                                      // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
                                currentTrack.nextState,                      // Post-step point navstate
@@ -734,9 +734,9 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
     // if tracking or stepping action is called, return initial step
     if (returnLastStep) {
       secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
-                                       /*particle type*/ char(2)};
+                                       ParticleType::Gamma};
       secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
-                                       /*particle type*/ char(2)};
+                                       ParticleType::Gamma};
     }
   }
 }
@@ -815,7 +815,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {secondary.trackId, secondary.dir, secondary.eKin, /*creator process*/ short(0),
-                                         /*particle type*/ char(0)};
+                                         ParticleType::Electron};
       }
     }
 
@@ -843,15 +843,15 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
-                               currentTrack.parentId,                       // parent Track ID
-                               static_cast<short>(0),                       // step limiting process ID
-                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
-                               elTrack.GetPStepLength(),                    // Step length
-                               energyDeposit,                               // Total Edep
-                               currentTrack.weight,                         // Track weight
-                               currentTrack.navState,                       // Pre-step point navstate
-                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.trackId,                                         // Track ID
+                               currentTrack.parentId,                                        // parent Track ID
+                               static_cast<short>(0),                                        // step limiting process ID
+                               IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                               elTrack.GetPStepLength(),                                     // Step length
+                               energyDeposit,                                                // Total Edep
+                               currentTrack.weight,                                          // Track weight
+                               currentTrack.navState,                                        // Pre-step point navstate
+                               currentTrack.preStepPos,                                      // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
                                currentTrack.nextState,                      // Post-step point navstate
@@ -947,7 +947,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin, /*creator process*/ short(1),
-                                         /*particle type*/ char(2)};
+                                         ParticleType::Gamma};
       }
     }
 
@@ -976,15 +976,15 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
-                               currentTrack.parentId,                       // parent Track ID
-                               static_cast<short>(1),                       // step limiting process ID
-                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
-                               elTrack.GetPStepLength(),                    // Step length
-                               energyDeposit,                               // Total Edep
-                               currentTrack.weight,                         // Track weight
-                               currentTrack.navState,                       // Pre-step point navstate
-                               currentTrack.preStepPos,                     // Pre-step point position
+                               currentTrack.trackId,                                         // Track ID
+                               currentTrack.parentId,                                        // parent Track ID
+                               static_cast<short>(1),                                        // step limiting process ID
+                               IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                               elTrack.GetPStepLength(),                                     // Step length
+                               energyDeposit,                                                // Total Edep
+                               currentTrack.weight,                                          // Track weight
+                               currentTrack.navState,                                        // Pre-step point navstate
+                               currentTrack.preStepPos,                                      // Pre-step point position
                                currentTrack.preStepDir,                     // Pre-step point momentum direction
                                currentTrack.preStepEKin,                    // Pre-step point kinetic energy
                                currentTrack.nextState,                      // Post-step point navstate
@@ -1070,7 +1070,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
-                                         /*particle type*/ char(2)};
+                                         ParticleType::Gamma};
       }
     }
     if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -1087,7 +1087,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
-                                         /*particle type*/ char(2)};
+                                         ParticleType::Gamma};
       }
     }
 
@@ -1102,7 +1102,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(2),                       // step limiting process ID
-                               static_cast<char>(1),                        // Particle type
+                               ParticleType::Positron,                      // Particle type
                                elTrack.GetPStepLength(),                    // Step length
                                energyDeposit,                               // Total Edep
                                currentTrack.weight,                         // Track weight
@@ -1175,7 +1175,7 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(2),                       // step limiting process ID
-                               static_cast<char>(1),                        // Particle type
+                               ParticleType::Positron,                      // Particle type
                                elTrack.GetPStepLength(),                    // Step length
                                energyDeposit,                               // Total Edep
                                currentTrack.weight,                         // Track weight

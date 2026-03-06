@@ -184,18 +184,18 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
     switch (trackInfo.pdg) {
     case 11:
       speciesTM  = &particleManager.electrons;
-      queueIndex = ParticleType::Electron;
+      queueIndex = SpeciesState::Electron;
       break;
     case -11:
       speciesTM  = &particleManager.positrons;
-      queueIndex = ParticleType::Positron;
+      queueIndex = SpeciesState::Positron;
       break;
     case 22:
       speciesTM = &particleManager.gammas;
 
       // check for Woodcock tracking
       const bool useWDT = ShouldUseWDT(trackinfo[i].navState, trackInfo.eKin);
-      queueIndex        = useWDT ? ParticleType::GammaWDT : ParticleType::Gamma;
+      queueIndex        = useWDT ? SpeciesState::GammaWDT : SpeciesState::Gamma;
     };
     assert(speciesTM != nullptr && "Unsupported pdg type");
 
@@ -318,7 +318,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
 {
   if (blockIdx.x == 0) {
     // Clear queues and write statistics
-    for (int i = threadIdx.x; i < ParticleType::NumParticleTypes; i += blockDim.x) {
+    for (int i = threadIdx.x; i < SpeciesState::NumParticleTypes; i += blockDim.x) {
       all.queues[i].initiallyActive->clear();
 #ifdef ADEPT_USE_SPLIT_KERNELS
       all.queues[i].propagation->clear();
@@ -332,17 +332,17 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     }
     if (threadIdx.x == 0) {
       // reset Woodcock tracking gamma queue and add to gammas
-      all.queues[ParticleType::GammaWDT].initiallyActive->clear();
-      stats->inFlight[ParticleType::Gamma] += all.queues[ParticleType::GammaWDT].nextActive->size();
-      stats->queueFillLevel[ParticleType::GammaWDT] = float(all.queues[ParticleType::GammaWDT].nextActive->size()) /
-                                                      all.queues[ParticleType::GammaWDT].nextActive->max_size();
+      all.queues[SpeciesState::GammaWDT].initiallyActive->clear();
+      stats->inFlight[SpeciesState::Gamma] += all.queues[SpeciesState::GammaWDT].nextActive->size();
+      stats->queueFillLevel[SpeciesState::GammaWDT] = float(all.queues[SpeciesState::GammaWDT].nextActive->size()) /
+                                                      all.queues[SpeciesState::GammaWDT].nextActive->max_size();
     }
   } else if (blockIdx.x == 1 && threadIdx.x == 0) {
     // Assert that there are enough slots allocated:
     unsigned int particlesInFlight = 0;
     unsigned int occupiedSlots     = 0;
 
-    for (int i = 0; i < ParticleType::NumParticleTypes; ++i) {
+    for (int i = 0; i < SpeciesState::NumParticleTypes; ++i) {
       particlesInFlight += all.queues[i].nextActive->size();
       occupiedSlots += tracksAndSlots.slotManagers[i]->OccupiedSlots();
       stats->slotFillLevel[i]      = tracksAndSlots.slotManagers[i]->FillLevel();
@@ -351,7 +351,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
 
     // add gammas in Woodcock tracking. As the WDT gammas share the same slot manager as normal gammas, no other action
     // is needed
-    particlesInFlight += all.queues[ParticleType::GammaWDT].nextActive->size();
+    particlesInFlight += all.queues[SpeciesState::GammaWDT].nextActive->size();
 
     if (particlesInFlight > occupiedSlots) {
       printf("Error: %d in flight while %d slots allocated\n", particlesInFlight, occupiedSlots);
@@ -390,7 +390,7 @@ __global__ void ZeroEventCounters(Stats *stats)
     stats->perEventInFlight[i] = 0;
     stats->perEventLeaked[i]   = 0;
   }
-  for (unsigned int i = threadIdx.x; i < ParticleType::NumParticleTypes; i += blockDim.x) {
+  for (unsigned int i = threadIdx.x; i < SpeciesState::NumParticleTypes; i += blockDim.x) {
     stats->nLeakedCurrent[i] = 0;
     stats->nLeakedNext[i]    = 0;
   }
@@ -404,11 +404,11 @@ __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, Trac
   constexpr unsigned int N = kMaxThreads;
   __shared__ unsigned int sharedCount[N];
 
-  for (unsigned int particleType = blockIdx.x; particleType < ParticleType::NumParticleQueues;
+  for (unsigned int particleType = blockIdx.x; particleType < SpeciesState::NumParticleQueues;
        particleType += gridDim.x) {
 
     // WDT gammas access the gamma tracks (but have their own queue)
-    const unsigned int tracksId = particleType == ParticleType::GammaWDT ? ParticleType::Gamma : particleType;
+    const unsigned int tracksId = particleType == SpeciesState::GammaWDT ? SpeciesState::Gamma : particleType;
     Track const *const tracks   = tracksAndSlots.tracks[tracksId];
     adept::MParray const *queue = all.queues[particleType].initiallyActive;
 
@@ -438,13 +438,13 @@ __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, Trac
  */
 __global__ void CountLeakedTracks(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
 {
-  constexpr auto nQueue = 2 * ParticleType::NumParticleTypes;
+  constexpr auto nQueue = 2 * SpeciesState::NumParticleTypes;
   // One block processes each queue
   for (unsigned int queueIndex = blockIdx.x; queueIndex < nQueue; queueIndex += gridDim.x) {
     const auto particleType =
-        queueIndex < ParticleType::NumParticleTypes ? queueIndex : queueIndex - ParticleType::NumParticleTypes;
+        queueIndex < SpeciesState::NumParticleTypes ? queueIndex : queueIndex - SpeciesState::NumParticleTypes;
     Track const *const leaks = tracksAndSlots.leaks[particleType];
-    auto const queue = queueIndex < ParticleType::NumParticleTypes ? all.queues[particleType].leakedTracksCurrent
+    auto const queue = queueIndex < SpeciesState::NumParticleTypes ? all.queues[particleType].leakedTracksCurrent
                                                                    : all.queues[particleType].leakedTracksNext;
     const auto size  = queue->size();
     for (unsigned int i = threadIdx.x; i < size; i += blockDim.x) {
@@ -455,7 +455,7 @@ __global__ void CountLeakedTracks(AllParticleQueues all, Stats *stats, TracksAnd
 
     // Update the global usage
     if (threadIdx.x == 0) {
-      queueIndex < ParticleType::NumParticleTypes ? stats->nLeakedCurrent[particleType] = size
+      queueIndex < SpeciesState::NumParticleTypes ? stats->nLeakedCurrent[particleType] = size
                                                   : stats->nLeakedNext[particleType]    = size;
     }
   }
@@ -469,11 +469,11 @@ __global__ void ClearQueues(Args *...queue)
 
 __global__ void ClearAllQueues(AllParticleQueues all)
 {
-  for (int i = 0; i < ParticleType::NumParticleQueues; i++) {
+  for (int i = 0; i < SpeciesState::NumParticleQueues; i++) {
     all.queues[i].initiallyActive->clear();
     all.queues[i].nextActive->clear();
     // return after initially and nextActive queues are cleared for WDT, as the other pointers are null
-    if (i == ParticleType::GammaWDT) return;
+    if (i == SpeciesState::GammaWDT) return;
 #ifdef ADEPT_USE_SPLIT_KERNELS
     all.queues[i].propagation->clear();
     for (int j = 0; j < ParticleQueues::numInteractions; j++) {
@@ -727,9 +727,9 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   gpuMalloc(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
   gpuState.slotManagerLeaks_dev = nullptr;
   gpuMalloc(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
-  for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    // Number of slots allocated computed based on the proportions set in ParticleType::relativeQueueSize
-    const size_t nSlot              = trackCapacity * ParticleType::relativeQueueSize[i];
+  for (int i = 0; i < SpeciesState::NumParticleTypes; i++) {
+    // Number of slots allocated computed based on the proportions set in SpeciesState::relativeQueueSize
+    const size_t nSlot              = trackCapacity * SpeciesState::relativeQueueSize[i];
     const size_t sizeOfQueueStorage = adept::MParray::SizeOfInstance(nSlot);
     const size_t nLeakSlots         = leakCapacity;
     const size_t sizeOfLeakQueue    = adept::MParray::SizeOfInstance(nLeakSlots);
@@ -748,7 +748,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     // Allocate the queues where the active and leak indices are stored
     // * Current and next active track indices
     // * Current and next leaked track indices
-    ParticleType &particleType    = gpuState.particles[i];
+    SpeciesState &particleType    = gpuState.particles[i];
     particleType.slotManager      = &gpuState.slotManager_dev[i];
     particleType.slotManagerLeaks = &gpuState.slotManagerLeaks_dev[i];
 
@@ -788,7 +788,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     gpuState.particles[i].leaks = leakStorage_dev;
 
     printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
-           ParticleType::relativeQueueSize[i] * 100, trackCapacity);
+           SpeciesState::relativeQueueSize[i] * 100, trackCapacity);
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
     // Allocate an array of HepEm tracks per particle type
@@ -810,7 +810,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   }
 
   ParticleQueues &woodcockQueues  = gpuState.woodcockQueues;
-  const size_t nSlot              = trackCapacity * ParticleType::relativeQueueSize[ParticleType::Gamma];
+  const size_t nSlot              = trackCapacity * SpeciesState::relativeQueueSize[SpeciesState::Gamma];
   const size_t sizeOfQueueStorage = adept::MParray::SizeOfInstance(nSlot);
   void *gpuPtr                    = nullptr;
   gpuMalloc(gpuPtr, sizeOfQueueStorage);
@@ -927,9 +927,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
 
-  ParticleType &electrons        = gpuState.particles[ParticleType::Electron];
-  ParticleType &positrons        = gpuState.particles[ParticleType::Positron];
-  ParticleType &gammas           = gpuState.particles[ParticleType::Gamma];
+  SpeciesState &electrons        = gpuState.particles[SpeciesState::Electron];
+  SpeciesState &positrons        = gpuState.particles[SpeciesState::Positron];
+  SpeciesState &gammas           = gpuState.particles[SpeciesState::Gamma];
   ParticleQueues &woodcockQueues = gpuState.woodcockQueues;
 
   // Auxiliary struct used to keep track of the queues that need flushing
@@ -992,7 +992,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
     int inFlight                                                   = 0;
     unsigned int numLeaked                                         = 0;
-    unsigned int particlesInFlight[ParticleType::NumParticleTypes] = {1, 1, 1};
+    unsigned int particlesInFlight[SpeciesState::NumParticleTypes] = {1, 1, 1};
 
     auto needTransport = [](std::atomic<EventState> const &state) {
       return state.load(std::memory_order_acquire) < EventState::LeakedTracksRetrieved;
@@ -1144,7 +1144,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // wait for swapping of hit buffers
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(electrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
-        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Electron]);
+        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[SpeciesState::Electron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
         ElectronHowFar<true, PerEventScoring, SteppingAction><<<blocks, threads, 0, electrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, gpuState.stats_dev,
@@ -1180,7 +1180,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // wait for swapping of hit buffers
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(positrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
-        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Positron]);
+        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[SpeciesState::Positron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
         ElectronHowFar<false, PerEventScoring, SteppingAction><<<blocks, threads, 0, positrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, gpuState.stats_dev,
@@ -1223,7 +1223,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // wait for swapping of hit buffers
         COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gammas.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
-        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[ParticleType::Gamma]);
+        const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[SpeciesState::Gamma]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
         GammaHowFar<PerEventScoring, SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
@@ -1290,10 +1290,10 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
         // Reset all counters count the currently flying population
         ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
-        CountCurrentPopulation<<<ParticleType::NumParticleQueues, 128, 0, statsStream>>>(
+        CountCurrentPopulation<<<SpeciesState::NumParticleQueues, 128, 0, statsStream>>>(
             allParticleQueues, gpuState.stats_dev, tracksAndSlots);
         // Count leaked tracks. Note that new tracks might be added while/after we count:
-        CountLeakedTracks<<<2 * ParticleType::NumParticleTypes, 128, 0, statsStream>>>(
+        CountLeakedTracks<<<2 * SpeciesState::NumParticleTypes, 128, 0, statsStream>>>(
             allParticleQueues, gpuState.stats_dev, tracksAndSlots);
 
         waitForOtherStream(gpuState.stream, statsStream);
@@ -1329,7 +1329,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
       // Is any of the current leak queues over the usage threshold?
       bool leakQueueNeedsTransfer = false;
-      for (int particleType = 0; particleType < ParticleType::NumParticleTypes; ++particleType) {
+      for (int particleType = 0; particleType < SpeciesState::NumParticleTypes; ++particleType) {
         // NOTE: This chek is done without synchronization with the stats counting and transfer, which
         // means that we might be seeing the usage during the previous iteration. We expect that this
         // will not be an issue in most situations, while allowing us to parallelize this work with
@@ -1535,7 +1535,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       if (gpuState.injectState != InjectState::CreatingSlots) {
         // NOTE: This is done before synchronizing with the stats copy. This means that the value we
         // see may not be up to date. This is acceptable in most situations
-        for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+        for (int i = 0; i < SpeciesState::NumParticleTypes; i++) {
           if (gpuState.stats->slotFillLevel[i] > 0.5) {
             // Freeing of slots has to run exclusively
             // FIXME: Revise this code and make sure all three streams actually need to be synchronized
@@ -1543,7 +1543,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             waitForOtherStream(gpuState.stream, hitTransferStream);
             waitForOtherStream(gpuState.stream, injectStream);
             waitForOtherStream(gpuState.stream, extractStream);
-            static_assert(gpuState.nSlotManager_dev == ParticleType::NumParticleTypes,
+            static_assert(gpuState.nSlotManager_dev == SpeciesState::NumParticleTypes,
                           "The below launches assume there is a slot manager per particle type.");
             FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
             FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
@@ -1558,7 +1558,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             waitForOtherStream(gpuState.stream, hitTransferStream);
             waitForOtherStream(gpuState.stream, injectStream);
             waitForOtherStream(gpuState.stream, extractStream);
-            static_assert(gpuState.nSlotManager_dev == ParticleType::NumParticleTypes,
+            static_assert(gpuState.nSlotManager_dev == SpeciesState::NumParticleTypes,
                           "The below launches assume there is a slot manager per particle type.");
             FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev + i);
             FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev + i);
@@ -1593,7 +1593,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         }
         COPCORE_CUDA_CHECK(result);
 
-        for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
+        for (int i = 0; i < SpeciesState::NumParticleTypes; i++) {
           inFlight += gpuState.stats->inFlight[i];
           numLeaked += gpuState.stats->leakedTracks[i];
           particlesInFlight[i] = gpuState.stats->inFlight[i];
@@ -1691,13 +1691,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         auto elapsedTime = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count();
         std::cerr << "\nTime elapsed: " << std::fixed << std::setprecision(6) << elapsedTime << "s ";
         std::cerr << inFlight << " in flight ";
-        std::cerr << "(" << gpuState.stats->inFlight[ParticleType::Electron] << " "
-                  << gpuState.stats->inFlight[ParticleType::Positron] << " "
-                  << gpuState.stats->inFlight[ParticleType::Gamma] << "),\tqueues:(" << std::setprecision(3)
-                  << gpuState.stats->queueFillLevel[ParticleType::Electron] << " "
-                  << gpuState.stats->queueFillLevel[ParticleType::Positron] << " "
-                  << gpuState.stats->queueFillLevel[ParticleType::Gamma] << " "
-                  << gpuState.stats->queueFillLevel[ParticleType::GammaWDT] << ")";
+        std::cerr << "(" << gpuState.stats->inFlight[SpeciesState::Electron] << " "
+                  << gpuState.stats->inFlight[SpeciesState::Positron] << " "
+                  << gpuState.stats->inFlight[SpeciesState::Gamma] << "),\tqueues:(" << std::setprecision(3)
+                  << gpuState.stats->queueFillLevel[SpeciesState::Electron] << " "
+                  << gpuState.stats->queueFillLevel[SpeciesState::Positron] << " "
+                  << gpuState.stats->queueFillLevel[SpeciesState::Gamma] << " "
+                  << gpuState.stats->queueFillLevel[SpeciesState::GammaWDT] << ")";
         std::cerr << "\t slots [e-, e+, gamma]: [" << gpuState.stats->slotFillLevel[0] << ", "
                   << gpuState.stats->slotFillLevel[1] << ", " << gpuState.stats->slotFillLevel[2] << "], " << numLeaked
                   << " leaked."
@@ -1727,8 +1727,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       }
 
 #if false
-      for (int i = 0; i < ParticleType::NumParticleTypes; ++i) {
-        ParticleType &part = gpuState.particles[i];
+      for (int i = 0; i < SpeciesState::NumParticleTypes; ++i) {
+        SpeciesState &part = gpuState.particles[i];
         COPCORE_CUDA_CHECK(cudaMemcpyAsync(&part.slotManager_host, part.slotManager, sizeof(SlotManager),
                                            cudaMemcpyDefault, gpuState.stream));
       }
@@ -1737,8 +1737,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         unsigned int slotsUsed[3];
         unsigned int slotsMax[3];
         unsigned int slotsToFree[3];
-        for (int i = 0; i < ParticleType::NumParticleTypes; ++i) {
-          ParticleType &part = gpuState.particles[i];
+        for (int i = 0; i < SpeciesState::NumParticleTypes; ++i) {
+          SpeciesState &part = gpuState.particles[i];
           slotsUsed[i]       = part.slotManager_host.fSlotCounter - part.slotManager_host.fFreeCounter;
           slotsMax[i]        = part.slotManager_host.fSlotCounterMax;
           slotsToFree[i]     = part.slotManager_host.fFreeCounter;

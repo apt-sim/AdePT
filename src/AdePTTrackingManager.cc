@@ -355,11 +355,11 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
       // set the particle type
       if (pdg == 11) {
-        hostTrackData.particleType = static_cast<char>(0);
+        hostTrackData.particleType = ParticleType::Electron;
       } else if (pdg == -11) {
-        hostTrackData.particleType = static_cast<char>(1);
+        hostTrackData.particleType = ParticleType::Positron;
       } else if (pdg == 22) {
-        hostTrackData.particleType = static_cast<char>(2);
+        hostTrackData.particleType = ParticleType::Gamma;
       }
 
       // if there has been no step, call PreUserTrackingAction and try to attach UserInformation

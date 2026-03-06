@@ -291,7 +291,7 @@ __global__ void __launch_bounds__(256, 1)
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin,
-                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(0)};
+                                             /*creator process*/ short(winnerProcessIndex), ParticleType::Electron};
           }
         }
 
@@ -307,7 +307,7 @@ __global__ void __launch_bounds__(256, 1)
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin,
-                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(1)};
+                                             /*creator process*/ short(winnerProcessIndex), ParticleType::Positron};
           }
         }
         eKin = 0.;
@@ -346,7 +346,7 @@ __global__ void __launch_bounds__(256, 1)
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin,
-                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(0)};
+                                             /*creator process*/ short(winnerProcessIndex), ParticleType::Electron};
           }
         } else {
           edep = energyEl;
@@ -394,7 +394,7 @@ __global__ void __launch_bounds__(256, 1)
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin,
-                                             /*creator process*/ short(winnerProcessIndex), /*particle type*/ char(0)};
+                                             /*creator process*/ short(winnerProcessIndex), ParticleType::Electron};
           }
         } else {
           // If the secondary electron is cut, deposit all the energy of the gamma in this volume
@@ -466,7 +466,7 @@ __global__ void __launch_bounds__(256, 1)
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                stepDefinedProcessId,                        // step-defining process id
-                               2,                                           // Particle type
+                               ParticleType::Gamma,                         // Particle type
                                geometryStepLength,                          // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight

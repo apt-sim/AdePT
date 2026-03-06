@@ -117,7 +117,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                                    currentTrack.trackId,                        // Track ID
                                    currentTrack.parentId,                       // parent Track ID
                                    static_cast<short>(10),                      // step limiting process ID
-                                   2,                                           // Particle type
+                                   ParticleType::Gamma,                         // Particle type
                                    theTrack->GetGStepLength(),                  // Step length
                                    energyDeposit,                               // Total Edep
                                    currentTrack.weight,                         // Track weight
@@ -259,7 +259,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
               currentTrack.trackId,                        // Track ID
               currentTrack.parentId,                       // parent Track ID
               static_cast<short>(3),                       // step defining process ID
-              2,                                           // Particle type
+              ParticleType::Gamma,                         // Particle type
               theTrack->GetGStepLength(),                  // Step length
               0,                                           // Total Edep
               currentTrack.weight,                         // Track weight
@@ -340,7 +340,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
                                  currentTrack.trackId,                        // Track ID
                                  currentTrack.parentId,                       // parent Track ID
                                  static_cast<short>(10),                      // step defining process ID
-                                 2,                                           // Particle type
+                                 ParticleType::Gamma,                         // Particle type
                                  theTrack->GetGStepLength(),                  // Step length
                                  0,                                           // Total Edep
                                  currentTrack.weight,                         // Track weight
@@ -399,7 +399,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
             currentTrack.trackId,                        // Track ID
             currentTrack.parentId,                       // parent Track ID
             static_cast<short>(10),                      // step defining process ID
-            2,                                           // Particle type
+            ParticleType::Gamma,                         // Particle type
             theTrack->GetGStepLength(),                  // Step length
             0,                                           // Total Edep
             currentTrack.weight,                         // Track weight
@@ -502,7 +502,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(0),
-                                         /*particle type*/ char(0)};
+                                         ParticleType::Electron};
       }
     }
 
@@ -518,7 +518,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin, /*creator process*/ short(0),
-                                         /*particle type*/ char(1)};
+                                         ParticleType::Positron};
       }
     }
 
@@ -534,7 +534,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
           currentTrack.trackId,                        // Track ID
           currentTrack.parentId,                       // parent Track ID
           static_cast<short>(0),                       // step defining process ID
-          2,                                           // Particle type
+          ParticleType::Gamma,                         // Particle type
           theTrack->GetGStepLength(),                  // Step length
           edep,                                        // Total Edep
           currentTrack.weight,                         // Track weight
@@ -633,7 +633,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(1),
-                                         /*particle type*/ char(0)};
+                                         ParticleType::Electron};
       }
 
     } else {
@@ -666,7 +666,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
                                currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(1),                       // step defining process ID
-                               2,                                           // Particle type
+                               ParticleType::Gamma,                         // Particle type
                                theTrack->GetGStepLength(),                  // Step length
                                edep,                                        // Total Edep
                                currentTrack.weight,                         // Track weight
@@ -751,7 +751,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
       // if tracking or stepping action is called, return initial step
       if (returnLastStep) {
         secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(2),
-                                         /*particle type*/ char(0)};
+                                         ParticleType::Electron};
       }
 
     } else {
@@ -771,7 +771,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
                                currentTrack.trackId,           // Track ID
                                currentTrack.parentId,          // parent Track ID
                                static_cast<short>(2),          // step defining process ID
-                               2,                              // Particle type
+                               ParticleType::Gamma,            // Particle type
                                theTrack->GetGStepLength(),     // Step length
                                edep,                           // Total Edep
                                currentTrack.weight,            // Track weight

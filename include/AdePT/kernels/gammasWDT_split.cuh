@@ -151,7 +151,7 @@ __global__ void __launch_bounds__(256, 1)
                                    currentTrack.trackId,                        // Track ID
                                    currentTrack.parentId,                       // parent Track ID
                                    static_cast<short>(10),                      // step limiting process ID
-                                   2,                                           // Particle type
+                                   ParticleType::Gamma,                         // Particle type
                                    thePrimaryTrack->GetGStepLength(),           // Step length
                                    energyDeposit,                               // Total Edep
                                    currentTrack.weight,                         // Track weight

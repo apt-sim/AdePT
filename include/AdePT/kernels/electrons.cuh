@@ -532,8 +532,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               secondaryData[nSecondaries++] = {secondary.trackId, secondary.dir, secondary.eKin,
-                                               /*creator process*/ short(winnerProcessIndex),
-                                               /*particle type*/ char(0)};
+                                               /*creator process*/ short(winnerProcessIndex), ParticleType::Electron};
             }
           }
 
@@ -589,8 +588,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin,
-                                               /*creator process*/ short(winnerProcessIndex),
-                                               /*particle type*/ char(2)};
+                                               /*creator process*/ short(winnerProcessIndex), ParticleType::Gamma};
             }
           }
 
@@ -643,8 +641,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin,
-                                               /*creator process*/ short(winnerProcessIndex),
-                                               /*particle type*/ char(2)};
+                                               /*creator process*/ short(winnerProcessIndex), ParticleType::Gamma};
             }
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -661,8 +658,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             // if tracking or stepping action is called, return initial step
             if (returnLastStep) {
               secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin,
-                                               /*creator process*/ short(winnerProcessIndex),
-                                               /*particle type*/ char(2)};
+                                               /*creator process*/ short(winnerProcessIndex), ParticleType::Gamma};
             }
           }
           break;
@@ -716,9 +712,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {
             secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin,
-                                             /*creator process: annihilation*/ short(2), /*particle type*/ char(2)};
+                                             /*creator process: annihilation*/ short(2), ParticleType::Gamma};
             secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin,
-                                             /*creator process: annihilation*/ short(2), /*particle type*/ char(2)};
+                                             /*creator process: annihilation*/ short(2), ParticleType::Gamma};
           }
         }
       }
@@ -784,7 +780,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(userScoring, currentTrack.trackId, currentTrack.parentId, short(winnerProcessIndex),
-                               static_cast<char>(IsElectron ? 0 : 1),       // Particle type
+                               IsElectron ? ParticleType::Electron : ParticleType::Positron,
                                elTrack.GetPStepLength(),                    // Step length
                                energyDeposit,                               // Total Edep
                                currentTrack.weight,                         // Track weight
