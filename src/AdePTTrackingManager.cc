@@ -96,8 +96,10 @@ void AdePTTrackingManager::InitializeAdePT()
       std::cout << "Loading geometry via G4VG\n";
       AdePTGeant4Integration::CreateVecGeomWorld(world);
     } else {
+#ifdef VECGEOM_GDML_SUPPORT
       std::cout << "Loading geometry via VGDML\n";
       AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
+#endif
     }
 
 #ifdef ADEPT_USE_EXT_BFIELD

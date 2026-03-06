@@ -4,7 +4,9 @@
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include <VecGeom/management/GeoManager.h>
+#ifdef VECGEOM_GDML_SUPPORT
 #include <VecGeom/gdml/Frontend.h>
+#endif
 #include <VecGeom/navigation/NavigationState.h>
 
 #include <G4ios.hh>
@@ -204,6 +206,7 @@ void AdePTGeant4Integration::MapVecGeomToG4(std::vector<G4VPhysicalVolume const 
   visitGeometry(g4world, vecgeomWorld);
 }
 
+#ifdef VECGEOM_GDML_SUPPORT
 void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
 {
   // Import the gdml file into VecGeom
@@ -224,6 +227,7 @@ void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
     return;
   }
 }
+#endif
 
 void AdePTGeant4Integration::CreateVecGeomWorld(G4VPhysicalVolume const *physvol)
 {
