@@ -482,19 +482,19 @@ G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *se
 {
   auto &so = *fScoringObjects;
 
-  const int ptype = static_cast<int>(secHit->fParticleType);
+  const ParticleType ptype = secHit->fParticleType;
 
-  if (ptype == 0) { // e-
+  if (ptype == ParticleType::Electron) {
     if (so.secEUsed >= so.kMaxSecElectrons) std::abort();
     return so.secTrk[so.secEBase + so.secEUsed++];
   }
 
-  if (ptype == 1) { // e+
+  if (ptype == ParticleType::Positron) {
     if (so.secPUsed >= so.kMaxSecPositrons) std::abort();
     return so.secTrk[so.secPBase + so.secPUsed++];
   }
 
-  if (ptype == 2) { // gamma
+  if (ptype == ParticleType::Gamma) {
     if (so.secGUsed >= so.kMaxSecGammas) std::abort();
     return so.secTrk[so.secGBase + so.secGUsed++];
   }
@@ -552,18 +552,17 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
 
   // Reconstruct G4Step
   switch (parentStep.fParticleType) {
-  case 0:
+  case ParticleType::Electron:
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fElectronTrack);
     break;
-  case 1:
+  case ParticleType::Positron:
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fPositronTrack);
     break;
-  case 2:
+  case ParticleType::Gamma:
     fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
     break;
   default:
-    std::cerr << "Error: unknown particle type "
-              << static_cast<int>(static_cast<unsigned char>(parentStep.fParticleType)) << "\n";
+    std::cerr << "Error: unknown particle type " << static_cast<int>(parentStep.fParticleType) << "\n";
     std::abort();
   }
 
@@ -664,7 +663,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   // Steps are processed before the leaked tracks, and the hostTrackData is still used for invoking
   // gamma-nuclear when the track is returned to the host (although it will die then). Thus, the hostTrackData must be
   // kept alive until the invokation of the gamma-nuclear reaction
-  if (parentStep.fLastStepOfTrack && !(parentStep.fParticleType == 2 && parentStep.fStepLimProcessId == 3)) {
+  if (parentStep.fLastStepOfTrack &&
+      !(parentStep.fParticleType == ParticleType::Gamma && parentStep.fStepLimProcessId == 3)) {
     fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
   }
 }
@@ -776,10 +776,10 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *
   // For the initializing step, the step defining process ID is the creator process
   const int stepId = secHit->fStepLimProcessId;
   assert(stepId >= 0);
-  const int ptype = static_cast<int>(secTData.particleType);
-  if (ptype == 0 || ptype == 1) {
+  const ParticleType ptype = secTData.particleType;
+  if (ptype == ParticleType::Electron || ptype == ParticleType::Positron) {
     secTData.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[stepId];
-  } else if (ptype == 2) {
+  } else if (ptype == ParticleType::Gamma) {
     secTData.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[stepId];
   }
 }
@@ -839,7 +839,7 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
   // adjust for gamma-nuclear steps:
   // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
   // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == ParticleType::Gamma && aGPUHit->fStepLimProcessId == 3) {
     aTrack->SetKineticEnergy(0.);
     // aTrack->SetVelocity(0.);              // Not set in other cases, so also not set here
   }
@@ -874,10 +874,10 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   G4VProcess *stepDefiningProcess = nullptr;
   if (aGPUHit->fStepCounter != 0) {
     // not an initial step, therefore setting the step defining process:
-    const int stepId = aGPUHit->fStepLimProcessId;
-    const int ptype  = static_cast<int>(hostTData.particleType);
+    const int stepId         = aGPUHit->fStepLimProcessId;
+    const ParticleType ptype = hostTData.particleType;
 
-    if (ptype == 0 || ptype == 1) { // e- or e+
+    if (ptype == ParticleType::Electron || ptype == ParticleType::Positron) {
       if (stepId == 10)
         stepDefiningProcess = fHepEmTrackingManager->GetTransportNoProcess(); // set to transportation
       else if (stepId == -2)
@@ -885,12 +885,14 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
       else if (stepId == -1)
         stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[0]; // dE/dx due to ionization
       else if (stepId == 3) {
-        if (ptype == 0) stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[4]; // e- nuclear
-        if (ptype == 1) stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[5]; // e+ nuclear
+        if (ptype == ParticleType::Electron)
+          stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[4]; // e- nuclear
+        if (ptype == ParticleType::Positron)
+          stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[5]; // e+ nuclear
       } else {
         stepDefiningProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[stepId]; // discrete interactions
       }
-    } else if (ptype == 2) {
+    } else if (ptype == ParticleType::Gamma) {
       stepDefiningProcess = (stepId == 10)
                                 ? fHepEmTrackingManager->GetTransportNoProcess()            // transportation
                                 : fHepEmTrackingManager->GetGammaNoProcessVector()[stepId]; // discrete interactions
@@ -950,7 +952,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   // adjust for gamma-nuclear steps:
   // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
   // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == 2 && aGPUHit->fStepLimProcessId == 3) {
+  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == ParticleType::Gamma && aGPUHit->fStepLimProcessId == 3) {
     aPostStepPoint->SetKineticEnergy(0.);
     // aPostStepPoint->SetVelocity(0.);      // Not set in other cases, so also not set here
   }

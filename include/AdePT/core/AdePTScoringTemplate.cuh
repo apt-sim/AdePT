@@ -6,6 +6,8 @@
 #ifndef ADEPT_SCORING_H
 #define ADEPT_SCORING_H
 
+#include <AdePT/core/ParticleTypes.hh>
+
 // Templates for the AdePTScoring CUDA methods
 
 // These methods are meant to be templated on a struct containing the necessary information
@@ -18,8 +20,9 @@ void FreeGPU(Scoring *scoring, Scoring *scoring_dev);
 
 template <typename Scoring>
 __device__ void RecordHit(Scoring *scoring_dev, uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId,
-                          char aParticleType, double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
-                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<double> const &aPrePosition,
+                          ParticleType aParticleType, double aStepLength, double aTotalEnergyDeposit,
+                          float aTrackWeight, vecgeom::NavigationState const &aPreState,
+                          vecgeom::Vector3D<double> const &aPrePosition,
                           vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
                           vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
