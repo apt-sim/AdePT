@@ -40,10 +40,12 @@ public:
   AdePTGeant4Integration(AdePTGeant4Integration &&)            = default;
   AdePTGeant4Integration &operator=(AdePTGeant4Integration &&) = default;
 
+#ifdef VECGEOM_GDML_SUPPORT
   /// @brief Initializes VecGeom geometry
   /// @details Currently VecGeom geometry is initialized by loading it from a GDML file,
   /// however ideally this function will call the G4 to VecGeom geometry converter
   static void CreateVecGeomWorld(/*Temporary parameter*/ std::string filename);
+#endif
 
   /// @brief Construct VecGeom geometry from Geant4 physical volume
   /// @details This calls the G4VG converter

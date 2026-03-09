@@ -26,14 +26,19 @@
 #include <G4Timer.hh>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/management/BVHManager.h>
+#ifdef VECGEOM_GDML_SUPPORT
 #include <VecGeom/gdml/Frontend.h>
+#endif
 #include <VecGeom/management/CudaManager.h>
 #ifdef ADEPT_USE_SURF
 #include <VecGeom/surfaces/BrepHelper.h>
 #endif
 
+#include <G4VG.hh>
+
 #include <AdePT/copcore/SystemOfUnits.h>
 #include <AdePT/base/ArgParser.h>
+#include <AdePT/integration/AdePTGeant4Integration.hh>
 
 static constexpr double DefaultCut = 0.7 * mm;
 
@@ -98,6 +103,7 @@ const G4VPhysicalVolume *InitGeant4(const std::string &gdml_file)
 
 const vecgeom::cxx::VPlacedVolume *InitVecGeom(const std::string &gdml_file, int cache_depth)
 {
+#ifdef VECGEOM_GDML_SUPPORT
   // Import the gdml file into VecGeom
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(cache_depth);
   vgdml::Parser vgdmlParser;
@@ -106,6 +112,17 @@ const vecgeom::cxx::VPlacedVolume *InitVecGeom(const std::string &gdml_file, int
     std::cerr << "Failed to read geometry from GDML file '" << gdml_file << "'" << std::endl;
     return nullptr;
   }
+#else
+  // Use the functionality in AdePTGeant4Integration to load the geometry via vgdml
+  auto *tman    = G4TransportationManager::GetTransportationManager();
+  auto *g4world = tman->GetNavigatorForTracking()->GetWorldVolume();
+  std::cout << "Loading geometry via G4VG\n";
+  vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
+  g4vg::Options options;
+  options.reflection_factory = false;
+  auto conversion            = g4vg::convert(g4world, options);
+  vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
+#endif
 
   const vecgeom::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
   if (world == nullptr) {
