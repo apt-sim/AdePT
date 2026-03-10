@@ -574,7 +574,8 @@ bool InitializeBField(FieldType &magneticField)
   // Allocate and copy the FieldType instance (not the field array itself), and set the global device pointer
   FieldType *dMagneticFieldInstance = nullptr;
   ADEPT_DEVICE_API_CALL(Malloc(&dMagneticFieldInstance, sizeof(FieldType)));
-  ADEPT_DEVICE_API_CALL(Memcpy(dMagneticFieldInstance, &magneticField, sizeof(FieldType), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(dMagneticFieldInstance, &magneticField, sizeof(FieldType), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(FieldType *)));
 
   return true;
@@ -609,12 +610,12 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
   ADEPT_DEVICE_API_CALL(Malloc(&dev.d_map, src.regionToWDT.size() * sizeof(int)));
 
   // copy
-  ADEPT_DEVICE_API_CALL(
-      Memcpy(dev.d_roots, src.roots.data(), src.roots.size() * sizeof(WDTRoot), cudaMemcpyHostToDevice));
-  ADEPT_DEVICE_API_CALL(
-      Memcpy(dev.d_regions, src.regions.data(), src.regions.size() * sizeof(WDTRegion), cudaMemcpyHostToDevice));
-  ADEPT_DEVICE_API_CALL(
-      Memcpy(dev.d_map, src.regionToWDT.data(), src.regionToWDT.size() * sizeof(int), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Memcpy(dev.d_roots, src.roots.data(), src.roots.size() * sizeof(WDTRoot),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(Memcpy(dev.d_regions, src.regions.data(), src.regions.size() * sizeof(WDTRegion),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(Memcpy(dev.d_map, src.regionToWDT.data(), src.regionToWDT.size() * sizeof(int),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
   // assemble host view
   WDTDeviceView view{};
@@ -1065,7 +1066,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
           // copy buffer of tracks to device
           ADEPT_DEVICE_API_CALL(MemcpyAsync(trackBuffer.toDevice_dev.get(), toDevice.tracks,
-                                            nInject * sizeof(TrackDataWithIDs), cudaMemcpyHostToDevice, injectStream));
+                                            nInject * sizeof(TrackDataWithIDs),
+                                            ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice), injectStream));
           // Mark end of copy operation:
           ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, injectStream));
 
@@ -1289,11 +1291,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         // Copy the number of particles in flight to the previous one, which is used within the kernel
         ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.stats_dev->perEventInFlightPrevious,
                                           gpuState.stats_dev->perEventInFlight, kMaxThreads * sizeof(unsigned int),
-                                          cudaMemcpyDeviceToDevice, statsStream));
+                                          ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToDevice), statsStream));
 
         // Get results to host:
-        ADEPT_DEVICE_API_CALL(
-            MemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, statsStream));
+        ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats),
+                                          ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), statsStream));
         ADEPT_DEVICE_API_CALL(EventRecord(cudaStatsEvent, statsStream));
       }
 
@@ -1421,10 +1423,12 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
           // Copy the number of leaked tracks to host
           ADEPT_DEVICE_API_CALL(MemcpyFromSymbolAsync(trackBuffer.nFromDevice_host.get(), nFromDevice_dev,
-                                                      sizeof(unsigned int), 0, cudaMemcpyDeviceToHost, extractStream));
+                                                      sizeof(unsigned int), 0,
+                                                      ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), extractStream));
           // Copy the number of tracks remaining on GPU to host
           ADEPT_DEVICE_API_CALL(MemcpyFromSymbolAsync(trackBuffer.nRemainingLeaks_host.get(), nRemainingLeaks_dev,
-                                                      sizeof(unsigned int), 0, cudaMemcpyDeviceToHost, extractStream));
+                                                      sizeof(unsigned int), 0,
+                                                      ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), extractStream));
 
           // Update the state after the copy
           ADEPT_DEVICE_API_CALL(LaunchHostFunc(
@@ -1444,7 +1448,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           // Copy leaked tracks to host
           ADEPT_DEVICE_API_CALL(MemcpyAsync(trackBuffer.fromDevice_host.get(), trackBuffer.fromDevice_dev.get(),
                                             (*trackBuffer.nFromDevice_host) * sizeof(TrackDataWithIDs),
-                                            cudaMemcpyDeviceToHost, extractStream));
+                                            ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), extractStream));
           // Update the state after the copy
           ADEPT_DEVICE_API_CALL(LaunchHostFunc(
               extractStream,
@@ -1838,8 +1842,8 @@ void InitVolAuxArray(adeptint::VolAuxArray &array)
 {
   using adeptint::VolAuxData;
   ADEPT_DEVICE_API_CALL(Malloc(&array.fAuxData_dev, sizeof(VolAuxData) * array.fNumVolumes));
-  ADEPT_DEVICE_API_CALL(
-      Memcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes, cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Memcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes,
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
 }
 

@@ -29,7 +29,7 @@ int main(void)
   cudaMalloc(&d2_dev_ptr, sizeof(double));
 
   // Transfer the state of the generator to the device.
-  cudaMemcpy(r_dev, &r, sizeof(RanluxppDouble), cudaMemcpyHostToDevice);
+  cudaMemcpy(r_dev, &r, sizeof(RanluxppDouble), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice));
   cudaDeviceSynchronize();
 
   kernel<<<1, 1>>>(r_dev, d_dev_ptr, i_dev_ptr, d2_dev_ptr);
@@ -45,9 +45,9 @@ int main(void)
   double d_dev;
   uint64_t i_dev;
   double d2_dev;
-  cudaMemcpy(&d_dev, d_dev_ptr, sizeof(double), cudaMemcpyDeviceToHost);
-  cudaMemcpy(&i_dev, i_dev_ptr, sizeof(uint64_t), cudaMemcpyDeviceToHost);
-  cudaMemcpy(&d2_dev, d2_dev_ptr, sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy(&d_dev, d_dev_ptr, sizeof(double), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost));
+  cudaMemcpy(&i_dev, i_dev_ptr, sizeof(uint64_t), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost));
+  cudaMemcpy(&d2_dev, d2_dev_ptr, sizeof(double), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
   int ret = 0;

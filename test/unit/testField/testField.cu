@@ -194,7 +194,8 @@ __host__ int obtain_size(const adept::MParray *arr_dev)
   get_size<<<1, 1>>>(arr_dev, pCapacity_dev);
 
   // Fetch it from the device
-  ADEPT_DEVICE_API_CALL(Memcpy(&capacity_host, pCapacity_dev, sizeof(int), cudaMemcpyDeviceToHost));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(&capacity_host, pCapacity_dev, sizeof(int), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
   return capacity_host;
 }
 
@@ -250,7 +251,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   // Transfer MC indices.
   int *MCIndex_dev = nullptr;
   ADEPT_DEVICE_API_CALL(Malloc(&MCIndex_dev, sizeof(int) * numVolumes));
-  ADEPT_DEVICE_API_CALL(Memcpy(MCIndex_dev, MCIndex_host, sizeof(int) * numVolumes, cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(MCIndex_dev, MCIndex_host, sizeof(int) * numVolumes, ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(MCIndex, &MCIndex_dev, sizeof(int *)));
 
   // Capacity of the different containers aka the maximum number of particles.
@@ -322,8 +324,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   scoringPerVolume_devPtrs.chargedTrackLength = chargedTrackLength;
   scoringPerVolume_devPtrs.energyDeposit      = energyDeposit;
   ADEPT_DEVICE_API_CALL(Malloc(&scoringPerVolume, sizeof(ScoringPerVolume)));
-  ADEPT_DEVICE_API_CALL(
-      Memcpy(scoringPerVolume, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Memcpy(scoringPerVolume, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
   Stats *stats_dev = nullptr;
   ADEPT_DEVICE_API_CALL(Malloc(&stats_dev, sizeof(Stats)));
@@ -334,11 +336,12 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   SlotManager slotManagerInit(Capacity);
   SlotManager *slotManagerInit_dev = nullptr;
   ADEPT_DEVICE_API_CALL(Malloc(&slotManagerInit_dev, sizeof(SlotManager)));
-  ADEPT_DEVICE_API_CALL(Memcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
   ADEPT_DEVICE_API_CALL(Malloc(&BzFieldValue_dev, sizeof(BzFieldValue_host)));
-  ADEPT_DEVICE_API_CALL(
-      Memcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Memcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
   std::cout << " Host: passed value of BzField to device at " << BzFieldValue_dev << " value = " << BzFieldValue_host
             << "\n";
 
@@ -369,8 +372,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
     int chunk = std::min(left, batch);
 
     for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-      ADEPT_DEVICE_API_CALL(
-          MemcpyAsync(particles[i].slotManager, slotManagerInit_dev, ManagerSize, cudaMemcpyDeviceToDevice, stream));
+      ADEPT_DEVICE_API_CALL(MemcpyAsync(particles[i].slotManager, slotManagerInit_dev, ManagerSize,
+                                        ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToDevice), stream));
     }
 
     // Initialize primary particles.
@@ -455,7 +458,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
       // copying the Stats back to the host.
       AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
       FinishIteration<<<1, 1, 0, stream>>>(queues, stats_dev);
-      ADEPT_DEVICE_API_CALL(MemcpyAsync(stats, stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, stream));
+      ADEPT_DEVICE_API_CALL(
+          MemcpyAsync(stats, stats_dev, sizeof(Stats), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), stream));
 
       // Finally synchronize all kernels.
       ADEPT_DEVICE_API_CALL(StreamSynchronize(stream));
@@ -521,14 +525,15 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   std::cout << "Run time: " << time << "\n";
 
   // Transfer back scoring.
-  ADEPT_DEVICE_API_CALL(Memcpy(globalScoring_host, globalScoring, sizeof(GlobalScoring), cudaMemcpyDeviceToHost));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(globalScoring_host, globalScoring, sizeof(GlobalScoring), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
   globalScoring_host->numKilled = killed;
 
   // Transfer back the scoring per volume (charged track length and energy deposit).
   ADEPT_DEVICE_API_CALL(Memcpy(scoringPerVolume_host->chargedTrackLength, scoringPerVolume_devPtrs.chargedTrackLength,
-                               sizeof(double) * numPlaced, cudaMemcpyDeviceToHost));
+                               sizeof(double) * numPlaced, ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
   ADEPT_DEVICE_API_CALL(Memcpy(scoringPerVolume_host->energyDeposit, scoringPerVolume_devPtrs.energyDeposit,
-                               sizeof(double) * numPlaced, cudaMemcpyDeviceToHost));
+                               sizeof(double) * numPlaced, ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
 
   // Free resources.
   ADEPT_DEVICE_API_CALL(Free(MCIndex_dev));

@@ -66,7 +66,8 @@ public:
     // Allocate device memory for the field view
     ADEPT_DEVICE_API_CALL(Malloc(&fFieldView, sizeof(field_view_t)));
     // Copy the field view to device
-    ADEPT_DEVICE_API_CALL(Memcpy(fFieldView, &fieldView, sizeof(field_view_t), cudaMemcpyHostToDevice));
+    ADEPT_DEVICE_API_CALL(
+        Memcpy(fFieldView, &fieldView, sizeof(field_view_t), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
     return true;
 #endif
     return false;

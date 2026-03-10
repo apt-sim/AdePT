@@ -433,7 +433,7 @@ public:
     ADEPT_DEVICE_API_CALL(GetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
     assert(fHitScoringBuffer_deviceAddress != nullptr);
     ADEPT_DEVICE_API_CALL(Memcpy(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo, sizeof(HitScoringBuffer),
-                                 cudaMemcpyHostToDevice));
+                                 ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
     // create cuda event needed to tell the transport that the swap of the device buffers is executed
     cudaEventCreateWithFlags(&fSwapDoneEvent, cudaEventDisableTiming);
