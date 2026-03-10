@@ -322,8 +322,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   scoringPerVolume_devPtrs.chargedTrackLength = chargedTrackLength;
   scoringPerVolume_devPtrs.energyDeposit      = energyDeposit;
   ADEPT_DEVICE_API_CALL(Malloc(&scoringPerVolume, sizeof(ScoringPerVolume)));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(scoringPerVolume, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(scoringPerVolume, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume), cudaMemcpyHostToDevice));
 
   Stats *stats_dev = nullptr;
   ADEPT_DEVICE_API_CALL(Malloc(&stats_dev, sizeof(Stats)));
@@ -337,8 +337,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   ADEPT_DEVICE_API_CALL(Memcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
 
   ADEPT_DEVICE_API_CALL(Malloc(&BzFieldValue_dev, sizeof(BzFieldValue_host)));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host), cudaMemcpyHostToDevice));
   std::cout << " Host: passed value of BzField to device at " << BzFieldValue_dev << " value = " << BzFieldValue_host
             << "\n";
 

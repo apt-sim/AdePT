@@ -609,12 +609,12 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
   ADEPT_DEVICE_API_CALL(Malloc(&dev.d_map, src.regionToWDT.size() * sizeof(int)));
 
   // copy
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(dev.d_roots, src.roots.data(), src.roots.size() * sizeof(WDTRoot), cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(dev.d_regions, src.regions.data(), src.regions.size() * sizeof(WDTRegion), cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(dev.d_map, src.regionToWDT.data(), src.regionToWDT.size() * sizeof(int), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(dev.d_roots, src.roots.data(), src.roots.size() * sizeof(WDTRoot), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(dev.d_regions, src.regions.data(), src.regions.size() * sizeof(WDTRegion), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(dev.d_map, src.regionToWDT.data(), src.regionToWDT.size() * sizeof(int), cudaMemcpyHostToDevice));
 
   // assemble host view
   WDTDeviceView view{};
@@ -1292,8 +1292,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                                           cudaMemcpyDeviceToDevice, statsStream));
 
         // Get results to host:
-        COPCORE_CUDA_CHECK(
-            cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, statsStream));
+        ADEPT_DEVICE_API_CALL(
+            MemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, statsStream));
         ADEPT_DEVICE_API_CALL(EventRecord(cudaStatsEvent, statsStream));
       }
 
@@ -1656,8 +1656,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {
             // Reset hitBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted swap
-            COPCORE_CUDA_CHECK(
-                cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
+            ADEPT_DEVICE_API_CALL(
+                MemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
             gpuState.fHitScoring->SwapDeviceBuffers(gpuState.stream);
             AdvanceEventStates(EventState::RequestHitFlush, EventState::SwappingHitBuffers, eventStates);
             hitProcessing->cv.notify_one();
@@ -1838,8 +1838,8 @@ void InitVolAuxArray(adeptint::VolAuxArray &array)
 {
   using adeptint::VolAuxData;
   ADEPT_DEVICE_API_CALL(Malloc(&array.fAuxData_dev, sizeof(VolAuxData) * array.fNumVolumes));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes, cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes, cudaMemcpyHostToDevice));
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
 }
 
