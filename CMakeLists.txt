@@ -56,7 +56,7 @@ option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used i
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
 option(ADEPT_BUILD_EXAMPLES "Build examples" OFF)
-option(ADEPT_USE_CUDA "Compile with nvcc" OFF)
+option(ADEPT_USE_CUDA "Compile with nvcc" ON)
 option(ADEPT_USE_HIP "Compile with hipcc" OFF)
 
 # Validate that only one of the GPU backends is selected
