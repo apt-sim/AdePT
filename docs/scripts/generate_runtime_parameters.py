@@ -138,6 +138,12 @@ def _escape_cell(value: str) -> str:
     return value.replace("|", r"\|")
 
 
+def _slugify_anchor(text: str) -> str:
+    """Convert a section title to a stable, markdown-friendly anchor id."""
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "section"
+
+
 def _format_command_rows(
     commands: list[dict[str, str]],
     examples: dict[str, str],
@@ -161,6 +167,8 @@ def _format_command_rows(
 
     chunks: list[str] = []
     for section, rows in ordered_grouped.items():
+        section_anchor = f"runtime-parameters-{_slugify_anchor(section)}"
+        chunks.append(f"({section_anchor})=\n")
         chunks.append(f"## {section}\n")
         chunks.append("| Command | Value type | Description | Constraints | Example |\n")
         chunks.append("| --- | --- | --- | --- | --- |\n")

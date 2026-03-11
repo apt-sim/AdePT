@@ -5,7 +5,23 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # AdePT
 
+[![Documentation Status](https://readthedocs.org/projects/adept-project/badge/?version=latest)](https://adept-project.readthedocs.io/en/latest/?badge=latest)
+
+
 Accelerated demonstrator of electromagnetic Particle Transport
+
+AdePT is a lightweight Geant4 plugin designed to accelerate high-energy
+physics simulation by offloading electromagnetic transport to GPUs.
+Currently, it targets electrons, positrons, and gammas.
+
+AdePT relies on
+[G4HepEm](https://github.com/mnovak42/g4hepem), which provides specialized,
+optimized tracking for electrons, positrons, and gammas. AdePT provides the
+GPU transport implementation and integrates it with Geant4
+applications.
+
+Please follow our [online documentation](https://adept-project.readthedocs.io/en/latest/) for details on installation and usage of AdePT.
+Below is a brief description of how to build and run, for details, see the documentation.
 
 ## Build Requirements
 
@@ -30,22 +46,10 @@ to be available on the local system):
 $ source /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el9-gcc13-opt/setup.sh
 ```
 
-#### 2. Via Spack (outdated, currently not recommended)
-
-The dependencies may be installed via spack supplied [spack](https://spack.io) environment file:
-Note: the spack environment has not been tested for a while and might be outdated
-```console
-$ spack env create adept-spack ./scripts/spack.yaml
-$ spack -e adept-spack concretize -f
-$ spack -e adept-spack install
-...
-$ spack env activate -p adept-spack
-```
-
 Note that the above assumes your spack configuration defaults to use a suitable C++ compiler and has
 `cuda_arch` set appropriately for the hardware you will be running on.
 
-#### 3. Manually (recommended for developers)
+#### 2. Manually (recommended for developers)
 
 You can also build the packages manually as follows. To configure and build VecCore, simply run:
 ```console

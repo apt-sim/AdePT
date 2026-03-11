@@ -12,8 +12,8 @@ AdePT requires the following software stack:
 - CUDA toolkit (CUDA 12+ recommended)
 - Geant4 > 11.0
 - VecCore
-- VecGeom (with CUDA and GDML support)
-- G4HepEm
+- VecGeom (with CUDA support)
+- G4HepEm (with CUDA support)
 - Optional: HepMC3
 
 ## Recommended: CVMFS Environment
@@ -23,6 +23,11 @@ If CVMFS is available, this is the fastest way to get a compatible stack:
 ```console
 source /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el9-gcc13-opt/setup.sh
 ```
+
+This requires both the `/cvmfs/sft.cern.ch` and `/cvmfs/projects.cern.ch/` to be available. The latter is only exposed within the CERN network, which contains CUDA itself, as it cannot be published for proprietary reasons.
+Therefore, outside of the CERN network, it is recommended to source the environment above and then build the same CUDA version from the LCG view locally.
+The current LCG view uses the CUDA version given in [this link](https://gitlab.cern.ch/sft/stacks/lcgcmake/-/blob/master/cmake/toolchain/heptools-devAdePT.cmake?ref_type=heads#L6).
+Then, one can proceed to build AdePT itself.
 
 ## Manual Dependency Builds (Developer Path)
 

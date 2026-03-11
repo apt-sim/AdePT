@@ -9,6 +9,10 @@ extensions = ["myst_parser", "breathe"]
 source_suffix = {".md": "markdown"}
 exclude_patterns = ["_build"]
 html_theme = "sphinx_rtd_theme"
+numfig = True
+numfig_format = {
+    "figure": "Figure %s",
+}
 
 breathe_projects = {
     "AdePT": str((Path(__file__).parent / "_build" / "doxygen" / "xml").resolve()),
