@@ -31,6 +31,7 @@ installation/build-from-source
 :maxdepth: 2
 :caption: USER GUIDE
 
+user/gpu_tracking
 user/integration-g4
 user/runtime-parameters
 user/examples
