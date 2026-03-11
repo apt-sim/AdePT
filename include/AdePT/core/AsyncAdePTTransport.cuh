@@ -71,7 +71,7 @@ using namespace AsyncAdePT;
 
 /// Communication with the hit processing thread.
 struct HitProcessingContext {
-  cudaStream_t hitTransferStream;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) hitTransferStream;
   std::condition_variable cv{};
   std::mutex mutex{};
   std::atomic_bool keepRunning = true;
@@ -676,10 +676,10 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
       size *= sizeof(*devPtr);
     }
 
-    const auto result = cudaMalloc(&devPtr, size);
-    if (result != cudaSuccess) {
+    const auto result = ADEPT_DEVICE_API_CALL(Malloc(&devPtr, size));
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       std::size_t free, total;
-      cudaMemGetInfo(&free, &total);
+      ADEPT_DEVICE_API_CALL(MemGetInfo(&free, &total));
       std::stringstream msg;
       msg << "Not enough space to allocate " << size / 1024. / 1024 << " MB for " << N << " objects of size "
           << size / N << ". Free memory: " << free / 1024. / 1024 << " MB"
@@ -738,9 +738,9 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
         SlotManager{static_cast<SlotManager::value_type>(nLeakSlots), static_cast<SlotManager::value_type>(nLeakSlots)};
     // Initialize dev slotmanagers by copying the host data
     ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
-                                 cudaMemcpyDefault));
+                                 ADEPT_DEVICE_API_SYMBOL(MemcpyDefault)));
     ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManagerLeaks_dev[i], &gpuState.allmgr_h.slotManagersLeaks[i],
-                                 sizeof(SlotManager), cudaMemcpyDefault));
+                                 sizeof(SlotManager), ADEPT_DEVICE_API_SYMBOL(MemcpyDefault)));
 
     // Allocate the queues where the active and leak indices are stored
     // * Current and next active track indices
@@ -924,21 +924,22 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   // Auxiliary struct used to keep track of the queues that need flushing
   AllLeaked allLeaked{nullptr, nullptr, nullptr};
 
-  cudaEvent_t cudaEvent, cudaStatsEvent;
-  cudaStream_t hitTransferStream, injectStream, extractStream, statsStream;
-  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
-  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaStatsEvent, cudaEventDisableTiming));
-  unique_ptr_cuda<cudaEvent_t> cudaEventCleanup{&cudaEvent};
-  unique_ptr_cuda<cudaEvent_t> cudaStatsEventCleanup{&cudaStatsEvent};
+  ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) hitTransferStream, injectStream, extractStream, statsStream;
+  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaStatsEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaEventCleanup{&cudaEvent};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaStatsEventCleanup{&cudaStatsEvent};
   ADEPT_DEVICE_API_CALL(StreamCreate(&hitTransferStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&injectStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&extractStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&statsStream));
-  unique_ptr_cuda<cudaStream_t> cudaStreamCleanup{&hitTransferStream};
-  unique_ptr_cuda<cudaStream_t> cudaInjectStreamCleanup{&injectStream};
-  unique_ptr_cuda<cudaStream_t> cudaExtractStreamCleanup{&extractStream};
-  unique_ptr_cuda<cudaStream_t> cudaStatsStreamCleanup{&statsStream};
-  auto waitForOtherStream = [&cudaEvent](cudaStream_t waitingStream, cudaStream_t streamToWaitFor) {
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaStreamCleanup{&hitTransferStream};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaInjectStreamCleanup{&injectStream};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaExtractStreamCleanup{&extractStream};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaStatsStreamCleanup{&statsStream};
+  auto waitForOtherStream = [&cudaEvent](ADEPT_DEVICE_API_SYMBOL(Stream_t) waitingStream,
+                                         ADEPT_DEVICE_API_SYMBOL(Stream_t) streamToWaitFor) {
     ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, streamToWaitFor));
     ADEPT_DEVICE_API_CALL(StreamWaitEvent(waitingStream, cudaEvent));
   };
@@ -1576,13 +1577,14 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         inFlight  = 0;
         numLeaked = 0;
         // Synchronize with stats count before taking decisions
-        cudaError_t result;
-        while ((result = cudaEventQuery(cudaStatsEvent)) == cudaErrorNotReady) {
+        ADEPT_DEVICE_API_SYMBOL(Error_t) result;
+        while ((result = ADEPT_DEVICE_API_SYMBOL(EventQuery(cudaStatsEvent))) ==
+               ADEPT_DEVICE_API_SYMBOL(ErrorNotReady)) {
           // Cuda uses a busy wait. This reduces CPU consumption by 50%:
           using namespace std::chrono_literals;
           std::this_thread::sleep_for(50us);
         }
-        COPCORE_CUDA_CHECK(result);
+        ADEPT_ERROR_CHECK(result, ADEPT_DEVICE_API_SYMBOL(EventQuery(cudaStatsEvent)));
 
         for (int i = 0; i < GPUQueueIndex::NumSpecies; i++) {
           inFlight += gpuState.stats->inFlight[i];
@@ -1721,7 +1723,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       for (int i = 0; i < GPUQueueIndex::NumSpecies; ++i) {
         SpeciesState &part = gpuState.particles[i];
         ADEPT_DEVICE_API_CALL(MemcpyAsync(&part.slotManager_host, part.slotManager, sizeof(SlotManager),
-                                          cudaMemcpyDefault, gpuState.stream));
+                                          ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), gpuState.stream));
       }
       ADEPT_DEVICE_API_CALL(StreamSynchronize(gpuState.stream));
       {

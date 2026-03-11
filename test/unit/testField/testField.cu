@@ -32,6 +32,8 @@
 #include <iomanip>
 #include <stdio.h>
 
+#include <AdePT/core/Portability.hh>
+
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
@@ -84,8 +86,8 @@ struct ParticleType {
   Track *tracks;
   SlotManager *slotManager;
   ParticleQueues queues;
-  cudaStream_t stream;
-  cudaEvent_t event;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
+  ADEPT_DEVICE_API_SYMBOL(Event_t) event;
 
   enum {
     Electron = 0,
@@ -218,9 +220,9 @@ __host__ void printTracks(const Track *trackArr_dev, const adept::MParray *activ
       printTrackV2<<<1, 1>>>(trackArr_dev, active_dev, i, verbose);
       // std::cout << "\n";
       // }
-      cudaDeviceSynchronize();
+      ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
     }
-    // cudaDeviceSynchronize();
+    // ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
   }
 }
 
@@ -303,7 +305,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   ParticleType &gammas    = particles[ParticleType::Gamma];
 
   // Create a stream to synchronize kernels of all particle types.
-  cudaStream_t stream;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
   ADEPT_DEVICE_API_CALL(StreamCreate(&stream));
 
   // Allocate memory to score charged track length and energy deposit per volume.

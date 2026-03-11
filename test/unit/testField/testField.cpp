@@ -228,9 +228,10 @@ int main(int argc, char *argv[])
 
   constexpr int stackLimit = 8 * 1024; // 8192
   printf("testField.cpp/main(): Setting Cuda Device Stack Limit to %6d \n", stackLimit);
-  cudaError_t error = cudaDeviceSetLimit(cudaLimitStackSize, stackLimit);
-  if (error != cudaSuccess) {
-    printf("cudaDeviceSetLimit failed with %d, line(%d)\n", error, __LINE__);
+  ADEPT_DEVICE_API_SYMBOL(Error_t)
+  error = ADEPT_DEVICE_API_CALL(DeviceSetLimit)(ADEPT_DEVICE_API_SYMBOL(LimitStackSize), stackLimit);
+  if (error != ADEPT_DEVICE_API_SYMBOL(Success)) {
+    printf("ADEPT_DEVICE_API_CALL(DeviceSetLimit) failed with %d, line(%d)\n", error, __LINE__);
     exit(EXIT_FAILURE);
   }
 

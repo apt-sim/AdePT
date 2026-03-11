@@ -208,8 +208,8 @@ struct SpeciesState {
   SlotManager *slotManager;
   SlotManager *slotManagerLeaks;
   ParticleQueues queues;
-  cudaStream_t stream;
-  cudaEvent_t event;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
+  ADEPT_DEVICE_API_SYMBOL(Event_t) event;
 
   static constexpr double relativeQueueSize[] = {0.35, 0.15, 0.5};
 };
@@ -288,7 +288,7 @@ struct GPUstate {
 
   std::vector<void *> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
-  cudaStream_t stream; ///< all-particle sync stream
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream; ///< all-particle sync stream
 
   static constexpr unsigned int nSlotManager_dev = 3;
 

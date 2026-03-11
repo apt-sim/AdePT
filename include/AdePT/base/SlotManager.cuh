@@ -31,8 +31,8 @@ public:
     const auto memSize = sizeof(value_type) * (fSlotListSize + fFreeListSize);
     if (memSize == 0) return;
 
-    const auto result = cudaMalloc(&fSlotList, memSize);
-    if (result != cudaSuccess) {
+    const auto result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&fSlotList, memSize);
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       throw std::invalid_argument{"SlotManager: Not enough memory for " + std::to_string(fSlotListSize) + " slots"};
     }
     fToFreeList = fSlotList + fSlotListSize;
@@ -79,7 +79,7 @@ public:
 
   __device__ void FreeMarkedSlotsStage1();
   __device__ void FreeMarkedSlotsStage2();
-  __host__ static void SortListOfFreeSlots(int slotMgrIndex, cudaStream_t stream);
+  __host__ static void SortListOfFreeSlots(int slotMgrIndex, ADEPT_DEVICE_API_SYMBOL(Stream_t) stream);
   __host__ static std::pair<value_type *, std::byte *> MemForSorting(int slotMgrIndex, value_type numItemsToSort,
                                                                      size_t sortFuncTempMemorySize);
 };

@@ -220,6 +220,18 @@
 // #define ADEPT_NOT_CONFIGURED(WHAT) ADEPT_RUNTIME_THROW("not configured", WHAT, nullptr)
 
 /*!
+ * \def ADEPT_ERROR_CHECK
+ *
+ */
+#define ADEPT_ERROR_CHECK(RESULT, STMT)                                                                             \
+  do {                                                                                                              \
+    if (ADEPT_UNLIKELY(RESULT != ADEPT_DEVICE_API_SYMBOL(Success))) {                                               \
+      RESULT = ADEPT_DEVICE_API_SYMBOL(GetLastError)();                                                             \
+      ADEPT_RUNTIME_THROW(ADEPT_DEVICE_PLATFORM_UPPER_STR, ADEPT_DEVICE_API_SYMBOL(GetErrorString)(RESULT), #STMT); \
+    }                                                                                                               \
+  } while (0)
+
+/*!
  * \def ADEPT_DEVICE_API_CALL
  *
  * Safely and portably dispatch a CUDA/HIP API call.

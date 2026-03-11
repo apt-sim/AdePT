@@ -168,11 +168,11 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cx
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
   if (fCUDAStackLimit > 0) {
     std::cout << "CUDA Device stack limit: " << fCUDAStackLimit << "\n";
-    cudaDeviceSetLimit(cudaLimitStackSize, fCUDAStackLimit);
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit)(ADEPT_DEVICE_API_SYMBOL(LimitStackSize), fCUDAStackLimit);
   }
   if (fCUDAHeapLimit > 0) {
     std::cout << "CUDA Device heap limit: " << fCUDAHeapLimit << "\n";
-    cudaDeviceSetLimit(cudaLimitMallocHeapSize, fCUDAHeapLimit);
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit)(ADEPT_DEVICE_API_SYMBOL(LimitMallocHeapSize), fCUDAHeapLimit);
   }
   bool success = true;
 #ifdef ADEPT_USE_SURF

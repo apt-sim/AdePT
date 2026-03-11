@@ -11,6 +11,8 @@
 #include <cassert>
 #include <AdePT/base/BlockData.h>
 
+#include <AdePT/core/Portability.hh>
+
 struct MyTrack {
   int index{0};
   double pos[3]{0};
@@ -113,7 +115,7 @@ int main(void)
   std::cout << "   host MakeInstanceAt          ... ";
   size_t blocksize = Block_t::SizeOfInstance(capacity);
   char *buffer     = nullptr;
-  cudaMallocManaged(&buffer, blocksize);
+  ADEPT_DEVICE_API_CALL(Malloc) Managed(&buffer, blocksize);
   auto block = Block_t::MakeInstanceAt(capacity, buffer);
   testOK &= block != nullptr;
   std::cout << result[testOK] << "\n";
@@ -122,12 +124,12 @@ int main(void)
   std::cout << "   device NextElement           ... ";
   testOK = true;
   // Allow memory to reach the device
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
   // Launch a kernel processing tracks
   testTrackBlock<<<nblocks, nthreads>>>(block); ///< note that we are passing a host block type allocated on device
                                                 ///< memory - works because the layout is the same
   // Allow all warps to finish
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
   // The number of used tracks should be equal to the number of spawned threads
   testOK &= block->GetNused() == nblocks.x * nthreads.x;
   std::cout << result[testOK] << "\n";
@@ -150,15 +152,15 @@ int main(void)
   testOK = true;
   std::cout << "   device ReleaseElement        ... ";
   releaseTrack<<<1000, 32>>>(block);
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
   testOK &= block->GetNused() == nblocks.x * nthreads.x - 32000;
   testOK &= block->GetNholes() == 32000;
   // Now allocate in the holes
   testTrackBlock<<<10, 32>>>(block);
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
   testOK &= block->GetNholes() == (32000 - 320);
   std::cout << result[testOK] << "\n";
-  cudaFree(buffer);
+  ADEPT_DEVICE_API_CALL(Free)(buffer);
   if (!success) return 1;
   return 0;
 }
