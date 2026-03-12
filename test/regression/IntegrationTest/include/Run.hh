@@ -22,9 +22,6 @@ public:
   Run(RunAction *aRunAction);
   ~Run();
 
-  /** @brief Merge the results of the worker threads */
-  void Merge(const G4Run *run) override;
-
   TestManager<TAG_TYPE> *GetTestManager() const { return fTestManager; }
 
   /** @brief Compute and display collected metrics */

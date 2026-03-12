@@ -17,20 +17,6 @@ Run::Run(RunAction *aRunAction) : fRunAction(aRunAction)
 
 Run::~Run() {}
 
-void Run::Merge(const G4Run *run)
-{
-  const Run *localRun                = static_cast<const Run *>(run);
-  TestManager<TAG_TYPE> *testManager = localRun->GetTestManager();
-
-  // Merge all worker accumulators so the master can emit a single, consistent
-  // accumulated-events CSV row.
-  for (const auto &entry : *testManager->getAccumulators()) {
-    fTestManager->addToAccumulator(entry.first, entry.second);
-  }
-
-  G4Run::Merge(run);
-}
-
 void Run::EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilename, double aRunWallTime)
 {
   TestManager<std::string> aOutputTestManager;
