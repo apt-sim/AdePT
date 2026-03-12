@@ -60,9 +60,8 @@ private:
 
   /**
    * @brief MPMC bounded queue constructor
-   * @param fBuffersize Maximum number of elements in the queue
-   * @param addr Address where the queue is allocated.
-   * The user should make sure to allocate at least SizeofInstance(fBuffersize) bytes
+   * @param nvalues Maximum number of elements in the queue.
+   * Must be a power of two and >= 2.
    */
   __host__ __device__ __forceinline__ mpmc_bounded_queue(int nvalues)
       : fCapacity(nvalues), fMask(nvalues - 1), fBuffer(nvalues)

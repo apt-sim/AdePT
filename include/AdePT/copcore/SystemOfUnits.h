@@ -3,7 +3,7 @@
 
 /**
  * @brief   System of units.
- * @file    Geant/SystemOfUnits.h
+ * @file    SystemOfUnits.h
  * @author  M Novak, A Ribon
  * @date    december 2015
  *

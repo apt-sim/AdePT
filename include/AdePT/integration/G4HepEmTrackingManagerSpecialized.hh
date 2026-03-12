@@ -28,6 +28,8 @@ public:
   void HandOverOneTrack(G4Track *aTrack) override;
 
   // Implement the early tracking exit function
+  /// @param secondaries Secondary track container produced during tracking.
+  /// @return True if tracking should exit early and hand back control
   bool CheckEarlyTrackingExit(G4Track *track, G4EventManager *evtMgr, G4UserTrackingAction *userTrackingAction,
                               G4TrackVector &secondaries) const override;
 
