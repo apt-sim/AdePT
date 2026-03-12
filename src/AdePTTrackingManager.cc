@@ -333,35 +333,40 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // is created (by casting the int G4 id into a uint64 GPU id) Then, the existing hostTrackData is returned or a
       // new one is created in case it either never existed or was retired after the track left the GPU region
       uint64_t gpuTrackID;
-      bool entryExists             = trackMapper.getGPUId(aTrack->GetTrackID(), gpuTrackID);
-      HostTrackData &hostTrackData = trackMapper.activateForGPU(gpuTrackID, aTrack->GetTrackID(), entryExists);
+      HostTrackData dummy; // default constructed dummy if no advanced information is available
+      bool entryExists = trackMapper.getGPUId(aTrack->GetTrackID(), gpuTrackID);
+      HostTrackData &hostTrackData =
+          callUserActions ? trackMapper.activateForGPU(gpuTrackID, aTrack->GetTrackID(), entryExists) : dummy;
 
-      // set pointers and G4 parent id
-      hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
-      hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
-      hostTrackData.g4parentid     = aTrack->GetParentID();
+      // fill hostTracKData if being used:
+      if (callUserActions) {
+        // set pointers and G4 parent id
+        hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
+        hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
+        hostTrackData.g4parentid     = aTrack->GetParentID();
 
-      // Set the vertex information
-      if (aTrack->GetCurrentStepNumber() == 0) {
-        // If it's the first step of the track these values are not set
-        hostTrackData.vertexPosition          = aTrack->GetPosition();
-        hostTrackData.vertexMomentumDirection = aTrack->GetMomentumDirection();
-        hostTrackData.vertexKineticEnergy     = aTrack->GetKineticEnergy();
-        hostTrackData.logicalVolumeAtVertex   = aTrack->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
-      } else {
-        hostTrackData.vertexPosition          = aTrack->GetVertexPosition();
-        hostTrackData.vertexMomentumDirection = aTrack->GetVertexMomentumDirection();
-        hostTrackData.vertexKineticEnergy     = aTrack->GetVertexKineticEnergy();
-        hostTrackData.logicalVolumeAtVertex   = const_cast<G4LogicalVolume *>(aTrack->GetLogicalVolumeAtVertex());
-      }
+        // Set the vertex information
+        if (aTrack->GetCurrentStepNumber() == 0) {
+          // If it's the first step of the track these values are not set
+          hostTrackData.vertexPosition          = aTrack->GetPosition();
+          hostTrackData.vertexMomentumDirection = aTrack->GetMomentumDirection();
+          hostTrackData.vertexKineticEnergy     = aTrack->GetKineticEnergy();
+          hostTrackData.logicalVolumeAtVertex   = aTrack->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
+        } else {
+          hostTrackData.vertexPosition          = aTrack->GetVertexPosition();
+          hostTrackData.vertexMomentumDirection = aTrack->GetVertexMomentumDirection();
+          hostTrackData.vertexKineticEnergy     = aTrack->GetVertexKineticEnergy();
+          hostTrackData.logicalVolumeAtVertex   = const_cast<G4LogicalVolume *>(aTrack->GetLogicalVolumeAtVertex());
+        }
 
-      // set the particle type
-      if (pdg == 11) {
-        hostTrackData.particleType = ParticleType::Electron;
-      } else if (pdg == -11) {
-        hostTrackData.particleType = ParticleType::Positron;
-      } else if (pdg == 22) {
-        hostTrackData.particleType = ParticleType::Gamma;
+        // set the particle type
+        if (pdg == 11) {
+          hostTrackData.particleType = ParticleType::Electron;
+        } else if (pdg == -11) {
+          hostTrackData.particleType = ParticleType::Positron;
+        } else if (pdg == 22) {
+          hostTrackData.particleType = ParticleType::Gamma;
+        }
       }
 
       // if there has been no step, call PreUserTrackingAction and try to attach UserInformation
