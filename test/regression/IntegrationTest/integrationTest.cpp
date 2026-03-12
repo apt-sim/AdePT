@@ -22,8 +22,6 @@ int main(int argc, char **argv)
   G4String batchMacroName;
   G4String outputDirectory = "";
   G4String outputFilename  = "";
-  bool doBenchmark         = false;
-  bool doValidation        = false;
   bool doAccumulatedEvents = false; // whether the edep is accumulated across events in the validation csv file
   G4bool useAdePT          = true;
   G4bool allSensitive      = false; // If set, ignores the sensitive detector flags in the GDML and marks all volumes as
@@ -46,10 +44,6 @@ int main(int argc, char **argv)
     } else if (argument == "--output_file") {
       outputFilename = G4String(argv[i + 1]);
       ++i;
-    } else if (argument == "--do_benchmark") {
-      doBenchmark = true;
-    } else if (argument == "--do_validation") {
-      doValidation = true;
     } else if (argument == "--accumulated_events") {
       doAccumulatedEvents = true;
     } else if (argument == "--noadept") {
@@ -60,19 +54,6 @@ int main(int argc, char **argv)
       G4Exception("main", "Unknown argument", FatalErrorInArgument,
                   ("Unknown argument passed to " + G4String(argv[0]) + " : " + argument + "\n" + helpMsg).c_str());
     }
-  }
-
-  if (doBenchmark && doValidation) {
-    G4Exception(
-        "main()", "Notification", JustWarning,
-        "The options --do_benchmark and --do_validation are mutually exclusive! --do_benchmark will be ignored");
-  }
-  if (!doBenchmark && !doValidation) {
-    G4Exception("main()", "Notification", JustWarning,
-                "Testing is enabled but no option has been selected, data will not be collected for this run.\n"
-                "Available options are:\n"
-                "--do_benchmark\n"
-                "--do_validation");
   }
 
   // Initialization of default Run manager
@@ -101,8 +82,7 @@ int main(int argc, char **argv)
   //-------------------------------
   // UserAction classes
   //-------------------------------
-  runManager->SetUserInitialization(
-      new ActionInitialisation(outputDirectory, outputFilename, doBenchmark, doValidation, doAccumulatedEvents));
+  runManager->SetUserInitialization(new ActionInitialisation(outputDirectory, outputFilename, doAccumulatedEvents));
 
   G4UImanager *UImanager = G4UImanager::GetUIpointer();
   G4String command       = "/control/execute ";

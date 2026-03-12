@@ -32,10 +32,10 @@
 #include "TrackingAction.hh"
 #include "SteppingAction.hh"
 
-ActionInitialisation::ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark,
-                                           bool aDoValidation, bool aDoAccumulatedEvents)
+ActionInitialisation::ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename,
+                                           bool aDoAccumulatedEvents)
     : G4VUserActionInitialization(), fOutputDirectory(aOutputDirectory), fOutputFilename(aOutputFilename),
-      fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation), fDoAccumulatedEvents(aDoAccumulatedEvents)
+      fDoAccumulatedEvents(aDoAccumulatedEvents)
 {
 }
 
@@ -48,7 +48,7 @@ ActionInitialisation::~ActionInitialisation() {}
 void ActionInitialisation::BuildForMaster() const
 {
   new PrimaryGeneratorAction();
-  SetUserAction(new RunAction(fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation, fDoAccumulatedEvents));
+  SetUserAction(new RunAction(fOutputDirectory, fOutputFilename, fDoAccumulatedEvents));
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -56,8 +56,7 @@ void ActionInitialisation::BuildForMaster() const
 void ActionInitialisation::Build() const
 {
   SetUserAction(new PrimaryGeneratorAction());
-  RunAction *aRunAction =
-      new RunAction(fOutputDirectory, fOutputFilename, fDoBenchmark, fDoValidation, fDoAccumulatedEvents);
+  RunAction *aRunAction = new RunAction(fOutputDirectory, fOutputFilename, fDoAccumulatedEvents);
   SetUserAction(aRunAction);
   SetUserAction(new EventAction(aRunAction));
   TrackingAction *aTrackingAction = new TrackingAction();

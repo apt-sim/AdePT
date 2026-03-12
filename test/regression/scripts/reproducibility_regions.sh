@@ -51,8 +51,8 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
 # Choose a small num_leakslots value in order to test the throttling mechanism
 
 # run test
-$ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file testem3_run1 --allsensitive
-$ADEPT_EXECUTABLE --do_validation --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file testem3_run2 --allsensitive
+$ADEPT_EXECUTABLE --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file testem3_run1 --allsensitive
+$ADEPT_EXECUTABLE --accumulated_events -m ${CI_TMP_DIR}/reproducibility_regions.mac --output_dir ${CI_TMP_DIR} --output_file testem3_run2 --allsensitive
 
 # allow for small rounding error of 1e-6 due to summation per thread
 $CI_TEST_DIR/python_scripts/check_reproducibility.py --file1 ${CI_TMP_DIR}/testem3_run1.csv \
