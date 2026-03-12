@@ -31,13 +31,13 @@ public:
   /// @param safeLength B-field safety depending only on track curvature
   /// @param position Particle position
   /// @param direction Particle direction
-  /// @param current_state[in] Current geometry state
-  /// @param next_state[out] Geometry state after propagation
-  /// @param hitsurf_index[out] Index of the hit surface (surface model only)
-  /// @param propagated[out] Checks if the step was fully propagated
+  /// @param[in] current_state Current geometry state
+  /// @param[out] next_state Geometry state after propagation
+  /// @param[out] hitsurf_index Index of the hit surface (surface model only)
+  /// @param[out] propagated Checks if the step was fully propagated
   /// @param safetyIn Geometric isotropic safety
   /// @param max_iterations Maximum allowed iterations
-  /// @param iterDone[out] Number of iterations performed
+  /// @param[out] iterDone Number of iterations performed
   /// @param threadId Thread id
   /// @param zero_first_step Detected zero first step
   /// @param verbose Verbosity

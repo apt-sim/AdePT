@@ -9,13 +9,15 @@
 /// Used in GPUHit, SecondaryInitData, HostTrackData, and anywhere a step or track
 /// needs to carry its particle species as data.
 ///
-/// Note: The numeric values (0, 1, 2) intentionally match @ref GPUQueueIndex
-/// (AsyncAdePTTransportStruct.cuh), which is used as an array index for GPU state arrays.
-/// Both enums represent the same three species, but GPUQueueIndex also carries NumSpecies /
-/// GammaWDT / NumParticleQueues sentinels for loop bounds and array sizing. Use ParticleType
-/// for physics data (hits, tracks, scoring); use GPUQueueIndex::{Electron,Positron,Gamma} for
-/// GPU state array indexing. A static_assert in AsyncAdePTTransportStruct.cuh guarantees the
-/// values stay in sync.
+/// Note: The numeric values (0, 1, 2) intentionally match `GPUQueueIndex`
+/// (`AsyncAdePTTransportStruct.cuh`), which is used as an array index for GPU
+/// state arrays. Both enums represent the same three species, but
+/// `GPUQueueIndex` also carries `NumSpecies` / `GammaWDT` /
+/// `NumParticleQueues` sentinels for loop bounds and array sizing.
+/// Use `ParticleType` for physics data (hits, tracks, scoring); use
+/// `GPUQueueIndex::{Electron,Positron,Gamma}` for GPU state array indexing.
+/// A static_assert in `AsyncAdePTTransportStruct.cuh` guarantees the values
+/// stay in sync.
 enum class ParticleType : char {
   Electron = 0,
   Positron = 1,

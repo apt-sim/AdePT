@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @file Utils.h
+ * @file Atomic.h
  * @brief Portable atomic structure.
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */

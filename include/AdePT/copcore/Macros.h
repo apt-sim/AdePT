@@ -16,34 +16,26 @@
  * functions that match the CUDA keywords.
  */
 /**
- * @def COPCORE_CUDA_COMPILER
- * @brief Defined when using a CUDA compiler
+ * @brief Macro documentation notes
  *
- * Effectively a proxy for `__CUDACC__`
- */
-/**
- * @def COPCORE_DEVICE_COMPILATION
- * @brief Defined when compiling CUDA code for the device
+ * `COPCORE_CUDA_COMPILER`
+ * Defined when using a CUDA compiler (effectively a proxy for `__CUDACC__`).
  *
- * Effectively a proxy for `__CUDA_ARCH__`
- */
-/**
- * @def __host__
- * @brief mark a function as accesible from the host
+ * `COPCORE_DEVICE_COMPILATION`
+ * Defined when compiling CUDA code for device (effectively a proxy for
+ * `__CUDA_ARCH__`).
  *
- * Expands to nothing when not compiling CUDA
- */
-/**
- * @def __device__
- * @brief mark a function as accesible from the host
+ * `__host__`
+ * Marks a function as callable from host code. For non-CUDA compilation this
+ * macro expands to nothing.
  *
- * Expands to nothing when not compiling CUDA
- */
-/**
- * @def __forceinline__
- * @brief mark a function to always be inline
+ * `__device__`
+ * Marks a function as callable from device code. For non-CUDA compilation this
+ * macro expands to nothing.
  *
- * Expands to the relevant CUDA keyword or host compiler attribute
+ * `__forceinline__`
+ * Marks a function to always inline. If not provided by CUDA headers, it
+ * expands to `inline __attribute__((always_inline))` on host compilers.
  */
 
 #ifndef COPCORE_MACROS_H_
