@@ -49,8 +49,7 @@ class RunAction : public G4UserRunAction {
 public:
   /// Constructor. Defines the histograms.
   RunAction();
-  RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation,
-            bool aDoAccumulatedEvents);
+  RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents);
   virtual ~RunAction();
 
   /// Open the file for the analysis
@@ -63,9 +62,7 @@ public:
   // Start/stop the run wall-time timer around actual event processing only.
   static void StartRunTimerFromFirstEvent();
 
-  bool &GetDoBenchmark() { return fDoBenchmark; };
-  bool &GetDoValidation() { return fDoValidation; };
-  bool &GetDoAccumulatedEvents() { return fDoAccumulatedEvents; };
+  bool GetDoAccumulatedEvents() const { return fDoAccumulatedEvents; };
   const G4String &GetOutputDirectory() { return fOutputDirectory; };
   const G4String &GetOutputFilename() { return fOutputFilename; };
 
@@ -74,8 +71,6 @@ private:
   /// setup the histograms
   G4String fOutputDirectory;
   G4String fOutputFilename;
-  bool fDoBenchmark;
-  bool fDoValidation;
   bool fDoAccumulatedEvents;
   static double StopRunTimerOnMaster();
 

@@ -36,12 +36,11 @@ G4Timer RunAction::fgRunTimer{};
 std::mutex RunAction::fgRunTimerMutex{};
 bool RunAction::fgRunTimerStarted = false;
 
-RunAction::RunAction() : G4UserRunAction(), fOutputDirectory(""), fOutputFilename("") {}
+RunAction::RunAction() : G4UserRunAction(), fOutputDirectory(""), fOutputFilename(""), fDoAccumulatedEvents(false) {}
 
-RunAction::RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation,
-                     bool aDoAccumulatedEvents)
+RunAction::RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents)
     : G4UserRunAction(), fOutputDirectory(aOutputDirectory), fOutputFilename(aOutputFilename),
-      fDoBenchmark(aDoBenchmark), fDoValidation(aDoValidation), fDoAccumulatedEvents(aDoAccumulatedEvents)
+      fDoAccumulatedEvents(aDoAccumulatedEvents)
 {
 }
 
@@ -59,9 +58,6 @@ void RunAction::BeginOfRunAction(const G4Run *)
       std::lock_guard<std::mutex> lock(fgRunTimerMutex);
       fgRunTimerStarted = false;
     }
-    if (fDoBenchmark) {
-      fRun->GetTestManager()->timerStart(Run::timers::TOTAL);
-    }
   }
 }
 
@@ -74,7 +70,7 @@ void RunAction::EndOfRunAction(const G4Run *)
   // Just protect the printout to avoid interlacing text
   const std::lock_guard<std::mutex> lock(print_mutex);
 
-  if (GetDoValidation() && GetDoAccumulatedEvents()) {
+  if (GetDoAccumulatedEvents()) {
     // overwrite to have all validation data written into a single line for all events
     fRun->GetTestManager()->exportCSV(false);
   }
@@ -83,12 +79,7 @@ void RunAction::EndOfRunAction(const G4Run *)
   if (tid < 0) {
     const auto time = StopRunTimerOnMaster();
     std::cout << "Run time: " << time << "\n";
-    if (fDoBenchmark) {
-      fRun->GetTestManager()->timerStop(Run::timers::TOTAL);
-    }
-    if (fDoBenchmark || fDoValidation) {
-      fRun->EndOfRunSummary(fOutputDirectory, fOutputFilename);
-    }
+    fRun->EndOfRunSummary(fOutputDirectory, fOutputFilename, time);
   }
 }
 

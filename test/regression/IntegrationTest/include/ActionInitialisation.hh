@@ -43,8 +43,7 @@ class DetectorConstruction;
 
 class ActionInitialisation : public G4VUserActionInitialization {
 public:
-  ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoBenchmark, bool aDoValidation,
-                       bool aDoAccumulatedEvents);
+  ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents);
   ~ActionInitialisation();
   /// Create all user actions.
   virtual void Build() const final;
@@ -56,8 +55,6 @@ private:
   /// retrieve detector dimensions
   G4String fOutputDirectory;
   G4String fOutputFilename;
-  bool fDoBenchmark;
-  bool fDoValidation;
   bool fDoAccumulatedEvents;
 };
 

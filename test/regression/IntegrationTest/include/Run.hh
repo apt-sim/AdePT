@@ -28,39 +28,12 @@ public:
   TestManager<TAG_TYPE> *GetTestManager() const { return fTestManager; }
 
   /** @brief Compute and display collected metrics */
-  void EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilenam);
+  void EndOfRunSummary(G4String aOutputDirectory, G4String aOutputFilenam, double aRunWallTime);
 
   /**
-   * @brief Enum defining the timers that we can use for benchmarking
+   * @brief Enum defining the run accumulators
    */
-  enum timers {
-    // Non electromagnetic timer (Track time outside of the GPU region)
-    NONEM,
-    // Event timer (Timer from start to end)
-    EVENT,
-    // Global execution timer
-    TOTAL,
-    NUM_TIMERS
-  };
-
-  /**
-   * @brief Enum defining the accumulators that we can use for benchmarking
-   */
-  enum accumulators {
-    // Accumulator within an event (Sum of track times)
-    NONEM_EVT = timers::NUM_TIMERS,
-    // Acummulators for the sum and squared sum of the timings across all events
-    NONEM_SUM,
-    NONEM_SQ,
-    ECAL_SUM,
-    ECAL_SQ,
-    EVENT_SUM,
-    EVENT_SQ,
-    EVENT_HIT_COPY_SIZE,
-    EVENT_HIT_COPY_SIZE_SQ,
-    NUM_PARTICLES,
-    NUM_ACCUMULATORS
-  };
+  enum accumulators { NUM_PARTICLES, NUM_ACCUMULATORS };
 
 private:
   TestManager<TAG_TYPE> *fTestManager;

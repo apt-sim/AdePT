@@ -49,7 +49,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
             Layer41, Layer42, Layer43, Layer44, Layer45, Layer46, Layer47, Layer48, Layer49, Layer50"
 
 # run test
-$ADEPT_EXECUTABLE --do_validation --allsensitive --accumulated_events \
+$ADEPT_EXECUTABLE --allsensitive --accumulated_events \
                   -m "${CI_TMP_DIR}/validation_testem3_regions.mac" \
                   --output_dir "${CI_TMP_DIR}" \
                   --output_file "adept_em3_2.5e4_e-"
@@ -59,4 +59,3 @@ $CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_
                                                 --file2 ${CI_TEST_DIR}/benchmark_files/g4hepem_em3_10e7_e-.csv \
                                                 --n1 4e4 --n2 1e7 --tol 0.01 \
                                                 # --plot_file plot.png # uncomment to plot the validation plot
-

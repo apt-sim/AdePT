@@ -38,7 +38,6 @@
 #include "G4SystemOfUnits.hh"
 
 #include <AdePT/benchmarking/TestManager.h>
-#include <AdePT/benchmarking/TestManagerStore.h>
 #include "Run.hh"
 
 EventAction::EventAction(RunAction *aRunAction) : G4UserEventAction(), fHitCollectionID(-1), fRunAction(aRunAction)
@@ -55,12 +54,6 @@ EventAction::~EventAction() {}
 void EventAction::BeginOfEventAction(const G4Event *)
 {
   RunAction::StartRunTimerFromFirstEvent();
-
-  // Get the Run object associated to this thread and start the timer for this event
-  Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-  if (fRunAction->GetDoBenchmark()) {
-    currentRun->GetTestManager()->timerStart(Run::timers::EVENT);
-  }
   // zero the counters
   number_electrons = 0;
   number_positrons = 0;
@@ -77,9 +70,6 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
   // Get the Run object associated to this thread and stop the timer for this event
   Run *currentRun   = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
   auto aTestManager = currentRun->GetTestManager();
-  if (fRunAction->GetDoBenchmark()) {
-    aTestManager->timerStop(Run::timers::EVENT);
-  }
   aTestManager->addToAccumulator(Run::accumulators::NUM_PARTICLES, aEvent->GetPrimaryVertex()->GetNumberOfParticle());
 
   // Get hits collection ID (only once)
@@ -126,55 +116,24 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << "Total energy deposited: " << totalEnergy / MeV << " MeV" << G4endl;
   }
 
-  if (fRunAction->GetDoValidation()) {
-    // Get test manager
-    // Run *currentRun = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
-    // auto testManager = currentRun->GetTestManager();
-
-    // Fill test manager with PvolID : Edep
-    for (auto &hit : *hitsCollection->GetVector()) {
-      // Use IDs that won't overlap with other accumulators
-      auto id = hit->GetPhysicalVolumeId() + Run::accumulators::NUM_ACCUMULATORS;
-      // Reset the accumulator from the last event
-      // aTestManager->setAccumulator(id, 0);
-
-      if (!fRunAction->GetDoAccumulatedEvents()) {
-        // Set the accumulator
-        aTestManager->setAccumulator(id, hit->GetEdep());
-      } else {
-        // write all events to one accumulator:
-        aTestManager->addToAccumulator(id, hit->GetEdep());
-      }
-    }
+  // Fill test manager with PvolID : Edep
+  for (auto &hit : *hitsCollection->GetVector()) {
+    // Use IDs that won't overlap with other accumulators
+    auto id = hit->GetPhysicalVolumeId() + Run::accumulators::NUM_ACCUMULATORS;
 
     if (!fRunAction->GetDoAccumulatedEvents()) {
-      // Write data to output file. Validation data can take a lot of memory, and we don't need to aggregate
-      // the results of multiple events at runtime, so for better performance it's easier to write the output here
-      aTestManager->exportCSV(false);
+      // Set the accumulator
+      aTestManager->setAccumulator(id, hit->GetEdep());
+    } else {
+      // write all events to one accumulator:
+      aTestManager->addToAccumulator(id, hit->GetEdep());
     }
+  }
 
-    // Store test manager
-    // TestManagerStore<int>::GetInstance()->RecordState(aTestManager);
-  } else if (fRunAction->GetDoBenchmark()) {
-    // Get the timings
-    double eventTime = aTestManager->getDurationSeconds(Run::timers::EVENT);
-    double nonEMTime = aTestManager->getAccumulator(Run::accumulators::NONEM_EVT);
-    double ecalTime  = eventTime - nonEMTime;
-
-    // Accumulate the results with the rest of events of this worker thread to provide global stats
-    aTestManager->addToAccumulator(Run::accumulators::EVENT_SUM, eventTime);
-    aTestManager->addToAccumulator(Run::accumulators::EVENT_SQ, eventTime * eventTime);
-    aTestManager->addToAccumulator(Run::accumulators::NONEM_SUM, nonEMTime);
-    aTestManager->addToAccumulator(Run::accumulators::NONEM_SQ, nonEMTime * nonEMTime);
-    aTestManager->addToAccumulator(Run::accumulators::ECAL_SUM, ecalTime);
-    aTestManager->addToAccumulator(Run::accumulators::ECAL_SQ, ecalTime * ecalTime);
-
-    // Record the current contents of the TestManager in order to be able to extract per-event data
-    TestManagerStore<int>::GetInstance()->RecordState(aTestManager);
-
-    // Reset the timers for the next event
-    aTestManager->removeTimer(Run::timers::EVENT);
-    aTestManager->removeAccumulator(Run::accumulators::NONEM_EVT);
+  if (!fRunAction->GetDoAccumulatedEvents()) {
+    // Write data to output file. Validation data can take a lot of memory, and we don't need to aggregate
+    // the results of multiple events at runtime, so for better performance it's easier to write the output here
+    aTestManager->exportCSV(false);
   }
 
   // Restore the original IO precission

@@ -38,5 +38,4 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
 
 
 # run test
-$ADEPT_EXECUTABLE -m "${CI_TMP_DIR}/test_ui_commands.mac" --do_validation
-
+$ADEPT_EXECUTABLE -m "${CI_TMP_DIR}/test_ui_commands.mac"

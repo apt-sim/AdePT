@@ -123,12 +123,12 @@ mkdir -p "${MASTER_SCENARIO_DIR}" "${PR_SCENARIO_DIR}"
 generate_validation_macro "${PR_SOURCE_DIR}" "${SCENARIO_MACRO}" \
   "${SCENARIO_GDML}" "${SCENARIO_TRACK_IN_ALL_REGIONS}" "${SCENARIO_REGIONS}" "${SCENARIO_WDT_REGIONS}" "${SCENARIO_FIELD}"
 
-"${MASTER_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
+"${MASTER_EXECUTABLE}" --allsensitive --accumulated_events \
                        -m "${SCENARIO_MACRO}" \
                        --output_dir "${MASTER_SCENARIO_DIR}" \
                        --output_file "${MASTER_OUTPUT}"
 
-"${PR_EXECUTABLE}" --do_validation --allsensitive --accumulated_events \
+"${PR_EXECUTABLE}" --allsensitive --accumulated_events \
                    -m "${SCENARIO_MACRO}" \
                    --output_dir "${PR_SCENARIO_DIR}" \
                    --output_file "${PR_OUTPUT}"
