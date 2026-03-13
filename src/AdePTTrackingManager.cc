@@ -283,7 +283,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   // Check for GPU steps, to alleviate pressure on the GPU step buffer
   G4int threadId = G4Threading::G4GetThreadId();
   fAdeptTransport->ProcessGPUSteps(threadId, eventID);
-  auto &trackMapper = fAdeptTransport->GetIntegrationLayer(threadId).GetHostTrackDataMapper();
+  auto &trackMapper = fAdeptTransport->GetGeant4Integration(threadId).GetHostTrackDataMapper();
 
   if (fCurrentEventID != eventID) trackMapper.beginEvent(eventID);
 

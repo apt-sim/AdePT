@@ -3,8 +3,6 @@
 
 #include <AdePT/core/AsyncAdePTTransport.hh>
 
-#include <AdePT/integration/AdePTGeant4Integration.hh>
-
 #include <VecGeom/management/BVHManager.h>
 #include <VecGeom/management/GeoManager.h>
 #ifdef ADEPT_USE_SURF
@@ -72,16 +70,17 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 }
 } // namespace
 
-template <typename IntegrationLayer>
-AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
+// These definitions live in a header-included .icc file, so they must remain
+// inline to avoid multiple definitions across translation units.
+inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
+                                                G4HepEmTrackingManagerSpecialized *hepEmTM)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fMaxWDTIter{configuration.GetMaxWDTIter()}, fIntegrationLayerObjects(fNThread), fEventStates(fNThread),
+      fMaxWDTIter{configuration.GetMaxWDTIter()}, fG4IntegrationObjects(fNThread), fEventStates(fNThread),
       fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
       fReturnAllSteps{configuration.GetCallUserSteppingAction()},
@@ -100,26 +99,21 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
   AsyncAdePTTransport::Initialize(hepEmTM);
 }
 
-template <typename IntegrationLayer>
-AsyncAdePTTransport<IntegrationLayer>::~AsyncAdePTTransport()
+inline AsyncAdePTTransport::~AsyncAdePTTransport()
 {
   async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker, fWDTDev);
 }
 
-template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::SetHepEmTrackingManagerForThread(int threadId,
-                                                                             G4HepEmTrackingManagerSpecialized *hepEmTM)
+inline void AsyncAdePTTransport::SetHepEmTrackingManagerForThread(int threadId,
+                                                                  G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
-  fIntegrationLayerObjects[threadId].SetHepEmTrackingManager(hepEmTM);
+  fG4IntegrationObjects[threadId].SetHepEmTrackingManager(hepEmTM);
 }
 
-template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy,
-                                                     double x, double y, double z, double dirx, double diry,
-                                                     double dirz, double globalTime, double localTime,
-                                                     double properTime, float weight, unsigned short stepCounter,
-                                                     int threadId, unsigned int eventId,
-                                                     vecgeom::NavigationState &&state)
+inline void AsyncAdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x,
+                                          double y, double z, double dirx, double diry, double dirz, double globalTime,
+                                          double localTime, double properTime, float weight, unsigned short stepCounter,
+                                          int threadId, unsigned int eventId, vecgeom::NavigationState &&state)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
@@ -152,8 +146,7 @@ void AsyncAdePTTransport<IntegrationLayer>::AddTrack(int pdg, uint64_t trackId, 
   fEventStates[threadId].store(EventState::NewTracksFromG4, std::memory_order_release);
 }
 
-template <typename IntegrationLayer>
-bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
+inline bool AsyncAdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
   // Upload geometry to GPU.
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
@@ -190,16 +183,14 @@ bool AsyncAdePTTransport<IntegrationLayer>::InitializeGeometry(const vecgeom::cx
   return success;
 }
 
-template <typename IntegrationLayer>
-bool AsyncAdePTTransport<IntegrationLayer>::InitializePhysics(G4HepEmConfig *hepEmConfig)
+inline bool AsyncAdePTTransport::InitializePhysics(G4HepEmConfig *hepEmConfig)
 {
   // Initialize shared physics data
   fg4hepem_state.reset(async_adept_impl::InitG4HepEm(hepEmConfig));
   return true;
 }
 
-template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM)
+inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -218,11 +209,11 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
-  fIntegrationLayerObjects.front().CheckGeometry(fg4hepem_state.get());
+  fG4IntegrationObjects.front().CheckGeometry(fg4hepem_state.get());
   adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
   adeptint::WDTHostRaw wdtRaw;
-  fIntegrationLayerObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions,
-                                                  fGPURegionNames, wdtRaw);
+  fG4IntegrationObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions,
+                                               fGPURegionNames, wdtRaw);
 
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
@@ -251,25 +242,23 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
 
   fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
                                                fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile,
-                                               fIntegrationLayerObjects.front().GetUniformField());
+                                               fG4IntegrationObjects.front().GetUniformField());
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
                                                  *fGPUstate, fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
                                                  fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU,
                                                  fHitBufferSafetyFactor, fHasWDTRegions);
 }
 
-template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::InitBVH()
+inline void AsyncAdePTTransport::InitBVH()
 {
   vecgeom::cxx::BVHManager::Init();
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 
-template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int eventId)
+inline void AsyncAdePTTransport::ProcessGPUSteps(int threadId, int eventId)
 {
 
-  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId];
+  AdePTGeant4Integration &integrationInstance = fG4IntegrationObjects[threadId];
   std::pair<GPUHit *, GPUHit *> range;
   bool dataOnBuffer;
 
@@ -302,8 +291,7 @@ void AsyncAdePTTransport<IntegrationLayer>::ProcessGPUSteps(int threadId, int ev
   }
 }
 
-template <typename IntegrationLayer>
-void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
+inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId)
 {
   if (fDebugLevel >= 3) {
     G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
@@ -312,7 +300,7 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
   fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
 
-  AdePTGeant4Integration &integrationInstance = fIntegrationLayerObjects[threadId];
+  AdePTGeant4Integration &integrationInstance = fG4IntegrationObjects[threadId];
 
   while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
 
