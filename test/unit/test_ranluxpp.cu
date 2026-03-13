@@ -22,20 +22,20 @@ int main(void)
   std::cout << "int: " << r.IntRndm() << std::endl;
 
   RanluxppDouble *r_dev;
-  ADEPT_DEVICE_API_CALL(Malloc)(&r_dev, sizeof(RanluxppDouble));
+  ADEPT_DEVICE_API_CALL(Malloc(&r_dev, sizeof(RanluxppDouble)));
   double *d_dev_ptr;
   uint64_t *i_dev_ptr;
   double *d2_dev_ptr;
-  ADEPT_DEVICE_API_CALL(Malloc)(&d_dev_ptr, sizeof(double));
-  ADEPT_DEVICE_API_CALL(Malloc)(&i_dev_ptr, sizeof(uint64_t));
-  ADEPT_DEVICE_API_CALL(Malloc)(&d2_dev_ptr, sizeof(double));
+  ADEPT_DEVICE_API_CALL(Malloc(&d_dev_ptr, sizeof(double)));
+  ADEPT_DEVICE_API_CALL(Malloc(&i_dev_ptr, sizeof(uint64_t)));
+  ADEPT_DEVICE_API_CALL(Malloc(&d2_dev_ptr, sizeof(double)));
 
   // Transfer the state of the generator to the device.
-  ADEPT_DEVICE_API_CALL(Memcpy)(r_dev, &r, sizeof(RanluxppDouble), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice));
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
+  ADEPT_DEVICE_API_CALL(Memcpy(r_dev, &r, sizeof(RanluxppDouble), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
 
   kernel<<<1, 1>>>(r_dev, d_dev_ptr, i_dev_ptr, d2_dev_ptr);
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
 
   // Generate from the same state on the host.
   double d   = r.Rndm();
@@ -47,10 +47,10 @@ int main(void)
   double d_dev;
   uint64_t i_dev;
   double d2_dev;
-  ADEPT_DEVICE_API_CALL(Memcpy)(&d_dev, d_dev_ptr, sizeof(double), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost));
-  ADEPT_DEVICE_API_CALL(Memcpy)(&i_dev, i_dev_ptr, sizeof(uint64_t), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost));
-  ADEPT_DEVICE_API_CALL(Memcpy)(&d2_dev, d2_dev_ptr, sizeof(double), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost));
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
+  ADEPT_DEVICE_API_CALL(Memcpy(&d_dev, d_dev_ptr, sizeof(double), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(Memcpy(&i_dev, i_dev_ptr, sizeof(uint64_t), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(Memcpy(&d2_dev, d2_dev_ptr, sizeof(double), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
 
   int ret = 0;
 
@@ -70,10 +70,10 @@ int main(void)
   std::cout << "   device: " << d2_dev << std::endl;
   ret += (d2 != d2_dev);
 
-  ADEPT_DEVICE_API_CALL(Free)(r_dev);
-  ADEPT_DEVICE_API_CALL(Free)(d_dev_ptr);
-  ADEPT_DEVICE_API_CALL(Free)(i_dev_ptr);
-  ADEPT_DEVICE_API_CALL(Free)(d2_dev_ptr);
+  ADEPT_DEVICE_API_CALL(Free(r_dev));
+  ADEPT_DEVICE_API_CALL(Free(d_dev_ptr));
+  ADEPT_DEVICE_API_CALL(Free(i_dev_ptr));
+  ADEPT_DEVICE_API_CALL(Free(d2_dev_ptr));
 
   return ret;
 }

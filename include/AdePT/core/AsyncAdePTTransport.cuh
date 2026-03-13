@@ -676,7 +676,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
       size *= sizeof(*devPtr);
     }
 
-    const auto result = ADEPT_DEVICE_API_CALL(Malloc(&devPtr, size));
+    const auto result = ADEPT_DEVICE_API_SYMBOL(Malloc(&devPtr, size));
     if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       std::size_t free, total;
       ADEPT_DEVICE_API_CALL(MemGetInfo(&free, &total));

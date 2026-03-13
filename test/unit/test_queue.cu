@@ -44,27 +44,27 @@ int main(void)
   int capacity      = 1 << 15; // 32768 - accomodates values pushed by all threads
   size_t buffersize = Queue_t::SizeOfInstance(capacity);
   char *buffer      = nullptr;
-  ADEPT_DEVICE_API_CALL(Malloc) Managed(&buffer, buffersize);
+  ADEPT_DEVICE_API_CALL(MallocManaged(&buffer, buffersize));
   auto queue = Queue_t::MakeInstanceAt(capacity, buffer);
 
   char *buffer_atomic = nullptr;
-  ADEPT_DEVICE_API_CALL(Malloc) Managed(&buffer_atomic, sizeof(AtomicLong_t));
+  ADEPT_DEVICE_API_CALL(MallocManaged(&buffer_atomic, sizeof(AtomicLong_t)));
   auto sum = new (buffer_atomic) AtomicLong_t;
 
   bool testOK = true;
   std::cout << "   test_queue ... ";
   // Allow memory to reach the device
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
   // Launch a kernel queueing thread id's
   pushData<<<nblocks, nthreads>>>(queue);
   // Allow all warps in the stream to finish
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
   // Make sure all threads managed to queue their id
   testOK &= queue->size() == nblocks.x * nthreads.x;
   // Launch a kernel top collect queued data
   popAndAdd<<<nblocks, nthreads>>>(queue, sum);
   // Wait work to finish and memory to reach the host
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
   // Check if all data was dequeued
   testOK &= queue->size() == 0;
   // Check if the sum of all dequeued id's matches the sum of thread indices
@@ -75,8 +75,8 @@ int main(void)
   std::cout << result[testOK] << "\n";
   success &= testOK;
 
-  ADEPT_DEVICE_API_CALL(Free)(buffer);
-  ADEPT_DEVICE_API_CALL(Free)(buffer_atomic);
+  ADEPT_DEVICE_API_CALL(Free(buffer));
+  ADEPT_DEVICE_API_CALL(Free(buffer_atomic));
   if (!success) return 1;
   return 0;
 }
