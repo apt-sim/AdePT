@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include "G4RunManager.hh"
-#include "G4Run.hh"
 #include "Run.hh"
+#include "TestManager.h"
 
-#include <AdePT/benchmarking/TestManager.h>
+#include "G4Run.hh"
+#include "G4RunManager.hh"
 
 Run::Run(RunAction *aRunAction) : fRunAction(aRunAction)
 {
