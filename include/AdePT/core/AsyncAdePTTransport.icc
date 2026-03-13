@@ -103,7 +103,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
 
   for (auto &eventState : fEventStates) {
-    std::atomic_init(&eventState, EventState::ScoringRetrieved);
+    std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
   }
 
   AsyncAdePTTransport::Initialize(hepEmTM);
@@ -386,9 +386,6 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
   }
 
   integrationInstance.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel, fReturnFirstAndLastStep);
-
-  // TODO: REMOVE THIS STATE
-  fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
 }
 
 } // namespace AsyncAdePT

@@ -28,8 +28,7 @@ enum class EventState : unsigned char {
   HitsFlushed,
   FlushingTracks,
   DeviceFlushed,
-  LeakedTracksRetrieved,
-  ScoringRetrieved
+  LeakedTracksRetrieved
 };
 
 } // namespace AsyncAdePT
