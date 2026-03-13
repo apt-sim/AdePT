@@ -9,8 +9,6 @@
 #ifndef ASYNC_ADEPT_TRANSPORT_HH
 #define ASYNC_ADEPT_TRANSPORT_HH
 
-#define ADEPT_SAVE_IDs
-
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/CommonStruct.h>
