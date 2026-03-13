@@ -4,9 +4,7 @@
 #ifndef PER_EVENT_SCORING_CUH
 #define PER_EVENT_SCORING_CUH
 
-#include <AdePT/core/PerEventScoringStruct.cuh>
 #include <AdePT/base/ResourceManagement.cuh>
-#include <AdePT/core/AdePTScoringTemplate.cuh>
 #include <AdePT/core/ScoringCommons.hh>
 #include <AdePT/copcore/Global.h>
 
@@ -680,34 +678,14 @@ public:
   }
 };
 
-// Implement Cuda-dependent functionality from PerEventScoring
-
-void PerEventScoring::ClearGPU(cudaStream_t cudaStream)
-{
-  COPCORE_CUDA_CHECK(cudaMemsetAsync(fScoring_dev, 0, sizeof(GlobalCounters), cudaStream));
-  COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
-}
-
-void PerEventScoring::CopyToHost(cudaStream_t cudaStream)
-{
-  const auto oldPointer = fScoring_dev;
-  COPCORE_CUDA_CHECK(
-      cudaMemcpyAsync(&fGlobalCounters, fScoring_dev, sizeof(GlobalCounters), cudaMemcpyDeviceToHost, cudaStream));
-  COPCORE_CUDA_CHECK(cudaStreamSynchronize(cudaStream));
-  assert(oldPointer == fScoring_dev);
-  (void)oldPointer;
-}
-
 } // namespace AsyncAdePT
 
 namespace adept_scoring {
 
 /// @brief Record a hit
-template <>
-__device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aTrackID, uint64_t aParentID,
-                          short stepLimProcessId, ParticleType aParticleType, double aStepLength,
-                          double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
-                          vecgeom::Vector3D<double> const &aPrePosition,
+__device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId, ParticleType aParticleType,
+                          double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
+                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<double> const &aPrePosition,
                           vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
                           vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
@@ -744,16 +722,6 @@ __device__ void RecordHit(AsyncAdePT::PerEventScoring * /*scoring*/, uint64_t aT
             /*localTime*/ 0., aGlobalTime, eventID, threadID, /*isLastStep*/ false, /*stepCounter*/ 0,
             /*nSecondaries*/ 0);
   }
-}
-
-/// @brief Account for the number of produced secondaries
-/// @details Atomically increase the number of produced secondaries.
-template <>
-__device__ void AccountProduced(AsyncAdePT::PerEventScoring *scoring, int num_ele, int num_pos, int num_gam)
-{
-  atomicAdd(&scoring->fGlobalCounters.numElectrons, num_ele);
-  atomicAdd(&scoring->fGlobalCounters.numPositrons, num_pos);
-  atomicAdd(&scoring->fGlobalCounters.numGammas, num_gam);
 }
 
 } // namespace adept_scoring

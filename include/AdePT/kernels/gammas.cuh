@@ -19,11 +19,10 @@ using StepActionParam = adept::SteppingAction::Params;
 
 namespace AsyncAdePT {
 // Asynchronous TransportGammas Interface
-template <typename Scoring, class SteppingActionT>
+template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammas(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
-                    const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
-                    const bool returnAllSteps, const bool returnLastStep)
+    TransportGammas(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
+                    AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
@@ -276,8 +275,6 @@ __global__ void __launch_bounds__(256, 1)
         G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                             posKinEnergy, &rnge);
 
-        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
-
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts && elKinEnergy < theElCut) {
           // Deposit the energy here and kill the secondary
@@ -333,8 +330,6 @@ __global__ void __launch_bounds__(256, 1)
 
         const double energyEl = eKin - newEnergyGamma;
 
-        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
@@ -379,8 +374,6 @@ __global__ void __launch_bounds__(256, 1)
         edep                    = bindingEnergy;
         const double photoElecE = eKin - edep;
         if (ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
-
-          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
           double dirGamma[] = {dir.x(), dir.y(), dir.z()};
           double dirPhotoElec[3];
@@ -462,8 +455,7 @@ __global__ void __launch_bounds__(256, 1)
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                stepDefinedProcessId,                        // step-defining process id
                                ParticleType::Gamma,                         // Particle type

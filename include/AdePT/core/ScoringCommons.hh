@@ -51,27 +51,6 @@ struct SecondaryInitData {
   ParticleType particleType{ParticleType::Electron};
 };
 
-/// @brief Stores information used for comparison with Geant4 (Number of steps, Number of produced particles, etc)
-struct GlobalCounters {
-  double energyDeposit;
-  // Not int to avoid overflows for more than 100,000 events; unsigned long long
-  // is the only other data type available for atomicAdd().
-  unsigned long long chargedSteps;
-  unsigned long long neutralSteps;
-  unsigned long long hits;
-  unsigned long long numGammas;
-  unsigned long long numElectrons;
-  unsigned long long numPositrons;
-  // Not used on the device, filled in by the host.
-  unsigned long long numKilled;
-
-  void Print()
-  {
-    printf("Global scoring: stpChg=%llu stpNeu=%llu hits=%llu numGam=%llu numEle=%llu numPos=%llu numKilled=%llu\n",
-           chargedSteps, neutralSteps, hits, numGammas, numElectrons, numPositrons, numKilled);
-  }
-};
-
 /// @brief Utility function to copy a 3D vector, used for filling the Step Points
 __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<double> const &source,
                                              vecgeom::Vector3D<double> &destination)

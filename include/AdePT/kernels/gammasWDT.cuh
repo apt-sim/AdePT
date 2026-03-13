@@ -23,11 +23,11 @@ using StepActionParam = adept::SteppingAction::Params;
 
 namespace AsyncAdePT {
 // Asynchronous TransportGammasWoodcock Interface
-template <typename Scoring, class SteppingActionT>
+template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
-    TransportGammasWoodcock(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
-                            const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
-                            const bool returnAllSteps, const bool returnLastStep)
+    TransportGammasWoodcock(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
+                            AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                            const bool returnLastStep)
 {
   // Implementation of the gamma transport using Woodcock tracking. The implementation is taken from
   // Mihaly Novak's G4HepEm (https://github.com/mnovak42/g4hepem), see G4HepEmWoodcockHelper.hh/cc and
@@ -471,8 +471,6 @@ __global__ void __launch_bounds__(256, 1)
         G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                             posKinEnergy, &rnge);
 
-        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
-
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts && elKinEnergy < theElCut) {
           // Deposit the energy here and kill the secondary
@@ -528,8 +526,6 @@ __global__ void __launch_bounds__(256, 1)
 
         const double energyEl = eKin - newEnergyGamma;
 
-        adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
@@ -574,8 +570,6 @@ __global__ void __launch_bounds__(256, 1)
         edep                    = bindingEnergy;
         const double photoElecE = eKin - edep;
         if (ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
-
-          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
 
           double dirGamma[] = {dir.x(), dir.y(), dir.z()};
           double dirPhotoElec[3];
@@ -659,8 +653,7 @@ __global__ void __launch_bounds__(256, 1)
     // If there is some edep from cutting particles or if it is the last step, record the step
     if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                stepDefinedProcessId,                        // step-defining process id
                                ParticleType::Gamma,                         // Particle type

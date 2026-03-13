@@ -19,11 +19,11 @@ using VolAuxData      = adeptint::VolAuxData;
 
 namespace AsyncAdePT {
 
-template <typename Scoring, class SteppingActionT>
+template <class SteppingActionT>
 __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                             adept::MParray *propagationQueue, Stats *InFlightStats, const StepActionParam params,
-                            Scoring *userScoring, AllowFinishOffEventArray allowFinishOffEvent,
-                            const bool returnAllSteps, const bool returnLastStep)
+                            AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                            const bool returnLastStep)
 {
   constexpr unsigned short maxSteps        = 10'000;
   constexpr unsigned short kStepsStuckKill = 25;
@@ -113,8 +113,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
 
         // In case the last steps are recorded, record it now, as this track is killed
         if (returnLastStep) {
-          adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,                        // Track ID
+          adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                    currentTrack.parentId,                       // parent Track ID
                                    static_cast<short>(10),                      // step limiting process ID
                                    ParticleType::Gamma,                         // Particle type
@@ -207,10 +206,9 @@ __global__ void GammaPropagation(Track *gammas, G4HepEmGammaTrack *hepEMTracks, 
   }
 }
 
-template <typename Scoring>
 __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const adept::MParray *propagationQueue,
                                        ParticleManager particleManager, AllInteractionQueues interactionQueues,
-                                       Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
+                                       const bool returnAllSteps, const bool returnLastStep)
 {
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -255,7 +253,6 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
         // Record last step to enable UserPostTrackingAction to be called
         if (returnAllSteps || returnLastStep) {
           adept_scoring::RecordHit(
-              userScoring,
               currentTrack.trackId,                        // Track ID
               currentTrack.parentId,                       // parent Track ID
               static_cast<short>(3),                       // step defining process ID
@@ -285,10 +282,8 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
   }
 }
 
-template <typename Scoring>
 __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                adept::MParray *relocatingQueue, Scoring *userScoring, const bool returnAllSteps,
-                                const bool returnLastStep)
+                                adept::MParray *relocatingQueue, const bool returnAllSteps, const bool returnLastStep)
 {
   constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
   auto &slotManager              = *particleManager.gammas.fSlotManager;
@@ -336,8 +331,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       // if all steps are returned, we need to record the hit here,
       // as now the nextState is defined, but the navState is not yet replaced
       if (returnAllSteps)
-        adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                        // Track ID
+        adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                  currentTrack.parentId,                       // parent Track ID
                                  static_cast<short>(10),                      // step defining process ID
                                  ParticleType::Gamma,                         // Particle type
@@ -395,7 +389,6 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       // particle has left the world, record hit if last or all steps are returned
       if (returnAllSteps || returnLastStep)
         adept_scoring::RecordHit(
-            userScoring,
             currentTrack.trackId,                        // Track ID
             currentTrack.parentId,                       // parent Track ID
             static_cast<short>(10),                      // step defining process ID
@@ -424,10 +417,8 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
   }
 }
 
-template <typename Scoring>
 __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
-                                const bool returnLastStep)
+                                adept::MParray *interactingQueue, const bool returnAllSteps, const bool returnLastStep)
 {
   auto &slotManager = *particleManager.gammas.fSlotManager;
   int activeSize    = interactingQueue->size();
@@ -483,8 +474,6 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     G4HepEmGammaInteractionConversion::SampleDirections(dirPrimary, dirSecondaryEl, dirSecondaryPos, elKinEnergy,
                                                         posKinEnergy, &rnge);
 
-    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 1, /*numGammas*/ 0);
-
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[2];
     unsigned int nSecondaries = 0;
@@ -530,7 +519,6 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
       adept_scoring::RecordHit(
-          userScoring,
           currentTrack.trackId,                        // Track ID
           currentTrack.parentId,                       // parent Track ID
           static_cast<short>(0),                       // step defining process ID
@@ -558,10 +546,8 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
   }
 }
 
-template <typename Scoring>
 __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                             adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
-                             const bool returnLastStep)
+                             adept::MParray *interactingQueue, const bool returnAllSteps, const bool returnLastStep)
 {
   auto &slotManager = *particleManager.gammas.fSlotManager;
   int activeSize    = interactingQueue->size();
@@ -616,8 +602,6 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
 
     const double energyEl = currentTrack.eKin - newEnergyGamma;
 
-    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[1];
     unsigned int nSecondaries = 0;
@@ -662,8 +646,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
     // Note: step must be returned even if track dies or secondaries are generated
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(1),                       // step defining process ID
                                ParticleType::Gamma,                         // Particle type
@@ -690,9 +673,8 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
   }
 }
 
-template <typename Scoring>
 __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   adept::MParray *interactingQueue, const bool returnAllSteps,
                                    const bool returnLastStep)
 {
   auto &slotManager = *particleManager.gammas.fSlotManager;
@@ -736,8 +718,6 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
 
     if (ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
 
-      adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
       double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirPhotoElec[3];
       G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
@@ -767,8 +747,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
 
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,           // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,           // Track ID
                                currentTrack.parentId,          // parent Track ID
                                static_cast<short>(2),          // step defining process ID
                                ParticleType::Gamma,            // Particle type

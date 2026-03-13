@@ -303,7 +303,6 @@ struct GPUstate {
   Stats *stats_dev{nullptr}; ///< statistics object pointer on device
   Stats *stats{nullptr};     ///< statistics object pointer on host
 
-  PerEventScoring *fScoring_dev; ///< Device array for per-worker scoring data
   std::unique_ptr<HitScoring> fHitScoring;
 
   adept::MParrayT<QueueIndexPair> *injectionQueue;
