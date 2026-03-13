@@ -31,16 +31,6 @@
 
 #include <iomanip>
 
-// std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
-//                                                                unsigned int nHitSlot, int verbosity,
-//                                                                std::vector<std::string> const *GPURegionNames,
-//                                                                bool trackInAllRegions, int cudaStackSize)
-// {
-//   static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport> adePT{new AsyncAdePT::AsyncAdePTTransport(
-//       nThread, nTrackSlot, nHitSlot, verbosity, GPURegionNames, trackInAllRegions, cudaStackSize)};
-//   return adePT;
-// }
-
 /// Forward declarations
 namespace async_adept_impl {
 void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);

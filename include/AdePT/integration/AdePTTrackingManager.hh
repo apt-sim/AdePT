@@ -8,7 +8,6 @@
 #include "G4RegionStore.hh"
 
 #include "globals.hh"
-#include <AdePT/core/AdePTTransportInterface.hh>
 #include <AdePT/core/AsyncAdePTTransport.hh>
 #include "AdePT/copcore/SystemOfUnits.h"
 #include <AdePT/integration/AdePTGeant4Integration.hh>
@@ -22,6 +21,8 @@
 
 class AdePTTrackingManager : public G4VTrackingManager {
 public:
+  using AdePTTransport = AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>;
+
   explicit AdePTTrackingManager(AdePTConfiguration *config, int verbosity = 0);
   ~AdePTTrackingManager();
 
@@ -45,9 +46,6 @@ private:
   /// addition to checking whether the track is in a GPU Region
   void ProcessTrack(G4Track *aTrack);
 
-  /// @brief Steps a track using the Generic G4TrackingManager until it enters a GPU region or stops
-  void StepInHostRegion(G4Track *aTrack);
-
   /// @brief Get the corresponding VecGeom NavigationState from the G4NavigationHistory. The boundary status will be set
   /// to false by default
   /// @param aG4NavigationHistory the given G4NavigationHistory
@@ -66,14 +64,13 @@ private:
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
-  std::shared_ptr<AdePTTransportInterface> fAdeptTransport;
+  std::shared_ptr<AdePTTransport> fAdeptTransport;
   AdePTConfiguration *const fAdePTConfiguration;
   int fVerbosity{0};
   unsigned int fTrackCounter{0};
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};
   bool fSpeedOfLight{false};
-  bool fCommonInitThread{false};
 #ifdef ENABLE_POWER_METER
   bool fPowerMeterRunning{false};
 #endif

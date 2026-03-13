@@ -45,6 +45,7 @@ using SteppingAction = adept::SteppingAction::Action;
 #endif
 
 #include <G4HepEmData.hh>
+#include <G4HepEmConfig.hh>
 #include <G4HepEmState.hh>
 #include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
