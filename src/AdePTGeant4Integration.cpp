@@ -590,7 +590,9 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
               *fScoringObjects->fPreG4TouchableHistoryHandle, *fScoringObjects->fPostG4TouchableHistoryHandle);
   fScoringObjects->fG4Step->GetTrack()->SetStep(fScoringObjects->fG4Step);
 
-  // Create and attach secondaries
+  // Create and attach secondaries.
+  // User tracking callbacks for the secondaries are delayed until after the
+  // parent step callbacks to match Geant4 ordering
   {
     // Attention!!! The reference parentTData to the hostTrackDataMapper will be invalidated by inserting a new element
     // via create()! Therefore, the g4id that is needed as a parent ID for the secondaries must be saved before!
@@ -615,27 +617,23 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       FillG4Track(&secStep, secTrack, secTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
                   *fScoringObjects->fPostG4TouchableHistoryHandle);
 
-      // 5. call PreUserTrackingAction as this might set up the G4UserInformation
-      if (callUserTrackingAction || callUserSteppingAction) {
-        auto *evtMgr             = G4EventManager::GetEventManager();
-        auto *userTrackingAction = evtMgr->GetUserTrackingAction();
-        if (userTrackingAction) {
-          userTrackingAction->PreUserTrackingAction(secTrack);
-
-          // if userTrackInfo didn't exist before but exists now, update the map as a new TrackInfo was attached for
-          // the first time
-          if (secTData.userTrackInfo == nullptr && secTrack->GetUserInformation() != nullptr) {
-            secTData.userTrackInfo = secTrack->GetUserInformation();
-          }
-        }
-      }
-
-      // 6. Attach secondaries to G4Step: the fSecondaryVector is the persistent storage for the G4Step->SecondaryVector
+      // 5. Attach secondaries to G4Step: the fSecondaryVector is the persistent storage for the G4Step->SecondaryVector
       fScoringObjects->fSecondaryVector->push_back(secTrack);
     }
   }
 
   // Now, the G4Step is fully initialized and also contains the secondaries created in that step.
+
+  // Call scoring if SD is defined and it is not the initializing step.
+  // As in G4, this is called before the SteppingAction
+  G4VSensitiveDetector *aSensitiveDetector =
+      fScoringObjects->fPreG4NavigationHistory.GetVolume(fScoringObjects->fPreG4NavigationHistory.GetDepth())
+          ->GetLogicalVolume()
+          ->GetSensitiveDetector();
+
+  if (aSensitiveDetector != nullptr && parentStep.fStepCounter != 0) {
+    aSensitiveDetector->Hit(fScoringObjects->fG4Step);
+  }
 
   if (callUserSteppingAction) {
     auto *evtMgr             = G4EventManager::GetEventManager();
@@ -650,15 +648,25 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
   }
 
-  // Call SD code
-  G4VSensitiveDetector *aSensitiveDetector =
-      fScoringObjects->fPreG4NavigationHistory.GetVolume(fScoringObjects->fPreG4NavigationHistory.GetDepth())
-          ->GetLogicalVolume()
-          ->GetSensitiveDetector();
+  // Secondaries only get the PreUserTracking callback after the parent step has been
+  // fully processed. Now the secondaries are ready to process their next step that could arrive
+  if (callUserTrackingAction || callUserSteppingAction) {
+    auto *evtMgr             = G4EventManager::GetEventManager();
+    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
+    if (userTrackingAction) {
+      std::span<const GPUHit> secondaries = gpuSteps.subspan(1);
+      for (size_t i = 0; i < secondaries.size(); ++i) {
+        auto *secondary = (*fScoringObjects->fSecondaryVector)[i];
+        if (secondary == nullptr) continue;
 
-  // Call scoring if SD is defined and it is not the initializing step
-  if (aSensitiveDetector != nullptr && parentStep.fStepCounter != 0) {
-    aSensitiveDetector->Hit(fScoringObjects->fG4Step);
+        userTrackingAction->PreUserTrackingAction(secondary);
+
+        auto &secTData = fHostTrackDataMapper->get(secondaries[i].fTrackID);
+        if (secTData.userTrackInfo == nullptr && secondary->GetUserInformation() != nullptr) {
+          secTData.userTrackInfo = secondary->GetUserInformation();
+        }
+      }
+    }
   }
 
   // If this was the last step of a track, the hostTrackData of that track can be safely deleted.
