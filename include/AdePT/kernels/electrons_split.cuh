@@ -43,11 +43,11 @@ __device__ double GetVelocity(double eKin)
 
 namespace AsyncAdePT {
 
-template <bool IsElectron, typename Scoring, class SteppingActionT>
+template <bool IsElectron, class SteppingActionT>
 __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronTrack *hepEMTracks,
                                adept::MParray *propagationQueue, Stats *InFlightStats, const StepActionParam params,
-                               Scoring *userScoring, AllowFinishOffEventArray allowFinishOffEvent,
-                               const bool returnAllSteps, const bool returnLastStep)
+                               AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                               const bool returnLastStep)
 {
   constexpr unsigned short maxSteps        = 10'000;
   constexpr int Charge                     = IsElectron ? -1 : 1;
@@ -167,8 +167,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 
         // In case the last steps are recorded, record it now, as this track is killed
         if (returnLastStep) {
-          adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,   // Track ID
+          adept_scoring::RecordHit(currentTrack.trackId,   // Track ID
                                    currentTrack.parentId,  // parent Track ID
                                    static_cast<short>(10), // step limiting process ID
                                    IsElectron ? ParticleType::Electron : ParticleType::Positron,
@@ -434,10 +433,10 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
 /***
  * @brief Adds tracks to interaction and relocation queues depending on their state
  */
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron>
 __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, const adept::MParray *propagationQueue,
                                           ParticleManager particleManager, AllInteractionQueues interactionQueues,
-                                          Scoring *userScoring, const bool returnAllSteps, const bool returnLastStep)
+                                          const bool returnAllSteps, const bool returnLastStep)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
@@ -546,8 +545,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       // Only non-interacting, non-relocating tracks score here
       // Score the edep for particles that didn't reach the interaction
       if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives)) {
-        adept_scoring::RecordHit(userScoring,
-                                 currentTrack.trackId,                                         // Track ID
+        adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                  currentTrack.parentId,                                        // parent Track ID
                                  static_cast<short>(winnerProcessIndex),                       // step defining process
                                  IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
@@ -575,9 +573,9 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
   }
 }
 
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron>
 __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *relocatingQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   adept::MParray *relocatingQueue, const bool returnAllSteps,
                                    const bool returnLastStep)
 {
   constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
@@ -645,8 +643,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 
     // Score
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                                         // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                currentTrack.parentId,                                        // parent Track ID
                                static_cast<short>(/*transport*/ 10),                         // step limiting process ID
                                IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
@@ -689,12 +686,10 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   }
 }
 
-template <typename Scoring>
 __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track &currentTrack,
                                                            ParticleManager &particleManager, double &energyDeposit,
                                                            const bool ApplyCuts, const double theGammaCut,
-                                                           Scoring *userScoring, SecondaryInitData *secondaryData,
-                                                           unsigned int &nSecondaries,
+                                                           SecondaryInitData *secondaryData, unsigned int &nSecondaries,
                                                            const bool returnLastStep = false)
 {
   currentTrack.eKin = 0;
@@ -706,8 +701,6 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
     // Deposit the energy here and don't initialize any secondaries
     energyDeposit += 2 * copcore::units::kElectronMassC2;
   } else {
-
-    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
     const double cost = 2 * currentTrack.Uniform() - 1;
     const double sint = sqrt(1 - cost * cost);
@@ -741,9 +734,9 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
   }
 }
 
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron>
 __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
+                                   adept::MParray *interactingQueue, const bool returnAllSteps,
                                    const bool returnLastStep)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
@@ -795,8 +788,6 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     double dirSecondary[3];
     G4HepEmElectronInteractionIoni::SampleDirections(currentTrack.eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[3];
     unsigned int nSecondaries = 0;
@@ -828,8 +819,8 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
         energyDeposit += currentTrack.eKin;
       }
       if (!IsElectron) {
-        PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                                            userScoring, secondaryData, nSecondaries, returnLastStep);
+        PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
+                                   secondaryData, nSecondaries, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -842,8 +833,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     // Note: step must be returned if track dies or secondaries have been generated
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                                         // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                currentTrack.parentId,                                        // parent Track ID
                                static_cast<short>(0),                                        // step limiting process ID
                                IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
@@ -870,10 +860,10 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   }
 }
 
-template <bool IsElectron, typename Scoring>
+template <bool IsElectron>
 __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                       adept::MParray *interactingQueue, Scoring *userScoring,
-                                       const bool returnAllSteps, const bool returnLastStep)
+                                       adept::MParray *interactingQueue, const bool returnAllSteps,
+                                       const bool returnLastStep)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
@@ -926,8 +916,6 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     double dirSecondary[3];
     G4HepEmElectronInteractionBrem::SampleDirections(currentTrack.eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
-
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[3];
     unsigned int nSecondaries = 0;
@@ -960,8 +948,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
         energyDeposit += currentTrack.eKin;
       }
       if (!IsElectron) {
-        PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                                            userScoring, secondaryData, nSecondaries, returnLastStep);
+        PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
+                                   secondaryData, nSecondaries, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -975,8 +963,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     // Note: step must be returned if track dies or secondaries were generated
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                                         // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                currentTrack.parentId,                                        // parent Track ID
                                static_cast<short>(1),                                        // step limiting process ID
                                IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
@@ -1003,9 +990,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
   }
 }
 
-template <typename Scoring>
 __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                     adept::MParray *interactingQueue, Scoring *userScoring, const bool returnAllSteps,
+                                     adept::MParray *interactingQueue, const bool returnAllSteps,
                                      const bool returnLastStep)
 {
   SlotManager &slotManager = *particleManager.positrons.fSlotManager;
@@ -1046,10 +1032,6 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
     double theGamma1Dir[3], theGamma2Dir[3];
     G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
         currentTrack.eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
-
-    // TODO: In principle particles are produced, then cut before stacking them. It seems correct to count them
-    // here
-    adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[2];
@@ -1098,8 +1080,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(2),                       // step limiting process ID
                                ParticleType::Positron,                      // Particle type
@@ -1126,10 +1107,9 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
   }
 }
 
-template <typename Scoring>
 __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                            adept::MParray *interactingQueue, Scoring *userScoring,
-                                            const bool returnAllSteps, const bool returnLastStep)
+                                            adept::MParray *interactingQueue, const bool returnAllSteps,
+                                            const bool returnLastStep)
 {
   SlotManager &slotManager = *particleManager.positrons.fSlotManager;
   int activeSize           = interactingQueue->size();
@@ -1163,16 +1143,15 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     SecondaryInitData secondaryData[2];
     unsigned int nSecondaries = 0;
 
-    PerformStoppedAnnihilation<Scoring>(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                                        userScoring, secondaryData, nSecondaries, returnLastStep);
+    PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
+                               secondaryData, nSecondaries, returnLastStep);
     slotManager.MarkSlotForFreeing(slot);
 
     assert(nSecondaries <= 2);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
-      adept_scoring::RecordHit(userScoring,
-                               currentTrack.trackId,                        // Track ID
+      adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
                                static_cast<short>(2),                       // step limiting process ID
                                ParticleType::Positron,                      // Particle type

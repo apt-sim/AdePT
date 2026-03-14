@@ -47,9 +47,9 @@ namespace AsyncAdePT {
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
 // generate secondaries.
-template <bool IsElectron, typename Scoring, class SteppingActionT>
-static __device__ __forceinline__ void TransportElectrons(ParticleManager &particleManager, Scoring *userScoring,
-                                                          Stats *InFlightStats, const StepActionParam params,
+template <bool IsElectron, class SteppingActionT>
+static __device__ __forceinline__ void TransportElectrons(ParticleManager &particleManager, Stats *InFlightStats,
+                                                          const StepActionParam params,
                                                           AllowFinishOffEventArray allowFinishOffEvent,
                                                           const bool returnAllSteps, const bool returnLastStep)
 {
@@ -513,8 +513,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           double dirSecondary[3];
           G4HepEmElectronInteractionIoni::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 1, /*numPositrons*/ 0, /*numGammas*/ 0);
-
           // Apply cuts
           if (ApplyCuts && (deltaEkin < theElCut)) {
             // Deposit the energy here and kill the secondary
@@ -565,7 +563,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           double dirSecondary[3];
           G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
-          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 1);
 #if ADEPT_DEBUG_TRACK > 0
           if (verbose) printf("| BREMSSTRAHLUNG: deltaEkin %g \n", deltaEkin);
 #endif
@@ -621,10 +618,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           double theGamma1Dir[3], theGamma2Dir[3];
           G4HepEmPositronInteractionAnnihilation::SampleEnergyAndDirectionsInFlight(
               eKin, dirPrimary, &theGamma1Ekin, theGamma1Dir, &theGamma2Ekin, theGamma2Dir, &rnge);
-
-          // TODO: In principle particles are produced, then cut before stacking them. It seems correct to count them
-          // here
-          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
           // Apply cuts
           if (ApplyCuts && (theGamma1Ekin < theGammaCut)) {
@@ -686,8 +679,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           // Deposit the energy here and don't initialize any secondaries
           energyDeposit += 2 * copcore::units::kElectronMassC2;
         } else {
-
-          adept_scoring::AccountProduced(userScoring, /*numElectrons*/ 0, /*numPositrons*/ 0, /*numGammas*/ 2);
 
           const double cost = 2 * currentTrack.Uniform() - 1;
           const double sint = sqrt(1 - cost * cost);
@@ -779,7 +770,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(userScoring, currentTrack.trackId, currentTrack.parentId, short(winnerProcessIndex),
+      adept_scoring::RecordHit(currentTrack.trackId, currentTrack.parentId, short(winnerProcessIndex),
                                IsElectron ? ParticleType::Electron : ParticleType::Positron,
                                elTrack.GetPStepLength(),                    // Step length
                                energyDeposit,                               // Total Edep
@@ -805,21 +796,21 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 }
 
 // Instantiate kernels for electrons and positrons.
-template <typename Scoring, class SteppingActionT>
-__global__ void TransportElectrons(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
-                                   const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
-                                   const bool returnAllSteps, const bool returnLastStep)
+template <class SteppingActionT>
+__global__ void TransportElectrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
+                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ true, Scoring, SteppingActionT>(
-      particleManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
+  TransportElectrons</*IsElectron*/ true, SteppingActionT>(particleManager, InFlightStats, params, allowFinishOffEvent,
+                                                           returnAllSteps, returnLastStep);
 }
-template <typename Scoring, class SteppingActionT>
-__global__ void TransportPositrons(ParticleManager particleManager, Scoring *userScoring, Stats *InFlightStats,
-                                   const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent,
-                                   const bool returnAllSteps, const bool returnLastStep)
+template <class SteppingActionT>
+__global__ void TransportPositrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
+                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
+                                   const bool returnLastStep)
 {
-  TransportElectrons</*IsElectron*/ false, Scoring, SteppingActionT>(
-      particleManager, userScoring, InFlightStats, params, allowFinishOffEvent, returnAllSteps, returnLastStep);
+  TransportElectrons</*IsElectron*/ false, SteppingActionT>(particleManager, InFlightStats, params, allowFinishOffEvent,
+                                                            returnAllSteps, returnLastStep);
 }
 
 } // namespace AsyncAdePT

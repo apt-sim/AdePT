@@ -46,17 +46,16 @@ namespace async_adept_impl {
 void CopySurfaceModelToGPU();
 void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
 G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
-void FlushScoring(AdePTScoring &);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
 std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
 std::thread LaunchGPUWorker(int, int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
-                            std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &,
-                            std::vector<AdePTScoring> &, int, int, bool, bool, unsigned short, const double, bool);
+                            std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &, int, int,
+                            bool, bool, unsigned short, const double, bool);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
     int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
-    std::vector<AdePTScoring> &scoring, double CPUCapacityFactor, double CPUCopyFraction,
-    std::string &generalBfieldFile, const std::vector<float> &uniformBfieldValues);
+    double CPUCapacityFactor, double CPUCopyFraction, std::string &generalBfieldFile,
+    const std::vector<float> &uniformBfieldValues);
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, G4HepEmState &, std::thread &,
              adeptint::WDTDeviceBuffers &);
 } // namespace async_adept_impl
@@ -104,7 +103,7 @@ AsyncAdePTTransport<IntegrationLayer>::AsyncAdePTTransport(AdePTConfiguration &c
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
 
   for (auto &eventState : fEventStates) {
-    std::atomic_init(&eventState, EventState::ScoringRetrieved);
+    std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
   }
 
   AsyncAdePTTransport::Initialize(hepEmTM);
@@ -264,12 +263,12 @@ void AsyncAdePTTransport<IntegrationLayer>::Initialize(G4HepEmTrackingManagerSpe
   assert(fBuffer != nullptr);
 
   fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
-                                               fScoring, fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile,
+                                               fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile,
                                                fIntegrationLayerObjects.front().GetUniformField());
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
-                                                 *fGPUstate, fEventStates, fCV_G4Workers, fScoring, fAdePTSeed,
-                                                 fDebugLevel, fReturnAllSteps, fReturnFirstAndLastStep,
-                                                 fLastNParticlesOnCPU, fHitBufferSafetyFactor, fHasWDTRegions);
+                                                 *fGPUstate, fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
+                                                 fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU,
+                                                 fHitBufferSafetyFactor, fHasWDTRegions);
 }
 
 template <typename IntegrationLayer>
@@ -387,9 +386,6 @@ void AsyncAdePTTransport<IntegrationLayer>::Flush(G4int threadId, G4int eventId)
   }
 
   integrationInstance.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel, fReturnFirstAndLastStep);
-
-  async_adept_impl::FlushScoring(fScoring[threadId]);
-  fEventStates[threadId].store(EventState::ScoringRetrieved, std::memory_order_release);
 }
 
 } // namespace AsyncAdePT

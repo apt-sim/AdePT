@@ -15,7 +15,6 @@
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
-#include <AdePT/core/PerEventScoringStruct.cuh>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
@@ -54,7 +53,6 @@ private:
   unsigned short fMaxWDTIter{5};                          ///< Maximum number of Woodcock tracking iterations per step
   std::vector<IntegrationLayer> fIntegrationLayerObjects; //< vector of integration layers per thread
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
-  std::vector<AdePTScoring> fScoring;                            ///< User scoring objects per G4 worker
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
   adeptint::WDTDeviceBuffers fWDTDev{};              ///< device buffers for Woodcock tracking data

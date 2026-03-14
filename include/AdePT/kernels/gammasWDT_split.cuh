@@ -24,12 +24,11 @@ using VolAuxData      = adeptint::VolAuxData;
 namespace AsyncAdePT {
 
 // Asynchronous TransportGammasWoodcock Interface
-template <typename Scoring, class SteppingActionT>
+template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     GammaWoodcock(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                  adept::MParray *setupInteractionQueue, Scoring *userScoring, Stats *InFlightStats,
-                  const StepActionParam params, AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                  const bool returnLastStep)
+                  adept::MParray *setupInteractionQueue, Stats *InFlightStats, const StepActionParam params,
+                  AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps, const bool returnLastStep)
 {
   // Implementation of the gamma transport using Woodcock tracking. The implementation is taken from
   // Mihaly Novak's G4HepEm (https://github.com/mnovak42/g4hepem), see G4HepEmWoodcockHelper.hh/cc and
@@ -147,8 +146,7 @@ __global__ void __launch_bounds__(256, 1)
 
         // In case the last steps are recorded, record it now, as this track is killed
         if (returnLastStep) {
-          adept_scoring::RecordHit(userScoring,
-                                   currentTrack.trackId,                        // Track ID
+          adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                    currentTrack.parentId,                       // parent Track ID
                                    static_cast<short>(10),                      // step limiting process ID
                                    ParticleType::Gamma,                         // Particle type
