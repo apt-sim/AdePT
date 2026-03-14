@@ -38,6 +38,7 @@ set(sources_g4
   src/RunAction.cc
   src/Run.cc
   src/SensitiveDetector.cc
+  src/TrackingAction.cc
 )
 
 if(HepMC3_FOUND)
@@ -48,8 +49,15 @@ if(HepMC3_FOUND)
   )
 endif()
 
+find_package(ROOT QUIET COMPONENTS Core Hist RIO)
+
 # integrationTest
-add_executable(integrationTest integrationTest.cpp ${sources_g4} ${sources_hepmc3})
+add_executable(integrationTest
+  integrationTest.cpp
+  ${sources_g4}
+  ${sources_hepmc3}
+  src/TruthHistogrammer.cc
+)
 target_include_directories(integrationTest
   PRIVATE
     ${PROJECT_SOURCE_DIR}/test/regression/IntegrationTest/include
@@ -63,6 +71,16 @@ cuda_rdc_target_link_libraries(integrationTest
     ${HEPMC3_LIBRARIES}
     ${HEPMC3_FIO_LIBRARIES}
 )
+
+if(ROOT_FOUND)
+  target_compile_definitions(integrationTest PRIVATE ADEPT_INTEGRATIONTEST_HAS_ROOT)
+  if(TARGET ROOT::Core)
+    target_link_libraries(integrationTest PRIVATE ROOT::Core ROOT::Hist ROOT::RIO)
+  else()
+    target_include_directories(integrationTest PRIVATE ${ROOT_INCLUDE_DIRS})
+    target_link_libraries(integrationTest PRIVATE ${ROOT_LIBRARIES})
+  endif()
+endif()
 
 # Scripts
 # configure_file("macros/integrationtest.mac.in" "${CMAKE_BINARY_DIR}/integrationtest.mac")

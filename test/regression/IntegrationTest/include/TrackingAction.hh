@@ -1,6 +1,5 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
-//
 // ********************************************************************
 // * License and Disclaimer                                           *
 // *                                                                  *
@@ -25,57 +24,29 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef RUNACTION_HH
-#define RUNACTION_HH
+/// \brief Definition of the TrackingAction class
 
-#include "G4UserRunAction.hh"
-#include "G4String.hh"
-#include "G4Timer.hh"
-#include <mutex>
+#ifndef TRACKINGACTION_HH
+#define TRACKINGACTION_HH
 
-class G4Run;
-class Run;
+#include "G4UserTrackingAction.hh"
 
 /**
- * @brief Run-level coordination for the integration benchmark.
+ * @brief Regression-test tracking hooks.
  *
- * The run action owns the `Run` object, starts/stops the wall-time timer used
- * in the CSV summary, and triggers final CSV/ROOT output at end-of-run.
+ * The ROOT truth mode uses the tracking callbacks to capture the initial and
+ * final track snapshots. Initial lineage may be provisional for returned GPU
+ * secondaries and can later be refined in the stepping action once the parent
+ * step is available.
  */
-class RunAction : public G4UserRunAction {
+class TrackingAction : public G4UserTrackingAction {
+
 public:
-  /// Constructor with default output settings.
-  RunAction();
-  /// Constructor with explicit output configuration.
-  RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents, bool aWriteTruthROOT);
-  ~RunAction() override;
+  TrackingAction();
+  ~TrackingAction() override = default;
 
-  /// Reset master-only run timing state before event processing starts.
-  void BeginOfRunAction(const G4Run *) final;
-  /// Write the accumulated CSV summary and optional ROOT truth file.
-  void EndOfRunAction(const G4Run *) final;
-
-  G4Run *GenerateRun() override;
-
-  // Start/stop the run wall-time timer around actual event processing only.
-  static void StartRunTimerFromFirstEvent();
-
-  bool GetDoAccumulatedEvents() const { return fDoAccumulatedEvents; };
-  bool GetWriteTruthROOT() const { return fWriteTruthROOT; };
-  const G4String &GetOutputDirectory() { return fOutputDirectory; };
-  const G4String &GetOutputFilename() { return fOutputFilename; };
-
-private:
-  G4String fOutputDirectory;
-  G4String fOutputFilename;
-  bool fDoAccumulatedEvents;
-  bool fWriteTruthROOT;
-  static double StopRunTimerOnMaster();
-
-  static G4Timer fgRunTimer;
-  static std::mutex fgRunTimerMutex;
-  static bool fgRunTimerStarted;
-  Run *fRun;
+  void PreUserTrackingAction(const G4Track *) override;
+  void PostUserTrackingAction(const G4Track *) override;
 };
 
-#endif /* RUNACTION_HH */
+#endif // TRACKINGACTION_HH

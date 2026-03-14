@@ -31,31 +31,28 @@
 #include "G4VUserActionInitialization.hh"
 #include "G4String.hh"
 
-class DetectorConstruction;
-
 /**
- * @brief Initialization of user actions.
+ * @brief Installs the user actions used by the integration benchmark.
  *
- * Initialises the primary generator, and user actions (event, run) to perform
- * analysis and store histograms.
- *
+ * The regular CSV drift output and the optional ROOT truth output share the
+ * same action stack. ROOT-specific collection only becomes active when the run
+ * is configured with `fWriteTruthROOT`.
  */
-
 class ActionInitialisation : public G4VUserActionInitialization {
 public:
-  ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents);
-  ~ActionInitialisation();
+  ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents,
+                       bool aWriteTruthROOT);
+  ~ActionInitialisation() override;
   /// Create all user actions.
-  virtual void Build() const final;
+  void Build() const final;
   /// Create run action in the master thread to allow analysis merging.
-  virtual void BuildForMaster() const final;
+  void BuildForMaster() const final;
 
 private:
-  /// Pointer to detector to be passed to event and run actions in order to
-  /// retrieve detector dimensions
   G4String fOutputDirectory;
   G4String fOutputFilename;
   bool fDoAccumulatedEvents;
+  bool fWriteTruthROOT;
 };
 
 #endif /* ACTIONINITIALISATION_HH */

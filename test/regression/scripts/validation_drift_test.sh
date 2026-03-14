@@ -37,6 +37,10 @@ NUM_HITSLOTS=1
 NUM_LEAKSLOTS=1
 GUN_NUMBER=20
 ADEPT_SEED=1234567
+# The ROOT truth path requires the user callbacks because the reconstructed
+# MC-truth state is only available when AdePT is told to invoke them.
+CALL_USER_STEPPING_ACTION=False
+CALL_USER_TRACKING_ACTION=False
 
 REGIONS_LIST="caloregion, Layer1, Layer2, Layer3, Layer4, Layer5, Layer6, Layer7, Layer8, Layer9, Layer10,\
             Layer11, Layer12, Layer13, Layer14, Layer15, Layer16, Layer17, Layer18, Layer19, Layer20,\
@@ -91,6 +95,8 @@ generate_validation_macro() {
   local regions_list=$5
   local wdt_regions_list=$6
   local detector_field=$7
+  local call_user_stepping_action=$8
+  local call_user_tracking_action=$9
 
   "${CI_TEST_DIR}/python_scripts/macro_generator.py" \
       --template "${CI_TEST_DIR}/example_template.mac" \
@@ -107,7 +113,26 @@ generate_validation_macro() {
       --adept_seed "${ADEPT_SEED}" \
       --regions "${regions_list}" \
       --wdt_regions "${wdt_regions_list}" \
-	  --detector_field "${detector_field}"
+      --call_user_stepping_action "${call_user_stepping_action}" \
+      --call_user_tracking_action "${call_user_tracking_action}" \
+      --detector_field "${detector_field}"
+}
+
+supports_truth_root() {
+  local executable=$1
+  local output
+
+  # The helper flag allows the drift script to decide whether it can run the
+  # richer ROOT truth comparison, or needs to fall back to the legacy CSV-only
+  # exact comparison.
+  if output=$("${executable}" --supports_truth_root 2>/dev/null); then
+    if [ "${output}" = "1" ]; then
+      echo "1"
+      return 0
+    fi
+  fi
+
+  echo "0"
 }
 
 SCENARIO_TMP_DIR="${CI_TMP_DIR}/${SCENARIO}"
@@ -119,23 +144,54 @@ PR_OUTPUT="pr_${SCENARIO}"
 
 mkdir -p "${MASTER_SCENARIO_DIR}" "${PR_SCENARIO_DIR}"
 
+PR_SUPPORTS_ROOT="$(supports_truth_root "${PR_EXECUTABLE}")"
+MASTER_SUPPORTS_ROOT="$(supports_truth_root "${MASTER_EXECUTABLE}")"
+
+if [ "${PR_SUPPORTS_ROOT}" = "1" ] && [ "${MASTER_SUPPORTS_ROOT}" = "1" ]; then
+  CALL_USER_STEPPING_ACTION=True
+  CALL_USER_TRACKING_ACTION=True
+fi
+
 # Use one macro for both binaries to ensure identical runtime input.
+# The macro generator expands the scenario settings into an executable Geant4
+# macro with the right geometry, field, AdePT options, and callback settings.
 generate_validation_macro "${PR_SOURCE_DIR}" "${SCENARIO_MACRO}" \
-  "${SCENARIO_GDML}" "${SCENARIO_TRACK_IN_ALL_REGIONS}" "${SCENARIO_REGIONS}" "${SCENARIO_WDT_REGIONS}" "${SCENARIO_FIELD}"
+  "${SCENARIO_GDML}" "${SCENARIO_TRACK_IN_ALL_REGIONS}" "${SCENARIO_REGIONS}" "${SCENARIO_WDT_REGIONS}" \
+  "${SCENARIO_FIELD}" "${CALL_USER_STEPPING_ACTION}" "${CALL_USER_TRACKING_ACTION}"
 
-"${MASTER_EXECUTABLE}" --allsensitive --accumulated_events \
-                       -m "${SCENARIO_MACRO}" \
-                       --output_dir "${MASTER_SCENARIO_DIR}" \
-                       --output_file "${MASTER_OUTPUT}"
+if [ "${CALL_USER_STEPPING_ACTION}" = "True" ]; then
+  # ROOT truth mode: produce aggregated histogram files for PR and master and
+  # compare them semantically, histogram by histogram.
+  "${MASTER_EXECUTABLE}" --allsensitive --accumulated_events --truth_root \
+                         -m "${SCENARIO_MACRO}" \
+                         --output_dir "${MASTER_SCENARIO_DIR}" \
+                         --output_file "${MASTER_OUTPUT}"
 
-"${PR_EXECUTABLE}" --allsensitive --accumulated_events \
-                   -m "${SCENARIO_MACRO}" \
-                   --output_dir "${PR_SCENARIO_DIR}" \
-                   --output_file "${PR_OUTPUT}"
+  "${PR_EXECUTABLE}" --allsensitive --accumulated_events --truth_root \
+                     -m "${SCENARIO_MACRO}" \
+                     --output_dir "${PR_SCENARIO_DIR}" \
+                     --output_file "${PR_OUTPUT}"
 
-"${CI_TEST_DIR}/python_scripts/check_reproducibility.py" \
-  --file1 "${MASTER_SCENARIO_DIR}/${MASTER_OUTPUT}.csv" \
-  --file2 "${PR_SCENARIO_DIR}/${PR_OUTPUT}.csv" \
-  --tol 0.0
+  python3 "${CI_TEST_DIR}/python_scripts/check_root_histograms.py" \
+    --file1 "${MASTER_SCENARIO_DIR}/${MASTER_OUTPUT}.root" \
+    --file2 "${PR_SCENARIO_DIR}/${PR_OUTPUT}.root"
+else
+  # Legacy fallback for builds without ROOT support: keep the original exact
+  # CSV edep drift test unchanged.
+  "${MASTER_EXECUTABLE}" --allsensitive --accumulated_events \
+                         -m "${SCENARIO_MACRO}" \
+                         --output_dir "${MASTER_SCENARIO_DIR}" \
+                         --output_file "${MASTER_OUTPUT}"
+
+  "${PR_EXECUTABLE}" --allsensitive --accumulated_events \
+                     -m "${SCENARIO_MACRO}" \
+                     --output_dir "${PR_SCENARIO_DIR}" \
+                     --output_file "${PR_OUTPUT}"
+
+  "${CI_TEST_DIR}/python_scripts/check_reproducibility.py" \
+    --file1 "${MASTER_SCENARIO_DIR}/${MASTER_OUTPUT}.csv" \
+    --file2 "${PR_SCENARIO_DIR}/${PR_OUTPUT}.csv" \
+    --tol 0.0
+fi
 
 echo "Scenario '${SCENARIO}' matched exactly."
