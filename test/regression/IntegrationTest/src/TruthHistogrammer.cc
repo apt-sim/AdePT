@@ -37,15 +37,9 @@ using ValueHistogram = TruthHistogrammer::ValueHistogram;
 const std::vector<std::string> &CategoricalHistogramNames()
 {
   static const std::vector<std::string> names = {
-      "creator_process_counts",
-      "step_defining_process_counts",
-      "step_particle_type_counts",
-      "step_volume_counts",
-      "primary_ancestor_population",
-      "generation_population",
-      "particle_type_counts",
-      "initial_volume_counts",
-      "final_volume_counts",
+      "creator_process_counts",       "step_defining_process_counts", "step_particle_type_counts",
+      "step_volume_counts",           "primary_ancestor_population",  "generation_population",
+      "particle_type_counts",         "initial_volume_counts",        "final_volume_counts",
       "vertex_logical_volume_counts",
   };
   return names;
@@ -54,13 +48,38 @@ const std::vector<std::string> &CategoricalHistogramNames()
 const std::vector<std::string> &ValueHistogramNames()
 {
   static const std::vector<std::string> names = {
-      "initial_x",          "initial_y",          "initial_z",            "initial_dir_x",       "initial_dir_y",
-      "initial_dir_z",      "initial_ekin",       "initial_global_time",  "step_length",         "step_total_edep",
-      "step_pre_ekin",      "step_global_time",   "final_x",              "final_y",            "final_z",
-      "final_dir_x",        "final_dir_y",        "final_dir_z",          "final_ekin",         "final_global_time",
-      "final_local_time",   "final_proper_time",  "final_step_length",    "final_total_edep",   "final_num_secondaries",
-      "vertex_x",           "vertex_y",           "vertex_z",             "vertex_dir_x",       "vertex_dir_y",
-      "vertex_dir_z",       "vertex_ekin",
+      "initial_x",
+      "initial_y",
+      "initial_z",
+      "initial_dir_x",
+      "initial_dir_y",
+      "initial_dir_z",
+      "initial_ekin",
+      "initial_global_time",
+      "step_length",
+      "step_total_edep",
+      "step_pre_ekin",
+      "step_global_time",
+      "final_x",
+      "final_y",
+      "final_z",
+      "final_dir_x",
+      "final_dir_y",
+      "final_dir_z",
+      "final_ekin",
+      "final_global_time",
+      "final_local_time",
+      "final_proper_time",
+      "final_step_length",
+      "final_total_edep",
+      "final_num_secondaries",
+      "vertex_x",
+      "vertex_y",
+      "vertex_z",
+      "vertex_dir_x",
+      "vertex_dir_y",
+      "vertex_dir_z",
+      "vertex_ekin",
   };
   return names;
 }
@@ -145,8 +164,8 @@ double CanonicalWeightedSum(const ValueHistogram &histogram)
 
   double sum = 0.0;
   for (std::uint64_t bits : keys) {
-    const double value         = std::bit_cast<double>(bits);
-    const std::uint64_t count  = histogram.at(bits);
+    const double value        = std::bit_cast<double>(bits);
+    const std::uint64_t count = histogram.at(bits);
     for (std::uint64_t i = 0; i < count; ++i) {
       sum += value;
     }
@@ -251,7 +270,8 @@ TruthHistogrammer::TruthHistogrammer()
   }
 }
 
-void TruthHistogrammer::IncrementCategorical(const std::string &histogramName, const std::string &label, std::uint64_t count)
+void TruthHistogrammer::IncrementCategorical(const std::string &histogramName, const std::string &label,
+                                             std::uint64_t count)
 {
   fCategoricalHistograms[histogramName][label] += count;
 }
@@ -329,8 +349,7 @@ void TruthHistogrammer::RecordStep(const G4Step *step)
   IncrementValue("step_total_edep", step->GetTotalEnergyDeposit());
   IncrementValue("step_pre_ekin", step->GetPreStepPoint()->GetKineticEnergy());
   IncrementValue("step_global_time", step->GetPreStepPoint()->GetGlobalTime());
-  IncrementCategorical("step_defining_process_counts",
-                       ProcessName(step->GetPostStepPoint()->GetProcessDefinedStep()));
+  IncrementCategorical("step_defining_process_counts", ProcessName(step->GetPostStepPoint()->GetProcessDefinedStep()));
   IncrementCategorical("step_particle_type_counts", ParticleName(step->GetTrack()));
   IncrementCategorical("step_volume_counts", PhysicalVolumeLabel(step->GetPreStepPoint(), "OUTSIDE_WORLD"));
 }
@@ -345,7 +364,8 @@ void TruthHistogrammer::RecordGenerationPopulation(unsigned int generation)
   IncrementCategorical("generation_population", std::to_string(generation));
 }
 
-void TruthHistogrammer::AddEnergyDeposit(int physicalVolumeId, const std::string &physicalVolumeName, double energyDeposit)
+void TruthHistogrammer::AddEnergyDeposit(int physicalVolumeId, const std::string &physicalVolumeName,
+                                         double energyDeposit)
 {
   auto &entry = fEnergyDepositByVolume[physicalVolumeId];
   entry.label = physicalVolumeName;
