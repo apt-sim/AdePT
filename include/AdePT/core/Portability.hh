@@ -217,7 +217,7 @@
   } while (0)
 #endif
 
-// #define ADEPT_NOT_CONFIGURED(WHAT) ADEPT_RUNTIME_THROW("not configured", WHAT, nullptr)
+#define ADEPT_NOT_CONFIGURED(WHAT) ADEPT_RUNTIME_THROW("not configured", WHAT, nullptr)
 
 /*!
  * \def ADEPT_ERROR_CHECK
@@ -236,11 +236,6 @@
  *
  * Safely and portably dispatch a CUDA/HIP API call.
  *
- * When CUDA or HIP support is enabled, execute the wrapped statement
- * prepend the argument with "cuda" or "hip" and throw a
- * std::runtime_error if it fails. If no device platform is enabled, throw an
- * unconfigured assertion.
- *
  * Example:
  *
  * \code
@@ -248,7 +243,6 @@
    ADEPT_DEVICE_API_CALL(DeviceSynchronize());
  * \endcode
  */
-// #if defined(__HIP__) || defined(__CUDA_ARCH__)
 #define ADEPT_DEVICE_API_CALL(STMT)                                                                                  \
   do {                                                                                                               \
     using ErrT_   = ADEPT_DEVICE_API_SYMBOL(Error_t);                                                                \
@@ -258,14 +252,7 @@
       ADEPT_RUNTIME_THROW(ADEPT_DEVICE_PLATFORM_UPPER_STR, ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result_), #STMT); \
     }                                                                                                                \
   } while (0)
-/*
-#else
-#define ADEPT_DEVICE_API_CALL(STMT)      \
- do {                                   \
-    ADEPT_NOT_CONFIGURED("CUDA or HIP"); \
-  } while (0)
-#endif
-*/
+
 namespace portability {
 //---------------------------------------------------------------------------//
 // FUNCTION DECLARATIONS
