@@ -40,6 +40,8 @@
 #include <AdePT/base/ArgParser.h>
 #include <AdePT/integration/AdePTGeant4Integration.hh>
 
+void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
+
 static constexpr double DefaultCut = 0.7 * mm;
 
 float BzFieldValue_host = 1.0 * copcore::units::tesla;
@@ -228,12 +230,7 @@ int main(int argc, char *argv[])
 
   constexpr int stackLimit = 8 * 1024; // 8192
   printf("testField.cpp/main(): Setting Cuda Device Stack Limit to %6d \n", stackLimit);
-  // ADEPT_DEVICE_API_SYMBOL(Error_t)
-  // error = ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitStackSize), stackLimit));
-  // if (error != ADEPT_DEVICE_API_SYMBOL(Success)) {
-  //   printf("ADEPT_DEVICE_API_CALL(DeviceSetLimit) failed with %d, line(%d)\n", error, __LINE__);
-  //   exit(EXIT_FAILURE);
-  // }
+  setDeviceLimits(stackLimit);
 
   G4Timer timer;
   timer.Start();

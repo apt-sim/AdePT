@@ -494,8 +494,31 @@ __global__ void InitSlotManagers(SlotManager *mgr, std::size_t N)
   }
 }
 
-/// WIP: Free functions implementing the CUDA parts
+// Free functions implementing the CUDA parts
 namespace async_adept_impl {
+
+/**
+ * @brief Sets stack and heap size limits for the device. If 0, the default limit is kept
+ *
+ * Increased stack and heap limits may be needed due to VecGeom's memory allocation. These limits can be configured via
+ * macro commands
+ *
+ * @param[in]   stackLimit   Stack limit in bytes
+ * @param[in]  heapLimit     Heap limit in bytes
+ *
+ */
+void setDeviceLimits(int stackLimit = 0, int heapLimit = 0)
+{
+  if (stackLimit > 0) {
+    std::cout << "CUDA Device stack limit: " << stackLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitStackSize), stackLimit));
+  }
+  if (heapLimit > 0) {
+    std::cout << "CUDA Device heap limit: " << heapLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitMallocHeapSize), heapLimit));
+  }
+}
+
 void CopySurfaceModelToGPU()
 {
 // Copy surface data to GPU

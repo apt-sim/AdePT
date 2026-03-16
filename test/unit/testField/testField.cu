@@ -82,6 +82,18 @@ struct ParticleQueues {
   void SwapActive() { std::swap(currentlyActive, nextActive); }
 };
 
+void setDeviceLimits(int stackLimit = 0, int heapLimit = 0)
+{
+  if (stackLimit > 0) {
+    std::cout << "CUDA Device stack limit: " << stackLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitStackSize), stackLimit));
+  }
+  if (heapLimit > 0) {
+    std::cout << "CUDA Device heap limit: " << heapLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitMallocHeapSize), heapLimit));
+  }
+}
+
 struct ParticleType {
   Track *tracks;
   SlotManager *slotManager;
