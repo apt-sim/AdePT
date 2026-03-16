@@ -41,6 +41,21 @@ def read_value_entries(root_file, hist_name, hist):
     return entries
 
 
+def read_label_entries(root_file, hist_name):
+    # Categorical bin labels are stored in sidecar metadata so the test output
+    # does not rely on ROOT mutating TAxis label state during the run.
+    metadata = root_file.Get(hist_name + "__labels")
+    if not metadata:
+        return None
+    if metadata.ClassName() != "TObjString" or not hasattr(metadata, "GetString"):
+        return None
+
+    text = metadata.GetString().Data().splitlines()
+    if len(text) == 1 and text[0] == "__empty__":
+        return []
+    return text
+
+
 def make_placeholder(name, title, y_title):
     hist = ROOT.TH1D(name, title, 1, 0.0, 1.0)
     hist.SetDirectory(0)
@@ -90,10 +105,16 @@ def make_visual_histogram(hist_name, hist, value_entries):
     return visual
 
 
-def make_categorical_clone(hist_name, hist):
+def make_categorical_clone(hist_name, hist, labels):
     clone = hist.Clone(hist_name + "_plot")
     clone.SetDirectory(0)
     clone.GetYaxis().SetTitle("Count" if hist_name != "edep_by_volume" else "Energy Deposit")
+    if labels is not None:
+        for bin_index in range(1, clone.GetNbinsX() + 1):
+            label = "empty"
+            if labels and bin_index - 1 < len(labels):
+                label = labels[bin_index - 1]
+            clone.GetXaxis().SetBinLabel(bin_index, label)
     return clone
 
 
@@ -182,7 +203,8 @@ def main():
         value_entries = read_value_entries(root_file, hist_name, hist)
         if value_entries is None:
             # Categorical histograms are already directly plottable.
-            plot_hist = make_categorical_clone(hist_name, hist)
+            label_entries = read_label_entries(root_file, hist_name)
+            plot_hist = make_categorical_clone(hist_name, hist, label_entries)
             is_categorical = True
         else:
             # Exact-value histograms are converted into a visually readable

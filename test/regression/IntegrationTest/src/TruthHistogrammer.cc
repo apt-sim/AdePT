@@ -174,6 +174,21 @@ double CanonicalWeightedSum(const ValueHistogram &histogram)
 }
 
 #ifdef ADEPT_INTEGRATIONTEST_HAS_ROOT
+void WriteLabelMetadata(TFile &file, const std::string &name, const std::vector<std::string> &labels)
+{
+  std::ostringstream metadata;
+  if (labels.empty()) {
+    metadata << kEmptyBinLabel << "\n";
+  } else {
+    for (const auto &label : labels) {
+      metadata << label << "\n";
+    }
+  }
+
+  TObjString metadataObject(metadata.str().c_str());
+  metadataObject.Write((name + "__labels").c_str());
+}
+
 void WriteCountHistogram(TFile &file, const std::string &name, const CountHistogram &histogram)
 {
   const int binCount = histogram.empty() ? 1 : static_cast<int>(histogram.size());
@@ -181,15 +196,18 @@ void WriteCountHistogram(TFile &file, const std::string &name, const CountHistog
   hist.SetDirectory(&file);
 
   if (histogram.empty()) {
-    hist.GetXaxis()->SetBinLabel(1, kEmptyBinLabel);
     hist.SetBinContent(1, 0.0);
+    WriteLabelMetadata(file, name, {});
   } else {
+    std::vector<std::string> labels;
+    labels.reserve(histogram.size());
     int bin = 1;
     for (const auto &[label, count] : histogram) {
-      hist.GetXaxis()->SetBinLabel(bin, label.c_str());
       hist.SetBinContent(bin, static_cast<double>(count));
+      labels.push_back(label);
       ++bin;
     }
+    WriteLabelMetadata(file, name, labels);
   }
 
   hist.Write();
@@ -238,17 +256,20 @@ void WriteEnergyDepositHistogram(TFile &file, const std::map<int, TruthHistogram
   hist.SetDirectory(&file);
 
   if (energyDepositByVolume.empty()) {
-    hist.GetXaxis()->SetBinLabel(1, kEmptyBinLabel);
     hist.SetBinContent(1, 0.0);
+    WriteLabelMetadata(file, "edep_by_volume", {});
   } else {
+    std::vector<std::string> labels;
+    labels.reserve(energyDepositByVolume.size());
     int bin = 1;
     for (const auto &[volumeId, entry] : energyDepositByVolume) {
       std::ostringstream label;
       label << volumeId << ":" << entry.label;
-      hist.GetXaxis()->SetBinLabel(bin, label.str().c_str());
       hist.SetBinContent(bin, CanonicalWeightedSum(entry.contributions));
+      labels.push_back(label.str());
       ++bin;
     }
+    WriteLabelMetadata(file, "edep_by_volume", labels);
   }
 
   hist.Write();

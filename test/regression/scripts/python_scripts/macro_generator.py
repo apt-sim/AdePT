@@ -95,9 +95,9 @@ def main():
     parser.add_argument("--gdml_name", help="Path to the GDML geometry file.")
     parser.add_argument("--num_threads", type=int, help="Number of threads to use.")
     parser.add_argument("--num_events", type=int, help="Number of events to simulate.")
-    parser.add_argument("--num_trackslots", type=int, default=12,
+    parser.add_argument("--num_trackslots", type=int, default=3,
                         help="Number of trackslots in million. Should be chosen according to the GPU memory")
-    parser.add_argument("--num_leakslots", type=float, default=12,
+    parser.add_argument("--num_leakslots", type=float, default=3,
                         help="Number of leakslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--num_hitslots", type=int, default=12,
                         help="Number of hitslots in million. Should be chosen according to the GPU memory")

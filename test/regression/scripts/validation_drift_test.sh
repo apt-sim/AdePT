@@ -32,9 +32,9 @@ if [ ! -x "${MASTER_EXECUTABLE}" ]; then
 fi
 NUM_THREADS=1
 NUM_EVENTS=1
-NUM_TRACKSLOTS=1
-NUM_HITSLOTS=1
-NUM_LEAKSLOTS=1
+NUM_TRACKSLOTS=3
+NUM_HITSLOTS=12
+NUM_LEAKSLOTS=3
 GUN_NUMBER=20
 ADEPT_SEED=1234567
 # The ROOT truth path requires the user callbacks because the reconstructed
@@ -148,6 +148,11 @@ PR_SUPPORTS_ROOT="$(supports_truth_root "${PR_EXECUTABLE}")"
 MASTER_SUPPORTS_ROOT="$(supports_truth_root "${MASTER_EXECUTABLE}")"
 
 if [ "${PR_SUPPORTS_ROOT}" = "1" ] && [ "${MASTER_SUPPORTS_ROOT}" = "1" ]; then
+  # Use the stronger MT configuration for the ROOT truth path. This keeps the
+  # drift closer to the real callback-heavy runtime while still producing an
+  # exact semantic comparison on the aggregated histograms.
+  NUM_THREADS=4
+  NUM_EVENTS=8
   CALL_USER_STEPPING_ACTION=True
   CALL_USER_TRACKING_ACTION=True
 fi
@@ -176,6 +181,10 @@ if [ "${CALL_USER_STEPPING_ACTION}" = "True" ]; then
     --file1 "${MASTER_SCENARIO_DIR}/${MASTER_OUTPUT}.root" \
     --file2 "${PR_SCENARIO_DIR}/${PR_OUTPUT}.root"
 else
+  # FIXME: This legacy CSV fallback should be removed once the master/reference
+  # executable also supports --truth_root. The drift gate should then require
+  # ROOT truth support instead of silently keeping the old CSV-only mode alive.
+  #
   # Legacy fallback for builds without ROOT support: keep the original exact
   # CSV edep drift test unchanged.
   "${MASTER_EXECUTABLE}" --allsensitive --accumulated_events \

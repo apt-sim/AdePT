@@ -18,6 +18,10 @@ class G4Track;
  * continuous observables as exact floating-point bit patterns -> count maps.
  * The master thread later serializes these maps into ROOT histograms in a
  * deterministic order for exact comparison against the reference file.
+ *
+ * Categorical labels are written into sidecar ROOT metadata objects instead of
+ * TH1 axis labels. This keeps the semantic comparison exact while avoiding the
+ * expensive ROOT label bookkeeping in the multi-threaded runs.
  */
 class TruthHistogrammer {
 public:
