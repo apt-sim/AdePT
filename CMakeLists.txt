@@ -45,6 +45,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 #----------------------------------------------------------------------------#
 # User options
 #----------------------------------------------------------------------------#
+
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_MIXED_PRECISION "Use B-field integration and surface model in mixed precision" OFF)
@@ -56,24 +57,36 @@ option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used i
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
 option(ADEPT_BUILD_EXAMPLES "Build examples" OFF)
-option(ADEPT_USE_CUDA "Compile with nvcc" ON)
-option(ADEPT_USE_HIP "Compile with hipcc" OFF)
 
-# Validate that only one of the GPU backends is selected
-if(ADEPT_USE_CUDA AND ADEPT_USE_HIP)
-  message(FATAL_ERROR "${Red}ADEPT_USE_CUDA and ADEPT_USE_HIP cannot both be ON.${ColorReset}")
-elseif(NOT ADEPT_USE_CUDA AND NOT ADEPT_USE_HIP)
-  message(FATAL_ERROR "${Red}Both ADEPT_USE_CUDA and ADEPT_USE_HIP are OFF, please enable one backend.${ColorReset}")
+# Backend options
+# Available backend options
+set(_backend_opts CUDA HIP)
+set(_backend_default CUDA)
+# Set backend option default value and store in CMake cache
+set(ADEPT_COMPUTE_BACKEND CUDA CACHE STRING "Backend to compile for")
+# Store the possible options in the cache
+set_property(CACHE ADEPT_COMPUTE_BACKEND PROPERTY STRINGS ${_backend_opts})
+# Check that the selected option is correct
+list(FIND _backend_opts "${ADEPT_COMPUTE_BACKEND}" idx)
+if(idx EQUAL -1)
+    message(FATAL_ERROR
+        "Invalid ADEPT_COMPUTE_BACKEND='${ADEPT_COMPUTE_BACKEND}'. Available options: ${_backend_opts}"
+    )
+endif()
+
+if(ADEPT_COMPUTE_BACKEND STREQUAL CUDA)
+  set(ADEPT_USE_CUDA TRUE)
+elseif(ADEPT_COMPUTE_BACKEND STREQUAL HIP)
+  set(ADEPT_USE_HIP TRUE)
 endif()
 
 if(ADEPT_USE_CUDA)
   enable_language(CUDA)
-  message(STATUS "${Green}CUDA backend enabled${ColorReset}")
-else()
+elseif(ADEPT_USE_HIP)
   enable_language(HIP)
-  message(STATUS "${Green}HIP backend enabled${ColorReset}")
 endif()
 
+message(STATUS "${Green}${ADEPT_COMPUTE_BACKEND} backend enabled${ColorReset}")
 
 # Ensure that ctest is enabled when ADEPT_BUILD_TESTING is ON
 if(ADEPT_BUILD_TESTING)
