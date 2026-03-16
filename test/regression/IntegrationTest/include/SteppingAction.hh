@@ -10,8 +10,8 @@
  * @brief Regression-test stepping hooks.
  *
  * In ROOT truth mode this action records per-step observables and refines the
- * lineage of secondaries once the parent step is available. It also keeps the
- * legacy protection against runaway tracks with excessive step counts.
+ * lineage of secondaries once the parent step is available. It also enforces
+ * the existing per-track step limit used to catch runaway tracks in the test.
  */
 class SteppingAction : public G4UserSteppingAction {
 
