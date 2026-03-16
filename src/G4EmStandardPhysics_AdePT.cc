@@ -6,6 +6,7 @@
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/integration/AdePTTrackingManager.hh>
 
+#include <G4HepEmConfig.hh>
 #include "G4Electron.hh"
 #include "G4Gamma.hh"
 #include "G4Positron.hh"

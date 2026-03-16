@@ -5,21 +5,10 @@
 #define ADEPT_CONFIGURATION_HH
 
 #include <AdePT/integration/AdePTConfigurationMessenger.hh>
-#include <AdePT/core/AdePTTransportInterface.hh>
 
 #include <memory>
 #include <string>
 #include <vector>
-
-/// @brief Factory function to create AdePT instances.
-/// Every AdePT transport implementation needs to provide this function to create
-/// instances of the transport implementation. These might either be one instance
-/// per thread, or share one instance across many threads. This is up to the
-/// transport implementation.
-std::shared_ptr<AdePTTransportInterface> AdePTTransportFactory(unsigned int nThread, unsigned int nTrackSlot,
-                                                               unsigned int nHitSlot, int verbosity,
-                                                               std::vector<std::string> const *GPURegionNames,
-                                                               bool trackInAllRegions, int cudaStackSize);
 
 /// @brief Create and configure instances of an AdePT transport implementation.
 ///

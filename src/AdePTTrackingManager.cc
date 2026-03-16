@@ -22,11 +22,13 @@
 #include <power_meter.hh>
 #endif
 
-std::shared_ptr<AdePTTransportInterface> InstantiateAdePT(AdePTConfiguration &conf,
-                                                          G4HepEmTrackingManagerSpecialized *hepEmTM)
+namespace {
+using AdePTTransport = AdePTTrackingManager::AdePTTransport;
+}
+
+std::shared_ptr<AdePTTransport> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
-  static std::shared_ptr<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>> AdePT{
-      new AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>(conf, hepEmTM)};
+  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM)};
   return AdePT;
 }
 
@@ -48,7 +50,6 @@ AdePTTrackingManager::~AdePTTrackingManager()
   // the run. This should not cause a memory leak however as terminate will be called on the thread
   if (fPowerMeterRunning) power_meter::stop_monitoring_loop();
 #endif
-  if (fAdeptTransport) fAdeptTransport->Cleanup(fCommonInitThread);
 }
 
 void AdePTTrackingManager::InitializeAdePT()
@@ -264,8 +265,8 @@ void AdePTTrackingManager::FlushEvent()
   if (fVerbosity > 1)
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer." << G4endl;
 
-  fAdeptTransport->Shower(G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(),
-                          G4Threading::G4GetThreadId());
+  fAdeptTransport->Flush(G4Threading::G4GetThreadId(),
+                         G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
 }
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
@@ -282,15 +283,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   // Check for GPU steps, to alleviate pressure on the GPU step buffer
   G4int threadId = G4Threading::G4GetThreadId();
   fAdeptTransport->ProcessGPUSteps(threadId, eventID);
-
-  // need to cast to avoid the pitfall of the untemplated AdePTTransportInterface that cannot hold the IntegrationLayer
-  auto *Transport = static_cast<AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration> *>(fAdeptTransport.get());
-
-  if (!Transport) {
-    G4Exception("AdePTTrackingManager::ProcessTrack", "", FatalException,
-                "fAdeptTransport is not of type AsyncAdePTTransport<AdePTGeant4Integration>");
-  }
-  auto &trackMapper = Transport->GetIntegrationLayer(threadId).GetHostTrackDataMapper();
+  auto &trackMapper = fAdeptTransport->GetIntegrationLayer(threadId).GetHostTrackDataMapper();
 
   if (fCurrentEventID != eventID) trackMapper.beginEvent(eventID);
 

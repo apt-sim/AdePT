@@ -9,12 +9,9 @@
 #ifndef ASYNC_ADEPT_TRANSPORT_HH
 #define ASYNC_ADEPT_TRANSPORT_HH
 
-#define ADEPT_SAVE_IDs
-
-#include <AdePT/core/AdePTTransportInterface.hh>
-#include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
+#include <AdePT/core/CommonStruct.h>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
@@ -37,7 +34,7 @@ struct GPUstate;
 void InitVolAuxArray(adeptint::VolAuxArray &array);
 
 template <typename IntegrationLayer>
-class AsyncAdePTTransport : public AdePTTransportInterface {
+class AsyncAdePTTransport {
 public:
   uint64_t fAdePTSeed = 1234567;
 
@@ -91,48 +88,18 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
-                unsigned short stepCounter, int threadId, unsigned int eventId,
-                vecgeom::NavigationState &&state) override;
-  /// @brief Set track capacity on GPU
-  void SetTrackCapacity(size_t capacity) override { fTrackCapacity = capacity; }
-  /// @brief Set leak capacity on GPU
-  void SetLeakCapacity(size_t capacity) override { fLeakCapacity = capacity; }
-  /// @brief Set Hit buffer capacity on GPU and Host
-  virtual void SetHitBufferCapacity(size_t capacity) override { fScoringCapacity = capacity; }
-  /// No effect
-  void SetBufferThreshold(int) override {}
-  /// No effect
-  void SetMaxBatch(int) override {}
-  /// @brief Set debug level for transport
-  void SetDebugLevel(int level) override { fDebugLevel = level; }
-  void SetTrackInAllRegions(bool trackInAllRegions) override { fTrackInAllRegions = trackInAllRegions; }
-  bool GetTrackInAllRegions() const override { return fTrackInAllRegions; }
+                unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state);
+  bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
   bool GetCallUserActions() const { return fReturnFirstAndLastStep; }
-  void SetGPURegionNames(std::vector<std::string> const *regionNames) override { fGPURegionNames = regionNames; }
-  void SetCPURegionNames(std::vector<std::string> const *regionNames) override { fCPURegionNames = regionNames; }
-  /// @brief Set path to covfie Bfield file
-  void SetBfieldFileName(const std::string &fileName) override { fBfieldFile = fileName; }
-  void SetCUDAStackLimit(int limit) override {};
-  void SetCUDAHeapLimit(int limit) override {};
-  void SetAdePTSeed(uint64_t seed) override { fAdePTSeed = seed; }
-  std::vector<std::string> const *GetGPURegionNames() override { return fGPURegionNames; }
-  std::vector<std::string> const *GetCPURegionNames() override { return fCPURegionNames; }
-  /// No effect
-  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, bool) override {}
-  /// @brief Finish GPU transport, bring hits and tracks to host
-  /// @details The shower call exists to maintain the same interface as the
-  /// synchronous AdePT mode, since in this case the transport loop is always
-  /// running. The only call to Shower() from G4 is done when the tracking
-  /// manager needs to flush an event.
-  void Shower(int event, int threadId) override { Flush(threadId, event); }
+  std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
+  std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId);
-  void ProcessGPUSteps(int threadId, int eventId) override;
-  void Cleanup(bool) override {}
+  void ProcessGPUSteps(int threadId, int eventId);
   /// @brief Setup function used only in async AdePT
   /// @param threadId thread Id
   /// @param hepEmTM specialized G4HepEmTrackingManager
-  void SetHepEmTrackingManagerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM) override;
+  void SetHepEmTrackingManagerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM);
   IntegrationLayer &GetIntegrationLayer(int threadId) { return fIntegrationLayerObjects[threadId]; }
 };
 
