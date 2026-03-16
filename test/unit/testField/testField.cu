@@ -206,23 +206,16 @@ __host__ void printTracks(const Track *trackArr_dev, const adept::MParray *activ
 {
   static const char *particleTypeName[ParticleType::NumParticleTypes] = {"Electrons", "Positrons", "Gammas"};
   static const char *particleShortName[]                              = {"e-", "e+", "g"};
-  // int numPrinted = 0;
-  int capacity_host = obtain_size(active_dev);
+  int capacity_host                                                   = obtain_size(active_dev);
 
   if (numTracks > 0) {
     printf("%s : %d\n", particleTypeName[particleTypeId], numTracks);
 
     for (int i = 0; i < capacity_host; i++) {
-      // Track &trk = *(trackArr+i);
       printf(" %2s (pid= %2d) ", particleShortName[particleTypeId], particleTypeId);
-      // if (numPrinted++ < numTracks )
-      //{
       printTrackV2<<<1, 1>>>(trackArr_dev, active_dev, i, verbose);
-      // std::cout << "\n";
-      // }
-      ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
+      ADEPT_DEVICE_API_CALL(DeviceSynchronize());
     }
-    // ADEPT_DEVICE_API_CALL(DeviceSynchronize)();
   }
 }
 
@@ -231,12 +224,9 @@ __host__ void printActiveTracks(ParticleType &electrons, ParticleType &positrons
   int numElectrons = obtain_size(electrons.queues.currentlyActive);
   int numPositrons = obtain_size(positrons.queues.currentlyActive);
   int numGammas    = obtain_size(gammas.queues.currentlyActive);
-  // printf("Electrons: \n");
   printTracks(electrons.tracks, electrons.queues.currentlyActive, ParticleType::Electron, /* "Electrons", */ verbTrk,
               numElectrons);
-  // printf("Positrons: \n");
   printTracks(positrons.tracks, positrons.queues.currentlyActive, ParticleType::Positron, verbTrk, numPositrons);
-  // printf("Gammas: \n");
   printTracks(gammas.tracks, gammas.queues.currentlyActive, ParticleType::Gamma, verbTrk, numGammas);
   std::cout << std::endl;
 }

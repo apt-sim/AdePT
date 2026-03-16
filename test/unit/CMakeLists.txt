@@ -29,7 +29,7 @@ configure_file(${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml ${PROJECT_BIN
 #----------------------------------------------------------------------------#
 # Detailed tests
 #----------------------------------------------------------------------------#
-# add_subdirectory(testField)
+add_subdirectory(testField)
 
 #----------------------------------------------------------------------------#
 # Link/RDC tests
