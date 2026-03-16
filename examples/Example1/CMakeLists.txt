@@ -37,7 +37,6 @@ set(sources_g4
   src/PrimaryGeneratorAction.cc
   src/RunAction.cc
   src/SensitiveDetector.cc
-  src/TrackingAction.cc
 )
 
 if(HepMC3_FOUND)
