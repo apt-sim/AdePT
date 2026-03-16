@@ -27,18 +27,17 @@
 //
 #include "EventAction.hh"
 #include "EventActionMessenger.hh"
+#include "Run.hh"
 #include "SimpleHit.hh"
+#include "TestManager.h"
 
-#include "G4SDManager.hh"
-#include "G4HCofThisEvent.hh"
 #include "G4Event.hh"
 #include "G4EventManager.hh"
-#include "G4RunManager.hh"
+#include "G4HCofThisEvent.hh"
 #include "G4PhysicalVolumeStore.hh"
+#include "G4RunManager.hh"
+#include "G4SDManager.hh"
 #include "G4SystemOfUnits.hh"
-
-#include <AdePT/benchmarking/TestManager.h>
-#include "Run.hh"
 
 EventAction::EventAction(RunAction *aRunAction) : G4UserEventAction(), fHitCollectionID(-1), fRunAction(aRunAction)
 {

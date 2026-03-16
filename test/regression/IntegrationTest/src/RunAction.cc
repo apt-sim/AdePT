@@ -26,9 +26,10 @@
 //
 #include "RunAction.hh"
 #include "Run.hh"
+#include "TestManager.h"
+
 #include "G4Run.hh"
 #include "G4Threading.hh"
-#include <AdePT/benchmarking/TestManager.h>
 
 #include <mutex>
 
