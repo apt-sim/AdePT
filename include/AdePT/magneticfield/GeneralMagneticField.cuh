@@ -100,8 +100,11 @@ public:
   ~GeneralMagneticField()
   {
 #ifdef ADEPT_USE_EXT_BFIELD
-    if (fFieldView) {
+    try {
       ADEPT_DEVICE_API_CALL(Free(fFieldView));
+    } catch (const std::exception &e) {
+      std::cerr << "\033[31m" << "GPUstate::~GPUstate : Error during device API call" << "\033[0m" << std::endl;
+      std::cerr << "\033[31m" << e.what() << "\033[0m" << std::endl;
     }
 #endif
   }
