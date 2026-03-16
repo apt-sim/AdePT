@@ -29,7 +29,6 @@
 #include "PrimaryGeneratorAction.hh"
 #include "EventAction.hh"
 #include "RunAction.hh"
-#include "TrackingAction.hh"
 #include "SteppingAction.hh"
 
 ActionInitialisation::ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename,
@@ -59,9 +58,5 @@ void ActionInitialisation::Build() const
   RunAction *aRunAction = new RunAction(fOutputDirectory, fOutputFilename, fDoAccumulatedEvents);
   SetUserAction(aRunAction);
   SetUserAction(new EventAction(aRunAction));
-  TrackingAction *aTrackingAction = new TrackingAction();
-  SetUserAction(aTrackingAction);
-  SteppingAction *aSteppingAction = new SteppingAction();
-  SetUserAction(aSteppingAction);
-  aTrackingAction->setSteppingAction(aSteppingAction);
+  SetUserAction(new SteppingAction());
 }

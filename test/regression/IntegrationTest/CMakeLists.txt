@@ -38,7 +38,6 @@ set(sources_g4
   src/RunAction.cc
   src/Run.cc
   src/SensitiveDetector.cc
-  src/TrackingAction.cc
 )
 
 if(HepMC3_FOUND)
