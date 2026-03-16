@@ -155,6 +155,10 @@ double CanonicalWeightedSum(const ValueHistogram &histogram)
 {
   // Recreate the floating-point sum in a deterministic order so the ROOT
   // output remains stable even when worker-thread maps are merged.
+  //
+  // During collection and MT merging we never do `double += value`; we only
+  // count how often each exact value occurred. The actual floating-point sum is
+  // reconstructed here, once, in a canonical order for the final ROOT file.
   std::vector<std::uint64_t> keys;
   keys.reserve(histogram.size());
   for (const auto &[bits, _] : histogram) {
@@ -215,9 +219,12 @@ void WriteCountHistogram(TFile &file, const std::string &name, const CountHistog
 
 void WriteValueHistogram(TFile &file, const std::string &name, const ValueHistogram &histogram)
 {
-  // The ROOT histogram stores only counts per distinct value. The exact values
-  // themselves are written into a sidecar TObjString to avoid lossy formatting
-  // and to keep the semantic comparison independent of ROOT bin-label quirks.
+  // The TH1 stores only the population of each distinct exact value. The exact
+  // values themselves are written into sidecar metadata as raw bit patterns.
+  //
+  // This avoids two problems:
+  // 1. formatting a double into a string can be lossy or platform-sensitive
+  // 2. ROOT bin labels were too expensive / fragile for the MT truth output
   const int binCount = histogram.empty() ? 1 : static_cast<int>(histogram.size());
   TH1D hist(name.c_str(), name.c_str(), binCount, 0.5, binCount + 0.5);
   hist.SetDirectory(&file);
@@ -299,6 +306,8 @@ void TruthHistogrammer::IncrementCategorical(const std::string &histogramName, c
 
 void TruthHistogrammer::IncrementValue(const std::string &histogramName, double value, std::uint64_t count)
 {
+  // Store the exact IEEE-754 representation as the map key. This turns the
+  // collection phase into integer counting instead of floating-point summation.
   fValueHistograms[histogramName][std::bit_cast<std::uint64_t>(value)] += count;
 }
 
@@ -390,6 +399,9 @@ void TruthHistogrammer::AddEnergyDeposit(int physicalVolumeId, const std::string
 {
   auto &entry = fEnergyDepositByVolume[physicalVolumeId];
   entry.label = physicalVolumeName;
+  // Keep the deposited energy as an exact value population per volume instead
+  // of summing it immediately. This is what allows the SD-based edep truth to
+  // stay exact under MT worker merging.
   entry.contributions[std::bit_cast<std::uint64_t>(energyDeposit)] += 1;
 }
 
@@ -405,6 +417,8 @@ void TruthHistogrammer::MergeFrom(const TruthHistogrammer &other)
   for (const auto &[histogramName, histogram] : other.fValueHistograms) {
     auto &target = fValueHistograms[histogramName];
     for (const auto &[valueBits, count] : histogram) {
+      // MT merge is exact here: identical floating-point values have already
+      // been grouped by bit pattern, so workers only contribute integer counts.
       target[valueBits] += count;
     }
   }
@@ -413,6 +427,8 @@ void TruthHistogrammer::MergeFrom(const TruthHistogrammer &other)
     auto &target = fEnergyDepositByVolume[volumeId];
     target.label = entry.label;
     for (const auto &[energyBits, count] : entry.contributions) {
+      // Same idea for SD energy deposit: merge exact-value populations, not a
+      // running floating-point sum.
       target.contributions[energyBits] += count;
     }
   }

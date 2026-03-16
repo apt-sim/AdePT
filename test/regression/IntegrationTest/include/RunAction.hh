@@ -37,7 +37,7 @@ class G4Run;
 class Run;
 
 /**
- * @brief Run-level coordination for the integration benchmark.
+ * @brief UserRunAction for the integration benchmark.
  *
  * The run action owns the `Run` object, starts/stops the wall-time timer used
  * in the CSV summary, and triggers final CSV/ROOT output at end-of-run.

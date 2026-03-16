@@ -32,10 +32,10 @@
 #include "G4String.hh"
 
 /**
- * @brief Installs the user actions used by the integration benchmark.
+ * @brief Initialization of user actions.
  *
  * The regular CSV drift output and the optional ROOT truth output share the
- * same action stack. ROOT-specific collection only becomes active when the run
+ * same UserActions. ROOT I/O is used only when the run
  * is configured with `fWriteTruthROOT`.
  */
 class ActionInitialisation : public G4VUserActionInitialization {

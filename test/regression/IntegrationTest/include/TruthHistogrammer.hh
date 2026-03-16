@@ -25,7 +25,14 @@ class G4Track;
  */
 class TruthHistogrammer {
 public:
-  /// Exact weighted energy-deposit contributions accumulated for one physical volume.
+  /**
+   * @brief Exact weighted energy-deposit contributions accumulated for one physical volume.
+   *
+   * The ROOT truth path does not sum deposits on the fly. Instead it stores the
+   * exact bit pattern of each deposited `double` value and counts how often that
+   * value occurred. Worker-thread merging is then an integer-count merge over
+   * identical bit patterns, which is order-independent.
+   */
   struct VolumeEdep {
     std::string label;
     std::map<std::uint64_t, std::uint64_t> contributions;
@@ -33,7 +40,13 @@ public:
 
   /// Histogram with stable string labels and integer counts.
   using CountHistogram = std::map<std::string, std::uint64_t>;
-  /// Histogram with exact `double` bit patterns and integer counts.
+  /**
+   * @brief Histogram with exact `double` bit patterns and integer counts.
+   *
+   * This is the key trick that makes the ROOT truth path reproducible in MT:
+   * floating-point values are first bucketed by their exact IEEE-754 bit
+   * pattern, and only the integer populations are merged across workers.
+   */
   using ValueHistogram = std::map<std::uint64_t, std::uint64_t>;
 
   TruthHistogrammer();
@@ -60,6 +73,7 @@ private:
   std::map<std::string, ValueHistogram> fValueHistograms;
   std::map<int, VolumeEdep> fEnergyDepositByVolume;
   void IncrementCategorical(const std::string &histogramName, const std::string &label, std::uint64_t count = 1);
+  /// Store one exact floating-point observation by its raw bit pattern.
   void IncrementValue(const std::string &histogramName, double value, std::uint64_t count = 1);
 };
 

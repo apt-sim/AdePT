@@ -13,8 +13,9 @@
  * - the primary ancestor track ID
  * - the shower generation
  *
- * The boolean flags keep the histogramming hooks idempotent even when a track
- * passes through multiple callbacks on the AdePT/G4 boundary.
+ * The initial-recorded flag avoids double counting secondaries: they are first
+ * seen in the parent stepping callback and then enter their own tracking
+ * callback afterwards.
  */
 class TrackLineageInfo : public G4VUserTrackInformation {
 public:
@@ -29,7 +30,7 @@ public:
 
   int GetPrimaryTrackID() const { return fPrimaryTrackID; }
   unsigned int GetGeneration() const { return fGeneration; }
-  /// Overwrite the provisional lineage once the parent step is known.
+  /// Update the lineage in place when the parent step propagates it downstream.
   void SetLineage(int primaryTrackID, unsigned int generation)
   {
     fPrimaryTrackID = primaryTrackID;
@@ -39,14 +40,10 @@ public:
   bool HasRecordedInitial() const { return fInitialRecorded; }
   void MarkRecordedInitial() { fInitialRecorded = true; }
 
-  bool HasRecordedFinal() const { return fFinalRecorded; }
-  void MarkRecordedFinal() { fFinalRecorded = true; }
-
 private:
   int fPrimaryTrackID;
   unsigned int fGeneration;
   bool fInitialRecorded{false};
-  bool fFinalRecorded{false};
 };
 
 #endif

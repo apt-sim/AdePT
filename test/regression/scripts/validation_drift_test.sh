@@ -148,9 +148,9 @@ PR_SUPPORTS_ROOT="$(supports_truth_root "${PR_EXECUTABLE}")"
 MASTER_SUPPORTS_ROOT="$(supports_truth_root "${MASTER_EXECUTABLE}")"
 
 if [ "${PR_SUPPORTS_ROOT}" = "1" ] && [ "${MASTER_SUPPORTS_ROOT}" = "1" ]; then
-  # Use the stronger MT configuration for the ROOT truth path. This keeps the
-  # drift closer to the real callback-heavy runtime while still producing an
-  # exact semantic comparison on the aggregated histograms.
+  # The ROOT truth path remains exact in MT because it compares merged
+  # histogram populations, whereas the legacy CSV path still depends on the
+  # order of floating-point accumulation and is therefore kept single-threaded.
   NUM_THREADS=4
   NUM_EVENTS=8
   CALL_USER_STEPPING_ACTION=True

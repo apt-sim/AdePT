@@ -17,7 +17,7 @@ class TestManager;
 class TruthHistogrammer;
 
 /**
- * @brief Run-scoped state for the integration benchmark.
+ * @brief Run class for merging and displaying info collected by different worker threads
  *
  * Besides the existing CSV accumulators, the run optionally owns a
  * TruthHistogrammer when ROOT truth output is enabled. Worker runs merge both

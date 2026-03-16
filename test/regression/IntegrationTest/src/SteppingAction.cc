@@ -39,24 +39,29 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
 
     const auto *secondaries = theStep->GetSecondary();
     if (secondaries != nullptr && parentInfo != nullptr) {
+      // This is the only callback where Geant4 exposes the stepped parent and
+      // the newly created secondaries together. The drift test therefore
+      // attaches the MC-truth lineage here and propagates it one generation
+      // deeper into the shower tree.
       const int primaryTrackID      = parentInfo->GetPrimaryTrackID();
       const unsigned int generation = parentInfo->GetGeneration() + 1u;
 
       for (auto *secondary : *secondaries) {
         if (secondary == nullptr) continue;
-        auto *secondaryInfo = dynamic_cast<TrackLineageInfo *>(secondary->GetUserInformation());
+        auto *secondaryInfo = static_cast<TrackLineageInfo *>(secondary->GetUserInformation());
         if (secondaryInfo == nullptr) {
-          if (secondary->GetUserInformation() != nullptr) continue;
           secondaryInfo = new TrackLineageInfo(primaryTrackID, generation);
           secondary->SetUserInformation(secondaryInfo);
         } else {
-          // TrackingAction may already have attached a provisional fallback
-          // lineage. Replace it with the lineage derived from the resolved
-          // parent step now that the parent is available.
+          // Keep the lineage payload in sync if the same secondary is observed
+          // again while the parent step is still being processed.
           secondaryInfo->SetLineage(primaryTrackID, generation);
         }
 
         if (truthHistogrammer != nullptr && secondaryInfo != nullptr && !secondaryInfo->HasRecordedInitial()) {
+          // The initial snapshot is recorded when the secondary first becomes
+          // fully linked to its parent lineage. Mark it so later callbacks do
+          // not duplicate the same track in the truth histograms.
           truthHistogrammer->RecordPrimaryAncestorPopulation(secondaryInfo->GetPrimaryTrackID());
           truthHistogrammer->RecordGenerationPopulation(secondaryInfo->GetGeneration());
           truthHistogrammer->RecordInitialTrack(secondary);

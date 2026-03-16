@@ -35,9 +35,9 @@
  * @brief Regression-test tracking hooks.
  *
  * The ROOT truth mode uses the tracking callbacks to capture the initial and
- * final track snapshots. Initial lineage may be provisional for returned GPU
- * secondaries and can later be refined in the stepping action once the parent
- * step is available.
+ * final track snapshots. Primaries receive their lineage here, while returned
+ * GPU secondaries arrive with lineage already attached by the parent step in
+ * the stepping action.
  */
 class TrackingAction : public G4UserTrackingAction {
 
