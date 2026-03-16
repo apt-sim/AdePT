@@ -32,6 +32,8 @@
 #include <iomanip>
 #include <stdio.h>
 
+#include <AdePT/core/Portability.hh>
+
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
@@ -48,7 +50,7 @@ void InitG4HepEmGPU(G4HepEmState *state)
   parametersOnDevice.fParametersPerRegion     = state->fParameters->fParametersPerRegion_gpu;
   parametersOnDevice.fParametersPerRegion_gpu = nullptr;
 
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
 
   // Create G4HepEmData with the device pointers.
   G4HepEmData dataOnDevice;
@@ -68,7 +70,7 @@ void InitG4HepEmGPU(G4HepEmState *state)
   dataOnDevice.fTheSBTableData_gpu  = nullptr;
   dataOnDevice.fTheGammaData_gpu    = nullptr;
 
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
 }
 
 // A bundle of queues per particle type:
@@ -80,12 +82,24 @@ struct ParticleQueues {
   void SwapActive() { std::swap(currentlyActive, nextActive); }
 };
 
+void setDeviceLimits(int stackLimit = 0, int heapLimit = 0)
+{
+  if (stackLimit > 0) {
+    std::cout << "CUDA Device stack limit: " << stackLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitStackSize), stackLimit));
+  }
+  if (heapLimit > 0) {
+    std::cout << "CUDA Device heap limit: " << heapLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitMallocHeapSize), heapLimit));
+  }
+}
+
 struct ParticleType {
   Track *tracks;
   SlotManager *slotManager;
   ParticleQueues queues;
-  cudaStream_t stream;
-  cudaEvent_t event;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
+  ADEPT_DEVICE_API_SYMBOL(Event_t) event;
 
   enum {
     Electron = 0,
@@ -186,7 +200,7 @@ __host__ int obtain_size(const adept::MParray *arr_dev)
   int capacity_host;
 
   if (!pCapacity_dev) {
-    COPCORE_CUDA_CHECK(cudaMalloc(&pCapacity_dev, sizeof(int)));
+    ADEPT_DEVICE_API_CALL(Malloc(&pCapacity_dev, sizeof(int)));
     std::cout << " Created memory space for capacity_dev.  Ptr = " << pCapacity_dev << std::endl;
   }
 
@@ -194,7 +208,8 @@ __host__ int obtain_size(const adept::MParray *arr_dev)
   get_size<<<1, 1>>>(arr_dev, pCapacity_dev);
 
   // Fetch it from the device
-  COPCORE_CUDA_CHECK(cudaMemcpy(&capacity_host, pCapacity_dev, sizeof(int), cudaMemcpyDeviceToHost));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(&capacity_host, pCapacity_dev, sizeof(int), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
   return capacity_host;
 }
 
@@ -203,23 +218,16 @@ __host__ void printTracks(const Track *trackArr_dev, const adept::MParray *activ
 {
   static const char *particleTypeName[ParticleType::NumParticleTypes] = {"Electrons", "Positrons", "Gammas"};
   static const char *particleShortName[]                              = {"e-", "e+", "g"};
-  // int numPrinted = 0;
-  int capacity_host = obtain_size(active_dev);
+  int capacity_host                                                   = obtain_size(active_dev);
 
   if (numTracks > 0) {
     printf("%s : %d\n", particleTypeName[particleTypeId], numTracks);
 
     for (int i = 0; i < capacity_host; i++) {
-      // Track &trk = *(trackArr+i);
       printf(" %2s (pid= %2d) ", particleShortName[particleTypeId], particleTypeId);
-      // if (numPrinted++ < numTracks )
-      //{
       printTrackV2<<<1, 1>>>(trackArr_dev, active_dev, i, verbose);
-      // std::cout << "\n";
-      // }
-      cudaDeviceSynchronize();
+      ADEPT_DEVICE_API_CALL(DeviceSynchronize());
     }
-    // cudaDeviceSynchronize();
   }
 }
 
@@ -228,12 +236,9 @@ __host__ void printActiveTracks(ParticleType &electrons, ParticleType &positrons
   int numElectrons = obtain_size(electrons.queues.currentlyActive);
   int numPositrons = obtain_size(positrons.queues.currentlyActive);
   int numGammas    = obtain_size(gammas.queues.currentlyActive);
-  // printf("Electrons: \n");
   printTracks(electrons.tracks, electrons.queues.currentlyActive, ParticleType::Electron, /* "Electrons", */ verbTrk,
               numElectrons);
-  // printf("Positrons: \n");
   printTracks(positrons.tracks, positrons.queues.currentlyActive, ParticleType::Positron, verbTrk, numPositrons);
-  // printf("Gammas: \n");
   printTracks(gammas.tracks, gammas.queues.currentlyActive, ParticleType::Gamma, verbTrk, numGammas);
   std::cout << std::endl;
 }
@@ -249,9 +254,10 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
 
   // Transfer MC indices.
   int *MCIndex_dev = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&MCIndex_dev, sizeof(int) * numVolumes));
-  COPCORE_CUDA_CHECK(cudaMemcpy(MCIndex_dev, MCIndex_host, sizeof(int) * numVolumes, cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(MCIndex, &MCIndex_dev, sizeof(int *)));
+  ADEPT_DEVICE_API_CALL(Malloc(&MCIndex_dev, sizeof(int) * numVolumes));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(MCIndex_dev, MCIndex_host, sizeof(int) * numVolumes, ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(MCIndex, &MCIndex_dev, sizeof(int *)));
 
   // Capacity of the different containers aka the maximum number of particles.
   constexpr int Capacity = 1024 * 1024;
@@ -283,68 +289,69 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
 
   ParticleType particles[ParticleType::NumParticleTypes];
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].tracks, TracksSize));
+    ADEPT_DEVICE_API_CALL(Malloc(&particles[i].tracks, TracksSize));
 
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].slotManager, ManagerSize));
+    ADEPT_DEVICE_API_CALL(Malloc(&particles[i].slotManager, ManagerSize));
 
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.currentlyActive, QueueSize));
-    COPCORE_CUDA_CHECK(cudaMalloc(&particles[i].queues.nextActive, QueueSize));
+    ADEPT_DEVICE_API_CALL(Malloc(&particles[i].queues.currentlyActive, QueueSize));
+    ADEPT_DEVICE_API_CALL(Malloc(&particles[i].queues.nextActive, QueueSize));
     InitParticleQueues<<<1, 1>>>(particles[i].queues, Capacity);
 
-    COPCORE_CUDA_CHECK(cudaStreamCreate(&particles[i].stream));
-    COPCORE_CUDA_CHECK(cudaEventCreate(&particles[i].event));
+    ADEPT_DEVICE_API_CALL(StreamCreate(&particles[i].stream));
+    ADEPT_DEVICE_API_CALL(EventCreate(&particles[i].event));
   }
-  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
 
   ParticleType &electrons = particles[ParticleType::Electron];
   ParticleType &positrons = particles[ParticleType::Positron];
   ParticleType &gammas    = particles[ParticleType::Gamma];
 
   // Create a stream to synchronize kernels of all particle types.
-  cudaStream_t stream;
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&stream));
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
+  ADEPT_DEVICE_API_CALL(StreamCreate(&stream));
 
   // Allocate memory to score charged track length and energy deposit per volume.
   double *chargedTrackLength = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&chargedTrackLength, sizeof(double) * numPlaced));
-  COPCORE_CUDA_CHECK(cudaMemset(chargedTrackLength, 0, sizeof(double) * numPlaced));
+  ADEPT_DEVICE_API_CALL(Malloc(&chargedTrackLength, sizeof(double) * numPlaced));
+  ADEPT_DEVICE_API_CALL(Memset(chargedTrackLength, 0, sizeof(double) * numPlaced));
   double *energyDeposit = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&energyDeposit, sizeof(double) * numPlaced));
-  COPCORE_CUDA_CHECK(cudaMemset(energyDeposit, 0, sizeof(double) * numPlaced));
+  ADEPT_DEVICE_API_CALL(Malloc(&energyDeposit, sizeof(double) * numPlaced));
+  ADEPT_DEVICE_API_CALL(Memset(energyDeposit, 0, sizeof(double) * numPlaced));
 
   // Allocate and initialize scoring and statistics.
   GlobalScoring *globalScoring = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&globalScoring, sizeof(GlobalScoring)));
-  COPCORE_CUDA_CHECK(cudaMemset(globalScoring, 0, sizeof(GlobalScoring)));
+  ADEPT_DEVICE_API_CALL(Malloc(&globalScoring, sizeof(GlobalScoring)));
+  ADEPT_DEVICE_API_CALL(Memset(globalScoring, 0, sizeof(GlobalScoring)));
 
   ScoringPerVolume *scoringPerVolume = nullptr;
   ScoringPerVolume scoringPerVolume_devPtrs;
   scoringPerVolume_devPtrs.chargedTrackLength = chargedTrackLength;
   scoringPerVolume_devPtrs.energyDeposit      = energyDeposit;
-  COPCORE_CUDA_CHECK(cudaMalloc(&scoringPerVolume, sizeof(ScoringPerVolume)));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(scoringPerVolume, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Malloc(&scoringPerVolume, sizeof(ScoringPerVolume)));
+  ADEPT_DEVICE_API_CALL(Memcpy(scoringPerVolume, &scoringPerVolume_devPtrs, sizeof(ScoringPerVolume),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
   Stats *stats_dev = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&stats_dev, sizeof(Stats)));
+  ADEPT_DEVICE_API_CALL(Malloc(&stats_dev, sizeof(Stats)));
   Stats *stats = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocHost(&stats, sizeof(Stats)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&stats, sizeof(Stats)));
 
   // Allocate memory to hold a "vanilla" SlotManager to initialize for each batch.
   SlotManager slotManagerInit(Capacity);
   SlotManager *slotManagerInit_dev = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&slotManagerInit_dev, sizeof(SlotManager)));
-  COPCORE_CUDA_CHECK(cudaMemcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Malloc(&slotManagerInit_dev, sizeof(SlotManager)));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(slotManagerInit_dev, &slotManagerInit, sizeof(SlotManager), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
-  COPCORE_CUDA_CHECK(cudaMalloc(&BzFieldValue_dev, sizeof(BzFieldValue_host)));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Malloc(&BzFieldValue_dev, sizeof(BzFieldValue_host)));
+  ADEPT_DEVICE_API_CALL(Memcpy(BzFieldValue_dev, &BzFieldValue_host, sizeof(BzFieldValue_host),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
   std::cout << " Host: passed value of BzField to device at " << BzFieldValue_dev << " value = " << BzFieldValue_host
             << "\n";
 
   // Pass the location of the BzFieldValue_dev !
   SetBzFieldPtr<<<1, 1>>>(BzFieldValue_dev);
-  COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
+  ADEPT_DEVICE_API_CALL(StreamSynchronize(stream));
 
   G4Timer timer;
   timer.Start();
@@ -369,8 +376,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
     int chunk = std::min(left, batch);
 
     for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-      COPCORE_CUDA_CHECK(cudaMemcpyAsync(particles[i].slotManager, slotManagerInit_dev, ManagerSize,
-                                         cudaMemcpyDeviceToDevice, stream));
+      ADEPT_DEVICE_API_CALL(MemcpyAsync(particles[i].slotManager, slotManagerInit_dev, ManagerSize,
+                                        ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToDevice), stream));
     }
 
     // Initialize primary particles.
@@ -380,7 +387,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
     auto world_dev = vecgeom::cxx::CudaManager::Instance().world_gpu();
     InitPrimaries<<<initBlocks, InitThreads, 0, stream>>>(electronGenerator, startEvent, chunk, energy, world_dev,
                                                           globalScoring, rotatingParticleGun);
-    COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
+    ADEPT_DEVICE_API_CALL(StreamSynchronize(stream));
 
     stats->inFlight[ParticleType::Electron] = chunk;
     stats->inFlight[ParticleType::Positron] = 0;
@@ -415,8 +422,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
             electrons.tracks, electrons.queues.currentlyActive, secondaries, electrons.queues.nextActive, globalScoring,
             scoringPerVolume);
 
-        COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, electrons.event, 0));
+        ADEPT_DEVICE_API_CALL(EventRecord(electrons.event, electrons.stream));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, electrons.event, 0));
       }
 
       // *** POSITRONS ***
@@ -429,8 +436,8 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
             positrons.tracks, positrons.queues.currentlyActive, secondaries, positrons.queues.nextActive, globalScoring,
             scoringPerVolume);
 
-        COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, positrons.event, 0));
+        ADEPT_DEVICE_API_CALL(EventRecord(positrons.event, positrons.stream));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, positrons.event, 0));
       }
       // *** GAMMAS ***
       int numGammas = stats->inFlight[ParticleType::Gamma];
@@ -442,23 +449,24 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
             gammas.tracks, gammas.queues.currentlyActive, secondaries, gammas.queues.nextActive, globalScoring,
             scoringPerVolume);
 
-        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, gammas.event, 0));
+        ADEPT_DEVICE_API_CALL(EventRecord(gammas.event, gammas.stream));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, gammas.event, 0));
       }
 
       // *** END OF TRANSPORT ***
 
       // Extra sync for debugging !!? JA 2022.09.19
-      // COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
+      // ADEPT_DEVICE_API_CALL(StreamSynchronize(stream));
 
       // The events ensure synchronization before finishing this iteration and
       // copying the Stats back to the host.
       AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues}};
       FinishIteration<<<1, 1, 0, stream>>>(queues, stats_dev);
-      COPCORE_CUDA_CHECK(cudaMemcpyAsync(stats, stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, stream));
+      ADEPT_DEVICE_API_CALL(
+          MemcpyAsync(stats, stats_dev, sizeof(Stats), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), stream));
 
       // Finally synchronize all kernels.
-      COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
+      ADEPT_DEVICE_API_CALL(StreamSynchronize(stream));
 
       // Count the number of particles in flight.
       inFlight = 0;
@@ -511,7 +519,7 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
 
         ClearQueue<<<1, 1, 0, stream>>>(pType.queues.currentlyActive);
       }
-      COPCORE_CUDA_CHECK(cudaStreamSynchronize(stream));
+      ADEPT_DEVICE_API_CALL(StreamSynchronize(stream));
     }
   }
   std::cout << "\ndone!" << std::endl;
@@ -521,36 +529,37 @@ void testField(int numParticles, double energy, int batch, const int *MCIndex_ho
   std::cout << "Run time: " << time << "\n";
 
   // Transfer back scoring.
-  COPCORE_CUDA_CHECK(cudaMemcpy(globalScoring_host, globalScoring, sizeof(GlobalScoring), cudaMemcpyDeviceToHost));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(globalScoring_host, globalScoring, sizeof(GlobalScoring), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
   globalScoring_host->numKilled = killed;
 
   // Transfer back the scoring per volume (charged track length and energy deposit).
-  COPCORE_CUDA_CHECK(cudaMemcpy(scoringPerVolume_host->chargedTrackLength, scoringPerVolume_devPtrs.chargedTrackLength,
-                                sizeof(double) * numPlaced, cudaMemcpyDeviceToHost));
-  COPCORE_CUDA_CHECK(cudaMemcpy(scoringPerVolume_host->energyDeposit, scoringPerVolume_devPtrs.energyDeposit,
-                                sizeof(double) * numPlaced, cudaMemcpyDeviceToHost));
+  ADEPT_DEVICE_API_CALL(Memcpy(scoringPerVolume_host->chargedTrackLength, scoringPerVolume_devPtrs.chargedTrackLength,
+                               sizeof(double) * numPlaced, ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(Memcpy(scoringPerVolume_host->energyDeposit, scoringPerVolume_devPtrs.energyDeposit,
+                               sizeof(double) * numPlaced, ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
 
   // Free resources.
-  COPCORE_CUDA_CHECK(cudaFree(MCIndex_dev));
-  COPCORE_CUDA_CHECK(cudaFree(chargedTrackLength));
-  COPCORE_CUDA_CHECK(cudaFree(energyDeposit));
+  ADEPT_DEVICE_API_CALL(Free(MCIndex_dev));
+  ADEPT_DEVICE_API_CALL(Free(chargedTrackLength));
+  ADEPT_DEVICE_API_CALL(Free(energyDeposit));
 
-  COPCORE_CUDA_CHECK(cudaFree(globalScoring));
-  COPCORE_CUDA_CHECK(cudaFree(scoringPerVolume));
-  COPCORE_CUDA_CHECK(cudaFree(stats_dev));
-  COPCORE_CUDA_CHECK(cudaFreeHost(stats));
-  COPCORE_CUDA_CHECK(cudaFree(slotManagerInit_dev));
-  COPCORE_CUDA_CHECK(cudaFree(BzFieldValue_dev));
-  COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
+  ADEPT_DEVICE_API_CALL(Free(globalScoring));
+  ADEPT_DEVICE_API_CALL(Free(scoringPerVolume));
+  ADEPT_DEVICE_API_CALL(Free(stats_dev));
+  ADEPT_DEVICE_API_CALL(FreeHost(stats));
+  ADEPT_DEVICE_API_CALL(Free(slotManagerInit_dev));
+  ADEPT_DEVICE_API_CALL(Free(BzFieldValue_dev));
+  ADEPT_DEVICE_API_CALL(StreamDestroy(stream));
 
   for (int i = 0; i < ParticleType::NumParticleTypes; i++) {
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].tracks));
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].slotManager));
+    ADEPT_DEVICE_API_CALL(Free(particles[i].tracks));
+    ADEPT_DEVICE_API_CALL(Free(particles[i].slotManager));
 
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.currentlyActive));
-    COPCORE_CUDA_CHECK(cudaFree(particles[i].queues.nextActive));
+    ADEPT_DEVICE_API_CALL(Free(particles[i].queues.currentlyActive));
+    ADEPT_DEVICE_API_CALL(Free(particles[i].queues.nextActive));
 
-    COPCORE_CUDA_CHECK(cudaStreamDestroy(particles[i].stream));
-    COPCORE_CUDA_CHECK(cudaEventDestroy(particles[i].event));
+    ADEPT_DEVICE_API_CALL(StreamDestroy(particles[i].stream));
+    ADEPT_DEVICE_API_CALL(EventDestroy(particles[i].event));
   }
 }

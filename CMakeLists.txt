@@ -9,7 +9,7 @@ include(cmake/RecordCmdLine.cmake)
 project(AdePT
   VERSION 0.1.0
   DESCRIPTION "Accelerated demonstrator of electromagnetic Particle Transport"
-  LANGUAGES C CXX CUDA
+  LANGUAGES C CXX
 )
 
 #----------------------------------------------------------------------------#
@@ -45,6 +45,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 #----------------------------------------------------------------------------#
 # User options
 #----------------------------------------------------------------------------#
+
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
 option(ADEPT_MIXED_PRECISION "Use B-field integration and surface model in mixed precision" OFF)
@@ -56,6 +57,36 @@ option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used i
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
 option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
 option(ADEPT_BUILD_EXAMPLES "Build examples" OFF)
+
+# Backend options
+# Available backend options
+set(_backend_opts CUDA HIP)
+set(_backend_default CUDA)
+# Set backend option default value and store in CMake cache
+set(ADEPT_COMPUTE_BACKEND CUDA CACHE STRING "Backend to compile for")
+# Store the possible options in the cache
+set_property(CACHE ADEPT_COMPUTE_BACKEND PROPERTY STRINGS ${_backend_opts})
+# Check that the selected option is correct
+list(FIND _backend_opts "${ADEPT_COMPUTE_BACKEND}" idx)
+if(idx EQUAL -1)
+    message(FATAL_ERROR
+        "Invalid ADEPT_COMPUTE_BACKEND='${ADEPT_COMPUTE_BACKEND}'. Available options: ${_backend_opts}"
+    )
+endif()
+
+if(ADEPT_COMPUTE_BACKEND STREQUAL CUDA)
+  set(ADEPT_USE_CUDA TRUE)
+elseif(ADEPT_COMPUTE_BACKEND STREQUAL HIP)
+  set(ADEPT_USE_HIP TRUE)
+endif()
+
+if(ADEPT_USE_CUDA)
+  enable_language(CUDA)
+elseif(ADEPT_USE_HIP)
+  enable_language(HIP)
+endif()
+
+message(STATUS "${Green}${ADEPT_COMPUTE_BACKEND} backend enabled${ColorReset}")
 
 # Ensure that ctest is enabled when ADEPT_BUILD_TESTING is ON
 if(ADEPT_BUILD_TESTING)
@@ -147,8 +178,10 @@ endif()
 #----------------------------------------------------------------------------#
 # Dependencies
 #----------------------------------------------------------------------------#
-# With CUDA language enabled above, this should find the toolkit alongside the compiler
-find_package(CUDAToolkit REQUIRED)
+if(ADEPT_USE_CUDA)
+  # With CUDA language enabled above, this should find the toolkit alongside the compiler
+  find_package(CUDAToolkit REQUIRED)
+endif()
 
 #Find VecCore with correct backend
 set(VecCore_VERSION 0.5.2)
@@ -398,6 +431,9 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecog
 if(ADEPT_DEBUG_TRACK GREATER 0)
   add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-DADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>")
 endif()
+if(ADEPT_USE_HIP)
+  add_compile_options("$<$<COMPILE_LANGUAGE:HIP>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma;-rdc=true>")
+endif()
 
 find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)
@@ -427,6 +463,11 @@ target_include_directories(CopCore
 cuda_rdc_add_library(AdePT_G4_integration SHARED
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
+
+if(ADEPT_USE_HIP)
+  set_source_files_properties(src/AdePTTrackingManager.cu PROPERTIES LANGUAGE HIP)
+endif()
+
 cuda_rdc_target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

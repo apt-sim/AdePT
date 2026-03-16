@@ -4,6 +4,8 @@
 #ifndef ASYNC_ADEPT_TRANSPORT_CUH
 #define ASYNC_ADEPT_TRANSPORT_CUH
 
+#include <AdePT/core/Portability.hh>
+
 #include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/CommonStruct.h>
@@ -69,7 +71,7 @@ using namespace AsyncAdePT;
 
 /// Communication with the hit processing thread.
 struct HitProcessingContext {
-  cudaStream_t hitTransferStream;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) hitTransferStream;
   std::condition_variable cv{};
   std::mutex mutex{};
   std::atomic_bool keepRunning = true;
@@ -106,7 +108,7 @@ bool InitializeTrackDebug()
     if (*end != '\0') debug.max_step = 10000;
   }
 
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gTrackDebug, &debug, sizeof(TrackDebug)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gTrackDebug, &debug, sizeof(TrackDebug)));
 #if ADEPT_DEBUG_TRACK > 0
   printf("=== Track debugging enabled: event %d track %lu steps %ld - %ld\n", debug.event_id, debug.track_id,
          debug.min_step, debug.max_step);
@@ -492,8 +494,31 @@ __global__ void InitSlotManagers(SlotManager *mgr, std::size_t N)
   }
 }
 
-/// WIP: Free functions implementing the CUDA parts
+// Free functions implementing the CUDA parts
 namespace async_adept_impl {
+
+/**
+ * @brief Sets stack and heap size limits for the device. If 0, the default limit is kept
+ *
+ * Increased stack and heap limits may be needed due to VecGeom's memory allocation. These limits can be configured via
+ * macro commands
+ *
+ * @param[in]   stackLimit   Stack limit in bytes
+ * @param[in]  heapLimit     Heap limit in bytes
+ *
+ */
+void setDeviceLimits(int stackLimit = 0, int heapLimit = 0)
+{
+  if (stackLimit > 0) {
+    std::cout << "CUDA Device stack limit: " << stackLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitStackSize), stackLimit));
+  }
+  if (heapLimit > 0) {
+    std::cout << "CUDA Device heap limit: " << heapLimit << "\n";
+    ADEPT_DEVICE_API_CALL(DeviceSetLimit(ADEPT_DEVICE_API_SYMBOL(LimitMallocHeapSize), heapLimit));
+  }
+}
+
 void CopySurfaceModelToGPU()
 {
 // Copy surface data to GPU
@@ -541,7 +566,7 @@ G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
   parametersOnDevice.fParametersPerRegion     = state->fParameters->fParametersPerRegion_gpu;
   parametersOnDevice.fParametersPerRegion_gpu = nullptr;
 
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
 
   // Create G4HepEmData with the device pointers.
   G4HepEmData dataOnDevice;
@@ -561,7 +586,7 @@ G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
   dataOnDevice.fTheSBTableData_gpu  = nullptr;
   dataOnDevice.fTheGammaData_gpu    = nullptr;
 
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
 
   return state;
 }
@@ -571,9 +596,10 @@ bool InitializeBField(FieldType &magneticField)
 {
   // Allocate and copy the FieldType instance (not the field array itself), and set the global device pointer
   FieldType *dMagneticFieldInstance = nullptr;
-  COPCORE_CUDA_CHECK(cudaMalloc(&dMagneticFieldInstance, sizeof(FieldType)));
-  COPCORE_CUDA_CHECK(cudaMemcpy(dMagneticFieldInstance, &magneticField, sizeof(FieldType), cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(FieldType *)));
+  ADEPT_DEVICE_API_CALL(Malloc(&dMagneticFieldInstance, sizeof(FieldType)));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(dMagneticFieldInstance, &magneticField, sizeof(FieldType), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gMagneticField, &dMagneticFieldInstance, sizeof(FieldType *)));
 
   return true;
 }
@@ -584,13 +610,13 @@ void FreeBField()
   FieldType *dMagneticFieldInstance = nullptr;
 
   // Retrieve the global device pointer from the symbol
-  COPCORE_CUDA_CHECK(cudaMemcpyFromSymbol(&dMagneticFieldInstance, gMagneticField, sizeof(FieldType *)));
+  ADEPT_DEVICE_API_CALL(MemcpyFromSymbol(&dMagneticFieldInstance, gMagneticField, sizeof(FieldType *)));
 
   if (dMagneticFieldInstance) {
     // Free the device memory and reset global device pointer
-    COPCORE_CUDA_CHECK(cudaFree(dMagneticFieldInstance));
+    ADEPT_DEVICE_API_CALL(Free(dMagneticFieldInstance));
     FieldType *nullPtr = nullptr;
-    COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gMagneticField, &nullPtr, sizeof(FieldType *)));
+    ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gMagneticField, &nullPtr, sizeof(FieldType *)));
   }
 }
 
@@ -602,17 +628,17 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
   using adeptint::WDTRoot;
 
   // allocate
-  COPCORE_CUDA_CHECK(cudaMalloc(&dev.d_roots, src.roots.size() * sizeof(WDTRoot)));
-  COPCORE_CUDA_CHECK(cudaMalloc(&dev.d_regions, src.regions.size() * sizeof(WDTRegion)));
-  COPCORE_CUDA_CHECK(cudaMalloc(&dev.d_map, src.regionToWDT.size() * sizeof(int)));
+  ADEPT_DEVICE_API_CALL(Malloc(&dev.d_roots, src.roots.size() * sizeof(WDTRoot)));
+  ADEPT_DEVICE_API_CALL(Malloc(&dev.d_regions, src.regions.size() * sizeof(WDTRegion)));
+  ADEPT_DEVICE_API_CALL(Malloc(&dev.d_map, src.regionToWDT.size() * sizeof(int)));
 
   // copy
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(dev.d_roots, src.roots.data(), src.roots.size() * sizeof(WDTRoot), cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(dev.d_regions, src.regions.data(), src.regions.size() * sizeof(WDTRegion), cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(dev.d_map, src.regionToWDT.data(), src.regionToWDT.size() * sizeof(int), cudaMemcpyHostToDevice));
+  ADEPT_DEVICE_API_CALL(Memcpy(dev.d_roots, src.roots.data(), src.roots.size() * sizeof(WDTRoot),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(Memcpy(dev.d_regions, src.regions.data(), src.regions.size() * sizeof(WDTRegion),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(Memcpy(dev.d_map, src.regionToWDT.data(), src.regionToWDT.size() * sizeof(int),
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
   // assemble host view
   WDTDeviceView view{};
@@ -624,27 +650,27 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuff
   view.maxIter     = maxIter;
 
   // copy view to constant memory
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gWDTData, &view, sizeof(WDTDeviceView)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gWDTData, &view, sizeof(WDTDeviceView)));
 }
 
 void FreeWDTOnDevice(adeptint::WDTDeviceBuffers &dev)
 {
   if (dev.d_roots) {
-    COPCORE_CUDA_CHECK(cudaFree(dev.d_roots));
+    ADEPT_DEVICE_API_CALL(Free(dev.d_roots));
     dev.d_roots = nullptr;
   }
   if (dev.d_regions) {
-    COPCORE_CUDA_CHECK(cudaFree(dev.d_regions));
+    ADEPT_DEVICE_API_CALL(Free(dev.d_regions));
     dev.d_regions = nullptr;
   }
   if (dev.d_map) {
-    COPCORE_CUDA_CHECK(cudaFree(dev.d_map));
+    ADEPT_DEVICE_API_CALL(Free(dev.d_map));
     dev.d_map = nullptr;
   }
 
   // clear the constant view
   adeptint::WDTDeviceView zero{};
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(AsyncAdePT::gWDTData, &zero, sizeof(zero)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(AsyncAdePT::gWDTData, &zero, sizeof(zero)));
 }
 
 /// Allocate memory on device, as well as streams and cuda events to synchronise kernels.
@@ -673,10 +699,10 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
       size *= sizeof(*devPtr);
     }
 
-    const auto result = cudaMalloc(&devPtr, size);
-    if (result != cudaSuccess) {
+    const auto result = ADEPT_DEVICE_API_SYMBOL(Malloc(&devPtr, size));
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       std::size_t free, total;
-      cudaMemGetInfo(&free, &total);
+      ADEPT_DEVICE_API_CALL(MemGetInfo(&free, &total));
       std::stringstream msg;
       msg << "Not enough space to allocate " << size / 1024. / 1024 << " MB for " << N << " objects of size "
           << size / N << ". Free memory: " << free / 1024. / 1024 << " MB"
@@ -714,7 +740,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 #endif
 
   // Create a stream to synchronize kernels of all particle types.
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&gpuState.stream));
+  ADEPT_DEVICE_API_CALL(StreamCreate(&gpuState.stream));
 
   // Allocate all slot managers on device
   gpuState.slotManager_dev = nullptr;
@@ -734,10 +760,10 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     gpuState.allmgr_h.slotManagersLeaks[i] =
         SlotManager{static_cast<SlotManager::value_type>(nLeakSlots), static_cast<SlotManager::value_type>(nLeakSlots)};
     // Initialize dev slotmanagers by copying the host data
-    COPCORE_CUDA_CHECK(cudaMemcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
-                                  cudaMemcpyDefault));
-    COPCORE_CUDA_CHECK(cudaMemcpy(&gpuState.slotManagerLeaks_dev[i], &gpuState.allmgr_h.slotManagersLeaks[i],
-                                  sizeof(SlotManager), cudaMemcpyDefault));
+    ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
+                                 ADEPT_DEVICE_API_SYMBOL(MemcpyDefault)));
+    ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManagerLeaks_dev[i], &gpuState.allmgr_h.slotManagersLeaks[i],
+                                 sizeof(SlotManager), ADEPT_DEVICE_API_SYMBOL(MemcpyDefault)));
 
     // Allocate the queues where the active and leak indices are stored
     // * Current and next active track indices
@@ -765,8 +791,8 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     particleType.queues.leakedTracksNext = static_cast<adept::MParray *>(gpuPtr);
     InitParticleQueues<<<1, 1>>>(particleType.queues, nSlot, nLeakSlots);
 
-    COPCORE_CUDA_CHECK(cudaStreamCreate(&particleType.stream));
-    COPCORE_CUDA_CHECK(cudaEventCreate(&particleType.event));
+    ADEPT_DEVICE_API_CALL(StreamCreate(&particleType.stream));
+    ADEPT_DEVICE_API_CALL(EventCreate(&particleType.event));
 
     // Allocate the array where the tracks are stored
     // This is the largest allocation. If it does not fit, we need to try again:
@@ -816,7 +842,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
   // initialize statistics
   gpuMalloc(gpuState.stats_dev, 1);
-  COPCORE_CUDA_CHECK(cudaMallocHost(&gpuState.stats, sizeof(Stats)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&gpuState.stats, sizeof(Stats)));
 
 #if ADEPT_DEBUG_TRACK > 0
   // initialize track debugging
@@ -921,23 +947,24 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   // Auxiliary struct used to keep track of the queues that need flushing
   AllLeaked allLeaked{nullptr, nullptr, nullptr};
 
-  cudaEvent_t cudaEvent, cudaStatsEvent;
-  cudaStream_t hitTransferStream, injectStream, extractStream, statsStream;
-  COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaEvent, cudaEventDisableTiming));
-  COPCORE_CUDA_CHECK(cudaEventCreateWithFlags(&cudaStatsEvent, cudaEventDisableTiming));
-  unique_ptr_cuda<cudaEvent_t> cudaEventCleanup{&cudaEvent};
-  unique_ptr_cuda<cudaEvent_t> cudaStatsEventCleanup{&cudaStatsEvent};
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&hitTransferStream));
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&injectStream));
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&extractStream));
-  COPCORE_CUDA_CHECK(cudaStreamCreate(&statsStream));
-  unique_ptr_cuda<cudaStream_t> cudaStreamCleanup{&hitTransferStream};
-  unique_ptr_cuda<cudaStream_t> cudaInjectStreamCleanup{&injectStream};
-  unique_ptr_cuda<cudaStream_t> cudaExtractStreamCleanup{&extractStream};
-  unique_ptr_cuda<cudaStream_t> cudaStatsStreamCleanup{&statsStream};
-  auto waitForOtherStream = [&cudaEvent](cudaStream_t waitingStream, cudaStream_t streamToWaitFor) {
-    COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, streamToWaitFor));
-    COPCORE_CUDA_CHECK(cudaStreamWaitEvent(waitingStream, cudaEvent));
+  ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) hitTransferStream, injectStream, extractStream, statsStream;
+  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaStatsEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaEventCleanup{&cudaEvent};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaStatsEventCleanup{&cudaStatsEvent};
+  ADEPT_DEVICE_API_CALL(StreamCreate(&hitTransferStream));
+  ADEPT_DEVICE_API_CALL(StreamCreate(&injectStream));
+  ADEPT_DEVICE_API_CALL(StreamCreate(&extractStream));
+  ADEPT_DEVICE_API_CALL(StreamCreate(&statsStream));
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaStreamCleanup{&hitTransferStream};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaInjectStreamCleanup{&injectStream};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaExtractStreamCleanup{&extractStream};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaStatsStreamCleanup{&statsStream};
+  auto waitForOtherStream = [&cudaEvent](ADEPT_DEVICE_API_SYMBOL(Stream_t) waitingStream,
+                                         ADEPT_DEVICE_API_SYMBOL(Stream_t) streamToWaitFor) {
+    ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, streamToWaitFor));
+    ADEPT_DEVICE_API_CALL(StreamWaitEvent(waitingStream, cudaEvent));
   };
 
   // default constructed stepping action parameters (different for CMS or LHCb)
@@ -974,7 +1001,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
   while (gpuState.runTransport) {
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
-    COPCORE_CUDA_CHECK(cudaMemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
+    ADEPT_DEVICE_API_CALL(MemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
 
     int inFlight                                              = 0;
     unsigned int numLeaked                                    = 0;
@@ -993,7 +1020,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       G4cout << "GPU transport starting" << std::endl;
     }
 
-    COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+    ADEPT_DEVICE_API_CALL(StreamSynchronize(gpuState.stream));
 
     for (unsigned int iteration = 0;
          inFlight > 0 || gpuState.injectState != InjectState::Idle || gpuState.extractState != ExtractState::Idle ||
@@ -1062,23 +1089,24 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           if (debugLevel > 3) std::cout << "Injecting " << nInject << " to GPU\n";
 
           // copy buffer of tracks to device
-          COPCORE_CUDA_CHECK(cudaMemcpyAsync(trackBuffer.toDevice_dev.get(), toDevice.tracks,
-                                             nInject * sizeof(TrackDataWithIDs), cudaMemcpyHostToDevice, injectStream));
+          ADEPT_DEVICE_API_CALL(MemcpyAsync(trackBuffer.toDevice_dev.get(), toDevice.tracks,
+                                            nInject * sizeof(TrackDataWithIDs),
+                                            ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice), injectStream));
           // Mark end of copy operation:
-          COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, injectStream));
+          ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, injectStream));
 
           // Init AdePT tracks using the track buffer
           constexpr auto injectThreads = 128u;
           const auto injectBlocks      = (nInject + injectThreads - 1) / injectThreads;
           InitTracks<<<injectBlocks, injectThreads, 0, injectStream>>>(
               trackBuffer.toDevice_dev.get(), nInject, particleManager, world_dev, gpuState.injectionQueue, adeptSeed);
-          COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+          ADEPT_DEVICE_API_CALL(LaunchHostFunc(
               injectStream,
               [](void *arg) { (*static_cast<decltype(GPUstate::injectState) *>(arg)) = InjectState::ReadyToEnqueue; },
               &gpuState.injectState));
 
           // Ensure that copy operation completed before releasing lock on to-device buffer
-          COPCORE_CUDA_CHECK(cudaEventSynchronize(cudaEvent));
+          ADEPT_DEVICE_API_CALL(EventSynchronize(cudaEvent));
         } else {
           // No tracks in to-device buffer, can immediately mark the Injection as completed
           AdvanceEventStates(EventState::G4RequestsFlush, EventState::InjectionCompleted, eventStates);
@@ -1099,7 +1127,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         EnqueueTracks<<<1, 256, 0, gpuState.stream>>>(allParticleQueues, gpuState.injectionQueue);
 
         auto *ctx = new EnqueueDoneCtx{&eventStates, &gpuState.injectState};
-        COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+        ADEPT_DEVICE_API_CALL(LaunchHostFunc(
             gpuState.stream,
             [](void *arg) {
               auto *ctx = static_cast<EnqueueDoneCtx *>(arg);
@@ -1128,7 +1156,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
 
         // wait for swapping of hit buffers
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(electrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(electrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Electron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
@@ -1156,15 +1184,15 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             <<<blocks, threads, 0, electrons.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
                                                        allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
-        COPCORE_CUDA_CHECK(cudaEventRecord(electrons.event, electrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, electrons.event, 0));
+        ADEPT_DEVICE_API_CALL(EventRecord(electrons.event, electrons.stream));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, electrons.event, 0));
       }
 
       // *** POSITRONS ***
       {
 
         // wait for swapping of hit buffers
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(positrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(positrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Positron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
@@ -1199,15 +1227,15 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                                                        allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
 
-        COPCORE_CUDA_CHECK(cudaEventRecord(positrons.event, positrons.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, positrons.event, 0));
+        ADEPT_DEVICE_API_CALL(EventRecord(positrons.event, positrons.stream));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, positrons.event, 0));
       }
 
       // *** GAMMAS ***
       {
 
         // wait for swapping of hit buffers
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gammas.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Gamma]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
@@ -1255,8 +1283,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         }
 #endif
 
-        COPCORE_CUDA_CHECK(cudaEventRecord(gammas.event, gammas.stream));
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(gpuState.stream, gammas.event, 0));
+        ADEPT_DEVICE_API_CALL(EventRecord(gammas.event, gammas.stream));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, gammas.event, 0));
       }
 
       // ---------------------------------------
@@ -1285,14 +1313,14 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
         waitForOtherStream(gpuState.stream, statsStream);
 
         // Copy the number of particles in flight to the previous one, which is used within the kernel
-        COPCORE_CUDA_CHECK(cudaMemcpyAsync(gpuState.stats_dev->perEventInFlightPrevious,
-                                           gpuState.stats_dev->perEventInFlight, kMaxThreads * sizeof(unsigned int),
-                                           cudaMemcpyDeviceToDevice, statsStream));
+        ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.stats_dev->perEventInFlightPrevious,
+                                          gpuState.stats_dev->perEventInFlight, kMaxThreads * sizeof(unsigned int),
+                                          ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToDevice), statsStream));
 
         // Get results to host:
-        COPCORE_CUDA_CHECK(
-            cudaMemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats), cudaMemcpyDeviceToHost, statsStream));
-        COPCORE_CUDA_CHECK(cudaEventRecord(cudaStatsEvent, statsStream));
+        ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats),
+                                          ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), statsStream));
+        ADEPT_DEVICE_API_CALL(EventRecord(cudaStatsEvent, statsStream));
       }
 
       // -------------------------
@@ -1384,11 +1412,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
           // Ensure that transport that's writing to the old queues finishes before collecting leaked tracks
           for (auto const &event : {electrons.event, positrons.event, gammas.event}) {
-            COPCORE_CUDA_CHECK(cudaStreamWaitEvent(extractStream, event));
+            ADEPT_DEVICE_API_CALL(StreamWaitEvent(extractStream, event));
           }
 
           // Once transport has finished, we can start extracting the leaks
-          COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+          ADEPT_DEVICE_API_CALL(LaunchHostFunc(
               extractStream,
               [](void *arg) {
                 AdvanceExtractState(ExtractState::ExtractionRequested, ExtractState::TracksNeedTransfer,
@@ -1418,14 +1446,16 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
               trackBuffer.fNumLeaksTransferred);
 
           // Copy the number of leaked tracks to host
-          COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(trackBuffer.nFromDevice_host.get(), nFromDevice_dev,
-                                                       sizeof(unsigned int), 0, cudaMemcpyDeviceToHost, extractStream));
+          ADEPT_DEVICE_API_CALL(MemcpyFromSymbolAsync(trackBuffer.nFromDevice_host.get(), nFromDevice_dev,
+                                                      sizeof(unsigned int), 0,
+                                                      ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), extractStream));
           // Copy the number of tracks remaining on GPU to host
-          COPCORE_CUDA_CHECK(cudaMemcpyFromSymbolAsync(trackBuffer.nRemainingLeaks_host.get(), nRemainingLeaks_dev,
-                                                       sizeof(unsigned int), 0, cudaMemcpyDeviceToHost, extractStream));
+          ADEPT_DEVICE_API_CALL(MemcpyFromSymbolAsync(trackBuffer.nRemainingLeaks_host.get(), nRemainingLeaks_dev,
+                                                      sizeof(unsigned int), 0,
+                                                      ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), extractStream));
 
           // Update the state after the copy
-          COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+          ADEPT_DEVICE_API_CALL(LaunchHostFunc(
               extractStream,
               [](void *arg) {
                 AdvanceExtractState(ExtractState::PreparingTracks, ExtractState::TracksReadyToCopy,
@@ -1440,11 +1470,11 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           // printf("COPYING: %d\n", *trackBuffer.nFromDevice_host);
 
           // Copy leaked tracks to host
-          COPCORE_CUDA_CHECK(cudaMemcpyAsync(trackBuffer.fromDevice_host.get(), trackBuffer.fromDevice_dev.get(),
-                                             (*trackBuffer.nFromDevice_host) * sizeof(TrackDataWithIDs),
-                                             cudaMemcpyDeviceToHost, extractStream));
+          ADEPT_DEVICE_API_CALL(MemcpyAsync(trackBuffer.fromDevice_host.get(), trackBuffer.fromDevice_dev.get(),
+                                            (*trackBuffer.nFromDevice_host) * sizeof(TrackDataWithIDs),
+                                            ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), extractStream));
           // Update the state after the copy
-          COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+          ADEPT_DEVICE_API_CALL(LaunchHostFunc(
               extractStream,
               [](void *arg) {
                 AdvanceExtractState(ExtractState::CopyingTracks, ExtractState::TracksOnHost,
@@ -1469,7 +1499,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           CallbackData *data = new CallbackData{&trackBuffer, &gpuState, &eventStates};
 
           // Distribute the leaked tracks on host to the appropriate G4 workers
-          COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+          ADEPT_DEVICE_API_CALL(LaunchHostFunc(
               extractStream,
               [](void *userData) {
                 CallbackData *data = static_cast<CallbackData *>(userData);
@@ -1556,9 +1586,9 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       }
 
       // *** Synchronise all but transfer stream with the end of this iteration ***
-      COPCORE_CUDA_CHECK(cudaEventRecord(cudaEvent, gpuState.stream));
+      ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, gpuState.stream));
       for (auto stream : {electrons.stream, positrons.stream, gammas.stream, statsStream}) {
-        COPCORE_CUDA_CHECK(cudaStreamWaitEvent(stream, cudaEvent));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaEvent));
       }
 
       // ------------------------------------------
@@ -1569,15 +1599,15 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       {
         inFlight  = 0;
         numLeaked = 0;
-
         // Synchronize with stats count before taking decisions
-        cudaError_t result;
-        while ((result = cudaEventQuery(cudaStatsEvent)) == cudaErrorNotReady) {
+        ADEPT_DEVICE_API_SYMBOL(Error_t) result;
+        while ((result = ADEPT_DEVICE_API_SYMBOL(EventQuery(cudaStatsEvent))) ==
+               ADEPT_DEVICE_API_SYMBOL(ErrorNotReady)) {
           // Cuda uses a busy wait. This reduces CPU consumption by 50%:
           using namespace std::chrono_literals;
           std::this_thread::sleep_for(50us);
         }
-        COPCORE_CUDA_CHECK(result);
+        ADEPT_ERROR_CHECK(result, ADEPT_DEVICE_API_SYMBOL(EventQuery(cudaStatsEvent)));
 
         for (int i = 0; i < GPUQueueIndex::NumSpecies; i++) {
           inFlight += gpuState.stats->inFlight[i];
@@ -1655,8 +1685,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                 return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
               })) {
             // Reset hitBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted swap
-            COPCORE_CUDA_CHECK(
-                cudaMemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
+            ADEPT_DEVICE_API_CALL(
+                MemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
             gpuState.fHitScoring->SwapDeviceBuffers(gpuState.stream);
             AdvanceEventStates(EventState::RequestHitFlush, EventState::SwappingHitBuffers, eventStates);
             hitProcessing->cv.notify_one();
@@ -1709,16 +1739,16 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           gpuState.extractState != ExtractState::PreparingTracks) {
         AssertConsistencyOfSlotManagers<<<120, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev,
                                                                           gpuState.nSlotManager_dev);
-        COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+        ADEPT_DEVICE_API_CALL(StreamSynchronize(gpuState.stream));
       }
 
 #if false
       for (int i = 0; i < GPUQueueIndex::NumSpecies; ++i) {
         SpeciesState &part = gpuState.particles[i];
-        COPCORE_CUDA_CHECK(cudaMemcpyAsync(&part.slotManager_host, part.slotManager, sizeof(SlotManager),
-                                           cudaMemcpyDefault, gpuState.stream));
+        ADEPT_DEVICE_API_CALL(MemcpyAsync(&part.slotManager_host, part.slotManager, sizeof(SlotManager),
+                                          ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), gpuState.stream));
       }
-      COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+      ADEPT_DEVICE_API_CALL(StreamSynchronize(gpuState.stream));
       {
         unsigned int slotsUsed[3];
         unsigned int slotsMax[3];
@@ -1738,7 +1768,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
     }
     AllParticleQueues queues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
     ClearAllQueues<<<1, 1, 0, gpuState.stream>>>(queues);
-    COPCORE_CUDA_CHECK(cudaStreamSynchronize(gpuState.stream));
+    ADEPT_DEVICE_API_CALL(StreamSynchronize(gpuState.stream));
 
     if (debugLevel > 2) std::cout << "End transport loop.\n";
   }
@@ -1797,8 +1827,8 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
   gpuWorker.join();
 
   adeptint::VolAuxData *volAux = nullptr;
-  COPCORE_CUDA_CHECK(cudaMemcpyFromSymbol(&volAux, AsyncAdePT::gVolAuxData, sizeof(adeptint::VolAuxData *)));
-  COPCORE_CUDA_CHECK(cudaFree(volAux));
+  ADEPT_DEVICE_API_CALL(MemcpyFromSymbol(&volAux, AsyncAdePT::gVolAuxData, sizeof(adeptint::VolAuxData *)));
+  ADEPT_DEVICE_API_CALL(Free(volAux));
 
   // Free WDT device buffers and clear its constant view
   FreeWDTOnDevice(wdtDev);
@@ -1836,10 +1866,10 @@ __constant__ __device__ adeptint::WDTDeviceView gWDTData;
 void InitVolAuxArray(adeptint::VolAuxArray &array)
 {
   using adeptint::VolAuxData;
-  COPCORE_CUDA_CHECK(cudaMalloc(&array.fAuxData_dev, sizeof(VolAuxData) * array.fNumVolumes));
-  COPCORE_CUDA_CHECK(
-      cudaMemcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes, cudaMemcpyHostToDevice));
-  COPCORE_CUDA_CHECK(cudaMemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
+  ADEPT_DEVICE_API_CALL(Malloc(&array.fAuxData_dev, sizeof(VolAuxData) * array.fNumVolumes));
+  ADEPT_DEVICE_API_CALL(Memcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes,
+                               ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
 }
 
 /// Initialise the track buffers used to communicate between host and device.
@@ -1848,23 +1878,23 @@ TrackBuffer::TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, u
 {
   TrackDataWithIDs *devPtr, *hostPtr;
   // Double buffer for lock-free host runs:
-  COPCORE_CUDA_CHECK(cudaMallocHost(&hostPtr, 2 * numToDevice * sizeof(TrackDataWithIDs)));
-  COPCORE_CUDA_CHECK(cudaMalloc(&devPtr, numToDevice * sizeof(TrackDataWithIDs)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&hostPtr, 2 * numToDevice * sizeof(TrackDataWithIDs)));
+  ADEPT_DEVICE_API_CALL(Malloc(&devPtr, numToDevice * sizeof(TrackDataWithIDs)));
 
   toDevice_host.reset(hostPtr);
   toDevice_dev.reset(devPtr);
 
-  COPCORE_CUDA_CHECK(cudaMallocHost(&hostPtr, numFromDevice * sizeof(TrackDataWithIDs)));
-  COPCORE_CUDA_CHECK(cudaMalloc(&devPtr, numFromDevice * sizeof(TrackDataWithIDs)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&hostPtr, numFromDevice * sizeof(TrackDataWithIDs)));
+  ADEPT_DEVICE_API_CALL(Malloc(&devPtr, numFromDevice * sizeof(TrackDataWithIDs)));
 
   fromDevice_host.reset(hostPtr);
   fromDevice_dev.reset(devPtr);
 
   unsigned int *nFromDevice = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocHost(&nFromDevice, sizeof(unsigned int)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&nFromDevice, sizeof(unsigned int)));
   nFromDevice_host.reset(nFromDevice);
   unsigned int *nRemainingLeaks = nullptr;
-  COPCORE_CUDA_CHECK(cudaMallocHost(&nRemainingLeaks, sizeof(unsigned int)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&nRemainingLeaks, sizeof(unsigned int)));
   nRemainingLeaks_host.reset(nRemainingLeaks);
 
   toDeviceBuffer[0].tracks    = toDevice_host.get();

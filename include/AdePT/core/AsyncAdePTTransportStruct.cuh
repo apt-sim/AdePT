@@ -208,8 +208,8 @@ struct SpeciesState {
   SlotManager *slotManager;
   SlotManager *slotManagerLeaks;
   ParticleQueues queues;
-  cudaStream_t stream;
-  cudaEvent_t event;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
+  ADEPT_DEVICE_API_SYMBOL(Event_t) event;
 
   static constexpr double relativeQueueSize[] = {0.35, 0.15, 0.5};
 };
@@ -288,7 +288,7 @@ struct GPUstate {
 
   std::vector<void *> allCudaPointers;
   // Create a stream to synchronize kernels of all particle types.
-  cudaStream_t stream; ///< all-particle sync stream
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream; ///< all-particle sync stream
 
   static constexpr unsigned int nSlotManager_dev = 3;
 
@@ -335,15 +335,20 @@ struct GPUstate {
 
   ~GPUstate()
   {
-    if (stats) COPCORE_CUDA_CHECK(cudaFreeHost(stats));
-    if (stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(stream));
+    try {
+      if (stats) ADEPT_DEVICE_API_CALL(FreeHost(stats));
+      if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(stream));
 
-    for (SpeciesState &particleType : particles) {
-      if (particleType.stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(particleType.stream));
-      if (particleType.event) COPCORE_CUDA_CHECK(cudaEventDestroy(particleType.event));
-    }
-    for (void *ptr : allCudaPointers) {
-      COPCORE_CUDA_CHECK(cudaFree(ptr));
+      for (SpeciesState &particleType : particles) {
+        if (particleType.stream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.stream));
+        if (particleType.event) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.event));
+      }
+      for (void *ptr : allCudaPointers) {
+        ADEPT_DEVICE_API_CALL(Free(ptr));
+      }
+    } catch (const std::exception &e) {
+      std::cerr << "\033[31m" << "GPUstate::~GPUstate : Error during device API call" << "\033[0m" << std::endl;
+      std::cerr << "\033[31m" << e.what() << "\033[0m" << std::endl;
     }
     allCudaPointers.clear();
   }

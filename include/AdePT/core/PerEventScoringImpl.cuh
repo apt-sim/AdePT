@@ -299,7 +299,8 @@ class HitScoring {
   double fCPUCapacityFactor;
   double fCPUCopyFraction;
   unsigned short fActiveBuffer = 0;
-  cudaEvent_t fSwapDoneEvent; // cuda event to synchronize the swapping of the device buffers with the transport
+  ADEPT_DEVICE_API_SYMBOL(Event_t)
+  fSwapDoneEvent; // cuda event to synchronize the swapping of the device buffers with the transport
 
   // HitQueue with one lock per queue
   std::vector<std::deque<HitQueueItem>> fHitQueues;
@@ -400,20 +401,20 @@ public:
     // prevent running out of buffer. Also, the filling quota of the CPU buffer decides whether hits are processed
     // directly by the G4 workers or if they are copied out
     unsigned int hostBufferCapacity = fCPUCapacityFactor * fHitCapacity;
-    COPCORE_CUDA_CHECK(cudaMallocHost(&gpuHits, sizeof(GPUHit) * hostBufferCapacity));
+    ADEPT_DEVICE_API_CALL(MallocHost(&gpuHits, sizeof(GPUHit) * hostBufferCapacity));
     fGPUHitBuffer_host.reset(gpuHits);
 
     // We use a single allocation for both GPU buffers:
-    auto result = cudaMalloc(&gpuHits, sizeof(GPUHit) * fDeviceState.size() * fHitCapacity);
-    if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit buffer."};
+    auto result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&gpuHits, sizeof(GPUHit) * fDeviceState.size() * fHitCapacity);
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate hit buffer."};
     fGPUHitBuffer_dev.reset(gpuHits);
 
     unsigned int *buffer_count = nullptr;
-    COPCORE_CUDA_CHECK(cudaMallocHost(&buffer_count, sizeof(unsigned int) * nThread));
+    ADEPT_DEVICE_API_CALL(MallocHost(&buffer_count, sizeof(unsigned int) * nThread));
     fGPUHitBufferCount_host.reset(buffer_count);
 
-    result = cudaMalloc(&buffer_count, sizeof(unsigned int) * fDeviceState.size() * nThread);
-    if (result != cudaSuccess) throw std::invalid_argument{"No space to allocate hit buffer."};
+    result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&buffer_count, sizeof(unsigned int) * fDeviceState.size() * nThread);
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate hit buffer."};
     fGPUHitBufferCount_dev.reset(buffer_count);
 
     fDeviceState[0] = DeviceState::Filling;
@@ -430,20 +431,20 @@ public:
 
     fBufferManager = std::make_unique<CircularBufferManager>(fGPUHitBuffer_host.get(), hostBufferCapacity);
 
-    COPCORE_CUDA_CHECK(cudaGetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
+    ADEPT_DEVICE_API_CALL(GetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
     assert(fHitScoringBuffer_deviceAddress != nullptr);
-    COPCORE_CUDA_CHECK(cudaMemcpy(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo, sizeof(HitScoringBuffer),
-                                  cudaMemcpyHostToDevice));
+    ADEPT_DEVICE_API_CALL(Memcpy(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo, sizeof(HitScoringBuffer),
+                                 ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
     // create cuda event needed to tell the transport that the swap of the device buffers is executed
-    cudaEventCreateWithFlags(&fSwapDoneEvent, cudaEventDisableTiming);
+    ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&fSwapDoneEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
   }
 
-  cudaEvent_t getSwapDoneEvent() const { return fSwapDoneEvent; }
+  ADEPT_DEVICE_API_SYMBOL(Event_t) getSwapDoneEvent() const { return fSwapDoneEvent; }
 
   unsigned int HitCapacity() const { return fHitCapacity; }
 
-  void SwapDeviceBuffers(cudaStream_t cudaStream)
+  void SwapDeviceBuffers(ADEPT_DEVICE_API_SYMBOL(Stream_t) cudaStream)
   {
 
 #ifdef DEBUG
@@ -455,12 +456,12 @@ public:
 #endif
 
     // Get new HitBufferCounts from device:
-    COPCORE_CUDA_CHECK(cudaMemcpyAsync(fBuffer.hostBufferCount, fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter,
-                                       sizeof(unsigned int) * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads,
-                                       cudaMemcpyDefault, cudaStream));
-    COPCORE_CUDA_CHECK(cudaMemsetAsync(fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter, 0,
-                                       sizeof(unsigned int) * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads,
-                                       cudaStream));
+    ADEPT_DEVICE_API_CALL(MemcpyAsync(fBuffer.hostBufferCount, fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter,
+                                      sizeof(unsigned int) * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads,
+                                      ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), cudaStream));
+    ADEPT_DEVICE_API_CALL(MemsetAsync(fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter, 0,
+                                      sizeof(unsigned int) * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads,
+                                      cudaStream));
 
     // Execute the swap:
     auto prevActiveDeviceBuffer = fActiveBuffer;
@@ -474,10 +475,10 @@ public:
     fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter =
         fGPUHitBufferCount_dev.get() + fActiveBuffer * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads;
 
-    COPCORE_CUDA_CHECK(cudaMemcpyAsync(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo[fActiveBuffer],
-                                       sizeof(HitScoringBuffer), cudaMemcpyDefault, cudaStream));
-    COPCORE_CUDA_CHECK(
-        cudaEventRecord(fSwapDoneEvent, cudaStream)); // record event that the transport kernels must wait for
+    ADEPT_DEVICE_API_CALL(MemcpyAsync(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo[fActiveBuffer],
+                                      sizeof(HitScoringBuffer), ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), cudaStream));
+    ADEPT_DEVICE_API_CALL(
+        EventRecord(fSwapDoneEvent, cudaStream)); // record event that the transport kernels must wait for
 
     // need to set the hostState to awaiting device, this prevents the next swap until the hits in the hostBuffer are
     // send to the HitQueue
@@ -488,7 +489,7 @@ public:
 
     // However, the prevActiveDeviceBuffer state can only be advanced when the transfer is finished,
     // otherwise the TransferHitsToHost may call the transfer before the correct hostBufferCount has arrived
-    COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+    ADEPT_DEVICE_API_CALL(LaunchHostFunc(
         cudaStream,
         [](void *arg) {
           static_cast<std::atomic<DeviceState> *>(arg)->store(DeviceState::NeedTransferToHost,
@@ -578,7 +579,7 @@ public:
   }
 
   /// Copy the current contents of the GPU hit buffer to host.
-  void TransferHitsToHost(cudaStream_t cudaStreamForHitCopy)
+  void TransferHitsToHost(ADEPT_DEVICE_API_SYMBOL(Stream_t) cudaStreamForHitCopy)
   {
 
     while (std::any_of(fDeviceState.begin(), fDeviceState.end(),
@@ -618,24 +619,24 @@ public:
       unsigned int offset = 0;
       for (int i = 0; i < fBuffer.hitScoringInfo[prevActiveDeviceBuffer].fNThreads; i++) {
         if (fBuffer.hostBufferCount[i] > 0) {
-          COPCORE_CUDA_CHECK(cudaMemcpyAsync(fBuffer.hostBuffer + fBuffer.offsetAtCopy + offset,
-                                             bufferBegin + i * fBuffer.hitScoringInfo[prevActiveDeviceBuffer].fNSlot,
-                                             sizeof(GPUHit) * fBuffer.hostBufferCount[i], cudaMemcpyDefault,
-                                             cudaStreamForHitCopy));
+          ADEPT_DEVICE_API_CALL(MemcpyAsync(fBuffer.hostBuffer + fBuffer.offsetAtCopy + offset,
+                                            bufferBegin + i * fBuffer.hitScoringInfo[prevActiveDeviceBuffer].fNSlot,
+                                            sizeof(GPUHit) * fBuffer.hostBufferCount[i],
+                                            ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), cudaStreamForHitCopy));
           offset += fBuffer.hostBufferCount[i];
         }
       }
 
       // Launch the host function to set the states correctly
 
-      COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+      ADEPT_DEVICE_API_CALL(LaunchHostFunc(
           cudaStreamForHitCopy,
           [](void *arg) {
             static_cast<std::atomic<DeviceState> *>(arg)->store(DeviceState::Free, std::memory_order_release);
           },
           &fDeviceState[prevActiveDeviceBuffer]));
 
-      COPCORE_CUDA_CHECK(cudaLaunchHostFunc(
+      ADEPT_DEVICE_API_CALL(LaunchHostFunc(
           cudaStreamForHitCopy,
           [](void *arg) {
             static_cast<BufferHandle *>(arg)->hostState.store(BufferHandle::HostState::TransferFromDeviceFinished,

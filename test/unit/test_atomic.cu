@@ -11,6 +11,8 @@
 #include <cassert>
 #include <AdePT/base/Atomic.h>
 
+#include <AdePT/core/Portability.hh>
+
 // Example data structure containing several atomics
 struct SomeStruct {
   adept::Atomic_t<int> var_int;
@@ -69,17 +71,17 @@ int main(void)
 
   // Allocate the content of SomeStruct in a buffer
   char *buffer = nullptr;
-  cudaMallocManaged(&buffer, sizeof(SomeStruct));
+  ADEPT_DEVICE_API_CALL(MallocManaged(&buffer, sizeof(SomeStruct)));
   SomeStruct *a = SomeStruct::MakeInstanceAt(buffer);
 
   // Launch a kernel doing additions
   bool testOK = true;
   std::cout << "   testAdd ... ";
   // Wait memory to reach device
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
   testAdd<<<nblocks, nthreads>>>(a);
   // Wait all warps to finish and sync memory
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
 
   testOK &= a->var_int.load() == nblocks.x * nthreads.x;
   testOK &= a->var_float.load() == float(nblocks.x * nthreads.x);
@@ -91,9 +93,9 @@ int main(void)
   std::cout << "   testSub ... ";
   a->var_int.store(nblocks.x * nthreads.x);
   a->var_float.store(nblocks.x * nthreads.x);
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
   testSub<<<nblocks, nthreads>>>(a);
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
 
   testOK &= a->var_int.load() == 0;
   testOK &= a->var_float.load() == 0;
@@ -103,14 +105,14 @@ int main(void)
   // Launch a kernel testing compare and swap operations
   std::cout << "   testCAS ... ";
   a->var_int.store(99);
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
   testCompareExchange<<<nblocks, nthreads>>>(a);
-  cudaDeviceSynchronize();
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
   testOK = a->var_int.load() == 99;
   std::cout << result[testOK] << "\n";
   success &= testOK;
 
-  cudaFree(buffer);
+  ADEPT_DEVICE_API_CALL(Free(buffer));
   if (!success) return 1;
   return 0;
 }

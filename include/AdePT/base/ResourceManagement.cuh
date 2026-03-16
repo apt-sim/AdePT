@@ -3,6 +3,8 @@
 #ifndef RESOURCE_MANAGEMENT_CUH
 #define RESOURCE_MANAGEMENT_CUH
 
+#include <AdePT/core/Portability.hh>
+
 #include <memory>
 #include <AdePT/base/ResourceManagement.hh>
 #include "AdePT/copcore/Global.h"
@@ -11,33 +13,33 @@ namespace AsyncAdePT {
 
 void freeCuda(void *ptr)
 {
-  if (ptr) COPCORE_CUDA_CHECK(cudaFree(ptr));
+  if (ptr) ADEPT_DEVICE_API_CALL(Free(ptr));
 }
 
 void freeCudaHost(void *ptr)
 {
-  if (ptr) COPCORE_CUDA_CHECK(cudaFreeHost(ptr));
+  if (ptr) ADEPT_DEVICE_API_CALL(FreeHost(ptr));
 }
 
 void freeCudaStream(void *stream)
 {
-  if (stream) COPCORE_CUDA_CHECK(cudaStreamDestroy(*static_cast<cudaStream_t *>(stream)));
+  if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(*static_cast<ADEPT_DEVICE_API_SYMBOL(Stream_t) *>(stream)));
 }
 
 void freeCudaEvent(void *event)
 {
-  if (event) COPCORE_CUDA_CHECK(cudaEventDestroy(*static_cast<cudaEvent_t *>(event)));
+  if (event) ADEPT_DEVICE_API_CALL(EventDestroy(*static_cast<ADEPT_DEVICE_API_SYMBOL(Event_t) *>(event)));
 }
 
 // Instantiate the deleters for specific types.
 #ifdef __CUDACC__
 template <>
-struct CudaDeleter<cudaStream_t> {
-  void operator()(cudaStream_t *stream) const { freeCudaStream(stream); }
+struct CudaDeleter<ADEPT_DEVICE_API_SYMBOL(Stream_t)> {
+  void operator()(ADEPT_DEVICE_API_SYMBOL(Stream_t) * stream) const { freeCudaStream(stream); }
 };
 template <>
-struct CudaDeleter<cudaEvent_t> {
-  void operator()(cudaEvent_t *event) const { freeCudaEvent(event); }
+struct CudaDeleter<ADEPT_DEVICE_API_SYMBOL(Event_t)> {
+  void operator()(ADEPT_DEVICE_API_SYMBOL(Event_t) * event) const { freeCudaEvent(event); }
 };
 #endif
 

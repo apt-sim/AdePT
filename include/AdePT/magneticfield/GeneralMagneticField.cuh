@@ -62,9 +62,10 @@ public:
     // Create the field view for the device data
     field_view_t fieldView(*fFieldMap);
     // Allocate device memory for the field view
-    COPCORE_CUDA_CHECK(cudaMalloc(&fFieldView, sizeof(field_view_t)));
+    ADEPT_DEVICE_API_CALL(Malloc(&fFieldView, sizeof(field_view_t)));
     // Copy the field view to device
-    COPCORE_CUDA_CHECK(cudaMemcpy(fFieldView, &fieldView, sizeof(field_view_t), cudaMemcpyHostToDevice));
+    ADEPT_DEVICE_API_CALL(
+        Memcpy(fFieldView, &fieldView, sizeof(field_view_t), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
     return true;
 #endif
     return false;
@@ -99,8 +100,11 @@ public:
   ~GeneralMagneticField()
   {
 #ifdef ADEPT_USE_EXT_BFIELD
-    if (fFieldView) {
-      cudaFree(fFieldView);
+    try {
+      ADEPT_DEVICE_API_CALL(Free(fFieldView));
+    } catch (const std::exception &e) {
+      std::cerr << "\033[31m" << "GPUstate::~GPUstate : Error during device API call" << "\033[0m" << std::endl;
+      std::cerr << "\033[31m" << e.what() << "\033[0m" << std::endl;
     }
 #endif
   }
