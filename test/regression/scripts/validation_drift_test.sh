@@ -148,11 +148,11 @@ PR_SUPPORTS_ROOT="$(supports_truth_root "${PR_EXECUTABLE}")"
 MASTER_SUPPORTS_ROOT="$(supports_truth_root "${MASTER_EXECUTABLE}")"
 
 if [ "${PR_SUPPORTS_ROOT}" = "1" ] && [ "${MASTER_SUPPORTS_ROOT}" = "1" ]; then
-  # The ROOT truth path remains exact in MT because it compares merged
-  # histogram populations, whereas the legacy CSV path still depends on the
-  # order of floating-point accumulation and is therefore kept single-threaded.
+  # As the ROOT-enabled test can cover MT, the single-threaded 1 event 20 primaries
+  # is changed to 4 events with 5 primaries (using 4 threads), to cover  MT differences.
   NUM_THREADS=4
-  NUM_EVENTS=8
+  NUM_EVENTS=4
+  GUN_NUMBER=5
   CALL_USER_STEPPING_ACTION=True
   CALL_USER_TRACKING_ACTION=True
 fi
