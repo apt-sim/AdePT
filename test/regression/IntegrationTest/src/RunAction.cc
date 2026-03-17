@@ -37,11 +37,15 @@ G4Timer RunAction::fgRunTimer{};
 std::mutex RunAction::fgRunTimerMutex{};
 bool RunAction::fgRunTimerStarted = false;
 
-RunAction::RunAction() : G4UserRunAction(), fOutputDirectory(""), fOutputFilename(""), fDoAccumulatedEvents(false) {}
+RunAction::RunAction()
+    : G4UserRunAction(), fOutputDirectory(""), fOutputFilename(""), fDoAccumulatedEvents(false), fWriteTruthROOT(false)
+{
+}
 
-RunAction::RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents)
+RunAction::RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents,
+                     bool aWriteTruthROOT)
     : G4UserRunAction(), fOutputDirectory(aOutputDirectory), fOutputFilename(aOutputFilename),
-      fDoAccumulatedEvents(aDoAccumulatedEvents)
+      fDoAccumulatedEvents(aDoAccumulatedEvents), fWriteTruthROOT(aWriteTruthROOT)
 {
 }
 
@@ -67,16 +71,19 @@ void RunAction::BeginOfRunAction(const G4Run *)
 void RunAction::EndOfRunAction(const G4Run *)
 {
   static std::mutex print_mutex;
-  auto tid = G4Threading::G4GetThreadId();
+  auto tid                             = G4Threading::G4GetThreadId();
+  const bool shouldWriteAccumulatedCSV = (tid >= 0) || !G4Threading::IsMultithreadedApplication();
   // Just protect the printout to avoid interlacing text
   const std::lock_guard<std::mutex> lock(print_mutex);
 
-  if (GetDoAccumulatedEvents()) {
-    // overwrite to have all validation data written into a single line for all events
+  if (GetDoAccumulatedEvents() && shouldWriteAccumulatedCSV) {
+    // Overwrite the per-event CSV so the drift tests compare a single
+    // run-level line per scenario.
     fRun->GetTestManager()->exportCSV(false);
   }
 
-  // Print timer just for the master thread since this is called when all workers are done
+  // Print and persist run-level summaries only on the master once worker
+  // merging is complete.
   if (tid < 0) {
     const auto time = StopRunTimerOnMaster();
     std::cout << "Run time: " << time << "\n";

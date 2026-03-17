@@ -37,25 +37,23 @@ class G4Run;
 class Run;
 
 /**
- * @brief Run action
+ * @brief UserRunAction for the integration benchmark.
  *
- * Create analysis file and define control histograms for showers in detectors.
- * Histograms are configured taking into account the dimensions of the detector
- * (and number of readout cells).
- *
+ * The run action owns the `Run` object, starts/stops the wall-time timer used
+ * in the CSV summary, and triggers final CSV/ROOT output at end-of-run.
  */
-
 class RunAction : public G4UserRunAction {
 public:
-  /// Constructor. Defines the histograms.
+  /// Constructor with default output settings.
   RunAction();
-  RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents);
-  virtual ~RunAction();
+  /// Constructor with explicit output configuration.
+  RunAction(G4String aOutputDirectory, G4String aOutputFilename, bool aDoAccumulatedEvents, bool aWriteTruthROOT);
+  ~RunAction() override;
 
-  /// Open the file for the analysis
-  virtual void BeginOfRunAction(const G4Run *) final;
-  /// Write and close the file
-  virtual void EndOfRunAction(const G4Run *) final;
+  /// Reset master-only run timing state before event processing starts.
+  void BeginOfRunAction(const G4Run *) final;
+  /// Write the accumulated CSV summary and optional ROOT truth file.
+  void EndOfRunAction(const G4Run *) final;
 
   G4Run *GenerateRun() override;
 
@@ -63,15 +61,15 @@ public:
   static void StartRunTimerFromFirstEvent();
 
   bool GetDoAccumulatedEvents() const { return fDoAccumulatedEvents; };
+  bool GetWriteTruthROOT() const { return fWriteTruthROOT; };
   const G4String &GetOutputDirectory() { return fOutputDirectory; };
   const G4String &GetOutputFilename() { return fOutputFilename; };
 
 private:
-  /// Pointer to detector construction to retrieve the detector dimensions to
-  /// setup the histograms
   G4String fOutputDirectory;
   G4String fOutputFilename;
   bool fDoAccumulatedEvents;
+  bool fWriteTruthROOT;
   static double StopRunTimerOnMaster();
 
   static G4Timer fgRunTimer;

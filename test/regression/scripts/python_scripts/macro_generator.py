@@ -13,7 +13,8 @@ def generate_macro(template_path, output_path, args):
     with open(template_path, 'r') as template_file:
         template_content = template_file.read()
 
-    # Validate required placeholders based on template
+    # Validate that every placeholder present in the template has a concrete
+    # value before writing the macro.
     placeholders = set(re.findall(r"\$(\w+)", template_content))
 
     args_dict = vars(args)
@@ -27,8 +28,7 @@ def generate_macro(template_path, output_path, args):
             f"Missing required arguments for template: {', '.join(missing)}"
         )
 
-    # Original replacement logic
-
+    # Expand the template placeholders into a concrete macro for one scenario.
     macro_content = template_content.replace("$gdml_name", str(args.gdml_name))
 
     macro_content = macro_content.replace("$num_threads", str(args.num_threads))
@@ -41,6 +41,16 @@ def generate_macro(template_path, output_path, args):
     macro_content = macro_content.replace("$gun_type", str(args.gun_type))
     macro_content = macro_content.replace("$gun_number", str(args.gun_number))
     macro_content = macro_content.replace("$track_in_all_regions", str(args.track_in_all_regions))
+    macro_content = macro_content.replace(
+        "$call_user_stepping_action",
+        # Emit the command only when explicitly requested so templates can keep
+        # the callback lines optional.
+        "/adept/CallUserSteppingAction true" if str(args.call_user_stepping_action) == "True" else "",
+    )
+    macro_content = macro_content.replace(
+        "$call_user_tracking_action",
+        "/adept/CallUserTrackingAction true" if str(args.call_user_tracking_action) == "True" else "",
+    )
 
     if str(args.gun_type) == "hepmc":
         hepmc_part = "/generator/hepmcAscii/maxevents 256 \n\
@@ -52,7 +62,7 @@ def generate_macro(template_path, output_path, args):
     else:
         macro_content = macro_content.replace("$hepmc_part", str(""))
 
-    # Regions should be a comma-separated list of region names
+    # Regions should be a comma-separated list of region names.
     region_part = []
     for i in args.regions.split(","):
         region = i.strip()
@@ -61,7 +71,7 @@ def generate_macro(template_path, output_path, args):
     region_part = "\n".join(region_part)
     macro_content = macro_content.replace("$regions", region_part)
 
-    # Woodcock tracking regions should be a comma-separated list of region names
+    # Woodcock tracking regions should be a comma-separated list of region names.
     wdt_region_part = []
     for i in args.wdt_regions.split(","):
         wdt_region = i.strip()
@@ -85,9 +95,9 @@ def main():
     parser.add_argument("--gdml_name", help="Path to the GDML geometry file.")
     parser.add_argument("--num_threads", type=int, help="Number of threads to use.")
     parser.add_argument("--num_events", type=int, help="Number of events to simulate.")
-    parser.add_argument("--num_trackslots", type=int, default=12,
+    parser.add_argument("--num_trackslots", type=int, default=3,
                         help="Number of trackslots in million. Should be chosen according to the GPU memory")
-    parser.add_argument("--num_leakslots", type=float, default=12,
+    parser.add_argument("--num_leakslots", type=float, default=3,
                         help="Number of leakslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--num_hitslots", type=int, default=12,
                         help="Number of hitslots in million. Should be chosen according to the GPU memory")
@@ -101,6 +111,8 @@ def main():
                         help="Number of primary particles per event (default: 100)")
     parser.add_argument("--event_file", help="Path to the hepmc3 event file")
     parser.add_argument("--track_in_all_regions", default="True", help="True or False")
+    parser.add_argument("--call_user_stepping_action", default="False", help="True or False")
+    parser.add_argument("--call_user_tracking_action", default="False", help="True or False")
     parser.add_argument("--regions", type=str, required=False, default="",
                         help="Comma-separated list of regions in which to do GPU transport, only if track_in_all_regions is False")
     parser.add_argument("--wdt_regions", type=str, required=False, default="",
@@ -111,13 +123,12 @@ def main():
         print("Error: --gun_type must either be 'hepmc' or 'setDefault'.")
         exit(1)
 
-    # Validate template file path
-
+    # Validate template file path before trying to expand placeholders.
     if not os.path.exists(args.template):
         print(f"Error: Template file not found: {args.template}")
         exit(1)
 
-    # Generate the macro file
+    # Generate the macro file.
     generate_macro(
         template_path=args.template,
         output_path=args.output,

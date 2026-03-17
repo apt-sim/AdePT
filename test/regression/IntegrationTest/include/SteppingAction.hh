@@ -6,6 +6,13 @@
 
 #include "G4UserSteppingAction.hh"
 
+/**
+ * @brief Regression-test stepping hooks.
+ *
+ * In ROOT truth mode this action records per-step observables and propagates
+ * the parent lineage to any secondaries created by the step. It also enforces
+ * the existing per-track step limit used to catch runaway tracks in the test.
+ */
 class SteppingAction : public G4UserSteppingAction {
 
 public:

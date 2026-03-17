@@ -26,8 +26,11 @@
 // ********************************************************************
 //
 #include "SensitiveDetector.hh"
+#include "Run.hh"
+#include "TruthHistogrammer.hh"
 
 #include "G4HCofThisEvent.hh"
+#include "G4RunManager.hh"
 #include "G4Step.hh"
 #include "G4SDManager.hh"
 
@@ -74,7 +77,17 @@ G4bool SensitiveDetector::ProcessHits(G4Step *aStep, G4TouchableHistory *)
 
   // Add energy deposit from G4Step
   // For validation purposes, we multiply the energy deposit by the track weight
-  hit->AddEdep(edep * aStep->GetTrack()->GetWeight());
+  const G4double weightedEdep = edep * aStep->GetTrack()->GetWeight();
+  hit->AddEdep(weightedEdep);
+
+  auto *currentRun        = static_cast<Run *>(G4RunManager::GetRunManager()->GetNonConstCurrentRun());
+  auto *truthHistogrammer = currentRun != nullptr ? currentRun->GetTruthHistogrammer() : nullptr;
+  if (truthHistogrammer != nullptr) {
+    // Keep ROOT truth energy-deposit accounting in the sensitive detector so it
+    // exercises the same SD callback path as the legacy CSV drift output.
+    truthHistogrammer->AddEnergyDeposit(aStep->GetPreStepPoint()->GetPhysicalVolume()->GetInstanceID(),
+                                        aStep->GetPreStepPoint()->GetPhysicalVolume()->GetName(), weightedEdep);
+  }
 
   // Fill time information from G4Step
   // If it's already filled, choose hit with earliest global time

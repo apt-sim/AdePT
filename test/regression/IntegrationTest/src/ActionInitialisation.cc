@@ -29,12 +29,13 @@
 #include "PrimaryGeneratorAction.hh"
 #include "EventAction.hh"
 #include "RunAction.hh"
+#include "TrackingAction.hh"
 #include "SteppingAction.hh"
 
 ActionInitialisation::ActionInitialisation(G4String aOutputDirectory, G4String aOutputFilename,
-                                           bool aDoAccumulatedEvents)
+                                           bool aDoAccumulatedEvents, bool aWriteTruthROOT)
     : G4VUserActionInitialization(), fOutputDirectory(aOutputDirectory), fOutputFilename(aOutputFilename),
-      fDoAccumulatedEvents(aDoAccumulatedEvents)
+      fDoAccumulatedEvents(aDoAccumulatedEvents), fWriteTruthROOT(aWriteTruthROOT)
 {
 }
 
@@ -47,7 +48,7 @@ ActionInitialisation::~ActionInitialisation() {}
 void ActionInitialisation::BuildForMaster() const
 {
   new PrimaryGeneratorAction();
-  SetUserAction(new RunAction(fOutputDirectory, fOutputFilename, fDoAccumulatedEvents));
+  SetUserAction(new RunAction(fOutputDirectory, fOutputFilename, fDoAccumulatedEvents, fWriteTruthROOT));
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -55,8 +56,9 @@ void ActionInitialisation::BuildForMaster() const
 void ActionInitialisation::Build() const
 {
   SetUserAction(new PrimaryGeneratorAction());
-  RunAction *aRunAction = new RunAction(fOutputDirectory, fOutputFilename, fDoAccumulatedEvents);
+  RunAction *aRunAction = new RunAction(fOutputDirectory, fOutputFilename, fDoAccumulatedEvents, fWriteTruthROOT);
   SetUserAction(aRunAction);
   SetUserAction(new EventAction(aRunAction));
+  SetUserAction(new TrackingAction());
   SetUserAction(new SteppingAction());
 }
