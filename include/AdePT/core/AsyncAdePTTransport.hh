@@ -12,7 +12,7 @@
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/CommonStruct.h>
-#include <AdePT/integration/AdePTGeant4Integration.hh> // FIXME Check whether needed
+#include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
