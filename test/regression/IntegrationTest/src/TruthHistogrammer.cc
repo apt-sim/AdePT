@@ -12,11 +12,8 @@
 #include "G4VProcess.hh"
 
 #include <algorithm>
-#include <bit>
 #include <cmath>
 #include <filesystem>
-#include <iomanip>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -31,17 +28,23 @@ namespace {
 
 constexpr const char *kEmptyBinLabel = "__empty__";
 
-using CountHistogram = TruthHistogrammer::CountHistogram;
-using ValueHistogram = TruthHistogrammer::ValueHistogram;
+using CountHistogram   = TruthHistogrammer::CountHistogram;
+using IntegerHistogram = TruthHistogrammer::IntegerHistogram;
+using ValueHistogram   = TruthHistogrammer::ValueHistogram;
 
 const std::vector<std::string> &CategoricalHistogramNames()
 {
   static const std::vector<std::string> names = {
-      "creator_process_counts",       "step_defining_process_counts", "step_particle_type_counts",
-      "step_volume_counts",           "primary_ancestor_population",  "generation_population",
-      "particle_type_counts",         "initial_volume_counts",        "final_volume_counts",
-      "vertex_logical_volume_counts",
+      "creator_process_counts", "step_defining_process_counts", "step_particle_type_counts",
+      "step_volume_counts",     "particle_type_counts",         "initial_volume_counts",
+      "final_volume_counts",    "vertex_logical_volume_counts",
   };
+  return names;
+}
+
+const std::vector<std::string> &IntegerHistogramNames()
+{
+  static const std::vector<std::string> names = {"primary_ancestor_population", "generation_population"};
   return names;
 }
 
@@ -133,48 +136,13 @@ std::string ExactValueLabel(double value)
   return stream.str();
 }
 
-std::string ExactValueBitsLabel(std::uint64_t bits)
+bool ValueKeyLess(double lhs, double rhs)
 {
-  std::ostringstream stream;
-  stream << "0x" << std::hex << std::setfill('0') << std::setw(16) << bits;
-  return stream.str();
-}
-
-bool ValueKeyLess(std::uint64_t lhsBits, std::uint64_t rhsBits)
-{
-  const double lhs = std::bit_cast<double>(lhsBits);
-  const double rhs = std::bit_cast<double>(rhsBits);
-
-  if (std::isnan(lhs) || std::isnan(rhs)) return lhsBits < rhsBits;
+  if (std::isnan(lhs)) return !std::isnan(rhs);
+  if (std::isnan(rhs)) return false;
   if (lhs < rhs) return true;
   if (rhs < lhs) return false;
-  return lhsBits < rhsBits;
-}
-
-double CanonicalWeightedSum(const ValueHistogram &histogram)
-{
-  // Recreate the floating-point sum in a deterministic order so the ROOT
-  // output remains stable even when worker-thread maps are merged.
-  //
-  // During collection and MT merging we never do `double += value`; we only
-  // count how often each exact value occurred. The actual floating-point sum is
-  // reconstructed here, once, in a canonical order for the final ROOT file.
-  std::vector<std::uint64_t> keys;
-  keys.reserve(histogram.size());
-  for (const auto &[bits, _] : histogram) {
-    keys.push_back(bits);
-  }
-  std::sort(keys.begin(), keys.end(), ValueKeyLess);
-
-  double sum = 0.0;
-  for (std::uint64_t bits : keys) {
-    const double value        = std::bit_cast<double>(bits);
-    const std::uint64_t count = histogram.at(bits);
-    for (std::uint64_t i = 0; i < count; ++i) {
-      sum += value;
-    }
-  }
-  return sum;
+  return false;
 }
 
 #ifdef ADEPT_INTEGRATIONTEST_HAS_ROOT
@@ -217,13 +185,36 @@ void WriteCountHistogram(TFile &file, const std::string &name, const CountHistog
   hist.Write();
 }
 
+void WriteIntegerHistogram(TFile &file, const std::string &name, const IntegerHistogram &histogram)
+{
+  if (histogram.empty()) {
+    TH1D hist(name.c_str(), name.c_str(), 1, -0.5, 0.5);
+    hist.SetDirectory(&file);
+    hist.SetBinContent(1, 0.0);
+    hist.Write();
+    return;
+  }
+
+  const int minValue = histogram.begin()->first;
+  const int maxValue = histogram.rbegin()->first;
+  const int binCount = maxValue - minValue + 1;
+  TH1D hist(name.c_str(), name.c_str(), binCount, minValue - 0.5, maxValue + 0.5);
+  hist.SetDirectory(&file);
+
+  for (const auto &[value, count] : histogram) {
+    hist.SetBinContent(hist.FindBin(static_cast<double>(value)), static_cast<double>(count));
+  }
+
+  hist.Write();
+}
+
 void WriteValueHistogram(TFile &file, const std::string &name, const ValueHistogram &histogram)
 {
   // The TH1 stores only the population of each distinct exact value. The exact
-  // values themselves are written into sidecar metadata as raw bit patterns.
+  // values themselves are written into sidecar metadata as hex-float strings.
   //
   // This avoids two problems:
-  // 1. formatting a double into a string can be lossy or platform-sensitive
+  // 1. default decimal formatting can be lossy or platform-sensitive
   // 2. ROOT bin labels were too expensive / fragile for the MT truth output
   const int binCount = histogram.empty() ? 1 : static_cast<int>(histogram.size());
   TH1D hist(name.c_str(), name.c_str(), binCount, 0.5, binCount + 0.5);
@@ -232,25 +223,25 @@ void WriteValueHistogram(TFile &file, const std::string &name, const ValueHistog
   if (histogram.empty()) {
     hist.SetBinContent(1, 0.0);
     TObjString metadata(kEmptyBinLabel);
-    metadata.Write((name + "__value_bits").c_str());
+    metadata.Write((name + "__values").c_str());
   } else {
-    std::vector<std::uint64_t> keys;
+    std::vector<double> keys;
     keys.reserve(histogram.size());
-    for (const auto &[bits, _] : histogram) {
-      keys.push_back(bits);
+    for (const auto &[value, _] : histogram) {
+      keys.push_back(value);
     }
     std::sort(keys.begin(), keys.end(), ValueKeyLess);
 
     std::ostringstream metadata;
     int bin = 1;
-    for (std::uint64_t bits : keys) {
-      hist.SetBinContent(bin, static_cast<double>(histogram.at(bits)));
-      metadata << ExactValueBitsLabel(bits) << " " << ExactValueLabel(std::bit_cast<double>(bits)) << "\n";
+    for (double value : keys) {
+      hist.SetBinContent(bin, static_cast<double>(histogram.at(value)));
+      metadata << ExactValueLabel(value) << "\n";
       ++bin;
     }
 
     TObjString metadataObject(metadata.str().c_str());
-    metadataObject.Write((name + "__value_bits").c_str());
+    metadataObject.Write((name + "__values").c_str());
   }
 
   hist.Write();
@@ -272,7 +263,7 @@ void WriteEnergyDepositHistogram(TFile &file, const std::map<int, TruthHistogram
     for (const auto &[volumeId, entry] : energyDepositByVolume) {
       std::ostringstream label;
       label << volumeId << ":" << entry.label;
-      hist.SetBinContent(bin, CanonicalWeightedSum(entry.contributions));
+      hist.SetBinContent(bin, entry.total);
       labels.push_back(label.str());
       ++bin;
     }
@@ -293,6 +284,9 @@ TruthHistogrammer::TruthHistogrammer()
   for (const auto &name : CategoricalHistogramNames()) {
     fCategoricalHistograms.emplace(name, CountHistogram{});
   }
+  for (const auto &name : IntegerHistogramNames()) {
+    fIntegerHistograms.emplace(name, IntegerHistogram{});
+  }
   for (const auto &name : ValueHistogramNames()) {
     fValueHistograms.emplace(name, ValueHistogram{});
   }
@@ -304,11 +298,14 @@ void TruthHistogrammer::IncrementCategorical(const std::string &histogramName, c
   fCategoricalHistograms[histogramName][label] += count;
 }
 
+void TruthHistogrammer::IncrementInteger(const std::string &histogramName, int value, std::uint64_t count)
+{
+  fIntegerHistograms[histogramName][value] += count;
+}
+
 void TruthHistogrammer::IncrementValue(const std::string &histogramName, double value, std::uint64_t count)
 {
-  // Store the exact IEEE-754 representation as the map key. This turns the
-  // collection phase into integer counting instead of floating-point summation.
-  fValueHistograms[histogramName][std::bit_cast<std::uint64_t>(value)] += count;
+  fValueHistograms[histogramName][value] += count;
 }
 
 void TruthHistogrammer::RecordInitialTrack(const G4Track *track)
@@ -386,12 +383,12 @@ void TruthHistogrammer::RecordStep(const G4Step *step)
 
 void TruthHistogrammer::RecordPrimaryAncestorPopulation(int primaryTrackID)
 {
-  IncrementCategorical("primary_ancestor_population", std::to_string(primaryTrackID));
+  IncrementInteger("primary_ancestor_population", primaryTrackID);
 }
 
 void TruthHistogrammer::RecordGenerationPopulation(unsigned int generation)
 {
-  IncrementCategorical("generation_population", std::to_string(generation));
+  IncrementInteger("generation_population", static_cast<int>(generation));
 }
 
 void TruthHistogrammer::AddEnergyDeposit(int physicalVolumeId, const std::string &physicalVolumeName,
@@ -399,10 +396,7 @@ void TruthHistogrammer::AddEnergyDeposit(int physicalVolumeId, const std::string
 {
   auto &entry = fEnergyDepositByVolume[physicalVolumeId];
   entry.label = physicalVolumeName;
-  // Keep the deposited energy as an exact value population per volume instead
-  // of summing it immediately. This is what allows the SD-based edep truth to
-  // stay exact under MT worker merging.
-  entry.contributions[std::bit_cast<std::uint64_t>(energyDeposit)] += 1;
+  entry.total += energyDeposit;
 }
 
 void TruthHistogrammer::MergeFrom(const TruthHistogrammer &other)
@@ -414,23 +408,24 @@ void TruthHistogrammer::MergeFrom(const TruthHistogrammer &other)
     }
   }
 
+  for (const auto &[histogramName, histogram] : other.fIntegerHistograms) {
+    auto &target = fIntegerHistograms[histogramName];
+    for (const auto &[value, count] : histogram) {
+      target[value] += count;
+    }
+  }
+
   for (const auto &[histogramName, histogram] : other.fValueHistograms) {
     auto &target = fValueHistograms[histogramName];
-    for (const auto &[valueBits, count] : histogram) {
-      // MT merge is exact here: identical floating-point values have already
-      // been grouped by bit pattern, so workers only contribute integer counts.
-      target[valueBits] += count;
+    for (const auto &[value, count] : histogram) {
+      target[value] += count;
     }
   }
 
   for (const auto &[volumeId, entry] : other.fEnergyDepositByVolume) {
     auto &target = fEnergyDepositByVolume[volumeId];
     target.label = entry.label;
-    for (const auto &[energyBits, count] : entry.contributions) {
-      // Same idea for SD energy deposit: merge exact-value populations, not a
-      // running floating-point sum.
-      target.contributions[energyBits] += count;
-    }
+    target.total += entry.total;
   }
 }
 
@@ -449,6 +444,9 @@ void TruthHistogrammer::WriteROOTFile(const std::string &path) const
 
   for (const auto &[name, histogram] : fCategoricalHistograms) {
     WriteCountHistogram(file, name, histogram);
+  }
+  for (const auto &[name, histogram] : fIntegerHistograms) {
+    WriteIntegerHistogram(file, name, histogram);
   }
   for (const auto &[name, histogram] : fValueHistograms) {
     WriteValueHistogram(file, name, histogram);

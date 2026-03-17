@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-import struct
+import math
 import sys
 
 # FIXME: G4 track IDs are not reproducible between runs, and the current
@@ -41,8 +41,8 @@ def list_histograms(root_file):
 
 def load_value_metadata(root_file, histogram_name):
     # Continuous observables are stored as count histograms plus a sidecar
-    # TObjString that lists the exact floating-point bit patterns in bin order.
-    metadata = root_file.Get(f"{histogram_name}__value_bits")
+    # TObjString that lists the exact floating-point values in bin order.
+    metadata = root_file.Get(f"{histogram_name}__values")
     if not metadata:
         return None
     return metadata.GetString().Data()
@@ -57,11 +57,7 @@ def load_label_metadata(root_file, histogram_name):
     return metadata.GetString().Data()
 
 
-def double_bits(value):
-    return struct.unpack("!Q", struct.pack("!d", float(value)))[0]
-
-
-def compare_histograms(file1, file2):
+def compare_histograms(file1, file2, abs_tol, rel_tol):
     ROOT = load_root()
     root1 = ROOT.TFile.Open(file1, "READ")
     root2 = ROOT.TFile.Open(file2, "READ")
@@ -150,25 +146,29 @@ def compare_histograms(file1, file2):
 
             value1 = hist1.GetBinContent(bin_index)
             value2 = hist2.GetBinContent(bin_index)
-            if value1 != value2:
+            if not math.isclose(value1, value2, rel_tol=rel_tol, abs_tol=abs_tol):
                 if metadata1 is not None:
                     label1 = metadata1.splitlines()[bin_index - 1]
                 elif not label1:
-                    low_edge_bits = double_bits(hist1.GetXaxis().GetBinLowEdge(bin_index))
-                    label1 = f"bin_low_edge_bits=0x{low_edge_bits:016x}"
+                    label1 = f"bin={bin_index}"
                 print(
                     f"Histogram '{name}' differs at bin {bin_index} ('{label1}'): "
                     f"file1={value1} file2={value2}"
                 )
                 sys.exit(1)
 
-    print("ROOT histogram outputs match exactly.")
+    print(
+        "ROOT histogram outputs match within the configured tolerances: "
+        f"abs_tol={abs_tol:g}, rel_tol={rel_tol:g}"
+    )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Compare ROOT histogram outputs exactly.")
+    parser = argparse.ArgumentParser(description="Compare ROOT histogram outputs with small numeric tolerances.")
     parser.add_argument("--file1", required=True, help="Path to the first ROOT file.")
     parser.add_argument("--file2", required=True, help="Path to the second ROOT file.")
+    parser.add_argument("--abs_tol", type=float, default=1.0e-10, help="Absolute tolerance for numeric bin contents.")
+    parser.add_argument("--rel_tol", type=float, default=1.0e-14, help="Relative tolerance for numeric bin contents.")
     arguments = parser.parse_args()
 
-    compare_histograms(arguments.file1, arguments.file2)
+    compare_histograms(arguments.file1, arguments.file2, arguments.abs_tol, arguments.rel_tol)

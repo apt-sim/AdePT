@@ -5,9 +5,10 @@
 import argparse
 import math
 import os
-import struct
 
 import ROOT
+
+INTEGER_HISTOGRAMS = {"generation_population", "primary_ancestor_population"}
 
 
 def parse_args():
@@ -21,7 +22,7 @@ def read_value_entries(root_file, hist_name, hist):
     # Exact-value histograms are written as "count per distinct floating-point
     # value" plus a sidecar metadata object that maps bins back to the original
     # values. For plotting, reconstruct those value/count pairs first.
-    metadata = root_file.Get(hist_name + "__value_bits")
+    metadata = root_file.Get(hist_name + "__values")
     if not metadata:
         return None
     if metadata.ClassName() != "TObjString" or not hasattr(metadata, "GetString"):
@@ -33,9 +34,7 @@ def read_value_entries(root_file, hist_name, hist):
 
     entries = []
     for bin_index, line in enumerate(text, start=1):
-        bits_text = line.split(" ", 1)[0]
-        bits = int(bits_text, 16)
-        value = struct.unpack(">d", bits.to_bytes(8, "big"))[0]
+        value = float.fromhex(line)
         count = hist.GetBinContent(bin_index)
         entries.append((value, count))
     return entries
@@ -118,6 +117,14 @@ def make_categorical_clone(hist_name, hist, labels):
     return clone
 
 
+def make_numeric_clone(hist_name, hist, y_title):
+    clone = hist.Clone(hist_name + "_plot")
+    clone.SetDirectory(0)
+    clone.GetYaxis().SetTitle(y_title)
+    clone.GetXaxis().SetTitle(hist_name)
+    return clone
+
+
 def configure_canvas(hist_name, nbins, is_categorical):
     width = 1600
     if is_categorical:
@@ -190,7 +197,7 @@ def main():
     hist_names = []
     for key in root_file.GetListOfKeys():
         name = key.GetName()
-        if name.endswith("__value_bits"):
+        if name.endswith("__values"):
             continue
         obj = key.ReadObj()
         if obj.InheritsFrom("TH1"):
@@ -202,10 +209,14 @@ def main():
         hist = root_file.Get(hist_name)
         value_entries = read_value_entries(root_file, hist_name, hist)
         if value_entries is None:
-            # Categorical histograms are already directly plottable.
-            label_entries = read_label_entries(root_file, hist_name)
-            plot_hist = make_categorical_clone(hist_name, hist, label_entries)
-            is_categorical = True
+            if hist_name in INTEGER_HISTOGRAMS:
+                plot_hist = make_numeric_clone(hist_name, hist, "Count")
+                is_categorical = False
+            else:
+                # Categorical histograms are already directly plottable.
+                label_entries = read_label_entries(root_file, hist_name)
+                plot_hist = make_categorical_clone(hist_name, hist, label_entries)
+                is_categorical = True
         else:
             # Exact-value histograms are converted into a visually readable
             # representation only for plotting.

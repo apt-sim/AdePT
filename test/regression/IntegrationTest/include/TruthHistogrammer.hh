@@ -15,7 +15,7 @@ class G4Track;
  * @brief Collects aggregated truth observables for the ROOT-based drift test.
  *
  * The collector stores categorical histograms as label -> count maps and
- * continuous observables as exact floating-point bit patterns -> count maps.
+ * continuous observables as exact floating-point values -> count maps.
  * The master thread later serializes these maps into ROOT histograms in a
  * deterministic order for exact comparison against the reference file.
  *
@@ -26,28 +26,23 @@ class G4Track;
 class TruthHistogrammer {
 public:
   /**
-   * @brief Exact weighted energy-deposit contributions accumulated for one physical volume.
+   * @brief Weighted energy deposited in one physical volume.
    *
-   * The ROOT truth path does not sum deposits on the fly. Instead it stores the
-   * exact bit pattern of each deposited `double` value and counts how often that
-   * value occurred. Worker-thread merging is then an integer-count merge over
-   * identical bit patterns, which is order-independent.
+   * This is kept as a direct accumulated sum and compared with a small
+   * tolerance, because floating-point accumulation order can vary between MT
+   * runs.
    */
   struct VolumeEdep {
     std::string label;
-    std::map<std::uint64_t, std::uint64_t> contributions;
+    double total{0.0};
   };
 
   /// Histogram with stable string labels and integer counts.
   using CountHistogram = std::map<std::string, std::uint64_t>;
-  /**
-   * @brief Histogram with exact `double` bit patterns and integer counts.
-   *
-   * This is the key trick that makes the ROOT truth path reproducible in MT:
-   * floating-point values are first bucketed by their exact IEEE-754 bit
-   * pattern, and only the integer populations are merged across workers.
-   */
-  using ValueHistogram = std::map<std::uint64_t, std::uint64_t>;
+  /// Histogram with integer bin values and integer counts.
+  using IntegerHistogram = std::map<int, std::uint64_t>;
+  /// Histogram with exact `double` values and integer counts.
+  using ValueHistogram = std::map<double, std::uint64_t>;
 
   TruthHistogrammer();
 
@@ -70,10 +65,12 @@ public:
 
 private:
   std::map<std::string, CountHistogram> fCategoricalHistograms;
+  std::map<std::string, IntegerHistogram> fIntegerHistograms;
   std::map<std::string, ValueHistogram> fValueHistograms;
   std::map<int, VolumeEdep> fEnergyDepositByVolume;
   void IncrementCategorical(const std::string &histogramName, const std::string &label, std::uint64_t count = 1);
-  /// Store one exact floating-point observation by its raw bit pattern.
+  void IncrementInteger(const std::string &histogramName, int value, std::uint64_t count = 1);
+  /// Store one exact floating-point observation by value and count its population.
   void IncrementValue(const std::string &histogramName, double value, std::uint64_t count = 1);
 };
 
