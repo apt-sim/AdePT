@@ -72,10 +72,7 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 
 // These definitions live in a header-included .icc file, so they must remain
 // inline to avoid multiple definitions across translation units.
-inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                                AdePTGeant4Integration &g4Integration,
-                                                const std::vector<float> &uniformFieldValues)
+inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmConfig *hepEmConfig)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
@@ -97,7 +94,7 @@ inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuratio
     std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmTM, g4Integration, uniformFieldValues);
+  AsyncAdePTTransport::Initialize(hepEmConfig);
 }
 
 inline AsyncAdePTTransport::~AsyncAdePTTransport()
@@ -185,12 +182,10 @@ inline bool AsyncAdePTTransport::InitializePhysics(G4HepEmConfig *hepEmConfig)
   return true;
 }
 
-inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                            AdePTGeant4Integration &g4Integration,
-                                            const std::vector<float> &uniformFieldValues)
+inline void AsyncAdePTTransport::Initialize(G4HepEmConfig *hepEmConfig)
 {
-  const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
+  if (vecgeom::GeoManager::Instance().GetRegisteredVolumesCount() == 0)
+    throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
 
   G4cout << "=== AsyncAdePTTransport: initializing geometry and physics\n";
   // Initialize geometry on device
@@ -202,14 +197,20 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *h
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
   // Initialize G4HepEm
-  if (!InitializePhysics(hepEmTM->GetConfig()))
+  if (!InitializePhysics(hepEmConfig))
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
+}
 
-  // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
-  g4Integration.CheckGeometry(fg4hepem_state.get());
-  adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
-  adeptint::WDTHostRaw wdtRaw;
-  g4Integration.InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions, fGPURegionNames, wdtRaw);
+inline void AsyncAdePTTransport::CompleteInitialization(adeptint::VolAuxData *auxData,
+                                                        const adeptint::WDTHostPacked &wdtPacked,
+                                                        const std::vector<float> &uniformFieldValues)
+{
+  // This is the second half of the split initialization. A non-zero volume count was already
+  // required in Initialize() before geometry upload, and it remains a hard precondition here
+  // before uploading any geometry-derived metadata to the device.
+  const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  if (numVolumes == 0)
+    throw std::runtime_error("AsyncAdePTTransport::CompleteInitialization: Number of geometry volumes is zero.");
 
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
@@ -217,9 +218,8 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *h
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
 
-  // Pack host-side WDT
-  adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
-  fHasWDTRegions                    = !wdtPacked.regions.empty(); // set the flag whether WDT regions are enabled
+  // The Geant4 side has already packed the host-side WDT metadata before handing it to transport.
+  fHasWDTRegions = !wdtPacked.regions.empty(); // set the flag whether WDT regions are enabled
 
   // Upload WDT to device
   adeptint::WDTDeviceBuffers wdtDev;

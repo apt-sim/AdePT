@@ -16,6 +16,8 @@
 #include "G4Gamma.hh"
 #include "G4Positron.hh"
 
+#include <VecGeom/management/GeoManager.h>
+
 #include <algorithm>
 
 #ifdef ENABLE_POWER_METER
@@ -26,11 +28,10 @@ namespace {
 using AdePTTransport = AdePTTrackingManager::AdePTTransport;
 }
 
-std::shared_ptr<AdePTTransport> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                                 AdePTGeant4Integration &g4Integration,
-                                                 const std::vector<float> &uniformFieldValues)
+std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(AdePTConfiguration &conf,
+                                                        G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
-  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM, g4Integration, uniformFieldValues)};
+  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM->GetConfig())};
   return AdePT;
 }
 
@@ -53,6 +54,32 @@ AdePTTrackingManager::~AdePTTrackingManager()
   // the run. This should not cause a memory leak however as terminate will be called on the thread
   if (fPowerMeterRunning) power_meter::stop_monitoring_loop();
 #endif
+}
+
+void AdePTTrackingManager::InitializeSharedAdePTTransport()
+{
+#ifdef ADEPT_USE_EXT_BFIELD
+  std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile() << std::endl;
+  if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
+#endif
+  const auto uniformFieldValues = fGeant4Integration.GetUniformField();
+
+  // Create the shared AdePT transport engine on the first worker thread.
+  fAdeptTransport = GetSharedAdePTTransport(*fAdePTConfiguration, fHepEmTrackingManager.get());
+
+  // Check VecGeom geometry matches Geant4 before deriving any geometry metadata for transport.
+  fGeant4Integration.CheckGeometry(fAdeptTransport->GetHepEmState());
+
+  // Initialize auxiliary per-LV data and collect the raw WDT metadata on the Geant4 side.
+  auto *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+  adeptint::WDTHostRaw wdtRaw;
+  fGeant4Integration.InitVolAuxData(auxData, fAdeptTransport->GetHepEmState(), fHepEmTrackingManager.get(),
+                                    fAdePTConfiguration->GetTrackInAllRegions(),
+                                    fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
+  adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
+
+  // Finish the shared transport initialization by uploading the prepared metadata to the device.
+  fAdeptTransport->CompleteInitialization(auxData, wdtPacked, uniformFieldValues);
 }
 
 void AdePTTrackingManager::InitializeAdePT()
@@ -106,17 +133,7 @@ void AdePTTrackingManager::InitializeAdePT()
 #endif
     }
 
-#ifdef ADEPT_USE_EXT_BFIELD
-    std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile()
-              << std::endl;
-    if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
-#endif
-    const auto uniformFieldValues = fGeant4Integration.GetUniformField();
-
-    // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
-    // all threads.
-    fAdeptTransport =
-        InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration, uniformFieldValues);
+    InitializeSharedAdePTTransport();
 
     // common init done, can notify other workers to proceed their initialization
     {
@@ -136,9 +153,9 @@ void AdePTTrackingManager::InitializeAdePT()
   // Now the fNumThreads is known and all workers can initialize
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
-  // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
-  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration,
-                                     fGeant4Integration.GetUniformField());
+  // The shared AdePT transport was already created and initialized by the first worker.
+  // The remaining workers only retrieve the shared pointer here.
+  fAdeptTransport = GetSharedAdePTTransport(*fAdePTConfiguration, fHepEmTrackingManager.get());
 
   // Initialize the GPU region list
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
