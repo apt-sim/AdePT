@@ -61,6 +61,9 @@ private:
   const vecgeom::NavigationState GetVecGeomFromG4State(const G4Track &aG4Track,
                                                        const G4NavigationHistory *aG4NavigationHistory = nullptr);
 
+  /// @brief Perform the one-time shared AdePT transport initialization on the first Geant4 worker.
+  void InitializeSharedAdePTTransport();
+
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   AdePTGeant4Integration fGeant4Integration;
   static inline int fNumThreads{0};
