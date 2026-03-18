@@ -31,7 +31,7 @@ using AdePTTransport = AdePTTrackingManager::AdePTTransport;
 std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(AdePTConfiguration &conf,
                                                         G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
-  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM)};
+  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM->GetConfig())};
   return AdePT;
 }
 

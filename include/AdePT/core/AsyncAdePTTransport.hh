@@ -27,6 +27,7 @@
 
 class G4Region;
 class G4VPhysicalVolume;
+class G4HepEmConfig;
 struct G4HepEmState;
 namespace AsyncAdePT {
 struct TrackBuffer;
@@ -73,14 +74,14 @@ private:
   ///< Needed to stall the GPU, in case the nPartInFlight * fHitBufferSafetyFactor > available HitSlots
   double fHitBufferSafetyFactor{1.5};
 
-  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM);
+  void Initialize(G4HepEmConfig *hepEmConfig);
   void InitBVH();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
   void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);
+  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmConfig *hepEmConfig);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
   ~AsyncAdePTTransport();
 
