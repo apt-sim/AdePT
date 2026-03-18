@@ -73,9 +73,7 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 // These definitions live in a header-included .icc file, so they must remain
 // inline to avoid multiple definitions across translation units.
 inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                                AdePTGeant4Integration &g4Integration,
-                                                const std::vector<float> &uniformFieldValues)
+                                                G4HepEmTrackingManagerSpecialized *hepEmTM)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
@@ -97,7 +95,7 @@ inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuratio
     std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmTM, g4Integration, uniformFieldValues);
+  AsyncAdePTTransport::Initialize(hepEmTM);
 }
 
 inline AsyncAdePTTransport::~AsyncAdePTTransport()
@@ -185,12 +183,10 @@ inline bool AsyncAdePTTransport::InitializePhysics(G4HepEmConfig *hepEmConfig)
   return true;
 }
 
-inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                            AdePTGeant4Integration &g4Integration,
-                                            const std::vector<float> &uniformFieldValues)
+inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
-  const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
+  if (vecgeom::GeoManager::Instance().GetRegisteredVolumesCount() == 0)
+    throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
 
   G4cout << "=== AsyncAdePTTransport: initializing geometry and physics\n";
   // Initialize geometry on device
@@ -204,15 +200,15 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *h
   // Initialize G4HepEm
   if (!InitializePhysics(hepEmTM->GetConfig()))
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
+}
 
-  // Initialize auxiliary per-LV data. Geometry validation is triggered by the Geant4 side.
-  adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
-  adeptint::WDTHostRaw wdtRaw;
-  g4Integration.InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions, fGPURegionNames, wdtRaw);
-
+inline void AsyncAdePTTransport::CompleteInitialization(adeptint::VolAuxData *auxData,
+                                                        const adeptint::WDTHostRaw &wdtRaw,
+                                                        const std::vector<float> &uniformFieldValues)
+{
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
-  volAuxArray.fNumVolumes = numVolumes;
+  volAuxArray.fNumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
 

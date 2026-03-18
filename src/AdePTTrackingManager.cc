@@ -16,6 +16,8 @@
 #include "G4Gamma.hh"
 #include "G4Positron.hh"
 
+#include <VecGeom/management/GeoManager.h>
+
 #include <algorithm>
 
 #ifdef ENABLE_POWER_METER
@@ -26,11 +28,9 @@ namespace {
 using AdePTTransport = AdePTTrackingManager::AdePTTransport;
 }
 
-std::shared_ptr<AdePTTransport> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                                 AdePTGeant4Integration &g4Integration,
-                                                 const std::vector<float> &uniformFieldValues)
+std::shared_ptr<AdePTTransport> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
-  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM, g4Integration, uniformFieldValues)};
+  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM)};
   return AdePT;
 }
 
@@ -115,10 +115,15 @@ void AdePTTrackingManager::InitializeAdePT()
 
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
-    fAdeptTransport =
-        InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration, uniformFieldValues);
+    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
     // Check VecGeom geometry matches Geant4.
     fGeant4Integration.CheckGeometry(fAdeptTransport->GetHepEmState());
+    auto *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+    adeptint::WDTHostRaw wdtRaw;
+    fGeant4Integration.InitVolAuxData(auxData, fAdeptTransport->GetHepEmState(), fHepEmTrackingManager.get(),
+                                      fAdePTConfiguration->GetTrackInAllRegions(),
+                                      fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
+    fAdeptTransport->CompleteInitialization(auxData, wdtRaw, uniformFieldValues);
 
     // common init done, can notify other workers to proceed their initialization
     {
@@ -139,8 +144,7 @@ void AdePTTrackingManager::InitializeAdePT()
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
   // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
-  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration,
-                                     fGeant4Integration.GetUniformField());
+  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
 
   // Initialize the GPU region list
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
