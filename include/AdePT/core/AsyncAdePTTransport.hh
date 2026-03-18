@@ -94,7 +94,7 @@ public:
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   G4HepEmState *GetHepEmState() const { return fg4hepem_state.get(); }
-  void CompleteInitialization(adeptint::VolAuxData *auxData, const adeptint::WDTHostRaw &wdtRaw,
+  void CompleteInitialization(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                               const std::vector<float> &uniformFieldValues);
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId, AdePTGeant4Integration &g4Integration);

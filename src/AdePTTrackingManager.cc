@@ -76,9 +76,10 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   fGeant4Integration.InitVolAuxData(auxData, fAdeptTransport->GetHepEmState(), fHepEmTrackingManager.get(),
                                     fAdePTConfiguration->GetTrackInAllRegions(),
                                     fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
+  adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
 
   // Finish the shared transport initialization by uploading the prepared metadata to the device.
-  fAdeptTransport->CompleteInitialization(auxData, wdtRaw, uniformFieldValues);
+  fAdeptTransport->CompleteInitialization(auxData, wdtPacked, uniformFieldValues);
 }
 
 void AdePTTrackingManager::InitializeAdePT()

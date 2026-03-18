@@ -202,18 +202,24 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmConfig *hepEmConfig)
 }
 
 inline void AsyncAdePTTransport::CompleteInitialization(adeptint::VolAuxData *auxData,
-                                                        const adeptint::WDTHostRaw &wdtRaw,
+                                                        const adeptint::WDTHostPacked &wdtPacked,
                                                         const std::vector<float> &uniformFieldValues)
 {
+  // This is the second half of the split initialization. A non-zero volume count was already
+  // required in Initialize() before geometry upload, and it remains a hard precondition here
+  // before uploading any geometry-derived metadata to the device.
+  const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  if (numVolumes == 0)
+    throw std::runtime_error("AsyncAdePTTransport::CompleteInitialization: Number of geometry volumes is zero.");
+
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
-  volAuxArray.fNumVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+  volAuxArray.fNumVolumes = numVolumes;
   volAuxArray.fAuxData    = auxData;
   AsyncAdePT::InitVolAuxArray(volAuxArray);
 
-  // Pack host-side WDT
-  adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
-  fHasWDTRegions                    = !wdtPacked.regions.empty(); // set the flag whether WDT regions are enabled
+  // The Geant4 side has already packed the host-side WDT metadata before handing it to transport.
+  fHasWDTRegions = !wdtPacked.regions.empty(); // set the flag whether WDT regions are enabled
 
   // Upload WDT to device
   adeptint::WDTDeviceBuffers wdtDev;
