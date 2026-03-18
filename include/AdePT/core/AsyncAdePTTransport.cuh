@@ -536,7 +536,7 @@ void CopySurfaceModelToGPU()
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters)
 {
   if (hepEmData == nullptr || hepEmParameters == nullptr) {
-    throw std::runtime_error("UploadG4HepEmToGPU requires non-null HepEm data and parameters.");
+    throw std::runtime_error("UploadG4HepEmToGPU requires non-null G4HepEmData and G4HepEmParameters.");
   }
 
   // Copy the prepared host-side HepEm data to the GPU.

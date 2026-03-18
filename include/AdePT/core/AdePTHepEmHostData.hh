@@ -22,13 +22,22 @@ namespace AsyncAdePT {
 /// allocation is released here in the destructor, because this helper owns the
 /// corresponding upload lifecycle even though the host parameters themselves are
 /// still owned by G4HepEm.
+///
+/// Cleanup is intentionally split:
+/// - `DataDeleter` performs the deep cleanup of the owned `G4HepEmData`
+///   and then deletes the outer `G4HepEmData` allocation.
+/// - `~HepEmHostData()` releases only the GPU mirror of the borrowed
+///   `G4HepEmParameters`.
 class HepEmHostData {
 public:
   /// @brief Rebuild all host-side HepEm tables needed by AdePT from the given config.
   explicit HepEmHostData(G4HepEmConfig *hepEmConfig);
 
   /// @brief Release the GPU mirror of the borrowed HepEm parameters.
-  /// @details This performs a CUDA-side free through `FreeG4HepEmParametersOnGPU`.
+  /// @details
+  /// This performs a CUDA-side free through `FreeG4HepEmParametersOnGPU`.
+  /// It does not free the host-side `G4HepEmParameters`, because those remain
+  /// owned by the original `G4HepEmConfig`.
   ~HepEmHostData();
 
   HepEmHostData(const HepEmHostData &)            = delete;
@@ -45,9 +54,11 @@ public:
 
 private:
   /// @brief Deletes the outer `G4HepEmData` object after first freeing all tables it owns.
-  /// @details `FreeG4HepEmData` releases both the host-side tables and any device-side
+  /// @details
+  /// `FreeG4HepEmData` releases both the host-side tables and any device-side
   /// mirrors embedded in the `G4HepEmData` object, but it does not delete the outer
-  /// `G4HepEmData` allocation itself. This deleter performs both steps.
+  /// `G4HepEmData` allocation itself. This deleter performs both steps for the
+  /// owned `fData` member. It does not touch the separately borrowed parameter block.
   struct DataDeleter {
     void operator()(G4HepEmData *data) const;
   };
@@ -55,7 +66,7 @@ private:
   /// Owned host-side HepEm tables rebuilt for AdePT.
   std::unique_ptr<G4HepEmData, DataDeleter> fData;
 
-  /// Non-owning pointer to the Geant4-owned HepEm parameter block.
+  /// Non-owning pointer to the G4HepEmParameters that are owned by G4HepEm itself, not AdePT.
   G4HepEmParameters *fParameters{nullptr};
 };
 
