@@ -26,14 +26,42 @@
 
 namespace {
 using AdePTTransport = AdePTTrackingManager::AdePTTransport;
+
+// Store only a weak reference here so the transport lifetime is still owned by
+// the thread-local AdePTTrackingManager instances. A static owning shared_ptr
+// would keep the transport alive until very late process teardown.
+std::weak_ptr<AdePTTransport> &SharedAdePTTransportStorage()
+{
+  static std::weak_ptr<AdePTTransport> transport;
+  return transport;
 }
 
-std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(AdePTConfiguration &conf,
-                                                        G4HepEmTrackingManagerSpecialized *hepEmTM)
+std::shared_ptr<AdePTTransport> CreateSharedAdePTTransport(AdePTConfiguration &conf,
+                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
 {
-  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM->GetConfig())};
-  return AdePT;
+  auto &transport = SharedAdePTTransportStorage();
+  // weak_ptr::lock() promotes the stored weak reference to a shared_ptr if the
+  // shared transport is still alive. This is not a mutex lock.
+  if (auto existing = transport.lock()) {
+    return existing;
+  }
+
+  auto created = std::make_shared<AdePTTransport>(conf, hepEmTM->GetConfig());
+  transport    = created;
+  return created;
 }
+
+std::shared_ptr<AdePTTransport> GetSharedAdePTTransport()
+{
+  // weak_ptr::lock() promotes the weak reference held in static storage. The
+  // actual ownership remains with the AdePTTrackingManager instances.
+  auto transport = SharedAdePTTransportStorage().lock();
+  if (!transport) {
+    throw std::runtime_error("Shared AdePT transport is not available.");
+  }
+  return transport;
+}
+} // namespace
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -65,7 +93,7 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   const auto uniformFieldValues = fGeant4Integration.GetUniformField();
 
   // Create the shared AdePT transport engine on the first worker thread.
-  fAdeptTransport = GetSharedAdePTTransport(*fAdePTConfiguration, fHepEmTrackingManager.get());
+  fAdeptTransport = CreateSharedAdePTTransport(*fAdePTConfiguration, fHepEmTrackingManager.get());
 
   // Check VecGeom geometry matches Geant4 before deriving any geometry metadata for transport.
   fGeant4Integration.CheckGeometry(fAdeptTransport->GetHepEmState());
@@ -155,7 +183,7 @@ void AdePTTrackingManager::InitializeAdePT()
 
   // The shared AdePT transport was already created and initialized by the first worker.
   // The remaining workers only retrieve the shared pointer here.
-  fAdeptTransport = GetSharedAdePTTransport(*fAdePTConfiguration, fHepEmTrackingManager.get());
+  fAdeptTransport = GetSharedAdePTTransport();
 
   // Initialize the GPU region list
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {

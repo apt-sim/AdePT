@@ -1016,6 +1016,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       using namespace std::chrono_literals;
       std::this_thread::sleep_for(10ms);
     }
+    // Shutdown can wake the dedicated GPU steering thread out of the idle wait
+    // even when all event states are already LeakedTracksRetrieved. In that
+    // case, one Geant4 worker has entered FreeGPU() and flipped runTransport.
+    // The outer while-condition is only re-checked at the next iteration
+    // boundary, so we must exit explicitly before this current iteration
+    // touches the CUDA stream again during teardown.
+    if (!gpuState.runTransport) break;
 
     if (debugLevel > 2) {
       G4cout << "GPU transport starting" << std::endl;
