@@ -62,6 +62,7 @@ private:
                                                        const G4NavigationHistory *aG4NavigationHistory = nullptr);
 
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
+  AdePTGeant4Integration fGeant4Integration;
   static inline int fNumThreads{0};
   std::set<G4Region const *> fGPURegions{};
   std::shared_ptr<AdePTTransport> fAdeptTransport;

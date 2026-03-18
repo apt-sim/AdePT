@@ -73,17 +73,17 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 // These definitions live in a header-included .icc file, so they must remain
 // inline to avoid multiple definitions across translation units.
 inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                G4HepEmTrackingManagerSpecialized *hepEmTM)
+                                                G4HepEmTrackingManagerSpecialized *hepEmTM,
+                                                AdePTGeant4Integration &g4Integration)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fMaxWDTIter{configuration.GetMaxWDTIter()}, fG4IntegrationObjects(fNThread), fEventStates(fNThread),
-      fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
-      fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
-      fReturnAllSteps{configuration.GetCallUserSteppingAction()},
+      fMaxWDTIter{configuration.GetMaxWDTIter()}, fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
+      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
+      fCPURegionNames{configuration.GetCPURegionNames()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
       fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
       fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
@@ -96,18 +96,12 @@ inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuratio
     std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmTM);
+  AsyncAdePTTransport::Initialize(hepEmTM, g4Integration);
 }
 
 inline AsyncAdePTTransport::~AsyncAdePTTransport()
 {
   async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker, fWDTDev);
-}
-
-inline void AsyncAdePTTransport::SetHepEmTrackingManagerForThread(int threadId,
-                                                                  G4HepEmTrackingManagerSpecialized *hepEmTM)
-{
-  fG4IntegrationObjects[threadId].SetHepEmTrackingManager(hepEmTM);
 }
 
 inline void AsyncAdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x,
@@ -190,7 +184,8 @@ inline bool AsyncAdePTTransport::InitializePhysics(G4HepEmConfig *hepEmConfig)
   return true;
 }
 
-inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM)
+inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM,
+                                            AdePTGeant4Integration &g4Integration)
 {
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -209,11 +204,10 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *h
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
   // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
-  fG4IntegrationObjects.front().CheckGeometry(fg4hepem_state.get());
+  g4Integration.CheckGeometry(fg4hepem_state.get());
   adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
   adeptint::WDTHostRaw wdtRaw;
-  fG4IntegrationObjects.front().InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions,
-                                               fGPURegionNames, wdtRaw);
+  g4Integration.InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions, fGPURegionNames, wdtRaw);
 
   // Initialize volume auxiliary data on device
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
@@ -242,7 +236,7 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *h
 
   fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
                                                fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile,
-                                               fG4IntegrationObjects.front().GetUniformField());
+                                               g4Integration.GetUniformField());
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
                                                  *fGPUstate, fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
                                                  fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU,
@@ -255,10 +249,8 @@ inline void AsyncAdePTTransport::InitBVH()
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 
-inline void AsyncAdePTTransport::ProcessGPUSteps(int threadId, int eventId)
+inline void AsyncAdePTTransport::ProcessGPUSteps(int threadId, int eventId, AdePTGeant4Integration &g4Integration)
 {
-
-  AdePTGeant4Integration &integrationInstance = fG4IntegrationObjects[threadId];
   std::pair<GPUHit *, GPUHit *> range;
   bool dataOnBuffer;
 
@@ -284,14 +276,14 @@ inline void AsyncAdePTTransport::ProcessGPUSteps(int threadId, int eventId)
       }
       auto blockSize = 1 + it->fNumSecondaries;
       std::span<const GPUHit> gpuStepWithSecondaries(it, blockSize);
-      integrationInstance.ProcessGPUStep(gpuStepWithSecondaries, fReturnAllSteps, fReturnFirstAndLastStep);
+      g4Integration.ProcessGPUStep(gpuStepWithSecondaries, fReturnAllSteps, fReturnFirstAndLastStep);
       it += 1 + it->fNumSecondaries;
     }
     async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
   }
 }
 
-inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId)
+inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId, AdePTGeant4Integration &g4Integration)
 {
   if (fDebugLevel >= 3) {
     G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
@@ -300,8 +292,6 @@ inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId)
   assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
   fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
 
-  AdePTGeant4Integration &integrationInstance = fG4IntegrationObjects[threadId];
-
   while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
 
     {
@@ -309,7 +299,7 @@ inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId)
       fCV_G4Workers.wait(lock);
     }
 
-    ProcessGPUSteps(threadId, eventId);
+    ProcessGPUSteps(threadId, eventId, g4Integration);
   }
 
   // Now device should be flushed, so retrieve the tracks:
@@ -360,7 +350,7 @@ inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId)
     G4cout << str.str() << G4endl;
   }
 
-  integrationInstance.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel, fReturnFirstAndLastStep);
+  g4Integration.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel, fReturnFirstAndLastStep);
 }
 
 } // namespace AsyncAdePT
