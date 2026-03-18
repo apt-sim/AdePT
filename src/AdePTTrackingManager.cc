@@ -26,9 +26,10 @@ namespace {
 using AdePTTransport = AdePTTrackingManager::AdePTTransport;
 }
 
-std::shared_ptr<AdePTTransport> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmTrackingManagerSpecialized *hepEmTM)
+std::shared_ptr<AdePTTransport> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmTrackingManagerSpecialized *hepEmTM,
+                                                 AdePTGeant4Integration &g4Integration)
 {
-  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM)};
+  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM, g4Integration)};
   return AdePT;
 }
 
@@ -38,6 +39,7 @@ AdePTTrackingManager::AdePTTrackingManager(AdePTConfiguration *config, int verbo
     : fHepEmTrackingManager(std::make_unique<G4HepEmTrackingManagerSpecialized>()), fAdePTConfiguration(config),
       fVerbosity(verbosity)
 {
+  fGeant4Integration.SetHepEmTrackingManager(fHepEmTrackingManager.get());
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -111,7 +113,7 @@ void AdePTTrackingManager::InitializeAdePT()
 
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
+    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration);
 
     // common init done, can notify other workers to proceed their initialization
     {
@@ -132,10 +134,7 @@ void AdePTTrackingManager::InitializeAdePT()
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
   // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
-  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get());
-  // All workers store the pointer to their HepEmTrackingManager in fAdePTTransport. This is required for nuclear
-  // processes
-  fAdeptTransport->SetHepEmTrackingManagerForThread(tid, fHepEmTrackingManager.get());
+  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration);
 
   // Initialize the GPU region list
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
@@ -266,7 +265,7 @@ void AdePTTrackingManager::FlushEvent()
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer." << G4endl;
 
   fAdeptTransport->Flush(G4Threading::G4GetThreadId(),
-                         G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID());
+                         G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(), fGeant4Integration);
 }
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
@@ -282,8 +281,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
   // Check for GPU steps, to alleviate pressure on the GPU step buffer
   G4int threadId = G4Threading::G4GetThreadId();
-  fAdeptTransport->ProcessGPUSteps(threadId, eventID);
-  auto &trackMapper = fAdeptTransport->GetGeant4Integration(threadId).GetHostTrackDataMapper();
+  fAdeptTransport->ProcessGPUSteps(threadId, eventID, fGeant4Integration);
+  auto &trackMapper = fGeant4Integration.GetHostTrackDataMapper();
 
   if (fCurrentEventID != eventID) trackMapper.beginEvent(eventID);
 

@@ -48,7 +48,6 @@ private:
   int fCUDAHeapLimit{0};                  ///< CUDA device heap limit
   unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
   unsigned short fMaxWDTIter{5};          ///< Maximum number of Woodcock tracking iterations per step
-  std::vector<AdePTGeant4Integration> fG4IntegrationObjects;     //< Geant4 integration state owned per worker thread
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
@@ -74,14 +73,15 @@ private:
   ///< Needed to stall the GPU, in case the nPartInFlight * fHitBufferSafetyFactor > available HitSlots
   double fHitBufferSafetyFactor{1.5};
 
-  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM);
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, AdePTGeant4Integration &g4Integration);
   void InitBVH();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
   void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM);
+  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM,
+                      AdePTGeant4Integration &g4Integration);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
   ~AsyncAdePTTransport();
 
@@ -94,13 +94,8 @@ public:
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   /// Block until transport of the given event is done.
-  void Flush(int threadId, int eventId);
-  void ProcessGPUSteps(int threadId, int eventId);
-  /// @brief Setup function used only in async AdePT
-  /// @param threadId thread Id
-  /// @param hepEmTM specialized G4HepEmTrackingManager
-  void SetHepEmTrackingManagerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM);
-  AdePTGeant4Integration &GetGeant4Integration(int threadId) { return fG4IntegrationObjects[threadId]; }
+  void Flush(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
+  void ProcessGPUSteps(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
 };
 
 } // namespace AsyncAdePT
