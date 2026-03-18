@@ -444,6 +444,7 @@ endif()
 # Build Targets
 #----------------------------------------------------------------------------#
 set(ADEPT_G4_INTEGRATION_SRCS
+  src/AdePTHepEmHostData.cpp
   src/G4HepEmTrackingManagerSpecialized.cc
   src/AdePTTrackingManager.cc
   src/G4EmStandardPhysics_AdePT.cc

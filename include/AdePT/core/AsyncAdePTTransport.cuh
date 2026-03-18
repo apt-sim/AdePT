@@ -45,9 +45,6 @@ using SteppingAction = adept::SteppingAction::Action;
 #endif
 
 #include <G4HepEmData.hh>
-#include <G4HepEmConfig.hh>
-#include <G4HepEmState.hh>
-#include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
 #include <G4HepEmMatCutData.hh>
 #include <G4HepEmParametersInit.hh>
@@ -536,48 +533,32 @@ void CopySurfaceModelToGPU()
 #endif
 }
 
-G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
+void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters)
 {
-  // here we call everything from InitG4HepEmState, as we need to provide the parameters from the G4HepEmConfig and do
-  // not want to initialize to the default values
-  auto state = new G4HepEmState;
+  if (hepEmData == nullptr || hepEmParameters == nullptr) {
+    throw std::runtime_error("UploadG4HepEmToGPU requires non-null HepEm data and parameters.");
+  }
 
-  // Use the config-provided parameters
-  state->fParameters = hepEmConfig->GetG4HepEmParameters();
-
-  // Initialize data and fill each subtable using its initialize function
-  state->fData = new G4HepEmData;
-  InitG4HepEmData(state->fData);
-  InitMaterialAndCoupleData(state->fData, state->fParameters);
-
-  // electrons, positrons, gamma
-  InitElectronData(state->fData, state->fParameters, true);
-  InitElectronData(state->fData, state->fParameters, false);
-  InitGammaData(state->fData, state->fParameters);
-
-  G4HepEmMatCutData *cutData = state->fData->fTheMatCutData;
-  G4cout << "fNumG4MatCuts = " << cutData->fNumG4MatCuts << ", fNumMatCutData = " << cutData->fNumMatCutData << G4endl;
-
-  // Copy to GPU.
-  CopyG4HepEmDataToGPU(state->fData);
-  CopyG4HepEmParametersToGPU(state->fParameters);
+  // Copy the prepared host-side HepEm data to the GPU.
+  CopyG4HepEmDataToGPU(hepEmData);
+  CopyG4HepEmParametersToGPU(hepEmParameters);
 
   // Create G4HepEmParameters with the device pointer
-  G4HepEmParameters parametersOnDevice        = *state->fParameters;
-  parametersOnDevice.fParametersPerRegion     = state->fParameters->fParametersPerRegion_gpu;
+  G4HepEmParameters parametersOnDevice        = *hepEmParameters;
+  parametersOnDevice.fParametersPerRegion     = hepEmParameters->fParametersPerRegion_gpu;
   parametersOnDevice.fParametersPerRegion_gpu = nullptr;
 
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(g4HepEmPars, &parametersOnDevice, sizeof(G4HepEmParameters)));
 
   // Create G4HepEmData with the device pointers.
   G4HepEmData dataOnDevice;
-  dataOnDevice.fTheMatCutData   = state->fData->fTheMatCutData_gpu;
-  dataOnDevice.fTheMaterialData = state->fData->fTheMaterialData_gpu;
-  dataOnDevice.fTheElementData  = state->fData->fTheElementData_gpu;
-  dataOnDevice.fTheElectronData = state->fData->fTheElectronData_gpu;
-  dataOnDevice.fThePositronData = state->fData->fThePositronData_gpu;
-  dataOnDevice.fTheSBTableData  = state->fData->fTheSBTableData_gpu;
-  dataOnDevice.fTheGammaData    = state->fData->fTheGammaData_gpu;
+  dataOnDevice.fTheMatCutData   = hepEmData->fTheMatCutData_gpu;
+  dataOnDevice.fTheMaterialData = hepEmData->fTheMaterialData_gpu;
+  dataOnDevice.fTheElementData  = hepEmData->fTheElementData_gpu;
+  dataOnDevice.fTheElectronData = hepEmData->fTheElectronData_gpu;
+  dataOnDevice.fThePositronData = hepEmData->fThePositronData_gpu;
+  dataOnDevice.fTheSBTableData  = hepEmData->fTheSBTableData_gpu;
+  dataOnDevice.fTheGammaData    = hepEmData->fTheGammaData_gpu;
   // The other pointers should never be used.
   dataOnDevice.fTheMatCutData_gpu   = nullptr;
   dataOnDevice.fTheMaterialData_gpu = nullptr;
@@ -588,8 +569,6 @@ G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig)
   dataOnDevice.fTheGammaData_gpu    = nullptr;
 
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(g4HepEmData, &dataOnDevice, sizeof(G4HepEmData)));
-
-  return state;
 }
 
 template <typename FieldType>
@@ -1828,8 +1807,8 @@ std::thread LaunchGPUWorker(int trackCapacity, int leakCapacity, int scoringCapa
                      hasWDTRegions};
 }
 
-void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, G4HepEmState &g4hepem_state,
-             std::thread &gpuWorker, adeptint::WDTDeviceBuffers &wdtDev)
+void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, std::thread &gpuWorker,
+             adeptint::WDTDeviceBuffers &wdtDev)
 {
   gpuState->runTransport = false;
   gpuWorker.join();
@@ -1844,9 +1823,10 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
   // Free resources.
   gpuState.reset();
 
-  // Free G4HepEm data
-  FreeG4HepEmData(g4hepem_state.fData);
-  FreeG4HepEmParametersOnGPU(g4hepem_state.fParameters);
+  // Note: the GPU mirror of G4HepEmParameters is not released here.
+  // That cleanup happens in HepEmHostData::~HepEmHostData(), which owns the
+  // upload lifecycle for the borrowed parameter block and performs the CUDA call
+  // via FreeG4HepEmParametersOnGPU() when the transport-owned HepEmHostData dies.
 
   // Free magnetic field
 #ifdef ADEPT_USE_EXT_BFIELD

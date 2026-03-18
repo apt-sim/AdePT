@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <span>
 
-struct G4HepEmState;
+struct G4HepEmData;
 
 namespace AdePTGeant4Integration_detail {
 struct ScoringObjects;
@@ -53,10 +53,10 @@ public:
   static void CreateVecGeomWorld(G4VPhysicalVolume const *physvol);
 
   /// @brief This function compares G4 and VecGeom geometries and reports any differences
-  static void CheckGeometry(G4HepEmState *hepEmState);
+  static void CheckGeometry(G4HepEmData const *hepEmData);
 
   /// @brief Fills the auxiliary data needed for AdePT
-  static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
+  static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                              G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
                              std::vector<std::string> const *gpuRegionNames, adeptint::WDTHostRaw &wdtRaw);
 

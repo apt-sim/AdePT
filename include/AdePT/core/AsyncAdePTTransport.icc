@@ -21,10 +21,7 @@
 #include <G4TransportationManager.hh>
 
 #include <G4HepEmData.hh>
-#include <G4HepEmState.hh>
-#include <G4HepEmStateInit.hh>
 #include <G4HepEmParameters.hh>
-#include <G4HepEmMatCutData.hh>
 #include <G4LogicalVolumeStore.hh>
 
 #include <iomanip>
@@ -34,7 +31,7 @@ namespace async_adept_impl {
 void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
 void CopySurfaceModelToGPU();
 void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
-G4HepEmState *InitG4HepEm(G4HepEmConfig *hepEmConfig);
+void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters);
 std::shared_ptr<const std::vector<GPUHit>> GetGPUHits(unsigned int, AsyncAdePT::GPUstate &);
 std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
 void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
@@ -45,7 +42,7 @@ std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU
     int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
     double CPUCapacityFactor, double CPUCopyFraction, std::string &generalBfieldFile,
     const std::vector<float> &uniformBfieldValues);
-void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, G4HepEmState &, std::thread &,
+void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, std::thread &,
              adeptint::WDTDeviceBuffers &);
 } // namespace async_adept_impl
 
@@ -72,16 +69,20 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 
 // These definitions live in a header-included .icc file, so they must remain
 // inline to avoid multiple definitions across translation units.
-inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmConfig *hepEmConfig)
+inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
+                                                std::unique_ptr<HepEmHostData> hepEmHostData,
+                                                adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+                                                const std::vector<float> &uniformFieldValues)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fMaxWDTIter{configuration.GetMaxWDTIter()}, fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0),
-      fTrackInAllRegions{configuration.GetTrackInAllRegions()}, fGPURegionNames{configuration.GetGPURegionNames()},
-      fCPURegionNames{configuration.GetCPURegionNames()}, fReturnAllSteps{configuration.GetCallUserSteppingAction()},
+      fMaxWDTIter{configuration.GetMaxWDTIter()}, fHepEmHostData(std::move(hepEmHostData)), fEventStates(fNThread),
+      fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
+      fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
+      fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
       fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
       fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
@@ -94,12 +95,12 @@ inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuratio
     std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmConfig);
+  AsyncAdePTTransport::Initialize(auxData, wdtPacked, uniformFieldValues);
 }
 
 inline AsyncAdePTTransport::~AsyncAdePTTransport()
 {
-  async_adept_impl::FreeGPU(std::ref(fGPUstate), *fg4hepem_state, fGPUWorker, fWDTDev);
+  async_adept_impl::FreeGPU(std::ref(fGPUstate), fGPUWorker, fWDTDev);
 }
 
 inline void AsyncAdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x,
@@ -175,14 +176,19 @@ inline bool AsyncAdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedV
   return success;
 }
 
-inline bool AsyncAdePTTransport::InitializePhysics(G4HepEmConfig *hepEmConfig)
+inline bool AsyncAdePTTransport::InitializePhysics()
 {
-  // Initialize shared physics data
-  fg4hepem_state.reset(async_adept_impl::InitG4HepEm(hepEmConfig));
+  if (!fHepEmHostData) {
+    throw std::runtime_error("AsyncAdePTTransport::InitializePhysics: Missing HepEm host data.");
+  }
+
+  // Upload the prepared HepEm data and parameters to the device.
+  async_adept_impl::UploadG4HepEmToGPU(fHepEmHostData->GetData(), fHepEmHostData->GetParameters());
   return true;
 }
 
-inline void AsyncAdePTTransport::Initialize(G4HepEmConfig *hepEmConfig)
+inline void AsyncAdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+                                            const std::vector<float> &uniformFieldValues)
 {
   if (vecgeom::GeoManager::Instance().GetRegisteredVolumesCount() == 0)
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -196,23 +202,12 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmConfig *hepEmConfig)
   if (!InitializeGeometry(world))
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
-  // Initialize G4HepEm
-  if (!InitializePhysics(hepEmConfig))
+  // Upload the prepared HepEm physics data to the device.
+  if (!InitializePhysics())
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
-}
-
-inline void AsyncAdePTTransport::CompleteInitialization(adeptint::VolAuxData *auxData,
-                                                        const adeptint::WDTHostPacked &wdtPacked,
-                                                        const std::vector<float> &uniformFieldValues)
-{
-  // This is the second half of the split initialization. A non-zero volume count was already
-  // required in Initialize() before geometry upload, and it remains a hard precondition here
-  // before uploading any geometry-derived metadata to the device.
-  const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-  if (numVolumes == 0)
-    throw std::runtime_error("AsyncAdePTTransport::CompleteInitialization: Number of geometry volumes is zero.");
 
   // Initialize volume auxiliary data on device
+  const auto numVolumes   = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
   volAuxArray.fNumVolumes = numVolumes;
   volAuxArray.fAuxData    = auxData;

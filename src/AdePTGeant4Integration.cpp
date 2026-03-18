@@ -23,7 +23,6 @@
 #include <G4ReplicaNavigation.hh>
 #include <G4StepStatus.hh>
 
-#include <G4HepEmState.hh>
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
 #include <G4HepEmNoProcess.hh>
@@ -257,7 +256,7 @@ namespace {
 struct VisitContext {
   const int *g4tohepmcindex;
   std::size_t nvolumes;
-  G4HepEmState const *hepEmState;
+  G4HepEmData const *hepEmData;
 };
 
 /// Recursive geometry visitor matching one by one Geant4 and VecGeom logical volumes
@@ -329,7 +328,7 @@ void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume cons
   const int g4mcindex    = g4_lvol->GetMaterialCutsCouple()->GetIndex();
   const int hepemmcindex = context.g4tohepmcindex[g4mcindex];
   // Check consistency with G4HepEm data
-  if (context.hepEmState->fData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
+  if (context.hepEmData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
     throw std::runtime_error("Fatal: CheckGeometry: Mismatch between Geant4 mcindex and corresponding G4HepEm index");
   if (vg_lvol->id() >= context.nvolumes)
     throw std::runtime_error("Fatal: CheckGeometry: Volume id larger than number of volumes");
@@ -344,21 +343,21 @@ void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume cons
 }
 } // namespace
 
-void AdePTGeant4Integration::CheckGeometry(G4HepEmState *hepEmState)
+void AdePTGeant4Integration::CheckGeometry(G4HepEmData const *hepEmData)
 {
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-  const int *g4tohepmcindex                  = hepEmState->fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
+  const int *g4tohepmcindex                  = hepEmData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
   const auto nvolumes                        = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
 
   std::cout << "Visiting geometry ...\n";
-  const VisitContext context{g4tohepmcindex, nvolumes, hepEmState};
+  const VisitContext context{g4tohepmcindex, nvolumes, hepEmData};
   visitGeometry(g4world, vecgeomWorld, context);
   std::cout << "Visiting geometry done\n";
 }
 
-void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmState *hepEmState,
+void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                                             G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
                                             std::vector<std::string> const *gpuRegionNames,
                                             adeptint::WDTHostRaw &wdtRaw)
@@ -371,7 +370,7 @@ void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4
   const G4VPhysicalVolume *g4world =
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-  const int *g4tohepmcindex                  = hepEmState->fData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
+  const int *g4tohepmcindex                  = hepEmData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
 
   // We need to go from region names to G4Region
   std::vector<G4Region *> gpuRegions{};

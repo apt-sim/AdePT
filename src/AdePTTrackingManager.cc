@@ -37,7 +37,10 @@ std::weak_ptr<AdePTTransport> &SharedAdePTTransportStorage()
 }
 
 std::shared_ptr<AdePTTransport> CreateSharedAdePTTransport(AdePTConfiguration &conf,
-                                                           G4HepEmTrackingManagerSpecialized *hepEmTM)
+                                                           std::unique_ptr<AsyncAdePT::HepEmHostData> hepEmHostData,
+                                                           adeptint::VolAuxData *auxData,
+                                                           const adeptint::WDTHostPacked &wdtPacked,
+                                                           const std::vector<float> &uniformFieldValues)
 {
   auto &transport = SharedAdePTTransportStorage();
   // weak_ptr::lock() promotes the stored weak reference to a shared_ptr if the
@@ -46,8 +49,9 @@ std::shared_ptr<AdePTTransport> CreateSharedAdePTTransport(AdePTConfiguration &c
     return existing;
   }
 
-  auto created = std::make_shared<AdePTTransport>(conf, hepEmTM->GetConfig());
-  transport    = created;
+  auto created =
+      std::make_shared<AdePTTransport>(conf, std::move(hepEmHostData), auxData, wdtPacked, uniformFieldValues);
+  transport = created;
   return created;
 }
 
@@ -91,23 +95,22 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
 #endif
   const auto uniformFieldValues = fGeant4Integration.GetUniformField();
-
-  // Create the shared AdePT transport engine on the first worker thread.
-  fAdeptTransport = CreateSharedAdePTTransport(*fAdePTConfiguration, fHepEmTrackingManager.get());
+  auto hepEmHostData            = std::make_unique<AsyncAdePT::HepEmHostData>(fHepEmTrackingManager->GetConfig());
 
   // Check VecGeom geometry matches Geant4 before deriving any geometry metadata for transport.
-  fGeant4Integration.CheckGeometry(fAdeptTransport->GetHepEmState());
+  fGeant4Integration.CheckGeometry(hepEmHostData->GetData());
 
   // Initialize auxiliary per-LV data and collect the raw WDT metadata on the Geant4 side.
   auto *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
   adeptint::WDTHostRaw wdtRaw;
-  fGeant4Integration.InitVolAuxData(auxData, fAdeptTransport->GetHepEmState(), fHepEmTrackingManager.get(),
+  fGeant4Integration.InitVolAuxData(auxData, hepEmHostData->GetData(), fHepEmTrackingManager.get(),
                                     fAdePTConfiguration->GetTrackInAllRegions(),
                                     fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
 
-  // Finish the shared transport initialization by uploading the prepared metadata to the device.
-  fAdeptTransport->CompleteInitialization(auxData, wdtPacked, uniformFieldValues);
+  // Create the shared AdePT transport engine once the full host-side preparation is complete.
+  fAdeptTransport = CreateSharedAdePTTransport(*fAdePTConfiguration, std::move(hepEmHostData), auxData, wdtPacked,
+                                               uniformFieldValues);
 }
 
 void AdePTTrackingManager::InitializeAdePT()
