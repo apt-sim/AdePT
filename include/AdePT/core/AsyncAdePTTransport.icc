@@ -74,7 +74,8 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 // inline to avoid multiple definitions across translation units.
 inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
                                                 G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                                AdePTGeant4Integration &g4Integration)
+                                                AdePTGeant4Integration &g4Integration,
+                                                const std::vector<float> &uniformFieldValues)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
       fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
@@ -96,7 +97,7 @@ inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuratio
     std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
   }
 
-  AsyncAdePTTransport::Initialize(hepEmTM, g4Integration);
+  AsyncAdePTTransport::Initialize(hepEmTM, g4Integration, uniformFieldValues);
 }
 
 inline AsyncAdePTTransport::~AsyncAdePTTransport()
@@ -185,7 +186,8 @@ inline bool AsyncAdePTTransport::InitializePhysics(G4HepEmConfig *hepEmConfig)
 }
 
 inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                            AdePTGeant4Integration &g4Integration)
+                                            AdePTGeant4Integration &g4Integration,
+                                            const std::vector<float> &uniformFieldValues)
 {
   const auto numVolumes = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   if (numVolumes == 0) throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
@@ -235,8 +237,7 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *h
   assert(fBuffer != nullptr);
 
   fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
-                                               fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile,
-                                               g4Integration.GetUniformField());
+                                               fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile, uniformFieldValues);
   fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
                                                  *fGPUstate, fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
                                                  fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU,

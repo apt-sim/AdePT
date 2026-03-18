@@ -73,7 +73,8 @@ private:
   ///< Needed to stall the GPU, in case the nPartInFlight * fHitBufferSafetyFactor > available HitSlots
   double fHitBufferSafetyFactor{1.5};
 
-  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, AdePTGeant4Integration &g4Integration);
+  void Initialize(G4HepEmTrackingManagerSpecialized *hepEmTM, AdePTGeant4Integration &g4Integration,
+                  const std::vector<float> &uniformFieldValues);
   void InitBVH();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics(G4HepEmConfig *hepEmConfig);
@@ -81,7 +82,7 @@ private:
 
 public:
   AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmTrackingManagerSpecialized *hepEmTM,
-                      AdePTGeant4Integration &g4Integration);
+                      AdePTGeant4Integration &g4Integration, const std::vector<float> &uniformFieldValues);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
   ~AsyncAdePTTransport();
 

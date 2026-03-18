@@ -27,9 +27,10 @@ using AdePTTransport = AdePTTrackingManager::AdePTTransport;
 }
 
 std::shared_ptr<AdePTTransport> InstantiateAdePT(AdePTConfiguration &conf, G4HepEmTrackingManagerSpecialized *hepEmTM,
-                                                 AdePTGeant4Integration &g4Integration)
+                                                 AdePTGeant4Integration &g4Integration,
+                                                 const std::vector<float> &uniformFieldValues)
 {
-  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM, g4Integration)};
+  static std::shared_ptr<AdePTTransport> AdePT{new AdePTTransport(conf, hepEmTM, g4Integration, uniformFieldValues)};
   return AdePT;
 }
 
@@ -110,10 +111,12 @@ void AdePTTrackingManager::InitializeAdePT()
               << std::endl;
     if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
 #endif
+    const auto uniformFieldValues = fGeant4Integration.GetUniformField();
 
     // Create an instance of an AdePT transport engine. This can either be one engine per thread or a shared engine for
     // all threads.
-    fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration);
+    fAdeptTransport =
+        InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration, uniformFieldValues);
 
     // common init done, can notify other workers to proceed their initialization
     {
@@ -134,7 +137,8 @@ void AdePTTrackingManager::InitializeAdePT()
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
   // AdePTTransport was already initialized by the first G4 worker. The other workers get its pointer here
-  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration);
+  fAdeptTransport = InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration,
+                                     fGeant4Integration.GetUniformField());
 
   // Initialize the GPU region list
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
