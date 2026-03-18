@@ -21,7 +21,7 @@
 
 class AdePTTrackingManager : public G4VTrackingManager {
 public:
-  using AdePTTransport = AsyncAdePT::AsyncAdePTTransport<AdePTGeant4Integration>;
+  using AdePTTransport = AsyncAdePT::AsyncAdePTTransport;
 
   explicit AdePTTrackingManager(AdePTConfiguration *config, int verbosity = 0);
   ~AdePTTrackingManager();

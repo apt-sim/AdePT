@@ -12,6 +12,7 @@
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/CommonStruct.h>
+#include <AdePT/integration/AdePTGeant4Integration.hh>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
@@ -33,22 +34,21 @@ struct GPUstate;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
 
-template <typename IntegrationLayer>
 class AsyncAdePTTransport {
 public:
   uint64_t fAdePTSeed = 1234567;
 
 private:
-  unsigned short fNThread{0};                             ///< Number of G4 workers
-  unsigned int fTrackCapacity{0};                         ///< Number of track slots to allocate on device
-  unsigned int fLeakCapacity{0};                          ///< Number of leak slots to allocate on device
-  unsigned int fScoringCapacity{0};                       ///< Number of hit slots to allocate on device
-  int fDebugLevel{0};                                     ///< Debug level
-  int fCUDAStackLimit{0};                                 ///< CUDA device stack limit
-  int fCUDAHeapLimit{0};                                  ///< CUDA device heap limit
-  unsigned short fLastNParticlesOnCPU{0};                 ///< Number N of last N particles that are finished on CPU
-  unsigned short fMaxWDTIter{5};                          ///< Maximum number of Woodcock tracking iterations per step
-  std::vector<IntegrationLayer> fIntegrationLayerObjects; //< vector of integration layers per thread
+  unsigned short fNThread{0};             ///< Number of G4 workers
+  unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
+  unsigned int fLeakCapacity{0};          ///< Number of leak slots to allocate on device
+  unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
+  int fDebugLevel{0};                     ///< Debug level
+  int fCUDAStackLimit{0};                 ///< CUDA device stack limit
+  int fCUDAHeapLimit{0};                  ///< CUDA device heap limit
+  unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
+  unsigned short fMaxWDTIter{5};          ///< Maximum number of Woodcock tracking iterations per step
+  std::vector<AdePTGeant4Integration> fG4IntegrationObjects;     //< Geant4 integration state owned per worker thread
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
   std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
   std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
@@ -100,7 +100,7 @@ public:
   /// @param threadId thread Id
   /// @param hepEmTM specialized G4HepEmTrackingManager
   void SetHepEmTrackingManagerForThread(int threadId, G4HepEmTrackingManagerSpecialized *hepEmTM);
-  IntegrationLayer &GetIntegrationLayer(int threadId) { return fIntegrationLayerObjects[threadId]; }
+  AdePTGeant4Integration &GetGeant4Integration(int threadId) { return fG4IntegrationObjects[threadId]; }
 };
 
 } // namespace AsyncAdePT
