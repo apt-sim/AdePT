@@ -36,11 +36,11 @@ std::weak_ptr<AdePTTransport> &SharedAdePTTransportStorage()
   return transport;
 }
 
-std::shared_ptr<AdePTTransport> CreateSharedAdePTTransport(AdePTConfiguration &conf,
-                                                           std::unique_ptr<AsyncAdePT::HepEmHostData> hepEmHostData,
-                                                           adeptint::VolAuxData *auxData,
-                                                           const adeptint::WDTHostPacked &wdtPacked,
-                                                           const std::vector<float> &uniformFieldValues)
+std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(AdePTConfiguration &conf,
+                                                        std::unique_ptr<AsyncAdePT::HepEmHostData> hepEmHostData,
+                                                        adeptint::VolAuxData *auxData,
+                                                        const adeptint::WDTHostPacked &wdtPacked,
+                                                        const std::vector<float> &uniformFieldValues)
 {
   auto &transport = SharedAdePTTransportStorage();
   // weak_ptr::lock() promotes the stored weak reference to a shared_ptr if the
@@ -109,8 +109,8 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
 
   // Create the shared AdePT transport engine once the full host-side preparation is complete.
-  fAdeptTransport = CreateSharedAdePTTransport(*fAdePTConfiguration, std::move(hepEmHostData), auxData, wdtPacked,
-                                               uniformFieldValues);
+  fAdeptTransport =
+      GetSharedAdePTTransport(*fAdePTConfiguration, std::move(hepEmHostData), auxData, wdtPacked, uniformFieldValues);
 }
 
 void AdePTTrackingManager::InitializeAdePT()
