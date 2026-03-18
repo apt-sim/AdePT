@@ -205,8 +205,7 @@ inline void AsyncAdePTTransport::Initialize(G4HepEmTrackingManagerSpecialized *h
   if (!InitializePhysics(hepEmTM->GetConfig()))
     throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
 
-  // Check VecGeom geometry matches Geant4. Initialize auxiliary per-LV data. Initialize scoring map.
-  g4Integration.CheckGeometry(fg4hepem_state.get());
+  // Initialize auxiliary per-LV data. Geometry validation is triggered by the Geant4 side.
   adeptint::VolAuxData *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
   adeptint::WDTHostRaw wdtRaw;
   g4Integration.InitVolAuxData(auxData, fg4hepem_state.get(), hepEmTM, fTrackInAllRegions, fGPURegionNames, wdtRaw);

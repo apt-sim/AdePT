@@ -117,6 +117,8 @@ void AdePTTrackingManager::InitializeAdePT()
     // all threads.
     fAdeptTransport =
         InstantiateAdePT(*fAdePTConfiguration, fHepEmTrackingManager.get(), fGeant4Integration, uniformFieldValues);
+    // Check VecGeom geometry matches Geant4.
+    fGeant4Integration.CheckGeometry(fAdeptTransport->GetHepEmState());
 
     // common init done, can notify other workers to proceed their initialization
     {
