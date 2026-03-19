@@ -2,36 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/AdePTGeant4Integration.hh>
+#include <AdePT/integration/AdePTGeometryBridge.hh>
 
-#include <VecGeom/management/GeoManager.h>
-#ifdef VECGEOM_GDML_SUPPORT
-#include <VecGeom/gdml/Frontend.h>
-#endif
 #include <VecGeom/navigation/NavigationState.h>
 
 #include <G4ios.hh>
 #include <G4SystemOfUnits.hh>
-#include <G4GeometryManager.hh>
 #include <G4TransportationManager.hh>
-#include <G4MaterialCutsCouple.hh>
 #include <G4VSensitiveDetector.hh>
 #include <G4UniformMagField.hh>
 #include <G4FieldManager.hh>
-#include <G4RegionStore.hh>
 #include <G4TouchableHandle.hh>
-#include <G4PVReplica.hh>
-#include <G4ReplicaNavigation.hh>
 #include <G4StepStatus.hh>
 
-#include <G4HepEmData.hh>
-#include <G4HepEmMatCutData.hh>
 #include <G4HepEmNoProcess.hh>
 
 #include "G4Electron.hh"
 #include "G4Positron.hh"
 #include "G4Gamma.hh"
-
-#include <G4VG.hh>
 
 #include <new>
 #include <type_traits>
@@ -169,317 +157,7 @@ void Deleter::operator()(ScoringObjects *ptr)
 
 } // namespace AdePTGeant4Integration_detail
 
-std::vector<G4VPhysicalVolume const *> AdePTGeant4Integration::fglobal_vecgeom_pv_to_g4_map;
-std::vector<G4LogicalVolume const *> AdePTGeant4Integration::fglobal_vecgeom_lv_to_g4_map;
-
 AdePTGeant4Integration::~AdePTGeant4Integration() {}
-
-void AdePTGeant4Integration::MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> &vecgeomPvToG4Map,
-                                            std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map)
-{
-  const G4VPhysicalVolume *g4world =
-      G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
-  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-
-  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
-  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)> func_t;
-  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
-    const auto g4_lvol = g4_pvol->GetLogicalVolume();
-    const auto vg_lvol = vg_pvol->GetLogicalVolume();
-
-    // Initialize mapping of Vecgeom PlacedVolume IDs to G4 PhysicalVolume*
-    vecgeomPvToG4Map.resize(std::max<std::size_t>(vecgeomPvToG4Map.size(), vg_pvol->id() + 1), nullptr);
-    vecgeomPvToG4Map[vg_pvol->id()] = g4_pvol;
-    // Initialize mapping of Vecgeom LogicalVolume IDs to G4 LogicalVolume*
-    vecgeomLvToG4Map.resize(std::max<std::size_t>(vecgeomLvToG4Map.size(), vg_lvol->id() + 1), nullptr);
-    vecgeomLvToG4Map[vg_lvol->id()] = g4_lvol;
-
-    // Now do the daughters
-    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-      auto g4pvol_d = g4_lvol->GetDaughter(id);
-      auto pvol_d   = vg_lvol->GetDaughters()[id];
-
-      visitGeometry(g4pvol_d, pvol_d);
-    }
-  };
-  visitGeometry(g4world, vecgeomWorld);
-}
-
-#ifdef VECGEOM_GDML_SUPPORT
-void AdePTGeant4Integration::CreateVecGeomWorld(std::string filename)
-{
-  // Import the gdml file into VecGeom
-  vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
-  vgdml::Parser vgdmlParser;
-  auto middleWare = vgdmlParser.Load(filename, false, mm);
-  if (middleWare == nullptr) {
-    std::cerr << "Failed to read geometry from GDML file '" << filename << "'" << G4endl;
-    return;
-  }
-
-  // Generate the mapping of VecGeom volume IDs to Geant4 physical volumes
-  MapVecGeomToG4(fglobal_vecgeom_pv_to_g4_map, fglobal_vecgeom_lv_to_g4_map);
-
-  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-  if (vecgeomWorld == nullptr) {
-    std::cerr << "GeoManager vecgeomWorld volume is nullptr" << G4endl;
-    return;
-  }
-}
-#endif
-
-void AdePTGeant4Integration::CreateVecGeomWorld(G4VPhysicalVolume const *physvol)
-{
-  // EXPECT: a non-null input volume
-  if (physvol == nullptr) {
-    throw std::runtime_error("AdePTGeant4Integration::CreateVecGeomWorld : Input Geant4 Physical Volume is nullptr");
-  }
-
-  vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
-  g4vg::Options options;
-  options.reflection_factory = false;
-  auto conversion            = g4vg::convert(physvol, options);
-  vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
-
-  // Get the mapping of VecGeom volume IDs to Geant4 physical volumes from g4vg
-  fglobal_vecgeom_pv_to_g4_map = conversion.physical_volumes;
-  fglobal_vecgeom_lv_to_g4_map = conversion.logical_volumes;
-
-  // EXPECT: we finish with a non-null VecGeom host geometry
-  vecgeom::VPlacedVolume const *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-  if (vecgeomWorld == nullptr) {
-    throw std::runtime_error("AdePTGeant4Integration::CreateVecGeomWorld : Output VecGeom Physical Volume is nullptr");
-  }
-}
-
-namespace {
-struct VisitContext {
-  const int *g4tohepmcindex;
-  std::size_t nvolumes;
-  G4HepEmData const *hepEmData;
-};
-
-/// Recursive geometry visitor matching one by one Geant4 and VecGeom logical volumes
-void visitGeometry(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol, const VisitContext &context)
-{
-  const auto g4_lvol = g4_pvol->GetLogicalVolume();
-  const auto vg_lvol = vg_pvol->GetLogicalVolume();
-
-  // Geant4 Parameterised/Replica volumes are represented with direct placements in VecGeom
-  // To accurately compare the number of daughters, we need to sum multiplicity on Geant4 side
-  const size_t nd     = g4_lvol->GetNoDaughters();
-  size_t nd_converted = 0;
-  for (size_t daughter_id = 0; daughter_id < nd; ++daughter_id) {
-    const G4VPhysicalVolume *daughter_pvol = g4_lvol->GetDaughter(daughter_id);
-    nd_converted += daughter_pvol->GetMultiplicity();
-  }
-
-  const auto daughters = vg_lvol->GetDaughters();
-
-  if (nd_converted != daughters.size())
-    throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
-
-  // Check if transformations are matching
-  // As above, with Parameterized/Replica volumes, we need to compare the transforms between
-  // the VG direct placement and that for the Parameterised/Replicated volume given the same copy
-  // number as that of the VG physical volume.
-  // NOTE:
-  // 1. Nasty const_cast as currently known way to get transform is to directly transform the
-  //    Geant4 phys vol before extracting, which is non-const....
-  // 2. ...this does modify the physical volume, but this is _probably_ o.k. as actual navigation
-  //    will reset things o.k.
-  if (G4VPVParameterisation *param = g4_pvol->GetParameterisation()) {
-    param->ComputeTransformation(vg_pvol->GetCopyNo(), const_cast<G4VPhysicalVolume *>(g4_pvol));
-  } else if (auto *replica = dynamic_cast<G4PVReplica *>(const_cast<G4VPhysicalVolume *>(g4_pvol))) {
-    G4ReplicaNavigation nav;
-    nav.ComputeTransformation(vg_pvol->GetCopyNo(), replica);
-  }
-
-  const auto g4trans            = g4_pvol->GetTranslation();
-  const G4RotationMatrix *g4rot = g4_pvol->GetRotation();
-  G4RotationMatrix idrot;
-  const auto vgtransformation = vg_pvol->GetTransformation();
-  constexpr double epsil      = 1.e-8;
-
-  for (int i = 0; i < 3; ++i) {
-    if (std::abs(g4trans[i] - vgtransformation->Translation(i)) > epsil)
-      throw std::runtime_error(
-          std::string("Fatal: CheckGeometry: Mismatch between Geant4 translation for physical volume") +
-          vg_pvol->GetName());
-  }
-
-  // check if VecGeom and Geant4 (local) transformations are matching. Not optimized, this will re-check
-  // already checked placed volumes when re-visiting the same volumes in different branches
-  if (!g4rot) g4rot = &idrot;
-  for (int row = 0; row < 3; ++row) {
-    for (int col = 0; col < 3; ++col) {
-      int i = row + 3 * col;
-      if (std::abs((*g4rot)(row, col) - vgtransformation->Rotation(i)) > epsil)
-        throw std::runtime_error(
-            std::string("Fatal: CheckGeometry: Mismatch between Geant4 rotation for physical volume") +
-            vg_pvol->GetName());
-    }
-  }
-
-  // Check the couples
-  if (g4_lvol->GetMaterialCutsCouple() == nullptr)
-    throw std::runtime_error("Fatal: CheckGeometry: G4LogicalVolume " + std::string(g4_lvol->GetName()) +
-                             std::string(" has no material-cuts couple"));
-  const int g4mcindex    = g4_lvol->GetMaterialCutsCouple()->GetIndex();
-  const int hepemmcindex = context.g4tohepmcindex[g4mcindex];
-  // Check consistency with G4HepEm data
-  if (context.hepEmData->fTheMatCutData->fMatCutData[hepemmcindex].fG4MatCutIndex != g4mcindex)
-    throw std::runtime_error("Fatal: CheckGeometry: Mismatch between Geant4 mcindex and corresponding G4HepEm index");
-  if (vg_lvol->id() >= context.nvolumes)
-    throw std::runtime_error("Fatal: CheckGeometry: Volume id larger than number of volumes");
-
-  // Now do the daughters
-  for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-    const auto g4pvol_d = g4_lvol->GetDaughter(id);
-    const auto pvol_d   = vg_lvol->GetDaughters()[id];
-
-    visitGeometry(g4pvol_d, pvol_d, context);
-  }
-}
-} // namespace
-
-void AdePTGeant4Integration::CheckGeometry(G4HepEmData const *hepEmData)
-{
-  const G4VPhysicalVolume *g4world =
-      G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
-  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-  const int *g4tohepmcindex                  = hepEmData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
-  const auto nvolumes                        = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
-
-  std::cout << "Visiting geometry ...\n";
-  const VisitContext context{g4tohepmcindex, nvolumes, hepEmData};
-  visitGeometry(g4world, vecgeomWorld, context);
-  std::cout << "Visiting geometry done\n";
-}
-
-void AdePTGeant4Integration::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
-                                            G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
-                                            std::vector<std::string> const *gpuRegionNames,
-                                            adeptint::WDTHostRaw &wdtRaw)
-{
-
-  // Note: the hepEmTM must be passed as an argument despite the member fHepEmTrackingManager,
-  // as InitVolAuxData is a static function and cannot call member variables
-  wdtRaw.ekinMin = (float)hepEmTM->GetWDTKineticEnergyLimit();
-
-  const G4VPhysicalVolume *g4world =
-      G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
-  const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
-  const int *g4tohepmcindex                  = hepEmData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
-
-  // We need to go from region names to G4Region
-  std::vector<G4Region *> gpuRegions{};
-  if (!trackInAllRegions) {
-    for (std::string regionName : *(gpuRegionNames)) {
-      G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
-      gpuRegions.push_back(region);
-    }
-  }
-
-  // recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes
-  typedef std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *, vecgeom::NavigationState)>
-      func_t;
-  func_t visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol,
-                             vecgeom::NavigationState currentNavState) {
-    const auto g4_lvol = g4_pvol->GetLogicalVolume();
-    const auto vg_lvol = vg_pvol->GetLogicalVolume();
-
-    // Push this placed volume into the running NavState
-    currentNavState.Push(vg_pvol);
-    currentNavState.SetBoundaryState(false);
-
-    // Fill the MCC index in the array
-    int g4mcindex                      = g4_lvol->GetMaterialCutsCouple()->GetIndex();
-    int hepemmcindex                   = g4tohepmcindex[g4mcindex];
-    volAuxData[vg_lvol->id()].fMCIndex = hepemmcindex;
-
-    const int regionId = g4_lvol->GetRegion()->GetInstanceID();
-
-    // Check if the region is a Woodcock tracking region in G4HepEm
-    if (hepEmTM->IsWDTRegion(regionId)) {
-      // check if this logical volume is one of the declared WDT root LVs for this region
-      const int rootIMC = hepEmTM->GetWDTCoupleHepEmIndex(regionId, g4_lvol->GetInstanceID());
-      if (rootIMC >= 0) {
-        // this placed volume belongs to a WDT root LV -> record a WDTRoot
-        int idx = (int)wdtRaw.roots.size();
-        wdtRaw.roots.push_back(adeptint::WDTRoot{currentNavState, rootIMC});
-        wdtRaw.regionToRootIndices[regionId].push_back(idx);
-      }
-    }
-
-    // Check if the volume belongs to a GPU region
-    if (!trackInAllRegions) {
-      for (G4Region *gpuRegion : gpuRegions) {
-        if (g4_lvol->GetRegion() == gpuRegion) {
-          volAuxData[vg_lvol->id()].fGPUregionId = g4_lvol->GetRegion()->GetInstanceID();
-        }
-      }
-    } else {
-      volAuxData[vg_lvol->id()].fGPUregionId = g4_lvol->GetRegion()->GetInstanceID();
-    }
-
-    if (g4_lvol->GetSensitiveDetector() != nullptr) {
-      if (volAuxData[vg_lvol->id()].fSensIndex < 0) {
-        G4cout << "VecGeom: Making " << vg_lvol->GetName() << " sensitive" << G4endl;
-      }
-      volAuxData[vg_lvol->id()].fSensIndex = 1;
-    }
-    // Now do the daughters
-    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-      auto g4pvol_d = g4_lvol->GetDaughter(id);
-      auto pvol_d   = vg_lvol->GetDaughters()[id];
-
-      visitGeometry(g4pvol_d, pvol_d, currentNavState);
-    }
-
-    // Pop NavState before before returning
-    currentNavState.Pop();
-  };
-
-  // Initialize root NavState
-  vecgeom::NavigationState rootNavState;
-
-  visitGeometry(g4world, vecgeomWorld, rootNavState);
-
-  auto findRegionName = [](int rid) -> std::string {
-    for (auto *r : *G4RegionStore::GetInstance()) {
-      if (r && r->GetInstanceID() == rid) return r->GetName();
-    }
-    return std::string("<unknown>");
-  };
-
-  std::cout << "\n=== Woodcock tracking summary (host) ===\n";
-  std::cout << "KineticEnergyLimit = " << wdtRaw.ekinMin << " [G4 units]\n";
-  std::cout << "Total WDT roots found: " << wdtRaw.roots.size() << std::endl;
-  std::cout << "Regions with WDT: " << wdtRaw.regionToRootIndices.size() << std::endl;
-
-  if (wdtRaw.regionToRootIndices.empty()) {
-    std::cout << "  (none)\n";
-  } else {
-    for (const auto &kv : wdtRaw.regionToRootIndices) {
-      const int rid    = kv.first;
-      const auto &idxs = kv.second;
-      std::cout << "\nRegionID " << rid << "  (" << findRegionName(rid) << "): " << idxs.size()
-                << " root placed-volume(s)\n";
-
-      for (size_t i = 0; i < idxs.size(); ++i) {
-        const int rootIdx = idxs[i];
-        const auto &root  = wdtRaw.roots[rootIdx];
-
-        std::cout << "  [" << i << "] hepemIMC=" << root.hepemIMC << "\n";
-        std::cout << "      NavState (level=" << root.root.GetLevel() << "):\n";
-        // vecgeom::NavigationState::Print() prints the full stack
-        root.root.Print();
-      }
-    }
-  }
-  std::cout << "=== End Woodcock tracking summary ===\n\n";
-}
 
 G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *secHit) const
 {
@@ -696,7 +374,7 @@ void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationSt
     // While we are in levels shallower than the history depth, it may be that we already
     // have the correct volume in the history
     assert(aNavState.At(aLevel));
-    pnewvol = const_cast<G4VPhysicalVolume *>(fglobal_vecgeom_pv_to_g4_map[aNavState.At(aLevel)->id()]);
+    pnewvol = const_cast<G4VPhysicalVolume *>(AdePTGeometryBridge::GetG4PhysicalVolume(aNavState.At(aLevel)));
     assert(pnewvol != nullptr);
     if (!pnewvol) throw std::runtime_error("VecGeom volume not found in G4 mapping!");
 
