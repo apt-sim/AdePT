@@ -17,10 +17,7 @@
 #include <G4EventManager.hh>
 #include <G4Event.hh>
 
-#include <unordered_map>
 #include <span>
-
-struct G4HepEmData;
 
 namespace AdePTGeant4Integration_detail {
 struct ScoringObjects;
@@ -39,31 +36,6 @@ public:
 
   AdePTGeant4Integration(AdePTGeant4Integration &&)            = default;
   AdePTGeant4Integration &operator=(AdePTGeant4Integration &&) = default;
-
-#ifdef VECGEOM_GDML_SUPPORT
-  /// @brief Initializes VecGeom geometry
-  /// @details Currently VecGeom geometry is initialized by loading it from a GDML file,
-  /// however ideally this function will call the G4 to VecGeom geometry converter
-  static void CreateVecGeomWorld(/*Temporary parameter*/ std::string filename);
-#endif
-
-  /// @brief Construct VecGeom geometry from Geant4 physical volume
-  /// @details This calls the G4VG converter
-  /// @throws std::runtime_error if input or output volumes are nullptr
-  static void CreateVecGeomWorld(G4VPhysicalVolume const *physvol);
-
-  /// @brief This function compares G4 and VecGeom geometries and reports any differences
-  static void CheckGeometry(G4HepEmData const *hepEmData);
-
-  /// @brief Fills the auxiliary data needed for AdePT
-  static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
-                             G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
-                             std::vector<std::string> const *gpuRegionNames, adeptint::WDTHostRaw &wdtRaw);
-
-  /// @brief Returns a mapping of VecGeom placed volume IDs to Geant4 physical volumes and a mapping of VecGeom logical
-  /// volume IDs to Geant4 logical volumes
-  static void MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> &vecgeomPvToG4Map,
-                             std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map);
 
   /// @brief Reconstructs GPU hits on host and calls the user-defined sensitive detector code
   void ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction = false,
@@ -127,8 +99,6 @@ private:
   // helper class to provide the CPU-only data for the returning GPU tracks
   std::unique_ptr<HostTrackDataMapper> fHostTrackDataMapper;
 
-  static std::vector<G4VPhysicalVolume const *> fglobal_vecgeom_pv_to_g4_map;
-  static std::vector<G4LogicalVolume const *> fglobal_vecgeom_lv_to_g4_map;
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
 };

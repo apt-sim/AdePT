@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/AdePTTrackingManager.hh>
+#include <AdePT/integration/AdePTGeometryBridge.hh>
 
 #include "G4Threading.hh"
 #include "G4Track.hh"
@@ -103,14 +104,14 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   auto adeptG4HepEmState        = std::make_unique<AsyncAdePT::AdePTG4HepEmState>(fHepEmTrackingManager->GetConfig());
 
   // Check VecGeom geometry matches Geant4 before deriving any geometry metadata for transport.
-  fGeant4Integration.CheckGeometry(adeptG4HepEmState->GetData());
+  AdePTGeometryBridge::CheckGeometry(adeptG4HepEmState->GetData());
 
   // Initialize auxiliary per-LV data and collect the raw WDT metadata on the Geant4 side.
   auto *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
   adeptint::WDTHostRaw wdtRaw;
-  fGeant4Integration.InitVolAuxData(auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
-                                    fAdePTConfiguration->GetTrackInAllRegions(),
-                                    fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
+  AdePTGeometryBridge::InitVolAuxData(auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
+                                      fAdePTConfiguration->GetTrackInAllRegions(),
+                                      fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
 
   // Move the fully prepared host-side package into the shared transport. The
@@ -165,11 +166,11 @@ void AdePTTrackingManager::InitializeAdePT()
       auto *tman  = G4TransportationManager::GetTransportationManager();
       auto *world = tman->GetNavigatorForTracking()->GetWorldVolume();
       std::cout << "Loading geometry via G4VG\n";
-      AdePTGeant4Integration::CreateVecGeomWorld(world);
+      AdePTGeometryBridge::CreateVecGeomWorld(world);
     } else {
 #ifdef VECGEOM_GDML_SUPPORT
       std::cout << "Loading geometry via VGDML\n";
-      AdePTGeant4Integration::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
+      AdePTGeometryBridge::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
 #endif
     }
 
