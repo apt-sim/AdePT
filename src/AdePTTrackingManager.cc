@@ -330,6 +330,44 @@ void AdePTTrackingManager::FlushEvent()
                          G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(), fGeant4Integration);
 }
 
+void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
+{
+  // Transport owns the hit-batch lifetime and calls this lambda once
+  // for each currently available returned batch. This lambda provides the
+  // Geant4-side step reconstruction for the current worker and event.
+  fAdeptTransport->HandleReturnedGPUHitBatchesWith(threadId, eventId, [&](std::span<const GPUHit> gpuSteps) {
+    // The batch contains a flat sequence of parent-step records followed by
+    // their secondaries:
+    // [parent1][secondary1_1][secondary1_2][parent2][parent3][secondary3_1]
+    //
+    // `AdePTGeant4Integration::ProcessGPUStep` expects exactly one parent step
+    // together with all secondaries created in that step, so this loop re-groups
+    // the flat batch into those per-parent subspans.
+    //
+    // For each parent record, `fNumSecondaries` tells us how many subsequent
+    // entries belong to the same step. Therefore the iterator advances by
+    // 1 + fNumSecondaries each time.
+    for (auto it = gpuSteps.begin(); it != gpuSteps.end();) {
+      // important sanity check: thread should only process its own hits and
+      // only from the current event
+      if (it->threadId != threadId)
+        std::cerr << "\033[1;31mError, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
+                  << "\033[0m" << std::endl;
+      if (it->fEventId != eventId) {
+        std::cerr << "\033[1;31mError, eventId doesn't match it->fEventId " << it->fEventId << " eventId " << eventId
+                  << " num hits to be processed " << gpuSteps.size() << " trackID " << it->fTrackID << " parentID "
+                  << it->fParentID << " StepNumber " << it->fStepCounter << " ptype "
+                  << static_cast<short>(it->fParticleType) << " stepLimit / creator process " << it->fStepLimProcessId
+                  << "\033[0m" << std::endl;
+      }
+      auto blockSize = 1 + it->fNumSecondaries;
+      fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize), fAdeptTransport->GetReturnAllSteps(),
+                                        fAdeptTransport->GetReturnFirstAndLastStep());
+      it += blockSize;
+    }
+  });
+}
+
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 {
 
@@ -337,13 +375,13 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   const bool trackInAllRegions       = fAdeptTransport->GetTrackInAllRegions();
-  const bool callUserActions         = fAdeptTransport->GetCallUserActions();
+  const bool callUserActions         = fAdeptTransport->GetReturnFirstAndLastStep();
 
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 
   // Check for GPU steps, to alleviate pressure on the GPU step buffer
   G4int threadId = G4Threading::G4GetThreadId();
-  fAdeptTransport->ProcessGPUSteps(threadId, eventID, fGeant4Integration);
+  ProcessReturnedGPUHits(threadId, eventID);
   auto &trackMapper = fGeant4Integration.GetHostTrackDataMapper();
 
   if (fCurrentEventID != eventID) trackMapper.beginEvent(eventID);
