@@ -70,7 +70,7 @@ std::ostream &operator<<(std::ostream &stream, TrackDataWithIDs const &track)
 // These definitions live in a header-included .icc file, so they must remain
 // inline to avoid multiple definitions across translation units.
 inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
-                                                std::unique_ptr<HepEmHostData> hepEmHostData,
+                                                std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
                                                 adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                                                 const std::vector<float> &uniformFieldValues)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
@@ -79,8 +79,8 @@ inline AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuratio
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fMaxWDTIter{configuration.GetMaxWDTIter()}, fHepEmHostData(std::move(hepEmHostData)), fEventStates(fNThread),
-      fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
+      fMaxWDTIter{configuration.GetMaxWDTIter()}, fAdePTG4HepEmState(std::move(adeptG4HepEmState)),
+      fEventStates(fNThread), fGPUNetEnergy(fNThread, 0.0), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
       fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
       fReturnAllSteps{configuration.GetCallUserSteppingAction()},
       fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
@@ -178,12 +178,13 @@ inline bool AsyncAdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedV
 
 inline bool AsyncAdePTTransport::InitializePhysics()
 {
-  if (!fHepEmHostData) {
-    throw std::runtime_error("AsyncAdePTTransport::InitializePhysics: Missing HepEm host data.");
+  if (!fAdePTG4HepEmState) {
+    throw std::runtime_error("AsyncAdePTTransport::InitializePhysics: Missing AdePT-owned G4HepEm state.");
   }
 
-  // Upload the prepared HepEm data and parameters to the device.
-  async_adept_impl::UploadG4HepEmToGPU(fHepEmHostData->GetData(), fHepEmHostData->GetParameters());
+  // Upload the transport-owned `G4HepEmData` and copied
+  // `G4HepEmParameters` to the device.
+  async_adept_impl::UploadG4HepEmToGPU(fAdePTG4HepEmState->GetData(), fAdePTG4HepEmState->GetParameters());
   return true;
 }
 

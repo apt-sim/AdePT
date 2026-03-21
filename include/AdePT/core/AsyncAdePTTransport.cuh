@@ -1823,10 +1823,10 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
   // Free resources.
   gpuState.reset();
 
-  // Note: the GPU mirror of G4HepEmParameters is not released here.
-  // That cleanup happens in HepEmHostData::~HepEmHostData(), which owns the
-  // upload lifecycle for the borrowed parameter block and performs the CUDA call
-  // via FreeG4HepEmParametersOnGPU() when the transport-owned HepEmHostData dies.
+  // Note: the GPU mirror of `G4HepEmParameters` is not released here.
+  // That cleanup happens when the transport-owned `AdePTG4HepEmState` dies,
+  // because it owns both the copied `G4HepEmParameters` object and the upload
+  // lifecycle attached to that copy.
 
   // Free magnetic field
 #ifdef ADEPT_USE_EXT_BFIELD

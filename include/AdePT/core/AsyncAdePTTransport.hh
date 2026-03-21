@@ -10,7 +10,7 @@
 #define ASYNC_ADEPT_TRANSPORT_HH
 
 #include <AdePT/core/AdePTConfiguration.hh>
-#include <AdePT/core/AdePTHepEmHostData.hh>
+#include <AdePT/core/AdePTG4HepEmState.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/integration/AdePTGeant4Integration.hh>
@@ -48,10 +48,11 @@ private:
   unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
   unsigned short fMaxWDTIter{5};          ///< Maximum number of Woodcock tracking iterations per step
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
-  std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
-  std::unique_ptr<HepEmHostData> fHepEmHostData;     ///< Host-side HepEm data and parameter view
-  adeptint::WDTDeviceBuffers fWDTDev{};              ///< device buffers for Woodcock tracking data
-  std::thread fGPUWorker;                            ///< Thread to manage GPU
+  std::unique_ptr<TrackBuffer> fBuffer{nullptr}; ///< Buffers for transferring tracks between host and device
+  std::unique_ptr<AdePTG4HepEmState>
+      fAdePTG4HepEmState;               ///< Transport-owned wrapper around `G4HepEmData` and copied `G4HepEmParameters`
+  adeptint::WDTDeviceBuffers fWDTDev{}; ///< device buffers for Woodcock tracking data
+  std::thread fGPUWorker;               ///< Thread to manage GPU
   std::condition_variable fCV_G4Workers;             ///< Communicate with G4 workers
   std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
   std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
@@ -80,7 +81,7 @@ private:
   void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, std::unique_ptr<HepEmHostData> hepEmHostData,
+  AsyncAdePTTransport(AdePTConfiguration &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
                       adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                       const std::vector<float> &uniformFieldValues);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
