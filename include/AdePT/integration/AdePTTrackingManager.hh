@@ -62,6 +62,17 @@ private:
                                                        const G4NavigationHistory *aG4NavigationHistory = nullptr);
 
   /// @brief Perform the one-time shared AdePT transport initialization on the first Geant4 worker.
+  /// @details
+  /// The first worker prepares all host-side inputs needed by transport:
+  /// - the uniform magnetic-field values
+  /// - the AdePT-owned `AdePTG4HepEmState`
+  /// - geometry consistency checks
+  /// - `VolAuxData`
+  /// - packed WDT metadata
+  ///
+  /// Once that host-side preparation is complete, the worker creates the
+  /// shared `AsyncAdePTTransport`. The transport constructor then performs the
+  /// corresponding one-time device initialization and upload.
   void InitializeSharedAdePTTransport();
 
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;

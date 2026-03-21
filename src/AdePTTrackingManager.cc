@@ -48,6 +48,9 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
     return existing;
   }
 
+  // Create the shared AdePT transport engine on the first worker thread. At
+  // this point all required host-side inputs have already been prepared, so the
+  // transport constructor can perform the one-time device initialization.
   auto created =
       std::make_shared<AdePTTransport>(conf, std::move(adeptG4HepEmState), auxData, wdtPacked, uniformFieldValues);
   transport = created;
@@ -93,6 +96,9 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile() << std::endl;
   if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
 #endif
+  // Prepare the complete host-side input package before constructing the
+  // shared transport. The transport constructor then performs the one-time
+  // device-side initialization from these prepared inputs.
   const auto uniformFieldValues = fGeant4Integration.GetUniformField();
   auto adeptG4HepEmState        = std::make_unique<AsyncAdePT::AdePTG4HepEmState>(fHepEmTrackingManager->GetConfig());
 
@@ -107,8 +113,9 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
                                     fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
 
-  // Build the AdePT-owned G4HepEm state on the Geant4 side, then move that
-  // ownership into the shared transport once all host-side preparation is complete.
+  // Move the fully prepared host-side package into the shared transport. The
+  // first worker creates the transport here; later workers only retrieve the
+  // already-created shared instance.
   fAdeptTransport = GetSharedAdePTTransport(*fAdePTConfiguration, std::move(adeptG4HepEmState), auxData, wdtPacked,
                                             uniformFieldValues);
 }
@@ -130,7 +137,9 @@ void AdePTTrackingManager::InitializeAdePT()
   static std::condition_variable initCV;
   static bool commonInitDone = false;
 
-  // Global initialization: only done once by the first worker thread
+  // Global initialization: only done once by the first worker thread. This
+  // first worker closes the geometry, prepares the shared host-side inputs,
+  // and creates the shared transport, which performs the one-time device init.
   std::call_once(onceFlag, [&]() {
     // get number of threads from config, if available
     if (fNumThreads <= 0) {
@@ -184,8 +193,8 @@ void AdePTTrackingManager::InitializeAdePT()
   // Now the fNumThreads is known and all workers can initialize
   fAdePTConfiguration->SetNumThreads(fNumThreads);
 
-  // The shared AdePT transport was already created and initialized by the first worker.
-  // The remaining workers only retrieve the shared pointer here.
+  // The shared AdePT transport was already created and device-initialized by
+  // the first worker. The remaining workers only retrieve the shared pointer.
   fAdeptTransport = GetSharedAdePTTransport();
 
   // Initialize the GPU region list
