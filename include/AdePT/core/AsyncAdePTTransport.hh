@@ -21,6 +21,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <memory>
+#include <span>
 #include <thread>
 #include <unordered_map>
 #include <optional>
@@ -92,12 +93,22 @@ public:
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
                 unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state);
   bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
-  bool GetCallUserActions() const { return fReturnFirstAndLastStep; }
+  bool GetReturnAllSteps() const { return fReturnAllSteps; }
+  bool GetReturnFirstAndLastStep() const { return fReturnFirstAndLastStep; }
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
+  /// @brief Handle the currently available returned GPU-hit batches for one thread and event.
+  /// @details
+  /// Transport retains ownership of the hit-buffer lifetime. For each available
+  /// batch, `callback` is invoked with a `std::span<const GPUHit>` view and the
+  /// batch is released again when the callback returns.
+  ///
+  /// In this code path, the callback is the `AdePTTrackingManager` logic that
+  /// reconstructs Geant4 steps from the returned GPU hits.
+  template <typename Callback>
+  void HandleReturnedGPUHitBatchesWith(int threadId, int eventId, Callback &&callback);
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
-  void ProcessGPUSteps(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
 };
 
 } // namespace AsyncAdePT

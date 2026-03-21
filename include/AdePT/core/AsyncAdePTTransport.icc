@@ -246,37 +246,28 @@ inline void AsyncAdePTTransport::InitBVH()
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 
-inline void AsyncAdePTTransport::ProcessGPUSteps(int threadId, int eventId, AdePTGeant4Integration &g4Integration)
+template <typename Callback>
+inline void AsyncAdePTTransport::HandleReturnedGPUHitBatchesWith(int threadId, int eventId, Callback &&callback)
 {
   std::pair<GPUHit *, GPUHit *> range;
   bool dataOnBuffer;
 
   while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
          nullptr) {
+    // Transport still owns the hit-batch lifetime here. The callback only gets
+    // a temporary `std::span` view while the batch is valid.
+    struct CloseGPUHitBatch {
+      int threadId;
+      GPUstate &gpuState;
+      GPUHit *begin;
+      bool dataOnBuffer;
+      ~CloseGPUHitBatch() { async_adept_impl::CloseGPUBuffer(threadId, gpuState, begin, dataOnBuffer); }
+    } closeBatch{threadId, *fGPUstate, range.first, dataOnBuffer};
 
-    // Loop over returned GPU steps. The steps are ordered like this:
-    // [parent1][secondary1_1][secondary1_2][parent2][parent3][secondary3_1]
-    // In processing the steps of the parent tracks, the secondaries are also consumed and
-    // therefore the counter must advance by 1 + it->fNumSecondaries
-    for (auto it = range.first; it != range.second;) {
-      // important sanity check: thread should only process its own hits and only from the current event
-      if (it->threadId != threadId)
-        std::cerr << "\033[1;31mError, threadId doesn't match it->threadId " << it->threadId << " threadId " << threadId
-                  << "\033[0m" << std::endl;
-      if (it->fEventId != eventId) {
-        std::cerr << "\033[1;31mError, eventId doesn't match it->fEventId " << it->fEventId << " eventId " << eventId
-                  << " num hits to be processed " << (range.second - range.first) << " dataOnBuffer " << dataOnBuffer
-                  << " state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
-                  << " trackID " << it->fTrackID << " parentID " << it->fParentID << " StepNumber " << it->fStepCounter
-                  << " ptype " << static_cast<short>(it->fParticleType) << " stepLimit / creator process "
-                  << it->fStepLimProcessId << "\033[0m" << std::endl;
-      }
-      auto blockSize = 1 + it->fNumSecondaries;
-      std::span<const GPUHit> gpuStepWithSecondaries(it, blockSize);
-      g4Integration.ProcessGPUStep(gpuStepWithSecondaries, fReturnAllSteps, fReturnFirstAndLastStep);
-      it += 1 + it->fNumSecondaries;
-    }
-    async_adept_impl::CloseGPUBuffer(threadId, *fGPUstate, range.first, dataOnBuffer);
+    // The callback runs the Geant4-side hit reconstruction for this batch.
+    // When it returns, `closeBatch` goes out of scope and releases the batch
+    // back to transport automatically.
+    callback(std::span<const GPUHit>(range.first, range.second));
   }
 }
 
@@ -296,7 +287,29 @@ inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId, AdePTGeant
       fCV_G4Workers.wait(lock);
     }
 
-    ProcessGPUSteps(threadId, eventId, g4Integration);
+    HandleReturnedGPUHitBatchesWith(threadId, eventId, [&](std::span<const GPUHit> gpuSteps) {
+      // The returned GPU steps are ordered like this:
+      // [parent1][secondary1_1][secondary1_2][parent2][parent3][secondary3_1]
+      // In processing the steps of the parent tracks, the secondaries are also
+      // consumed and therefore the counter must advance by 1 + fNumSecondaries.
+      for (auto it = gpuSteps.begin(); it != gpuSteps.end();) {
+        if (it->threadId != threadId)
+          std::cerr << "\033[1;31mError, threadId doesn't match it->threadId " << it->threadId << " threadId "
+                    << threadId << "\033[0m" << std::endl;
+        if (it->fEventId != eventId) {
+          std::cerr << "\033[1;31mError, eventId doesn't match it->fEventId " << it->fEventId << " eventId " << eventId
+                    << " num hits to be processed " << gpuSteps.size()
+                    << " state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
+                    << " trackID " << it->fTrackID << " parentID " << it->fParentID << " StepNumber "
+                    << it->fStepCounter << " ptype " << static_cast<short>(it->fParticleType)
+                    << " stepLimit / creator process " << it->fStepLimProcessId << "\033[0m" << std::endl;
+        }
+        auto blockSize = 1 + it->fNumSecondaries;
+        g4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize), fReturnAllSteps,
+                                     fReturnFirstAndLastStep);
+        it += blockSize;
+      }
+    });
   }
 
   // Now device should be flushed, so retrieve the tracks:

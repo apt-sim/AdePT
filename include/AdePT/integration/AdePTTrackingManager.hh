@@ -75,6 +75,14 @@ private:
   /// corresponding one-time device initialization and upload.
   void InitializeSharedAdePTTransport();
 
+  /// @brief Drain returned GPU-hit batches from transport and reconstruct the
+  /// corresponding Geant4 steps on the CPU.
+  /// @details
+  /// Transport still owns the batch lifetime and iterates over the available
+  /// batches. This helper provides the Geant4-side reconstruction logic for
+  /// each batch.
+  void ProcessReturnedGPUHits(int threadId, int eventId);
+
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   AdePTGeant4Integration fGeant4Integration;
   static inline int fNumThreads{0};
