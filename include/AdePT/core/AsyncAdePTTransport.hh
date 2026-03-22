@@ -107,6 +107,16 @@ public:
   /// reconstructs Geant4 steps from the returned GPU hits.
   template <typename Callback>
   void HandleReturnedGPUHitBatchesWith(int threadId, int eventId, Callback &&callback);
+  /// @brief Request that the device flush all pending work for the given worker.
+  void RequestFlush(int threadId);
+  /// @brief Wait until the transport threads make further flush progress.
+  void WaitForFlushProgress();
+  /// @brief Check whether the device side has completed flushing for the given worker.
+  bool IsDeviceFlushed(int threadId) const;
+  /// @brief Take the leaked-track batch returned by transport for the given worker.
+  std::vector<TrackDataWithIDs> TakeReturnedTracks(int threadId);
+  /// @brief Mark the returned-track batch for the given worker as consumed.
+  void MarkLeakedTracksRetrieved(int threadId);
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
 };

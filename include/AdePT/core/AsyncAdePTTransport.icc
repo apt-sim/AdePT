@@ -271,21 +271,46 @@ inline void AsyncAdePTTransport::HandleReturnedGPUHitBatchesWith(int threadId, i
   }
 }
 
+inline void AsyncAdePTTransport::RequestFlush(int threadId)
+{
+  assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
+  fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
+}
+
+inline void AsyncAdePTTransport::WaitForFlushProgress()
+{
+  std::unique_lock lock{fMutex_G4Workers};
+  fCV_G4Workers.wait(lock);
+}
+
+inline bool AsyncAdePTTransport::IsDeviceFlushed(int threadId) const
+{
+  return fEventStates[threadId].load(std::memory_order_acquire) >= EventState::DeviceFlushed;
+}
+
+inline std::vector<TrackDataWithIDs> AsyncAdePTTransport::TakeReturnedTracks(int threadId)
+{
+  std::vector<TrackDataWithIDs> tracks;
+  auto handle = fBuffer->getTracksFromDevice(threadId);
+  tracks.swap(handle.tracks);
+  return tracks;
+}
+
+inline void AsyncAdePTTransport::MarkLeakedTracksRetrieved(int threadId)
+{
+  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
+}
+
 inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId, AdePTGeant4Integration &g4Integration)
 {
   if (fDebugLevel >= 3) {
     G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
   }
 
-  assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
-  fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
+  RequestFlush(threadId);
 
-  while (fEventStates[threadId].load(std::memory_order_acquire) < EventState::DeviceFlushed) {
-
-    {
-      std::unique_lock lock{fMutex_G4Workers};
-      fCV_G4Workers.wait(lock);
-    }
+  while (!IsDeviceFlushed(threadId)) {
+    WaitForFlushProgress();
 
     HandleReturnedGPUHitBatchesWith(threadId, eventId, [&](std::span<const GPUHit> gpuSteps) {
       // The returned GPU steps are ordered like this:
@@ -313,12 +338,8 @@ inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId, AdePTGeant
   }
 
   // Now device should be flushed, so retrieve the tracks:
-  std::vector<TrackDataWithIDs> tracks;
-  {
-    auto handle = fBuffer->getTracksFromDevice(threadId);
-    tracks.swap(handle.tracks);
-    fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
-  }
+  std::vector<TrackDataWithIDs> tracks = TakeReturnedTracks(threadId);
+  MarkLeakedTracksRetrieved(threadId);
 
   // TODO: Sort tracks on device?
 #ifndef NDEBUG
