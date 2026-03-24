@@ -9,21 +9,11 @@
 #include <VecGeom/surfaces/BrepHelper.h>
 #endif
 
-#include <G4Timer.hh>
-#include <G4RunManager.hh>
-#include <G4Threading.hh>
-#include <G4Proton.hh>
-#include <G4Region.hh>
-#include <G4SDManager.hh>
-#include <G4VFastSimSensitiveDetector.hh>
-#include <G4MaterialCutsCouple.hh>
-#include <G4ProductionCutsTable.hh>
-#include <G4TransportationManager.hh>
-
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
-#include <G4LogicalVolumeStore.hh>
 
+#include <chrono>
+#include <iostream>
 /// Forward declarations
 namespace async_adept_impl {
 void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
@@ -88,7 +78,7 @@ inline void AsyncAdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t pa
                                           int threadId, unsigned int eventId, vecgeom::NavigationState &&state)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
-    G4cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
+    std::cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
     return;
   }
 
@@ -128,12 +118,11 @@ inline bool AsyncAdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedV
   using SurfData   = vgbrep::SurfData<double>;
   using BrepHelper = vgbrep::BrepHelper<double>;
 #endif
-  G4Timer timer;
-  timer.Start();
+  auto start = std::chrono::steady_clock::now();
   if (!BrepHelper::Instance().Convert()) return 1;
   BrepHelper::Instance().PrintSurfData();
-  timer.Stop();
-  std::cout << "== Conversion to surface model done in " << timer.GetRealElapsed() << " [s]\n";
+  auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start);
+  std::cout << "== Conversion to surface model done in " << elapsed.count() << " [s]\n";
   // Upload only navigation table to the GPU
   cudaManager.SynchronizeNavigationTable();
   async_adept_impl::CopySurfaceModelToGPU();
@@ -166,7 +155,7 @@ inline void AsyncAdePTTransport::Initialize(adeptint::VolAuxData *auxData, const
   if (vecgeom::GeoManager::Instance().GetRegisteredVolumesCount() == 0)
     throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
 
-  G4cout << "=== AsyncAdePTTransport: initializing geometry and physics\n";
+  std::cout << "=== AsyncAdePTTransport: initializing geometry and physics\n";
   // Initialize geometry on device
   if (!vecgeom::GeoManager::Instance().IsClosed())
     throw std::runtime_error("AsyncAdePTTransport::Initialize: VecGeom geometry not closed.");
@@ -198,8 +187,8 @@ inline void AsyncAdePTTransport::Initialize(adeptint::VolAuxData *auxData, const
   // NOTE: Increasing the size of the leak buffer size can probably improve performance
   // Allocate buffers to transport particles to/from device. Scale the size of the staging area
   // with the number of threads.
-  G4cout << "\nAllocating " << 4 * 8192 * fNThread << " To-device buffer slots" << G4endl;
-  G4cout << "\nAllocating " << 2048 * fNThread << " From-device buffer slots" << G4endl;
+  std::cout << "\nAllocating " << 4 * 8192 * fNThread << " To-device buffer slots\n";
+  std::cout << "\nAllocating " << 2048 * fNThread << " From-device buffer slots\n";
   fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread, 2048 * fNThread, fNThread);
 
   assert(fBuffer != nullptr);
@@ -267,7 +256,6 @@ inline std::vector<TrackDataWithIDs> AsyncAdePTTransport::TakeReturnedTracks(int
   tracks.swap(handle.tracks);
   return tracks;
 }
-
 inline void AsyncAdePTTransport::MarkLeakedTracksRetrieved(int threadId)
 {
   fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
