@@ -13,7 +13,7 @@
 #include <AdePT/core/AdePTG4HepEmState.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/CommonStruct.h>
-#include <AdePT/integration/AdePTGeant4Integration.hh>
+#include <AdePT/core/ScoringCommons.hh>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
@@ -95,6 +95,7 @@ public:
   bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
   bool GetReturnAllSteps() const { return fReturnAllSteps; }
   bool GetReturnFirstAndLastStep() const { return fReturnFirstAndLastStep; }
+  int GetDebugLevel() const { return fDebugLevel; }
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   /// @brief Handle the currently available returned GPU-hit batches for one thread and event.
@@ -115,10 +116,12 @@ public:
   bool IsDeviceFlushed(int threadId) const;
   /// @brief Take the leaked-track batch returned by transport for the given worker.
   std::vector<TrackDataWithIDs> TakeReturnedTracks(int threadId);
+  /// @brief Sort and account for a returned-track batch after transport hands it to the host.
+  /// @details This keeps the bookkeeping in the AdePTTransport even though
+  /// the flush is now triggered from the AdePTTrackingManager.
+  void PrepareReturnedTracks(int threadId, int eventId, std::vector<TrackDataWithIDs> &tracks);
   /// @brief Mark the returned-track batch for the given worker as consumed.
   void MarkLeakedTracksRetrieved(int threadId);
-  /// Block until transport of the given event is done.
-  void Flush(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
 };
 
 } // namespace AsyncAdePT

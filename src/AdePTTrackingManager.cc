@@ -326,8 +326,25 @@ void AdePTTrackingManager::FlushEvent()
   if (fVerbosity > 1)
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer." << G4endl;
 
-  fAdeptTransport->Flush(G4Threading::G4GetThreadId(),
-                         G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID(), fGeant4Integration);
+  auto threadId = G4Threading::G4GetThreadId();
+  auto eventId  = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
+
+  // AdePTTrackingManager requests the flush while AdePTTransport still
+  // owns the underlying state machine and buffer lifetime.
+  fAdeptTransport->RequestFlush(threadId);
+
+  while (!fAdeptTransport->IsDeviceFlushed(threadId)) {
+    fAdeptTransport->WaitForFlushProgress();
+    ProcessReturnedGPUHits(threadId, eventId);
+  }
+
+  // Once the device side is flushed, take the plain returned-track batch from
+  // transport and hand it back to Geant4 on the host side.
+  std::vector<AsyncAdePT::TrackDataWithIDs> tracks = fAdeptTransport->TakeReturnedTracks(threadId);
+  fAdeptTransport->MarkLeakedTracksRetrieved(threadId);
+  fAdeptTransport->PrepareReturnedTracks(threadId, eventId, tracks);
+  fGeant4Integration.ReturnTracks(tracks.begin(), tracks.end(), fAdeptTransport->GetDebugLevel(),
+                                  fAdeptTransport->GetReturnFirstAndLastStep());
 }
 
 void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
