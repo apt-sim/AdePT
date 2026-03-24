@@ -296,51 +296,8 @@ inline std::vector<TrackDataWithIDs> AsyncAdePTTransport::TakeReturnedTracks(int
   return tracks;
 }
 
-inline void AsyncAdePTTransport::MarkLeakedTracksRetrieved(int threadId)
+inline void AsyncAdePTTransport::PrepareReturnedTracks(int threadId, int eventId, std::vector<TrackDataWithIDs> &tracks)
 {
-  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
-}
-
-inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId, AdePTGeant4Integration &g4Integration)
-{
-  if (fDebugLevel >= 3) {
-    G4cout << "\nFlushing AdePT for event " << eventId << G4endl;
-  }
-
-  RequestFlush(threadId);
-
-  while (!IsDeviceFlushed(threadId)) {
-    WaitForFlushProgress();
-
-    HandleReturnedGPUHitBatchesWith(threadId, eventId, [&](std::span<const GPUHit> gpuSteps) {
-      // The returned GPU steps are ordered like this:
-      // [parent1][secondary1_1][secondary1_2][parent2][parent3][secondary3_1]
-      // In processing the steps of the parent tracks, the secondaries are also
-      // consumed and therefore the counter must advance by 1 + fNumSecondaries.
-      for (auto it = gpuSteps.begin(); it != gpuSteps.end();) {
-        if (it->threadId != threadId)
-          std::cerr << "\033[1;31mError, threadId doesn't match it->threadId " << it->threadId << " threadId "
-                    << threadId << "\033[0m" << std::endl;
-        if (it->fEventId != eventId) {
-          std::cerr << "\033[1;31mError, eventId doesn't match it->fEventId " << it->fEventId << " eventId " << eventId
-                    << " num hits to be processed " << gpuSteps.size()
-                    << " state : " << static_cast<unsigned int>(fEventStates[threadId].load(std::memory_order_acquire))
-                    << " trackID " << it->fTrackID << " parentID " << it->fParentID << " StepNumber "
-                    << it->fStepCounter << " ptype " << static_cast<short>(it->fParticleType)
-                    << " stepLimit / creator process " << it->fStepLimProcessId << "\033[0m" << std::endl;
-        }
-        auto blockSize = 1 + it->fNumSecondaries;
-        g4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize), fReturnAllSteps,
-                                     fReturnFirstAndLastStep);
-        it += blockSize;
-      }
-    });
-  }
-
-  // Now device should be flushed, so retrieve the tracks:
-  std::vector<TrackDataWithIDs> tracks = TakeReturnedTracks(threadId);
-  MarkLeakedTracksRetrieved(threadId);
-
   // TODO: Sort tracks on device?
 #ifndef NDEBUG
   for (auto const &track : tracks) {
@@ -380,8 +337,11 @@ inline void AsyncAdePTTransport::Flush(G4int threadId, G4int eventId, AdePTGeant
         << ")";
     G4cout << str.str() << G4endl;
   }
+}
 
-  g4Integration.ReturnTracks(tracks.begin(), tracks.end(), fDebugLevel, fReturnFirstAndLastStep);
+inline void AsyncAdePTTransport::MarkLeakedTracksRetrieved(int threadId)
+{
+  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
 }
 
 } // namespace AsyncAdePT
