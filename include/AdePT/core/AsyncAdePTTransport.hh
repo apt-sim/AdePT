@@ -10,10 +10,10 @@
 #define ASYNC_ADEPT_TRANSPORT_HH
 
 #include <AdePT/core/AdePTConfiguration.hh>
+#include <AdePT/core/AdePTG4HepEmState.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/CommonStruct.h>
 #include <AdePT/integration/AdePTGeant4Integration.hh>
-#include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
@@ -27,8 +27,6 @@
 
 class G4Region;
 class G4VPhysicalVolume;
-class G4HepEmConfig;
-struct G4HepEmState;
 namespace AsyncAdePT {
 struct TrackBuffer;
 struct GPUstate;
@@ -50,10 +48,11 @@ private:
   unsigned short fLastNParticlesOnCPU{0}; ///< Number N of last N particles that are finished on CPU
   unsigned short fMaxWDTIter{5};          ///< Maximum number of Woodcock tracking iterations per step
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
-  std::unique_ptr<TrackBuffer> fBuffer{nullptr};     ///< Buffers for transferring tracks between host and device
-  std::unique_ptr<G4HepEmState> fg4hepem_state;      ///< The HepEm state singleton
-  adeptint::WDTDeviceBuffers fWDTDev{};              ///< device buffers for Woodcock tracking data
-  std::thread fGPUWorker;                            ///< Thread to manage GPU
+  std::unique_ptr<TrackBuffer> fBuffer{nullptr}; ///< Buffers for transferring tracks between host and device
+  std::unique_ptr<AdePTG4HepEmState>
+      fAdePTG4HepEmState;               ///< Transport-owned wrapper around `G4HepEmData` and copied `G4HepEmParameters`
+  adeptint::WDTDeviceBuffers fWDTDev{}; ///< device buffers for Woodcock tracking data
+  std::thread fGPUWorker;               ///< Thread to manage GPU
   std::condition_variable fCV_G4Workers;             ///< Communicate with G4 workers
   std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
   std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
@@ -74,14 +73,17 @@ private:
   ///< Needed to stall the GPU, in case the nPartInFlight * fHitBufferSafetyFactor > available HitSlots
   double fHitBufferSafetyFactor{1.5};
 
-  void Initialize(G4HepEmConfig *hepEmConfig);
+  void Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+                  const std::vector<float> &uniformFieldValues);
   void InitBVH();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
-  bool InitializePhysics(G4HepEmConfig *hepEmConfig);
+  bool InitializePhysics();
   void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, G4HepEmConfig *hepEmConfig);
+  AsyncAdePTTransport(AdePTConfiguration &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
+                      adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+                      const std::vector<float> &uniformFieldValues);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
   ~AsyncAdePTTransport();
 
@@ -93,9 +95,6 @@ public:
   bool GetCallUserActions() const { return fReturnFirstAndLastStep; }
   std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
   std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
-  G4HepEmState *GetHepEmState() const { return fg4hepem_state.get(); }
-  void CompleteInitialization(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
-                              const std::vector<float> &uniformFieldValues);
   /// Block until transport of the given event is done.
   void Flush(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
   void ProcessGPUSteps(int threadId, int eventId, AdePTGeant4Integration &g4Integration);
