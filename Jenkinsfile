@@ -26,6 +26,7 @@ pipeline {
     CMAKE_BINARY_DIR     = 'build'
     CMAKE_INSTALL_PREFIX = 'install'
     CUDA_CAPABILITY      = '75'
+    BUILDTYPE            = params.BUILDTYPE
   }
 
   agent none
