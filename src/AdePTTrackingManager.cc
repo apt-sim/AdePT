@@ -20,6 +20,7 @@
 #include <VecGeom/management/GeoManager.h>
 
 #include <algorithm>
+#include <cassert>
 
 #ifdef ENABLE_POWER_METER
 #include <power_meter.hh>
@@ -342,9 +343,28 @@ void AdePTTrackingManager::FlushEvent()
   // transport and hand it back to Geant4 on the host side.
   std::vector<AsyncAdePT::TrackDataWithIDs> tracks = fAdeptTransport->TakeReturnedTracks(threadId);
   fAdeptTransport->MarkLeakedTracksRetrieved(threadId);
-  fAdeptTransport->PrepareReturnedTracks(threadId, eventId, tracks);
+  PrepareReturnedTracksForGeant4(threadId, eventId, tracks);
   fGeant4Integration.ReturnTracks(tracks.begin(), tracks.end(), fAdeptTransport->GetDebugLevel(),
                                   fAdeptTransport->GetReturnFirstAndLastStep());
+}
+
+void AdePTTrackingManager::PrepareReturnedTracksForGeant4(int threadId, int eventId,
+                                                          std::vector<AsyncAdePT::TrackDataWithIDs> &tracks)
+{
+#ifndef NDEBUG
+  for (auto const &track : tracks) {
+    bool error = false;
+    if (track.threadId != threadId || track.eventId != static_cast<unsigned int>(eventId)) error = true;
+    if (!(track.pdg == -11 || track.pdg == 11 || track.pdg == 22)) error = true;
+    if (error)
+      std::cerr << "Error in returning track: threadId=" << track.threadId << " eventId=" << track.eventId
+                << " pdg=" << track.pdg << "\n";
+    assert(!error);
+  }
+#endif
+
+  // Sort the tracks coming from device by energy. This is necessary to ensure reproducibility.
+  std::sort(tracks.begin(), tracks.end());
 }
 
 void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)

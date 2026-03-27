@@ -57,7 +57,6 @@ private:
   std::condition_variable fCV_G4Workers;             ///< Communicate with G4 workers
   std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
   std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
-  std::vector<double> fGPUNetEnergy;
   bool fTrackInAllRegions = false;
   bool fHasWDTRegions     = false;
   std::vector<std::string> const *fGPURegionNames;
@@ -116,10 +115,6 @@ public:
   bool IsDeviceFlushed(int threadId) const;
   /// @brief Take the leaked-track batch returned by transport for the given worker.
   std::vector<TrackDataWithIDs> TakeReturnedTracks(int threadId);
-  /// @brief Sort and account for a returned-track batch after transport hands it to the host.
-  /// @details This keeps the bookkeeping in the AdePTTransport even though
-  /// the flush is now triggered from the AdePTTrackingManager.
-  void PrepareReturnedTracks(int threadId, int eventId, std::vector<TrackDataWithIDs> &tracks);
   /// @brief Mark the returned-track batch for the given worker as consumed.
   void MarkLeakedTracksRetrieved(int threadId);
 };
