@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-/// The The Geant4 AdePT integration service. This provides the interfaces for:
-/// - initializing the geometry and physics on the AdePT size
+/// The AdePT transport service. This provides the interfaces for:
+/// - initializing geometry and physics on the AdePT side
 /// - filling the buffer with tracks to be transported on the GPU
-/// - Calling the Shower method transporting a buffer on the GPU
+/// - driving the GPU transport worker
 
 #ifndef ASYNC_ADEPT_TRANSPORT_HH
 #define ASYNC_ADEPT_TRANSPORT_HH
@@ -25,9 +25,6 @@
 #include <thread>
 #include <unordered_map>
 #include <optional>
-
-class G4Region;
-class G4VPhysicalVolume;
 namespace AsyncAdePT {
 struct TrackBuffer;
 struct GPUstate;
