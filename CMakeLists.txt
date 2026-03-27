@@ -291,29 +291,25 @@ else()
 endif()
 
 # Find Geant4, optional for now
-find_package(Geant4 QUIET)
-if(Geant4_FOUND)
-  message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from ${Geant4_INCLUDE_DIRS}")
-  set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
-  # Check if Geant4 is supports G4VTrackingManager
-  # Always available from v11.0, but experiments may backport it to earlier versions
-  # so we do a compile check.
-  check_cxx_source_compiles("
-    #include \"G4VTrackingManager.hh\"
-    #include \"G4Track.hh\"
+find_package(Geant4 REQUIRED)
+message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from ${Geant4_INCLUDE_DIRS}")
+set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
+set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
+# Check if Geant4 is supports G4VTrackingManager
+# Always available from v11.0, but experiments may backport it to earlier versions
+# so we do a compile check.
+check_cxx_source_compiles("
+  #include \"G4VTrackingManager.hh\"
+  #include \"G4Track.hh\"
 
-    struct testtm_ : G4VTrackingManager {
-      void HandOverOneTrack(G4Track*) override {}
-    };
+  struct testtm_ : G4VTrackingManager {
+    void HandOverOneTrack(G4Track*) override {}
+  };
 
-    int main() {
-      testtm_ t;
-      return 0;
-    }" AdePT_HAS_G4VTRACKINGMANAGER)
-else()
-  message(STATUS "Did not find Geant4")
-endif()
+  int main() {
+    testtm_ t;
+    return 0;
+  }" AdePT_HAS_G4VTRACKINGMANAGER)
 
 # Find HepMC3, used by integration examples to load realistic events
 find_package(HepMC3 QUIET)
@@ -322,36 +318,34 @@ if(HepMC3_FOUND)
   add_compile_definitions(HEPMC3_FOUND)
 endif()
 
-# Find G4VG, optional as requires Geant4
-if(Geant4_FOUND)
-  # Default to use FetchContent'd G4VG for current ease of use and until CI
-  # includes an install. Also allows easy testing of upstream patches until
-  # fully stable across projects.
-  # NB: Though the option can be switched in a given build directory after the initial
-  # build, if you have an install of G4VG that could/would be picked up, you may get
-  # CMake-generate time warnings about safe runtime paths. Generally, you should
-  # pick one way to pickup G4VG and stick with that throughout the lifetime of
-  # the build directory.
-  # The eventual fix for this will be to move to require an external G4VG only
-  option(ADEPT_USE_BUILTIN_G4VG "Fetch and build G4VG as part of AdePT" ON)
-  if(ADEPT_USE_BUILTIN_G4VG)
-    # Fetch it locally
-    include(FetchContent)
-    FetchContent_Declare(
-      g4vg
-      GIT_REPOSITORY https://github.com/celeritas-project/g4vg
-      GIT_TAG f4308d392a502b7bd7468938f8d9a63198d3d866 # v1.0.3
-    )
-    # G4VG builds static by default, so change this to shared to match current
-    # way AdePT is built.
-    # could also configure for PIC mode static.
-    set(BUILD_SHARED_LIBS ON)
-    FetchContent_MakeAvailable(g4vg)
-    message(STATUS "Using FetchContent to build G4VG as part of AdePT")
-  else()
-    find_package(G4VG 1.0.3 REQUIRED)
-    message(STATUS "Found G4VG: ${G4VG_DIR}")
-  endif()
+# Find G4VG
+# Default to use FetchContent'd G4VG for current ease of use and until CI
+# includes an install. Also allows easy testing of upstream patches until
+# fully stable across projects.
+# NB: Though the option can be switched in a given build directory after the initial
+# build, if you have an install of G4VG that could/would be picked up, you may get
+# CMake-generate time warnings about safe runtime paths. Generally, you should
+# pick one way to pickup G4VG and stick with that throughout the lifetime of
+# the build directory.
+# The eventual fix for this will be to move to require an external G4VG only
+option(ADEPT_USE_BUILTIN_G4VG "Fetch and build G4VG as part of AdePT" ON)
+if(ADEPT_USE_BUILTIN_G4VG)
+  # Fetch it locally
+  include(FetchContent)
+  FetchContent_Declare(
+    g4vg
+    GIT_REPOSITORY https://github.com/celeritas-project/g4vg
+    GIT_TAG f4308d392a502b7bd7468938f8d9a63198d3d866 # v1.0.3
+  )
+  # G4VG builds static by default, so change this to shared to match current
+  # way AdePT is built.
+  # could also configure for PIC mode static.
+  set(BUILD_SHARED_LIBS ON)
+  FetchContent_MakeAvailable(g4vg)
+  message(STATUS "Using FetchContent to build G4VG as part of AdePT")
+else()
+  find_package(G4VG 1.0.3 REQUIRED)
+  message(STATUS "Found G4VG: ${G4VG_DIR}")
 endif()
 
 # Find covfie to load external fields from file. 
