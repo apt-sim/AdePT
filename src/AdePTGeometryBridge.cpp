@@ -329,6 +329,33 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   std::cout << "=== End Woodcock tracking summary ===\n\n";
 }
 
+adeptint::WDTHostPacked AdePTGeometryBridge::PackWDT(adeptint::WDTHostRaw const &wdtRaw)
+{
+  adeptint::WDTHostPacked packed;
+
+  int maxRegionId = -1;
+  for (auto *region : *G4RegionStore::GetInstance())
+    if (region) maxRegionId = std::max(maxRegionId, region->GetInstanceID());
+
+  packed.regionToWDT.assign(maxRegionId + 1, -1);
+
+  packed.roots.reserve(wdtRaw.roots.size());
+  packed.regions.reserve(wdtRaw.regionToRootIndices.size());
+
+  int runningOffset = 0;
+  for (auto const &[regionId, rootIndices] : wdtRaw.regionToRootIndices) {
+    packed.regionToWDT[regionId] = static_cast<int>(packed.regions.size());
+    packed.regions.push_back(adeptint::WDTRegion{runningOffset, static_cast<int>(rootIndices.size()), wdtRaw.ekinMin});
+
+    for (int index : rootIndices) {
+      packed.roots.push_back(wdtRaw.roots[index]);
+    }
+    runningOffset += static_cast<int>(rootIndices.size());
+  }
+
+  return packed;
+}
+
 /// @brief Resolve the Geant4 placed volume associated with a VecGeom placed volume.
 G4VPhysicalVolume const *AdePTGeometryBridge::GetG4PhysicalVolume(vecgeom::VPlacedVolume const *placedVolume)
 {

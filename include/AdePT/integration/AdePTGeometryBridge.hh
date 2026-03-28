@@ -43,6 +43,11 @@ public:
                              G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
                              std::vector<std::string> const *gpuRegionNames, adeptint::WDTHostRaw &wdtRaw);
 
+  /// @brief Pack the Woodcock tracking data from the sparse host-side map into arrays that can be copied to the GPU.
+  /// @param wdtRaw Raw WDT data collected during geometry traversal.
+  /// @return Packed, dense WDT data ready to be handed to the transport for device upload.
+  static adeptint::WDTHostPacked PackWDT(adeptint::WDTHostRaw const &wdtRaw);
+
   /// @brief Returns the Geant4 placed volume matching a VecGeom placed volume.
   /// @throws std::runtime_error if the VecGeom placed volume is not present in the global lookup table.
   static G4VPhysicalVolume const *GetG4PhysicalVolume(vecgeom::VPlacedVolume const *placedVolume);

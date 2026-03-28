@@ -12,9 +12,6 @@
 
 #include <G4HepEmRandomEngine.hh>
 
-#include "G4RegionStore.hh"
-#include "G4Region.hh"
-
 #include <atomic>
 #include <array>
 #include <mutex>
@@ -142,40 +139,6 @@ struct WDTDeviceBuffers {
   WDTRegion *d_regions = nullptr;
   int *d_map           = nullptr;
 };
-
-/// @brief This packs the Woodcock data from the original map to arrays that can be copied to the GPU
-/// @param raw raw WDT data, stored in a map
-/// @return packed, dense WDT data, ready to be copied to the GPU
-inline WDTHostPacked PackWDT(const WDTHostRaw &raw)
-{
-  WDTHostPacked packed;
-
-  // Build dense regionId -> bucket index
-  int maxRegionId = -1;
-  for (auto *r : *G4RegionStore::GetInstance())
-    if (r) maxRegionId = std::max(maxRegionId, r->GetInstanceID());
-
-  packed.regionToWDT.assign(maxRegionId + 1, -1);
-
-  packed.roots.reserve(raw.roots.size());
-  packed.regions.reserve(raw.regionToRootIndices.size());
-
-  int runningOffset = 0;
-  for (const auto &kv : raw.regionToRootIndices) {
-    const int rid    = kv.first;
-    const auto &idxs = kv.second;
-
-    packed.regionToWDT[rid] = (int)packed.regions.size();
-    packed.regions.push_back(WDTRegion{runningOffset, (int)idxs.size(), raw.ekinMin});
-
-    for (int idx : idxs) {
-      packed.roots.push_back(raw.roots[idx]); // preserve order per region
-    }
-    runningOffset += (int)idxs.size();
-  }
-
-  return packed;
-}
 
 } // end namespace adeptint
 
