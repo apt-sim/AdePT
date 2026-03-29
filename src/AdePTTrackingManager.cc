@@ -113,7 +113,7 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   AdePTGeometryBridge::InitVolAuxData(auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
                                       fAdePTConfiguration->GetTrackInAllRegions(),
                                       fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
-  adeptint::WDTHostPacked wdtPacked = adeptint::PackWDT(wdtRaw);
+  adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
 
   // Move the fully prepared host-side package into the shared transport. The
   // first worker creates the transport here; later workers only retrieve the
