@@ -531,9 +531,9 @@ cuda_rdc_target_include_directories(AdePT_G4_integration
 )
 cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
 
-cuda_rdc_target_link_libraries(AdePT_G4_integration
+target_link_libraries(AdePT_G4_integration
   PUBLIC
-    AdePT_Transport
+    AdePT_Transport_final
     CopCore
     VecGeom::vecgeom
     $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
@@ -587,8 +587,9 @@ install(FILES "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/AdePTConfig.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 
-#Export the targets file
-export(TARGETS CopCore AdePT_Transport AdePT_G4_integration
+# Export the targets file
+export(EXPORT ${PROJECT_NAME}Targets
+  NAMESPACE ${PROJECT_NAME}::
   FILE "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Targets.cmake"
 )
 
