@@ -75,7 +75,6 @@ private:
   void InitBVH();
   bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
   bool InitializePhysics();
-  void InitWDTOnDevice(const adeptint::WDTHostPacked &src, adeptint::WDTDeviceBuffers &dev, unsigned short maxIter);
 
 public:
   AsyncAdePTTransport(AdePTConfiguration &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
