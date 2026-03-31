@@ -453,14 +453,15 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/AdePTConfigurationMessenger.cc
 )
 
-add_library(CopCore INTERFACE)
-target_include_directories(CopCore
+add_library(Core INTERFACE)
+target_include_directories(Core
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
+add_library(AdePT::Core ALIAS Core)
 
-cuda_rdc_add_library(AdePT_Transport SHARED
+cuda_rdc_add_library(Transport SHARED
   ${ADEPT_CORE_SRCS}
 )
 
@@ -468,15 +469,15 @@ if(ADEPT_USE_HIP)
   set_source_files_properties(src/AsyncAdePTTransport.cu PROPERTIES LANGUAGE HIP)
 endif()
 
-cuda_rdc_target_include_directories(AdePT_Transport
+cuda_rdc_target_include_directories(Transport
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
-cuda_rdc_target_link_libraries(AdePT_Transport
+cuda_rdc_target_link_libraries(Transport
   PUBLIC
-    CopCore
+    Core
     VecGeom::vecgeom
     G4HepEm::g4HepEm
     G4HepEm::g4HepEmData
@@ -486,7 +487,7 @@ cuda_rdc_target_link_libraries(AdePT_Transport
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
-  cuda_rdc_target_link_libraries(AdePT_Transport
+  cuda_rdc_target_link_libraries(Transport
     PUBLIC
       covfie::core
       covfie::cuda
@@ -494,11 +495,11 @@ if(ADEPT_USE_EXT_BFIELD)
 endif()
 
 # must be defined when compiling the core sources.
-target_compile_definitions(AdePT_Transport
+target_compile_definitions(Transport
   PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
 )
-if(TARGET AdePT_Transport_objects)
-  target_compile_definitions(AdePT_Transport_objects
+if(TARGET Transport_objects)
+  target_compile_definitions(Transport_objects
     PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
   )
 endif()
@@ -514,43 +515,47 @@ set(ADEPT_PUBLIC_CONFIG_DEFINITIONS
   $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
   $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
 )
-target_compile_definitions(AdePT_Transport
+target_compile_definitions(Transport
   PUBLIC
     ${ADEPT_PUBLIC_CONFIG_DEFINITIONS}
 )
 
+# Use descriptive install names while keeping short CMake target names.
+set_target_properties(Transport PROPERTIES OUTPUT_NAME adept_transport)
+if(TARGET Transport_static)
+  set_target_properties(Transport_static PROPERTIES OUTPUT_NAME adept_transport_static)
+endif()
+if(TARGET Transport_final)
+  set_target_properties(Transport_final PROPERTIES OUTPUT_NAME adept_transport_final)
+endif()
+
 # This needs to be after the cuda_rdc_target_include_directories when
 # using v10 of CudaRdcUtils.cmake
-cuda_rdc_add_library(AdePT::AdePT_Transport ALIAS AdePT_Transport)
+cuda_rdc_add_library(AdePT::Transport ALIAS Transport)
 
-add_library(AdePT_G4_integration SHARED
+cuda_rdc_add_library(G4Integration SHARED
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
 
-target_include_directories(AdePT_G4_integration
+cuda_rdc_target_include_directories(G4Integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
-add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
+cuda_rdc_add_library(AdePT::G4Integration ALIAS G4Integration)
 
-target_link_libraries(AdePT_G4_integration
+cuda_rdc_target_link_libraries(G4Integration
   PUBLIC
+    Transport
+    Core
     VecGeom::vecgeom
-    G4HepEm::g4HepEm
     $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
     ${Geant4_LIBRARIES}
     G4VG::g4vg
     $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:Power_meter::Power_meter>
-  PRIVATE
-    AdePT_Transport_final
-    CopCore
 )
 
-target_compile_definitions(AdePT_G4_integration
-  PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
-  PUBLIC ${ADEPT_PUBLIC_CONFIG_DEFINITIONS}
-)
+set_target_properties(G4Integration PROPERTIES OUTPUT_NAME adept_g4integration)
 
 if(ADEPT_BUILD_TESTING)
   add_subdirectory(test)
@@ -570,7 +575,7 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
 )
 
 #Install the libraries
-cuda_rdc_install(TARGETS CopCore AdePT_Transport AdePT_G4_integration
+cuda_rdc_install(TARGETS Core Transport G4Integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"

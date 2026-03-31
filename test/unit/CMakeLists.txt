@@ -9,7 +9,7 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     #set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    target_link_libraries(${TARGET_NAME} PRIVATE AdePT_G4_integration)
+    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT::G4Integration)
    endforeach()
 endmacro()
 
@@ -34,10 +34,10 @@ add_subdirectory(testField)
 #----------------------------------------------------------------------------#
 # Link/RDC tests
 #----------------------------------------------------------------------------#
-# - Check CopCore links as expected
+# - Check Core links as expected
 add_executable(test_copcore_link test_copcore_link.cpp)
 target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(test_copcore_link PRIVATE CopCore)
+target_link_libraries(test_copcore_link PRIVATE AdePT::Core)
 
 #----------------------------------------------------------------------------#
 # Basic Unit Tests
