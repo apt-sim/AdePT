@@ -9,7 +9,7 @@ macro(build_tests TESTS)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     #set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT_G4_integration)
+    target_link_libraries(${TARGET_NAME} PRIVATE AdePT_G4_integration)
    endforeach()
 endmacro()
 

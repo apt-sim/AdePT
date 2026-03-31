@@ -504,53 +504,53 @@ if(TARGET AdePT_Transport_objects)
 endif()
 
 # Export config macros to consumers (Athena, etc.)
+set(ADEPT_PUBLIC_CONFIG_DEFINITIONS
+  ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
+  $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
+  $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
+  $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
+  $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>
+  $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
+  $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
+  $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
+)
 target_compile_definitions(AdePT_Transport
   PUBLIC
-    ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
-    $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
-    $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
-    $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
-    $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>
-    $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
-    $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
-    $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
+    ${ADEPT_PUBLIC_CONFIG_DEFINITIONS}
 )
 
 # This needs to be after the cuda_rdc_target_include_directories when
 # using v10 of CudaRdcUtils.cmake
 cuda_rdc_add_library(AdePT::AdePT_Transport ALIAS AdePT_Transport)
 
-cuda_rdc_add_library(AdePT_G4_integration SHARED
+add_library(AdePT_G4_integration SHARED
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
 
-cuda_rdc_target_include_directories(AdePT_G4_integration
+target_include_directories(AdePT_G4_integration
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
-cuda_rdc_add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
+add_library(AdePT::AdePT_G4_integration ALIAS AdePT_G4_integration)
 
 target_link_libraries(AdePT_G4_integration
   PUBLIC
-    AdePT_Transport_final
-    CopCore
     VecGeom::vecgeom
+    G4HepEm::g4HepEm
     $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
     ${Geant4_LIBRARIES}
     G4VG::g4vg
     $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:Power_meter::Power_meter>
+  PRIVATE
+    AdePT_Transport_final
+    CopCore
 )
 
 target_compile_definitions(AdePT_G4_integration
   PRIVATE ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
+  PUBLIC ${ADEPT_PUBLIC_CONFIG_DEFINITIONS}
 )
-
-#set_target_properties(AdePT_G4_integration
-#  PROPERTIES
-#    CUDA_SEPARABLE_COMPILATION ON
-#    CUDA_RESOLVE_DEVICE_SYMBOLS ON
-#)
 
 if(ADEPT_BUILD_TESTING)
   add_subdirectory(test)

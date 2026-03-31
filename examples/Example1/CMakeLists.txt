@@ -51,7 +51,7 @@ target_include_directories(example1
     ${PROJECT_SOURCE_DIR}/examples/common/include
     ${HEPMC3_INCLUDE_DIR}
 )
-cuda_rdc_target_link_libraries(example1
+target_link_libraries(example1
   PRIVATE
     ${HEPMC3_LIBRARIES}
     ${HEPMC3_FIO_LIBRARIES}

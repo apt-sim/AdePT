@@ -60,7 +60,7 @@ target_include_directories(integrationTest
     ${PROJECT_SOURCE_DIR}/examples/common/include
     ${HEPMC3_INCLUDE_DIR}
 )
-cuda_rdc_target_link_libraries(integrationTest
+target_link_libraries(integrationTest
   PRIVATE
     AdePT_G4_integration
     ${HEPMC3_LIBRARIES}
