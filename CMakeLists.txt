@@ -560,6 +560,12 @@ cuda_rdc_target_link_libraries(G4Integration
 )
 
 set_target_properties(G4Integration PROPERTIES OUTPUT_NAME adept_g4integration)
+if(TARGET G4Integration_static)
+  set_target_properties(G4Integration_static PROPERTIES OUTPUT_NAME adept_g4integration_static)
+endif()
+if(TARGET G4Integration_final)
+  set_target_properties(G4Integration_final PROPERTIES OUTPUT_NAME adept_g4integration_final)
+endif()
 
 if(ADEPT_BUILD_TESTING)
   add_subdirectory(test)
@@ -578,8 +584,24 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
   PATH_VARS CMAKE_INSTALL_INCLUDEDIR
 )
 
-#Install the libraries
-cuda_rdc_install(TARGETS Core Transport G4Integration
+# Install RDC targets one by one. With the current CudaRdcUtils helper,
+# batching multiple targets in a single cuda_rdc_install(...) call can drop
+# sibling *_static/*_final exports from the generated package config.
+cuda_rdc_install(TARGETS Core
+  EXPORT ${PROJECT_NAME}Targets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+
+cuda_rdc_install(TARGETS Transport
+  EXPORT ${PROJECT_NAME}Targets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+
+cuda_rdc_install(TARGETS G4Integration
   EXPORT ${PROJECT_NAME}Targets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
