@@ -55,7 +55,7 @@ cuda_rdc_target_link_libraries(example1
   PRIVATE
     ${HEPMC3_LIBRARIES}
     ${HEPMC3_FIO_LIBRARIES}
-    AdePT_G4_integration
+    AdePT::G4Integration
 )
 
 # Install macros and geometry file

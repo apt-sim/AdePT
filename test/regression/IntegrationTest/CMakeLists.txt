@@ -62,7 +62,7 @@ target_include_directories(integrationTest
 )
 cuda_rdc_target_link_libraries(integrationTest
   PRIVATE
-    AdePT_G4_integration
+    AdePT::G4Integration
     ${HEPMC3_LIBRARIES}
     ${HEPMC3_FIO_LIBRARIES}
 )
