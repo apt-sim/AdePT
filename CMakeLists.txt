@@ -451,6 +451,7 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/G4EmStandardPhysics_HepEm.cc
   src/AdePTGeant4Integration.cpp
   src/AdePTConfigurationMessenger.cc
+  src/G4IntegrationRdcFacade.cu
 )
 
 add_library(Core INTERFACE)
@@ -467,6 +468,7 @@ cuda_rdc_add_library(Transport SHARED
 
 if(ADEPT_USE_HIP)
   set_source_files_properties(src/AsyncAdePTTransport.cu PROPERTIES LANGUAGE HIP)
+  set_source_files_properties(src/G4IntegrationRdcFacade.cu PROPERTIES LANGUAGE HIP)
 endif()
 
 cuda_rdc_target_include_directories(Transport
@@ -533,6 +535,8 @@ endif()
 # using v10 of CudaRdcUtils.cmake
 cuda_rdc_add_library(AdePT::Transport ALIAS Transport)
 
+# Keep the experiment-facing library as a true RDC target so exported consumers
+# can propagate the middle/final transport mapping across their own device-link.
 cuda_rdc_add_library(G4Integration SHARED
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
