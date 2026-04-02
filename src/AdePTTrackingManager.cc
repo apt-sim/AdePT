@@ -533,6 +533,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // Get VecGeom Navigation state from G4History
       vecgeom::NavigationState converted = GetVecGeomFromG4State(*aTrack);
 
+#ifdef ADEPT_USE_ORIGINNAVSTATE
       // The VecGeom NavState is stored in the hostTrackData; in principle, the G4TouchableHandle could also be stored
       // directly, but it has proven to be very expensive to create new G4TouchableHandle objects for each track in the
       // HostTrackData. Instead, it was much cheaper to just store the vecgeom::NavState and create the
@@ -550,6 +551,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
           hostTrackData.originNavState = convertedOrigin;
         }
       }
+#endif
 
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],

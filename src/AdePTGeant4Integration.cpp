@@ -453,7 +453,9 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *
   secTData.particleType = secHit->fParticleType;
   secTData.g4parentid   = g4ParentID;
 
-  secTData.originNavState        = secHit->fPostStepPoint.fNavigationState;
+#ifdef ADEPT_USE_ORIGINNAVSTATE
+  secTData.originNavState = secHit->fPostStepPoint.fNavigationState;
+#endif
   secTData.logicalVolumeAtVertex = preTouchable->GetVolume()->GetLogicalVolume();
   secTData.vertexPosition = G4ThreeVector(secHit->fPostStepPoint.fPosition.x(), secHit->fPostStepPoint.fPosition.y(),
                                           secHit->fPostStepPoint.fPosition.z());
@@ -710,10 +712,12 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   leakedTrack->SetVertexMomentumDirection(hostTData.vertexMomentumDirection);
   leakedTrack->SetVertexKineticEnergy(hostTData.vertexKineticEnergy);
   leakedTrack->SetLogicalVolumeAtVertex(hostTData.logicalVolumeAtVertex);
+#ifdef ADEPT_USE_ORIGINNAVSTATE
   if (callUserActions) {
     auto originTouchableHandle = MakeTouchableFromNavState(hostTData.originNavState);
     leakedTrack->SetOriginTouchableHandle(originTouchableHandle);
   }
+#endif
 
   // ------ Handle leaked tracks according to their status, if not LeakStatus::OutOfGPURegion ---------
 
