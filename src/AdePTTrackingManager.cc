@@ -533,24 +533,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // Get VecGeom Navigation state from G4History
       vecgeom::NavigationState converted = GetVecGeomFromG4State(*aTrack);
 
-      // The VecGeom NavState is stored in the hostTrackData; in principle, the G4TouchableHandle could also be stored
-      // directly, but it has proven to be very expensive to create new G4TouchableHandle objects for each track in the
-      // HostTrackData. Instead, it was much cheaper to just store the vecgeom::NavState and create the
-      // G4TouchableHandle only when the track is returned from the GPU
-      if (callUserActions) {
-        if (aTrack->GetParentID() == 0 && aTrack->GetCurrentStepNumber() == 0) {
-          // For the first step of primary tracks, the origin touchable handle is not set,
-          // so we need to use the track's current position
-          // If the vertex is not in a GPU region, the origin touchable handle will be set by the HepEmTrackingManager
-          hostTrackData.originNavState = converted;
-        } else {
-          // For secondary tracks, the origin touchable handle is set when they are stacked
-          vecgeom::NavigationState convertedOrigin =
-              GetVecGeomFromG4State(*aTrack, aTrack->GetOriginTouchableHandle()->GetHistory());
-          hostTrackData.originNavState = convertedOrigin;
-        }
-      }
-
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 globalTime, localTime, properTime, weight, stepNumber, G4Threading::G4GetThreadId(),

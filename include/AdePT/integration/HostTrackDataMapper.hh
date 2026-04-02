@@ -30,7 +30,6 @@ struct HostTrackData {
   G4LogicalVolume *logicalVolumeAtVertex = nullptr;
   G4ThreeVector vertexPosition;
   G4ThreeVector vertexMomentumDirection;
-  vecgeom::NavigationState originNavState;
   G4double vertexKineticEnergy = 0.0;
   ParticleType particleType{ParticleType::Electron};
 
