@@ -32,6 +32,9 @@ struct HostTrackData {
   G4ThreeVector vertexMomentumDirection;
   G4double vertexKineticEnergy = 0.0;
   ParticleType particleType{ParticleType::Electron};
+#ifdef ADEPT_USE_ORIGINNAVSTATE
+  vecgeom::NavigationState originNavState;
+#endif
 
   HostTrackData() = default;
 
