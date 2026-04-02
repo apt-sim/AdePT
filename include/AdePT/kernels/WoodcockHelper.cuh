@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AsyncAdePTTransportStruct.cuh>
+#include <AdePT/core/GeometryAuxData.hh>
 
 namespace AsyncAdePT {
 

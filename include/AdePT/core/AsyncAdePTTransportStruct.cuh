@@ -4,8 +4,8 @@
 #ifndef ASYNC_ADEPT_TRANSPORT_STRUCT_CUH
 #define ASYNC_ADEPT_TRANSPORT_STRUCT_CUH
 
-#include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
+#include <AdePT/core/GeometryAuxData.hh>
 // #include <AdePT/core/AsyncAdePTTransport.hh>
 #include <AdePT/core/PerEventScoringImpl.cuh>
 #include <AdePT/core/Track.cuh>

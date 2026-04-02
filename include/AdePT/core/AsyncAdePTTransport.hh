@@ -12,7 +12,8 @@
 #include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AdePTG4HepEmState.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
-#include <AdePT/core/CommonStruct.h>
+#include <AdePT/core/GeometryAuxData.hh>
+#include <AdePT/core/ReturnedTrackData.hh>
 #include <AdePT/core/ScoringCommons.hh>
 
 #include <VecGeom/base/Config.h>
