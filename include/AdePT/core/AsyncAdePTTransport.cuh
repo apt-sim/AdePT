@@ -8,8 +8,10 @@
 
 #include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
-#include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/AdePTConfiguration.hh>
+#include <AdePT/core/G4HepEmRandomEngineDeviceImpl.hh>
+#include <AdePT/core/GeometryAuxData.hh>
+#include <AdePT/core/TrackBuffer.hh>
 #include <AdePT/base/Atomic.h>
 #include <AdePT/base/MParray.h>
 #include <AdePT/copcore/Global.h>
@@ -31,7 +33,6 @@
 // #include <AdePT/kernels/gammas_async.cuh>
 
 #include <AdePT/navigation/BVHNavigator.h>
-#include <AdePT/integration/AdePTGeant4Integration.hh>
 
 #include <AdePT/kernels/AdePTSteppingActionSelector.cuh>
 using SteppingAction = adept::SteppingAction::Action;

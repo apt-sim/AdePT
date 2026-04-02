@@ -9,8 +9,8 @@
 #ifndef ADEPTGEANT4_INTEGRATION_H
 #define ADEPTGEANT4_INTEGRATION_H
 
-#include <AdePT/core/CommonStruct.h>
 #include <AdePT/core/ScoringCommons.hh>
+#include <AdePT/core/TrackData.h>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 #include <AdePT/integration/HostTrackDataMapper.hh>
 

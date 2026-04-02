@@ -4,7 +4,7 @@
 #ifndef ADEPT_GEOMETRY_BRIDGE_HH
 #define ADEPT_GEOMETRY_BRIDGE_HH
 
-#include <AdePT/core/CommonStruct.h>
+#include <AdePT/core/GeometryAuxData.hh>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
