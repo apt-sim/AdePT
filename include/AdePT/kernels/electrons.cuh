@@ -400,8 +400,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
 #endif
-        // Set the last exited state to be the one before crossing
-        nextState.SetLastExited(navState.GetState());
+
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
           printf("\n| CROSSED into ");

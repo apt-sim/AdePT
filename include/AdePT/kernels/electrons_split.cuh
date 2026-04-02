@@ -633,8 +633,6 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 #else
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 #endif
-      // Set the last exited state to be the one before crossing
-      currentTrack.nextState.SetLastExited(currentTrack.navState.GetState());
     } else {
       // Particle left the world, don't enqueue it and release the slot
       slotManager.MarkSlotForFreeing(slot);
