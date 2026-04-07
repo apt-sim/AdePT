@@ -293,8 +293,38 @@ endif()
 # Find Geant4, optional for now
 find_package(Geant4 REQUIRED)
 message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from ${Geant4_INCLUDE_DIRS}")
+
+# Build AdePT with the same library type as Geant4:
+# prefer static libraries when they are available, otherwise use shared.
+if(Geant4_static_FOUND)
+  set(_adept_library_type STATIC)
+  if(Geant4_shared_FOUND)
+    message(STATUS "Both static and shared Geant4 libraries are available; AdePT will use static libraries.")
+  endif()
+elseif(Geant4_shared_FOUND)
+  set(_adept_library_type SHARED)
+else()
+  message(FATAL_ERROR
+    "Could not determine the Geant4 library type: neither "
+    "Geant4_static_FOUND nor Geant4_shared_FOUND is set."
+  )
+endif()
+message(STATUS "AdePT library type: ${Green}${_adept_library_type}${ColorReset} (taken from Geant4)")
+
+# If both Geant4 STATIC and SHARED are installed, plain Geant4_LIBRARIES still refers to
+# the default imported SHARED targets. Remap those targets to their -static siblings
+# when AdePT itself is built as a static library.
+set(_adept_geant4_libraries)
+foreach(_g4lib IN LISTS Geant4_LIBRARIES)
+  set(_adept_g4lib ${_g4lib})
+  if(_adept_library_type STREQUAL "STATIC" AND _g4lib MATCHES "^Geant4::" AND TARGET "${_g4lib}-static")
+    set(_adept_g4lib "${_g4lib}-static")
+  endif()
+  list(APPEND _adept_geant4_libraries "${_adept_g4lib}")
+endforeach()
+
 set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
-set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
+set(CMAKE_REQUIRED_LIBRARIES ${_adept_geant4_libraries})
 # Check if Geant4 is supports G4VTrackingManager
 # Always available from v11.0, but experiments may backport it to earlier versions
 # so we do a compile check.
@@ -337,10 +367,12 @@ if(ADEPT_USE_BUILTIN_G4VG)
     GIT_REPOSITORY https://github.com/celeritas-project/g4vg
     GIT_TAG f4308d392a502b7bd7468938f8d9a63198d3d866 # v1.0.3
   )
-  # G4VG builds static by default, so change this to shared to match current
-  # way AdePT is built.
-  # could also configure for PIC mode static.
-  set(BUILD_SHARED_LIBS ON)
+  # Keep the fetched G4VG library type aligned with AdePT.
+  if(_adept_library_type STREQUAL "SHARED")
+    set(BUILD_SHARED_LIBS ON)
+  else()
+    set(BUILD_SHARED_LIBS OFF)
+  endif()
   FetchContent_MakeAvailable(g4vg)
   message(STATUS "Using FetchContent to build G4VG as part of AdePT")
 else()
@@ -462,7 +494,7 @@ target_include_directories(Core
 )
 add_library(AdePT::Core ALIAS Core)
 
-cuda_rdc_add_library(Transport SHARED
+cuda_rdc_add_library(Transport ${_adept_library_type}
   ${ADEPT_CORE_SRCS}
 )
 
@@ -537,7 +569,7 @@ cuda_rdc_add_library(AdePT::Transport ALIAS Transport)
 
 # Keep the experiment-facing library as a true RDC target so exported consumers
 # can propagate the middle/final transport mapping across their own device-link.
-cuda_rdc_add_library(G4Integration SHARED
+cuda_rdc_add_library(G4Integration ${_adept_library_type}
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
 
@@ -554,7 +586,7 @@ cuda_rdc_target_link_libraries(G4Integration
     Core
     VecGeom::vecgeom
     $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
-    ${Geant4_LIBRARIES}
+    ${_adept_geant4_libraries}
     G4VG::g4vg
     $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:Power_meter::Power_meter>
 )
