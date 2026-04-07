@@ -293,6 +293,16 @@ endif()
 # Find Geant4, optional for now
 find_package(Geant4 REQUIRED)
 message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from ${Geant4_INCLUDE_DIRS}")
+
+# Build AdePT with the same library type as the Geant4 package.
+set(_adept_library_type SHARED)
+if(Geant4_static_FOUND AND NOT Geant4_shared_FOUND)
+  set(_adept_library_type STATIC)
+elseif(Geant4_shared_FOUND)
+  set(_adept_library_type SHARED)
+endif()
+message(STATUS "AdePT library type: ${Green}${_adept_library_type}${ColorReset} (taken from Geant4)")
+
 set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
 set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
 # Check if Geant4 is supports G4VTrackingManager
@@ -337,10 +347,12 @@ if(ADEPT_USE_BUILTIN_G4VG)
     GIT_REPOSITORY https://github.com/celeritas-project/g4vg
     GIT_TAG f4308d392a502b7bd7468938f8d9a63198d3d866 # v1.0.3
   )
-  # G4VG builds static by default, so change this to shared to match current
-  # way AdePT is built.
-  # could also configure for PIC mode static.
-  set(BUILD_SHARED_LIBS ON)
+  # Keep the fetched G4VG library type aligned with AdePT.
+  if(_adept_library_type STREQUAL "SHARED")
+    set(BUILD_SHARED_LIBS ON)
+  else()
+    set(BUILD_SHARED_LIBS OFF)
+  endif()
   FetchContent_MakeAvailable(g4vg)
   message(STATUS "Using FetchContent to build G4VG as part of AdePT")
 else()
@@ -462,7 +474,7 @@ target_include_directories(Core
 )
 add_library(AdePT::Core ALIAS Core)
 
-cuda_rdc_add_library(Transport SHARED
+cuda_rdc_add_library(Transport ${_adept_library_type}
   ${ADEPT_CORE_SRCS}
 )
 
@@ -537,7 +549,7 @@ cuda_rdc_add_library(AdePT::Transport ALIAS Transport)
 
 # Keep the experiment-facing library as a true RDC target so exported consumers
 # can propagate the middle/final transport mapping across their own device-link.
-cuda_rdc_add_library(G4Integration SHARED
+cuda_rdc_add_library(G4Integration ${_adept_library_type}
   ${ADEPT_G4_INTEGRATION_SRCS}
 )
 
