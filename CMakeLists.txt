@@ -294,12 +294,17 @@ endif()
 find_package(Geant4 REQUIRED)
 message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from ${Geant4_INCLUDE_DIRS}")
 
-# Build AdePT with the same library type as the Geant4 package.
-set(_adept_library_type SHARED)
-if(Geant4_static_FOUND AND NOT Geant4_shared_FOUND)
+# Build AdePT with the same library type as Geant4:
+# prefer static libraries when they are available, otherwise use shared.
+if(Geant4_static_FOUND)
   set(_adept_library_type STATIC)
 elseif(Geant4_shared_FOUND)
   set(_adept_library_type SHARED)
+else()
+  message(FATAL_ERROR
+    "Could not determine the Geant4 library type: neither "
+    "Geant4_static_FOUND nor Geant4_shared_FOUND is set."
+  )
 endif()
 message(STATUS "AdePT library type: ${Green}${_adept_library_type}${ColorReset} (taken from Geant4)")
 
