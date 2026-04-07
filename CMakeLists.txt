@@ -298,6 +298,9 @@ message(STATUS "Using Geant4 version ${Cyan}${Geant4_VERSION}${ColorReset} from 
 # prefer static libraries when they are available, otherwise use shared.
 if(Geant4_static_FOUND)
   set(_adept_library_type STATIC)
+  if(Geant4_shared_FOUND)
+    message(STATUS "Both static and shared Geant4 libraries are available; AdePT will use static libraries.")
+  endif()
 elseif(Geant4_shared_FOUND)
   set(_adept_library_type SHARED)
 else()
@@ -308,8 +311,20 @@ else()
 endif()
 message(STATUS "AdePT library type: ${Green}${_adept_library_type}${ColorReset} (taken from Geant4)")
 
+# If both Geant4 STATIC and SHARED are installed, plain Geant4_LIBRARIES still refers to
+# the default imported SHARED targets. Remap those targets to their -static siblings
+# when AdePT itself is built as a static library.
+set(_adept_geant4_libraries)
+foreach(_g4lib IN LISTS Geant4_LIBRARIES)
+  set(_adept_g4lib ${_g4lib})
+  if(_adept_library_type STREQUAL "STATIC" AND _g4lib MATCHES "^Geant4::" AND TARGET "${_g4lib}-static")
+    set(_adept_g4lib "${_g4lib}-static")
+  endif()
+  list(APPEND _adept_geant4_libraries "${_adept_g4lib}")
+endforeach()
+
 set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
-set(CMAKE_REQUIRED_LIBRARIES ${Geant4_LIBRARIES})
+set(CMAKE_REQUIRED_LIBRARIES ${_adept_geant4_libraries})
 # Check if Geant4 is supports G4VTrackingManager
 # Always available from v11.0, but experiments may backport it to earlier versions
 # so we do a compile check.
@@ -571,7 +586,7 @@ cuda_rdc_target_link_libraries(G4Integration
     Core
     VecGeom::vecgeom
     $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
-    ${Geant4_LIBRARIES}
+    ${_adept_geant4_libraries}
     G4VG::g4vg
     $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:Power_meter::Power_meter>
 )
