@@ -157,7 +157,113 @@ void Deleter::operator()(ScoringObjects *ptr)
 
 } // namespace AdePTGeant4Integration_detail
 
+namespace {
+
+void MergeNuclearReplayIntoVisibleStep(const G4Track &scratchTrack, const G4Step &scratchStep, G4Step &visibleStep,
+                                       bool isLeptonNuclearStep)
+{
+  G4Track *visibleTrack             = visibleStep.GetTrack();
+  G4StepPoint *visiblePostStepPoint = visibleStep.GetPostStepPoint();
+  const G4StepPoint *scratchPost    = scratchStep.GetPostStepPoint();
+
+  visibleTrack->SetTrackStatus(scratchTrack.GetTrackStatus());
+  visibleTrack->SetKineticEnergy(scratchTrack.GetKineticEnergy());
+  visiblePostStepPoint->SetKineticEnergy(scratchPost->GetKineticEnergy());
+  visiblePostStepPoint->SetVelocity(scratchPost->GetVelocity());
+  visiblePostStepPoint->SetStepStatus(scratchPost->GetStepStatus());
+
+  if (isLeptonNuclearStep) {
+    visibleTrack->SetMomentumDirection(scratchTrack.GetMomentumDirection());
+    visibleTrack->SetVelocity(scratchTrack.GetVelocity());
+    visiblePostStepPoint->SetMomentumDirection(scratchPost->GetMomentumDirection());
+  }
+}
+
+} // namespace
+
 AdePTGeant4Integration::~AdePTGeant4Integration() {}
+
+void AdePTGeant4Integration::QueueDeferredNuclearStep(std::span<const GPUHit> gpuSteps)
+{
+  if (gpuSteps.empty()) return;
+
+  fHostTrackDataMapper->SetPendingNuclearReaction(gpuSteps.front().fTrackID, true);
+
+  // Keep the returned GPU-hit block together with the ordering key that
+  // places it in the same return order as an ordinary leaked track.
+  DeferredNuclearStep deferred;
+  deferred.returnedTrack = MakeReturnedTrackFromGPUHit(gpuSteps.front());
+  deferred.hits.assign(gpuSteps.begin(), gpuSteps.end());
+  fDeferredNuclearSteps.push_back(std::move(deferred));
+}
+
+std::vector<AdePTGeant4Integration::DeferredNuclearStep> AdePTGeant4Integration::TakeDeferredNuclearSteps()
+{
+  // Swap with an empty vector so ownership of the queued work moves out
+  // without copying the stored GPU-hit payloads.
+  std::vector<DeferredNuclearStep> deferred;
+  deferred.swap(fDeferredNuclearSteps);
+  return deferred;
+}
+
+adeptint::TrackData AdePTGeant4Integration::MakeReturnedTrackFromGPUHit(GPUHit const &gpuHit) const
+{
+  adeptint::TrackData returnedTrack;
+
+  switch (gpuHit.fParticleType) {
+  case ParticleType::Electron:
+    returnedTrack.pdg = 11;
+    break;
+  case ParticleType::Positron:
+    returnedTrack.pdg = -11;
+    break;
+  case ParticleType::Gamma:
+    returnedTrack.pdg = 22;
+    break;
+  default:
+    throw std::runtime_error("Unknown particle type in MakeReturnedTrackFromGPUHit");
+  }
+
+  returnedTrack.eKin         = gpuHit.fPostStepPoint.fEKin;
+  returnedTrack.position[0]  = gpuHit.fPostStepPoint.fPosition.x();
+  returnedTrack.position[1]  = gpuHit.fPostStepPoint.fPosition.y();
+  returnedTrack.position[2]  = gpuHit.fPostStepPoint.fPosition.z();
+  returnedTrack.direction[0] = gpuHit.fPostStepPoint.fMomentumDirection.x();
+  returnedTrack.direction[1] = gpuHit.fPostStepPoint.fMomentumDirection.y();
+  returnedTrack.direction[2] = gpuHit.fPostStepPoint.fMomentumDirection.z();
+
+  return returnedTrack;
+}
+
+G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track) const
+{
+  auto *dynamic =
+      new G4DynamicParticle(track.GetParticleDefinition(), track.GetMomentumDirection(), track.GetKineticEnergy());
+  dynamic->SetPrimaryParticle(track.GetDynamicParticle()->GetPrimaryParticle());
+
+  auto *clone = new G4Track(dynamic, track.GetGlobalTime(), track.GetPosition());
+  clone->IncrementCurrentStepNumber();
+  clone->SetTrackID(track.GetTrackID());
+  clone->SetParentID(track.GetParentID());
+  clone->SetLocalTime(track.GetLocalTime());
+  clone->SetProperTime(track.GetProperTime());
+  clone->SetWeight(track.GetWeight());
+  clone->SetCreatorProcess(track.GetCreatorProcess());
+  clone->SetStepLength(track.GetStepLength());
+  clone->SetMomentumDirection(track.GetMomentumDirection());
+  clone->SetVertexPosition(track.GetVertexPosition());
+  clone->SetVertexMomentumDirection(track.GetVertexMomentumDirection());
+  clone->SetVertexKineticEnergy(track.GetVertexKineticEnergy());
+  clone->SetLogicalVolumeAtVertex(const_cast<G4LogicalVolume *>(track.GetLogicalVolumeAtVertex()));
+  clone->SetTouchableHandle(track.GetTouchableHandle());
+  clone->SetNextTouchableHandle(track.GetNextTouchableHandle());
+#ifdef ADEPT_USE_ORIGINNAVSTATE
+  clone->SetOriginTouchableHandle(track.GetOriginTouchableHandle());
+#endif
+  clone->SetUserInformation(track.GetUserInformation());
+  clone->SetTrackStatus(track.GetTrackStatus());
+  return clone;
+}
 
 G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *secHit) const
 {
@@ -186,6 +292,10 @@ G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *se
 void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction,
                                             bool const callUserTrackingAction)
 {
+  // FIXME: to be removed, as it is not needed with the direct VecGeom to G4 NavState.
+  // needed here only temporarily to match exactly the behavior of returning nuclear interaction steps as tracks
+  constexpr double tolerance = 10. * vecgeom::kTolerance;
+
   if (!fScoringObjects) {
     fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());
   }
@@ -251,6 +361,15 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   // - for particles created on CPU, it was created in the AdePTTrackingManager when offloading to GPU,
   // - for particles createdon GPU, it was created in InitSecondaryHostTrackDataFromParent below
 
+  const bool isGammaNuclearStep = parentStep.fParticleType == ParticleType::Gamma && parentStep.fStepLimProcessId == 3;
+  const bool isLeptonNuclearStep =
+      (parentStep.fParticleType == ParticleType::Electron || parentStep.fParticleType == ParticleType::Positron) &&
+      parentStep.fStepLimProcessId == 3;
+  const bool isNuclearStep  = isGammaNuclearStep || isLeptonNuclearStep;
+  bool parentContinuesOnCPU = false;
+  G4Track *continuedParent  = nullptr;
+  G4TrackVector hadronicSecondaries;
+
   HostTrackData dummy; // default constructed dummy if no advanced information is available
 
   // if the userActions are used, advanced track information is available
@@ -294,8 +413,135 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       FillG4Track(&secStep, secTrack, secTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
                   *fScoringObjects->fPostG4TouchableHistoryHandle);
 
-      // 5. Attach secondaries to G4Step: the fSecondaryVector is the persistent storage for the G4Step->SecondaryVector
+      // 5. Attach secondaries to G4Step: the fSecondaryVector is the persistent
+      // storage for the G4Step->SecondaryVector.
       fScoringObjects->fSecondaryVector->push_back(secTrack);
+    }
+  }
+
+  // Handling of Steps that hit a nuclear reaction:
+  // before calling the SD code and the user actions, the nuclear reactions must be invoked, as those
+  // create new secondaries
+  if (isNuclearStep) {
+    // Two different objects are needed here:
+    // - the visible G4 step, which must keep the transported GPU step data
+    // - a temporary G4 track/step, used only to call the Geant4 nuclear process
+    // After the nuclear call, only the produced secondaries and the updated
+    // parent final state are copied back.
+    if (fHepEmTrackingManager == nullptr) {
+      throw std::runtime_error("Specialized HepEmTrackingManager no longer valid in integration!");
+    }
+
+    HostTrackData &parentTDataAfterSecondaries = actions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
+
+    G4VProcess *nuclearProcess = nullptr;
+    int particleID             = 2;
+    if (isGammaNuclearStep) {
+      nuclearProcess = fHepEmTrackingManager->GetGammaNuclearProcess();
+      particleID     = 2;
+    } else {
+      particleID     = parentStep.fParticleType == ParticleType::Electron ? 0 : 1;
+      nuclearProcess = particleID == 0 ? fHepEmTrackingManager->GetElectronNuclearProcess()
+                                       : fHepEmTrackingManager->GetPositronNuclearProcess();
+    }
+
+    if (nuclearProcess != nullptr) {
+      parentContinuesOnCPU = isLeptonNuclearStep;
+
+      const G4ThreeVector direction(parentStep.fPostStepPoint.fMomentumDirection.x(),
+                                    parentStep.fPostStepPoint.fMomentumDirection.y(),
+                                    parentStep.fPostStepPoint.fMomentumDirection.z());
+      G4ThreeVector position(parentStep.fPostStepPoint.fPosition.x(), parentStep.fPostStepPoint.fPosition.y(),
+                             parentStep.fPostStepPoint.fPosition.z());
+      position += tolerance * direction;
+
+      auto *dynamic = new G4DynamicParticle(fScoringObjects->fG4Step->GetTrack()->GetParticleDefinition(), direction,
+                                            parentStep.fPostStepPoint.fEKin);
+
+      auto *nuclearReactionTrack = new G4Track(dynamic, parentStep.fGlobalTime, position);
+      nuclearReactionTrack->IncrementCurrentStepNumber();
+      nuclearReactionTrack->SetLocalTime(parentStep.fLocalTime);
+      nuclearReactionTrack->SetWeight(parentStep.fTrackWeight);
+      G4TouchableHandle postTouchable;
+      if (actions) {
+        nuclearReactionTrack->SetTrackID(parentTDataAfterSecondaries.g4id);
+        nuclearReactionTrack->SetParentID(parentTDataAfterSecondaries.g4parentid);
+        nuclearReactionTrack->SetCreatorProcess(parentTDataAfterSecondaries.creatorProcess);
+        nuclearReactionTrack->SetUserInformation(parentTDataAfterSecondaries.userTrackInfo);
+        nuclearReactionTrack->SetVertexPosition(parentTDataAfterSecondaries.vertexPosition);
+        nuclearReactionTrack->SetVertexMomentumDirection(parentTDataAfterSecondaries.vertexMomentumDirection);
+        nuclearReactionTrack->SetVertexKineticEnergy(parentTDataAfterSecondaries.vertexKineticEnergy);
+        nuclearReactionTrack->SetLogicalVolumeAtVertex(parentTDataAfterSecondaries.logicalVolumeAtVertex);
+        const_cast<G4DynamicParticle *>(nuclearReactionTrack->GetDynamicParticle())
+            ->SetPrimaryParticle(parentTDataAfterSecondaries.primary);
+      }
+      if (const auto postVolume = (*fScoringObjects->fPostG4TouchableHistoryHandle)->GetVolume();
+          postVolume != nullptr) {
+        postTouchable = MakeTouchableFromNavState(parentStep.fPostStepPoint.fNavigationState);
+        nuclearReactionTrack->SetTouchableHandle(postTouchable);
+        nuclearReactionTrack->SetNextTouchableHandle(postTouchable);
+      }
+
+      auto *nuclearStep = new G4Step();
+      nuclearStep->NewSecondaryVector();
+      nuclearStep->InitializeStep(nuclearReactionTrack);
+      nuclearStep->SetTrack(nuclearReactionTrack);
+      nuclearReactionTrack->SetStep(nuclearStep);
+
+      // ApplyCuts must be false, as we are not in a Geant4 tracking loop here and
+      // cannot deposit any cut secondaries locally.
+      fHepEmTrackingManager->PerformNuclear(nuclearReactionTrack, nuclearStep, particleID, /*isApplyCuts=*/false);
+
+      if (auto *newSecondaries = nuclearStep->GetfSecondary(); newSecondaries != nullptr) {
+        hadronicSecondaries.reserve(newSecondaries->size());
+        for (auto *secondary : *newSecondaries) {
+          hadronicSecondaries.push_back(secondary);
+          fScoringObjects->fSecondaryVector->push_back(secondary);
+        }
+      }
+
+      // The visible step remains the transported GPU step. Only the nuclear
+      // final state is merged back from the scratch replay object.
+      MergeNuclearReplayIntoVisibleStep(*nuclearReactionTrack, *nuclearStep, *fScoringObjects->fG4Step,
+                                        isLeptonNuclearStep);
+
+      if (isLeptonNuclearStep) {
+        continuedParent = nuclearReactionTrack;
+        if (actions) {
+          continuedParent->SetTrackID(parentTDataAfterSecondaries.g4id);
+          continuedParent->SetParentID(parentTDataAfterSecondaries.g4parentid);
+          continuedParent->SetCreatorProcess(parentTDataAfterSecondaries.creatorProcess);
+          continuedParent->SetUserInformation(parentTDataAfterSecondaries.userTrackInfo);
+          continuedParent->SetVertexPosition(parentTDataAfterSecondaries.vertexPosition);
+          continuedParent->SetVertexMomentumDirection(parentTDataAfterSecondaries.vertexMomentumDirection);
+          continuedParent->SetVertexKineticEnergy(parentTDataAfterSecondaries.vertexKineticEnergy);
+          continuedParent->SetLogicalVolumeAtVertex(parentTDataAfterSecondaries.logicalVolumeAtVertex);
+          const_cast<G4DynamicParticle *>(continuedParent->GetDynamicParticle())
+              ->SetPrimaryParticle(parentTDataAfterSecondaries.primary);
+        }
+        if (postTouchable) {
+          continuedParent->SetTouchableHandle(postTouchable);
+          continuedParent->SetNextTouchableHandle(postTouchable);
+        }
+#ifdef ADEPT_USE_ORIGINNAVSTATE
+        if (actions) {
+          continuedParent->SetOriginTouchableHandle(
+              MakeTouchableFromNavState(parentTDataAfterSecondaries.originNavState));
+        }
+#endif
+      }
+
+      if (!isLeptonNuclearStep) {
+        nuclearReactionTrack->SetUserInformation(nullptr);
+        delete nuclearStep;
+        delete nuclearReactionTrack;
+      }
+    } else {
+      // Fallback only for the case without an attached Geant4 nuclear process:
+      // there is then no temporary nuclear-replay track that can be continued
+      // on the CPU, so we create a separate heap-owned track for the stack.
+      continuedParent      = MakeTrackForCPUStacking(*fScoringObjects->fG4Step->GetTrack());
+      parentContinuesOnCPU = true;
     }
   }
 
@@ -319,14 +565,16 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   }
 
   // call UserTrackingAction if required
-  if (parentStep.fLastStepOfTrack && (callUserTrackingAction)) {
+  if (parentStep.fLastStepOfTrack && !parentContinuesOnCPU && (callUserTrackingAction)) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
   }
 
-  // Secondaries only get the PreUserTracking callback after the parent step has been
-  // fully processed. Now the secondaries are ready to process their next step that could arrive
+  // GPU-born secondaries only get the PreUserTracking callback after the parent
+  // step has been fully processed. Hadronic secondaries created by the host-side
+  // nuclear process stay on the CPU and will receive their normal Geant4
+  // tracking callbacks later.
   if (callUserTrackingAction || callUserSteppingAction) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
@@ -337,7 +585,6 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
         if (secondary == nullptr) continue;
 
         userTrackingAction->PreUserTrackingAction(secondary);
-
         auto &secTData = fHostTrackDataMapper->get(secondaries[i].fTrackID);
         if (secTData.userTrackInfo == nullptr && secondary->GetUserInformation() != nullptr) {
           secTData.userTrackInfo = secondary->GetUserInformation();
@@ -346,14 +593,24 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
     }
   }
 
+  if (isNuclearStep) {
+    if (!hadronicSecondaries.empty()) {
+      G4EventManager::GetEventManager()->StackTracks(&hadronicSecondaries);
+    }
+
+    if (parentContinuesOnCPU) {
+      G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(continuedParent);
+    }
+  }
+
   // If this was the last step of a track, the hostTrackData of that track can be safely deleted.
   // Note: This deletes the AdePT-owned UserTrackInfo data
-  // Exception: gamma-nuclear steps (fParticleType == 2 and fStepLimProcessId == 3):
-  // Steps are processed before the leaked tracks, and the hostTrackData is still used for invoking
-  // gamma-nuclear when the track is returned to the host (although it will die then). Thus, the hostTrackData must be
-  // kept alive until the invokation of the gamma-nuclear reaction
-  if (parentStep.fLastStepOfTrack &&
-      !(parentStep.fParticleType == ParticleType::Gamma && parentStep.fStepLimProcessId == 3)) {
+  if (isNuclearStep) {
+    auto *parentTrack = fScoringObjects->fG4Step->GetTrack();
+    parentTrack->SetUserInformation(nullptr);
+    fHostTrackDataMapper->FinalizePendingNuclearReaction(parentStep.fTrackID, parentContinuesOnCPU);
+  } else if (parentStep.fLastStepOfTrack) {
+    fScoringObjects->fG4Step->GetTrack()->SetUserInformation(nullptr);
     fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
   }
 }
@@ -526,14 +783,6 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
   // if it exists, add UserTrackInfo
   aTrack->SetUserInformation(hostTData.userTrackInfo); // Real data
   // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
-
-  // adjust for gamma-nuclear steps:
-  // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
-  // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == ParticleType::Gamma && aGPUHit->fStepLimProcessId == 3) {
-    aTrack->SetKineticEnergy(0.);
-    // aTrack->SetVelocity(0.);              // Not set in other cases, so also not set here
-  }
 }
 
 void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, const HostTrackData &hostTData,
@@ -639,14 +888,6 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   aPostStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data
   // aPostStepPoint->SetWeight(0);                                                                    // Missing data
-
-  // adjust for gamma-nuclear steps:
-  // As the steps are processed before the leaked tracks, the step has not undergone the gamma-nuclear reaction yet.
-  // Therefore, the kinetic energy for the track and postStepPoint must be set by hand to 0
-  if (aGPUHit->fLastStepOfTrack && aGPUHit->fParticleType == ParticleType::Gamma && aGPUHit->fStepLimProcessId == 3) {
-    aPostStepPoint->SetKineticEnergy(0.);
-    // aPostStepPoint->SetVelocity(0.);      // Not set in other cases, so also not set here
-  }
 }
 
 void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel,
@@ -739,94 +980,9 @@ void AdePTGeant4Integration::ReturnTrack(adeptint::TrackData const &track, unsig
   leakedTrack->SetTouchableHandle(TouchableHandle);
   leakedTrack->SetNextTouchableHandle(TouchableHandle);
 
-  // handle gamma- and lepton-nuclear directly in G4HepEm
   if (track.leakStatus == LeakStatus::GammaNuclear || track.leakStatus == LeakStatus::LeptonNuclear) {
-
-    // create a new step
-    G4Step *step = new G4Step();
-    step->NewSecondaryVector();
-
-    // initialize preStepPoint values
-    step->InitializeStep(leakedTrack);
-
-    // entangle our newly created step and the leaked track
-    step->SetTrack(leakedTrack);
-    leakedTrack->SetStep(step);
-
-    // get fresh secondary vector
-    G4TrackVector *secondariesPtr = step->GetfSecondary();
-    if (!secondariesPtr) throw std::runtime_error("Failed to allocate secondary vector");
-    G4TrackVector &secondaries = *secondariesPtr;
-
-    if (fHepEmTrackingManager) {
-
-      if (track.leakStatus == LeakStatus::GammaNuclear) {
-
-        auto GNucProcess = fHepEmTrackingManager->GetGammaNuclearProcess();
-        if (GNucProcess != nullptr) {
-
-          // need to call StartTracking to set the particle type in the hadronic process (see G4HadronicProcess.cc)
-          GNucProcess->StartTracking(leakedTrack);
-
-          // perform gamma nuclear from G4HepEmTrackingManager
-          // ApplyCuts must be false, as we are not in a tracking loop here and could not deposit the energy
-          fHepEmTrackingManager->PerformNuclear(leakedTrack, step, /*particleID=*/2, /*isApplyCuts=*/false);
-
-          // Give secondaries to G4
-          G4EventManager::GetEventManager()->StackTracks(&secondaries);
-
-          // As Gamma-nuclear kills the track, and the track is owned by AdePT, it has to be deleted. This includes:
-          // 1. deleting the HostTrackData, which also deletes the UserTrackInfo
-          // 2. Setting the UserInformation pointer in the track to nullptr (as the data was just deleted)
-          // 3. deleting the track
-          // Note that it is safe to remove the track and the hostTrackData here, as the hits are always handled
-          // before the leaks and hits with Gamma-nuclear are not marked as last step.
-          fHostTrackDataMapper->removeTrack(track.trackId);
-          // as the UserTrackInfo was just deleted by removeTrack, the pointer must be set to null to avoid double
-          // deletion
-          leakedTrack->SetUserInformation(nullptr);
-          // Now the track and step can be safely deleted
-          delete leakedTrack;
-          delete step;
-        } else {
-          // no gamma nuclear process attached, just give back the track to G4 to put it back on GPU
-          G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
-          delete step;
-          // Track is how handled by CPU
-          fHostTrackDataMapper->retireToCPU(track.trackId);
-        }
-      } else {
-        // case LeakStatus::LeptonNuclear
-        const double charge   = leakedTrack->GetParticleDefinition()->GetPDGCharge();
-        const bool isElectron = (charge < 0.0);
-        int particleID        = isElectron ? 0 : 1;
-
-        // Invoke the electron/positron-nuclear process start tracking interace (if any)
-        G4VProcess *theNucProcess = isElectron ? fHepEmTrackingManager->GetElectronNuclearProcess()
-                                               : fHepEmTrackingManager->GetPositronNuclearProcess();
-        if (theNucProcess != nullptr) {
-
-          // perform lepton nuclear from G4HepEmTrackingManager
-          // ApplyCuts must be false, as we are not in a tracking loop here and could not deposit the energy
-          fHepEmTrackingManager->PerformNuclear(leakedTrack, step, particleID, /*isApplyCuts=*/false);
-
-          // Give secondaries to G4 - they are already stored from G4HepEm in the G4Step, now we need to pass them to G4
-          // itself
-          G4EventManager::GetEventManager()->StackTracks(&secondaries);
-          // Give updated primary after lepton nuclear reacton to G4
-          G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
-        } else {
-          // no lepton nuclear process attached, just give back the track to G4 to put it back on GPU
-          G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(leakedTrack);
-          delete step;
-        }
-        // Track is how handled by CPU
-        fHostTrackDataMapper->retireToCPU(track.trackId);
-      }
-    } else {
-      throw std::runtime_error("Specialized HepEmTrackingManager not longer valid in integration!");
-    }
-
+    throw std::runtime_error(
+        "Gamma/lepton nuclear should be reinjected from deferred GPU-hit processing, not from leaked tracks.");
   } else {
 
     // LeakStatus::OutOfGPURegion: just give track back to G4

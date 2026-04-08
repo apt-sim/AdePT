@@ -100,6 +100,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     double localTime         = currentTrack.localTime;
     double properTime        = currentTrack.properTime;
     vecgeom::NavigationState nextState;
+    bool continuesOnCPU = false;
 
     currentTrack.stepCounter++;
     bool printErrors = true;
@@ -692,9 +693,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           break;
         }
         case 3: {
-          // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
-          trackSurvives = true;
-          leakReason    = LeakStatus::LeptonNuclear;
+          // Lepton nuclear is handled on the host from the returned step only.
+          // The GPU-side track dies here, but the parent continues on CPU later.
+          trackSurvives  = false;
+          continuesOnCPU = true;
           break;
         }
         }
@@ -803,7 +805,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     assert(nSecondaries <= 3);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(currentTrack.trackId, currentTrack.parentId, short(winnerProcessIndex),
                                IsElectron ? ParticleType::Electron : ParticleType::Positron,
@@ -822,7 +824,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                localTime,                                   // local time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               !trackSurvives,                              // whether this was the last step
+                               !trackSurvives && !continuesOnCPU,           // whether this was the last step
                                currentTrack.stepCounter,                    // stepcounter
                                secondaryData,                               // pointer to secondary init data
                                nSecondaries);                               // number of secondaries

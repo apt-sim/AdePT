@@ -210,23 +210,13 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
                                        ParticleManager particleManager, AllInteractionQueues interactionQueues,
                                        const bool returnAllSteps, const bool returnLastStep)
 {
-  int activeSize = propagationQueue->size();
+  auto &slotManager = *particleManager.gammas.fSlotManager;
+  int activeSize    = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot      = (*propagationQueue)[i];
     Track &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID = currentTrack.navState.GetLogicalId();
-
-    // Write local variables back into track and enqueue
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        particleManager.gammas.CopyTrackToLeaked(slot);
-      } else {
-        particleManager.gammas.EnqueueNext(slot);
-      }
-    };
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
@@ -247,36 +237,34 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
       if (theTrack->GetWinnerProcessIndex() < 3) {
         interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
       } else {
-        // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
-        survive(LeakStatus::GammaNuclear);
+        // Gamma nuclear is handled on the host from the returned step only.
+        slotManager.MarkSlotForFreeing(slot);
 
-        // Record last step to enable UserPostTrackingAction to be called
-        if (returnAllSteps || returnLastStep) {
-          adept_scoring::RecordHit(
-              currentTrack.trackId,                        // Track ID
-              currentTrack.parentId,                       // parent Track ID
-              static_cast<short>(3),                       // step defining process ID
-              ParticleType::Gamma,                         // Particle type
-              theTrack->GetGStepLength(),                  // Step length
-              0,                                           // Total Edep
-              currentTrack.weight,                         // Track weight
-              currentTrack.navState,                       // Pre-step point navstate
-              currentTrack.preStepPos,                     // Pre-step point position
-              currentTrack.preStepDir,                     // Pre-step point momentum direction
-              currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-              currentTrack.nextState,                      // Post-step point navstate
-              currentTrack.pos,                            // Post-step point position
-              currentTrack.dir,                            // Post-step point momentum direction
-              0,                                           // Post-step point kinetic energy
-              currentTrack.globalTime,                     // global time
-              currentTrack.localTime,                      // local time
-              currentTrack.preStepGlobalTime,              // preStep global time
-              currentTrack.eventId, currentTrack.threadId, // event and thread ID
-              true, // whether this is the last step of the track: true as gamma nuclear kills the gamma
-              currentTrack.stepCounter, // stepcounter
-              nullptr,                  // pointer to secondary init data
-              0);                       // number of secondaries
-        }
+        // Gamma-nuclear must always return the step so the host can replay the
+        // interaction even when user callbacks are disabled.
+        adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
+                                 currentTrack.parentId,                       // parent Track ID
+                                 static_cast<short>(3),                       // step defining process ID
+                                 ParticleType::Gamma,                         // Particle type
+                                 theTrack->GetGStepLength(),                  // Step length
+                                 0,                                           // Total Edep
+                                 currentTrack.weight,                         // Track weight
+                                 currentTrack.navState,                       // Pre-step point navstate
+                                 currentTrack.preStepPos,                     // Pre-step point position
+                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                 currentTrack.nextState,                      // Post-step point navstate
+                                 currentTrack.pos,                            // Post-step point position
+                                 currentTrack.dir,                            // Post-step point momentum direction
+                                 currentTrack.eKin,                           // Post-step point kinetic energy
+                                 currentTrack.globalTime,                     // global time
+                                 currentTrack.localTime,                      // local time
+                                 currentTrack.preStepGlobalTime,              // preStep global time
+                                 currentTrack.eventId, currentTrack.threadId, // event and thread ID
+                                 true,                                        // gamma nuclear kills the parent
+                                 currentTrack.stepCounter,                    // stepcounter
+                                 nullptr,                                     // pointer to secondary init data
+                                 0);                                          // number of secondaries
       }
     }
   }

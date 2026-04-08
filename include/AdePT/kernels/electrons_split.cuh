@@ -505,8 +505,9 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       }
     }
 
-    // Now push the particles that reached their interaction into the per-interaction queues,
-    // except for lepton nuclear (winnerProcessIndex == 3), which is sent back to the CPU
+    // Now push the particles that reached their interaction into the
+    // per-interaction queues. Lepton nuclear (winnerProcessIndex == 3) is
+    // handled on the host from the returned step only.
     if (reached_interaction && winnerProcessIndex != 3) {
       // reset Looper counter if limited by discrete interaction or MSC
       currentTrack.looperCounter = 0;
@@ -524,27 +525,29 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
 
     } else {
 
+      const bool continuesOnCPU = reached_interaction && winnerProcessIndex == 3;
+
+      if (continuesOnCPU) {
+        // The returned hit is sufficient to reconstruct the step and later
+        // continue the parent on the CPU in sorted order.
+        trackSurvives = false;
+        slotManager.MarkSlotForFreeing(slot);
+      }
+
       // if not already dead, check for SteppingAction and survive
       if (trackSurvives) {
 
         // possible hook to SteppingAction here
 
-        // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
-        auto leakReason = winnerProcessIndex == 3 ? LeakStatus::LeptonNuclear : LeakStatus::NoLeak;
-
         // --- Survive --- //
-        currentTrack.leakStatus = leakReason;
-        if (leakReason == LeakStatus::LeptonNuclear) {
-          // Copy track at slot to the leaked tracks
-          electronsOrPositrons.CopyTrackToLeaked(slot);
-        } else {
-          electronsOrPositrons.EnqueueNext(slot);
-        }
+        currentTrack.leakStatus = LeakStatus::NoLeak;
+        electronsOrPositrons.EnqueueNext(slot);
       }
 
       // Only non-interacting, non-relocating tracks score here
       // Score the edep for particles that didn't reach the interaction
-      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives)) {
+      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
+          (returnLastStep && (!trackSurvives || continuesOnCPU))) {
         adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                  currentTrack.parentId,                                        // parent Track ID
                                  static_cast<short>(winnerProcessIndex),                       // step defining process
@@ -564,7 +567,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
                                  currentTrack.localTime,                      // local time
                                  currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                 !trackSurvives,                              // whether this was the last step
+                                 !trackSurvives && !continuesOnCPU,           // whether this was the last step
                                  currentTrack.stepCounter,                    // stepcounter
                                  nullptr,                                     // pointer to secondary init data
                                  0);                                          // number of secondaries

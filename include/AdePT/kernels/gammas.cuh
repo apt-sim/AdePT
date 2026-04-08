@@ -401,8 +401,8 @@ __global__ void __launch_bounds__(256, 1)
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| GAMMA-NUCLEAR ");
 #endif
-        // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
-        leakReason = LeakStatus::GammaNuclear;
+        // Gamma nuclear is handled on the host from the returned step only.
+        trackSurvives = false;
       }
       } // end switch (winnerProcessIndex)
 
@@ -440,10 +440,10 @@ __global__ void __launch_bounds__(256, 1)
 
     __syncwarp();
 
-    // A track that survives must be enqueued to the leaks or the next queue.
-    // Note: gamma nuclear does not survive but must still be leaked to the CPU, which is done
-    // inside survive()
-    if (trackSurvives || leakReason == LeakStatus::GammaNuclear) {
+    // A surviving track must be enqueued to the leak buffer or the next queue.
+    // Gamma-nuclear is handled from the returned step only, so the GPU-side
+    // track simply dies after recording that step.
+    if (trackSurvives) {
       survive();
     } else {
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
@@ -453,7 +453,7 @@ __global__ void __launch_bounds__(256, 1)
     assert(nSecondaries <= 3);
 
     // If there is some edep from cutting particles, record the step
-    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || winnerProcessIndex == 3 ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID

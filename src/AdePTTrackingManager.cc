@@ -77,6 +77,7 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport()
   }
   return transport;
 }
+
 } // namespace
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -351,29 +352,51 @@ void AdePTTrackingManager::FlushEvent()
   // Once the device side is flushed, take the plain returned-track batch from
   // transport and hand it back to Geant4 on the host side.
   std::vector<AsyncAdePT::TrackDataWithIDs> tracks = fAdeptTransport->TakeReturnedTracks(threadId);
+  auto deferredNuclearSteps                        = fGeant4Integration.TakeDeferredNuclearSteps();
   fAdeptTransport->MarkLeakedTracksRetrieved(threadId);
-  PrepareReturnedTracksForGeant4(threadId, eventId, tracks);
-  fGeant4Integration.ReturnTracks(tracks.begin(), tracks.end(), fAdeptTransport->GetDebugLevel(),
-                                  fAdeptTransport->GetReturnFirstAndLastStep());
-}
 
-void AdePTTrackingManager::PrepareReturnedTracksForGeant4(int threadId, int eventId,
-                                                          std::vector<AsyncAdePT::TrackDataWithIDs> &tracks)
-{
-#ifndef NDEBUG
-  for (auto const &track : tracks) {
-    bool error = false;
-    if (track.threadId != threadId || track.eventId != static_cast<unsigned int>(eventId)) error = true;
-    if (!(track.pdg == -11 || track.pdg == 11 || track.pdg == 22)) error = true;
-    if (error)
-      std::cerr << "Error in returning track: threadId=" << track.threadId << " eventId=" << track.eventId
-                << " pdg=" << track.pdg << "\n";
-    assert(!error);
-  }
-#endif
-
-  // Sort the tracks coming from device by energy. This is necessary to ensure reproducibility.
   std::sort(tracks.begin(), tracks.end());
+  std::sort(
+      deferredNuclearSteps.begin(), deferredNuclearSteps.end(),
+      [](const AdePTGeant4Integration::DeferredNuclearStep &lhs,
+         const AdePTGeant4Integration::DeferredNuclearStep &rhs) { return lhs.returnedTrack < rhs.returnedTrack; });
+
+  // FIXME: here we sort both containers of the deferredNuclearSteps and the returnedTracks and
+  // then consume them together. In principle, this could be simplified to just do a loop over the
+  // first container and then the next. However, for now it is kept like this to ensure the
+  // exact physics reproducibility (apart from the fix of handling the nuclear reactions correctly)
+  // In the future, this should be simplified, in a separate step, to make sure the physics change
+  // is well understood.
+  unsigned int trackIndex    = 0;
+  auto trackIt               = tracks.begin();
+  auto deferredNuclearStepIt = deferredNuclearSteps.begin();
+
+  while (trackIt != tracks.end() && deferredNuclearStepIt != deferredNuclearSteps.end()) {
+    // Ordinary leaked tracks are already ready to return to Geant4. Deferred
+    // nuclear steps must rebuild their G4 step and run the host-side nuclear
+    // process in that same deterministic order.
+    if (static_cast<const adeptint::TrackData &>(*trackIt) < deferredNuclearStepIt->returnedTrack) {
+      fGeant4Integration.ReturnTrack(*trackIt, trackIndex++, fAdeptTransport->GetDebugLevel(),
+                                     fAdeptTransport->GetReturnFirstAndLastStep());
+      ++trackIt;
+    } else {
+      fGeant4Integration.ProcessGPUStep(
+          std::span<const GPUHit>(deferredNuclearStepIt->hits.data(), deferredNuclearStepIt->hits.size()),
+          fAdeptTransport->GetReturnAllSteps(), fAdeptTransport->GetReturnFirstAndLastStep());
+      ++deferredNuclearStepIt;
+    }
+  }
+
+  for (; trackIt != tracks.end(); ++trackIt) {
+    fGeant4Integration.ReturnTrack(*trackIt, trackIndex++, fAdeptTransport->GetDebugLevel(),
+                                   fAdeptTransport->GetReturnFirstAndLastStep());
+  }
+
+  for (; deferredNuclearStepIt != deferredNuclearSteps.end(); ++deferredNuclearStepIt) {
+    fGeant4Integration.ProcessGPUStep(
+        std::span<const GPUHit>(deferredNuclearStepIt->hits.data(), deferredNuclearStepIt->hits.size()),
+        fAdeptTransport->GetReturnAllSteps(), fAdeptTransport->GetReturnFirstAndLastStep());
+  }
 }
 
 void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
@@ -407,8 +430,20 @@ void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
                   << "\033[0m" << std::endl;
       }
       auto blockSize = 1 + it->fNumSecondaries;
-      fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize), fAdeptTransport->GetReturnAllSteps(),
-                                        fAdeptTransport->GetReturnFirstAndLastStep());
+      const bool isNuclearStep =
+          (it->fParticleType == ParticleType::Gamma || it->fParticleType == ParticleType::Electron ||
+           it->fParticleType == ParticleType::Positron) &&
+          it->fStepLimProcessId == 3;
+      if (isNuclearStep) {
+        // Nuclear returned steps are replayed later at the same sorted barrier
+        // as leaked tracks, because the host-side hadronic process consumes
+        // Geant4 RNG and therefore must not run in hit-buffer arrival order.
+        fGeant4Integration.QueueDeferredNuclearStep(std::span<const GPUHit>(&*it, blockSize));
+      } else {
+        fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize),
+                                          fAdeptTransport->GetReturnAllSteps(),
+                                          fAdeptTransport->GetReturnFirstAndLastStep());
+      }
       it += blockSize;
     }
   });
@@ -416,7 +451,6 @@ void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 {
-
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();

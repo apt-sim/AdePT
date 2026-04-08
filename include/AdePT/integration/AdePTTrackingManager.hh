@@ -83,9 +83,6 @@ private:
   /// each batch.
   void ProcessReturnedGPUHits(int threadId, int eventId);
 
-  /// @brief Validate and sort returned tracks before reinjecting them into Geant4.
-  void PrepareReturnedTracksForGeant4(int threadId, int eventId, std::vector<AsyncAdePT::TrackDataWithIDs> &tracks);
-
   std::unique_ptr<G4HepEmTrackingManagerSpecialized> fHepEmTrackingManager;
   AdePTGeant4Integration fGeant4Integration;
   static inline int fNumThreads{0};

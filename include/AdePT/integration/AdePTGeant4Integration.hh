@@ -12,12 +12,15 @@
 #include <AdePT/core/ScoringCommons.hh>
 #include <AdePT/core/TrackData.h>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
+#include <AdePT/core/ReturnedTrackData.hh>
 #include <AdePT/integration/HostTrackDataMapper.hh>
 
 #include <G4EventManager.hh>
 #include <G4Event.hh>
+#include <G4Track.hh>
 
 #include <span>
+#include <vector>
 
 namespace AdePTGeant4Integration_detail {
 struct ScoringObjects;
@@ -28,6 +31,15 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
+  /// @brief Stored work for a returned gamma/lepton nuclear step.
+  /// @details
+  /// These steps are handled later in the same sorted return order as ordinary
+  /// leaked tracks, so the Geant4 nuclear process always runs in a fixed order.
+  struct DeferredNuclearStep {
+    adeptint::TrackData returnedTrack{};
+    std::vector<GPUHit> hits{};
+  };
+
   explicit AdePTGeant4Integration() : fHostTrackDataMapper(std::make_unique<HostTrackDataMapper>()) {}
   ~AdePTGeant4Integration();
 
@@ -63,6 +75,18 @@ public:
 
   HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
 
+  /// @brief Defer a returned nuclear step for later sorted replay on the host.
+  void QueueDeferredNuclearStep(std::span<const GPUHit> gpuSteps);
+
+  /// @brief Transfer ownership of the currently queued deferred nuclear steps.
+  /// @details
+  /// This drains the integration-local queue into a temporary vector without
+  /// copying the stored GPU-hit blocks.
+  std::vector<DeferredNuclearStep> TakeDeferredNuclearSteps();
+
+  void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel,
+                   bool callUserActions = false) const;
+
   void SetHepEmTrackingManager(G4HepEmTrackingManagerSpecialized *hepEmTrackingManager)
   {
     fHepEmTrackingManager = hepEmTrackingManager;
@@ -89,8 +113,17 @@ private:
                   G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus, bool callUserTrackingAction,
                   bool callUserSteppingAction) const;
 
-  void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel,
-                   bool callUserActions = false) const;
+  /// @brief Build the ordering key for a deferred nuclear step.
+  adeptint::TrackData MakeReturnedTrackFromGPUHit(GPUHit const &gpuHit) const;
+
+  /// @brief Create a heap-owned track that can be pushed onto the Geant4 stack.
+  /// @details
+  /// This is only used as a fallback for gamma/lepton nuclear when no Geant4
+  /// nuclear process is attached. In that case there is no temporary nuclear
+  /// replay track to continue on the CPU, and the visible reconstructed track
+  /// cannot be handed to the stack manager because it is reused integration
+  /// storage.
+  G4Track *MakeTrackForCPUStacking(const G4Track &track) const;
 
   // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
   // this is just a reference to handle gamma-/lepton-nuclear reactions
@@ -101,6 +134,8 @@ private:
 
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
+
+  std::vector<DeferredNuclearStep> fDeferredNuclearSteps;
 };
 
 #endif
