@@ -24,9 +24,9 @@ struct HostTrackData {
   int g4id       = 0; // the Geant4 track ID
   int g4parentid = 0; // the Geant4 parent ID
   uint64_t gpuId = 0; // the GPU’s 64-bit track ID
-  // Deferred nuclear replay still needs this metadata even after the GPU track
+  // Deferred returned-step replay still needs this metadata even after the GPU track
   // has finished, so removal/retirement must wait while this flag is set.
-  bool pendingNuclearReaction            = false;
+  bool pendingReturnedStep               = false;
   G4PrimaryParticle *primary             = nullptr;
   G4VProcess *creatorProcess             = nullptr;
   G4VUserTrackInformation *userTrackInfo = nullptr;
@@ -150,20 +150,20 @@ public:
     return d;
   }
 
-  /// @brief Mark whether a deferred nuclear reaction still needs this host-side metadata.
+  /// @brief Mark whether a deferred returned step still needs this host-side metadata.
   /// @param gpuId GPU track id of the entry to update.
-  /// @param pending Whether deferred nuclear replay is still outstanding for this track.
-  void SetPendingNuclearReaction(uint64_t gpuId, bool pending)
+  /// @param pending Whether deferred replay is still outstanding for this track.
+  void SetPendingReturnedStep(uint64_t gpuId, bool pending)
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return;
-    hostDataVec[it->second].pendingNuclearReaction = pending;
+    hostDataVec[it->second].pendingReturnedStep = pending;
   }
 
-  /// @brief Finish a deferred nuclear reaction and perform the final ownership transition.
+  /// @brief Finish deferred returned-step replay and perform the final ownership transition.
   /// @param gpuId GPU track id of the entry to finalize.
   /// @param continueOnCPU If true, retire the metadata to CPU ownership; otherwise remove it completely.
-  void FinalizePendingNuclearReaction(uint64_t gpuId, bool continueOnCPU)
+  void FinalizePendingReturnedStep(uint64_t gpuId, bool continueOnCPU)
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return;
@@ -192,7 +192,7 @@ public:
     if (it == gpuToIndex.end()) return; // already gone
     int idx = it->second;
 
-    if (hostDataVec[idx].pendingNuclearReaction) return;
+    if (hostDataVec[idx].pendingReturnedStep) return;
     eraseHostTrackData(it, /*keepReverseMap=*/false, /*deleteUserTrackInfo=*/true);
   }
 
@@ -206,7 +206,7 @@ public:
     if (it == gpuToIndex.end()) return;
     int idx = it->second;
 
-    if (hostDataVec[idx].pendingNuclearReaction) return;
+    if (hostDataVec[idx].pendingReturnedStep) return;
     eraseHostTrackData(it, /*keepReverseMap=*/true, /*deleteUserTrackInfo=*/false);
   }
 

@@ -156,9 +156,31 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                 currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
           }
 
-          // Set LeakStatus and copy to leaked queue
-          currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
-          electronsOrPositrons.CopyTrackToLeaked(slot);
+          slotManager.MarkSlotForFreeing(slot);
+
+          adept_scoring::RecordHit(currentTrack.trackId,     // Track ID
+                                   currentTrack.parentId,    // parent Track ID
+                                   kAdePTFinishOnCPUProcess, // step limiting process
+                                   IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                                   0.,                                                           // Step length
+                                   0.,                                                           // Total Edep
+                                   currentTrack.weight,                                          // Track weight
+                                   currentTrack.navState,                       // Pre-step point navstate
+                                   currentTrack.preStepPos,                     // Pre-step point position
+                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                   currentTrack.navState,                       // Post-step point navstate
+                                   currentTrack.pos,                            // Post-step point position
+                                   currentTrack.dir,                            // Post-step point momentum direction
+                                   currentTrack.eKin,                           // Post-step point kinetic energy
+                                   currentTrack.globalTime,                     // global time
+                                   currentTrack.localTime,                      // local time
+                                   currentTrack.preStepGlobalTime,              // preStep global time
+                                   currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                   false,                                       // parent continues on CPU
+                                   currentTrack.stepCounter,                    // stepcounter
+                                   nullptr,                                     // pointer to secondary init data
+                                   0);                                          // number of secondaries
           continue;
         }
       } else {
@@ -540,7 +562,6 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         // possible hook to SteppingAction here
 
         // --- Survive --- //
-        currentTrack.leakStatus = LeakStatus::NoLeak;
         electronsOrPositrons.EnqueueNext(slot);
       }
 
@@ -594,59 +615,87 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        electronsOrPositrons.CopyTrackToLeaked(slot);
-      } else {
-        electronsOrPositrons.EnqueueNext(slot);
-      }
-    };
+    auto survive = [&]() { electronsOrPositrons.EnqueueNext(slot); };
+  };
 
-    bool trackSurvives = true;
+  bool trackSurvives = true;
 
-    // Retrieve HepEM track
-    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
-    G4HepEmTrack *theTrack        = elTrack.GetTrack();
+  // Retrieve HepEM track
+  G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
+  G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
-    double energyDeposit = theTrack->GetEnergyDeposit();
+  double energyDeposit = theTrack->GetEnergyDeposit();
 
-    bool cross_boundary = false;
+  bool cross_boundary = false;
 
-    // Relocate to have the correct next state before RecordHit is called
+  // Relocate to have the correct next state before RecordHit is called
 
-    // - Kill loopers stuck at a boundary
-    // - Set cross boundary flag in order to set the correct navstate after scoring
-    // - Kill particles that left the world
+  // - Kill loopers stuck at a boundary
+  // - Set cross boundary flag in order to set the correct navstate after scoring
+  // - Kill particles that left the world
 
-    ++currentTrack.looperCounter;
+  ++currentTrack.looperCounter;
 
-    if (!currentTrack.nextState.IsOutside()) {
-      // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
-      // This will happen after recording the step
-      // Relocate
-      cross_boundary = true;
+  if (!currentTrack.nextState.IsOutside()) {
+    // Mark the particle. We need to change its navigation state to the next volume before enqueuing it
+    // This will happen after recording the step
+    // Relocate
+    cross_boundary = true;
 #ifdef ADEPT_USE_SURF
-      AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.hitsurfID,
-                                           currentTrack.nextState);
+    AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.hitsurfID,
+                                         currentTrack.nextState);
 #else
-      AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
+    AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 #endif
-    } else {
-      // Particle left the world, don't enqueue it and release the slot
-      slotManager.MarkSlotForFreeing(slot);
-      trackSurvives = false;
-    }
+  } else {
+    // Particle left the world, don't enqueue it and release the slot
+    slotManager.MarkSlotForFreeing(slot);
+    trackSurvives = false;
+  }
 
-    // Score
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
+  // Score
+  if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
+    adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
+                             currentTrack.parentId,                                        // parent Track ID
+                             kAdePTTransportationProcess,                                  // step limiting process ID
+                             IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                             elTrack.GetPStepLength(),                                     // Step length
+                             energyDeposit,                                                // Total Edep
+                             currentTrack.weight,                                          // Track weight
+                             currentTrack.navState,                                        // Pre-step point navstate
+                             currentTrack.preStepPos,                                      // Pre-step point position
+                             currentTrack.preStepDir,                     // Pre-step point momentum direction
+                             currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                             currentTrack.nextState,                      // Post-step point navstate
+                             currentTrack.pos,                            // Post-step point position
+                             currentTrack.dir,                            // Post-step point momentum direction
+                             currentTrack.eKin,                           // Post-step point kinetic energy
+                             currentTrack.globalTime,                     // global time
+                             currentTrack.localTime,                      // local time
+                             currentTrack.preStepGlobalTime,              // preStep global time
+                             currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                             !trackSurvives,                              // whether this was the last step
+                             currentTrack.stepCounter,                    // stepcounter
+                             nullptr,                                     // pointer to secondary init data
+                             0);                                          // number of secondaries
+
+  if (cross_boundary) {
+    // Move to the next boundary now that the Step is recorded
+    currentTrack.navState = currentTrack.nextState;
+    // Check if the next volume belongs to the GPU region and push it to the appropriate queue
+    const int nextlvolID          = currentTrack.nextState.GetLogicalId();
+    VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+    if (nextauxData.fGPUregionId >= 0) {
+      theTrack->SetMCIndex(nextauxData.fMCIndex);
+      survive();
+    } else {
+      // To be safe, just push a bit the track exiting the GPU region to make sure
+      // Geant4 does not relocate it again inside the same region
+      currentTrack.pos += kPushDistance * currentTrack.dir;
+      slotManager.MarkSlotForFreeing(slot);
       adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                currentTrack.parentId,                                        // parent Track ID
-                               static_cast<short>(/*transport*/ 10),                         // step limiting process ID
+                               kAdePTOutOfGPURegionProcess,                                  // step limiting process ID
                                IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
                                elTrack.GetPStepLength(),                                     // Step length
                                energyDeposit,                                                // Total Edep
@@ -663,28 +712,13 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               !trackSurvives,                              // whether this was the last step
+                               false,                                       // parent continues on CPU
                                currentTrack.stepCounter,                    // stepcounter
                                nullptr,                                     // pointer to secondary init data
                                0);                                          // number of secondaries
-
-    if (cross_boundary) {
-      // Move to the next boundary now that the Step is recorded
-      currentTrack.navState = currentTrack.nextState;
-      // Check if the next volume belongs to the GPU region and push it to the appropriate queue
-      const int nextlvolID          = currentTrack.nextState.GetLogicalId();
-      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-      if (nextauxData.fGPUregionId >= 0) {
-        theTrack->SetMCIndex(nextauxData.fMCIndex);
-        survive();
-      } else {
-        // To be safe, just push a bit the track exiting the GPU region to make sure
-        // Geant4 does not relocate it again inside the same region
-        currentTrack.pos += kPushDistance * currentTrack.dir;
-        survive(LeakStatus::OutOfGPURegion);
-      }
     }
   }
+}
 }
 
 __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track &currentTrack,

@@ -85,7 +85,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     VolAuxData const &auxData = gVolAuxData[lvolID];
 
     bool trackSurvives                       = false;
-    LeakStatus leakReason                    = LeakStatus::NoLeak;
     constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
     constexpr unsigned short kStepsStuckPush = 5;
     constexpr unsigned short kStepsStuckKill = 25;
@@ -100,7 +99,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     double localTime         = currentTrack.localTime;
     double properTime        = currentTrack.properTime;
     vecgeom::NavigationState nextState;
-    bool continuesOnCPU = false;
+    bool continuesOnCPU     = false;
+    short returnedProcessId = 0;
 
     currentTrack.stepCounter++;
     bool printErrors = true;
@@ -125,13 +125,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        electronsOrPositrons.CopyTrackToLeaked(slot);
-      } else {
-        electronsOrPositrons.EnqueueNext(slot);
-      }
+      currentTrack.leakStatus = LeakStatus::NoLeak;
+      electronsOrPositrons.EnqueueNext(slot);
     };
 
     // Init a track with the needed data to call into G4HepEm.
@@ -249,6 +244,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // care, but we need to make this available when splitting the operations.
     // double physicalStepLength = elTrack.GetPStepLength();
     int winnerProcessIndex = theTrack->GetWinnerProcessIndex();
+    returnedProcessId      = short(winnerProcessIndex);
 
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) printf("| winnerProc %d\n", winnerProcessIndex);
@@ -445,20 +441,25 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 #if ADEPT_DEBUG_TRACK > 0
             if (verbose) printf("\n| track leaked to Geant4\n");
 #endif
-            leakReason = LeakStatus::OutOfGPURegion;
+            trackSurvives     = false;
+            continuesOnCPU    = true;
+            returnedProcessId = kAdePTOutOfGPURegionProcess;
           }
-
-          // the track survives, do not force return of step
-          trackSurvives = true;
-        } // else particle has left the world
-
-        winnerProcessIndex = 10; // mark winner process to be transport
+        }
+        if (!continuesOnCPU) {
+          winnerProcessIndex = kAdePTTransportationProcess; // mark winner process to be transport
+          returnedProcessId  = kAdePTTransportationProcess;
+          // A transportation step survives only if the track stayed inside the
+          // world and remains in a GPU region.
+          if (!nextState.IsOutside()) trackSurvives = true;
+        }
       } else if (!propagated || restrictedPhysicalStepLength) {
         // Did not yet reach the interaction point due to error in the magnetic
         // field propagation. Try again next time.
 
         // mark winner process to be transport, although this is not strictly true
-        winnerProcessIndex = 10;
+        winnerProcessIndex = kAdePTTransportationProcess;
+        returnedProcessId  = kAdePTTransportationProcess;
 
         trackSurvives       = true;
         reached_interaction = false;
@@ -789,7 +790,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
                  currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
                  currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-        leakReason = LeakStatus::FinishEventOnCPU;
+        trackSurvives     = false;
+        continuesOnCPU    = true;
+        returnedProcessId = kAdePTFinishOnCPUProcess;
       }
     }
 
@@ -807,7 +810,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(currentTrack.trackId, currentTrack.parentId, short(winnerProcessIndex),
+      adept_scoring::RecordHit(currentTrack.trackId, currentTrack.parentId, returnedProcessId,
                                IsElectron ? ParticleType::Electron : ParticleType::Positron,
                                elTrack.GetPStepLength(),                    // Step length
                                energyDeposit,                               // Total Edep

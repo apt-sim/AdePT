@@ -59,7 +59,7 @@ AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
 
   for (auto &eventState : fEventStates) {
-    std::atomic_init(&eventState, EventState::LeakedTracksRetrieved);
+    std::atomic_init(&eventState, EventState::DeviceFlushed);
   }
 
   Initialize(auxData, wdtPacked, uniformFieldValues);
@@ -196,25 +196,18 @@ void AsyncAdePTTransport::RequestFlush(int threadId)
 void AsyncAdePTTransport::WaitForFlushProgress()
 {
   std::unique_lock lock{fMutex_G4Workers};
-  fCV_G4Workers.wait(lock);
+  using namespace std::chrono_literals;
+  fCV_G4Workers.wait_for(lock, 1ms);
 }
 
-bool AsyncAdePTTransport::IsDeviceFlushed(int threadId) const
+bool AsyncAdePTTransport::IsHitsFlushed(int threadId) const
 {
-  return fEventStates[threadId].load(std::memory_order_acquire) >= EventState::DeviceFlushed;
+  return fEventStates[threadId].load(std::memory_order_acquire) >= EventState::HitsFlushed;
 }
 
-std::vector<TrackDataWithIDs> AsyncAdePTTransport::TakeReturnedTracks(int threadId)
+void AsyncAdePTTransport::MarkHostFlushed(int threadId)
 {
-  std::vector<TrackDataWithIDs> tracks;
-  auto handle = fBuffer->getTracksFromDevice(threadId);
-  tracks.swap(handle.tracks);
-  return tracks;
-}
-
-void AsyncAdePTTransport::MarkLeakedTracksRetrieved(int threadId)
-{
-  fEventStates[threadId].store(EventState::LeakedTracksRetrieved, std::memory_order_release);
+  fEventStates[threadId].store(EventState::DeviceFlushed, std::memory_order_release);
 }
 
 } // namespace AsyncAdePT

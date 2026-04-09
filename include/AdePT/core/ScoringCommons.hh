@@ -41,6 +41,13 @@ struct GPUHit {
   unsigned char fNumSecondaries{0};
 };
 
+/// @brief AdePT-specific step-limiting process ids stored in GPUHit::fStepLimProcessId.
+constexpr short kAdePTTransportationProcess = 10;
+/// @brief Returned step for a track that leaves the GPU region and continues on the CPU.
+constexpr short kAdePTOutOfGPURegionProcess = 11;
+/// @brief Returned step for a track that is intentionally finished on the CPU.
+constexpr short kAdePTFinishOnCPUProcess = 12;
+
 /// @brief Minimal data struct that is needed along with the parent track to provide the initial track information that
 /// is sent back to the CPU
 struct SecondaryInitData {

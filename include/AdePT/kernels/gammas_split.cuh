@@ -102,9 +102,31 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                 currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
           }
 
-          // Set LeakStatus and copy to leaked queue
-          currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
-          particleManager.gammas.CopyTrackToLeaked(slot);
+          slotManager.MarkSlotForFreeing(slot);
+
+          adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
+                                   currentTrack.parentId,                       // parent Track ID
+                                   kAdePTFinishOnCPUProcess,                    // step limiting process ID
+                                   ParticleType::Gamma,                         // Particle type
+                                   0.,                                          // Step length
+                                   0.,                                          // Total Edep
+                                   currentTrack.weight,                         // Track weight
+                                   currentTrack.navState,                       // Pre-step point navstate
+                                   currentTrack.preStepPos,                     // Pre-step point position
+                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                   currentTrack.navState,                       // Post-step point navstate
+                                   currentTrack.pos,                            // Post-step point position
+                                   currentTrack.dir,                            // Post-step point momentum direction
+                                   currentTrack.eKin,                           // Post-step point kinetic energy
+                                   currentTrack.globalTime,                     // global time
+                                   currentTrack.localTime,                      // local time
+                                   currentTrack.preStepGlobalTime,              // preStep global time
+                                   currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                   false,                                       // parent continues on CPU
+                                   currentTrack.stepCounter,                    // stepcounter
+                                   nullptr,                                     // pointer to secondary init data
+                                   0);                                          // number of secondaries
           continue;
         }
       } else {
@@ -284,17 +306,11 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     bool enterWDTRegion = false;
 
     // Write local variables back into track and enqueue
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        particleManager.gammas.CopyTrackToLeaked(slot);
+    auto survive = [&]() {
+      if (!enterWDTRegion) {
+        particleManager.gammas.EnqueueNext(slot);
       } else {
-        if (!enterWDTRegion) {
-          particleManager.gammas.EnqueueNext(slot);
-        } else {
-          particleManager.gammasWDT.EnqueueNext(slot);
-        }
+        particleManager.gammasWDT.EnqueueNext(slot);
       }
     };
 
@@ -321,7 +337,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       if (returnAllSteps)
         adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                  currentTrack.parentId,                       // parent Track ID
-                                 static_cast<short>(10),                      // step defining process ID
+                                 kAdePTTransportationProcess,                 // step defining process ID
                                  ParticleType::Gamma,                         // Particle type
                                  theTrack->GetGStepLength(),                  // Step length
                                  0,                                           // Total Edep
@@ -368,7 +384,30 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
         // To be safe, just push a bit the track exiting the GPU region to make sure
         // Geant4 does not relocate it again inside the same region
         currentTrack.pos += kPushDistance * currentTrack.dir;
-        survive(LeakStatus::OutOfGPURegion);
+        slotManager.MarkSlotForFreeing(slot);
+        adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
+                                 currentTrack.parentId,                       // parent Track ID
+                                 kAdePTOutOfGPURegionProcess,                 // step defining process ID
+                                 ParticleType::Gamma,                         // Particle type
+                                 theTrack->GetGStepLength(),                  // Step length
+                                 0,                                           // Total Edep
+                                 currentTrack.weight,                         // Track weight
+                                 currentTrack.navState,                       // Pre-step point navstate
+                                 currentTrack.preStepPos,                     // Pre-step point position
+                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                 currentTrack.nextState,                      // Post-step point navstate
+                                 currentTrack.pos,                            // Post-step point position
+                                 currentTrack.dir,                            // Post-step point momentum direction
+                                 currentTrack.eKin,                           // Post-step point kinetic energy
+                                 currentTrack.globalTime,                     // global time
+                                 currentTrack.localTime,                      // local time
+                                 currentTrack.preStepGlobalTime,              // preStep global time
+                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                 false,                                       // parent continues on CPU
+                                 currentTrack.stepCounter,                    // stepcounter
+                                 nullptr,                                     // pointer to secondary init data
+                                 0);                                          // number of secondaries
       }
     } else {
       // release slot for particle that has left the world
@@ -379,7 +418,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
         adept_scoring::RecordHit(
             currentTrack.trackId,                        // Track ID
             currentTrack.parentId,                       // parent Track ID
-            static_cast<short>(10),                      // step defining process ID
+            kAdePTTransportationProcess,                 // step defining process ID
             ParticleType::Gamma,                         // Particle type
             theTrack->GetGStepLength(),                  // Step length
             0,                                           // Total Edep

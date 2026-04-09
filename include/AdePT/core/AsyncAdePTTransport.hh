@@ -108,12 +108,10 @@ public:
   void RequestFlush(int threadId);
   /// @brief Wait until the transport threads make further flush progress.
   void WaitForFlushProgress();
-  /// @brief Check whether the device side has completed flushing for the given worker.
-  bool IsDeviceFlushed(int threadId) const;
-  /// @brief Take the leaked-track batch returned by transport for the given worker.
-  std::vector<TrackDataWithIDs> TakeReturnedTracks(int threadId);
-  /// @brief Mark the returned-track batch for the given worker as consumed.
-  void MarkLeakedTracksRetrieved(int threadId);
+  /// @brief Check whether all returned GPU-hit batches have been made available on the host.
+  bool IsHitsFlushed(int threadId) const;
+  /// @brief Mark the worker event as fully handled on the host side after replaying the returned steps.
+  void MarkHostFlushed(int threadId);
 };
 
 } // namespace AsyncAdePT

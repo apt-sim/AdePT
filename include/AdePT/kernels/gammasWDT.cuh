@@ -65,8 +65,8 @@ __global__ void __launch_bounds__(256, 1)
 
     auto eKin = currentTrack.eKin;
 
-    LeakStatus leakReason = LeakStatus::NoLeak;
-    bool leftWDTRegion    = false;
+    bool leftWDTRegion  = false;
+    bool continuesOnCPU = false;
     // initialize nextState to current state
     vecgeom::NavigationState nextState = currentTrack.navState;
     double globalTime                  = currentTrack.globalTime;
@@ -83,16 +83,11 @@ __global__ void __launch_bounds__(256, 1)
       currentTrack.globalTime = globalTime;
       currentTrack.localTime  = localTime;
       currentTrack.navState   = nextState;
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        particleManager.gammas.CopyTrackToLeaked(slot);
+      currentTrack.leakStatus = LeakStatus::NoLeak;
+      if (leftWDTRegion) {
+        particleManager.gammas.EnqueueNext(slot);
       } else {
-        if (leftWDTRegion) {
-          particleManager.gammas.EnqueueNext(slot);
-        } else {
-          particleManager.gammasWDT.EnqueueNext(slot);
-        }
+        particleManager.gammasWDT.EnqueueNext(slot);
       }
     };
 
@@ -415,8 +410,9 @@ __global__ void __launch_bounds__(256, 1)
           if (verbose) printf("\n| track leaked to Geant4\n");
 #endif
 
-          trackSurvives = true;
-          leakReason    = LeakStatus::OutOfGPURegion;
+          trackSurvives        = false;
+          continuesOnCPU       = true;
+          stepDefinedProcessId = kAdePTOutOfGPURegionProcess;
         }
       } // else particle has left the world
 
@@ -620,14 +616,16 @@ __global__ void __launch_bounds__(256, 1)
     }
 
     // finishing on CPU must be last one only sets the LeakStatus but does not affect survival of the track
-    if (trackSurvives && leakReason == LeakStatus::NoLeak) {
+    if (trackSurvives && !continuesOnCPU) {
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
         printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
                currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
                currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
 
-        leakReason = LeakStatus::FinishEventOnCPU;
+        trackSurvives        = false;
+        continuesOnCPU       = true;
+        stepDefinedProcessId = kAdePTFinishOnCPUProcess;
       }
     }
 
@@ -651,7 +649,7 @@ __global__ void __launch_bounds__(256, 1)
     assert(nSecondaries <= 3);
 
     // If there is some edep from cutting particles or if it is the last step, record the step
-    if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || winnerProcessIndex == 3 ||
+    if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU || winnerProcessIndex == 3 ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
@@ -672,10 +670,10 @@ __global__ void __launch_bounds__(256, 1)
                                localTime,                                   // local time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               !trackSurvives,           // whether this is the last step of the track
-                               currentTrack.stepCounter, // stepcounter
-                               secondaryData,            // pointer to secondary init data
-                               nSecondaries);            // number of secondaries
+                               !trackSurvives && !continuesOnCPU, // whether this is the last step of the track
+                               currentTrack.stepCounter,          // stepcounter
+                               secondaryData,                     // pointer to secondary init data
+                               nSecondaries);                     // number of secondaries
     }
   } // end for loop over tracks
 }

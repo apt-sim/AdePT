@@ -31,11 +31,11 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
-  /// @brief Stored work for a returned gamma/lepton nuclear step.
+  /// @brief Stored work for a returned step that is replayed later on the host.
   /// @details
   /// These steps are handled later in the same sorted return order as ordinary
-  /// leaked tracks, so the Geant4 nuclear process always runs in a fixed order.
-  struct DeferredNuclearStep {
+  /// leaked tracks, so the Geant4 host work always runs in a fixed order.
+  struct DeferredStep {
     adeptint::TrackData returnedTrack{};
     std::vector<GPUHit> hits{};
   };
@@ -53,18 +53,6 @@ public:
   void ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction = false,
                       bool const callUserTrackingaction = false);
 
-  /// @brief Takes a range of tracks coming from the device and gives them back to Geant4
-  template <typename Iterator>
-  void ReturnTracks(Iterator begin, Iterator end, int debugLevel, bool callUserActions = false) const
-  {
-    if (debugLevel > 1) {
-      G4cout << "Returning " << end - begin << " tracks from device" << G4endl;
-    }
-    for (Iterator it = begin; it != end; ++it) {
-      ReturnTrack(*it, it - begin, debugLevel, callUserActions);
-    }
-  }
-
   /// @brief Returns the Z value of the user-defined uniform magnetic field
   /// @details This function can only be called when the user-defined field is a G4UniformMagField
   std::vector<float> GetUniformField() const;
@@ -75,17 +63,14 @@ public:
 
   HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
 
-  /// @brief Defer a returned nuclear step for later sorted replay on the host.
-  void QueueDeferredNuclearStep(std::span<const GPUHit> gpuSteps);
+  /// @brief Defer a returned step for later sorted replay on the host.
+  void QueueDeferredStep(std::span<const GPUHit> gpuSteps);
 
-  /// @brief Transfer ownership of the currently queued deferred nuclear steps.
+  /// @brief Transfer ownership of the currently queued deferred steps.
   /// @details
   /// This drains the integration-local queue into a temporary vector without
   /// copying the stored GPU-hit blocks.
-  std::vector<DeferredNuclearStep> TakeDeferredNuclearSteps();
-
-  void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel,
-                   bool callUserActions = false) const;
+  std::vector<DeferredStep> TakeDeferredSteps();
 
   void SetHepEmTrackingManager(G4HepEmTrackingManagerSpecialized *hepEmTrackingManager)
   {
@@ -125,6 +110,15 @@ private:
   /// storage.
   G4Track *MakeTrackForCPUStacking(const G4Track &track) const;
 
+  /// @brief Recreate the old leaked-track handoff from a returned parent step.
+  /// @details
+  /// Out-of-GPU-region and finish-on-CPU steps used to hand Geant4 a returned
+  /// track built from the post-step state. The visible reconstructed step keeps
+  /// the transported GPU-step data, but the continued CPU track must still
+  /// match that old current-state handoff.
+  G4Track *MakeReturnedTrackFromStep(GPUHit const &parentStep, const HostTrackData &hostTData,
+                                     bool setStopButAlive) const;
+
   // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
   // this is just a reference to handle gamma-/lepton-nuclear reactions
   G4HepEmTrackingManagerSpecialized *fHepEmTrackingManager{nullptr};
@@ -135,7 +129,7 @@ private:
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
 
-  std::vector<DeferredNuclearStep> fDeferredNuclearSteps;
+  std::vector<DeferredStep> fDeferredSteps;
 };
 
 #endif
