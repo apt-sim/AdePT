@@ -357,7 +357,7 @@ void AdePTTrackingManager::FlushEvent()
 
   std::sort(deferredSteps.begin(), deferredSteps.end(),
             [](const AdePTGeant4Integration::DeferredStep &lhs, const AdePTGeant4Integration::DeferredStep &rhs) {
-              return lhs.returnedTrack < rhs.returnedTrack;
+              return lhs.hits.front() < rhs.hits.front();
             });
 
   for (auto deferredStepIt = deferredSteps.begin(); deferredStepIt != deferredSteps.end(); ++deferredStepIt) {

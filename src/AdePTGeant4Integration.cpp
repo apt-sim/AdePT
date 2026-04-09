@@ -189,10 +189,7 @@ void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps)
 
   fHostTrackDataMapper->SetPendingReturnedStep(gpuSteps.front().fTrackID, true);
 
-  // Keep the returned GPU-hit block together with the ordering key used when
-  // merging deferred returned steps with the other returned work on the host.
   DeferredStep deferred;
-  deferred.returnedTrack = MakeReturnedTrackFromGPUHit(gpuSteps.front());
   deferred.hits.assign(gpuSteps.begin(), gpuSteps.end());
   fDeferredSteps.push_back(std::move(deferred));
 }
@@ -204,35 +201,6 @@ std::vector<AdePTGeant4Integration::DeferredStep> AdePTGeant4Integration::TakeDe
   std::vector<DeferredStep> deferred;
   deferred.swap(fDeferredSteps);
   return deferred;
-}
-
-adeptint::TrackData AdePTGeant4Integration::MakeReturnedTrackFromGPUHit(GPUHit const &gpuHit) const
-{
-  adeptint::TrackData returnedTrack;
-
-  switch (gpuHit.fParticleType) {
-  case ParticleType::Electron:
-    returnedTrack.pdg = 11;
-    break;
-  case ParticleType::Positron:
-    returnedTrack.pdg = -11;
-    break;
-  case ParticleType::Gamma:
-    returnedTrack.pdg = 22;
-    break;
-  default:
-    throw std::runtime_error("Unknown particle type in MakeReturnedTrackFromGPUHit");
-  }
-
-  returnedTrack.eKin         = gpuHit.fPostStepPoint.fEKin;
-  returnedTrack.position[0]  = gpuHit.fPostStepPoint.fPosition.x();
-  returnedTrack.position[1]  = gpuHit.fPostStepPoint.fPosition.y();
-  returnedTrack.position[2]  = gpuHit.fPostStepPoint.fPosition.z();
-  returnedTrack.direction[0] = gpuHit.fPostStepPoint.fMomentumDirection.x();
-  returnedTrack.direction[1] = gpuHit.fPostStepPoint.fMomentumDirection.y();
-  returnedTrack.direction[2] = gpuHit.fPostStepPoint.fMomentumDirection.z();
-
-  return returnedTrack;
 }
 
 G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track) const

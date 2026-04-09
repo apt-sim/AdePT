@@ -39,6 +39,46 @@ struct GPUHit {
   bool fLastStepOfTrack{false};
   ParticleType fParticleType{ParticleType::Electron};
   unsigned char fNumSecondaries{0};
+
+  bool operator<(GPUHit const &other) const
+  {
+    const auto pdgFromParticleType = [](ParticleType particleType) {
+      switch (particleType) {
+      case ParticleType::Electron:
+        return 11;
+      case ParticleType::Positron:
+        return -11;
+      case ParticleType::Gamma:
+        return 22;
+      }
+      return 0;
+    };
+
+    const int thisPDG  = pdgFromParticleType(fParticleType);
+    const int otherPDG = pdgFromParticleType(other.fParticleType);
+
+    if (thisPDG != otherPDG) return thisPDG < otherPDG;
+    if (fPostStepPoint.fEKin != other.fPostStepPoint.fEKin) return fPostStepPoint.fEKin < other.fPostStepPoint.fEKin;
+    if (fPostStepPoint.fPosition.x() != other.fPostStepPoint.fPosition.x()) {
+      return fPostStepPoint.fPosition.x() < other.fPostStepPoint.fPosition.x();
+    }
+    if (fPostStepPoint.fPosition.y() != other.fPostStepPoint.fPosition.y()) {
+      return fPostStepPoint.fPosition.y() < other.fPostStepPoint.fPosition.y();
+    }
+    if (fPostStepPoint.fPosition.z() != other.fPostStepPoint.fPosition.z()) {
+      return fPostStepPoint.fPosition.z() < other.fPostStepPoint.fPosition.z();
+    }
+    if (fPostStepPoint.fMomentumDirection.x() != other.fPostStepPoint.fMomentumDirection.x()) {
+      return fPostStepPoint.fMomentumDirection.x() < other.fPostStepPoint.fMomentumDirection.x();
+    }
+    if (fPostStepPoint.fMomentumDirection.y() != other.fPostStepPoint.fMomentumDirection.y()) {
+      return fPostStepPoint.fMomentumDirection.y() < other.fPostStepPoint.fMomentumDirection.y();
+    }
+    if (fPostStepPoint.fMomentumDirection.z() != other.fPostStepPoint.fMomentumDirection.z()) {
+      return fPostStepPoint.fMomentumDirection.z() < other.fPostStepPoint.fMomentumDirection.z();
+    }
+    return false;
+  }
 };
 
 /// @brief AdePT-specific step-limiting process ids stored in GPUHit::fStepLimProcessId.

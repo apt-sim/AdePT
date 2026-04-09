@@ -36,7 +36,6 @@ public:
   /// These steps are handled later in the same sorted CPU handoff order, so
   /// the Geant4 host work always runs in a fixed order.
   struct DeferredStep {
-    adeptint::TrackData returnedTrack{};
     std::vector<GPUHit> hits{};
   };
 
@@ -97,9 +96,6 @@ private:
                   G4TouchableHandle &aPreG4TouchableHandle, G4TouchableHandle &aPostG4TouchableHandle,
                   G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus, bool callUserTrackingAction,
                   bool callUserSteppingAction) const;
-
-  /// @brief Build the ordering key for a deferred nuclear step.
-  adeptint::TrackData MakeReturnedTrackFromGPUHit(GPUHit const &gpuHit) const;
 
   /// @brief Create a heap-owned track that can be pushed onto the Geant4 stack.
   /// @details
