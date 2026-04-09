@@ -34,7 +34,6 @@ NUM_THREADS=1
 NUM_EVENTS=1
 NUM_TRACKSLOTS=3
 NUM_HITSLOTS=12
-NUM_LEAKSLOTS=3
 GUN_NUMBER=20
 ADEPT_SEED=1234567
 # The ROOT truth path requires the user callbacks because the reconstructed
@@ -106,7 +105,6 @@ generate_validation_macro() {
       --num_events "${NUM_EVENTS}" \
       --num_trackslots "${NUM_TRACKSLOTS}" \
       --num_hitslots "${NUM_HITSLOTS}" \
-      --num_leakslots "${NUM_LEAKSLOTS}" \
       --track_in_all_regions "${track_in_all_regions}" \
       --gun_type setDefault \
       --gun_number "${GUN_NUMBER}" \

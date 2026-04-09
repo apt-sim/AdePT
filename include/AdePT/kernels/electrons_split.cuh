@@ -278,7 +278,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 
     G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
-    // Particles that were not cut or leaked are added to the queue used by the next kernels
+    // Particles that were not cut are added to the queue used by the next kernels
     propagationQueue->push_back(slot);
   }
 }

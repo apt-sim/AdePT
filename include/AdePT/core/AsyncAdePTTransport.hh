@@ -13,7 +13,6 @@
 #include <AdePT/core/AdePTG4HepEmState.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/GeometryAuxData.hh>
-#include <AdePT/core/ReturnedTrackData.hh>
 #include <AdePT/core/ScoringCommons.hh>
 
 #include <VecGeom/base/Config.h>
@@ -39,7 +38,6 @@ public:
 private:
   unsigned short fNThread{0};             ///< Number of G4 workers
   unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
-  unsigned int fLeakCapacity{0};          ///< Number of leak slots to allocate on device
   unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
   int fDebugLevel{0};                     ///< Debug level
   int fCUDAStackLimit{0};                 ///< CUDA device stack limit

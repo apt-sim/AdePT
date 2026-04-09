@@ -77,13 +77,8 @@ struct CMSAction {
   {
     // dead-region cut:
     // Missing: mark dead material regions in CMS
-    // Before, it was done via the LeakStatus, but it is not clear whether the parametrized shower will ever be used on
-    // the GPU, so the LeakStatus::OutOfGPURegion is a bad marker. Just left here for documenting purposes. Instead, the
-    // dead regions must be implemented for CMS, to check with the NavigationState if (leak ==
-    // LeakStatus::OutOfGPURegion) {
-    //   KillTrack(alive, eKin, edep, leak);
-    //   return;
-    // }
+    // Dead regions must be implemented explicitly for CMS and checked from the
+    // navigation state here if needed.
 
     // Out-of-time and out-of-z cut
     if (globalTime > params.tmax && fabs(pos.z()) >= params.zmax) {

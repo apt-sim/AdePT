@@ -189,8 +189,8 @@ void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps)
 
   fHostTrackDataMapper->SetPendingReturnedStep(gpuSteps.front().fTrackID, true);
 
-  // Keep the returned GPU-hit block together with the ordering key that
-  // places it in the same return order as an ordinary leaked track.
+  // Keep the returned GPU-hit block together with the ordering key used when
+  // merging deferred returned steps with the other returned work on the host.
   DeferredStep deferred;
   deferred.returnedTrack = MakeReturnedTrackFromGPUHit(gpuSteps.front());
   deferred.hits.assign(gpuSteps.begin(), gpuSteps.end());

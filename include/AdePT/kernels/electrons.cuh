@@ -125,7 +125,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
-      currentTrack.leakStatus = LeakStatus::NoLeak;
       electronsOrPositrons.EnqueueNext(slot);
     };
 
@@ -439,7 +438,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             pos += kPushDistance * dir;
 
 #if ADEPT_DEBUG_TRACK > 0
-            if (verbose) printf("\n| track leaked to Geant4\n");
+            if (verbose) printf("\n| track returned to Geant4\n");
 #endif
             trackSurvives     = false;
             continuesOnCPU    = true;

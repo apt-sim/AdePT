@@ -23,11 +23,11 @@ void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
 void CopySurfaceModelToGPU();
 void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters);
-std::thread LaunchGPUWorker(int, int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
+std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &, int, int,
                             bool, bool, unsigned short, const double, bool);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
-    int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
+    int trackCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
     double CPUCapacityFactor, double CPUCopyFraction, std::string &generalBfieldFile,
     const std::vector<float> &uniformBfieldValues);
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, std::thread &,
@@ -42,7 +42,6 @@ AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
                                          const std::vector<float> &uniformFieldValues)
     : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
       fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
-      fLeakCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfLeakSlots())},
       fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
       fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
       fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
@@ -168,17 +167,16 @@ void AsyncAdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adepti
   fWDTDev = wdtDev;
 
   std::cout << "\nAllocating " << 4 * 8192 * fNThread << " To-device buffer slots\n";
-  std::cout << "\nAllocating " << 2048 * fNThread << " From-device buffer slots\n";
-  fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread, 2048 * fNThread, fNThread);
+  fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread);
 
   assert(fBuffer != nullptr);
 
-  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
-                                               fCPUCapacityFactor, fCPUCopyFraction, fBfieldFile, uniformFieldValues);
-  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fLeakCapacity, fScoringCapacity, fNThread, *fBuffer,
-                                                 *fGPUstate, fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
-                                                 fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU,
-                                                 fHitBufferSafetyFactor, fHasWDTRegions);
+  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fCPUCapacityFactor,
+                                               fCPUCopyFraction, fBfieldFile, uniformFieldValues);
+  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
+                                                 fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel, fReturnAllSteps,
+                                                 fReturnFirstAndLastStep, fLastNParticlesOnCPU, fHitBufferSafetyFactor,
+                                                 fHasWDTRegions);
 }
 
 void AsyncAdePTTransport::InitBVH()
@@ -189,7 +187,6 @@ void AsyncAdePTTransport::InitBVH()
 
 void AsyncAdePTTransport::RequestFlush(int threadId)
 {
-  assert(static_cast<unsigned int>(threadId) < fBuffer->fromDeviceBuffers.size());
   fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
 }
 

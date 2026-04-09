@@ -77,7 +77,6 @@ __global__ void __launch_bounds__(256, 1)
       currentTrack.localTime  = localTime;
       currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
-      currentTrack.leakStatus = LeakStatus::NoLeak;
       if (!enterWDTRegion) {
         particleManager.gammas.EnqueueNext(slot);
       } else {
@@ -211,7 +210,7 @@ __global__ void __launch_bounds__(256, 1)
           pos += kPushDistance * dir;
 
 #if ADEPT_DEBUG_TRACK > 0
-          if (verbose) printf("\n| track leaked to Geant4\n");
+          if (verbose) printf("\n| track returned to Geant4\n");
 #endif
 
           trackSurvives        = false;
@@ -422,7 +421,8 @@ __global__ void __launch_bounds__(256, 1)
       }
     }
 
-    // finishing on CPU must be last one only sets the LeakStatus but does not affect survival of the track
+    // Finishing on CPU must be checked last. It changes only the returned step
+    // type and does not affect whether the track survives this iteration.
     if (trackSurvives && !continuesOnCPU) {
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
@@ -438,7 +438,7 @@ __global__ void __launch_bounds__(256, 1)
 
     __syncwarp();
 
-    // A surviving track must be enqueued to the leak buffer or the next queue.
+    // A surviving track must be enqueued to the next queue.
     // Gamma-nuclear is handled from the returned step only, so the GPU-side
     // track simply dies after recording that step.
     if (trackSurvives) {

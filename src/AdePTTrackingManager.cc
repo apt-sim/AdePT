@@ -405,9 +405,9 @@ void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
            it->fStepLimProcessId == 3) ||
           it->fStepLimProcessId == kAdePTOutOfGPURegionProcess || it->fStepLimProcessId == kAdePTFinishOnCPUProcess;
       if (isDeferredStep) {
-        // These returned steps are replayed later at the same sorted barrier
-        // as leaked tracks, because the host-side work may consume Geant4 RNG
-        // and therefore must not run in hit-buffer arrival order.
+        // These returned steps are replayed later in the same sorted order as
+        // the old CPU handoff path. The host-side work may consume Geant4 RNG,
+        // so it must not run in hit-buffer arrival order.
         fGeant4Integration.QueueDeferredStep(std::span<const GPUHit>(&*it, blockSize));
       } else {
         fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize),
@@ -442,7 +442,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, -1);
   }
 
-  // first leaked particle detected, let's finish this event on CPU
+  // first particle to be finished on CPU detected, let's finish the full event on CPU
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0 && aTrack->GetTrackStatus() == fStopButAlive) {
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, eventID);
   }

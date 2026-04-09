@@ -116,7 +116,7 @@ bool InitializeTrackDebug()
 }
 
 // Kernel to initialize the set of queues per particle type.
-__global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTransport, size_t CapacityLeaked)
+__global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTransport)
 {
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.initiallyActive);
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.nextActive);
@@ -126,8 +126,6 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTranspo
     adept::MParray::MakeInstanceAt(CapacityTransport, queues.interactionQueues[i]);
   }
 #endif
-  adept::MParray::MakeInstanceAt(CapacityLeaked, queues.leakedTracksCurrent);
-  adept::MParray::MakeInstanceAt(CapacityLeaked, queues.leakedTracksNext);
 }
 
 // Init a queue at the designated location
@@ -230,78 +228,6 @@ __global__ void EnqueueTracks(AllParticleQueues allQueues, adept::MParrayT<Queue
   }
 }
 
-__device__ unsigned int nFromDevice_dev;
-__device__ unsigned int nRemainingLeaks_dev;
-
-// Copy particles leaked from the GPU region into a compact buffer
-__global__ void FillFromDeviceBuffer(AllLeaked all, AsyncAdePT::TrackDataWithIDs *fromDevice,
-                                     unsigned int maxFromDeviceBuffer, unsigned int nAlreadyTransferred)
-{
-  const auto numElectrons = all.leakedElectrons.fLeakedQueue->size();
-  const auto numPositrons = all.leakedPositrons.fLeakedQueue->size();
-  const auto numGammas    = all.leakedGammas.fLeakedQueue->size();
-  const auto total        = numElectrons + numPositrons + numGammas - nAlreadyTransferred;
-  const auto nToCopy      = total < maxFromDeviceBuffer ? total : maxFromDeviceBuffer;
-
-  if (blockIdx.x == 0 && threadIdx.x == 0) {
-    // Update the number of particles that will be copied in this iteration
-    nFromDevice_dev     = nToCopy;
-    nRemainingLeaks_dev = total - nToCopy;
-  }
-
-  for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x + nAlreadyTransferred; i < nAlreadyTransferred + nToCopy;
-       i += blockDim.x * gridDim.x) {
-    LeakedTracks *leakedTracks = nullptr;
-    unsigned int queueSlot     = 0;
-    int pdg                    = 0;
-
-    if (i < numGammas) {
-      leakedTracks = &all.leakedGammas;
-      queueSlot    = i;
-      pdg          = 22;
-    } else if (i < numGammas + numElectrons) {
-      leakedTracks = &all.leakedElectrons;
-      queueSlot    = i - numGammas;
-      pdg          = 11;
-    } else {
-      leakedTracks = &all.leakedPositrons;
-      queueSlot    = i - numGammas - numElectrons;
-      pdg          = -11;
-    }
-
-    const auto trackSlot     = (*leakedTracks->fLeakedQueue)[queueSlot];
-    Track const *const track = leakedTracks->fTracks + trackSlot;
-
-    // Offset i by nAlreadyTransferred to get the index in the fromDevice buffer
-    auto idx = i - nAlreadyTransferred;
-
-    // NOTE: Sync transport copies data into trackData structs during transport.
-    // Async transport stores the slots and copies to trackdata structs for transfer to
-    // host here. These approaches should be unified.
-    fromDevice[idx].position[0]  = track->pos[0];
-    fromDevice[idx].position[1]  = track->pos[1];
-    fromDevice[idx].position[2]  = track->pos[2];
-    fromDevice[idx].direction[0] = track->dir[0];
-    fromDevice[idx].direction[1] = track->dir[1];
-    fromDevice[idx].direction[2] = track->dir[2];
-    fromDevice[idx].eKin         = track->eKin;
-    fromDevice[idx].globalTime   = track->globalTime;
-    fromDevice[idx].localTime    = track->localTime;
-    fromDevice[idx].properTime   = track->properTime;
-    fromDevice[idx].weight       = track->weight;
-    fromDevice[idx].pdg          = pdg;
-    fromDevice[idx].eventId      = track->eventId;
-    fromDevice[idx].threadId     = track->threadId;
-    fromDevice[idx].navState     = track->navState;
-    fromDevice[idx].leakStatus   = track->leakStatus;
-    fromDevice[idx].parentId     = track->parentId;
-    fromDevice[idx].trackId      = track->trackId;
-    fromDevice[idx].stepCounter  = track->stepCounter;
-
-    leakedTracks->fSlotManager->MarkSlotForFreeing(trackSlot);
-  }
-}
-
 template <typename... Ts>
 __global__ void FreeSlots1(Ts... slotManagers)
 {
@@ -328,7 +254,6 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       }
 #endif
       stats->inFlight[i]       = all.queues[i].nextActive->size();
-      stats->leakedTracks[i]   = all.queues[i].leakedTracksCurrent->size() + all.queues[i].leakedTracksNext->size();
       stats->queueFillLevel[i] = float(all.queues[i].nextActive->size()) / all.queues[i].nextActive->max_size();
     }
     if (threadIdx.x == 0) {
@@ -346,8 +271,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     for (int i = 0; i < GPUQueueIndex::NumSpecies; ++i) {
       particlesInFlight += all.queues[i].nextActive->size();
       occupiedSlots += tracksAndSlots.slotManagers[i]->OccupiedSlots();
-      stats->slotFillLevel[i]      = tracksAndSlots.slotManagers[i]->FillLevel();
-      stats->slotFillLevelLeaks[i] = tracksAndSlots.slotManagersLeaks[i]->FillLevel();
+      stats->slotFillLevel[i] = tracksAndSlots.slotManagers[i]->FillLevel();
     }
 
     // add gammas in Woodcock tracking. As the WDT gammas share the same slot manager as normal gammas, no other action
@@ -389,11 +313,6 @@ __global__ void ZeroEventCounters(Stats *stats)
   constexpr auto size = std::extent<decltype(stats->perEventInFlight)>::value;
   for (unsigned int i = threadIdx.x; i < size; i += blockDim.x) {
     stats->perEventInFlight[i] = 0;
-    stats->perEventLeaked[i]   = 0;
-  }
-  for (unsigned int i = threadIdx.x; i < GPUQueueIndex::NumSpecies; i += blockDim.x) {
-    stats->nLeakedCurrent[i] = 0;
-    stats->nLeakedNext[i]    = 0;
   }
 }
 
@@ -434,34 +353,6 @@ __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, Trac
   }
 }
 
-/**
- * Count tracks both in the current and the future queue of leaked particles.
- */
-__global__ void CountLeakedTracks(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
-{
-  constexpr auto nQueue = 2 * GPUQueueIndex::NumSpecies;
-  // One block processes each queue
-  for (unsigned int queueIndex = blockIdx.x; queueIndex < nQueue; queueIndex += gridDim.x) {
-    const auto particleType =
-        queueIndex < GPUQueueIndex::NumSpecies ? queueIndex : queueIndex - GPUQueueIndex::NumSpecies;
-    Track const *const leaks = tracksAndSlots.leaks[particleType];
-    auto const queue         = queueIndex < GPUQueueIndex::NumSpecies ? all.queues[particleType].leakedTracksCurrent
-                                                                      : all.queues[particleType].leakedTracksNext;
-    const auto size          = queue->size();
-    for (unsigned int i = threadIdx.x; i < size; i += blockDim.x) {
-      const auto slot     = (*queue)[i];
-      const auto threadId = leaks[slot].threadId;
-      atomicAdd(stats->perEventLeaked + threadId, 1u);
-    }
-
-    // Update the global usage
-    if (threadIdx.x == 0) {
-      queueIndex < GPUQueueIndex::NumSpecies ? stats->nLeakedCurrent[particleType] = size
-                                             : stats->nLeakedNext[particleType]    = size;
-    }
-  }
-}
-
 template <typename... Args>
 __global__ void ClearQueues(Args *...queue)
 {
@@ -481,8 +372,6 @@ __global__ void ClearAllQueues(AllParticleQueues all)
       all.queues[i].interactionQueues[j]->clear();
     }
 #endif
-    all.queues[i].leakedTracksCurrent->clear();
-    all.queues[i].leakedTracksNext->clear();
   }
 }
 
@@ -658,10 +547,9 @@ void FreeWDTOnDevice(adeptint::WDTDeviceBuffers &dev)
 /// If successful, this will initialise the member fGPUState.
 /// If memory allocation fails, an exception is thrown. In this case, the caller has to
 /// try again after some wait time or with less transport slots.
-std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int leakCapacity, int scoringCapacity,
-                                                         int numThreads, TrackBuffer &trackBuffer,
-                                                         double CPUCapacityFactor, double CPUCopyFraction,
-                                                         std::string &generalBfieldFile,
+std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity, int numThreads,
+                                                         TrackBuffer &trackBuffer, double CPUCapacityFactor,
+                                                         double CPUCopyFraction, std::string &generalBfieldFile,
                                                          const std::vector<float> &uniformBfieldValues)
 {
   auto gpuState_ptr  = std::unique_ptr<GPUstate, GPUstateDeleter>(new GPUstate());
@@ -726,32 +614,21 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   // Allocate all slot managers on device
   gpuState.slotManager_dev = nullptr;
   gpuMalloc(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
-  gpuState.slotManagerLeaks_dev = nullptr;
-  gpuMalloc(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
   for (int i = 0; i < GPUQueueIndex::NumSpecies; i++) {
     // Number of slots allocated computed based on the proportions set in SpeciesState::relativeQueueSize
     const size_t nSlot              = trackCapacity * SpeciesState::relativeQueueSize[i];
     const size_t sizeOfQueueStorage = adept::MParray::SizeOfInstance(nSlot);
-    const size_t nLeakSlots         = leakCapacity;
-    const size_t sizeOfLeakQueue    = adept::MParray::SizeOfInstance(nLeakSlots);
 
     // Initialize all host slot managers (This call allocates GPU memory)
     gpuState.allmgr_h.slotManagers[i] =
         SlotManager{static_cast<SlotManager::value_type>(nSlot), static_cast<SlotManager::value_type>(nSlot)};
-    gpuState.allmgr_h.slotManagersLeaks[i] =
-        SlotManager{static_cast<SlotManager::value_type>(nLeakSlots), static_cast<SlotManager::value_type>(nLeakSlots)};
     // Initialize dev slotmanagers by copying the host data
     ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
                                  ADEPT_DEVICE_API_SYMBOL(MemcpyDefault)));
-    ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManagerLeaks_dev[i], &gpuState.allmgr_h.slotManagersLeaks[i],
-                                 sizeof(SlotManager), ADEPT_DEVICE_API_SYMBOL(MemcpyDefault)));
 
-    // Allocate the queues where the active and leak indices are stored
-    // * Current and next active track indices
-    // * Current and next leaked track indices
-    SpeciesState &particleType    = gpuState.particles[i];
-    particleType.slotManager      = &gpuState.slotManager_dev[i];
-    particleType.slotManagerLeaks = &gpuState.slotManagerLeaks_dev[i];
+    // Allocate the queues where the active track indices are stored.
+    SpeciesState &particleType = gpuState.particles[i];
+    particleType.slotManager   = &gpuState.slotManager_dev[i];
 
     void *gpuPtr = nullptr;
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
@@ -766,11 +643,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
       particleType.queues.interactionQueues[j] = static_cast<adept::MParray *>(gpuPtr);
     }
 #endif
-    gpuMalloc(gpuPtr, sizeOfLeakQueue);
-    particleType.queues.leakedTracksCurrent = static_cast<adept::MParray *>(gpuPtr);
-    gpuMalloc(gpuPtr, sizeOfLeakQueue);
-    particleType.queues.leakedTracksNext = static_cast<adept::MParray *>(gpuPtr);
-    InitParticleQueues<<<1, 1>>>(particleType.queues, nSlot, nLeakSlots);
+    InitParticleQueues<<<1, 1>>>(particleType.queues, nSlot);
 
     ADEPT_DEVICE_API_CALL(StreamCreate(&particleType.stream));
     ADEPT_DEVICE_API_CALL(EventCreate(&particleType.event));
@@ -781,12 +654,6 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     gpuMalloc(trackStorage_dev, nSlot);
 
     gpuState.particles[i].tracks = trackStorage_dev;
-
-    // ALlocate space for the leaks
-    Track *leakStorage_dev = nullptr;
-    gpuMalloc(leakStorage_dev, nLeakSlots);
-
-    gpuState.particles[i].leaks = leakStorage_dev;
 
     printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
            SpeciesState::relativeQueueSize[i] * 100, trackCapacity);
@@ -848,44 +715,6 @@ void AdvanceEventStates(EventState oldState, EventState newState, std::vector<st
   }
 }
 
-// Atomically advances the Extract state
-void AdvanceExtractState(GPUstate::ExtractState oldState, GPUstate::ExtractState newState,
-                         std::atomic<GPUstate::ExtractState> &extractState)
-{
-  GPUstate::ExtractState expected = oldState;
-  auto success =
-      extractState.compare_exchange_strong(expected, newState, std::memory_order_release, std::memory_order_relaxed);
-#ifndef NDEBUG
-  if (!success)
-    std::cerr << "Error: Extract state is different than expected. Expected: " << (uint)expected
-              << " Found: " << (uint)extractState.load() << std::endl;
-  assert(success);
-#endif
-}
-
-__host__ void ReturnTracksToG4(TrackBuffer &trackBuffer, GPUstate &gpuState,
-                               std::vector<std::atomic<EventState>> &eventStates)
-{
-  std::scoped_lock lock{trackBuffer.fromDeviceMutex};
-  const auto &fromDevice                      = trackBuffer.fromDevice_host.get();
-  TrackDataWithIDs const *const fromDeviceEnd = fromDevice + *trackBuffer.nFromDevice_host;
-
-  for (TrackDataWithIDs *trackIt = fromDevice; trackIt < fromDeviceEnd; ++trackIt) {
-    // TODO: Pass numThreads here, only used in debug mode however
-    // assert(0 <= trackIt->threadId && trackIt->threadId <= numThreads);
-    trackBuffer.fromDeviceBuffers[trackIt->threadId].push_back(*trackIt);
-  }
-
-#ifndef NDEBUG
-  for (const auto &buffer : trackBuffer.fromDeviceBuffers) {
-    if (buffer.empty()) continue;
-    const auto eventId = buffer.front().eventId;
-    assert(std::all_of(buffer.begin(), buffer.end(),
-                       [eventId](const TrackDataWithIDs &track) { return eventId == track.eventId; }));
-  }
-#endif
-}
-
 void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
                        std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                        int debugLevel)
@@ -908,11 +737,10 @@ void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
   }
 }
 
-void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
-                   GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
-                   std::condition_variable &cvG4Workers, int adeptSeed, int debugLevel, bool returnAllSteps,
-                   bool returnLastStep, unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor,
-                   bool hasWDTRegions)
+void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
+                   std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
+                   int adeptSeed, int debugLevel, bool returnAllSteps, bool returnLastStep,
+                   unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor, bool hasWDTRegions)
 {
 
   using InjectState                             = GPUstate::InjectState;
@@ -975,7 +803,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
 
   while (gpuState.runTransport) {
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
-    InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
     ADEPT_DEVICE_API_CALL(MemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
 
     int inFlight                                              = 0;
@@ -1014,17 +841,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       woodcockQueues.SwapActive();
 
       const ParticleManager particleManager = {
-          .electrons = {electrons.tracks, electrons.leaks, electrons.slotManager, electrons.slotManagerLeaks,
-                        electrons.queues.initiallyActive, electrons.queues.nextActive,
-                        electrons.queues.leakedTracksCurrent},
-          .positrons = {positrons.tracks, positrons.leaks, positrons.slotManager, positrons.slotManagerLeaks,
-                        positrons.queues.initiallyActive, positrons.queues.nextActive,
-                        positrons.queues.leakedTracksCurrent},
-          .gammas    = {gammas.tracks, gammas.leaks, gammas.slotManager, gammas.slotManagerLeaks,
-                        gammas.queues.initiallyActive, gammas.queues.nextActive, gammas.queues.leakedTracksCurrent},
-          .gammasWDT = {gammas.tracks, gammas.leaks, gammas.slotManager, gammas.slotManagerLeaks,
-                        woodcockQueues.initiallyActive, woodcockQueues.nextActive, gammas.queues.leakedTracksCurrent}
-          // Note: the Woodcock tracking particleManager uses the same gamma tracks, leaks, and slotManager,
+          .electrons = {electrons.tracks, electrons.slotManager, electrons.queues.initiallyActive,
+                        electrons.queues.nextActive},
+          .positrons = {positrons.tracks, positrons.slotManager, positrons.queues.initiallyActive,
+                        positrons.queues.nextActive},
+          .gammas    = {gammas.tracks, gammas.slotManager, gammas.queues.initiallyActive, gammas.queues.nextActive},
+          .gammasWDT = {gammas.tracks, gammas.slotManager, woodcockQueues.initiallyActive, woodcockQueues.nextActive}
+          // Note: the Woodcock tracking particleManager uses the same gamma tracks and slot manager,
           // it only has its own initiallyActive and nextActive queues.
       };
       const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
@@ -1040,11 +863,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
            positrons.queues.interactionQueues[2], positrons.queues.interactionQueues[3],
            positrons.queues.interactionQueues[4]}};
 #endif
-      const TracksAndSlots tracksAndSlots = {
-          {electrons.tracks, positrons.tracks, gammas.tracks},
-          {electrons.leaks, positrons.leaks, gammas.leaks},
-          {electrons.slotManager, positrons.slotManager, gammas.slotManager},
-          {electrons.slotManagerLeaks, positrons.slotManagerLeaks, gammas.slotManagerLeaks}};
+      const TracksAndSlots tracksAndSlots = {{electrons.tracks, positrons.tracks, gammas.tracks},
+                                             {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
       // --------------------------
       // *** Particle injection ***
       // --------------------------
@@ -1326,19 +1146,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             waitForOtherStream(hitTransferStream, gpuState.stream);
             waitForOtherStream(injectStream, gpuState.stream);
           }
-          if (gpuState.stats->slotFillLevelLeaks[i] > 0.5) {
-            // Freeing of slots has to run exclusively
-            // FIXME: Revise this code and make sure all three streams actually need to be synchronized
-            // with gpuState.stream
-            waitForOtherStream(gpuState.stream, hitTransferStream);
-            waitForOtherStream(gpuState.stream, injectStream);
-            static_assert(gpuState.nSlotManager_dev == GPUQueueIndex::NumSpecies,
-                          "The below launches assume there is a slot manager per particle type.");
-            FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev + i);
-            FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev + i);
-            waitForOtherStream(hitTransferStream, gpuState.stream);
-            waitForOtherStream(injectStream, gpuState.stream);
-          }
         }
       }
 
@@ -1555,15 +1362,14 @@ void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit *begin, co
 
 // TODO: Make it clear that this will initialize and return the GPUState or make a
 // separate init function that will compile here and be called from the .icc
-std::thread LaunchGPUWorker(int trackCapacity, int leakCapacity, int scoringCapacity, int numThreads,
-                            TrackBuffer &trackBuffer, GPUstate &gpuState,
-                            std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
-                            int adeptSeed, int debugLevel, bool returnAllSteps, bool returnLastStep,
-                            unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor, bool hasWDTRegions)
+std::thread LaunchGPUWorker(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
+                            GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
+                            std::condition_variable &cvG4Workers, int adeptSeed, int debugLevel, bool returnAllSteps,
+                            bool returnLastStep, unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor,
+                            bool hasWDTRegions)
 {
   return std::thread{&TransportLoop,
                      trackCapacity,
-                     leakCapacity,
                      scoringCapacity,
                      numThreads,
                      std::ref(trackBuffer),
@@ -1633,8 +1439,7 @@ void InitVolAuxArray(adeptint::VolAuxArray &array)
 }
 
 /// Initialise the track buffers used to communicate between host and device.
-TrackBuffer::TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, unsigned short nThread)
-    : fNumToDevice{numToDevice}, fNumFromDevice{numFromDevice}, fromDeviceBuffers(nThread)
+TrackBuffer::TrackBuffer(unsigned int numToDevice) : fNumToDevice{numToDevice}
 {
   TrackDataWithIDs *devPtr, *hostPtr;
   // Double buffer for lock-free host runs:
@@ -1643,19 +1448,6 @@ TrackBuffer::TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, u
 
   toDevice_host.reset(hostPtr);
   toDevice_dev.reset(devPtr);
-
-  ADEPT_DEVICE_API_CALL(MallocHost(&hostPtr, numFromDevice * sizeof(TrackDataWithIDs)));
-  ADEPT_DEVICE_API_CALL(Malloc(&devPtr, numFromDevice * sizeof(TrackDataWithIDs)));
-
-  fromDevice_host.reset(hostPtr);
-  fromDevice_dev.reset(devPtr);
-
-  unsigned int *nFromDevice = nullptr;
-  ADEPT_DEVICE_API_CALL(MallocHost(&nFromDevice, sizeof(unsigned int)));
-  nFromDevice_host.reset(nFromDevice);
-  unsigned int *nRemainingLeaks = nullptr;
-  ADEPT_DEVICE_API_CALL(MallocHost(&nRemainingLeaks, sizeof(unsigned int)));
-  nRemainingLeaks_host.reset(nRemainingLeaks);
 
   toDeviceBuffer[0].tracks    = toDevice_host.get();
   toDeviceBuffer[0].maxTracks = numToDevice;

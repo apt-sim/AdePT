@@ -168,7 +168,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
     // Call G4HepEm to compute the physics step limit.
     G4HepEmGammaManager::HowFar(&g4HepEmData, &g4HepEmPars, &gammaTrack);
 
-    // Particles that were not cut or leaked are added to the queue used by the next kernels
+    // Particles that were not cut are added to the queue used by the next kernels
     propagationQueue->push_back(slot);
   }
 }

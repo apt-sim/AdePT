@@ -495,7 +495,7 @@ __global__ void __launch_bounds__(256, 1)
           currentTrack.pos += kPushDistance * currentTrack.dir;
 
 #if ADEPT_DEBUG_TRACK > 0
-          if (verbose) printf("\n| track leaked to Geant4\n");
+          if (verbose) printf("\n| track returned to Geant4\n");
 #endif
 
           slotManager.MarkSlotForFreeing(slot);
@@ -537,7 +537,7 @@ __global__ void __launch_bounds__(256, 1)
       assert(!currentTrack.nextState.IsOnBoundary());
 
     } else {
-      // track survives and is given to either to the WDT gammas, the normal gammas, or leaked out of the GPU
+      // track survives and is given to either the WDT gammas or the normal gammas
       survive();
     }
 

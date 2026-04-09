@@ -52,7 +52,6 @@ private:
   std::unique_ptr<G4UIcmdWithAString> fAddWDTRegionCmd;
   std::unique_ptr<G4UIcmdWithAnInteger> fSetVerbosityCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetMillionsOfTrackSlotsCmd;
-  std::unique_ptr<G4UIcmdWithADouble> fSetMillionsOfLeakSlotsCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetMillionsOfHitSlotsCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetHitBufferFlushThresholdCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetCPUCapacityFactorCmd;

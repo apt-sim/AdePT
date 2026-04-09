@@ -33,8 +33,8 @@ class AdePTGeant4Integration {
 public:
   /// @brief Stored work for a returned step that is replayed later on the host.
   /// @details
-  /// These steps are handled later in the same sorted return order as ordinary
-  /// leaked tracks, so the Geant4 host work always runs in a fixed order.
+  /// These steps are handled later in the same sorted CPU handoff order, so
+  /// the Geant4 host work always runs in a fixed order.
   struct DeferredStep {
     adeptint::TrackData returnedTrack{};
     std::vector<GPUHit> hits{};
@@ -110,7 +110,7 @@ private:
   /// storage.
   G4Track *MakeTrackForCPUStacking(const G4Track &track) const;
 
-  /// @brief Recreate the old leaked-track handoff from a returned parent step.
+  /// @brief Recreate a track to from a returned parent step to be continued on CPU.
   /// @details
   /// Out-of-GPU-region and finish-on-CPU steps used to hand Geant4 a returned
   /// track built from the post-step state. The visible reconstructed step keeps

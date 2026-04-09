@@ -38,10 +38,6 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetMillionsOfTrackSlotsCmd->SetGuidance(
       "Set the total number of track slots that will be allocated on the GPU, in millions");
 
-  fSetMillionsOfLeakSlotsCmd = std::make_unique<G4UIcmdWithADouble>("/adept/setMillionsOfLeakSlots", this);
-  fSetMillionsOfLeakSlotsCmd->SetGuidance(
-      "Set the total number of leak slots that will be allocated on the GPU, in millions");
-
   fSetMillionsOfHitSlotsCmd = std::make_unique<G4UIcmdWithADouble>("/adept/setMillionsOfHitSlots", this);
   fSetMillionsOfHitSlotsCmd->SetGuidance(
       "Set the total number of hit slots that will be allocated on the GPU, in millions");
@@ -172,8 +168,6 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetVerbosity(fSetVerbosityCmd->GetNewIntValue(newValue));
   } else if (command == fSetMillionsOfTrackSlotsCmd.get()) {
     fAdePTConfiguration->SetMillionsOfTrackSlots(fSetMillionsOfTrackSlotsCmd->GetNewDoubleValue(newValue));
-  } else if (command == fSetMillionsOfLeakSlotsCmd.get()) {
-    fAdePTConfiguration->SetMillionsOfLeakSlots(fSetMillionsOfLeakSlotsCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetMillionsOfHitSlotsCmd.get()) {
     fAdePTConfiguration->SetMillionsOfHitSlots(fSetMillionsOfHitSlotsCmd->GetNewDoubleValue(newValue));
   } else if (command == fSetHitBufferFlushThresholdCmd.get()) {

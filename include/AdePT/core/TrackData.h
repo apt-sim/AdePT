@@ -8,8 +8,6 @@
 
 #include "VecGeom/navigation/NavigationState.h"
 
-enum class LeakStatus : char { NoLeak, OutOfGPURegion, GammaNuclear, LeptonNuclear, FinishEventOnCPU };
-
 namespace adeptint {
 
 /// @brief Track data exchanged between Geant4 and AdePT
@@ -28,8 +26,6 @@ struct TrackData {
   uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
   uint64_t parentId{0}; // track id of the parent
   unsigned short stepCounter{0};
-
-  LeakStatus leakStatus{LeakStatus::NoLeak};
 
   TrackData() = default;
   TrackData(int pdg_id, uint64_t trackId, uint64_t parentId, double ene, double x, double y, double z, double dirx,

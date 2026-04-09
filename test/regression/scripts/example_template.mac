@@ -19,7 +19,6 @@
 /adept/setSeed $adept_seed
 ## Total number of GPU track slots (not per thread)
 /adept/setMillionsOfTrackSlots $num_trackslots
-/adept/setMillionsOfLeakSlots $num_leakslots
 /adept/setMillionsOfHitSlots $num_hitslots
 /adept/setCUDAStackLimit 8192
 
