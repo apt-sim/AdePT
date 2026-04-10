@@ -364,7 +364,7 @@ void TruthHistogrammer::RecordFinalTrack(const G4Track *track)
   IncrementValue("final_step_length", step->GetStepLength());
   IncrementValue("final_total_edep", step->GetTotalEnergyDeposit());
 
-  const auto *secondaries = step->GetSecondary();
+  const auto *secondaries = step->GetSecondaryInCurrentStep();
   IncrementValue("final_num_secondaries", secondaries ? static_cast<double>(secondaries->size()) : 0.0);
 }
 
