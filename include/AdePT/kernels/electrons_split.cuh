@@ -653,19 +653,26 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       trackSurvives = false;
     }
 
+    short stepProcessId = kAdePTTransportationProcess;
+    bool isLastStep     = !trackSurvives;
     if (cross_boundary) {
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
       returnsToCPU                  = nextauxData.fGPUregionId < 0;
+      if (returnsToCPU) {
+        // Push the handoff point a little into the CPU region so Geant4 does
+        // not relocate the track back into the same GPU region.
+        currentTrack.pos += kPushDistance * currentTrack.dir;
+        stepProcessId = kAdePTOutOfGPURegionProcess;
+        isLastStep    = false;
+      }
     }
 
-    // Score. A step leaving the GPU region is returned only once, with the
-    // out-of-GPU handoff process below.
-    if (!returnsToCPU &&
-        ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep)))
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnsToCPU ||
+        (!trackSurvives && returnLastStep))
       adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                currentTrack.parentId,                                        // parent Track ID
-                               kAdePTTransportationProcess,                                  // step limiting process ID
+                               stepProcessId,                                                // step limiting process ID
                                IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
                                elTrack.GetPStepLength(),                                     // Step length
                                energyDeposit,                                                // Total Edep
@@ -682,7 +689,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.localTime,                      // local time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               !trackSurvives,                              // whether this was the last step
+                               isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter,                    // stepcounter
                                nullptr,                                     // pointer to secondary init data
                                0);                                          // number of secondaries
@@ -697,33 +704,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
         theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();
       } else {
-        // To be safe, just push a bit the track exiting the GPU region to make sure
-        // Geant4 does not relocate it again inside the same region
-        currentTrack.pos += kPushDistance * currentTrack.dir;
         slotManager.MarkSlotForFreeing(slot);
-        adept_scoring::RecordHit(currentTrack.trackId,        // Track ID
-                                 currentTrack.parentId,       // parent Track ID
-                                 kAdePTOutOfGPURegionProcess, // step limiting process ID
-                                 IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
-                                 elTrack.GetPStepLength(),                                     // Step length
-                                 energyDeposit,                                                // Total Edep
-                                 currentTrack.weight,                                          // Track weight
-                                 currentTrack.navState,                       // Pre-step point navstate
-                                 currentTrack.preStepPos,                     // Pre-step point position
-                                 currentTrack.preStepDir,                     // Pre-step point momentum direction
-                                 currentTrack.preStepEKin,                    // Pre-step point kinetic energy
-                                 currentTrack.nextState,                      // Post-step point navstate
-                                 currentTrack.pos,                            // Post-step point position
-                                 currentTrack.dir,                            // Post-step point momentum direction
-                                 currentTrack.eKin,                           // Post-step point kinetic energy
-                                 currentTrack.globalTime,                     // global time
-                                 currentTrack.localTime,                      // local time
-                                 currentTrack.preStepGlobalTime,              // preStep global time
-                                 currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                 false,                                       // parent continues on CPU
-                                 currentTrack.stepCounter,                    // stepcounter
-                                 nullptr,                                     // pointer to secondary init data
-                                 0);                                          // number of secondaries
       }
     }
   }
