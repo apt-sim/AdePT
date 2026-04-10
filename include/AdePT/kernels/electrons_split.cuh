@@ -626,6 +626,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool cross_boundary = false;
+    bool returnsToCPU   = false;
 
     // Relocate to have the correct next state before RecordHit is called
 
@@ -652,8 +653,16 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       trackSurvives = false;
     }
 
-    // Score
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
+    if (cross_boundary) {
+      const int nextlvolID          = currentTrack.nextState.GetLogicalId();
+      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+      returnsToCPU                  = nextauxData.fGPUregionId < 0;
+    }
+
+    // Score. A step leaving the GPU region is returned only once, with the
+    // out-of-GPU handoff process below.
+    if (!returnsToCPU &&
+        ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep)))
       adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                currentTrack.parentId,                                        // parent Track ID
                                kAdePTTransportationProcess,                                  // step limiting process ID
@@ -679,12 +688,12 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                0);                                          // number of secondaries
 
     if (cross_boundary) {
-      // Move to the next boundary now that the Step is recorded
-      currentTrack.navState = currentTrack.nextState;
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-      if (nextauxData.fGPUregionId >= 0) {
+      if (!returnsToCPU) {
+        // Move to the next boundary now that the step is recorded.
+        currentTrack.navState = currentTrack.nextState;
         theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();
       } else {

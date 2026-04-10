@@ -304,6 +304,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
     int lvolID          = currentTrack.navState.GetLogicalId();
     bool enterWDTRegion = false;
+    bool returnsToCPU   = false;
 
     // Write local variables back into track and enqueue
     auto survive = [&]() {
@@ -332,9 +333,13 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
 #endif
 
-      // if all steps are returned, we need to record the hit here,
-      // as now the nextState is defined, but the navState is not yet replaced
-      if (returnAllSteps)
+      const int nextlvolID          = currentTrack.nextState.GetLogicalId();
+      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+      returnsToCPU                  = nextauxData.fGPUregionId < 0;
+
+      // If all steps are returned, record the transported step here once. A
+      // step leaving the GPU region is returned below with the handoff process.
+      if (returnAllSteps && !returnsToCPU)
         adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                  currentTrack.parentId,                       // parent Track ID
                                  kAdePTTransportationProcess,                 // step defining process ID
@@ -359,13 +364,10 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
                                  nullptr,                  // pointer to secondary init data
                                  0);                       // number of secondaries
 
-      // Move to the next boundary.
-      currentTrack.navState = currentTrack.nextState;
-      // printf("  -> pvol=%d pos={%g, %g, %g} \n", navState.TopId(), pos[0], pos[1], pos[2]);
-      //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
-      const int nextlvolID          = currentTrack.nextState.GetLogicalId();
-      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-      if (nextauxData.fGPUregionId >= 0) {
+      // Check if the next volume belongs to the GPU region and push it to the appropriate queue.
+      if (!returnsToCPU) {
+        // Move to the next boundary after recording the transported step.
+        currentTrack.navState = currentTrack.nextState;
 
         // Check whether next region is a Woodcock tracking region
         const adeptint::WDTDeviceView &view = gWDTData;
