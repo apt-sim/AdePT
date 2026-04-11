@@ -324,13 +324,13 @@ foreach(_g4lib IN LISTS Geant4_LIBRARIES)
 endforeach()
 
 set(CMAKE_REQUIRED_INCLUDES ${Geant4_INCLUDE_DIRS})
-set(CMAKE_REQUIRED_LIBRARIES ${_adept_geant4_libraries})
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 # Check if Geant4 is supports G4VTrackingManager
 # Always available from v11.0, but experiments may backport it to earlier versions
 # so we do a compile check.
-check_cxx_source_compiles("
-  #include \"G4VTrackingManager.hh\"
-  #include \"G4Track.hh\"
+check_cxx_source_compiles([[
+  #include "G4VTrackingManager.hh"
+  #include "G4Track.hh"
 
   struct testtm_ : G4VTrackingManager {
     void HandOverOneTrack(G4Track*) override {}
@@ -339,7 +339,8 @@ check_cxx_source_compiles("
   int main() {
     testtm_ t;
     return 0;
-  }" AdePT_HAS_G4VTRACKINGMANAGER)
+  }
+  ]] AdePT_HAS_G4VTRACKINGMANAGER)
 
 # Find HepMC3, used by integration examples to load realistic events
 find_package(HepMC3 QUIET)
