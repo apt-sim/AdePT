@@ -37,7 +37,7 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
     auto *parentInfo =
         parentTrack != nullptr ? dynamic_cast<TrackLineageInfo *>(parentTrack->GetUserInformation()) : nullptr;
 
-    const auto *secondaries = theStep->GetSecondary();
+    const auto *secondaries = theStep->GetSecondaryInCurrentStep();
     if (secondaries != nullptr && parentInfo != nullptr) {
       // This is the only callback where Geant4 exposes the stepped parent and
       // the newly created secondaries together. The drift test therefore
