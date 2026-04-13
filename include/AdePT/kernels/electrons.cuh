@@ -551,14 +551,15 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         }
         case 1: {
           // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-          double logEnergy      = std::log(eKin);
-          double deltaEkin      = eKin < g4HepEmPars.fElectronBremModelLim
-                                      ? G4HepEmElectronInteractionBrem::SampleETransferSB(
+          double logEnergy    = std::log(eKin);
+          double deltaEkin    = eKin < g4HepEmPars.fElectronBremModelLim
+                                    ? G4HepEmElectronInteractionBrem::SampleETransferSB(
                                        &g4HepEmData, eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron)
-                                      : G4HepEmElectronInteractionBrem::SampleETransferRB(
+                                    : G4HepEmElectronInteractionBrem::SampleETransferRB(
                                        &g4HepEmData, eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
-          double dirPrimary[]   = {dir.x(), dir.y(), dir.z()};
-          bool updatedDirection = false;
+          double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
+          double dirSecondary[3];
+          G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
 #if ADEPT_DEBUG_TRACK > 0
           if (verbose) printf("| BREMSSTRAHLUNG: deltaEkin %g \n", deltaEkin);
@@ -580,10 +581,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
               gammaWeight = gammaRouletteResult.weight;
             }
             if (createGamma) {
-              double dirSecondary[3];
-              G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
-              updatedDirection = true;
-
               // check for Woodcock tracking
               const bool useWDT      = ShouldUseWDT(navState, deltaEkin);
               auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
@@ -618,11 +615,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             break;
           }
 
-          if (updatedDirection) {
-            dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-          }
+          dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
 #if ADEPT_DEBUG_TRACK > 0
-          if (verbose && updatedDirection) printf("| new_dir {%.19f, %.19f, %.19f}\n", dir[0], dir[1], dir[2]);
+          if (verbose) printf("| new_dir {%.19f, %.19f, %.19f}\n", dir[0], dir[1], dir[2]);
 #endif
           trackSurvives = true;
           break;
@@ -718,26 +713,24 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           // Deposit the energy here and don't initialize any secondaries
           energyDeposit += 2 * copcore::units::kElectronMassC2;
         } else {
-          // With the current hardcoded ATLAS RR threshold (0.5 MeV), stopped
-          // annihilation photons at me*c^2 are never vetoed, so bypass the RR
-          // logic entirely here.
-
           const double cost = 2 * currentTrack.Uniform() - 1;
           const double sint = sqrt(1 - cost * cost);
           const double phi  = k2Pi * currentTrack.Uniform();
           double sinPhi, cosPhi;
           sincos(phi, &sinPhi, &cosPhi);
 
+          // as the branched newRNG may have already been used by interactions before, we need to create a new one
+          RanluxppDouble newRNG2(currentTrack.rngState.Branch());
+
           const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});
           auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-          vecgeom::Vector3D<double> gamma1Dir{sint * cosPhi, sint * sinPhi, cost};
-          vecgeom::Vector3D<double> gamma2Dir = -gamma1Dir;
-          auto newRNG                         = currentTrack.rngState.Branch();
-          Track &gamma1 = gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, pos, gamma1Dir,
-                                                     navState, currentTrack, globalTime, currentTrack.weight);
-          Track &gamma2 =
-              gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, pos, gamma2Dir,
-                                         navState, currentTrack, globalTime, currentTrack.weight);
+          Track &gamma1          = gammaPartManager.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
+                                                              vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                                              navState, currentTrack, globalTime);
+
+          // Reuse the RNG state of the dying track.
+          Track &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                                     pos, -gamma1.dir, navState, currentTrack, globalTime);
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {

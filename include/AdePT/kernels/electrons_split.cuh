@@ -699,30 +699,27 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
     // Deposit the energy here and don't initialize any secondaries
     energyDeposit += 2 * copcore::units::kElectronMassC2;
   } else {
-    // With the current hardcoded ATLAS RR threshold (0.5 MeV), stopped
-    // annihilation photons at me*c^2 are never vetoed, so bypass the RR logic
-    // entirely here.
-
     const double cost = 2 * currentTrack.Uniform() - 1;
     const double sint = sqrt(1 - cost * cost);
     const double phi  = k2Pi * currentTrack.Uniform();
     double sinPhi, cosPhi;
     sincos(phi, &sinPhi, &cosPhi);
 
-    // As the other branched RNG may already have been used by prior
-    // interactions, advance the parent RNG and branch a fresh child state here.
     currentTrack.rngState.Advance();
+    // as the other branched newRNG may have already been used by interactions before, we need to advance and create a
+    // new one
+    RanluxppDouble newRNG(currentTrack.rngState.Branch());
+
     const bool useWDT      = ShouldUseWDT(currentTrack.navState, double{copcore::units::kElectronMassC2});
     auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-    vecgeom::Vector3D<double> gamma1Dir{sint * cosPhi, sint * sinPhi, cost};
-    vecgeom::Vector3D<double> gamma2Dir = -gamma1Dir;
-    auto newRNG                         = currentTrack.rngState.Branch();
-    Track &gamma1 =
-        gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos, gamma1Dir,
-                                   currentTrack.navState, currentTrack, currentTrack.globalTime, currentTrack.weight);
-    Track &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                               currentTrack.pos, gamma2Dir, currentTrack.navState, currentTrack,
-                                               currentTrack.globalTime, currentTrack.weight);
+    Track &gamma1 = gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                               vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                               currentTrack.navState, currentTrack, currentTrack.globalTime);
+
+    // Reuse the RNG state of the dying track.
+    Track &gamma2 =
+        gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                   -gamma1.dir, currentTrack.navState, currentTrack, currentTrack.globalTime);
 
     // if tracking or stepping action is called, return initial step
     if (returnLastStep) {
@@ -912,8 +909,9 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
                            : G4HepEmElectronInteractionBrem::SampleETransferRB(
                                  &g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
 
-    double dirPrimary[]   = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-    bool updatedDirection = false;
+    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    double dirSecondary[3];
+    G4HepEmElectronInteractionBrem::SampleDirections(currentTrack.eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
 
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[3];
@@ -934,10 +932,6 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
         gammaWeight = gammaRouletteResult.weight;
       }
       if (createGamma) {
-        double dirSecondary[3];
-        G4HepEmElectronInteractionBrem::SampleDirections(currentTrack.eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
-        updatedDirection = true;
-
         const bool useWDT      = ShouldUseWDT(currentTrack.navState, deltaEkin);
         auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
         Track &gamma =
@@ -966,9 +960,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
-      if (updatedDirection) {
-        currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
-      }
+      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
       survive();
     }
 

@@ -15,7 +15,7 @@
 
 namespace adept::SteppingAction {
 
-struct GammaCreateDecision {
+struct GammaRouletteResult {
   bool create{true};  ///< whether the gamma secondary should be created
   float weight{1.0f}; ///< weight assigned to the newborn gamma when created
 };
@@ -50,7 +50,7 @@ struct NoAction {
   {
   }
 
-  __device__ __forceinline__ static GammaCreateDecision ApplyGammaRussianRoulette(float const &parentWeight,
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
                                                                                   double const &)
@@ -117,7 +117,7 @@ struct CMSAction {
     AllParticleCheck(alive, eKin, edep, pos, globalTime, params);
   }
 
-  __device__ __forceinline__ static GammaCreateDecision ApplyGammaRussianRoulette(float const &parentWeight,
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
                                                                                   double const &)
@@ -162,7 +162,7 @@ struct LHCbAction {
     ElectronAction(alive, eKin, edep, pos, /*globalTime*/ 0.0, /*mcIndex*/ 0, g4HepEmData, params);
   }
 
-  __device__ __forceinline__ static GammaCreateDecision ApplyGammaRussianRoulette(float const &parentWeight,
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
                                                                                   double const &)
@@ -200,7 +200,7 @@ struct ATLASAction {
   {
   }
 
-  __device__ __forceinline__ static GammaCreateDecision ApplyGammaRussianRoulette(
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(
       float const &parentWeight, double const &gammaEkin, adeptint::VolAuxData const &originAuxData,
       double const &random)
   {
@@ -233,7 +233,7 @@ struct ATLASAction {
   {
   }
 
-  __device__ __forceinline__ static GammaCreateDecision ApplyGammaRussianRoulette(float const &parentWeight,
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
                                                                                   double const &)
