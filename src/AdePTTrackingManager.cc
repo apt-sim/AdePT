@@ -29,6 +29,14 @@
 namespace {
 using AdePTTransport = AdePTTrackingManager::AdePTTransport;
 
+// In sequential Geant4, G4GetThreadId() returns MASTER_ID (-1) or SEQUENTIAL_ID (-2).
+// AdePT uses non-negative slot indices 0..N-1, so map any negative ID to slot 0.
+static inline int GetAdePTThreadId()
+{
+  auto tid = G4Threading::G4GetThreadId();
+  return (tid < 0) ? 0 : tid;
+}
+
 // Store only a weak reference here so the transport lifetime is still owned by
 // the thread-local AdePTTrackingManager instances. A static owning shared_ptr
 // would keep the transport alive until very late process teardown.
@@ -127,8 +135,9 @@ void AdePTTrackingManager::InitializeAdePT()
   auto tid = G4Threading::G4GetThreadId();
 
   // Master thread cannot initialize AdePT as the number of G4 worker threads may not yet be known in applications.
-  // In sequential mode, the tid is -2, so there we need to continue
-  if (tid == -1) return;
+  // In sequential mode, the tid is -2 in most builds, but some sequential Geant4 builds return MASTER_ID (-1).
+  // Use GetMasterRunManager() to distinguish an actual MT master thread from sequential mode.
+  if (tid == G4Threading::MASTER_ID && G4MTRunManager::GetMasterRunManager() != nullptr) return;
 
   // a condition variable and a mutex is used for the initialization:
   // The first G4 worker that reaches the initialization, needs to initialize AdePT.
@@ -327,7 +336,7 @@ void AdePTTrackingManager::FlushEvent()
   if (fVerbosity > 1)
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer." << G4endl;
 
-  auto threadId = G4Threading::G4GetThreadId();
+  auto threadId = GetAdePTThreadId();
   auto eventId  = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   // AdePTTrackingManager requests the flush while AdePTTransport still
@@ -417,7 +426,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 
   // Check for GPU steps, to alleviate pressure on the GPU step buffer
-  G4int threadId = G4Threading::G4GetThreadId();
+  G4int threadId = GetAdePTThreadId();
   ProcessReturnedGPUHits(threadId, eventID);
   auto &trackMapper = fGeant4Integration.GetHostTrackDataMapper();
 
@@ -555,7 +564,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
-                                globalTime, localTime, properTime, weight, stepNumber, G4Threading::G4GetThreadId(),
+                                globalTime, localTime, properTime, weight, stepNumber, GetAdePTThreadId(),
                                 eventID, std::move(converted));
 
       fTrackCounter++; // increment the track counter for AdePT
