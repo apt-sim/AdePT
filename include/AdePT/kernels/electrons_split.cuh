@@ -699,15 +699,16 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
     // Deposit the energy here and don't initialize any secondaries
     energyDeposit += 2 * copcore::units::kElectronMassC2;
   } else {
+
     const double cost = 2 * currentTrack.Uniform() - 1;
     const double sint = sqrt(1 - cost * cost);
     const double phi  = k2Pi * currentTrack.Uniform();
     double sinPhi, cosPhi;
     sincos(phi, &sinPhi, &cosPhi);
 
-    currentTrack.rngState.Advance();
     // as the other branched newRNG may have already been used by interactions before, we need to advance and create a
     // new one
+    currentTrack.rngState.Advance();
     RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
     const bool useWDT      = ShouldUseWDT(currentTrack.navState, double{copcore::units::kElectronMassC2});
@@ -894,8 +895,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
     const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
-    // Prepare the child RNG before any later divergence so the branching point
-    // stays identical to the original split-kernel implementation.
+    // Perform the discrete interaction, branch a new RNG state with advance so it is
+    // ready to be used.
     auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
@@ -1026,8 +1027,8 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
     const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
-    // Prepare the child RNG before any later divergence so the branching point
-    // stays identical to the original split-kernel implementation.
+    // Perform the discrete interaction, branch a new RNG state with advance so it is
+    // ready to be used.
     auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.

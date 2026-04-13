@@ -551,12 +551,13 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         }
         case 1: {
           // Invoke model for Bremsstrahlung: either SB- or Rel-Brem.
-          double logEnergy    = std::log(eKin);
-          double deltaEkin    = eKin < g4HepEmPars.fElectronBremModelLim
-                                    ? G4HepEmElectronInteractionBrem::SampleETransferSB(
+          double logEnergy = std::log(eKin);
+          double deltaEkin = eKin < g4HepEmPars.fElectronBremModelLim
+                                 ? G4HepEmElectronInteractionBrem::SampleETransferSB(
                                        &g4HepEmData, eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron)
-                                    : G4HepEmElectronInteractionBrem::SampleETransferRB(
+                                 : G4HepEmElectronInteractionBrem::SampleETransferRB(
                                        &g4HepEmData, eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
+
           double dirPrimary[] = {dir.x(), dir.y(), dir.z()};
           double dirSecondary[3];
           G4HepEmElectronInteractionBrem::SampleDirections(eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
@@ -713,6 +714,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           // Deposit the energy here and don't initialize any secondaries
           energyDeposit += 2 * copcore::units::kElectronMassC2;
         } else {
+
           const double cost = 2 * currentTrack.Uniform() - 1;
           const double sint = sqrt(1 - cost * cost);
           const double phi  = k2Pi * currentTrack.Uniform();
@@ -724,9 +726,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
           const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});
           auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-          Track &gamma1          = gammaPartManager.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
-                                                              vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                                              navState, currentTrack, globalTime);
+
+          Track &gamma1 = gammaPartManager.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
+                                                     vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                                     navState, currentTrack, globalTime);
 
           // Reuse the RNG state of the dying track.
           Track &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
