@@ -97,9 +97,18 @@ struct Track {
   __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
                    const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
                    const Track &parentTrack, const double globalTime)
+      : Track(rng_state, eKin, parentPos, newDirection, newNavState, parentTrack, globalTime, parentTrack.weight)
+  {
+  }
+
+  /// Construct a secondary from a parent track with an explicit child weight.
+  /// NB: The caller is responsible to branch a new RNG state.
+  __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                   const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
+                   const Track &parentTrack, const double globalTime, float childWeight)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
-        parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, weight{parentTrack.weight}, stepCounter{0},
+        parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, weight{childWeight}, stepCounter{0},
         looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
   {
   }

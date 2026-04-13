@@ -699,6 +699,9 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
     // Deposit the energy here and don't initialize any secondaries
     energyDeposit += 2 * copcore::units::kElectronMassC2;
   } else {
+    // With the current hardcoded ATLAS RR threshold (0.5 MeV), stopped
+    // annihilation photons at me*c^2 are never vetoed, so bypass the RR logic
+    // entirely here.
 
     const double cost = 2 * currentTrack.Uniform() - 1;
     const double sint = sqrt(1 - cost * cost);
@@ -706,21 +709,20 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
     double sinPhi, cosPhi;
     sincos(phi, &sinPhi, &cosPhi);
 
-    // as the other branched newRNG may have already been used by interactions before, we need to advance and create a
-    // new one
+    // As the other branched RNG may already have been used by prior
+    // interactions, advance the parent RNG and branch a fresh child state here.
     currentTrack.rngState.Advance();
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
-
     const bool useWDT      = ShouldUseWDT(currentTrack.navState, double{copcore::units::kElectronMassC2});
     auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-    Track &gamma1 = gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                               vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                               currentTrack.navState, currentTrack, currentTrack.globalTime);
-
-    // Reuse the RNG state of the dying track.
-    Track &gamma2 =
-        gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                   -gamma1.dir, currentTrack.navState, currentTrack, currentTrack.globalTime);
+    vecgeom::Vector3D<double> gamma1Dir{sint * cosPhi, sint * sinPhi, cost};
+    vecgeom::Vector3D<double> gamma2Dir = -gamma1Dir;
+    auto newRNG                         = currentTrack.rngState.Branch();
+    Track &gamma1 =
+        gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos, gamma1Dir,
+                                   currentTrack.navState, currentTrack, currentTrack.globalTime, currentTrack.weight);
+    Track &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
+                                               currentTrack.pos, gamma2Dir, currentTrack.navState, currentTrack,
+                                               currentTrack.globalTime, currentTrack.weight);
 
     // if tracking or stepping action is called, return initial step
     if (returnLastStep) {
@@ -895,8 +897,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
     const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
-    // Perform the discrete interaction, branch a new RNG state with advance so it is
-    // ready to be used.
+    // Prepare the child RNG before any later divergence so the branching point
+    // stays identical to the original split-kernel implementation.
     auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
@@ -910,9 +912,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
                            : G4HepEmElectronInteractionBrem::SampleETransferRB(
                                  &g4HepEmData, currentTrack.eKin, logEnergy, auxData.fMCIndex, &rnge, IsElectron);
 
-    double dirPrimary[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
-    double dirSecondary[3];
-    G4HepEmElectronInteractionBrem::SampleDirections(currentTrack.eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
+    double dirPrimary[]   = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
+    bool updatedDirection = false;
 
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[3];
@@ -924,16 +925,30 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       energyDeposit += deltaEkin;
 
     } else {
-      const bool useWDT      = ShouldUseWDT(currentTrack.navState, deltaEkin);
-      auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-      Track &gamma =
-          gammaPartManager.NextTrack(newRNG, deltaEkin, currentTrack.pos,
-                                     vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin, /*creator process*/ short(1),
-                                         ParticleType::Gamma};
+      bool createGamma  = true;
+      float gammaWeight = currentTrack.weight;
+      if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
+        const auto gammaRouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
+            currentTrack.weight, deltaEkin, auxData, currentTrack.Uniform());
+        createGamma = gammaRouletteResult.create;
+        gammaWeight = gammaRouletteResult.weight;
+      }
+      if (createGamma) {
+        double dirSecondary[3];
+        G4HepEmElectronInteractionBrem::SampleDirections(currentTrack.eKin, deltaEkin, dirSecondary, dirPrimary, &rnge);
+        updatedDirection = true;
+
+        const bool useWDT      = ShouldUseWDT(currentTrack.navState, deltaEkin);
+        auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+        Track &gamma =
+            gammaPartManager.NextTrack(newRNG, deltaEkin, currentTrack.pos,
+                                       vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
+                                       currentTrack.navState, currentTrack, currentTrack.globalTime, gammaWeight);
+        // if tracking or stepping action is called, return initial step
+        if (returnLastStep) {
+          secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin, /*creator process*/ short(1),
+                                           ParticleType::Gamma};
+        }
       }
     }
 
@@ -951,7 +966,9 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
-      currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+      if (updatedDirection) {
+        currentTrack.dir.Set(dirPrimary[0], dirPrimary[1], dirPrimary[2]);
+      }
       survive();
     }
 
@@ -1017,8 +1034,8 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
     const int iregion    = g4HepEmData.fTheMatCutData->fMatCutData[auxData.fMCIndex].fG4RegionIndex;
     const bool ApplyCuts = g4HepEmPars.fParametersPerRegion[iregion].fIsApplyCuts;
 
-    // Perform the discrete interaction, branch a new RNG state with advance so it is
-    // ready to be used.
+    // Prepare the child RNG before any later divergence so the branching point
+    // stays identical to the original split-kernel implementation.
     auto newRNG = RanluxppDouble(currentTrack.rngState.Branch());
     // Also advance the current RNG state to provide a fresh round of random
     // numbers after MSC used up a fair share for sampling the displacement.
@@ -1041,16 +1058,26 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       energyDeposit += theGamma1Ekin;
 
     } else {
-      const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma1Ekin);
-      auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-      Track &gamma1 =
-          gammaPartManager.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
-                                     vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
-                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
-                                         ParticleType::Gamma};
+      bool createGamma1  = true;
+      float gamma1Weight = currentTrack.weight;
+      if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
+        const auto gamma1RouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
+            currentTrack.weight, theGamma1Ekin, auxData, currentTrack.Uniform());
+        createGamma1 = gamma1RouletteResult.create;
+        gamma1Weight = gamma1RouletteResult.weight;
+      }
+      if (createGamma1) {
+        const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma1Ekin);
+        auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+        Track &gamma1 =
+            gammaPartManager.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
+                                       vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
+                                       currentTrack.navState, currentTrack, currentTrack.globalTime, gamma1Weight);
+        // if tracking or stepping action is called, return initial step
+        if (returnLastStep) {
+          secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
+                                           ParticleType::Gamma};
+        }
       }
     }
     if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -1058,16 +1085,26 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       energyDeposit += theGamma2Ekin;
 
     } else {
-      const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma2Ekin);
-      auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-      Track &gamma2 =
-          gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
-                                     vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
-                                     currentTrack.navState, currentTrack, currentTrack.globalTime);
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
-                                         ParticleType::Gamma};
+      bool createGamma2  = true;
+      float gamma2Weight = currentTrack.weight;
+      if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
+        const auto gamma2RouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
+            currentTrack.weight, theGamma2Ekin, auxData, currentTrack.Uniform());
+        createGamma2 = gamma2RouletteResult.create;
+        gamma2Weight = gamma2RouletteResult.weight;
+      }
+      if (createGamma2) {
+        const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma2Ekin);
+        auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
+        Track &gamma2 =
+            gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
+                                       vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
+                                       currentTrack.navState, currentTrack, currentTrack.globalTime, gamma2Weight);
+        // if tracking or stepping action is called, return initial step
+        if (returnLastStep) {
+          secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
+                                           ParticleType::Gamma};
+        }
       }
     }
 
