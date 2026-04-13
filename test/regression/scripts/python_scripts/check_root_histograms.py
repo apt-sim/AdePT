@@ -65,6 +65,10 @@ def compare_single_histogram(name, hist1, hist2, root1, root2, abs_tol, rel_tol)
     metadata2 = load_value_metadata(root2, name)
     label_metadata1 = load_label_metadata(root1, name)
     label_metadata2 = load_label_metadata(root2, name)
+    values1 = metadata1.splitlines() if metadata1 is not None else None
+    values2 = metadata2.splitlines() if metadata2 is not None else None
+    labels1 = label_metadata1.splitlines() if label_metadata1 is not None else None
+    labels2 = label_metadata2.splitlines() if label_metadata2 is not None else None
 
     # For exact-value histograms we first compare the metadata that defines
     # which floating-point value each bin corresponds to, and only then the
@@ -73,8 +77,6 @@ def compare_single_histogram(name, hist1, hist2, root1, root2, abs_tol, rel_tol)
         return f"Histogram '{name}' differs: exact-value metadata is missing in one file."
 
     if metadata1 is not None and metadata1 != metadata2:
-        values1 = metadata1.splitlines()
-        values2 = metadata2.splitlines()
         for index, (value1, value2) in enumerate(zip(values1, values2), start=1):
             if value1 != value2:
                 return f"Histogram '{name}' differs at bin {index}: value '{value1}' != '{value2}'"
@@ -87,8 +89,6 @@ def compare_single_histogram(name, hist1, hist2, root1, root2, abs_tol, rel_tol)
         return f"Histogram '{name}' differs: label metadata is missing in one file."
 
     if label_metadata1 is not None and label_metadata1 != label_metadata2:
-        labels1 = label_metadata1.splitlines()
-        labels2 = label_metadata2.splitlines()
         for index, (label1, label2) in enumerate(zip(labels1, labels2), start=1):
             if label1 != label2:
                 return f"Histogram '{name}' differs at bin {index}: label '{label1}' != '{label2}'"
@@ -98,15 +98,17 @@ def compare_single_histogram(name, hist1, hist2, root1, root2, abs_tol, rel_tol)
         )
 
     for bin_index in range(1, hist1.GetNbinsX() + 1):
-        label1 = ""
-        if label_metadata1 is not None:
-            label1 = label_metadata1.splitlines()[bin_index - 1]
+        if values1 is not None:
+            label1 = values1[bin_index - 1]
+        elif labels1 is not None:
+            label1 = labels1[bin_index - 1]
         else:
             label1 = hist1.GetXaxis().GetBinLabel(bin_index)
 
-        label2 = ""
-        if label_metadata2 is not None:
-            label2 = label_metadata2.splitlines()[bin_index - 1]
+        if values2 is not None:
+            label2 = values2[bin_index - 1]
+        elif labels2 is not None:
+            label2 = labels2[bin_index - 1]
         else:
             label2 = hist2.GetXaxis().GetBinLabel(bin_index)
 
@@ -116,9 +118,7 @@ def compare_single_histogram(name, hist1, hist2, root1, root2, abs_tol, rel_tol)
         value1 = hist1.GetBinContent(bin_index)
         value2 = hist2.GetBinContent(bin_index)
         if not math.isclose(value1, value2, rel_tol=rel_tol, abs_tol=abs_tol):
-            if metadata1 is not None:
-                label1 = metadata1.splitlines()[bin_index - 1]
-            elif not label1:
+            if not label1:
                 label1 = f"bin={bin_index}"
             return (
                 f"Histogram '{name}' differs at bin {bin_index} ('{label1}'): "
