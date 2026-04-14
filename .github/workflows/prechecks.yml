@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
 name: Prechecks
 
 on:
@@ -27,8 +30,9 @@ jobs:
           FILES=$(git ls-files '*.cpp' '*.h' '*.cu' '*.cuh' '*.hh' '*.cc' '*.icc')
           clang-format-19 -style=file -n --Werror $FILES
 
-  docs:
-    name: Docs Build Check
+  docs-build:
+    name: Docs
+    # Keep in sync with .readthedocs.yaml to avoid CI/RTD drift.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +57,8 @@ jobs:
 
       - name: Read the Docs pre_build parity
         run: |
+          # Generator fails if messenger/macro/docs
+          # metadata is inconsistent.
           python docs/scripts/generate_runtime_parameters.py
           cd docs && mkdir -p _build/doxygen && doxygen Doxyfile
 
