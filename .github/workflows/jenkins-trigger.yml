@@ -8,6 +8,10 @@ on:
     workflows: ["Prechecks"]
     types: [completed]
 
+concurrency:
+  group: trigger-jenkins-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
 permissions:
   actions: read
   contents: read
@@ -20,6 +24,8 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
+    # Transitional bridge: GitHub triggers Jenkins and waits for its result so
+    # the PR gets a native status check until Jenkins reports status directly.
     timeout-minutes: 360
 
     steps:
@@ -39,6 +45,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -eo pipefail
 
@@ -78,6 +85,12 @@ jobs:
           echo "Resolved PR #${pr_number} by ${pr_author}"
           echo "PR SHA: ${pr_sha}"
           echo "PR URL: ${pr_url}"
+
+          if [ "${pr_sha}" != "${WORKFLOW_HEAD_SHA}" ]; then
+            echo "ERROR: Resolved PR SHA (${pr_sha}) does not match workflow_run.head_sha (${WORKFLOW_HEAD_SHA})." >&2
+            echo "A newer commit likely landed after the successful Prechecks run. Refusing to trigger Jenkins for a mismatched revision." >&2
+            exit 1
+          fi
 
           echo "number=${pr_number}" >> "${GITHUB_OUTPUT}"
           echo "author=${pr_author}" >> "${GITHUB_OUTPUT}"
@@ -122,6 +135,7 @@ jobs:
         id: trigger
         env:
           JENKINS_TRIGGER_TOKEN: ${{ secrets.JENKINS_TRIGGER_TOKEN }}
+          PR_COMMIT: ${{ steps.pr.outputs.sha }}
           PR_AUTHOR: ${{ steps.pr.outputs.author }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
@@ -140,6 +154,7 @@ jobs:
               "${jenkins_base_url}/buildByToken/buildWithParameters" \
               --data-urlencode "job=AdePT-PR-trigger" \
               --data-urlencode "token=${JENKINS_TRIGGER_TOKEN}" \
+              --data-urlencode "ghprbActualCommit=${PR_COMMIT}" \
               --data-urlencode "ghprbPullId=${PR_NUMBER}" \
               --data-urlencode "ghprbPullAuthorLogin=${PR_AUTHOR}"
           )
