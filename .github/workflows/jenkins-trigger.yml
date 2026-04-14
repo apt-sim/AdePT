@@ -142,6 +142,7 @@ jobs:
           set -eo pipefail
 
           jenkins_base_url="https://lcgapp-services.cern.ch/spi-jenkins"
+          trigger_url="${jenkins_base_url}/job/AdePT-PR-trigger/buildWithParameters?token=${JENKINS_TRIGGER_TOKEN}"
           trigger_headers=$(mktemp)
           trigger_body=$(mktemp)
 
@@ -151,9 +152,7 @@ jobs:
               --dump-header "${trigger_headers}" \
               --write-out "%{http_code}" \
               --request POST \
-              "${jenkins_base_url}/buildByToken/buildWithParameters" \
-              --data-urlencode "job=AdePT-PR-trigger" \
-              --data-urlencode "token=${JENKINS_TRIGGER_TOKEN}" \
+              "${trigger_url}" \
               --data-urlencode "ghprbActualCommit=${PR_COMMIT}" \
               --data-urlencode "ghprbPullId=${PR_NUMBER}" \
               --data-urlencode "ghprbPullAuthorLogin=${PR_AUTHOR}"
@@ -163,16 +162,27 @@ jobs:
           echo "Jenkins trigger response headers:"
           sed -n '1,40p' "${trigger_headers}"
 
-          if [ "${http_code}" != "201" ] && [ "${http_code}" != "303" ]; then
+          location_header=$(
+            awk 'BEGIN { IGNORECASE = 1 } /^Location:/ { print $2 }' "${trigger_headers}" |
+              tr -d '\r'
+          )
+
+          if printf '%s\n' "${location_header}" | grep -qi '^https://auth\.cern\.ch/'; then
+            echo "ERROR: Jenkins trigger was redirected to CERN SSO instead of queueing a build." >&2
+            echo "Trigger URL: ${trigger_url}" >&2
+            echo "Redirect location: ${location_header}" >&2
             echo "Jenkins trigger response body:" >&2
             sed -n '1,120p' "${trigger_body}" >&2
             exit 1
           fi
 
-          queue_url=$(
-            awk 'BEGIN { IGNORECASE = 1 } /^Location:/ { print $2 }' "${trigger_headers}" |
-              tr -d '\r'
-          )
+          if [ "${http_code}" != "201" ] && [ "${http_code}" != "302" ] && [ "${http_code}" != "303" ]; then
+            echo "Jenkins trigger response body:" >&2
+            sed -n '1,120p' "${trigger_body}" >&2
+            exit 1
+          fi
+
+          queue_url="${location_header}"
           rm -f "${trigger_headers}" "${trigger_body}"
 
           if [ -z "${queue_url}" ]; then
