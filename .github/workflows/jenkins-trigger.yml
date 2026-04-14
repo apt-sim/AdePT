@@ -1,0 +1,26 @@
+name: Trigger Jenkins
+
+on:
+  workflow_run:
+    workflows: ["Prechecks"]
+    types: [completed]
+
+jobs:
+  trigger:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Jenkins
+        env:
+          JENKINS_TRIGGER_TOKEN: ${{ secrets.JENKINS_TRIGGER_TOKEN }}
+        run: |
+          PR=${{ github.event.workflow_run.pull_requests[0].number }}
+          AUTHOR=${{ github.event.workflow_run.actor.login }}
+
+          curl -X POST \
+            "https://lcgapp-services.cern.ch/spi-jenkins/job/AdePT-PR-trigger/buildWithParameters?token=${JENKINS_TRIGGER_TOKEN}" \
+            --data-urlencode "ghprbPullId=${PR}" \
+            --data-urlencode "ghprbPullAuthorLogin=${AUTHOR}"
