@@ -18,12 +18,16 @@ jobs:
     steps:
       - name: Trigger Jenkins
         env:
-          JENKINS_TRIGGER_TOKEN: ${{ secrets.JENKINS_TRIGGER_TOKEN }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
         run: |
           PR=${{ github.event.workflow_run.pull_requests[0].number }}
           AUTHOR=${{ github.event.workflow_run.actor.login }}
 
-          curl -X POST \
-            "https://lcgapp-services.cern.ch/spi-jenkins/job/AdePT-PR-trigger/buildWithParameters?token=${JENKINS_TRIGGER_TOKEN}" \
+          echo "Triggering Jenkins for PR $PR by $AUTHOR"
+
+          curl --fail --show-error -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
+            -X POST \
+            "https://lcgapp-services.cern.ch/spi-jenkins/job/AdePT-PR-trigger/buildWithParameters" \
             --data-urlencode "ghprbPullId=${PR}" \
             --data-urlencode "ghprbPullAuthorLogin=${AUTHOR}"
