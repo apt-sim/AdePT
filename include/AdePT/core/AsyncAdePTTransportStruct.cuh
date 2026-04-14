@@ -261,6 +261,22 @@ struct Stats {
   unsigned int hitBufferOccupancy;
 };
 
+/// Host-only counters accumulating transport-loop stop/stall/flush action reasons across the full run.
+/// These are incremented on the host transport thread and printed at shutdown when verbosity >= 1.
+struct TransportLoopCounters {
+  unsigned long long totalIterations{0};             ///< Total transport iterations executed
+  unsigned long long leakExtractionByQueuePressure{0}; ///< Iterations where leak queue exceeded 50% threshold
+  unsigned long long leakExtractionByEventFlush{0};  ///< Iterations where an event flush requested leak extraction
+  unsigned long long leakExtractionBlocked{0};       ///< Times transport stalled waiting for in-progress extraction
+  unsigned long long eventDrainedToHitFlush{0};      ///< Events that transitioned to RequestHitFlush (queues drained)
+  unsigned long long hitBufferStalls{0};             ///< Times transport stalled waiting for hit buffer to free
+  unsigned long long hitBufferSwaps{0};              ///< Total hit-buffer swaps performed
+  unsigned long long hitBufferSwapByOccupancy{0};    ///< Swaps triggered by occupancy >= half capacity
+  unsigned long long hitBufferSwapByOccupancy10k{0}; ///< Swaps triggered by occupancy >= 10000
+  unsigned long long hitBufferSwapByPressure{0};     ///< Swaps triggered by nextStepMightFail (overflow risk)
+  unsigned long long hitBufferSwapByEventFlush{0};   ///< Swaps triggered by event RequestHitFlush
+};
+
 /// @brief Array of flags whether the event can be finished off
 struct AllowFinishOffEventArray {
   unsigned short flags[kMaxThreads];
