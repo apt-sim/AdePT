@@ -17,6 +17,7 @@ pipeline {
     string(name: 'LABEL', defaultValue: 'TeslaT4', description: 'Jenkins label for physical nodes or container image for docker')
     string(name: 'ExtraCMakeOptions', defaultValue: '', description: 'CMake extra configuration options')
     string(name: 'DOCKER_LABEL', defaultValue: 'docker-host-noafs', description: 'Label for the the nodes able to launch docker images')
+    string(name: 'ghprbActualCommit', description: 'Immutable PR commit SHA validated by GitHub Actions')
     string(name: 'ghprbPullAuthorLogin', description: 'Author of the Pull Request (provided by GitHub)')
     string(name: 'ghprbPullId', description: 'Pull Request id (provided by GitHub)')
   }
@@ -233,6 +234,18 @@ def checkoutPrSource() {
   checkout scm
   dir('AdePT') {
     sh 'git submodule update --init'
+    if (params.ghprbActualCommit?.trim()) {
+      sh """
+        actual_commit=\$(git rev-parse HEAD)
+        expected_commit="${params.ghprbActualCommit}"
+        echo "Checked out PR commit: \${actual_commit}"
+        echo "Expected PR commit:   \${expected_commit}"
+        if [ "\${actual_commit}" != "\${expected_commit}" ]; then
+          echo "ERROR: Jenkins checked out a different PR commit than the one validated by GitHub Actions." >&2
+          exit 1
+        fi
+      """
+    }
   }
 }
 
