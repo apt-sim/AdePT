@@ -16,18 +16,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Show workflow_run payload basics
+        run: |
+          echo "event=${{ github.event.workflow_run.event }}"
+          echo "conclusion=${{ github.event.workflow_run.conclusion }}"
+          echo "actor=${{ github.event.workflow_run.actor.login }}"
+          echo "pull_requests_json=${{ toJson(github.event.workflow_run.pull_requests) }}"
+
       - name: Trigger Jenkins
         env:
           JENKINS_USER: ${{ secrets.JENKINS_USER }}
           JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
         run: |
-          PR=${{ github.event.workflow_run.pull_requests[0].number }}
-          AUTHOR=${{ github.event.workflow_run.actor.login }}
+          set -u
 
-          echo "Triggering Jenkins for PR $PR by $AUTHOR"
+          PR="${{ github.event.workflow_run.pull_requests[0].number }}"
+          AUTHOR="${{ github.event.workflow_run.actor.login }}"
 
-          curl --fail --show-error -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
-            -X POST \
+          echo "PR='${PR}'"
+          echo "AUTHOR='${AUTHOR}'"
+
+          if [ -z "${JENKINS_USER}" ]; then
+            echo "ERROR: JENKINS_USER is empty"
+            exit 1
+          fi
+
+          if [ -z "${JENKINS_API_TOKEN}" ]; then
+            echo "ERROR: JENKINS_API_TOKEN is empty"
+            exit 1
+          fi
+
+          if [ -z "${PR}" ]; then
+            echo "ERROR: PR number is empty"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            --user "${JENKINS_USER}:${JENKINS_API_TOKEN}" \
+            --request POST \
+            --write-out "\nHTTP_STATUS=%{http_code}\n" \
             "https://lcgapp-services.cern.ch/spi-jenkins/job/AdePT-PR-trigger/buildWithParameters" \
             --data-urlencode "ghprbPullId=${PR}" \
             --data-urlencode "ghprbPullAuthorLogin=${AUTHOR}"
