@@ -86,7 +86,14 @@ run_and_capture() {
 
 build_all_targets() {
   local build_dir=$1
-  [[ -d "${build_dir}" ]] || die "Build directory not found: ${build_dir}"
+  if [[ ! -d "${build_dir}" ]]; then
+    log "Build directory not found: ${build_dir}"
+    return 1
+  fi
+  if [[ ! -f "${build_dir}/CMakeCache.txt" ]]; then
+    log "Build directory is not configured: ${build_dir}"
+    return 1
+  fi
 
   local jobs=${JOBS}
   if [[ "${jobs}" == "auto" ]]; then
@@ -236,6 +243,7 @@ if build_all_targets "${MONOL_BUILD_DIR}"; then
   log "Running async unit tests"
   run_and_capture UNIT_STATUS run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L unit -j1
 else
+  log "Skipping async unit tests because the async build is unavailable"
   UNIT_STATUS=1
 fi
 
@@ -249,10 +257,14 @@ if [[ "${DRIFT_STATUS}" -ne 0 ]]; then
 
   if [[ "${UNIT_STATUS}" -eq 0 ]]; then
     run_and_capture validation_monol_status run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L validation -j1
+  else
+    log "Skipping async validation because the async build or unit stage failed"
   fi
 
   if build_all_targets "${SPLIT_BUILD_DIR}"; then
     run_and_capture validation_split_status run_ctest --test-dir "${SPLIT_BUILD_DIR}" --output-on-failure -L validation -j1
+  else
+    log "Skipping split validation because the split build is unavailable"
   fi
 
   if [[ "${validation_monol_status}" -eq 0 && "${validation_split_status}" -eq 0 ]]; then
