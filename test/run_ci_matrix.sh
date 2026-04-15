@@ -57,7 +57,7 @@ Options:
   --build-type <type>        CMake build type (default: Release)
   --cuda-arch <arch|auto>    CUDA arch (default: auto)
   --jobs <N|auto>            Parallel build jobs (default: auto = nproc)
-  --lcg-setup <path>         Explicit LCG setup script (default: auto-discover el10, then el9)
+  --lcg-setup <path>         Explicit LCG setup script (default: devAdePT EL9 view)
   --build-root <path>        Build root directory (default: ${BUILD_ROOT})
   --master-ref <git-ref>     Master reference for drift comparisons (default: ${DEFAULT_MASTER_REF})
   --no-fetch-master          Do not fetch remote master refs before running drift
