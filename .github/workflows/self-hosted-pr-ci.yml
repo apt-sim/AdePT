@@ -110,14 +110,9 @@ jobs:
       - gpu
       - benchmark
       - adept
-    container:
-      image: gitlab-registry.cern.ch/sft/docker/alma9
-      volumes:
-        - /build:/build
-        - /ec/conf:/ec/conf
-        - /cvmfs:/cvmfs:ro,rslave
-      options: --user 0 --security-opt seccomp=unconfined --gpus all
     timeout-minutes: 480
+    env:
+      RESULTS_FILE: ${{ github.workspace }}/ci-results.env
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v6
@@ -127,11 +122,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           submodules: recursive
-
-      - name: Mark workspace as safe for git
-        run: |
-          set -eo pipefail
-          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
       - name: Fetch upstream master reference
         run: |
@@ -152,24 +142,51 @@ jobs:
           echo "pwd=$(pwd)"
           id
 
+      - name: Pre-touch required CVMFS repos on host
+        run: |
+          set -eo pipefail
+          ls /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el9-gcc13-opt/setup.sh
+          ls /cvmfs/geant4.cern.ch/share/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+
       - name: Check GPU visibility
         run: |
           set -eo pipefail
           nvidia-smi
 
-      - name: Run self-hosted PR CI
+      - name: Check Docker basics
+        run: |
+          set -eo pipefail
+          docker --version
+
+      - name: Run self-hosted PR CI in Alma 9 container
         id: run_ci
         continue-on-error: true
         run: |
           set -eo pipefail
-          ./test/run_pr_ci.sh \
-            --build-root "/tmp/adept-self-hosted-ci/pr-${{ needs.prepare.outputs.pr_number }}" \
-            --results-file ci-results.env \
-            --master-ref upstream/master \
-            --no-fetch-master \
-            --cuda-arch 89 \
-            --jobs auto \
-            --ctest-timeout-sec 180
+
+          rm -f "${RESULTS_FILE}"
+
+          docker run --rm --pull always \
+            --gpus all \
+            --security-opt seccomp=unconfined \
+            -v /build:/build \
+            -v /ec/conf:/ec/conf \
+            -v /cvmfs:/cvmfs:ro,rslave \
+            -v "${GITHUB_WORKSPACE}:/work/AdePT" \
+            -w /work/AdePT \
+            gitlab-registry.cern.ch/sft/docker/alma9 \
+            bash -lc '
+              set -eo pipefail
+              git config --global --add safe.directory /work/AdePT
+              ./test/run_pr_ci.sh \
+                --build-root "/tmp/adept-self-hosted-ci/pr-${{ needs.prepare.outputs.pr_number }}" \
+                --results-file "/work/AdePT/ci-results.env" \
+                --master-ref upstream/master \
+                --no-fetch-master \
+                --cuda-arch 89 \
+                --jobs auto \
+                --ctest-timeout-sec 180
+            '
 
       - name: Publish PR contexts
         if: always()
@@ -180,9 +197,9 @@ jobs:
         run: |
           set -eo pipefail
 
-          if [ -f ci-results.env ]; then
+          if [ -r "${RESULTS_FILE}" ]; then
             # shellcheck disable=SC1091
-            source ci-results.env
+            source "${RESULTS_FILE}"
           fi
 
           : "${DRIFT_STATUS:=1}"
@@ -257,9 +274,9 @@ jobs:
       - name: Write summary
         if: always()
         run: |
-          if [ -f ci-results.env ]; then
+          if [ -r "${RESULTS_FILE}" ]; then
             # shellcheck disable=SC1091
-            source ci-results.env
+            source "${RESULTS_FILE}"
           fi
 
           {
@@ -281,9 +298,9 @@ jobs:
       - name: Fail workflow if full CI failed
         if: always()
         run: |
-          if [ -f ci-results.env ]; then
+          if [ -r "${RESULTS_FILE}" ]; then
             # shellcheck disable=SC1091
-            source ci-results.env
+            source "${RESULTS_FILE}"
           else
             FULL_CI_STATUS=1
           fi
