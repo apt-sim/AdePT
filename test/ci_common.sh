@@ -23,3 +23,23 @@ select_devadept_lcg_setup() {
   printf '[ci-common] ERROR: No devAdePT gcc13 EL9 LCG view found\n' >&2
   return 1
 }
+
+normalize_lcg_cuda_env() {
+  local toolkit_root=${CUDA_TOOLKIT_ROOT:-${CUDAToolkit_ROOT:-}}
+
+  if [[ -z "${toolkit_root}" ]]; then
+    printf '[ci-common] ERROR: CUDA toolkit root is not set after sourcing the LCG setup\n' >&2
+    return 1
+  fi
+
+  if [[ ! -x "${toolkit_root}/bin/nvcc" ]]; then
+    printf '[ci-common] ERROR: nvcc not found at %s/bin/nvcc\n' "${toolkit_root}" >&2
+    return 1
+  fi
+
+  export CUDA_TOOLKIT_ROOT="${toolkit_root}"
+  export CUDAToolkit_ROOT="${toolkit_root}"
+  export CUDA_HOME="${toolkit_root}"
+  export CUDACXX="${toolkit_root}/bin/nvcc"
+  export PATH="${toolkit_root}/bin:${PATH}"
+}

@@ -220,6 +220,7 @@ select_lcg_setup
 set +u
 source "${LCG_SETUP}"
 set -u
+normalize_lcg_cuda_env || die "Failed to normalize CUDA environment from LCG setup"
 
 if [[ "${CUDA_ARCH}" == "auto" ]]; then
   detected=""
