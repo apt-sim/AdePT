@@ -128,6 +128,11 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Mark workspace as safe for git
+        run: |
+          set -eo pipefail
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
       - name: Fetch upstream master reference
         run: |
           set -eo pipefail
