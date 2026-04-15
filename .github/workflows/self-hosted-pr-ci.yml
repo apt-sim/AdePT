@@ -1,0 +1,278 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+name: Self-Hosted PR CI
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: self-hosted-pr-ci-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare
+    if: github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.prepare.outputs.should_run }}
+      pr_number: ${{ steps.prepare.outputs.pr_number }}
+      pr_sha: ${{ steps.prepare.outputs.pr_sha }}
+      pr_repo: ${{ steps.prepare.outputs.pr_repo }}
+      pr_ref: ${{ steps.prepare.outputs.pr_ref }}
+      command: ${{ steps.prepare.outputs.command }}
+    steps:
+      - name: Validate command and resolve PR
+        id: prepare
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const body = (context.payload.comment.body || '').trim();
+            const assoc = context.payload.comment.author_association || 'NONE';
+            const trusted = ['OWNER', 'MEMBER'].includes(assoc);
+
+            core.setOutput('command', body);
+            core.setOutput('should_run', 'false');
+
+            if (body !== '/run-test') {
+              core.notice(`Ignoring comment '${body}'`);
+              return;
+            }
+
+            if (!trusted) {
+              core.notice(`Ignoring /run-test from untrusted role ${assoc}`);
+              return;
+            }
+
+            const prNumber = context.payload.issue.number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            core.info(`Resolved PR #${pr.number} -> ${pr.head.repo.full_name}@${pr.head.sha}`);
+            core.setOutput('should_run', 'true');
+            core.setOutput('pr_number', String(pr.number));
+            core.setOutput('pr_sha', pr.head.sha);
+            core.setOutput('pr_repo', pr.head.repo.full_name);
+            core.setOutput('pr_ref', pr.head.ref);
+
+      - name: Set pending PR contexts
+        if: steps.prepare.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_SHA: ${{ steps.prepare.outputs.pr_sha }}
+          TARGET_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eo pipefail
+
+          post_status() {
+            local state=$1
+            local context=$2
+            local description=$3
+
+            jq -n \
+              --arg state "${state}" \
+              --arg context "${context}" \
+              --arg description "${description}" \
+              --arg target_url "${TARGET_URL}" \
+              '{state: $state, context: $context, description: $description, target_url: $target_url}' |
+              curl --fail --silent --show-error \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/json" \
+                -X POST \
+                -d @- \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}" >/dev/null
+          }
+
+          post_status pending "AdePT / Full CI" "Self-hosted CI queued"
+          post_status pending "AdePT / Drift + Unit" "Building PR/reference and running drift"
+          post_status pending "AdePT / Validation" "Waiting for drift result"
+
+  full-ci:
+    name: Full CI
+    needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gpu
+      - benchmark
+      - adept
+    timeout-minutes: 480
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ needs.prepare.outputs.pr_repo }}
+          ref: ${{ needs.prepare.outputs.pr_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Fetch upstream master reference
+        run: |
+          set -eo pipefail
+          git remote remove upstream 2>/dev/null || true
+          git remote add upstream "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags upstream +refs/heads/master:refs/remotes/upstream/master
+
+      - name: Show runner basics
+        run: |
+          set -eo pipefail
+          echo "PR #${{ needs.prepare.outputs.pr_number }}"
+          echo "Repository: ${{ needs.prepare.outputs.pr_repo }}"
+          echo "SHA: ${{ needs.prepare.outputs.pr_sha }}"
+          echo "hostname=$(hostname)"
+          echo "user=$(whoami)"
+          echo "pwd=$(pwd)"
+          id
+
+      - name: Check GPU visibility
+        run: |
+          set -eo pipefail
+          nvidia-smi
+
+      - name: Run self-hosted PR CI
+        id: run_ci
+        continue-on-error: true
+        run: |
+          set -eo pipefail
+          ./test/run_pr_ci.sh \
+            --build-root "/tmp/adept-self-hosted-ci/pr-${{ needs.prepare.outputs.pr_number }}" \
+            --results-file ci-results.env \
+            --master-ref upstream/master \
+            --no-fetch-master \
+            --cuda-arch 89 \
+            --jobs auto \
+            --ctest-timeout-sec 180
+
+      - name: Publish PR contexts
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_SHA: ${{ needs.prepare.outputs.pr_sha }}
+          TARGET_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eo pipefail
+
+          if [ -f ci-results.env ]; then
+            # shellcheck disable=SC1091
+            source ci-results.env
+          fi
+
+          : "${DRIFT_STATUS:=1}"
+          : "${UNIT_STATUS:=1}"
+          : "${VALIDATION_RAN:=1}"
+          : "${VALIDATION_STATUS:=1}"
+          : "${FULL_CI_STATUS:=1}"
+
+          if [ "${UNIT_STATUS}" -ne 0 ]; then
+            drift_state="failure"
+            drift_description="Unit tests failed"
+          elif [ "${DRIFT_STATUS}" -eq 0 ]; then
+            drift_state="success"
+            drift_description="Drift matched master; unit tests passed"
+          else
+            drift_state="failure"
+            drift_description="Physics drift differs from master"
+          fi
+
+          if [ "${VALIDATION_RAN}" -eq 0 ] && [ "${DRIFT_STATUS}" -eq 0 ]; then
+            validation_state="success"
+            validation_description="Skipped: drift matched master"
+          elif [ "${VALIDATION_STATUS}" -eq 0 ]; then
+            validation_state="success"
+            validation_description="Validation tests passed"
+          else
+            validation_state="failure"
+            validation_description="Validation tests failed"
+          fi
+
+          if [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${DRIFT_STATUS}" -eq 0 ]; then
+            full_state="success"
+            full_description="Drift matched master; validation skipped"
+          elif [ "${FULL_CI_STATUS}" -eq 0 ]; then
+            full_state="success"
+            full_description="Validation passed after drift mismatch"
+          elif [ "${UNIT_STATUS}" -ne 0 ]; then
+            full_state="failure"
+            full_description="Unit tests failed"
+          elif [ "${VALIDATION_RAN}" -eq 1 ] && [ "${VALIDATION_STATUS}" -ne 0 ]; then
+            full_state="failure"
+            full_description="Validation tests failed"
+          else
+            full_state="failure"
+            full_description="Self-hosted CI failed"
+          fi
+
+          post_status() {
+            local state=$1
+            local context=$2
+            local description=$3
+
+            jq -n \
+              --arg state "${state}" \
+              --arg context "${context}" \
+              --arg description "${description}" \
+              --arg target_url "${TARGET_URL}" \
+              '{state: $state, context: $context, description: $description, target_url: $target_url}' |
+              curl --fail --silent --show-error \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/json" \
+                -X POST \
+                -d @- \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}" >/dev/null
+          }
+
+          post_status "${drift_state}" "AdePT / Drift + Unit" "${drift_description}"
+          post_status "${validation_state}" "AdePT / Validation" "${validation_description}"
+          post_status "${full_state}" "AdePT / Full CI" "${full_description}"
+
+      - name: Write summary
+        if: always()
+        run: |
+          if [ -f ci-results.env ]; then
+            # shellcheck disable=SC1091
+            source ci-results.env
+          fi
+
+          {
+            echo "### Self-hosted PR CI"
+            echo
+            echo "- Command: \`${{ needs.prepare.outputs.command }}\`"
+            echo "- PR: #${{ needs.prepare.outputs.pr_number }}"
+            echo "- Runner: \`$(hostname)\`"
+            echo "- User: \`$(whoami)\`"
+            echo "- Workflow step outcome: \`${{ steps.run_ci.outcome }}\`"
+            echo "- Drift status: \`${DRIFT_STATUS:-missing}\`"
+            echo "- Unit status: \`${UNIT_STATUS:-missing}\`"
+            echo "- Validation ran: \`${VALIDATION_RAN:-missing}\`"
+            echo "- Validation status: \`${VALIDATION_STATUS:-missing}\`"
+            echo "- Full CI status: \`${FULL_CI_STATUS:-missing}\`"
+            echo "- Build root: \`/tmp/adept-self-hosted-ci/pr-${{ needs.prepare.outputs.pr_number }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Fail workflow if full CI failed
+        if: always()
+        run: |
+          if [ -f ci-results.env ]; then
+            # shellcheck disable=SC1091
+            source ci-results.env
+          else
+            FULL_CI_STATUS=1
+          fi
+
+          test "${FULL_CI_STATUS}" -eq 0

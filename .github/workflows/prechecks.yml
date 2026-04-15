@@ -12,7 +12,7 @@ jobs:
     name: Clang-Format Check
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
       - name: Add LLVM apt repo (Clang 19)
         run: |
@@ -35,7 +35,7 @@ jobs:
     # Keep in sync with .readthedocs.yaml to avoid CI/RTD drift.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -69,6 +69,6 @@ jobs:
     name: REUSE Compliance Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - name: REUSE Compliance Check
         uses: fsfe/reuse-action@v1
