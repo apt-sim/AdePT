@@ -126,8 +126,11 @@ jobs:
       - name: Fetch upstream master reference
         run: |
           set -eo pipefail
-          git remote remove upstream 2>/dev/null || true
-          git remote add upstream "https://github.com/${GITHUB_REPOSITORY}.git"
+          if git remote get-url upstream >/dev/null 2>&1; then
+            git remote set-url upstream "https://github.com/${GITHUB_REPOSITORY}.git"
+          else
+            git remote add upstream "https://github.com/${GITHUB_REPOSITORY}.git"
+          fi
           git fetch --no-tags upstream +refs/heads/master:refs/remotes/upstream/master
 
       - name: Show runner basics
