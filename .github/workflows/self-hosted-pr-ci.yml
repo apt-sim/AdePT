@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-name: Self-Hosted PR CI
+name: Self-Hosted PR CI (EL9)
 
 on:
   issue_comment:
@@ -95,12 +95,12 @@ jobs:
                 "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}" >/dev/null
           }
 
-          post_status pending "AdePT / Full CI" "Self-hosted CI queued"
-          post_status pending "AdePT / Drift + Unit" "Building PR/reference and running drift"
-          post_status pending "AdePT / Validation" "Waiting for drift result"
+          post_status pending "AdePT / Full CI (EL9)" "Self-hosted EL9 CI queued"
+          post_status pending "AdePT / Drift + Unit (EL9)" "Building PR/reference and running drift in EL9"
+          post_status pending "AdePT / Validation (EL9)" "Waiting for drift result in EL9"
 
   full-ci:
-    name: Full CI
+    name: Full CI (EL9)
     needs: prepare
     if: needs.prepare.outputs.should_run == 'true'
     runs-on:
@@ -110,6 +110,13 @@ jobs:
       - gpu
       - benchmark
       - adept
+    container:
+      image: gitlab-registry.cern.ch/sft/docker/alma9
+      volumes:
+        - /build:/build
+        - /ec/conf:/ec/conf
+        - /cvmfs:/cvmfs:ro
+      options: --user 0 --security-opt seccomp=unconfined --network host --gpus all
     timeout-minutes: 480
     steps:
       - name: Checkout PR head
@@ -131,6 +138,7 @@ jobs:
       - name: Show runner basics
         run: |
           set -eo pipefail
+          cat /etc/os-release | sed -n '1,6p'
           echo "PR #${{ needs.prepare.outputs.pr_number }}"
           echo "Repository: ${{ needs.prepare.outputs.pr_repo }}"
           echo "SHA: ${{ needs.prepare.outputs.pr_sha }}"
@@ -237,9 +245,9 @@ jobs:
                 "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}" >/dev/null
           }
 
-          post_status "${drift_state}" "AdePT / Drift + Unit" "${drift_description}"
-          post_status "${validation_state}" "AdePT / Validation" "${validation_description}"
-          post_status "${full_state}" "AdePT / Full CI" "${full_description}"
+          post_status "${drift_state}" "AdePT / Drift + Unit (EL9)" "${drift_description}"
+          post_status "${validation_state}" "AdePT / Validation (EL9)" "${validation_description}"
+          post_status "${full_state}" "AdePT / Full CI (EL9)" "${full_description}"
 
       - name: Write summary
         if: always()
