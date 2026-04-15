@@ -474,7 +474,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     __syncwarp(); // was found to be beneficial after divergent calls
 
     // data structure for possible secondaries that are generated
-    SecondaryInitData secondaryData[2];
+    SecondaryInitData secondaryData[3];
     unsigned int nSecondaries = 0;
 
     if (reached_interaction && !stopped) {
