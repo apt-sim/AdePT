@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
 repos:
   - repo: local
     hooks:
