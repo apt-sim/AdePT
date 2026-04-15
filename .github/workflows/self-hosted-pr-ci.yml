@@ -116,7 +116,7 @@ jobs:
         - /build:/build
         - /ec/conf:/ec/conf
         - /cvmfs:/cvmfs:ro
-      options: --user 0 --security-opt seccomp=unconfined --network host --gpus all
+      options: --user 0 --security-opt seccomp=unconfined --gpus all
     timeout-minutes: 480
     steps:
       - name: Checkout PR head
