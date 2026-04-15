@@ -1,0 +1,140 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+name: Self-Hosted Smoke
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: self-hosted-smoke-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare
+    if: github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.prepare.outputs.should_run }}
+      pr_number: ${{ steps.prepare.outputs.pr_number }}
+      pr_sha: ${{ steps.prepare.outputs.pr_sha }}
+      pr_repo: ${{ steps.prepare.outputs.pr_repo }}
+      pr_ref: ${{ steps.prepare.outputs.pr_ref }}
+      command: ${{ steps.prepare.outputs.command }}
+    steps:
+      - name: Validate command and resolve PR
+        id: prepare
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (context.payload.comment.body || '').trim();
+            const assoc = context.payload.comment.author_association || 'NONE';
+            const trusted = ['OWNER', 'MEMBER'].includes(assoc);
+
+            core.setOutput('command', body);
+            core.setOutput('should_run', 'false');
+
+            if (body !== '/run-test') {
+              core.notice(`Ignoring comment '${body}'`);
+              return;
+            }
+
+            if (!trusted) {
+              core.notice(`Ignoring /run-test from untrusted role ${assoc}`);
+              return;
+            }
+
+            const prNumber = context.payload.issue.number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            core.info(`Resolved PR #${pr.number} -> ${pr.head.repo.full_name}@${pr.head.sha}`);
+            core.setOutput('should_run', 'true');
+            core.setOutput('pr_number', String(pr.number));
+            core.setOutput('pr_sha', pr.head.sha);
+            core.setOutput('pr_repo', pr.head.repo.full_name);
+            core.setOutput('pr_ref', pr.head.ref);
+
+  smoke:
+    name: Runner Smoke Test
+    needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gpu
+      - benchmark
+      - adept
+    timeout-minutes: 20
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.prepare.outputs.pr_repo }}
+          ref: ${{ needs.prepare.outputs.pr_sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Show runner basics
+        run: |
+          set -eo pipefail
+          echo "PR #${{ needs.prepare.outputs.pr_number }}"
+          echo "Repository: ${{ needs.prepare.outputs.pr_repo }}"
+          echo "SHA: ${{ needs.prepare.outputs.pr_sha }}"
+          echo "hostname=$(hostname)"
+          echo "user=$(whoami)"
+          echo "pwd=$(pwd)"
+          id
+
+      - name: Check GPU visibility
+        run: |
+          set -eo pipefail
+          nvidia-smi
+
+      - name: Select available devAdePT view
+        run: |
+          set -eo pipefail
+
+          if [ -f /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el10-gcc13-opt/setup.sh ]; then
+            setup=/cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el10-gcc13-opt/setup.sh
+          elif [ -f /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el9-gcc13-opt/setup.sh ]; then
+            setup=/cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el9-gcc13-opt/setup.sh
+          else
+            echo "ERROR: No devAdePT gcc13 view found for el10 or el9." >&2
+            exit 1
+          fi
+
+          echo "Using LCG setup: ${setup}"
+          echo "LCG_SETUP=${setup}" >> "${GITHUB_ENV}"
+
+      - name: Check toolchain from view
+        run: |
+          set -eo pipefail
+          source "${LCG_SETUP}"
+          echo "CMAKE_PREFIX_PATH first entry: ${CMAKE_PREFIX_PATH%%:*}"
+          cmake --version | sed -n '1p'
+          gcc --version | sed -n '1p'
+          python3 --version
+
+      - name: Write summary
+        run: |
+          {
+            echo "### Self-hosted smoke test"
+            echo
+            echo "- Command: \`${{ needs.prepare.outputs.command }}\`"
+            echo "- PR: #${{ needs.prepare.outputs.pr_number }}"
+            echo "- Runner: \`$(hostname)\`"
+            echo "- User: \`$(whoami)\`"
+            echo "- LCG view: \`${LCG_SETUP}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
