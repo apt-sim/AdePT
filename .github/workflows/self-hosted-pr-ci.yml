@@ -13,10 +13,6 @@ permissions:
   pull-requests: read
   statuses: write
 
-concurrency:
-  group: self-hosted-pr-ci-${{ github.event.issue.number || github.run_id }}
-  cancel-in-progress: true
-
 jobs:
   prepare:
     name: Prepare
@@ -103,6 +99,9 @@ jobs:
     name: Full CI (EL9)
     needs: prepare
     if: needs.prepare.outputs.should_run == 'true'
+    concurrency:
+      group: self-hosted-pr-ci-${{ needs.prepare.outputs.pr_number || github.event.issue.number }}
+      cancel-in-progress: true
     runs-on:
       - self-hosted
       - linux
