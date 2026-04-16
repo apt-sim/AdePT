@@ -1657,7 +1657,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
                       << (gpuState.fHitScoring->HitCapacity() / numThreads - gpuState.stats->hitBufferOccupancy)
                       << " Max particles in flight: " << maxInFlight
                       << "  | Waiting for HitBuffers to be freed by worker " << std::endl;
-            ++counters.hitBufferStalls;
 
             auto start = std::chrono::steady_clock::now();
             while (!gpuState.fHitScoring->ReadyToSwapBuffers()) {
@@ -1783,7 +1782,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
               << "  Leak extractions by event flush:      " << counters.leakExtractionByEventFlush << "\n"
               << "  Transport stalls (extraction blocked): " << counters.leakExtractionBlocked << "\n"
               << "  Events drained to hit flush:          " << counters.eventDrainedToHitFlush << "\n"
-              << "  Hit-buffer stalls (overflow risk):    " << counters.hitBufferStalls << "\n"
               << "  Hit-buffer swaps total:               " << counters.hitBufferSwaps << "\n"
               << "    of which by occupancy >= half cap:  " << counters.hitBufferSwapByOccupancy << "\n"
               << "    of which by occupancy >= 10000:     " << counters.hitBufferSwapByOccupancy10k << "\n"
@@ -1791,8 +1789,6 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
               << "    of which by event hit flush:        " << counters.hitBufferSwapByEventFlush << "\n";
     if (counters.leakExtractionBlocked > 0)
       std::cerr << "  ACTION: leakExtractionBlocked > 0 -> increase MillionsOfLeakSlots\n";
-    if (counters.hitBufferStalls > 0)
-      std::cerr << "  ACTION: hitBufferStalls > 0 -> increase MillionsOfHitSlots or lower HitBufferFlushThreshold\n";
     if (counters.hitBufferSwapByPressure > 0)
       std::cerr << "  ACTION: hitBufferSwapByPressure > 0 -> increase MillionsOfHitSlots\n";
     if (counters.hitBufferSwapByOccupancy > 0 && counters.hitBufferSwapByOccupancy > counters.hitBufferSwapByEventFlush)
