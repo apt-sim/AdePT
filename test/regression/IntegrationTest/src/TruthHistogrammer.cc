@@ -126,6 +126,7 @@ std::string ParticleName(const G4Track *track)
   return track && track->GetParticleDefinition() ? track->GetParticleDefinition()->GetParticleName() : "none";
 }
 
+#ifdef ADEPT_INTEGRATIONTEST_HAS_ROOT
 std::string ExactValueLabel(double value)
 {
   if (std::isnan(value)) return "nan";
@@ -145,7 +146,6 @@ bool ValueKeyLess(double lhs, double rhs)
   return false;
 }
 
-#ifdef ADEPT_INTEGRATIONTEST_HAS_ROOT
 void WriteLabelMetadata(TFile &file, const std::string &name, const std::vector<std::string> &labels)
 {
   std::ostringstream metadata;
