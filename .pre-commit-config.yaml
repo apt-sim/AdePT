@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+repos:
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: clang-format-19
+        entry: ./tools/clang-format-pre-commit.sh
+        language: system
+        files: \.(cc|cpp|cu|cuh|h|hh|icc)$
