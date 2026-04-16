@@ -496,20 +496,20 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
         } else if (pdg == 22) {
           hostTrackData.particleType = ParticleType::Gamma;
         }
-      }
 
-      // if there has been no step, call PreUserTrackingAction and try to attach UserInformation
-      if (aTrack->GetCurrentStepNumber() == 0) {
-        auto *userTrackingAction = eventManager->GetUserTrackingAction();
-        if (userTrackingAction) {
+        // if there has been no step, call PreUserTrackingAction and try to attach UserInformation
+        if (aTrack->GetCurrentStepNumber() == 0) {
+          auto *userTrackingAction = eventManager->GetUserTrackingAction();
+          if (userTrackingAction) {
 
-          // this assumes that the UserTrackInformation is attached to the track in the PreUserTrackingAction
-          userTrackingAction->PreUserTrackingAction(aTrack);
+            // this assumes that the UserTrackInformation is attached to the track in the PreUserTrackingAction
+            userTrackingAction->PreUserTrackingAction(aTrack);
+            hostTrackData.userTrackInfo = aTrack->GetUserInformation();
+          }
+        } else {
+          // not the initializing step, just attach user information in case it is there
           hostTrackData.userTrackInfo = aTrack->GetUserInformation();
         }
-      } else {
-        // not the initializing step, just attach user information in case it is there
-        hostTrackData.userTrackInfo = aTrack->GetUserInformation();
       }
 
       uint64_t gpuParentID;
