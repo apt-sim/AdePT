@@ -1793,7 +1793,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       std::cerr << "  ACTION: hitBufferSwapByPressure > 0 -> increase MillionsOfHitSlots, increase CPUCapacityFactor,\n"
                    "          or increase HitBufferThreshold (safe up to 1 - 1/CPUCapacityFactor)\n";
     if (counters.hitBufferSwapByOccupancy > 0 && counters.hitBufferSwapByOccupancy > counters.hitBufferSwapByEventFlush)
-      std::cerr << "  ACTION: frequent occupancy-driven swaps -> increase MillionsOfHitSlots or HitBufferFlushThreshold\n";
+      std::cerr
+          << "  ACTION: frequent occupancy-driven swaps -> increase MillionsOfHitSlots or HitBufferFlushThreshold\n";
     std::cerr << "=====================================\n";
   }
 
