@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: nightly-ci-el9
@@ -132,6 +133,98 @@ jobs:
           name: nightly-ci-results
           path: ${{ env.RESULTS_FILE }}
           if-no-files-found: error
+
+      - name: Resolve nightly status
+        if: always()
+        id: resolve_status
+        run: |
+          if [ -r "${RESULTS_FILE}" ]; then
+            # shellcheck disable=SC1091
+            source "${RESULTS_FILE}"
+          else
+            NIGHTLY_STATUS=1
+          fi
+
+          echo "nightly_status=${NIGHTLY_STATUS}" >> "${GITHUB_OUTPUT}"
+
+      - name: Open or update nightly failure issue
+        if: always() && steps.resolve_status.outputs.nightly_status != '0'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = "Nightly CI (EL9) failure";
+            const label = "nightly-failure";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              "The nightly CI failed.",
+              "",
+              `- Workflow: ${context.workflow}`,
+              `- Run: ${runUrl}`,
+              `- Commit: ${context.sha}`,
+              `- Ref: ${context.ref}`,
+            ].join("\n");
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+              per_page: 100,
+            });
+
+            const existing = issues.find(issue => issue.title === title);
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }
+
+      - name: Close nightly failure issue on recovery
+        if: always() && steps.resolve_status.outputs.nightly_status == '0'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = "Nightly CI (EL9) failure";
+            const label = "nightly-failure";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+              per_page: 100,
+            });
+
+            for (const issue of issues) {
+              if (issue.title !== title) continue;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Nightly CI recovered: ${runUrl}`,
+              });
+
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: "closed",
+              });
+            }
 
       - name: Fail workflow if nightly CI failed
         if: always()
