@@ -979,6 +979,8 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
     }
   }
 
+  TransportLoopCounters counters;
+
   while (gpuState.runTransport) {
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManagerLeaks_dev, gpuState.nSlotManager_dev);
@@ -1020,6 +1022,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
       positrons.queues.SwapActive();
       gammas.queues.SwapActive();
       woodcockQueues.SwapActive();
+      ++counters.totalIterations;
 
       const ParticleManager particleManager = {
           .electrons = {electrons.tracks, electrons.leaks, electrons.slotManager, electrons.slotManagerLeaks,
@@ -1341,11 +1344,13 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           break;
         }
       }
+      if (leakQueueNeedsTransfer) ++counters.leakExtractionByQueuePressure;
 
       // Did an event request a flush?
       bool leakExtractionRequested = std::any_of(eventStates.begin(), eventStates.end(), [](const auto &eventState) {
         return eventState.load(std::memory_order_acquire) == EventState::HitsFlushed;
       });
+      if (leakExtractionRequested) ++counters.leakExtractionByEventFlush;
 
       bool leakExtractionNeeded = leakQueueNeedsTransfer || leakExtractionRequested;
 
@@ -1366,6 +1371,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             // Otherwise, the current leak queue usage is above the threshold. Transport needs to stop until the
             // transfer of these leaks can start
             printf("WARNING: Leak extraction blocked. Transport will stop until current extraction ends\n");
+            ++counters.leakExtractionBlocked;
           }
         }
 
@@ -1607,6 +1613,7 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
           const auto state = eventStates[threadId].load(std::memory_order_acquire);
           if (state == EventState::WaitingForTransportToFinish && gpuState.stats->perEventInFlight[threadId] == 0) {
             eventStates[threadId] = EventState::RequestHitFlush;
+            ++counters.eventDrainedToHitFlush;
           }
           if (state >= EventState::RequestHitFlush && gpuState.stats->perEventInFlight[threadId] != 0) {
             // FIXME: this case should not happen and is related to some late injection that shows up too late in the
@@ -1667,11 +1674,18 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
             }
           }
 
-          if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2 ||
-              gpuState.stats->hitBufferOccupancy >= 10000 || nextStepMightFail ||
-              std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
-                return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
-              })) {
+          const bool swapByOccupancyHalf =
+              gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2;
+          const bool swapByOccupancy10k = gpuState.stats->hitBufferOccupancy >= 10000;
+          const bool swapByEventFlush   = std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
+            return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
+          });
+          if (swapByOccupancyHalf || swapByOccupancy10k || nextStepMightFail || swapByEventFlush) {
+            ++counters.hitBufferSwaps;
+            if (swapByOccupancyHalf) ++counters.hitBufferSwapByOccupancy;
+            if (swapByOccupancy10k) ++counters.hitBufferSwapByOccupancy10k;
+            if (nextStepMightFail) ++counters.hitBufferSwapByPressure;
+            if (swapByEventFlush) ++counters.hitBufferSwapByEventFlush;
             // Reset hitBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted swap
             ADEPT_DEVICE_API_CALL(
                 MemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
@@ -1759,6 +1773,29 @@ void TransportLoop(int trackCapacity, int leakCapacity, int scoringCapacity, int
     ADEPT_DEVICE_API_CALL(StreamSynchronize(gpuState.stream));
 
     if (debugLevel > 2) std::cout << "End transport loop.\n";
+  }
+
+  if (debugLevel >= 1) {
+    std::cerr << "\n=== AdePT Transport Loop Summary ===\n"
+              << "  Total iterations:                     " << counters.totalIterations << "\n"
+              << "  Leak extractions by queue pressure:   " << counters.leakExtractionByQueuePressure << "\n"
+              << "  Leak extractions by event flush:      " << counters.leakExtractionByEventFlush << "\n"
+              << "  Transport stalls (extraction blocked): " << counters.leakExtractionBlocked << "\n"
+              << "  Events drained to hit flush:          " << counters.eventDrainedToHitFlush << "\n"
+              << "  Hit-buffer swaps total:               " << counters.hitBufferSwaps << "\n"
+              << "    of which by occupancy >= half cap:  " << counters.hitBufferSwapByOccupancy << "\n"
+              << "    of which by occupancy >= 10000:     " << counters.hitBufferSwapByOccupancy10k << "\n"
+              << "    of which by overflow pressure:      " << counters.hitBufferSwapByPressure << "\n"
+              << "    of which by event hit flush:        " << counters.hitBufferSwapByEventFlush << "\n";
+    if (counters.leakExtractionBlocked > 0)
+      std::cerr << "  ACTION: leakExtractionBlocked > 0 -> increase MillionsOfLeakSlots\n";
+    if (counters.hitBufferSwapByPressure > 0)
+      std::cerr << "  ACTION: hitBufferSwapByPressure > 0 -> increase MillionsOfHitSlots, increase CPUCapacityFactor,\n"
+                   "          or increase HitBufferThreshold (safe up to 1 - 1/CPUCapacityFactor)\n";
+    if (counters.hitBufferSwapByOccupancy > 0 && counters.hitBufferSwapByOccupancy > counters.hitBufferSwapByEventFlush)
+      std::cerr
+          << "  ACTION: frequent occupancy-driven swaps -> increase MillionsOfHitSlots or HitBufferFlushThreshold\n";
+    std::cerr << "=====================================\n";
   }
 
   hitProcessing->keepRunning = false;
