@@ -5,6 +5,8 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # AdePT Documentation
 
+[![Nightly CI (EL9)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml/badge.svg?branch=master)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml)
+
 This site is the home for AdePT installation, user guide, and API reference.
 
 ## Introduction

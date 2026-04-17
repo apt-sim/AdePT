@@ -6,6 +6,7 @@ SPDX-License-Identifier: CC-BY-4.0
 # AdePT
 
 [![Documentation Status](https://readthedocs.org/projects/adept-project/badge/?version=latest)](https://adept-project.readthedocs.io/en/latest/?badge=latest)
+[![Nightly CI (EL9)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml/badge.svg?branch=master)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml)
 
 
 Accelerated demonstrator of electromagnetic Particle Transport

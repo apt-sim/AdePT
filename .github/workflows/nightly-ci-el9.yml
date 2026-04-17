@@ -1,0 +1,146 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+name: Nightly CI (EL9)
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-ci-el9
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    name: Nightly CI (EL9)
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gpu
+      - benchmark
+      - adept
+    timeout-minutes: 480
+    env:
+      RESULTS_FILE: ${{ github.workspace }}/nightly-ci-results.env
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v6
+        with:
+          ref: master
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Show runner basics
+        run: |
+          set -eo pipefail
+          cat /etc/os-release | sed -n '1,6p'
+          echo "event=${GITHUB_EVENT_NAME}"
+          echo "ref=${GITHUB_REF}"
+          echo "sha=${GITHUB_SHA}"
+          echo "hostname=$(hostname)"
+          echo "user=$(whoami)"
+          echo "pwd=$(pwd)"
+          id
+
+      - name: Pre-touch required CVMFS repos on host
+        run: |
+          set -eo pipefail
+          ls /cvmfs/sft.cern.ch/lcg/views/devAdePT/latest/x86_64-el9-gcc13-opt/setup.sh
+          ls /cvmfs/geant4.cern.ch/share/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+
+      - name: Check GPU visibility
+        run: |
+          set -eo pipefail
+          nvidia-smi
+
+      - name: Check Docker basics
+        run: |
+          set -eo pipefail
+          docker --version
+
+      - name: Run nightly CI in Alma 9 container
+        continue-on-error: true
+        run: |
+          set -eo pipefail
+
+          rm -f "${RESULTS_FILE}"
+
+          docker_group_args=()
+          for group_name in video render; do
+            if getent group "${group_name}" >/dev/null 2>&1; then
+              docker_group_args+=(--group-add "$(getent group "${group_name}" | cut -d: -f3)")
+            fi
+          done
+
+          docker run --rm --pull always \
+            --gpus all \
+            --user "$(id -u):$(id -g)" \
+            "${docker_group_args[@]}" \
+            --security-opt seccomp=unconfined \
+            -v /build:/build \
+            -v /ec/conf:/ec/conf \
+            -v /cvmfs:/cvmfs:ro,rslave \
+            -v "${GITHUB_WORKSPACE}:/work/AdePT" \
+            -e HOME=/tmp/adeptci-home \
+            -w /work/AdePT \
+            gitlab-registry.cern.ch/sft/docker/alma9 \
+            bash -lc '
+              set -eo pipefail
+              mkdir -p "${HOME}"
+              git config --global --add safe.directory /work/AdePT
+              ./test/run_nightly_ci.sh \
+                --build-root /tmp/adept-nightly-ci \
+                --results-file /work/AdePT/nightly-ci-results.env \
+                --build-type Release \
+                --cuda-arch 89 \
+                --jobs auto \
+                --ctest-timeout-sec 180
+            '
+
+      - name: Write summary
+        if: always()
+        run: |
+          if [ -r "${RESULTS_FILE}" ]; then
+            # shellcheck disable=SC1091
+            source "${RESULTS_FILE}"
+          fi
+
+          {
+            echo "### Nightly CI (EL9)"
+            echo
+            echo "- Event: \`${GITHUB_EVENT_NAME}\`"
+            echo "- Ref: \`${GITHUB_REF}\`"
+            echo "- SHA: \`${GITHUB_SHA}\`"
+            echo "- Runner: \`$(hostname)\`"
+            echo "- User: \`$(whoami)\`"
+            echo "- LCG setup: \`${LCG_SETUP:-missing}\`"
+            echo "- Build type: \`${BUILD_TYPE:-missing}\`"
+            echo "- Build root: \`${BUILD_ROOT:-/tmp/adept-nightly-ci}\`"
+            echo "- Nightly status: \`${NIGHTLY_STATUS:-missing}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload nightly summary artifact
+        if: always() && hashFiles(env.RESULTS_FILE) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-ci-results
+          path: ${{ env.RESULTS_FILE }}
+          if-no-files-found: error
+
+      - name: Fail workflow if nightly CI failed
+        if: always()
+        run: |
+          if [ -r "${RESULTS_FILE}" ]; then
+            # shellcheck disable=SC1091
+            source "${RESULTS_FILE}"
+          else
+            NIGHTLY_STATUS=1
+          fi
+
+          test "${NIGHTLY_STATUS}" -eq 0
