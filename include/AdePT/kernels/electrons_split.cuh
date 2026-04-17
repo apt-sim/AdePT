@@ -928,7 +928,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       float gammaWeight = currentTrack.weight;
       if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
         const auto gammaRouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
-            currentTrack.weight, deltaEkin, auxData, currentTrack.Uniform());
+            currentTrack.weight, deltaEkin, auxData, currentTrack.rngState);
         createGamma = gammaRouletteResult.create;
         gammaWeight = gammaRouletteResult.weight;
       }
@@ -1055,7 +1055,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       float gamma1Weight = currentTrack.weight;
       if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
         const auto gamma1RouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
-            currentTrack.weight, theGamma1Ekin, auxData, currentTrack.Uniform());
+            currentTrack.weight, theGamma1Ekin, auxData, currentTrack.rngState);
         createGamma1 = gamma1RouletteResult.create;
         gamma1Weight = gamma1RouletteResult.weight;
       }
@@ -1082,7 +1082,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       float gamma2Weight = currentTrack.weight;
       if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
         const auto gamma2RouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
-            currentTrack.weight, theGamma2Ekin, auxData, currentTrack.Uniform());
+            currentTrack.weight, theGamma2Ekin, auxData, currentTrack.rngState);
         createGamma2 = gamma2RouletteResult.create;
         gamma2Weight = gamma2RouletteResult.weight;
       }

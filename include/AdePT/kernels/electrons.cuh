@@ -577,7 +577,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             float gammaWeight = currentTrack.weight;
             if constexpr (SteppingActionT::kGammaRussianRoulette) {
               const auto gammaRouletteResult = SteppingActionT::ApplyGammaRussianRoulette(
-                  currentTrack.weight, deltaEkin, auxData, currentTrack.Uniform());
+                  currentTrack.weight, deltaEkin, auxData, currentTrack.rngState);
               createGamma = gammaRouletteResult.create;
               gammaWeight = gammaRouletteResult.weight;
             }
@@ -644,7 +644,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             float gamma1Weight = currentTrack.weight;
             if constexpr (SteppingActionT::kGammaRussianRoulette) {
               const auto gamma1RouletteResult = SteppingActionT::ApplyGammaRussianRoulette(
-                  currentTrack.weight, theGamma1Ekin, auxData, currentTrack.Uniform());
+                  currentTrack.weight, theGamma1Ekin, auxData, currentTrack.rngState);
               createGamma1 = gamma1RouletteResult.create;
               gamma1Weight = gamma1RouletteResult.weight;
             }
@@ -671,7 +671,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             float gamma2Weight = currentTrack.weight;
             if constexpr (SteppingActionT::kGammaRussianRoulette) {
               const auto gamma2RouletteResult = SteppingActionT::ApplyGammaRussianRoulette(
-                  currentTrack.weight, theGamma2Ekin, auxData, currentTrack.Uniform());
+                  currentTrack.weight, theGamma2Ekin, auxData, currentTrack.rngState);
               createGamma2 = gamma2RouletteResult.create;
               gamma2Weight = gamma2RouletteResult.weight;
             }

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <AdePT/core/GeometryAuxData.hh>
+#include <AdePT/copcore/Ranluxpp.h>
 #include <AdePT/copcore/SystemOfUnits.h>
 
 #include <G4HepEmData.hh>
@@ -53,7 +54,7 @@ struct NoAction {
   __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
-                                                                                  double const &)
+                                                                                  RanluxppDouble &)
   {
     return {true, parentWeight};
   }
@@ -120,7 +121,7 @@ struct CMSAction {
   __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
-                                                                                  double const &)
+                                                                                  RanluxppDouble &)
   {
     return {true, parentWeight};
   }
@@ -165,7 +166,7 @@ struct LHCbAction {
   __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
-                                                                                  double const &)
+                                                                                  RanluxppDouble &)
   {
     return {true, parentWeight};
   }
@@ -202,15 +203,13 @@ struct ATLASAction {
 
   __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(
       float const &parentWeight, double const &gammaEkin, adeptint::VolAuxData const &originAuxData,
-      double const &random)
+      RanluxppDouble &rngState)
   {
     if (!originAuxData.fAtlasPhotonRussianRoulette) return {true, parentWeight};
     if (parentWeight >= kPhotonRussianRouletteWeight) return {true, parentWeight};
     if (gammaEkin >= kPhotonRussianRouletteThreshold) return {true, parentWeight};
 
-    if (random > kOneOverPhotonRouletteWeight) {
-      return {false, parentWeight};
-    }
+    if (rngState.Rndm() > kOneOverPhotonRouletteWeight) return {false, parentWeight};
 
     return {true, kPhotonRussianRouletteWeight};
   }
@@ -236,7 +235,7 @@ struct ATLASAction {
   __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
                                                                                   double const &,
                                                                                   adeptint::VolAuxData const &,
-                                                                                  double const &)
+                                                                                  RanluxppDouble &)
   {
     return {true, parentWeight};
   }
