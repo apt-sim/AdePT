@@ -49,7 +49,7 @@ Options:
   --build-type <type>        CMake build type (default: ${BUILD_TYPE})
   --cuda-arch <arch|auto>    CUDA arch passed to the matrix runner (default: ${CUDA_ARCH})
   --jobs <N|auto>            Parallel build jobs passed through to the matrix runner (default: ${JOBS})
-  --ctest-timeout-sec <sec>  Optional timeout for each ctest invocation
+  --ctest-timeout-sec <sec>  Optional per-test timeout passed to ctest --timeout
   --cmake-extra <arg>        Additional CMake argument passed through to the matrix runner
   -h, --help                 Show this help
 EOF
@@ -120,9 +120,6 @@ done
 
 [[ -x "${MATRIX_RUNNER}" ]] || die "Matrix runner not found: ${MATRIX_RUNNER}"
 [[ "${CTEST_TIMEOUT_SEC}" =~ ^[0-9]+$ ]] || die "Invalid --ctest-timeout-sec '${CTEST_TIMEOUT_SEC}'"
-if [[ "${CTEST_TIMEOUT_SEC}" -gt 0 ]]; then
-  command -v timeout >/dev/null 2>&1 || die "'timeout' command not found but --ctest-timeout-sec was set"
-fi
 if [[ "${JOBS}" != "auto" && ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
   die "Invalid --jobs '${JOBS}'. Expected 'auto' or a positive integer."
 fi

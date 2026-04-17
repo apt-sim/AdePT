@@ -67,7 +67,7 @@ Options:
   --refresh-master           Recreate the cached master worktree
   --g4vg-dir <path>          Path containing G4VGConfig.cmake (disables FetchContent G4VG)
   --cmake-extra <arg>        Additional CMake arg (repeatable)
-  --ctest-timeout-sec <sec>  Optional timeout per ctest invocation (default: 0 = disabled)
+  --ctest-timeout-sec <sec>  Optional per-test timeout passed to ctest --timeout (default: 0 = disabled)
   -h, --help                 Show help
 
 Suite behavior:
@@ -181,9 +181,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "${CTEST_TIMEOUT_SEC}" =~ ^[0-9]+$ ]] || die "Invalid --ctest-timeout-sec '${CTEST_TIMEOUT_SEC}'. Expected a non-negative integer."
-if [[ "${CTEST_TIMEOUT_SEC}" -gt 0 ]]; then
-  command -v timeout >/dev/null 2>&1 || die "'timeout' command not found but --ctest-timeout-sec was set"
-fi
 if [[ "${JOBS}" != "auto" && ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
   die "Invalid --jobs '${JOBS}'. Expected 'auto' or a positive integer."
 fi
@@ -374,7 +371,8 @@ prepare_master_worktree() {
 run_ctest() {
   local -a cmd=(ctest "$@")
   if [[ "${CTEST_TIMEOUT_SEC}" -gt 0 ]]; then
-    timeout --preserve-status "${CTEST_TIMEOUT_SEC}" "${cmd[@]}"
+    cmd+=(--timeout "${CTEST_TIMEOUT_SEC}")
+    "${cmd[@]}"
   else
     "${cmd[@]}"
   fi

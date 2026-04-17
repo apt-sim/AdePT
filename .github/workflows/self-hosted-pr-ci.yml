@@ -198,7 +198,7 @@ jobs:
                 --no-fetch-master \
                 --cuda-arch 89 \
                 --jobs auto \
-                --ctest-timeout-sec 180
+                --ctest-timeout-sec 900
             '
 
       - name: Publish PR contexts
