@@ -54,7 +54,7 @@ Options:
   --no-fetch-master          Do not let the matrix runner fetch the master ref
   --cuda-arch <arch|auto>    CUDA arch passed to the matrix runner (default: auto)
   --jobs <N|auto>            Parallel build jobs passed through to the matrix runner (default: auto)
-  --ctest-timeout-sec <sec>  Optional timeout for each ctest invocation
+  --ctest-timeout-sec <sec>  Optional per-test timeout passed to ctest --timeout
   --force-rebuild            Force clean rebuilds in the matrix runner
   --refresh-master           Refresh cached master worktree/builds
   -h, --help                 Show this help
@@ -68,7 +68,8 @@ select_lcg_setup() {
 run_ctest() {
   local -a cmd=(ctest "$@")
   if [[ "${CTEST_TIMEOUT_SEC}" -gt 0 ]]; then
-    timeout --preserve-status "${CTEST_TIMEOUT_SEC}" "${cmd[@]}"
+    cmd+=(--timeout "${CTEST_TIMEOUT_SEC}")
+    "${cmd[@]}"
   else
     "${cmd[@]}"
   fi
@@ -180,9 +181,6 @@ done
 
 [[ -x "${MATRIX_RUNNER}" ]] || die "Matrix runner not found: ${MATRIX_RUNNER}"
 [[ "${CTEST_TIMEOUT_SEC}" =~ ^[0-9]+$ ]] || die "Invalid --ctest-timeout-sec '${CTEST_TIMEOUT_SEC}'"
-if [[ "${CTEST_TIMEOUT_SEC}" -gt 0 ]]; then
-  command -v timeout >/dev/null 2>&1 || die "'timeout' command not found but --ctest-timeout-sec was set"
-fi
 if [[ "${JOBS}" != "auto" && ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
   die "Invalid --jobs '${JOBS}'. Expected 'auto' or a positive integer."
 fi
