@@ -95,7 +95,7 @@ jobs:
               set -eo pipefail
               mkdir -p "${HOME}"
               git config --global --add safe.directory /work/AdePT
-              ./test/run_nightly_ci.sh \
+              bash ./test/run_nightly_ci.sh \
                 --build-root /tmp/adept-nightly-ci \
                 --results-file /work/AdePT/nightly-ci-results.env \
                 --build-type Release \
@@ -225,7 +225,6 @@ jobs:
                 state: "closed",
               });
             }
-
       - name: Fail workflow if nightly CI failed
         if: always()
         run: |
