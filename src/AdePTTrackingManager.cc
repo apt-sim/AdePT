@@ -355,15 +355,16 @@ void AdePTTrackingManager::FlushEvent()
 
   auto deferredSteps = fGeant4Integration.TakeDeferredSteps();
 
-  std::sort(deferredSteps.begin(), deferredSteps.end(),
-            [](const AdePTGeant4Integration::DeferredStep &lhs, const AdePTGeant4Integration::DeferredStep &rhs) {
-              return lhs.hits.front() < rhs.hits.front();
+  std::sort(deferredSteps.steps.begin(), deferredSteps.steps.end(),
+            [&deferredSteps](const AdePTGeant4Integration::DeferredStep &lhs,
+                             const AdePTGeant4Integration::DeferredStep &rhs) {
+              return deferredSteps.hits[lhs.firstHit] < deferredSteps.hits[rhs.firstHit];
             });
 
-  for (auto deferredStepIt = deferredSteps.begin(); deferredStepIt != deferredSteps.end(); ++deferredStepIt) {
-    fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(deferredStepIt->hits.data(), deferredStepIt->hits.size()),
-                                      fAdeptTransport->GetReturnAllSteps(),
-                                      fAdeptTransport->GetReturnFirstAndLastStep());
+  for (const auto &deferredStep : deferredSteps.steps) {
+    fGeant4Integration.ProcessGPUStep(
+        std::span<const GPUHit>(deferredSteps.hits.data() + deferredStep.firstHit, deferredStep.numHits),
+        fAdeptTransport->GetReturnAllSteps(), fAdeptTransport->GetReturnFirstAndLastStep());
   }
   fAdeptTransport->MarkHostFlushed(threadId);
 }

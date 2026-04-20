@@ -190,16 +190,17 @@ void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps)
   fHostTrackDataMapper->SetPendingReturnedStep(gpuSteps.front().fTrackID, true);
 
   DeferredStep deferred;
-  deferred.hits.assign(gpuSteps.begin(), gpuSteps.end());
-  fDeferredSteps.push_back(std::move(deferred));
+  deferred.firstHit = fDeferredHits.size();
+  deferred.numHits  = gpuSteps.size();
+  fDeferredHits.insert(fDeferredHits.end(), gpuSteps.begin(), gpuSteps.end());
+  fDeferredSteps.push_back(deferred);
 }
 
-std::vector<AdePTGeant4Integration::DeferredStep> AdePTGeant4Integration::TakeDeferredSteps()
+AdePTGeant4Integration::DeferredStepStore AdePTGeant4Integration::TakeDeferredSteps()
 {
-  // Swap with an empty vector so ownership of the queued work moves out
-  // without copying the stored GPU-hit payloads.
-  std::vector<DeferredStep> deferred;
-  deferred.swap(fDeferredSteps);
+  DeferredStepStore deferred;
+  deferred.hits.swap(fDeferredHits);
+  deferred.steps.swap(fDeferredSteps);
   return deferred;
 }
 
@@ -350,22 +351,6 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
     postStepStatus = G4StepStatus::fWorldBoundary;
   }
 
-  // Reconstruct G4Step
-  switch (parentStep.fParticleType) {
-  case ParticleType::Electron:
-    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fElectronTrack);
-    break;
-  case ParticleType::Positron:
-    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fPositronTrack);
-    break;
-  case ParticleType::Gamma:
-    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
-    break;
-  default:
-    std::cerr << "Error: unknown particle type " << static_cast<int>(parentStep.fParticleType) << "\n";
-    std::abort();
-  }
-
   // For all steps, the HostTrackData Mapper must already exist:
   // - for particles created on CPU, it was created in the AdePTTrackingManager when offloading to GPU,
   // - for particles createdon GPU, it was created in InitSecondaryHostTrackDataFromParent below
@@ -391,6 +376,21 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   HostTrackData &parentTData = actions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
 
   // Fill the G4Step, fill the G4Track, and intertwine them
+  switch (parentStep.fParticleType) {
+  case ParticleType::Electron:
+    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fElectronTrack);
+    break;
+  case ParticleType::Positron:
+    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fPositronTrack);
+    break;
+  case ParticleType::Gamma:
+    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
+    break;
+  default:
+    std::cerr << "Error: unknown particle type " << static_cast<int>(parentStep.fParticleType) << "\n";
+    std::abort();
+  }
+
   FillG4Step(&parentStep, fScoringObjects->fG4Step, parentTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
              *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,
              callUserSteppingAction);

@@ -36,7 +36,14 @@ public:
   /// These steps are handled later in the same sorted CPU handoff order, so
   /// the Geant4 host work always runs in a fixed order.
   struct DeferredStep {
+    std::size_t firstHit{0};
+    std::size_t numHits{0};
+  };
+
+  /// @brief Owns the deferred returned-step data drained from the integration.
+  struct DeferredStepStore {
     std::vector<GPUHit> hits{};
+    std::vector<DeferredStep> steps{};
   };
 
   explicit AdePTGeant4Integration() : fHostTrackDataMapper(std::make_unique<HostTrackDataMapper>()) {}
@@ -67,9 +74,8 @@ public:
 
   /// @brief Transfer ownership of the currently queued deferred steps.
   /// @details
-  /// This drains the integration-local queue into a temporary vector without
-  /// copying the stored GPU-hit blocks.
-  std::vector<DeferredStep> TakeDeferredSteps();
+  /// This drains the integration-local deferred-hit storage without copying it.
+  DeferredStepStore TakeDeferredSteps();
 
   void SetHepEmTrackingManager(G4HepEmTrackingManagerSpecialized *hepEmTrackingManager)
   {
@@ -125,6 +131,7 @@ private:
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
 
+  std::vector<GPUHit> fDeferredHits;
   std::vector<DeferredStep> fDeferredSteps;
 };
 
