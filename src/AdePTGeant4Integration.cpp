@@ -159,6 +159,21 @@ void Deleter::operator()(ScoringObjects *ptr)
 
 namespace {
 
+G4ParticleDefinition *GetParticleDefinition(ParticleType particleType)
+{
+  switch (particleType) {
+  case ParticleType::Electron:
+    return G4Electron::Definition();
+  case ParticleType::Positron:
+    return G4Positron::Definition();
+  case ParticleType::Gamma:
+    return G4Gamma::Definition();
+  default:
+    std::cerr << "Error: unknown particle type " << static_cast<int>(particleType) << "\n";
+    std::abort();
+  }
+}
+
 void MergeNuclearReplayIntoVisibleStep(const G4Track &scratchTrack, const G4Step &scratchStep, G4Step &visibleStep,
                                        bool isLeptonNuclearStep)
 {
@@ -183,7 +198,7 @@ void MergeNuclearReplayIntoVisibleStep(const G4Track &scratchTrack, const G4Step
 
 AdePTGeant4Integration::~AdePTGeant4Integration() {}
 
-void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps)
+void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps, DeferredStepType type)
 {
   if (gpuSteps.empty()) return;
 
@@ -192,6 +207,7 @@ void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps)
   DeferredStep deferred;
   deferred.firstHit = fDeferredHits.size();
   deferred.numHits  = gpuSteps.size();
+  deferred.type     = type;
   fDeferredHits.insert(fDeferredHits.end(), gpuSteps.begin(), gpuSteps.end());
   fDeferredSteps.push_back(deferred);
 }
@@ -202,6 +218,24 @@ AdePTGeant4Integration::DeferredStepStore AdePTGeant4Integration::TakeDeferredSt
   deferred.hits.swap(fDeferredHits);
   deferred.steps.swap(fDeferredSteps);
   return deferred;
+}
+
+void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUHit> gpuSteps)
+{
+  assert(gpuSteps.size() == 1);
+
+  const GPUHit &parentStep = gpuSteps.front();
+  assert(parentStep.fParticleType == ParticleType::Gamma);
+  assert(parentStep.fStepLimProcessId == kAdePTOutOfGPURegionProcess ||
+         parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
+  assert(parentStep.fTotalEnergyDeposit == 0.);
+  HostTrackData dummy;
+
+  auto *returnedParentTrack = MakeReturnedTrackFromStep(
+      parentStep, dummy, /*setStopButAlive=*/parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
+  G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(returnedParentTrack);
+  returnedParentTrack->SetUserInformation(nullptr);
+  fHostTrackDataMapper->FinalizePendingReturnedStep(parentStep.fTrackID, /*returnTrackToG4=*/true);
 }
 
 G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track) const
@@ -246,7 +280,7 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUHit const &parentS
                          parentStep.fPostStepPoint.fPosition.z());
   position += tolerance * direction;
 
-  auto *dynamic = new G4DynamicParticle(fScoringObjects->fG4Step->GetTrack()->GetParticleDefinition(), direction,
+  auto *dynamic = new G4DynamicParticle(GetParticleDefinition(parentStep.fParticleType), direction,
                                         parentStep.fPostStepPoint.fEKin);
   dynamic->SetPrimaryParticle(hostTData.primary);
 
@@ -363,8 +397,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   const bool isFinishOnCPUStep    = parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess;
   const bool isNuclearStep        = isGammaNuclearStep || isLeptonNuclearStep;
   const bool isDeferredStep       = isNuclearStep || isOutOfGPURegionStep || isFinishOnCPUStep;
-  bool parentContinuesOnCPU       = false;
-  G4Track *continuedParent        = nullptr;
+  bool returnParentTrackToG4      = false;
+  G4Track *returnedParentTrack    = nullptr;
   G4TrackVector hadronicSecondaries;
 
   HostTrackData dummy; // default constructed dummy if no advanced information is available
@@ -458,7 +492,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
     }
 
     if (nuclearProcess != nullptr) {
-      parentContinuesOnCPU = isLeptonNuclearStep;
+      returnParentTrackToG4 = isLeptonNuclearStep;
 
       const G4ThreeVector direction(parentStep.fPostStepPoint.fMomentumDirection.x(),
                                     parentStep.fPostStepPoint.fMomentumDirection.y(),
@@ -518,26 +552,26 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
                                         isLeptonNuclearStep);
 
       if (isLeptonNuclearStep) {
-        continuedParent = nuclearReactionTrack;
+        returnedParentTrack = nuclearReactionTrack;
         if (actions) {
-          continuedParent->SetTrackID(parentTDataAfterSecondaries.g4id);
-          continuedParent->SetParentID(parentTDataAfterSecondaries.g4parentid);
-          continuedParent->SetCreatorProcess(parentTDataAfterSecondaries.creatorProcess);
-          continuedParent->SetUserInformation(parentTDataAfterSecondaries.userTrackInfo);
-          continuedParent->SetVertexPosition(parentTDataAfterSecondaries.vertexPosition);
-          continuedParent->SetVertexMomentumDirection(parentTDataAfterSecondaries.vertexMomentumDirection);
-          continuedParent->SetVertexKineticEnergy(parentTDataAfterSecondaries.vertexKineticEnergy);
-          continuedParent->SetLogicalVolumeAtVertex(parentTDataAfterSecondaries.logicalVolumeAtVertex);
-          const_cast<G4DynamicParticle *>(continuedParent->GetDynamicParticle())
+          returnedParentTrack->SetTrackID(parentTDataAfterSecondaries.g4id);
+          returnedParentTrack->SetParentID(parentTDataAfterSecondaries.g4parentid);
+          returnedParentTrack->SetCreatorProcess(parentTDataAfterSecondaries.creatorProcess);
+          returnedParentTrack->SetUserInformation(parentTDataAfterSecondaries.userTrackInfo);
+          returnedParentTrack->SetVertexPosition(parentTDataAfterSecondaries.vertexPosition);
+          returnedParentTrack->SetVertexMomentumDirection(parentTDataAfterSecondaries.vertexMomentumDirection);
+          returnedParentTrack->SetVertexKineticEnergy(parentTDataAfterSecondaries.vertexKineticEnergy);
+          returnedParentTrack->SetLogicalVolumeAtVertex(parentTDataAfterSecondaries.logicalVolumeAtVertex);
+          const_cast<G4DynamicParticle *>(returnedParentTrack->GetDynamicParticle())
               ->SetPrimaryParticle(parentTDataAfterSecondaries.primary);
         }
         if (postTouchable) {
-          continuedParent->SetTouchableHandle(postTouchable);
-          continuedParent->SetNextTouchableHandle(postTouchable);
+          returnedParentTrack->SetTouchableHandle(postTouchable);
+          returnedParentTrack->SetNextTouchableHandle(postTouchable);
         }
 #ifdef ADEPT_USE_ORIGINNAVSTATE
         if (actions) {
-          continuedParent->SetOriginTouchableHandle(
+          returnedParentTrack->SetOriginTouchableHandle(
               MakeTouchableFromNavState(parentTDataAfterSecondaries.originNavState));
         }
 #endif
@@ -552,12 +586,12 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       // Fallback only for the case without an attached Geant4 nuclear process:
       // there is then no temporary nuclear-replay track that can be continued
       // on the CPU, so we create a separate heap-owned track for the stack.
-      continuedParent      = MakeTrackForCPUStacking(*fScoringObjects->fG4Step->GetTrack());
-      parentContinuesOnCPU = true;
+      returnedParentTrack   = MakeTrackForCPUStacking(*fScoringObjects->fG4Step->GetTrack());
+      returnParentTrackToG4 = true;
     }
   } else if (isOutOfGPURegionStep || isFinishOnCPUStep) {
-    continuedParent      = MakeReturnedTrackFromStep(parentStep, parentTData, /*setStopButAlive=*/isFinishOnCPUStep);
-    parentContinuesOnCPU = true;
+    returnedParentTrack   = MakeReturnedTrackFromStep(parentStep, parentTData, /*setStopButAlive=*/isFinishOnCPUStep);
+    returnParentTrackToG4 = true;
   }
 
   // Now, the G4Step is fully initialized and also contains the secondaries created in that step.
@@ -580,7 +614,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   }
 
   // call UserTrackingAction if required
-  if (parentStep.fLastStepOfTrack && !parentContinuesOnCPU && (callUserTrackingAction)) {
+  if (parentStep.fLastStepOfTrack && !returnParentTrackToG4 && (callUserTrackingAction)) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
@@ -613,8 +647,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       G4EventManager::GetEventManager()->StackTracks(&hadronicSecondaries);
     }
 
-    if (parentContinuesOnCPU) {
-      G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(continuedParent);
+    if (returnParentTrackToG4) {
+      G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(returnedParentTrack);
     }
   }
 
@@ -623,7 +657,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   if (isDeferredStep) {
     auto *parentTrack = fScoringObjects->fG4Step->GetTrack();
     parentTrack->SetUserInformation(nullptr);
-    fHostTrackDataMapper->FinalizePendingReturnedStep(parentStep.fTrackID, parentContinuesOnCPU);
+    fHostTrackDataMapper->FinalizePendingReturnedStep(parentStep.fTrackID, returnParentTrackToG4);
   } else if (parentStep.fLastStepOfTrack) {
     fScoringObjects->fG4Step->GetTrack()->SetUserInformation(nullptr);
     fHostTrackDataMapper->removeTrack(parentStep.fTrackID);

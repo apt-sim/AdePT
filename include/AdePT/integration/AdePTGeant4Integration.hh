@@ -31,13 +31,17 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
+  enum class DeferredStepType : unsigned char { ReplayStep, ReturnTrack };
+
   /// @brief Stored work for a returned step that is replayed later on the host.
   /// @details
-  /// These steps are handled later in the same sorted CPU handoff order, so
-  /// the Geant4 host work always runs in a fixed order.
+  /// The host collects returned GPU-hit blocks during transport and replays
+  /// them later in one fixed order, so the Geant4-side work stays
+  /// reproducible from run to run.
   struct DeferredStep {
     std::size_t firstHit{0};
     std::size_t numHits{0};
+    DeferredStepType type{DeferredStepType::ReplayStep};
   };
 
   /// @brief Owns the deferred returned-step data drained from the integration.
@@ -59,6 +63,14 @@ public:
   void ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction = false,
                       bool const callUserTrackingaction = false);
 
+  /// @brief Return a deferred parent track to Geant4 without rebuilding the visible G4 step.
+  /// @details
+  /// This is only used for returned gamma handoff steps with one parent hit,
+  /// no secondaries, and zero deposited energy. In that case there is no GPU
+  /// step to score on the host, so only the parent G4Track is rebuilt from the
+  /// post-step state and pushed back to the Geant4 stack.
+  void ReturnDeferredTrack(std::span<const GPUHit> gpuSteps);
+
   /// @brief Returns the Z value of the user-defined uniform magnetic field
   /// @details This function can only be called when the user-defined field is a G4UniformMagField
   std::vector<float> GetUniformField() const;
@@ -70,7 +82,7 @@ public:
   HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
 
   /// @brief Defer a returned step for later sorted replay on the host.
-  void QueueDeferredStep(std::span<const GPUHit> gpuSteps);
+  void QueueDeferredStep(std::span<const GPUHit> gpuSteps, DeferredStepType type = DeferredStepType::ReplayStep);
 
   /// @brief Transfer ownership of the currently queued deferred steps.
   /// @details

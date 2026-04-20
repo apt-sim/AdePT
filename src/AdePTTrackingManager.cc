@@ -78,6 +78,18 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport()
   return transport;
 }
 
+bool CanReturnTrackDirectly(const GPUHit &step, unsigned int blockSize, bool callUserSteppingAction)
+{
+  if (callUserSteppingAction) return false;
+  if (step.fParticleType != ParticleType::Gamma) return false;
+  if (step.fStepLimProcessId != kAdePTOutOfGPURegionProcess && step.fStepLimProcessId != kAdePTFinishOnCPUProcess) {
+    return false;
+  }
+  assert(blockSize == 1);
+  assert(step.fTotalEnergyDeposit == 0.);
+  return true;
+}
+
 } // namespace
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -362,9 +374,13 @@ void AdePTTrackingManager::FlushEvent()
             });
 
   for (const auto &deferredStep : deferredSteps.steps) {
-    fGeant4Integration.ProcessGPUStep(
-        std::span<const GPUHit>(deferredSteps.hits.data() + deferredStep.firstHit, deferredStep.numHits),
-        fAdeptTransport->GetReturnAllSteps(), fAdeptTransport->GetReturnFirstAndLastStep());
+    std::span<const GPUHit> gpuSteps(deferredSteps.hits.data() + deferredStep.firstHit, deferredStep.numHits);
+    if (deferredStep.type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
+      fGeant4Integration.ReturnDeferredTrack(gpuSteps);
+    } else {
+      fGeant4Integration.ProcessGPUStep(gpuSteps, fAdeptTransport->GetReturnAllSteps(),
+                                        fAdeptTransport->GetReturnFirstAndLastStep());
+    }
   }
   fAdeptTransport->MarkHostFlushed(threadId);
 }
@@ -406,10 +422,11 @@ void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
            it->fStepLimProcessId == 3) ||
           it->fStepLimProcessId == kAdePTOutOfGPURegionProcess || it->fStepLimProcessId == kAdePTFinishOnCPUProcess;
       if (isDeferredStep) {
-        // These returned steps are replayed later in the same sorted order as
-        // the old CPU handoff path. The host-side work may consume Geant4 RNG,
-        // so it must not run in hit-buffer arrival order.
-        fGeant4Integration.QueueDeferredStep(std::span<const GPUHit>(&*it, blockSize));
+        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, fAdeptTransport->GetReturnAllSteps());
+        fGeant4Integration.QueueDeferredStep(std::span<const GPUHit>(&*it, blockSize),
+                                             returnTrackDirectly
+                                                 ? AdePTGeant4Integration::DeferredStepType::ReturnTrack
+                                                 : AdePTGeant4Integration::DeferredStepType::ReplayStep);
       } else {
         fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize),
                                           fAdeptTransport->GetReturnAllSteps(),

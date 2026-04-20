@@ -162,12 +162,13 @@ public:
 
   /// @brief Finish deferred returned-step replay and perform the final ownership transition.
   /// @param gpuId GPU track id of the entry to finalize.
-  /// @param continueOnCPU If true, retire the metadata to CPU ownership; otherwise remove it completely.
-  void FinalizePendingReturnedStep(uint64_t gpuId, bool continueOnCPU)
+  /// @param returnTrackToG4 If true, retire the metadata to CPU ownership because the track is returned to Geant4;
+  /// otherwise remove it completely.
+  void FinalizePendingReturnedStep(uint64_t gpuId, bool returnTrackToG4)
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return;
-    eraseHostTrackData(it, /*keepReverseMap=*/continueOnCPU, /*deleteUserTrackInfo=*/!continueOnCPU);
+    eraseHostTrackData(it, /*keepReverseMap=*/returnTrackToG4, /*deleteUserTrackInfo=*/!returnTrackToG4);
   }
 
   /// @brief Sets the gpuid by reference and returns whether the entry already existed
