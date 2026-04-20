@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include <AdePT/core/TrackData.h>
+#include <AdePT/core/GeometryAuxData.hh>
+#include <AdePT/copcore/Ranluxpp.h>
 #include <AdePT/copcore/SystemOfUnits.h>
 
 #include <G4HepEmData.hh>
@@ -14,6 +15,11 @@
 #include <cmath>
 
 namespace adept::SteppingAction {
+
+struct GammaRouletteResult {
+  bool create{true};  ///< whether the gamma secondary should be created
+  float weight{1.0f}; ///< weight assigned to the newborn gamma when created
+};
 
 ///< @brief helper function to kill a track and deposit its energy
 __device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &edep)
@@ -32,6 +38,7 @@ __device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &ede
 struct NoAction {
   // empty placeholder struct
   struct Params {};
+  static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
                                                         double const &, int const &, G4HepEmData const *,
@@ -43,10 +50,18 @@ struct NoAction {
                                                      double const &, int const &, G4HepEmData const *, Params const &)
   {
   }
+
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
+                                                                                  double const &,
+                                                                                  adeptint::VolAuxData const &,
+                                                                                  RanluxppDouble &)
+  {
+    return {true, parentWeight};
+  }
 };
 
 // ---------- CMS ----------
-// Custom SteppingAction for Atlas
+// Custom SteppingAction for CMS
 struct CMSAction {
   struct Params {
     double tmax    = 2000.0 * copcore::units::nanosecond;               // time cut
@@ -54,6 +69,7 @@ struct CMSAction {
     double ecut    = 2.0 * copcore::units::MeV;                         //  kinetic E for the vacuum cut
     double density = 1e-15 * (copcore::units::g / copcore::units::cm3); // density for the vacuum cut
   };
+  static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void AllParticleCheck(bool &alive, double &eKin, double &edep,
                                                           vecgeom::Vector3D<double> const &pos,
@@ -101,6 +117,14 @@ struct CMSAction {
     if (!alive) return;
     AllParticleCheck(alive, eKin, edep, pos, globalTime, params);
   }
+
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
+                                                                                  double const &,
+                                                                                  adeptint::VolAuxData const &,
+                                                                                  RanluxppDouble &)
+  {
+    return {true, parentWeight};
+  }
 };
 
 // ---------- LHCb ----------
@@ -114,6 +138,7 @@ struct LHCbAction {
     // default parameters for energy tracking cut
     double ecut = 1.0 * copcore::units::MeV;
   };
+  static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
                                                         vecgeom::Vector3D<double> const &pos,
@@ -137,6 +162,84 @@ struct LHCbAction {
     // same as electron stepping action
     ElectronAction(alive, eKin, edep, pos, /*globalTime*/ 0.0, /*mcIndex*/ 0, g4HepEmData, params);
   }
+
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
+                                                                                  double const &,
+                                                                                  adeptint::VolAuxData const &,
+                                                                                  RanluxppDouble &)
+  {
+    return {true, parentWeight};
+  }
 };
+
+// ---------- ATLAS ----------
+// The ATLAS SteppingAction must be guarded as it requires a compile time specific
+// paramater in the VolumeAuxData
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
+// Custom SteppingAction for ATLAS.
+// Photon Russian Roulette follows Athena's stacking-action policy for photons
+// born in LAr volumes, adapted to act before the secondary gamma is created on
+// the GPU. The current threshold and weight are intentionally hardcoded here to
+// match the Athena defaults until AdePT has an experiment-facing configuration
+// hook for these values.
+struct ATLASAction {
+  struct Params {};
+  static constexpr bool kGammaRussianRoulette = true;
+
+  static constexpr double kPhotonRussianRouletteThreshold = 0.5 * copcore::units::MeV;
+  static constexpr float kPhotonRussianRouletteWeight     = 10.0f;
+  static constexpr float kOneOverPhotonRouletteWeight     = 1.0f / kPhotonRussianRouletteWeight;
+
+  __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
+                                                        double const &, int const &, G4HepEmData const *,
+                                                        Params const &)
+  {
+  }
+
+  __device__ __forceinline__ static void GammaAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
+                                                     double const &, int const &, G4HepEmData const *, Params const &)
+  {
+  }
+
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(
+      float const &parentWeight, double const &gammaEkin, adeptint::VolAuxData const &originAuxData,
+      RanluxppDouble &rngState)
+  {
+    if (!originAuxData.fAtlasPhotonRussianRoulette) return {true, parentWeight};
+    if (parentWeight >= kPhotonRussianRouletteWeight) return {true, parentWeight};
+    if (gammaEkin >= kPhotonRussianRouletteThreshold) return {true, parentWeight};
+
+    if (rngState.Rndm() > kOneOverPhotonRouletteWeight) return {false, parentWeight};
+
+    return {true, kPhotonRussianRouletteWeight};
+  }
+};
+#else
+// Stub used in non-ATLAS builds so the selector can still name ATLASAction
+// without pulling in any ATLAS-only aux-data fields or runtime logic.
+struct ATLASAction {
+  struct Params {};
+  static constexpr bool kGammaRussianRoulette = false;
+
+  __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
+                                                        double const &, int const &, G4HepEmData const *,
+                                                        Params const &)
+  {
+  }
+
+  __device__ __forceinline__ static void GammaAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
+                                                     double const &, int const &, G4HepEmData const *, Params const &)
+  {
+  }
+
+  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
+                                                                                  double const &,
+                                                                                  adeptint::VolAuxData const &,
+                                                                                  RanluxppDouble &)
+  {
+    return {true, parentWeight};
+  }
+};
+#endif
 
 } // namespace adept::SteppingAction

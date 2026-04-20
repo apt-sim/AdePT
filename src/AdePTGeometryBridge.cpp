@@ -237,6 +237,10 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     }
   }
 
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
+  std::vector<bool> atlasPhotonRRInitialized(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount(), false);
+#endif
+
   // Recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes.
   using VisitFn =
       std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *, vecgeom::NavigationState)>;
@@ -284,6 +288,19 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
       }
       volAuxData[vg_lvol->id()].fSensIndex = 1;
     }
+
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
+    const bool atlasPhotonRR = g4_pvol->GetName().rfind("LAr", 0) == 0;
+    auto &atlasPhotonRRFlag  = volAuxData[vg_lvol->id()].fAtlasPhotonRussianRoulette;
+    const bool initialized   = atlasPhotonRRInitialized[vg_lvol->id()];
+    if (!initialized) {
+      atlasPhotonRRFlag                       = atlasPhotonRR;
+      atlasPhotonRRInitialized[vg_lvol->id()] = true;
+    } else if (atlasPhotonRRFlag != atlasPhotonRR) {
+      G4cerr << "ATLAS photon Russian Roulette flag is inconsistent for logical volume '" << g4_lvol->GetName()
+             << "': saw both LAr and non-LAr placed-volume names while building VolAuxData." << G4endl;
+    }
+#endif
 
     // Now do the daughters.
     for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {

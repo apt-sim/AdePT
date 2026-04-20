@@ -5,7 +5,7 @@
 #include "AdePTSteppingAction.cuh"
 
 #ifndef ADEPT_STEPACTION_TYPE
-#error "ADEPT_STEPACTION_TYPE is not defined (0=NONE, 1=CMS, 2=LHCb)"
+#error "ADEPT_STEPACTION_TYPE is not defined (0=NONE, 1=CMS, 2=LHCb, 3=ATLAS)"
 #endif
 
 namespace adept::SteppingAction {
@@ -13,6 +13,8 @@ namespace adept::SteppingAction {
 using Action = CMSAction;
 #elif (ADEPT_STEPACTION_TYPE == 2)
 using Action = LHCbAction;
+#elif (ADEPT_STEPACTION_TYPE == 3)
+using Action = ATLASAction;
 #else
 using Action = NoAction;
 #endif

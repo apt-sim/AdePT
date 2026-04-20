@@ -40,7 +40,7 @@ cmake --build ./adept-build -- -j6
 | `ADEPT_BUILD_TESTING` | `OFF` | Build unit and regression tests |
 | `ADEPT_BUILD_EXAMPLES` | `OFF` | Build examples |
 | `ADEPT_ENABLE_POWER_METER` | `OFF` | Compile the code for consumption measurement |
-| `ADEPT_STEPPINGACTION` | `NONE` | SteppingAction mode: `NONE`, `CMS`, or `LHCb` |
+| `ADEPT_STEPPINGACTION` | `NONE` | SteppingAction mode: `NONE`, `CMS`, `LHCb`, or `ATLAS`. |
 | `ADEPT_USE_BUILTIN_G4VG` | `ON` | Fetch and build G4VG as part of AdePT (used when Geant4 integration is enabled) |
 
 ## Optional: Run Tests
