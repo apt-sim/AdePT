@@ -198,6 +198,14 @@ find_package(XercesC REQUIRED)
 # Find VecGeom geometry headers library
 find_package(VecGeom REQUIRED)
 
+if(ADEPT_USE_CUDA AND NOT VecGeom_CUDA_FOUND)
+  message(FATAL_ERROR
+    "AdePT requires a VecGeom build with CUDA support when "
+    "ADEPT_COMPUTE_BACKEND=CUDA. Rebuild/reinstall VecGeom with CUDA enabled "
+    "and point CMake to that installation."
+  )
+endif()
+
 ### VecGeom Version check
 
 # Use VecGeom_VERSION_STRING if defined, otherwise fall back to VecGeom_VERSION
