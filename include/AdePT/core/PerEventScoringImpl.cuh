@@ -690,7 +690,7 @@ __device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimPr
                           vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
                           vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
-                          double aLocalTime, double aProperTime, double aPreGlobalTime, unsigned int eventID,
+                          float aLocalTime, float aProperTime, double aPreGlobalTime, unsigned int eventID,
                           short threadID, bool isLastStep, unsigned short stepCounter,
                           SecondaryInitData const *secondaryData, unsigned int nSecondaries)
 {
@@ -720,7 +720,7 @@ __device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimPr
             secondaryData[i].particleType,
             /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
             secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin, aGlobalTime,
-            /*localTime*/ 0., /*properTime*/ 0., aGlobalTime, eventID, threadID, /*isLastStep*/ false,
+            /*localTime*/ 0.f, /*properTime*/ 0.f, aGlobalTime, eventID, threadID, /*isLastStep*/ false,
             /*stepCounter*/ 0, /*nSecondaries*/ 0);
   }
 }

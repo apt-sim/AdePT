@@ -286,13 +286,8 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUHit const &parentS
   track->IncrementCurrentStepNumber();
   track->SetTrackID(hostTData.g4id);
   track->SetParentID(hostTData.g4parentid);
-  // Match the historical leak-track handoff semantics for tracks that return
-  // to CPU transport: old ReturnTrack() copied times from the live device
-  // TrackData, which had already been quantized through the float-valued GPU
-  // Track state. The returned-step path otherwise preserves the higher
-  // precision GPUHit payload and shows tiny regions-only timing drift.
-  track->SetLocalTime(static_cast<float>(parentStep.fLocalTime));
-  track->SetProperTime(static_cast<float>(parentStep.fProperTime));
+  track->SetLocalTime(parentStep.fLocalTime);
+  track->SetProperTime(parentStep.fProperTime);
   track->SetWeight(parentStep.fTrackWeight);
   track->SetCreatorProcess(hostTData.creatorProcess);
   track->SetVertexPosition(hostTData.vertexPosition);
@@ -795,9 +790,7 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
   aTrack->SetPosition(aPostStepPointPosition); // Real data
   aTrack->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
   aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
-  // Keep returned CPU-continuation tracks seeded with proper time, but match
-  // the old GPU-step replay semantics here: the transient G4Track used for
-  // callbacks did not carry proper time in fix_handling_of_nuclearreturns.
+  aTrack->SetProperTime(aGPUHit->fProperTime); // Real data
   if (const auto preVolume = aPreG4TouchableHandle->GetVolume();
       preVolume != nullptr) {                          // protect against nullptr if NavState is outside
     aTrack->SetTouchableHandle(aPreG4TouchableHandle); // Real data
@@ -914,6 +907,7 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   aPostStepPoint->SetPosition(aPostStepPointPosition);                   // Real data
   aPostStepPoint->SetLocalTime(aGPUHit->fLocalTime);                     // Real data
   aPostStepPoint->SetGlobalTime(aGPUHit->fGlobalTime);                   // Real data
+  aPostStepPoint->SetProperTime(aGPUHit->fProperTime);                   // Real data
   aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data

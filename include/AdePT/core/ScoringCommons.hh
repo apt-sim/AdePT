@@ -27,8 +27,8 @@ struct GPUHit {
   double fTotalEnergyDeposit{0};
   // double fNonIonizingEnergyDeposit{0};
   double fGlobalTime{0.};
-  double fLocalTime{0.};
-  double fProperTime{0.};
+  float fLocalTime{0.f};
+  float fProperTime{0.f};
   double fPreGlobalTime{0.};
   float fTrackWeight{1};
   uint64_t fTrackID{0};  // Track ID
@@ -114,8 +114,8 @@ __device__ __forceinline__ void FillHit(
     double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
     vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
     double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
-    vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, double aLocalTime,
-    double aProperTime, double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep,
+    vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, float aLocalTime,
+    float aProperTime, double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep,
     unsigned short stepCounter, unsigned char aNumSecondaries)
 {
   aGPUHit.fEventId = eventID;
