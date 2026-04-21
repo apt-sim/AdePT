@@ -461,14 +461,21 @@ text, source_count = source_pattern.subn(replacement, text, count=1)
 if source_count != 1:
     raise SystemExit("Could not rewrite ATLAS_ADEPT_SOURCE")
 
-split_pattern = re.compile(r'-DADEPT_USE_SPLIT_KERNELS:BOOL=(TRUE|FALSE)')
+split_pattern = re.compile(r'(^\s*-DADEPT_USE_SPLIT_KERNELS:BOOL=)(TRUE|FALSE)(\s*$)', re.M)
 text, split_count = split_pattern.subn(
-    f'-DADEPT_USE_SPLIT_KERNELS:BOOL={split_value}',
+    rf'\g<1>{split_value}\g<3>',
     text,
     count=1,
 )
-if split_count != 1:
-    raise SystemExit("Could not rewrite ADEPT_USE_SPLIT_KERNELS")
+if split_count == 0:
+    split_anchor = re.compile(r'(^\s*-DADEPT_USE_SINGLE:BOOL=FALSE\s*$)', re.M)
+    text, split_insert_count = split_anchor.subn(
+        rf'\g<1>\n   -DADEPT_USE_SPLIT_KERNELS:BOOL={split_value}',
+        text,
+        count=1,
+    )
+    if split_insert_count != 1:
+        raise SystemExit("Could not add ADEPT_USE_SPLIT_KERNELS")
 
 path.write_text(text)
 PY
