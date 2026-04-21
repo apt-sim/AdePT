@@ -376,7 +376,8 @@ void AdePTTrackingManager::FlushEvent()
   for (const auto &deferredStep : deferredSteps.steps) {
     std::span<const GPUHit> gpuSteps(deferredSteps.hits.data() + deferredStep.firstHit, deferredStep.numHits);
     if (deferredStep.type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
-      fGeant4Integration.ReturnDeferredTrack(gpuSteps);
+      fGeant4Integration.ReturnDeferredTrack(gpuSteps, fAdeptTransport->GetReturnAllSteps() ||
+                                                           fAdeptTransport->GetReturnFirstAndLastStep());
     } else {
       fGeant4Integration.ProcessGPUStep(gpuSteps, fAdeptTransport->GetReturnAllSteps(),
                                         fAdeptTransport->GetReturnFirstAndLastStep());

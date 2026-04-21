@@ -69,7 +69,7 @@ public:
   /// no secondaries, and zero deposited energy. In that case there is no GPU
   /// step to score on the host, so only the parent G4Track is rebuilt from the
   /// post-step state and pushed back to the Geant4 stack.
-  void ReturnDeferredTrack(std::span<const GPUHit> gpuSteps);
+  void ReturnDeferredTrack(std::span<const GPUHit> gpuSteps, bool const callUserActions = false);
 
   /// @brief Returns the Z value of the user-defined uniform magnetic field
   /// @details This function can only be called when the user-defined field is a G4UniformMagField

@@ -220,7 +220,7 @@ AdePTGeant4Integration::DeferredStepStore AdePTGeant4Integration::TakeDeferredSt
   return deferred;
 }
 
-void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUHit> gpuSteps)
+void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUHit> gpuSteps, bool const callUserActions)
 {
   assert(gpuSteps.size() == 1);
 
@@ -230,11 +230,11 @@ void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUHit> gpuStep
          parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
   assert(parentStep.fTotalEnergyDeposit == 0.);
   HostTrackData dummy;
+  HostTrackData &parentTData = callUserActions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
 
   auto *returnedParentTrack = MakeReturnedTrackFromStep(
-      parentStep, dummy, /*setStopButAlive=*/parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
+      parentStep, parentTData, /*setStopButAlive=*/parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(returnedParentTrack);
-  returnedParentTrack->SetUserInformation(nullptr);
   fHostTrackDataMapper->FinalizePendingReturnedStep(parentStep.fTrackID, /*returnTrackToG4=*/true);
 }
 
