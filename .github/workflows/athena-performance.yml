@@ -312,6 +312,8 @@ jobs:
           PERF_THREADS: ${{ needs.prepare.outputs.threads }}
           PERF_EVENTS: ${{ needs.prepare.outputs.events }}
           PERF_REPETITIONS: ${{ needs.prepare.outputs.repetitions }}
+          CERN_GITLAB_USERNAME: ${{ secrets.CERN_GITLAB_USERNAME }}
+          CERN_GITLAB_TOKEN: ${{ secrets.CERN_GITLAB_TOKEN }}
         run: |
           set -eo pipefail
 
@@ -355,6 +357,8 @@ jobs:
             -e PERF_THREADS \
             -e PERF_EVENTS \
             -e PERF_REPETITIONS \
+            -e CERN_GITLAB_USERNAME \
+            -e CERN_GITLAB_TOKEN \
             -w /work/AdePT \
             gitlab-registry.cern.ch/sft/docker/alma9 \
             bash -lc '
