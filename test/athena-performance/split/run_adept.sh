@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-set -euo pipefail
+set -uo pipefail
 
 NWORK=${1:-32}
 export ATHENA_CORE_NUMBER=${NWORK}

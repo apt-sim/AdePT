@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-set -euo pipefail
+set -o pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
@@ -495,8 +495,8 @@ PY
 prepare_athena_gpu_env() {
   export ATLAS_LOCAL_ROOT_BASE="/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase"
   # shellcheck disable=SC1091
-  source "${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh" --quiet
-  asetup none,gcc14.2,cmakesetup
+  source "${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh" --quiet || return 1
+  asetup none,gcc14.2,cmakesetup || return 1
   export ATLAS_NIGHTLY_PLATFORM="${BINARY_TAG:-${LCG_PLATFORM:-${CMTCONFIG}}}"
   export ATLAS_NIGHTLY_G4PATH="${ATLAS_NIGHTLY_G4PATH:-/cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_${ATLAS_NIGHTLY_PLATFORM}/Geant4}"
   export G4PATH="${ATLAS_NIGHTLY_G4PATH}"
@@ -504,10 +504,10 @@ prepare_athena_gpu_env() {
 
 build_athena() {
   (
-    prepare_athena_gpu_env
+    prepare_athena_gpu_env || exit 1
     export AtlasExternals_URL="${ATLAS_EXTERNALS_LOCAL_REPO}"
     export AtlasExternals_REF="${ATLAS_EXTERNALS_LOCAL_REF}"
-    cd "${ATHENA_WORKTREE}"
+    cd "${ATHENA_WORKTREE}" || exit 1
     ./Projects/AthSimulation/build_gpu.sh -b "${GPU_BUILD_RELATIVE}" > "${BUILD_LOG}" 2>&1
   )
 }
@@ -515,13 +515,13 @@ build_athena() {
 rewrite_setup_run() {
   cat > "${GPU_BUILD_DIR}/setup_run.sh" <<EOF
 export ATLAS_LOCAL_ROOT_BASE="/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase"
-source \${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh
-asetup none,gcc14.2,cmakesetup
+source \${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh || return 1
+asetup none,gcc14.2,cmakesetup || return 1
 export ATLAS_NIGHTLY_PLATFORM=\${BINARY_TAG:-\${LCG_PLATFORM:-\${CMTCONFIG}}}
 export ATLAS_NIGHTLY_G4PATH=\${ATLAS_NIGHTLY_G4PATH:-/cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_\${ATLAS_NIGHTLY_PLATFORM}/Geant4}
 export G4PATH=\${ATLAS_NIGHTLY_G4PATH}
-source ${ATHENA_WORKTREE}/Projects/AthSimulation/build_env.sh -b ${GPU_BUILD_DIR}/externals
-source ${GPU_BUILD_DIR}/build/\${LCG_PLATFORM}/setup.sh
+source ${ATHENA_WORKTREE}/Projects/AthSimulation/build_env.sh -b ${GPU_BUILD_DIR}/externals || return 1
+source ${GPU_BUILD_DIR}/build/\${LCG_PLATFORM}/setup.sh || return 1
 EOF
   chmod +x "${GPU_BUILD_DIR}/setup_run.sh"
 }
@@ -535,14 +535,14 @@ prepare_run_dir() {
 
 run_benchmark() {
   (
-    set -euo pipefail
+    set -o pipefail
     # shellcheck disable=SC1091
-    source "${GPU_BUILD_DIR}/setup_run.sh"
-    cd "${RUN_DIR}"
+    source "${GPU_BUILD_DIR}/setup_run.sh" || exit 1
+    cd "${RUN_DIR}" || exit 1
     export ADEPT_MAX_EVENTS="${EVENTS}"
     export ADEPT_REPETITIONS="${REPETITIONS}"
     export ADEPT_OUTPUT_HITS_FILE="test.CA.HITS.pool_AdePT_E${EVENTS}.root"
-    ./run_all_5.sh "${THREADS}" "${REPETITIONS}"
+    ./run_all_5.sh "${THREADS}" "${REPETITIONS}" || exit 1
   )
 }
 
