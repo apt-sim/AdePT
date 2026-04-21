@@ -262,8 +262,8 @@ jobs:
 
       - name: Show runner basics
         run: |
-          set -eo pipefail
-          cat /etc/os-release | sed -n '1,6p'
+          set -o pipefail
+          cat /etc/os-release | sed -n '1,6p' || exit 1
           echo "event=${GITHUB_EVENT_NAME}"
           echo "mode=${{ needs.prepare.outputs.mode }}"
           echo "adept_repo=${{ needs.prepare.outputs.adept_repo }}"
@@ -275,12 +275,12 @@ jobs:
 
       - name: Pre-touch required CVMFS repos on host
         run: |
-          set -eo pipefail
-          ls /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/user/atlasLocalSetup.sh
+          set -o pipefail
+          ls /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/user/atlasLocalSetup.sh || exit 1
           ls /cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_x86_64-el9-gcc14-opt/Geant4 || true
-          ls /cvmfs/geant4.cern.ch/share/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+          ls /cvmfs/geant4.cern.ch/share/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat || exit 1
           if [ -d /afs ]; then
-            ls /afs >/dev/null
+            ls /afs >/dev/null || exit 1
             echo "/afs is present on the host and will be mounted into the container"
           else
             echo "/afs is not present on the host"
@@ -288,13 +288,13 @@ jobs:
 
       - name: Check GPU visibility
         run: |
-          set -eo pipefail
-          nvidia-smi
+          set -o pipefail
+          nvidia-smi || exit 1
 
       - name: Check Docker basics
         run: |
-          set -eo pipefail
-          docker --version
+          set -o pipefail
+          docker --version || exit 1
 
       - name: Run Athena performance benchmark in Alma 9 container
         id: run_perf
@@ -315,7 +315,7 @@ jobs:
           CERN_GITLAB_USERNAME: ${{ secrets.CERN_GITLAB_USERNAME }}
           CERN_GITLAB_TOKEN: ${{ secrets.CERN_GITLAB_TOKEN }}
         run: |
-          set -eo pipefail
+          set -o pipefail
 
           rm -f "${RESULTS_FILE}"
           rm -rf "${ARTIFACTS_DIR}"
@@ -362,7 +362,7 @@ jobs:
             -w /work/AdePT \
             gitlab-registry.cern.ch/sft/docker/alma9 \
             bash -lc '
-              set -eo pipefail
+              set -o pipefail
               mkdir -p "${HOME}"
               git config --global --add safe.directory /work/AdePT
               container_results_file="/work/AdePT/athena-performance-results.env"
@@ -388,9 +388,9 @@ jobs:
       - name: Load benchmark results
         if: always() && hashFiles(env.RESULTS_FILE) != ''
         run: |
-          set -eo pipefail
+          set -o pipefail
           # shellcheck disable=SC1091
-          source "${RESULTS_FILE}"
+          source "${RESULTS_FILE}" || exit 1
 
           host_summary_markdown_file="${SUMMARY_MARKDOWN_FILE:-}"
           case "${host_summary_markdown_file}" in
