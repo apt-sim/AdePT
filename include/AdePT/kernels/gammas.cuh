@@ -470,6 +470,7 @@ __global__ void __launch_bounds__(256, 1)
                                eKin,                                        // Post-step point kinetic energy
                                globalTime,                                  // global time
                                localTime,                                   // local time
+                               properTime,                                  // proper time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                !trackSurvives && !continuesOnCPU, // whether this is the last step of the track

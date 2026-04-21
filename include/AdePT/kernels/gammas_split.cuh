@@ -121,6 +121,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    currentTrack.globalTime,                     // global time
                                    currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    false,                                       // parent continues on CPU
@@ -152,6 +153,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    currentTrack.globalTime,                     // global time
                                    currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    true,                                        // whether this was the last step
@@ -281,6 +283,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
                                  currentTrack.eKin,                           // Post-step point kinetic energy
                                  currentTrack.globalTime,                     // global time
                                  currentTrack.localTime,                      // local time
+                                 currentTrack.properTime,                     // proper time
                                  currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                  true,                                        // gamma nuclear kills the parent
@@ -363,6 +366,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
                                  currentTrack.eKin,                           // Post-step point kinetic energy
                                  currentTrack.globalTime,                     // global time
                                  currentTrack.localTime,                      // local time
+                                 currentTrack.properTime,                     // proper time
                                  currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                  false,                    // whether this is the last step of the track
@@ -415,6 +419,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
             currentTrack.eKin,                           // Post-step point kinetic energy
             currentTrack.globalTime,                     // global time
             currentTrack.localTime,                      // local time
+            currentTrack.properTime,                     // proper time
             currentTrack.preStepGlobalTime,              // preStep global time
             currentTrack.eventId, currentTrack.threadId, // event and thread ID
             true, // whether this is the last step of the track: true, as particle has left the world
@@ -545,6 +550,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
           0.,                                          // Post-step point kinetic energy (0 after conversion)
           currentTrack.globalTime,                     // global time
           currentTrack.localTime,                      // local time
+          currentTrack.properTime,                     // proper time
           currentTrack.preStepGlobalTime,              // preStep global time
           currentTrack.eventId, currentTrack.threadId, // event and thread ID
           true, // whether this is the last step of the track: always true as gammas undergoing conversion are killed
@@ -672,6 +678,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
                                newEnergyGamma,                              // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                !trackSurvives,           // whether this is the last step of the track
@@ -773,6 +780,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
                                0.,                             // Post-step point kinetic energy (0 after photoelectric)
                                currentTrack.globalTime,        // global time
                                currentTrack.localTime,         // local time
+                               currentTrack.properTime,        // proper time
                                currentTrack.preStepGlobalTime, // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                true, // whether this is the last step of the track: always true as gammas undergoing the

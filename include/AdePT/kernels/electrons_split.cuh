@@ -175,6 +175,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    currentTrack.globalTime,                     // global time
                                    currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    false,                                       // parent continues on CPU
@@ -206,6 +207,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                                    currentTrack.eKin,        // Post-step point kinetic energy
                                    currentTrack.globalTime,  // global time
                                    currentTrack.localTime,   // local time
+                                   currentTrack.properTime,  // proper time
                                    currentTrack.preStepGlobalTime, // preStep global time
                                    currentTrack.eventId,           // eventID
                                    currentTrack.threadId,          // threadID
@@ -586,6 +588,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
                                  currentTrack.eKin,                           // Post-step point kinetic energy
                                  currentTrack.globalTime,                     // global time
                                  currentTrack.localTime,                      // local time
+                                 currentTrack.properTime,                     // proper time
                                  currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                  !trackSurvives && !continuesOnCPU,           // whether this was the last step
@@ -687,6 +690,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                isLastStep,                                  // whether this was the last step
@@ -874,6 +878,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                !trackSurvives,                              // whether this was the last step
@@ -1014,6 +1019,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                !trackSurvives,                              // whether this was the last step
@@ -1151,6 +1157,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                true, // whether this was the last step: always true for annihilating positrons
@@ -1222,6 +1229,7 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                true, // whether this was the last step: always true for annihilating positrons

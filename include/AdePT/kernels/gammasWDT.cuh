@@ -72,6 +72,7 @@ __global__ void __launch_bounds__(256, 1)
     double globalTime                  = currentTrack.globalTime;
     double preStepGlobalTime           = currentTrack.globalTime;
     double localTime                   = currentTrack.localTime;
+    double properTime                  = currentTrack.properTime;
 
     //
     // survive: decide whether to continue woodcock tracking or not:
@@ -82,6 +83,7 @@ __global__ void __launch_bounds__(256, 1)
       currentTrack.dir        = dir;
       currentTrack.globalTime = globalTime;
       currentTrack.localTime  = localTime;
+      currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
       if (leftWDTRegion) {
         particleManager.gammas.EnqueueNext(slot);
@@ -668,6 +670,7 @@ __global__ void __launch_bounds__(256, 1)
                                eKin,                                        // Post-step point kinetic energy
                                globalTime,                                  // global time
                                localTime,                                   // local time
+                               properTime,                                  // proper time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                !trackSurvives && !continuesOnCPU, // whether this is the last step of the track

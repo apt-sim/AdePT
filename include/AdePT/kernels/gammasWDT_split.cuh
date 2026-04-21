@@ -149,6 +149,7 @@ __global__ void __launch_bounds__(256, 1)
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    currentTrack.globalTime,                     // global time
                                    currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    false,                                       // parent continues on CPU
@@ -180,6 +181,7 @@ __global__ void __launch_bounds__(256, 1)
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    currentTrack.globalTime,                     // global time
                                    currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    true,                                        // whether this was the last step
@@ -516,6 +518,7 @@ __global__ void __launch_bounds__(256, 1)
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    currentTrack.globalTime,                     // global time
                                    currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    false,                                       // parent continues on CPU

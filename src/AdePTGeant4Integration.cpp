@@ -202,8 +202,6 @@ void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps,
 {
   if (gpuSteps.empty()) return;
 
-  fHostTrackDataMapper->SetPendingReturnedStep(gpuSteps.front().fTrackID, true);
-
   DeferredStep deferred;
   deferred.firstHit = fDeferredHits.size();
   deferred.numHits  = gpuSteps.size();
@@ -235,7 +233,7 @@ void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUHit> gpuStep
   auto *returnedParentTrack = MakeReturnedTrackFromStep(
       parentStep, parentTData, /*setStopButAlive=*/parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(returnedParentTrack);
-  fHostTrackDataMapper->FinalizePendingReturnedStep(parentStep.fTrackID, /*returnTrackToG4=*/true);
+  fHostTrackDataMapper->retireToCPU(parentStep.fTrackID);
 }
 
 G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track) const
@@ -288,7 +286,13 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUHit const &parentS
   track->IncrementCurrentStepNumber();
   track->SetTrackID(hostTData.g4id);
   track->SetParentID(hostTData.g4parentid);
-  track->SetLocalTime(parentStep.fLocalTime);
+  // Match the historical leak-track handoff semantics for tracks that return
+  // to CPU transport: old ReturnTrack() copied times from the live device
+  // TrackData, which had already been quantized through the float-valued GPU
+  // Track state. The returned-step path otherwise preserves the higher
+  // precision GPUHit payload and shows tiny regions-only timing drift.
+  track->SetLocalTime(static_cast<float>(parentStep.fLocalTime));
+  track->SetProperTime(static_cast<float>(parentStep.fProperTime));
   track->SetWeight(parentStep.fTrackWeight);
   track->SetCreatorProcess(hostTData.creatorProcess);
   track->SetVertexPosition(hostTData.vertexPosition);
@@ -507,6 +511,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       auto *nuclearReactionTrack = new G4Track(dynamic, parentStep.fGlobalTime, position);
       nuclearReactionTrack->IncrementCurrentStepNumber();
       nuclearReactionTrack->SetLocalTime(parentStep.fLocalTime);
+      nuclearReactionTrack->SetProperTime(parentStep.fProperTime);
       nuclearReactionTrack->SetWeight(parentStep.fTrackWeight);
       G4TouchableHandle postTouchable;
       if (actions) {
@@ -640,7 +645,11 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   if (isDeferredStep) {
     auto *parentTrack = fScoringObjects->fG4Step->GetTrack();
     parentTrack->SetUserInformation(nullptr);
-    fHostTrackDataMapper->FinalizePendingReturnedStep(parentStep.fTrackID, returnParentTrackToG4);
+    if (returnParentTrackToG4) {
+      fHostTrackDataMapper->retireToCPU(parentStep.fTrackID);
+    } else {
+      fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
+    }
   } else if (parentStep.fLastStepOfTrack) {
     fScoringObjects->fG4Step->GetTrack()->SetUserInformation(nullptr);
     fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
@@ -786,7 +795,9 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
   aTrack->SetPosition(aPostStepPointPosition); // Real data
   aTrack->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
   aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
-  // aTrack->SetProperTime(0);                                                                // Missing data
+  // Keep returned CPU-continuation tracks seeded with proper time, but match
+  // the old GPU-step replay semantics here: the transient G4Track used for
+  // callbacks did not carry proper time in fix_handling_of_nuclearreturns.
   if (const auto preVolume = aPreG4TouchableHandle->GetVolume();
       preVolume != nullptr) {                          // protect against nullptr if NavState is outside
     aTrack->SetTouchableHandle(aPreG4TouchableHandle); // Real data
@@ -900,10 +911,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
 
   // Post-Step Point
   G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
-  aPostStepPoint->SetPosition(aPostStepPointPosition); // Real data
-  aPostStepPoint->SetLocalTime(aGPUHit->fLocalTime);   // Real data
-  aPostStepPoint->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
-  // aPostStepPoint->SetProperTime(0);                                                                // Missing data
+  aPostStepPoint->SetPosition(aPostStepPointPosition);                   // Real data
+  aPostStepPoint->SetLocalTime(aGPUHit->fLocalTime);                     // Real data
+  aPostStepPoint->SetGlobalTime(aGPUHit->fGlobalTime);                   // Real data
   aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data

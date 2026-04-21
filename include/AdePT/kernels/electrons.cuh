@@ -824,6 +824,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                eKin,                                        // Post-step point kinetic energy
                                globalTime,                                  // global time
                                localTime,                                   // local time
+                               properTime,                                  // proper time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                !trackSurvives && !continuesOnCPU,           // whether this was the last step

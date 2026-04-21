@@ -21,12 +21,9 @@ class G4PrimaryParticle;
 
 /// @brief A helper struct to store the data that is stored exclusively on the CPU
 struct HostTrackData {
-  int g4id       = 0; // the Geant4 track ID
-  int g4parentid = 0; // the Geant4 parent ID
-  uint64_t gpuId = 0; // the GPU’s 64-bit track ID
-  // Deferred returned-step replay still needs this metadata even after the GPU track
-  // has finished, so removal/retirement must wait while this flag is set.
-  bool pendingReturnedStep               = false;
+  int g4id                               = 0; // the Geant4 track ID
+  int g4parentid                         = 0; // the Geant4 parent ID
+  uint64_t gpuId                         = 0; // the GPU’s 64-bit track ID
   G4PrimaryParticle *primary             = nullptr;
   G4VProcess *creatorProcess             = nullptr;
   G4VUserTrackInformation *userTrackInfo = nullptr;
@@ -150,27 +147,6 @@ public:
     return d;
   }
 
-  /// @brief Mark whether a deferred returned step still needs this host-side metadata.
-  /// @param gpuId GPU track id of the entry to update.
-  /// @param pending Whether deferred replay is still outstanding for this track.
-  void SetPendingReturnedStep(uint64_t gpuId, bool pending)
-  {
-    auto it = gpuToIndex.find(gpuId);
-    if (it == gpuToIndex.end()) return;
-    hostDataVec[it->second].pendingReturnedStep = pending;
-  }
-
-  /// @brief Finish deferred returned-step replay and perform the final ownership transition.
-  /// @param gpuId GPU track id of the entry to finalize.
-  /// @param returnTrackToG4 If true, retire the metadata to CPU ownership because the track is returned to Geant4;
-  /// otherwise remove it completely.
-  void FinalizePendingReturnedStep(uint64_t gpuId, bool returnTrackToG4)
-  {
-    auto it = gpuToIndex.find(gpuId);
-    if (it == gpuToIndex.end()) return;
-    eraseHostTrackData(it, /*keepReverseMap=*/returnTrackToG4, /*deleteUserTrackInfo=*/!returnTrackToG4);
-  }
-
   /// @brief Sets the gpuid by reference and returns whether the entry already existed
   /// @param g4id int G4 id that is checked
   /// @param gpuid uint64 gpu id that is returned
@@ -191,9 +167,6 @@ public:
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return; // already gone
-    int idx = it->second;
-
-    if (hostDataVec[idx].pendingReturnedStep) return;
     eraseHostTrackData(it, /*keepReverseMap=*/false, /*deleteUserTrackInfo=*/true);
   }
 
@@ -205,9 +178,6 @@ public:
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return;
-    int idx = it->second;
-
-    if (hostDataVec[idx].pendingReturnedStep) return;
     eraseHostTrackData(it, /*keepReverseMap=*/true, /*deleteUserTrackInfo=*/false);
   }
 
