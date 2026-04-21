@@ -53,6 +53,9 @@ PER_RUN_MEASUREMENT_COUNTS_CSV=""
 
 PERF_STATUS=1
 
+CERN_GITLAB_USERNAME="${CERN_GITLAB_USERNAME:-}"
+CERN_GITLAB_TOKEN="${CERN_GITLAB_TOKEN:-}"
+
 log() {
   printf '[athena-perf] %s\n' "$*"
 }
@@ -112,6 +115,32 @@ Optional options:
 EOF
 }
 
+auth_repo_url() {
+  local repo_url=$1
+
+  if [[ -z "${CERN_GITLAB_USERNAME}" || -z "${CERN_GITLAB_TOKEN}" ]]; then
+    printf '%s\n' "${repo_url}"
+    return
+  fi
+
+  if [[ ! "${repo_url}" =~ ^https://gitlab\.cern\.ch/ ]]; then
+    printf '%s\n' "${repo_url}"
+    return
+  fi
+
+  python3 - "${repo_url}" "${CERN_GITLAB_USERNAME}" "${CERN_GITLAB_TOKEN}" <<'PY'
+import sys
+import urllib.parse
+
+repo_url, username, token = sys.argv[1:]
+parts = urllib.parse.urlsplit(repo_url)
+netloc = f"{urllib.parse.quote(username, safe='')}:{urllib.parse.quote(token, safe='')}@{parts.hostname}"
+if parts.port is not None:
+    netloc += f":{parts.port}"
+print(urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment)))
+PY
+}
+
 verify_remote_ref() {
   local repo_url=$1
   local ref=$2
@@ -121,6 +150,8 @@ verify_remote_ref() {
 }
 
 preflight_checks() {
+  local athena_repo_auth athena_gpu_repo_auth atlasexternals_repo_auth
+
   command -v git >/dev/null 2>&1 || die "git is required"
   command -v python3 >/dev/null 2>&1 || die "python3 is required"
 
@@ -139,16 +170,20 @@ preflight_checks() {
     log "/afs is not visible inside the container"
   fi
 
+  athena_repo_auth=$(auth_repo_url "${ATHENA_REPOSITORY}")
+  athena_gpu_repo_auth=$(auth_repo_url "${ATHENA_GPU_REPOSITORY}")
+  atlasexternals_repo_auth=$(auth_repo_url "${ATLAS_EXTERNALS_REPOSITORY}")
+
   log "Checking remote access to Athena base repository"
-  verify_remote_ref "${ATHENA_REPOSITORY}" "${ATHENA_BASE_REF}" || \
+  verify_remote_ref "${athena_repo_auth}" "${ATHENA_BASE_REF}" || \
     die "Could not resolve ${ATHENA_REPOSITORY}@${ATHENA_BASE_REF}"
 
   log "Checking remote access to Athena GPU merge repository"
-  verify_remote_ref "${ATHENA_GPU_REPOSITORY}" "${ATHENA_GPU_REF}" || \
-    die "Could not resolve ${ATHENA_GPU_REPOSITORY}@${ATHENA_GPU_REF}"
+  verify_remote_ref "${athena_gpu_repo_auth}" "${ATHENA_GPU_REF}" || \
+    die "Could not resolve ${ATHENA_GPU_REPOSITORY}@${ATHENA_GPU_REF}; if this is a private CERN GitLab fork, configure secrets CERN_GITLAB_USERNAME and CERN_GITLAB_TOKEN"
 
   log "Checking remote access to AtlasExternals repository"
-  verify_remote_ref "${ATLAS_EXTERNALS_REPOSITORY}" "${ATLAS_EXTERNALS_BASE_REF}" || \
+  verify_remote_ref "${atlasexternals_repo_auth}" "${ATLAS_EXTERNALS_BASE_REF}" || \
     die "Could not resolve ${ATLAS_EXTERNALS_REPOSITORY}@${ATLAS_EXTERNALS_BASE_REF}"
 }
 
@@ -375,9 +410,14 @@ git_checkout_ref() {
 }
 
 clone_athena() {
-  retry_command 3 git clone "${ATHENA_REPOSITORY}" "${ATHENA_WORKTREE}" >/dev/null
+  local athena_repo_auth athena_gpu_repo_auth
+
+  athena_repo_auth=$(auth_repo_url "${ATHENA_REPOSITORY}")
+  athena_gpu_repo_auth=$(auth_repo_url "${ATHENA_GPU_REPOSITORY}")
+
+  retry_command 3 git clone "${athena_repo_auth}" "${ATHENA_WORKTREE}" >/dev/null
   git_checkout_ref "${ATHENA_WORKTREE}" ci-base "${ATHENA_BASE_REF}"
-  git -C "${ATHENA_WORKTREE}" remote add adept-gpu "${ATHENA_GPU_REPOSITORY}"
+  git -C "${ATHENA_WORKTREE}" remote add adept-gpu "${athena_gpu_repo_auth}"
   retry_command 3 git -C "${ATHENA_WORKTREE}" fetch --no-tags adept-gpu "${ATHENA_GPU_REF}" >/dev/null
   git -C "${ATHENA_WORKTREE}" merge --no-edit FETCH_HEAD >/dev/null
   ATHENA_HEAD_SHA=$(git -C "${ATHENA_WORKTREE}" rev-parse HEAD)
@@ -385,9 +425,11 @@ clone_athena() {
 
 prepare_local_atlasexternals() {
   local repo_dir="${BUILD_ROOT}/atlasexternals-under-test"
-  local cmake_file branch_name
+  local cmake_file branch_name atlasexternals_repo_auth
 
-  retry_command 3 git clone "${ATLAS_EXTERNALS_REPOSITORY}" "${repo_dir}" >/dev/null
+  atlasexternals_repo_auth=$(auth_repo_url "${ATLAS_EXTERNALS_REPOSITORY}")
+
+  retry_command 3 git clone "${atlasexternals_repo_auth}" "${repo_dir}" >/dev/null
   git_checkout_ref "${repo_dir}" ci-base "${ATLAS_EXTERNALS_BASE_REF}"
 
   cmake_file="${repo_dir}/External/AdePT/CMakeLists.txt"
