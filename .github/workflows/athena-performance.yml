@@ -363,7 +363,7 @@ jobs:
               git config --global --add safe.directory /work/AdePT
               container_results_file="/work/AdePT/athena-performance-results.env"
               container_artifacts_dir="/work/AdePT/athena-performance-results/run-${GITHUB_RUN_ID}-${PERF_MODE}"
-              ./test/athena-performance/run_athena_performance.sh \
+              bash ./test/athena-performance/run_athena_performance.sh \
                 --mode "${PERF_MODE}" \
                 --adept-repository "${ADEPT_REPOSITORY}" \
                 --adept-ref "${ADEPT_REF}" \
