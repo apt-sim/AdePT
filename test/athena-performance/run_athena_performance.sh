@@ -415,14 +415,14 @@ clone_athena() {
   athena_repo_auth=$(auth_repo_url "${ATHENA_REPOSITORY}")
   athena_gpu_repo_auth=$(auth_repo_url "${ATHENA_GPU_REPOSITORY}")
 
-  retry_command 3 git clone "${athena_repo_auth}" "${ATHENA_WORKTREE}" >/dev/null
-  git_checkout_ref "${ATHENA_WORKTREE}" ci-base "${ATHENA_BASE_REF}"
-  git -C "${ATHENA_WORKTREE}" config user.name "AdePT Performance CI"
-  git -C "${ATHENA_WORKTREE}" config user.email "actions@users.noreply.github.com"
-  git -C "${ATHENA_WORKTREE}" remote add adept-gpu "${athena_gpu_repo_auth}"
-  retry_command 3 git -C "${ATHENA_WORKTREE}" fetch --no-tags adept-gpu "${ATHENA_GPU_REF}" >/dev/null
-  git -C "${ATHENA_WORKTREE}" merge --no-edit FETCH_HEAD >/dev/null
-  ATHENA_HEAD_SHA=$(git -C "${ATHENA_WORKTREE}" rev-parse HEAD)
+  retry_command 3 git clone "${athena_repo_auth}" "${ATHENA_WORKTREE}" >/dev/null || return 1
+  git_checkout_ref "${ATHENA_WORKTREE}" ci-base "${ATHENA_BASE_REF}" || return 1
+  git -C "${ATHENA_WORKTREE}" config user.name "AdePT Performance CI" || return 1
+  git -C "${ATHENA_WORKTREE}" config user.email "actions@users.noreply.github.com" || return 1
+  git -C "${ATHENA_WORKTREE}" remote add adept-gpu "${athena_gpu_repo_auth}" || return 1
+  retry_command 3 git -C "${ATHENA_WORKTREE}" fetch --no-tags adept-gpu "${ATHENA_GPU_REF}" >/dev/null || return 1
+  git -C "${ATHENA_WORKTREE}" merge --no-edit FETCH_HEAD >/dev/null || return 1
+  ATHENA_HEAD_SHA=$(git -C "${ATHENA_WORKTREE}" rev-parse HEAD) || return 1
 }
 
 prepare_local_atlasexternals() {
@@ -431,8 +431,8 @@ prepare_local_atlasexternals() {
 
   atlasexternals_repo_auth=$(auth_repo_url "${ATLAS_EXTERNALS_REPOSITORY}")
 
-  retry_command 3 git clone "${atlasexternals_repo_auth}" "${repo_dir}" >/dev/null
-  git_checkout_ref "${repo_dir}" ci-base "${ATLAS_EXTERNALS_BASE_REF}"
+  retry_command 3 git clone "${atlasexternals_repo_auth}" "${repo_dir}" >/dev/null || return 1
+  git_checkout_ref "${repo_dir}" ci-base "${ATLAS_EXTERNALS_BASE_REF}" || return 1
 
   cmake_file="${repo_dir}/External/AdePT/CMakeLists.txt"
   python3 - "${cmake_file}" "https://github.com/${ADEPT_REPOSITORY}.git" "${ADEPT_REF}" "${MODE}" <<'PY'
@@ -481,15 +481,15 @@ path.write_text(text)
 PY
 
   branch_name="ci-athena-performance-${RUN_LABEL}"
-  git -C "${repo_dir}" config user.name "AdePT Performance CI"
-  git -C "${repo_dir}" config user.email "actions@users.noreply.github.com"
-  git -C "${repo_dir}" checkout -B "${branch_name}" >/dev/null
-  git -C "${repo_dir}" add External/AdePT/CMakeLists.txt
-  git -C "${repo_dir}" commit -m "CI performance benchmark for ${ADEPT_REF}" >/dev/null
+  git -C "${repo_dir}" config user.name "AdePT Performance CI" || return 1
+  git -C "${repo_dir}" config user.email "actions@users.noreply.github.com" || return 1
+  git -C "${repo_dir}" checkout -B "${branch_name}" >/dev/null || return 1
+  git -C "${repo_dir}" add External/AdePT/CMakeLists.txt || return 1
+  git -C "${repo_dir}" commit -m "CI performance benchmark for ${ADEPT_REF}" >/dev/null || return 1
 
   ATLAS_EXTERNALS_LOCAL_REPO="${repo_dir}"
   ATLAS_EXTERNALS_LOCAL_REF="${branch_name}"
-  ATLAS_EXTERNALS_LOCAL_SHA=$(git -C "${repo_dir}" rev-parse HEAD)
+  ATLAS_EXTERNALS_LOCAL_SHA=$(git -C "${repo_dir}" rev-parse HEAD) || return 1
 }
 
 prepare_athena_gpu_env() {
@@ -513,6 +513,8 @@ build_athena() {
 }
 
 rewrite_setup_run() {
+  local setup_path="${GPU_BUILD_DIR}/setup_run.sh"
+
   cat > "${GPU_BUILD_DIR}/setup_run.sh" <<EOF
 export ATLAS_LOCAL_ROOT_BASE="/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase"
 source \${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh || return 1
@@ -523,14 +525,14 @@ export G4PATH=\${ATLAS_NIGHTLY_G4PATH}
 source ${ATHENA_WORKTREE}/Projects/AthSimulation/build_env.sh -b ${GPU_BUILD_DIR}/externals || return 1
 source ${GPU_BUILD_DIR}/build/\${LCG_PLATFORM}/setup.sh || return 1
 EOF
-  chmod +x "${GPU_BUILD_DIR}/setup_run.sh"
+  chmod +x "${setup_path}" || return 1
 }
 
 prepare_run_dir() {
-  mkdir -p "${RUN_DIR}"
-  cp "${REPO_ROOT}/test/athena-performance/run_all_5.sh" "${RUN_DIR}/run_all_5.sh"
-  cp "${REPO_ROOT}/test/athena-performance/${MODE}/run_adept.sh" "${RUN_DIR}/run_adept.sh"
-  chmod +x "${RUN_DIR}/run_all_5.sh" "${RUN_DIR}/run_adept.sh"
+  mkdir -p "${RUN_DIR}" || return 1
+  cp "${REPO_ROOT}/test/athena-performance/run_all_5.sh" "${RUN_DIR}/run_all_5.sh" || return 1
+  cp "${REPO_ROOT}/test/athena-performance/${MODE}/run_adept.sh" "${RUN_DIR}/run_adept.sh" || return 1
+  chmod +x "${RUN_DIR}/run_all_5.sh" "${RUN_DIR}/run_adept.sh" || return 1
 }
 
 run_benchmark() {
@@ -654,14 +656,14 @@ PY
   source "${env_file}"
 }
 
-preflight_checks
-clone_athena
-prepare_local_atlasexternals
-build_athena
-rewrite_setup_run
-prepare_run_dir
-run_benchmark
-summarize_results
+preflight_checks || die "Preflight checks failed"
+clone_athena || die "Failed to prepare Athena checkout"
+prepare_local_atlasexternals || die "Failed to prepare patched AtlasExternals checkout"
+build_athena || die "Athena build failed; inspect ${BUILD_LOG}"
+rewrite_setup_run || die "Failed to write benchmark setup script"
+prepare_run_dir || die "Failed to prepare benchmark run directory"
+run_benchmark || die "Benchmark execution failed"
+summarize_results || die "Failed to summarize benchmark results"
 
 PERF_STATUS=0
 log "Overall average real time: ${OVERALL_REAL_MEAN_SEC}s"
