@@ -417,6 +417,8 @@ clone_athena() {
 
   retry_command 3 git clone "${athena_repo_auth}" "${ATHENA_WORKTREE}" >/dev/null
   git_checkout_ref "${ATHENA_WORKTREE}" ci-base "${ATHENA_BASE_REF}"
+  git -C "${ATHENA_WORKTREE}" config user.name "AdePT Performance CI"
+  git -C "${ATHENA_WORKTREE}" config user.email "actions@users.noreply.github.com"
   git -C "${ATHENA_WORKTREE}" remote add adept-gpu "${athena_gpu_repo_auth}"
   retry_command 3 git -C "${ATHENA_WORKTREE}" fetch --no-tags adept-gpu "${ATHENA_GPU_REF}" >/dev/null
   git -C "${ATHENA_WORKTREE}" merge --no-edit FETCH_HEAD >/dev/null
