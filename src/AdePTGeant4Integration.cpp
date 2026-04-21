@@ -520,6 +520,10 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
         nuclearReactionTrack->SetLogicalVolumeAtVertex(parentTDataAfterSecondaries.logicalVolumeAtVertex);
         const_cast<G4DynamicParticle *>(nuclearReactionTrack->GetDynamicParticle())
             ->SetPrimaryParticle(parentTDataAfterSecondaries.primary);
+#ifdef ADEPT_USE_ORIGINNAVSTATE
+        nuclearReactionTrack->SetOriginTouchableHandle(
+            MakeTouchableFromNavState(parentTDataAfterSecondaries.originNavState));
+#endif
       }
       if (const auto postVolume = (*fScoringObjects->fPostG4TouchableHistoryHandle)->GetVolume();
           postVolume != nullptr) {
@@ -552,37 +556,16 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
                                         isLeptonNuclearStep);
 
       if (isLeptonNuclearStep) {
+        // lepton nuclear: track survives and must be handed back to G4
         returnedParentTrack = nuclearReactionTrack;
-        if (actions) {
-          returnedParentTrack->SetTrackID(parentTDataAfterSecondaries.g4id);
-          returnedParentTrack->SetParentID(parentTDataAfterSecondaries.g4parentid);
-          returnedParentTrack->SetCreatorProcess(parentTDataAfterSecondaries.creatorProcess);
-          returnedParentTrack->SetUserInformation(parentTDataAfterSecondaries.userTrackInfo);
-          returnedParentTrack->SetVertexPosition(parentTDataAfterSecondaries.vertexPosition);
-          returnedParentTrack->SetVertexMomentumDirection(parentTDataAfterSecondaries.vertexMomentumDirection);
-          returnedParentTrack->SetVertexKineticEnergy(parentTDataAfterSecondaries.vertexKineticEnergy);
-          returnedParentTrack->SetLogicalVolumeAtVertex(parentTDataAfterSecondaries.logicalVolumeAtVertex);
-          const_cast<G4DynamicParticle *>(returnedParentTrack->GetDynamicParticle())
-              ->SetPrimaryParticle(parentTDataAfterSecondaries.primary);
-        }
-        if (postTouchable) {
-          returnedParentTrack->SetTouchableHandle(postTouchable);
-          returnedParentTrack->SetNextTouchableHandle(postTouchable);
-        }
-#ifdef ADEPT_USE_ORIGINNAVSTATE
-        if (actions) {
-          returnedParentTrack->SetOriginTouchableHandle(
-              MakeTouchableFromNavState(parentTDataAfterSecondaries.originNavState));
-        }
-#endif
-      }
-
-      if (!isLeptonNuclearStep) {
+      } else {
+        // gamma nuclear: track stops with the interaction, thus delete UserTrackData and track
         nuclearReactionTrack->SetUserInformation(nullptr);
         delete nuclearStep;
         delete nuclearReactionTrack;
       }
     } else {
+      // No nuclear processes attached
       // Fallback only for the case without an attached Geant4 nuclear process:
       // there is then no temporary nuclear-replay track that can be continued
       // on the CPU, so we create a separate heap-owned track for the stack.
