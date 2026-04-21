@@ -12,7 +12,7 @@ echo "=== Running AdePT with ATHENA_CORE_NUMBER=${ATHENA_CORE_NUMBER}, MAX_EVENT
 PREEXEC_CMD=$(cat <<'EOF'
 flags.Sim.G4Commands+=[
   "/adept/MaxWDTIterations 10",
-  "/adept/setSeed 23433452",
+  "/adept/setSeed 2312452",
   "/adept/CallUserTrackingAction true",
   "/adept/CallUserSteppingAction false",
   "/adept/setCovfieBfieldFile /cvmfs/atlas.cern.ch/repo/sw/database/GroupData/MagneticFieldMaps/bmagatlas_09_fullAsym20400_forGPU_v1.cvf",

@@ -83,7 +83,7 @@ jobs:
           DEFAULT_ATHENA_GPU_REPOSITORY: https://gitlab.cern.ch/elmsheus/athena.git
           DEFAULT_ATHENA_GPU_REF: atlassim-6635-main
           DEFAULT_ATLAS_EXTERNALS_REPOSITORY: https://gitlab.cern.ch/atlas/atlasexternals.git
-          DEFAULT_ATLAS_EXTERNALS_BASE_REF: main
+          DEFAULT_ATLAS_EXTERNALS_BASE_REF: 21.1.X-simGPU
           DEFAULT_THREADS: "96"
           DEFAULT_EVENTS: "1000"
           DEFAULT_REPETITIONS: "5"
@@ -103,6 +103,22 @@ jobs:
 
             function output(name, value) {
               core.setOutput(name, value ?? "");
+            }
+
+            async function hasWriteLikeRepoAccess(username) {
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username,
+                });
+                return ["write", "maintain", "admin"].includes(data.permission);
+              } catch (error) {
+                if (error.status === 404) {
+                  return false;
+                }
+                throw error;
+              }
             }
 
             output("should_run", "false");
@@ -132,6 +148,11 @@ jobs:
             let resolvedRepetitions = defaults.repetitions;
 
             if (context.eventName === "workflow_dispatch") {
+              if (!(await hasWriteLikeRepoAccess(context.actor))) {
+                core.setFailed(`workflow_dispatch is restricted to users with write access on ${context.repo.owner}/${context.repo.repo}`);
+                return;
+              }
+
               if (context.ref !== "refs/heads/master") {
                 core.setFailed("workflow_dispatch performance runs must be launched from master");
                 return;

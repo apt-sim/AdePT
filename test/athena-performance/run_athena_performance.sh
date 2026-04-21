@@ -25,7 +25,7 @@ ATHENA_GPU_REPOSITORY=""
 ATHENA_GPU_REF=""
 
 ATLAS_EXTERNALS_REPOSITORY="https://gitlab.cern.ch/atlas/atlasexternals.git"
-ATLAS_EXTERNALS_BASE_REF="main"
+ATLAS_EXTERNALS_BASE_REF="21.1.X-simGPU"
 
 THREADS="96"
 EVENTS="1000"
@@ -489,15 +489,16 @@ run_benchmark() {
     source "${GPU_BUILD_DIR}/setup_run.sh"
     cd "${RUN_DIR}"
     export ADEPT_MAX_EVENTS="${EVENTS}"
+    export ADEPT_REPETITIONS="${REPETITIONS}"
     export ADEPT_OUTPUT_HITS_FILE="test.CA.HITS.pool_AdePT_E${EVENTS}.root"
-    ./run_all_5.sh "${THREADS}"
+    ./run_all_5.sh "${THREADS}" "${REPETITIONS}"
   )
 }
 
 summarize_results() {
   local env_file="${ARTIFACTS_DIR}/summary.env"
 
-  python3 - "${RUN_DIR}" "${THREADS}" "${MODE}" "${ADEPT_REPOSITORY}" "${ADEPT_REF}" \
+  python3 - "${RUN_DIR}" "${THREADS}" "${REPETITIONS}" "${MODE}" "${ADEPT_REPOSITORY}" "${ADEPT_REF}" \
     "${ATHENA_REPOSITORY}" "${ATHENA_BASE_REF}" "${ATHENA_HEAD_SHA}" \
     "${ATHENA_GPU_REPOSITORY}" "${ATHENA_GPU_REF}" \
     "${ATLAS_EXTERNALS_REPOSITORY}" "${ATLAS_EXTERNALS_BASE_REF}" "${ATLAS_EXTERNALS_LOCAL_SHA}" \
@@ -511,6 +512,7 @@ import sys
 (
     run_dir,
     threads,
+    repetitions,
     mode,
     adept_repo,
     adept_ref,
@@ -553,7 +555,7 @@ overall_stddev = statistics.stdev(means) if len(means) > 1 else 0.0
 
 mode_label = "Mono_NoLeaks" if mode == "mono" else "Split_NoLeaks"
 build_cmd = f"./Projects/AthSimulation/build_gpu.sh -b ../gpu_build_{mode_label}_{adept_ref[:7]} > output_build.txt"
-run_cmd = f"bash -lc 'source {setup_run_path} && cd {run_dir} && ./run_all_5.sh {threads}'"
+run_cmd = f"bash -lc 'source {setup_run_path} && cd {run_dir} && ./run_all_5.sh {threads} {repetitions}'"
 
 lines = [
     f"### Athena Performance Benchmark ({mode})",
@@ -566,6 +568,7 @@ lines = [
     f"- AtlasExternals benchmark commit: `{atlasexternals_sha}`",
     f"- Build command: `{build_cmd}`",
     f"- Run command: `{run_cmd}`",
+    f"- Configured repetitions: `{repetitions}`",
     (
         "- Runtime extraction: per-run average of `Real=` measurements with the first "
         "measurement skipped, matching "

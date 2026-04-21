@@ -3,8 +3,14 @@
 set -euo pipefail
 
 NWORK=${1:-96}
+REPETITIONS=${2:-${ADEPT_REPETITIONS:-5}}
 
-for I in 1 2 3 4 5; do
+[[ "${REPETITIONS}" =~ ^[1-9][0-9]*$ ]] || {
+  echo "ERROR: invalid repetition count '${REPETITIONS}'" >&2
+  exit 1
+}
+
+for I in $(seq 1 "${REPETITIONS}"); do
   echo "=== Starting AdePT run ${I}, T=${NWORK} ==="
   ./run_adept.sh "${NWORK}" > "adept_T${NWORK}_run${I}.log" 2>&1
   if [ -f log.AtlasG4Tf ]; then
@@ -14,4 +20,4 @@ for I in 1 2 3 4 5; do
   fi
 done
 
-echo "All done."
+echo "All done after ${REPETITIONS} run(s)."
