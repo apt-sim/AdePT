@@ -1,0 +1,439 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+name: Athena Performance (EL9)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Benchmark mode to run
+        required: true
+        type: choice
+        options:
+          - mono
+          - split
+      athena_gpu_repository:
+        description: Optional override for the Athena GPU merge repository
+        required: false
+        type: string
+      athena_gpu_ref:
+        description: Optional override for the Athena GPU merge ref
+        required: false
+        type: string
+      athena_base_ref:
+        description: Optional Athena base branch/ref override
+        required: false
+        type: string
+      atlasexternals_base_ref:
+        description: Optional AtlasExternals base branch/ref override
+        required: false
+        type: string
+      threads:
+        description: Optional ATHENA_CORE_NUMBER override
+        required: false
+        type: string
+      events:
+        description: Optional maxEvents override
+        required: false
+        type: string
+      repetitions:
+        description: Optional repetition count override
+        required: false
+        type: string
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: athena-performance-el9
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.prepare.outputs.should_run }}
+      mode: ${{ steps.prepare.outputs.mode }}
+      adept_repo: ${{ steps.prepare.outputs.adept_repo }}
+      adept_ref: ${{ steps.prepare.outputs.adept_ref }}
+      pr_number: ${{ steps.prepare.outputs.pr_number }}
+      comment_back: ${{ steps.prepare.outputs.comment_back }}
+      athena_repository: ${{ steps.prepare.outputs.athena_repository }}
+      athena_base_ref: ${{ steps.prepare.outputs.athena_base_ref }}
+      athena_gpu_repository: ${{ steps.prepare.outputs.athena_gpu_repository }}
+      athena_gpu_ref: ${{ steps.prepare.outputs.athena_gpu_ref }}
+      atlasexternals_repository: ${{ steps.prepare.outputs.atlasexternals_repository }}
+      atlasexternals_ref: ${{ steps.prepare.outputs.atlasexternals_ref }}
+      threads: ${{ steps.prepare.outputs.threads }}
+      events: ${{ steps.prepare.outputs.events }}
+      repetitions: ${{ steps.prepare.outputs.repetitions }}
+    steps:
+      - name: Resolve trigger inputs
+        id: prepare
+        uses: actions/github-script@v8
+        env:
+          DEFAULT_ATHENA_REPOSITORY: https://gitlab.cern.ch/atlas/athena.git
+          DEFAULT_ATHENA_BASE_REF: main
+          DEFAULT_ATHENA_GPU_REPOSITORY: https://gitlab.cern.ch/elmsheus/athena.git
+          DEFAULT_ATHENA_GPU_REF: atlassim-6635-main
+          DEFAULT_ATLAS_EXTERNALS_REPOSITORY: https://gitlab.cern.ch/atlas/atlasexternals.git
+          DEFAULT_ATLAS_EXTERNALS_BASE_REF: main
+          DEFAULT_THREADS: "96"
+          DEFAULT_EVENTS: "1000"
+          DEFAULT_REPETITIONS: "5"
+        with:
+          script: |
+            const defaults = {
+              athenaRepository: process.env.DEFAULT_ATHENA_REPOSITORY,
+              athenaBaseRef: process.env.DEFAULT_ATHENA_BASE_REF,
+              athenaGpuRepository: process.env.DEFAULT_ATHENA_GPU_REPOSITORY || "",
+              athenaGpuRef: process.env.DEFAULT_ATHENA_GPU_REF || "",
+              atlasexternalsRepository: process.env.DEFAULT_ATLAS_EXTERNALS_REPOSITORY,
+              atlasexternalsBaseRef: process.env.DEFAULT_ATLAS_EXTERNALS_BASE_REF,
+              threads: process.env.DEFAULT_THREADS,
+              events: process.env.DEFAULT_EVENTS,
+              repetitions: process.env.DEFAULT_REPETITIONS,
+            };
+
+            function output(name, value) {
+              core.setOutput(name, value ?? "");
+            }
+
+            output("should_run", "false");
+            output("comment_back", "false");
+            output("pr_number", "");
+            output("athena_repository", defaults.athenaRepository);
+            output("athena_base_ref", defaults.athenaBaseRef);
+            output("athena_gpu_repository", defaults.athenaGpuRepository);
+            output("athena_gpu_ref", defaults.athenaGpuRef);
+            output("atlasexternals_repository", defaults.atlasexternalsRepository);
+            output("atlasexternals_ref", defaults.atlasexternalsBaseRef);
+            output("threads", defaults.threads);
+            output("events", defaults.events);
+            output("repetitions", defaults.repetitions);
+
+            let resolvedMode = "";
+            let resolvedAdeptRepo = "";
+            let resolvedAdeptRef = "";
+            let resolvedAthenaRepository = defaults.athenaRepository;
+            let resolvedAthenaBaseRef = defaults.athenaBaseRef;
+            let resolvedAthenaGpuRepository = defaults.athenaGpuRepository;
+            let resolvedAthenaGpuRef = defaults.athenaGpuRef;
+            let resolvedAtlasExternalsRepository = defaults.atlasexternalsRepository;
+            let resolvedAtlasExternalsBaseRef = defaults.atlasexternalsBaseRef;
+            let resolvedThreads = defaults.threads;
+            let resolvedEvents = defaults.events;
+            let resolvedRepetitions = defaults.repetitions;
+
+            if (context.eventName === "workflow_dispatch") {
+              if (context.ref !== "refs/heads/master") {
+                core.setFailed("workflow_dispatch performance runs must be launched from master");
+                return;
+              }
+
+              const inputs = context.payload.inputs || {};
+              resolvedMode = inputs.mode || "";
+              resolvedAdeptRepo = `${context.repo.owner}/${context.repo.repo}`;
+              resolvedAdeptRef = context.sha;
+              resolvedAthenaBaseRef = inputs.athena_base_ref || defaults.athenaBaseRef;
+              resolvedAthenaGpuRepository = inputs.athena_gpu_repository || defaults.athenaGpuRepository;
+              resolvedAthenaGpuRef = inputs.athena_gpu_ref || defaults.athenaGpuRef;
+              resolvedAtlasExternalsBaseRef = inputs.atlasexternals_base_ref || defaults.atlasexternalsBaseRef;
+              resolvedThreads = inputs.threads || defaults.threads;
+              resolvedEvents = inputs.events || defaults.events;
+              resolvedRepetitions = inputs.repetitions || defaults.repetitions;
+            } else {
+              if (context.payload.issue?.pull_request == null) {
+                core.notice("Ignoring non-PR issue comment");
+                return;
+              }
+
+              const body = (context.payload.comment.body || "").trim();
+              const match = body.match(/^\/run-(?:benchmark|performance)\s+(mono|split)\s*$/);
+              if (!match) {
+                core.notice(`Ignoring comment '${body}'`);
+                return;
+              }
+
+              const assoc = context.payload.comment.author_association || "NONE";
+              const trusted = ["OWNER", "MEMBER"].includes(assoc);
+              if (!trusted) {
+                core.notice(`Ignoring benchmark trigger from untrusted role ${assoc}`);
+                return;
+              }
+
+              const prNumber = context.payload.issue.number;
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+
+              output("should_run", "true");
+              output("comment_back", "true");
+              resolvedMode = match[1];
+              output("pr_number", String(pr.number));
+              resolvedAdeptRepo = pr.head.repo.full_name;
+              resolvedAdeptRef = pr.head.sha;
+            }
+
+            if (!resolvedMode) {
+              core.setFailed("No benchmark mode was resolved");
+              return;
+            }
+            if (!resolvedAdeptRepo || !resolvedAdeptRef) {
+              core.setFailed("No AdePT repository/ref was resolved");
+              return;
+            }
+            if (!resolvedAthenaGpuRepository) {
+              core.setFailed("No Athena GPU repository configured; set repo variable ADEPT_ATHENA_GPU_REPOSITORY or pass an input");
+              return;
+            }
+            if (!resolvedAthenaGpuRef) {
+              core.setFailed("No Athena GPU ref configured; set repo variable ADEPT_ATHENA_GPU_REF or pass an input");
+              return;
+            }
+
+            output("should_run", "true");
+            output("mode", resolvedMode);
+            output("adept_repo", resolvedAdeptRepo);
+            output("adept_ref", resolvedAdeptRef);
+            output("athena_repository", resolvedAthenaRepository);
+            output("athena_base_ref", resolvedAthenaBaseRef);
+            output("athena_gpu_repository", resolvedAthenaGpuRepository);
+            output("athena_gpu_ref", resolvedAthenaGpuRef);
+            output("atlasexternals_repository", resolvedAtlasExternalsRepository);
+            output("atlasexternals_ref", resolvedAtlasExternalsBaseRef);
+            output("threads", resolvedThreads);
+            output("events", resolvedEvents);
+            output("repetitions", resolvedRepetitions);
+
+  benchmark:
+    name: Athena Performance
+    needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gpu
+      - benchmark
+      - adept
+    timeout-minutes: 480
+    env:
+      RESULTS_FILE: ${{ github.workspace }}/athena-performance-results.env
+      ARTIFACTS_DIR: ${{ github.workspace }}/athena-performance-results/run-${{ github.run_id }}-${{ needs.prepare.outputs.mode }}
+    steps:
+      - name: Checkout AdePT under test
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ needs.prepare.outputs.adept_repo }}
+          ref: ${{ needs.prepare.outputs.adept_ref }}
+          persist-credentials: false
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Show runner basics
+        run: |
+          set -eo pipefail
+          cat /etc/os-release | sed -n '1,6p'
+          echo "event=${GITHUB_EVENT_NAME}"
+          echo "mode=${{ needs.prepare.outputs.mode }}"
+          echo "adept_repo=${{ needs.prepare.outputs.adept_repo }}"
+          echo "adept_ref=${{ needs.prepare.outputs.adept_ref }}"
+          echo "hostname=$(hostname)"
+          echo "user=$(whoami)"
+          echo "pwd=$(pwd)"
+          id
+
+      - name: Pre-touch required CVMFS repos on host
+        run: |
+          set -eo pipefail
+          ls /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/user/atlasLocalSetup.sh
+          ls /cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_x86_64-el9-gcc14-opt/Geant4 || true
+          ls /cvmfs/geant4.cern.ch/share/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat
+          if [ -d /afs ]; then
+            ls /afs >/dev/null
+            echo "/afs is present on the host and will be mounted into the container"
+          else
+            echo "/afs is not present on the host"
+          fi
+
+      - name: Check GPU visibility
+        run: |
+          set -eo pipefail
+          nvidia-smi
+
+      - name: Check Docker basics
+        run: |
+          set -eo pipefail
+          docker --version
+
+      - name: Run Athena performance benchmark in Alma 9 container
+        id: run_perf
+        continue-on-error: true
+        env:
+          PERF_MODE: ${{ needs.prepare.outputs.mode }}
+          ADEPT_REPOSITORY: ${{ needs.prepare.outputs.adept_repo }}
+          ADEPT_REF: ${{ needs.prepare.outputs.adept_ref }}
+          ATHENA_REPOSITORY: ${{ needs.prepare.outputs.athena_repository }}
+          ATHENA_BASE_REF: ${{ needs.prepare.outputs.athena_base_ref }}
+          ATHENA_GPU_REPOSITORY: ${{ needs.prepare.outputs.athena_gpu_repository }}
+          ATHENA_GPU_REF: ${{ needs.prepare.outputs.athena_gpu_ref }}
+          ATLAS_EXTERNALS_REPOSITORY: ${{ needs.prepare.outputs.atlasexternals_repository }}
+          ATLAS_EXTERNALS_BASE_REF: ${{ needs.prepare.outputs.atlasexternals_ref }}
+          PERF_THREADS: ${{ needs.prepare.outputs.threads }}
+          PERF_EVENTS: ${{ needs.prepare.outputs.events }}
+          PERF_REPETITIONS: ${{ needs.prepare.outputs.repetitions }}
+        run: |
+          set -eo pipefail
+
+          rm -f "${RESULTS_FILE}"
+          rm -rf "${ARTIFACTS_DIR}"
+          mkdir -p "${ARTIFACTS_DIR}"
+
+          docker_group_args=()
+          for group_name in video render; do
+            if getent group "${group_name}" >/dev/null 2>&1; then
+              docker_group_args+=(--group-add "$(getent group "${group_name}" | cut -d: -f3)")
+            fi
+          done
+
+          docker_mount_args=(
+            -v /build:/build
+            -v /ec/conf:/ec/conf
+            -v /cvmfs:/cvmfs:ro,rslave
+            -v "${GITHUB_WORKSPACE}:/work/AdePT"
+          )
+          if [ -d /afs ]; then
+            docker_mount_args+=(-v /afs:/afs:ro,rslave)
+          fi
+
+          docker run --rm --pull always \
+            --gpus all \
+            --user "$(id -u):$(id -g)" \
+            "${docker_group_args[@]}" \
+            --security-opt seccomp=unconfined \
+            "${docker_mount_args[@]}" \
+            -e HOME=/tmp/adeptci-home \
+            -e PERF_MODE \
+            -e ADEPT_REPOSITORY \
+            -e ADEPT_REF \
+            -e ATHENA_REPOSITORY \
+            -e ATHENA_BASE_REF \
+            -e ATHENA_GPU_REPOSITORY \
+            -e ATHENA_GPU_REF \
+            -e ATLAS_EXTERNALS_REPOSITORY \
+            -e ATLAS_EXTERNALS_BASE_REF \
+            -e PERF_THREADS \
+            -e PERF_EVENTS \
+            -e PERF_REPETITIONS \
+            -w /work/AdePT \
+            gitlab-registry.cern.ch/sft/docker/alma9 \
+            bash -lc '
+              set -eo pipefail
+              mkdir -p "${HOME}"
+              git config --global --add safe.directory /work/AdePT
+              container_results_file="/work/AdePT/athena-performance-results.env"
+              container_artifacts_dir="/work/AdePT/athena-performance-results/run-${GITHUB_RUN_ID}-${PERF_MODE}"
+              ./test/athena-performance/run_athena_performance.sh \
+                --mode "${PERF_MODE}" \
+                --adept-repository "${ADEPT_REPOSITORY}" \
+                --adept-ref "${ADEPT_REF}" \
+                --athena-repository "${ATHENA_REPOSITORY}" \
+                --athena-base-ref "${ATHENA_BASE_REF}" \
+                --athena-gpu-repository "${ATHENA_GPU_REPOSITORY}" \
+                --athena-gpu-ref "${ATHENA_GPU_REF}" \
+                --atlasexternals-repository "${ATLAS_EXTERNALS_REPOSITORY}" \
+                --atlasexternals-base-ref "${ATLAS_EXTERNALS_BASE_REF}" \
+                --threads "${PERF_THREADS}" \
+                --events "${PERF_EVENTS}" \
+                --repetitions "${PERF_REPETITIONS}" \
+                --build-root "/tmp/adept-athena-performance/run-${GITHUB_RUN_ID}-${PERF_MODE}" \
+                --artifacts-dir "${container_artifacts_dir}" \
+                --results-file "${container_results_file}"
+            '
+
+      - name: Load benchmark results
+        if: always() && hashFiles(env.RESULTS_FILE) != ''
+        run: |
+          set -eo pipefail
+          # shellcheck disable=SC1091
+          source "${RESULTS_FILE}"
+
+          host_summary_markdown_file="${SUMMARY_MARKDOWN_FILE:-}"
+          case "${host_summary_markdown_file}" in
+            /work/AdePT/*)
+              host_summary_markdown_file="${GITHUB_WORKSPACE}/${host_summary_markdown_file#/work/AdePT/}"
+              ;;
+          esac
+
+          {
+            echo "PERF_STATUS=${PERF_STATUS:-1}"
+            echo "SUMMARY_MARKDOWN_FILE=${host_summary_markdown_file}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Write summary
+        if: always()
+        run: |
+          if [ -n "${SUMMARY_MARKDOWN_FILE:-}" ] && [ -f "${SUMMARY_MARKDOWN_FILE}" ]; then
+            cat "${SUMMARY_MARKDOWN_FILE}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            {
+              echo "### Athena Performance Benchmark (${{ needs.prepare.outputs.mode }})"
+              echo
+              echo "The benchmark failed before producing a summary."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: athena-performance-${{ needs.prepare.outputs.mode }}-${{ github.run_id }}
+          path: ${{ env.ARTIFACTS_DIR }}
+          if-no-files-found: warn
+
+      - name: Comment on PR with results
+        if: always() && needs.prepare.outputs.comment_back == 'true'
+        uses: actions/github-script@v8
+        env:
+          SUMMARY_MARKDOWN_FILE: ${{ env.SUMMARY_MARKDOWN_FILE }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require("fs");
+            let body = "";
+
+            if (process.env.SUMMARY_MARKDOWN_FILE && fs.existsSync(process.env.SUMMARY_MARKDOWN_FILE)) {
+              body = fs.readFileSync(process.env.SUMMARY_MARKDOWN_FILE, "utf8").trim();
+            } else {
+              body = `### Athena Performance Benchmark (${context.payload.comment?.body || "${{ needs.prepare.outputs.mode }}"})\n\nThe benchmark failed before producing a summary.`;
+            }
+
+            body += `\n\n- Actions run: ${process.env.RUN_URL}`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ needs.prepare.outputs.pr_number }}"),
+              body,
+            });
+
+      - name: Fail workflow if benchmark failed
+        if: always()
+        run: |
+          if [ -r "${RESULTS_FILE}" ]; then
+            # shellcheck disable=SC1091
+            source "${RESULTS_FILE}"
+          else
+            PERF_STATUS=1
+          fi
+
+          test "${PERF_STATUS}" -eq 0
