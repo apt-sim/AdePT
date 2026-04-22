@@ -56,6 +56,7 @@ PERF_STATUS=1
 CERN_GITLAB_USERNAME="${CERN_GITLAB_USERNAME:-}"
 CERN_GITLAB_TOKEN="${CERN_GITLAB_TOKEN:-}"
 KEEP_BUILD_ROOT="${KEEP_BUILD_ROOT:-0}"
+NINJA_DIR="/cvmfs/sft.cern.ch/lcg/contrib/ninja/1.10.0/Linux-x86_64"
 
 log() {
   printf '[athena-perf] %s\n' "$*"
@@ -82,6 +83,39 @@ retry_command() {
   done
 
   return 1
+}
+
+print_build_failure_context() {
+  local log_file=$1
+  local first_failed_line=""
+  local first_cmake_error_line=""
+
+  [[ -f "${log_file}" ]] || return 0
+
+  first_failed_line=$(grep -n -m1 'FAILED:' "${log_file}" | cut -d: -f1 || true)
+  first_cmake_error_line=$(grep -n -m1 'CMake Error' "${log_file}" | cut -d: -f1 || true)
+
+  if [[ -n "${first_failed_line}" ]]; then
+    local start=$(( first_failed_line > 20 ? first_failed_line - 20 : 1 ))
+    local end=$(( first_failed_line + 40 ))
+    printf '[athena-perf] First FAILED block from %s (lines %s-%s)\n' \
+      "${log_file}" "${start}" "${end}" >&2
+    sed -n "${start},${end}p" "${log_file}" >&2 || true
+    return 0
+  fi
+
+  if [[ -n "${first_cmake_error_line}" ]]; then
+    local start=$(( first_cmake_error_line > 20 ? first_cmake_error_line - 20 : 1 ))
+    local end=$(( first_cmake_error_line + 40 ))
+    printf '[athena-perf] First CMake Error block from %s (lines %s-%s)\n' \
+      "${log_file}" "${start}" "${end}" >&2
+    sed -n "${start},${end}p" "${log_file}" >&2 || true
+    return 0
+  fi
+
+  printf '[athena-perf] No FAILED/CMake Error block found in %s; showing tail instead\n' \
+    "${log_file}" >&2
+  tail -n 200 "${log_file}" >&2 || true
 }
 
 usage() {
@@ -490,35 +524,27 @@ if split_count == 0:
 
 path.write_text(text)
 PY
+  if [[ $? -ne 0 ]]; then
+    return 1
+  fi
 
   # Temporary workaround: the current Alma9 benchmark container does not ship
-  # man/manpath, which leaves CORAL's default_manpath empty. CORAL then
-  # misparses the generated environment commands and dies on "Unknown
-  # environment command BINARY_TAG". Keep this local patch only until the
-  # benchmark container includes man/manpath (or CORAL handles an empty
-  # default_manpath safely upstream).
+  # man/manpath. CORAL computes an empty default_manpath in that case, and its
+  # environment-generation logic then misparses the following BINARY_TAG token.
+  # Give default_manpath a harmless non-empty fallback until the benchmark
+  # container includes man/manpath (or CORAL handles an empty default_manpath
+  # safely upstream).
   mkdir -p "${coral_patch_dir}" || return 1
   cat > "${coral_patch_file}" <<'EOF'
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -130,13 +130,15 @@ ENDIF()
+@@ -128,6 +128,11 @@ ENDIF()
++if(NOT default_manpath)
++  # Temporary CI workaround until the benchmark container ships man/manpath.
++  set(default_manpath "/usr/share/man")
++endif()
++
  coral_release_env(PREPEND PATH              ${CMAKE_INSTALL_PREFIX}/tests/bin
-                   PREPEND PATH              ${CMAKE_INSTALL_PREFIX}/bin
-                   PREPEND LD_LIBRARY_PATH   ${CMAKE_INSTALL_PREFIX}/tests/lib
-                   PREPEND LD_LIBRARY_PATH   ${CMAKE_INSTALL_PREFIX}/lib
-                   PREPEND PYTHONPATH        ${CMAKE_INSTALL_PREFIX}/tests/bin
-                   PREPEND PYTHONPATH        ${CMAKE_INSTALL_PREFIX}/lib
-                   PREPEND PYTHONPATH        ${CMAKE_INSTALL_PREFIX}/python
--                  APPEND  MANPATH           ${default_manpath}
-+                  # Temporary CI workaround: quote an empty default_manpath
-+                  # until the benchmark container ships man/manpath.
-+                  APPEND  MANPATH           "${default_manpath}"
-                   #SET     CMTCONFIG         ${BINARY_TAG} # NO (CORALCOOL-2850)
-                   SET     BINARY_TAG        ${BINARY_TAG})
--coral_build_env(APPEND  MANPATH         ${default_manpath}
-+coral_build_env(APPEND  MANPATH         "${default_manpath}"
-                 #SET     CMTCONFIG       ${BINARY_TAG} # NO (CORALCOOL-2850)
-                 SET     BINARY_TAG      ${BINARY_TAG})
 EOF
 
   python3 - "${coral_cmake_file}" <<'PY'
@@ -557,6 +583,9 @@ if message_count != 1:
 
 path.write_text(text)
 PY
+  if [[ $? -ne 0 ]]; then
+    return 1
+  fi
 
   branch_name="ci-athena-performance-${RUN_LABEL}"
   git -C "${repo_dir}" config user.name "AdePT Performance CI" || return 1
@@ -575,6 +604,7 @@ prepare_athena_gpu_env() {
   # shellcheck disable=SC1091
   source "${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh" --quiet || return 1
   asetup none,gcc14.2,cmakesetup || return 1
+  export PATH="${NINJA_DIR}:${PATH}"
   export ATLAS_NIGHTLY_PLATFORM="${BINARY_TAG:-${LCG_PLATFORM:-${CMTCONFIG}}}"
   export ATLAS_NIGHTLY_G4PATH="${ATLAS_NIGHTLY_G4PATH:-/cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_${ATLAS_NIGHTLY_PLATFORM}/Geant4}"
   export G4PATH="${ATLAS_NIGHTLY_G4PATH}"
@@ -593,17 +623,17 @@ build_athena() {
 
     build_status=$?
     if [[ "${build_status}" -ne 0 ]]; then
-      printf '[athena-perf] Athena build command failed with exit code %s; tail of %s follows\n' \
+      printf '[athena-perf] Athena build command failed with exit code %s; diagnostic context from %s follows\n' \
         "${build_status}" "${BUILD_LOG}" >&2
-      tail -n 200 "${BUILD_LOG}" >&2 || true
+      print_build_failure_context "${BUILD_LOG}"
       exit "${build_status}"
     fi
 
     setup_marker=$(find "${GPU_BUILD_DIR}/build" -maxdepth 2 -type f -name setup.sh -print -quit 2>/dev/null)
     if [[ -z "${setup_marker}" ]]; then
-      printf '[athena-perf] Athena build did not produce %s/build/*/setup.sh; tail of %s follows\n' \
+      printf '[athena-perf] Athena build did not produce %s/build/*/setup.sh; diagnostic context from %s follows\n' \
         "${GPU_BUILD_DIR}" "${BUILD_LOG}" >&2
-      tail -n 200 "${BUILD_LOG}" >&2 || true
+      print_build_failure_context "${BUILD_LOG}"
       exit 1
     fi
   )
@@ -616,6 +646,7 @@ rewrite_setup_run() {
 export ATLAS_LOCAL_ROOT_BASE="/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase"
 source \${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh || return 1
 asetup none,gcc14.2,cmakesetup || return 1
+export PATH=${NINJA_DIR}:\${PATH}
 export ATLAS_NIGHTLY_PLATFORM=\${BINARY_TAG:-\${LCG_PLATFORM:-\${CMTCONFIG}}}
 export ATLAS_NIGHTLY_G4PATH=\${ATLAS_NIGHTLY_G4PATH:-/cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_\${ATLAS_NIGHTLY_PLATFORM}/Geant4}
 export G4PATH=\${ATLAS_NIGHTLY_G4PATH}
