@@ -16,6 +16,8 @@
 #include <G4StepStatus.hh>
 
 #include <G4HepEmNoProcess.hh>
+#include <G4HepEmConfig.hh>
+#include <G4HepEmParameters.hh>
 
 #include "G4Electron.hh"
 #include "G4Positron.hh"
@@ -538,9 +540,16 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       nuclearStep->SetTrack(nuclearReactionTrack);
       nuclearReactionTrack->SetStep(nuclearStep);
 
-      // ApplyCuts must be false, as we are not in a Geant4 tracking loop here and
-      // cannot deposit any cut secondaries locally.
-      fHepEmTrackingManager->PerformNuclear(nuclearReactionTrack, nuclearStep, particleID, /*isApplyCuts=*/false);
+      // Use per-region ApplyCuts as in G4HepEmTrackingManager to cut secondaries from PerformNuclear
+      const int regionIndex =
+          nuclearReactionTrack->GetTouchable()->GetVolume()->GetLogicalVolume()->GetRegion()->GetInstanceID();
+      const bool isApplyCuts =
+          fHepEmTrackingManager->GetConfig()->GetG4HepEmParameters()->fParametersPerRegion[regionIndex].fIsApplyCuts;
+      const double cutSecondaryEdep =
+          fHepEmTrackingManager->PerformNuclear(nuclearReactionTrack, nuclearStep, particleID, isApplyCuts);
+      if (cutSecondaryEdep > 0.0) {
+        fScoringObjects->fG4Step->AddTotalEnergyDeposit(cutSecondaryEdep);
+      }
 
       if (auto *newSecondaries = nuclearStep->GetfSecondary(); newSecondaries != nullptr) {
         hadronicSecondaries.reserve(newSecondaries->size());
