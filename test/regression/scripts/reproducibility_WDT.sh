@@ -39,13 +39,10 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --num_threads 4 \
     --num_events 50 \
     --num_trackslots 3 \
-    --num_leakslots 0.3 \
     --num_hitslots 15 \
     --track_in_all_regions True\
     --gun_type setDefault\
     --wdt_regions "WDT_Region_layers_10_40,Layer5,Layer44,Layer45"
-
-# Choose a small num_leakslots value in order to test the throttling mechanism
 
 # run test
 $ADEPT_EXECUTABLE --accumulated_events -m ${CI_TMP_DIR}/reproducibility_WDT.mac --output_dir ${CI_TMP_DIR} --output_file testem3_run1 --allsensitive

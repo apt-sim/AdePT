@@ -167,28 +167,7 @@ public:
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return; // already gone
-    int idx = it->second;
-
-    // As the data of the userTrackInfo is owned by AdePT, it has to be deleted here
-    if (hostDataVec[idx].userTrackInfo) {
-      delete hostDataVec[idx].userTrackInfo;
-      hostDataVec[idx].userTrackInfo = nullptr;
-    }
-
-    int last = int(hostDataVec.size()) - 1;
-
-    // unused g4 id
-    const int g4idToErase = hostDataVec[idx].g4id;
-    if (idx != last) {
-      // move last element into idx
-      std::swap(hostDataVec[idx], hostDataVec[last]);
-      // update its map entry
-      gpuToIndex[hostDataVec[idx].gpuId] = idx;
-    }
-    hostDataVec.pop_back();
-    gpuToIndex.erase(it);
-    // second part of deletion of g4 ids
-    g4idToGpuId.erase(g4idToErase);
+    eraseHostTrackData(it, /*keepReverseMap=*/false, /*deleteUserTrackInfo=*/true);
   }
 
   // Free the big struct + index, keep g4id->gpuId for possible future reuse
@@ -199,16 +178,7 @@ public:
   {
     auto it = gpuToIndex.find(gpuId);
     if (it == gpuToIndex.end()) return;
-    int idx  = it->second;
-    int last = int(hostDataVec.size()) - 1;
-
-    if (idx != last) {
-      std::swap(hostDataVec[idx], hostDataVec[last]);
-      gpuToIndex[hostDataVec[idx].gpuId] = idx;
-    }
-    hostDataVec.pop_back();
-    gpuToIndex.erase(it);
-    // NOTE: intentionally *do not* erase g4idToGpuId here
+    eraseHostTrackData(it, /*keepReverseMap=*/true, /*deleteUserTrackInfo=*/false);
   }
 
   /// @brief Whether an entry exists in the GPU to Index map for the given GPU id
@@ -217,6 +187,28 @@ public:
   bool contains(uint64_t gpuId) const { return gpuToIndex.find(gpuId) != gpuToIndex.end(); }
 
 private:
+  using GpuToIndexMap = std::unordered_map<uint64_t, int>;
+
+  void eraseHostTrackData(GpuToIndexMap::iterator it, bool keepReverseMap, bool deleteUserTrackInfo)
+  {
+    int idx = it->second;
+
+    if (deleteUserTrackInfo && hostDataVec[idx].userTrackInfo) {
+      delete hostDataVec[idx].userTrackInfo;
+      hostDataVec[idx].userTrackInfo = nullptr;
+    }
+
+    const int g4idToErase = hostDataVec[idx].g4id;
+    const int last        = int(hostDataVec.size()) - 1;
+    if (idx != last) {
+      std::swap(hostDataVec[idx], hostDataVec[last]);
+      gpuToIndex[hostDataVec[idx].gpuId] = idx;
+    }
+    hostDataVec.pop_back();
+    gpuToIndex.erase(it);
+    if (!keepReverseMap) g4idToGpuId.erase(g4idToErase);
+  }
+
   std::unordered_map<uint64_t, int> gpuToIndex;  // key→slot in hostDataVec
   std::unordered_map<int, uint64_t> g4idToGpuId; // geant4 id to GPU id, needed for reverse lookup
   std::vector<HostTrackData> hostDataVec;        // contiguous array of all data

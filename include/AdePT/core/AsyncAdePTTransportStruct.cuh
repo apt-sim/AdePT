@@ -28,29 +28,22 @@ namespace AsyncAdePT {
 // A bundle of pointers to generate particles of an implicit type.
 struct SpeciesParticleManager {
   Track *fTracks;
-  Track *fLeakedTracks;
   SlotManager *fSlotManager;
-  SlotManager *fSlotManagerLeaks;
   adept::MParray *fActiveQueue;
   adept::MParray *fNextActiveQueue;
-  adept::MParray *fActiveLeaksQueue;
 
 public:
-  __host__ __device__ SpeciesParticleManager(Track *tracks, Track *leakedTracks, SlotManager *slotManager,
-                                             SlotManager *slotManagerLeaks, adept::MParray *activeQueue,
-                                             adept::MParray *nextActiveQueue, adept::MParray *activeLeaksQueue)
-      : fTracks(tracks), fLeakedTracks(leakedTracks), fSlotManager(slotManager), fSlotManagerLeaks(slotManagerLeaks),
-        fActiveQueue(activeQueue), fNextActiveQueue(nextActiveQueue), fActiveLeaksQueue(activeLeaksQueue)
+  __host__ __device__ SpeciesParticleManager(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue,
+                                             adept::MParray *nextActiveQueue)
+      : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue), fNextActiveQueue(nextActiveQueue)
   {
   }
 
-  /// Obtain track and leaked track at given slot position
+  /// Obtain track at given slot position
   __device__ __forceinline__ Track &TrackAt(SlotManager::value_type slot) { return fTracks[slot]; }
-  __device__ __forceinline__ Track &LeakTrackAt(SlotManager::value_type slot) { return fLeakedTracks[slot]; }
 
   /// Obtain a slot for a track, but don't enqueue.
   __device__ auto NextSlot() { return fSlotManager->NextSlot(); }
-  __device__ auto NextLeakSlot() { return fSlotManagerLeaks->NextSlot(); }
 
   // enqueue into next-active queue
   __device__ __forceinline__ bool EnqueueNext(SlotManager::value_type slot)
@@ -81,37 +74,6 @@ public:
     auto &track = InitTrack(slot, std::forward<Ts>(args)...);
     return track;
   }
-
-  /// Obtains a leak slot, copies the track from the source slot to the leaks, and marks the slot in the active queue
-  /// for freeing
-  __device__ __forceinline__ void CopyTrackToLeaked(SlotManager::value_type srcSlot)
-  {
-    // get a leak slot
-    const auto leakSlot = NextLeakSlot();
-
-    // Create and construct track from other track
-    new (fLeakedTracks + leakSlot) Track{TrackAt(srcSlot)};
-
-    // enqueue into leak queue
-    const bool success = fActiveLeaksQueue->push_back(leakSlot);
-    if (!success) {
-      printf("ERROR: No space left in leaks queue.\n"
-             "\tThe threshold for flushing the leak buffer may be too high\n"
-             "\tThe space allocated to the leak buffer may be too small\n");
-      asm("trap;");
-    }
-
-    // free the source slot
-    fSlotManager->MarkSlotForFreeing(srcSlot);
-
-    return;
-  }
-};
-
-struct LeakedTracks {
-  Track *fTracks;
-  adept::MParray *fLeakedQueue;
-  SlotManager *fSlotManager;
 };
 
 // A bundle of generators for the three particle types.
@@ -120,13 +82,6 @@ struct ParticleManager {
   SpeciesParticleManager positrons;
   SpeciesParticleManager gammas;
   SpeciesParticleManager gammasWDT;
-};
-
-// Holds the leaked track structs for all three particle types
-struct AllLeaked {
-  LeakedTracks leakedElectrons;
-  LeakedTracks leakedPositrons;
-  LeakedTracks leakedGammas;
 };
 
 // A bundle of queues per particle type:
@@ -168,11 +123,8 @@ dynamic allocations
   adept::MParray *propagation;
   adept::MParray *interactionQueues[numInteractions];
 #endif
-  adept::MParray *leakedTracksCurrent;
-  adept::MParray *leakedTracksNext;
 
   void SwapActive() { std::swap(initiallyActive, nextActive); }
-  void SwapLeakedQueue() { std::swap(leakedTracksCurrent, leakedTracksNext); }
 };
 
 /// @brief Named array-index enum for the per-species GPU state arrays in @ref SpeciesState.
@@ -201,12 +153,10 @@ static_assert(GPUQueueIndex::Gamma == static_cast<int>(ParticleType::Gamma),
               "GPUQueueIndex and ParticleType gamma values must match");
 
 /// @brief Holds all GPU resources needed to manage in-flight tracks of one particle species:
-///        track buffer, leak buffer, slot managers, interaction queues, CUDA stream and event.
+///        track buffer, slot manager, interaction queues, CUDA stream and event.
 struct SpeciesState {
   Track *tracks;
-  Track *leaks;
   SlotManager *slotManager;
-  SlotManager *slotManagerLeaks;
   ParticleQueues queues;
   ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
   ADEPT_DEVICE_API_SYMBOL(Event_t) event;
@@ -230,9 +180,7 @@ struct AllInteractionQueues {
 // Pointers to track storage for each particle type
 struct TracksAndSlots {
   Track *const tracks[GPUQueueIndex::NumSpecies];
-  Track *const leaks[GPUQueueIndex::NumSpecies];
   SlotManager *const slotManagers[GPUQueueIndex::NumSpecies];
-  SlotManager *const slotManagersLeaks[GPUQueueIndex::NumSpecies];
 };
 
 // A bundle of queues for the three particle types.
@@ -243,21 +191,15 @@ struct AllParticleQueues {
 
 struct AllSlotManagers {
   SlotManager slotManagers[GPUQueueIndex::NumSpecies];
-  SlotManager slotManagersLeaks[GPUQueueIndex::NumSpecies];
 };
 
 // A data structure to transfer statistics after each iteration.
 struct Stats {
   int inFlight[GPUQueueIndex::NumSpecies];
-  int leakedTracks[GPUQueueIndex::NumSpecies];
   float queueFillLevel[GPUQueueIndex::NumParticleQueues];
   float slotFillLevel[GPUQueueIndex::NumSpecies];
-  float slotFillLevelLeaks[GPUQueueIndex::NumSpecies];
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
   unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
-  unsigned int perEventLeaked[kMaxThreads];
-  unsigned int nLeakedCurrent[GPUQueueIndex::NumSpecies];
-  unsigned int nLeakedNext[GPUQueueIndex::NumSpecies];
   unsigned int hitBufferOccupancy;
 };
 
@@ -297,8 +239,8 @@ struct GPUstate {
 
   SpeciesState particles[GPUQueueIndex::NumSpecies];
 
-  // particle queues for gammas doing woodcock tracking. Only the `initiallyActive` and `nextActive` queue are
-  // allocated, for the leaks the normal gamma queues inside particles[GPUQueueIndex::Gamma] are used.
+  // particle queues for gammas doing woodcock tracking. Only the `initiallyActive` and `nextActive` queues are
+  // allocated.
   ParticleQueues woodcockQueues;
 
   std::vector<void *> allCudaPointers;
@@ -307,9 +249,8 @@ struct GPUstate {
 
   static constexpr unsigned int nSlotManager_dev = 3;
 
-  AllSlotManagers allmgr_h;                   // All host slot managers, statically allocated
-  SlotManager *slotManager_dev{nullptr};      // All device slot managers
-  SlotManager *slotManagerLeaks_dev{nullptr}; // All device leak slot managers
+  AllSlotManagers allmgr_h;              // All host slot managers, statically allocated
+  SlotManager *slotManager_dev{nullptr}; // All device slot managers
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
   HepEmBuffers hepEmBuffers_d; // All device buffers of hepem tracks
@@ -324,28 +265,6 @@ struct GPUstate {
 
   enum class InjectState { Idle, CreatingSlots, ReadyToEnqueue, Enqueueing };
   std::atomic<InjectState> injectState;
-  // ExtractState:
-  // Idle: No flush has been requested
-  // ExtractionRequested: An event requested a flush, waiting for transport to finish
-  // TracksNeedTransfer: An event requested a flush, leak buffer on device has tracks to transfer
-  // PreparingTracks: Tracks are being copied to the staging buffer
-  // TracksReadyToCopy: Staging buffer is ready to be copied to host
-  // CopyingTracks: Tracks are being copied to host
-  // TracksOnHost: Some or all the tracks have been transferred from device to host and are waiting in the copy buffer
-  // SavingTracks: Tracks are being copied to per-event queues
-  // TracksSaved: Tracks have been moved from the copy buffer to their respective per-event queues
-  enum class ExtractState {
-    Idle,
-    ExtractionRequested,
-    TracksNeedTransfer,
-    PreparingTracks,
-    TracksReadyToCopy,
-    CopyingTracks,
-    TracksOnHost,
-    SavingTracks,
-    TracksSaved
-  };
-  std::atomic<ExtractState> extractState;
   std::atomic_bool runTransport{true}; ///< Keep transport thread running
 
   ~GPUstate()

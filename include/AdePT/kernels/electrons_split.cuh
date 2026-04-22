@@ -156,9 +156,32 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                 currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
           }
 
-          // Set LeakStatus and copy to leaked queue
-          currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
-          electronsOrPositrons.CopyTrackToLeaked(slot);
+          slotManager.MarkSlotForFreeing(slot);
+
+          adept_scoring::RecordHit(currentTrack.trackId,     // Track ID
+                                   currentTrack.parentId,    // parent Track ID
+                                   kAdePTFinishOnCPUProcess, // step limiting process
+                                   IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                                   0.,                                                           // Step length
+                                   0.,                                                           // Total Edep
+                                   currentTrack.weight,                                          // Track weight
+                                   currentTrack.navState,                       // Pre-step point navstate
+                                   currentTrack.preStepPos,                     // Pre-step point position
+                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                   currentTrack.navState,                       // Post-step point navstate
+                                   currentTrack.pos,                            // Post-step point position
+                                   currentTrack.dir,                            // Post-step point momentum direction
+                                   currentTrack.eKin,                           // Post-step point kinetic energy
+                                   currentTrack.globalTime,                     // global time
+                                   currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
+                                   currentTrack.preStepGlobalTime,              // preStep global time
+                                   currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                   false,                                       // parent continues on CPU
+                                   currentTrack.stepCounter,                    // stepcounter
+                                   nullptr,                                     // pointer to secondary init data
+                                   0);                                          // number of secondaries
           continue;
         }
       } else {
@@ -184,6 +207,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                                    currentTrack.eKin,        // Post-step point kinetic energy
                                    currentTrack.globalTime,  // global time
                                    currentTrack.localTime,   // local time
+                                   currentTrack.properTime,  // proper time
                                    currentTrack.preStepGlobalTime, // preStep global time
                                    currentTrack.eventId,           // eventID
                                    currentTrack.threadId,          // threadID
@@ -256,7 +280,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 
     G4HepEmElectronManager::HowFarToMSC(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
-    // Particles that were not cut or leaked are added to the queue used by the next kernels
+    // Particles that were not cut are added to the queue used by the next kernels
     propagationQueue->push_back(slot);
   }
 }
@@ -505,8 +529,9 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       }
     }
 
-    // Now push the particles that reached their interaction into the per-interaction queues,
-    // except for lepton nuclear (winnerProcessIndex == 3), which is sent back to the CPU
+    // Now push the particles that reached their interaction into the
+    // per-interaction queues. Lepton nuclear (winnerProcessIndex == 3) is
+    // handled on the host from the returned step only.
     if (reached_interaction && winnerProcessIndex != 3) {
       // reset Looper counter if limited by discrete interaction or MSC
       currentTrack.looperCounter = 0;
@@ -524,27 +549,28 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
 
     } else {
 
+      const bool continuesOnCPU = reached_interaction && winnerProcessIndex == 3;
+
+      if (continuesOnCPU) {
+        // The returned hit is sufficient to reconstruct the step and later
+        // continue the parent on the CPU in sorted order.
+        trackSurvives = false;
+        slotManager.MarkSlotForFreeing(slot);
+      }
+
       // if not already dead, check for SteppingAction and survive
       if (trackSurvives) {
 
         // possible hook to SteppingAction here
 
-        // Lepton nuclear needs to be handled by Geant4 directly, passing track back to CPU
-        auto leakReason = winnerProcessIndex == 3 ? LeakStatus::LeptonNuclear : LeakStatus::NoLeak;
-
         // --- Survive --- //
-        currentTrack.leakStatus = leakReason;
-        if (leakReason == LeakStatus::LeptonNuclear) {
-          // Copy track at slot to the leaked tracks
-          electronsOrPositrons.CopyTrackToLeaked(slot);
-        } else {
-          electronsOrPositrons.EnqueueNext(slot);
-        }
+        electronsOrPositrons.EnqueueNext(slot);
       }
 
       // Only non-interacting, non-relocating tracks score here
       // Score the edep for particles that didn't reach the interaction
-      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (returnLastStep && !trackSurvives)) {
+      if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
+          (returnLastStep && (!trackSurvives || continuesOnCPU))) {
         adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                  currentTrack.parentId,                                        // parent Track ID
                                  static_cast<short>(winnerProcessIndex),                       // step defining process
@@ -562,9 +588,10 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
                                  currentTrack.eKin,                           // Post-step point kinetic energy
                                  currentTrack.globalTime,                     // global time
                                  currentTrack.localTime,                      // local time
+                                 currentTrack.properTime,                     // proper time
                                  currentTrack.preStepGlobalTime,              // preStep global time
                                  currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                 !trackSurvives,                              // whether this was the last step
+                                 !trackSurvives && !continuesOnCPU,           // whether this was the last step
                                  currentTrack.stepCounter,                    // stepcounter
                                  nullptr,                                     // pointer to secondary init data
                                  0);                                          // number of secondaries
@@ -591,18 +618,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 
     VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
 
-    auto survive = [&](LeakStatus leakReason = LeakStatus::NoLeak) {
-      // NOTE: When adapting the split kernels for async mode this won't
-      // work if we want to re-use slots on the fly. Directly copying to
-      // a trackdata struct would be better
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        electronsOrPositrons.CopyTrackToLeaked(slot);
-      } else {
-        electronsOrPositrons.EnqueueNext(slot);
-      }
-    };
+    auto survive = [&]() { electronsOrPositrons.EnqueueNext(slot); };
 
     bool trackSurvives = true;
 
@@ -613,6 +629,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool cross_boundary = false;
+    bool returnsToCPU   = false;
 
     // Relocate to have the correct next state before RecordHit is called
 
@@ -639,11 +656,26 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       trackSurvives = false;
     }
 
-    // Score
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || (!trackSurvives && returnLastStep))
+    short stepProcessId = kAdePTTransportationProcess;
+    bool isLastStep     = !trackSurvives;
+    if (cross_boundary) {
+      const int nextlvolID          = currentTrack.nextState.GetLogicalId();
+      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+      returnsToCPU                  = nextauxData.fGPUregionId < 0;
+      if (returnsToCPU) {
+        // Push the handoff point a little into the CPU region so Geant4 does
+        // not relocate the track back into the same GPU region.
+        currentTrack.pos += kPushDistance * currentTrack.dir;
+        stepProcessId = kAdePTOutOfGPURegionProcess;
+        isLastStep    = false;
+      }
+    }
+
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnsToCPU ||
+        (!trackSurvives && returnLastStep))
       adept_scoring::RecordHit(currentTrack.trackId,                                         // Track ID
                                currentTrack.parentId,                                        // parent Track ID
-                               static_cast<short>(/*transport*/ 10),                         // step limiting process ID
+                               stepProcessId,                                                // step limiting process ID
                                IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
                                elTrack.GetPStepLength(),                                     // Step length
                                energyDeposit,                                                // Total Edep
@@ -658,27 +690,25 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               !trackSurvives,                              // whether this was the last step
+                               isLastStep,                                  // whether this was the last step
                                currentTrack.stepCounter,                    // stepcounter
                                nullptr,                                     // pointer to secondary init data
                                0);                                          // number of secondaries
 
     if (cross_boundary) {
-      // Move to the next boundary now that the Step is recorded
-      currentTrack.navState = currentTrack.nextState;
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
       VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
-      if (nextauxData.fGPUregionId >= 0) {
+      if (!returnsToCPU) {
+        // Move to the next boundary now that the step is recorded.
+        currentTrack.navState = currentTrack.nextState;
         theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();
       } else {
-        // To be safe, just push a bit the track exiting the GPU region to make sure
-        // Geant4 does not relocate it again inside the same region
-        currentTrack.pos += kPushDistance * currentTrack.dir;
-        survive(LeakStatus::OutOfGPURegion);
+        slotManager.MarkSlotForFreeing(slot);
       }
     }
   }
@@ -848,6 +878,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                !trackSurvives,                              // whether this was the last step
@@ -988,6 +1019,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                !trackSurvives,                              // whether this was the last step
@@ -1125,6 +1157,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                true, // whether this was the last step: always true for annihilating positrons
@@ -1196,6 +1229,7 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
                                currentTrack.eKin,                           // Post-step point kinetic energy
                                currentTrack.globalTime,                     // global time
                                currentTrack.localTime,                      // local time
+                               currentTrack.properTime,                     // proper time
                                currentTrack.preStepGlobalTime,              // preStep global time
                                currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                true, // whether this was the last step: always true for annihilating positrons

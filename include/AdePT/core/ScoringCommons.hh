@@ -27,7 +27,8 @@ struct GPUHit {
   double fTotalEnergyDeposit{0};
   // double fNonIonizingEnergyDeposit{0};
   double fGlobalTime{0.};
-  double fLocalTime{0.};
+  float fLocalTime{0.f};
+  float fProperTime{0.f};
   double fPreGlobalTime{0.};
   float fTrackWeight{1};
   uint64_t fTrackID{0};  // Track ID
@@ -39,7 +40,54 @@ struct GPUHit {
   bool fLastStepOfTrack{false};
   ParticleType fParticleType{ParticleType::Electron};
   unsigned char fNumSecondaries{0};
+
+  bool operator<(GPUHit const &other) const
+  {
+    const auto pdgFromParticleType = [](ParticleType particleType) {
+      switch (particleType) {
+      case ParticleType::Electron:
+        return 11;
+      case ParticleType::Positron:
+        return -11;
+      case ParticleType::Gamma:
+        return 22;
+      }
+      return 0;
+    };
+
+    const int thisPDG  = pdgFromParticleType(fParticleType);
+    const int otherPDG = pdgFromParticleType(other.fParticleType);
+
+    if (thisPDG != otherPDG) return thisPDG < otherPDG;
+    if (fPostStepPoint.fEKin != other.fPostStepPoint.fEKin) return fPostStepPoint.fEKin < other.fPostStepPoint.fEKin;
+    if (fPostStepPoint.fPosition.x() != other.fPostStepPoint.fPosition.x()) {
+      return fPostStepPoint.fPosition.x() < other.fPostStepPoint.fPosition.x();
+    }
+    if (fPostStepPoint.fPosition.y() != other.fPostStepPoint.fPosition.y()) {
+      return fPostStepPoint.fPosition.y() < other.fPostStepPoint.fPosition.y();
+    }
+    if (fPostStepPoint.fPosition.z() != other.fPostStepPoint.fPosition.z()) {
+      return fPostStepPoint.fPosition.z() < other.fPostStepPoint.fPosition.z();
+    }
+    if (fPostStepPoint.fMomentumDirection.x() != other.fPostStepPoint.fMomentumDirection.x()) {
+      return fPostStepPoint.fMomentumDirection.x() < other.fPostStepPoint.fMomentumDirection.x();
+    }
+    if (fPostStepPoint.fMomentumDirection.y() != other.fPostStepPoint.fMomentumDirection.y()) {
+      return fPostStepPoint.fMomentumDirection.y() < other.fPostStepPoint.fMomentumDirection.y();
+    }
+    if (fPostStepPoint.fMomentumDirection.z() != other.fPostStepPoint.fMomentumDirection.z()) {
+      return fPostStepPoint.fMomentumDirection.z() < other.fPostStepPoint.fMomentumDirection.z();
+    }
+    return false;
+  }
 };
+
+/// @brief AdePT-specific step-limiting process ids stored in GPUHit::fStepLimProcessId.
+constexpr short kAdePTTransportationProcess = 10;
+/// @brief Returned step for a track that leaves the GPU region and continues on the CPU.
+constexpr short kAdePTOutOfGPURegionProcess = 11;
+/// @brief Returned step for a track that is intentionally finished on the CPU.
+constexpr short kAdePTFinishOnCPUProcess = 12;
 
 /// @brief Minimal data struct that is needed along with the parent track to provide the initial track information that
 /// is sent back to the CPU
@@ -66,9 +114,9 @@ __device__ __forceinline__ void FillHit(
     double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
     vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
     double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
-    vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, double aLocalTime,
-    double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter,
-    unsigned char aNumSecondaries)
+    vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, float aLocalTime,
+    float aProperTime, double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep,
+    unsigned short stepCounter, unsigned char aNumSecondaries)
 {
   aGPUHit.fEventId = eventID;
   aGPUHit.threadId = threadID;
@@ -85,6 +133,7 @@ __device__ __forceinline__ void FillHit(
   aGPUHit.fTrackWeight        = aTrackWeight;
   aGPUHit.fGlobalTime         = aGlobalTime;
   aGPUHit.fLocalTime          = aLocalTime;
+  aGPUHit.fProperTime         = aProperTime;
   aGPUHit.fPreGlobalTime      = aPreGlobalTime;
   aGPUHit.fNumSecondaries     = aNumSecondaries;
   // Pre step point

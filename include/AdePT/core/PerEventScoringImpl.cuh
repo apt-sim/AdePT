@@ -690,9 +690,9 @@ __device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimPr
                           vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
                           vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
                           vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
-                          double aLocalTime, double aPreGlobalTime, unsigned int eventID, short threadID,
-                          bool isLastStep, unsigned short stepCounter, SecondaryInitData const *secondaryData,
-                          unsigned int nSecondaries)
+                          float aLocalTime, float aProperTime, double aPreGlobalTime, unsigned int eventID,
+                          short threadID, bool isLastStep, unsigned short stepCounter,
+                          SecondaryInitData const *secondaryData, unsigned int nSecondaries)
 {
 
   // defensive check
@@ -709,8 +709,8 @@ __device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimPr
   // Fill the required data for the parent step
   FillHit(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
           aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
-          aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aPreGlobalTime, eventID, threadID, isLastStep,
-          stepCounter, nSecondaries);
+          aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aProperTime, aPreGlobalTime, eventID, threadID,
+          isLastStep, stepCounter, nSecondaries);
 
   // Fill the steps for the secondaries
   for (unsigned int i = 0; i < nSecondaries; ++i) {
@@ -720,8 +720,8 @@ __device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimPr
             secondaryData[i].particleType,
             /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
             secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin, aGlobalTime,
-            /*localTime*/ 0., aGlobalTime, eventID, threadID, /*isLastStep*/ false, /*stepCounter*/ 0,
-            /*nSecondaries*/ 0);
+            /*localTime*/ 0.f, /*properTime*/ 0.f, aGlobalTime, eventID, threadID, /*isLastStep*/ false,
+            /*stepCounter*/ 0, /*nSecondaries*/ 0);
   }
 }
 

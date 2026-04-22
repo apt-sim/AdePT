@@ -25,7 +25,6 @@ public:
   void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
   void SetMillionsOfTrackSlots(double millionSlots) { fMillionsOfTrackSlots = millionSlots; }
-  void SetMillionsOfLeakSlots(double millionSlots) { fMillionsOfLeakSlots = millionSlots; }
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
   void SetHitBufferFlushThreshold(float threshold) { fHitBufferFlushThreshold = threshold; }
   void SetCPUCapacityFactor(float CPUCapacityFactor) { fCPUCapacityFactor = CPUCapacityFactor; }
@@ -69,7 +68,6 @@ public:
   float GetCPUCapacityFactor() { return fCPUCapacityFactor; }
   double GetHitBufferSafetyFactor() { return fHitBufferSafetyFactor; }
   double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
-  double GetMillionsOfLeakSlots() { return fMillionsOfLeakSlots; }
   double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
   std::vector<std::string> *GetCPURegionNames() { return &fCPURegionNames; }
@@ -95,7 +93,6 @@ private:
   float fCPUCapacityFactor{2.5};
   double fHitBufferSafetyFactor{1.5};
   double fMillionsOfTrackSlots{1};
-  double fMillionsOfLeakSlots{1};
   double fMillionsOfHitSlots{1};
   unsigned short fLastNParticlesOnCPU{0};
   unsigned short fMaxWDTIter{5};

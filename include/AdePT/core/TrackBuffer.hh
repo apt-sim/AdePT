@@ -14,12 +14,10 @@
 #include <mutex>
 #include <shared_mutex>
 #include <thread>
-#include <vector>
 
 namespace AsyncAdePT {
 
-/// @brief Buffer holding input tracks to be transported on GPU and output tracks to be
-/// re-injected in the Geant4 stack.
+/// @brief Buffer holding input tracks to be transported on GPU.
 struct TrackBuffer {
   struct alignas(64) ToDeviceBuffer {
     TrackDataWithIDs *tracks;
@@ -31,24 +29,12 @@ struct TrackBuffer {
   std::array<ToDeviceBuffer, 2> toDeviceBuffer;
   std::atomic_short toDeviceIndex{0};
 
-  unsigned int fNumToDevice{0};   ///< number of slots in the toDevice buffer
-  unsigned int fNumFromDevice{0}; ///< number of slots in the fromDevice buffer
-  unsigned int fNumLeaksTransferred{
-      0}; ///< Used to keep track of the number of tracks transferred from device during extraction
+  unsigned int fNumToDevice{0}; ///< number of slots in the toDevice buffer
   unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>>
       toDevice_host;                              ///< Tracks to be transported to the device
   unique_ptr_cuda<TrackDataWithIDs> toDevice_dev; ///< toDevice buffer of tracks
-  unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>> fromDevice_host; ///< Tracks from device
-  unique_ptr_cuda<TrackDataWithIDs> fromDevice_dev;                                     ///< fromDevice buffer of tracks
-  unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>>
-      nFromDevice_host; ///< Number of tracks collected on device
-  unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>>
-      nRemainingLeaks_host; ///< Number of tracks still left to transfer from device during extraction
 
-  std::vector<std::vector<TrackDataWithIDs>> fromDeviceBuffers;
-  std::mutex fromDeviceMutex;
-
-  TrackBuffer(unsigned int numToDevice, unsigned int numFromDevice, unsigned short nThread);
+  TrackBuffer(unsigned int numToDevice);
 
   ToDeviceBuffer &getActiveBuffer() { return toDeviceBuffer[toDeviceIndex.load()]; }
   void swapToDeviceBuffers() { toDeviceIndex.store((toDeviceIndex + 1) % 2); }
@@ -89,18 +75,6 @@ struct TrackBuffer {
       using namespace std::chrono_literals;
       std::this_thread::sleep_for(1ms);
     }
-  }
-
-  struct FromDeviceHandle {
-    std::vector<TrackDataWithIDs> &tracks;
-    std::scoped_lock<std::mutex> lock;
-  };
-
-  /// @brief Create a handle with lock for tracks that return from the device.
-  /// @return BufferHandle with lock and reference to track vector.
-  FromDeviceHandle getTracksFromDevice(int threadId)
-  {
-    return {fromDeviceBuffers[threadId], std::scoped_lock{fromDeviceMutex}};
   }
 };
 

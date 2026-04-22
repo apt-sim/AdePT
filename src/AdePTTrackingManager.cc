@@ -77,6 +77,19 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport()
   }
   return transport;
 }
+
+bool CanReturnTrackDirectly(const GPUHit &step, unsigned int blockSize, bool callUserSteppingAction)
+{
+  if (callUserSteppingAction) return false;
+  if (step.fParticleType != ParticleType::Gamma) return false;
+  if (step.fStepLimProcessId != kAdePTOutOfGPURegionProcess && step.fStepLimProcessId != kAdePTFinishOnCPUProcess) {
+    return false;
+  }
+  assert(blockSize == 1);
+  assert(step.fTotalEnergyDeposit == 0.);
+  return true;
+}
+
 } // namespace
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -342,38 +355,35 @@ void AdePTTrackingManager::FlushEvent()
   // AdePTTrackingManager requests the flush while AdePTTransport still
   // owns the underlying state machine and buffer lifetime.
   fAdeptTransport->RequestFlush(threadId);
-
-  while (!fAdeptTransport->IsDeviceFlushed(threadId)) {
+  while (!fAdeptTransport->IsHitsFlushed(threadId)) {
     fAdeptTransport->WaitForFlushProgress();
     ProcessReturnedGPUHits(threadId, eventId);
   }
 
-  // Once the device side is flushed, take the plain returned-track batch from
-  // transport and hand it back to Geant4 on the host side.
-  std::vector<AsyncAdePT::TrackDataWithIDs> tracks = fAdeptTransport->TakeReturnedTracks(threadId);
-  fAdeptTransport->MarkLeakedTracksRetrieved(threadId);
-  PrepareReturnedTracksForGeant4(threadId, eventId, tracks);
-  fGeant4Integration.ReturnTracks(tracks.begin(), tracks.end(), fAdeptTransport->GetDebugLevel(),
-                                  fAdeptTransport->GetReturnFirstAndLastStep());
-}
+  // Transport stops at HitsFlushed once the last returned hit batches are
+  // available on the host. Drain once more here so the final batches are not
+  // skipped just because the worker observed that host-visible terminal state.
+  ProcessReturnedGPUHits(threadId, eventId);
 
-void AdePTTrackingManager::PrepareReturnedTracksForGeant4(int threadId, int eventId,
-                                                          std::vector<AsyncAdePT::TrackDataWithIDs> &tracks)
-{
-#ifndef NDEBUG
-  for (auto const &track : tracks) {
-    bool error = false;
-    if (track.threadId != threadId || track.eventId != static_cast<unsigned int>(eventId)) error = true;
-    if (!(track.pdg == -11 || track.pdg == 11 || track.pdg == 22)) error = true;
-    if (error)
-      std::cerr << "Error in returning track: threadId=" << track.threadId << " eventId=" << track.eventId
-                << " pdg=" << track.pdg << "\n";
-    assert(!error);
+  auto deferredSteps = fGeant4Integration.TakeDeferredSteps();
+
+  std::sort(deferredSteps.steps.begin(), deferredSteps.steps.end(),
+            [&deferredSteps](const AdePTGeant4Integration::DeferredStep &lhs,
+                             const AdePTGeant4Integration::DeferredStep &rhs) {
+              return deferredSteps.hits[lhs.firstHit] < deferredSteps.hits[rhs.firstHit];
+            });
+
+  for (const auto &deferredStep : deferredSteps.steps) {
+    std::span<const GPUHit> gpuSteps(deferredSteps.hits.data() + deferredStep.firstHit, deferredStep.numHits);
+    if (deferredStep.type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
+      fGeant4Integration.ReturnDeferredTrack(gpuSteps, fAdeptTransport->GetReturnAllSteps() ||
+                                                           fAdeptTransport->GetReturnFirstAndLastStep());
+    } else {
+      fGeant4Integration.ProcessGPUStep(gpuSteps, fAdeptTransport->GetReturnAllSteps(),
+                                        fAdeptTransport->GetReturnFirstAndLastStep());
+    }
   }
-#endif
-
-  // Sort the tracks coming from device by energy. This is necessary to ensure reproducibility.
-  std::sort(tracks.begin(), tracks.end());
+  fAdeptTransport->MarkHostFlushed(threadId);
 }
 
 void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
@@ -407,8 +417,22 @@ void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
                   << "\033[0m" << std::endl;
       }
       auto blockSize = 1 + it->fNumSecondaries;
-      fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize), fAdeptTransport->GetReturnAllSteps(),
-                                        fAdeptTransport->GetReturnFirstAndLastStep());
+      const bool isDeferredStep =
+          ((it->fParticleType == ParticleType::Gamma || it->fParticleType == ParticleType::Electron ||
+            it->fParticleType == ParticleType::Positron) &&
+           it->fStepLimProcessId == 3) ||
+          it->fStepLimProcessId == kAdePTOutOfGPURegionProcess || it->fStepLimProcessId == kAdePTFinishOnCPUProcess;
+      if (isDeferredStep) {
+        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, fAdeptTransport->GetReturnAllSteps());
+        fGeant4Integration.QueueDeferredStep(std::span<const GPUHit>(&*it, blockSize),
+                                             returnTrackDirectly
+                                                 ? AdePTGeant4Integration::DeferredStepType::ReturnTrack
+                                                 : AdePTGeant4Integration::DeferredStepType::ReplayStep);
+      } else {
+        fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize),
+                                          fAdeptTransport->GetReturnAllSteps(),
+                                          fAdeptTransport->GetReturnFirstAndLastStep());
+      }
       it += blockSize;
     }
   });
@@ -416,7 +440,6 @@ void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
 
 void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 {
-
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
@@ -438,7 +461,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, -1);
   }
 
-  // first leaked particle detected, let's finish this event on CPU
+  // first particle to be finished on CPU detected, let's finish the full event on CPU
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0 && aTrack->GetTrackStatus() == fStopButAlive) {
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, eventID);
   }

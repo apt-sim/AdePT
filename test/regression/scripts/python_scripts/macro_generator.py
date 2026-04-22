@@ -34,7 +34,6 @@ def generate_macro(template_path, output_path, args):
     macro_content = macro_content.replace("$num_threads", str(args.num_threads))
     macro_content = macro_content.replace("$num_events", str(args.num_events))
     macro_content = macro_content.replace("$num_trackslots", str(args.num_trackslots))
-    macro_content = macro_content.replace("$num_leakslots", str(args.num_leakslots))
     macro_content = macro_content.replace("$num_hitslots", str(args.num_hitslots))
     macro_content = macro_content.replace("$detector_field", str(args.detector_field))
     macro_content = macro_content.replace("$adept_seed", str(args.adept_seed))
@@ -97,8 +96,6 @@ def main():
     parser.add_argument("--num_events", type=int, help="Number of events to simulate.")
     parser.add_argument("--num_trackslots", type=int, default=3,
                         help="Number of trackslots in million. Should be chosen according to the GPU memory")
-    parser.add_argument("--num_leakslots", type=float, default=3,
-                        help="Number of leakslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--num_hitslots", type=int, default=12,
                         help="Number of hitslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--detector_field", type=str, default="0 0 0",

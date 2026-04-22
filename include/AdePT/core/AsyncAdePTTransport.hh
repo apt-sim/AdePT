@@ -13,7 +13,6 @@
 #include <AdePT/core/AdePTG4HepEmState.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/GeometryAuxData.hh>
-#include <AdePT/core/ReturnedTrackData.hh>
 #include <AdePT/core/ScoringCommons.hh>
 
 #include <VecGeom/base/Config.h>
@@ -39,7 +38,6 @@ public:
 private:
   unsigned short fNThread{0};             ///< Number of G4 workers
   unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
-  unsigned int fLeakCapacity{0};          ///< Number of leak slots to allocate on device
   unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
   int fDebugLevel{0};                     ///< Debug level
   int fCUDAStackLimit{0};                 ///< CUDA device stack limit
@@ -108,12 +106,10 @@ public:
   void RequestFlush(int threadId);
   /// @brief Wait until the transport threads make further flush progress.
   void WaitForFlushProgress();
-  /// @brief Check whether the device side has completed flushing for the given worker.
-  bool IsDeviceFlushed(int threadId) const;
-  /// @brief Take the leaked-track batch returned by transport for the given worker.
-  std::vector<TrackDataWithIDs> TakeReturnedTracks(int threadId);
-  /// @brief Mark the returned-track batch for the given worker as consumed.
-  void MarkLeakedTracksRetrieved(int threadId);
+  /// @brief Check whether all returned GPU-hit batches have been made available on the host.
+  bool IsHitsFlushed(int threadId) const;
+  /// @brief Mark the worker event as fully handled on the host side after replaying the returned steps.
+  void MarkHostFlushed(int threadId);
 };
 
 } // namespace AsyncAdePT

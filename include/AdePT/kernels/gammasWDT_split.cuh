@@ -72,15 +72,10 @@ __global__ void __launch_bounds__(256, 1)
     // survive: decide whether to continue woodcock tracking or not:
     // Write local variables back into track and enqueue to correct queue
     auto survive = [&]() {
-      if (currentTrack.leakStatus != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        particleManager.gammas.CopyTrackToLeaked(slot);
+      if (leftWDTRegion) {
+        particleManager.gammas.EnqueueNext(slot);
       } else {
-        if (leftWDTRegion) {
-          particleManager.gammas.EnqueueNext(slot);
-        } else {
-          particleManager.gammasWDT.EnqueueNext(slot);
-        }
+        particleManager.gammasWDT.EnqueueNext(slot);
       }
     };
 
@@ -135,9 +130,32 @@ __global__ void __launch_bounds__(256, 1)
                 currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
           }
 
-          // Set LeakStatus and copy to leaked queue
-          currentTrack.leakStatus = LeakStatus::FinishEventOnCPU;
-          particleManager.gammas.CopyTrackToLeaked(slot);
+          slotManager.MarkSlotForFreeing(slot);
+
+          adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
+                                   currentTrack.parentId,                       // parent Track ID
+                                   kAdePTFinishOnCPUProcess,                    // step limiting process ID
+                                   ParticleType::Gamma,                         // Particle type
+                                   0.,                                          // Step length
+                                   0.,                                          // Total Edep
+                                   currentTrack.weight,                         // Track weight
+                                   currentTrack.navState,                       // Pre-step point navstate
+                                   currentTrack.preStepPos,                     // Pre-step point position
+                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                   currentTrack.navState,                       // Post-step point navstate
+                                   currentTrack.pos,                            // Post-step point position
+                                   currentTrack.dir,                            // Post-step point momentum direction
+                                   currentTrack.eKin,                           // Post-step point kinetic energy
+                                   currentTrack.globalTime,                     // global time
+                                   currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
+                                   currentTrack.preStepGlobalTime,              // preStep global time
+                                   currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                   false,                                       // parent continues on CPU
+                                   currentTrack.stepCounter,                    // stepcounter
+                                   nullptr,                                     // pointer to secondary init data
+                                   0);                                          // number of secondaries
           continue;
         }
       } else {
@@ -163,6 +181,7 @@ __global__ void __launch_bounds__(256, 1)
                                    currentTrack.eKin,                           // Post-step point kinetic energy
                                    currentTrack.globalTime,                     // global time
                                    currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
                                    currentTrack.preStepGlobalTime,              // preStep global time
                                    currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                    true,                                        // whether this was the last step
@@ -478,10 +497,35 @@ __global__ void __launch_bounds__(256, 1)
           currentTrack.pos += kPushDistance * currentTrack.dir;
 
 #if ADEPT_DEBUG_TRACK > 0
-          if (verbose) printf("\n| track leaked to Geant4\n");
+          if (verbose) printf("\n| track returned to Geant4\n");
 #endif
 
-          currentTrack.leakStatus = LeakStatus::OutOfGPURegion;
+          slotManager.MarkSlotForFreeing(slot);
+          adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
+                                   currentTrack.parentId,                       // parent Track ID
+                                   kAdePTOutOfGPURegionProcess,                 // step limiting process ID
+                                   ParticleType::Gamma,                         // Particle type
+                                   thePrimaryTrack->GetGStepLength(),           // Step length
+                                   0.,                                          // Total Edep
+                                   currentTrack.weight,                         // Track weight
+                                   currentTrack.navState,                       // Pre-step point navstate
+                                   currentTrack.preStepPos,                     // Pre-step point position
+                                   currentTrack.preStepDir,                     // Pre-step point momentum direction
+                                   currentTrack.preStepEKin,                    // Pre-step point kinetic energy
+                                   currentTrack.nextState,                      // Post-step point navstate
+                                   currentTrack.pos,                            // Post-step point position
+                                   currentTrack.dir,                            // Post-step point momentum direction
+                                   currentTrack.eKin,                           // Post-step point kinetic energy
+                                   currentTrack.globalTime,                     // global time
+                                   currentTrack.localTime,                      // local time
+                                   currentTrack.properTime,                     // proper time
+                                   currentTrack.preStepGlobalTime,              // preStep global time
+                                   currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                   false,                                       // parent continues on CPU
+                                   currentTrack.stepCounter,                    // stepcounter
+                                   nullptr,                                     // pointer to secondary init data
+                                   0);                                          // number of secondaries
+          continue;
         }
       } // else particle has left the world
 
@@ -496,7 +540,7 @@ __global__ void __launch_bounds__(256, 1)
       assert(!currentTrack.nextState.IsOnBoundary());
 
     } else {
-      // track survives and is given to either to the WDT gammas, the normal gammas, or leaked out of the GPU
+      // track survives and is given to either the WDT gammas or the normal gammas
       survive();
     }
 

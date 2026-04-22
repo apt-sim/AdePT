@@ -30,9 +30,6 @@
 /adept/setMillionsOfTrackSlots 1
 # Set the total number of track slots that will be allocated on the GPU, in millions
 
-/adept/setMillionsOfLeakSlots 1
-# Set the total number of leak slots that will be allocated on the GPU, in millions
-
 /adept/setMillionsOfHitSlots 1
 # Set the total number of hit slots that will be allocated on the GPU, in millions 
 

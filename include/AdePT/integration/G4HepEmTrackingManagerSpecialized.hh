@@ -42,7 +42,7 @@ public:
 private:
   bool fTrackInAllRegions = false;          ///< Whether the whole geometry is a GPU region
   std::set<G4Region const *> fGPURegions{}; ///< List of GPU regions
-  std::vector<int> fFinishEventOnCPU;       ///< vector over number of threads to keep certain leaked tracks on GPU
+  std::vector<int> fFinishEventOnCPU;       ///< Vector over worker threads for events finished on CPU
 
   // G4Region const * fPreviousRegion = nullptr;
 };

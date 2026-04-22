@@ -65,13 +65,14 @@ __global__ void __launch_bounds__(256, 1)
 
     auto eKin = currentTrack.eKin;
 
-    LeakStatus leakReason = LeakStatus::NoLeak;
-    bool leftWDTRegion    = false;
+    bool leftWDTRegion  = false;
+    bool continuesOnCPU = false;
     // initialize nextState to current state
     vecgeom::NavigationState nextState = currentTrack.navState;
     double globalTime                  = currentTrack.globalTime;
     double preStepGlobalTime           = currentTrack.globalTime;
     double localTime                   = currentTrack.localTime;
+    double properTime                  = currentTrack.properTime;
 
     //
     // survive: decide whether to continue woodcock tracking or not:
@@ -82,17 +83,12 @@ __global__ void __launch_bounds__(256, 1)
       currentTrack.dir        = dir;
       currentTrack.globalTime = globalTime;
       currentTrack.localTime  = localTime;
+      currentTrack.properTime = properTime;
       currentTrack.navState   = nextState;
-      currentTrack.leakStatus = leakReason;
-      if (leakReason != LeakStatus::NoLeak) {
-        // Copy track at slot to the leaked tracks
-        particleManager.gammas.CopyTrackToLeaked(slot);
+      if (leftWDTRegion) {
+        particleManager.gammas.EnqueueNext(slot);
       } else {
-        if (leftWDTRegion) {
-          particleManager.gammas.EnqueueNext(slot);
-        } else {
-          particleManager.gammasWDT.EnqueueNext(slot);
-        }
+        particleManager.gammasWDT.EnqueueNext(slot);
       }
     };
 
@@ -412,11 +408,12 @@ __global__ void __launch_bounds__(256, 1)
           pos += kPushDistance * dir;
 
 #if ADEPT_DEBUG_TRACK > 0
-          if (verbose) printf("\n| track leaked to Geant4\n");
+          if (verbose) printf("\n| track returned to Geant4\n");
 #endif
 
-          trackSurvives = true;
-          leakReason    = LeakStatus::OutOfGPURegion;
+          trackSurvives        = false;
+          continuesOnCPU       = true;
+          stepDefinedProcessId = kAdePTOutOfGPURegionProcess;
         }
       } // else particle has left the world
 
@@ -597,8 +594,8 @@ __global__ void __launch_bounds__(256, 1)
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| GAMMA-NUCLEAR ");
 #endif
-        // Gamma nuclear needs to be handled by Geant4 directly, passing track back to CPU
-        leakReason = LeakStatus::GammaNuclear;
+        // Gamma nuclear is handled on the host from the returned step only.
+        trackSurvives = false;
       }
       } // end switch (winnerProcessIndex)
 
@@ -619,15 +616,18 @@ __global__ void __launch_bounds__(256, 1)
       }
     }
 
-    // finishing on CPU must be last one only sets the LeakStatus but does not affect survival of the track
-    if (trackSurvives && leakReason == LeakStatus::NoLeak) {
+    // Finishing on CPU must be checked last. It changes only the returned step
+    // type and does not affect whether the track survives this iteration.
+    if (trackSurvives && !continuesOnCPU) {
       if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
           InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
         printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
                currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
                currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
 
-        leakReason = LeakStatus::FinishEventOnCPU;
+        trackSurvives        = false;
+        continuesOnCPU       = true;
+        stepDefinedProcessId = kAdePTFinishOnCPUProcess;
       }
     }
 
@@ -638,10 +638,10 @@ __global__ void __launch_bounds__(256, 1)
       leftWDTRegion = true;
     }
 
-    // A track that survives must be enqueued to the leaks or the next queue.
-    // Note: gamma nuclear does not survive but must still be leaked to the CPU, which is done
-    // inside survive()
-    if (trackSurvives || leakReason == LeakStatus::GammaNuclear) {
+    // A surviving track must be enqueued to the next queue.
+    // Gamma-nuclear is handled from the returned step only, so the GPU-side
+    // track simply dies after recording that terminal step.
+    if (trackSurvives) {
       survive();
     } else {
       // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
@@ -651,7 +651,7 @@ __global__ void __launch_bounds__(256, 1)
     assert(nSecondaries <= 3);
 
     // If there is some edep from cutting particles or if it is the last step, record the step
-    if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps ||
+    if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU || winnerProcessIndex == 3 ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
       adept_scoring::RecordHit(currentTrack.trackId,                        // Track ID
                                currentTrack.parentId,                       // parent Track ID
@@ -670,12 +670,13 @@ __global__ void __launch_bounds__(256, 1)
                                eKin,                                        // Post-step point kinetic energy
                                globalTime,                                  // global time
                                localTime,                                   // local time
+                               properTime,                                  // proper time
                                preStepGlobalTime,                           // global time at preStepPoint
                                currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                               !trackSurvives,           // whether this is the last step of the track
-                               currentTrack.stepCounter, // stepcounter
-                               secondaryData,            // pointer to secondary init data
-                               nSecondaries);            // number of secondaries
+                               !trackSurvives && !continuesOnCPU, // whether this is the last step of the track
+                               currentTrack.stepCounter,          // stepcounter
+                               secondaryData,                     // pointer to secondary init data
+                               nSecondaries);                     // number of secondaries
     }
   } // end for loop over tracks
 }

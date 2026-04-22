@@ -72,8 +72,6 @@ struct Track {
   bool stopped{false};
 #endif
 
-  LeakStatus leakStatus{LeakStatus::NoLeak};
-
   __host__ __device__ Track(const Track &)            = default;
   __host__ __device__ Track &operator=(const Track &) = default;
 
@@ -87,9 +85,8 @@ struct Track {
         stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
-    pos        = {position[0], position[1], position[2]};
-    dir        = {direction[0], direction[1], direction[2]};
-    leakStatus = LeakStatus::NoLeak;
+    pos = {position[0], position[1], position[2]};
+    dir = {direction[0], direction[1], direction[2]};
   }
 
   /// Construct a secondary from a parent track.
@@ -109,7 +106,7 @@ struct Track {
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         navState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
         parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, weight{childWeight}, stepCounter{0},
-        looperCounter{0}, zeroStepCounter{0}, leakStatus{LeakStatus::NoLeak}
+        looperCounter{0}, zeroStepCounter{0}
   {
   }
 

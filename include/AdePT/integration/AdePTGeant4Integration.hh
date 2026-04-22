@@ -12,12 +12,15 @@
 #include <AdePT/core/ScoringCommons.hh>
 #include <AdePT/core/TrackData.h>
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
+#include <AdePT/core/ReturnedTrackData.hh>
 #include <AdePT/integration/HostTrackDataMapper.hh>
 
 #include <G4EventManager.hh>
 #include <G4Event.hh>
+#include <G4Track.hh>
 
 #include <span>
+#include <vector>
 
 namespace AdePTGeant4Integration_detail {
 struct ScoringObjects;
@@ -28,6 +31,25 @@ struct Deleter {
 
 class AdePTGeant4Integration {
 public:
+  enum class DeferredStepType : unsigned char { ReplayStep, ReturnTrack };
+
+  /// @brief Stored work for a returned step that is replayed later on the host.
+  /// @details
+  /// The host collects returned GPU-hit blocks during transport and replays
+  /// them later in one fixed order, so the Geant4-side work stays
+  /// reproducible from run to run.
+  struct DeferredStep {
+    std::size_t firstHit{0};
+    std::size_t numHits{0};
+    DeferredStepType type{DeferredStepType::ReplayStep};
+  };
+
+  /// @brief Owns the deferred returned-step data drained from the integration.
+  struct DeferredStepStore {
+    std::vector<GPUHit> hits{};
+    std::vector<DeferredStep> steps{};
+  };
+
   explicit AdePTGeant4Integration() : fHostTrackDataMapper(std::make_unique<HostTrackDataMapper>()) {}
   ~AdePTGeant4Integration();
 
@@ -41,17 +63,13 @@ public:
   void ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction = false,
                       bool const callUserTrackingaction = false);
 
-  /// @brief Takes a range of tracks coming from the device and gives them back to Geant4
-  template <typename Iterator>
-  void ReturnTracks(Iterator begin, Iterator end, int debugLevel, bool callUserActions = false) const
-  {
-    if (debugLevel > 1) {
-      G4cout << "Returning " << end - begin << " tracks from device" << G4endl;
-    }
-    for (Iterator it = begin; it != end; ++it) {
-      ReturnTrack(*it, it - begin, debugLevel, callUserActions);
-    }
-  }
+  /// @brief Return a deferred parent track to Geant4 without rebuilding the visible G4 step.
+  /// @details
+  /// This is only used for returned gamma handoff steps with one parent hit,
+  /// no secondaries, and zero deposited energy. In that case there is no GPU
+  /// step to score on the host, so only the parent G4Track is rebuilt from the
+  /// post-step state and pushed back to the Geant4 stack.
+  void ReturnDeferredTrack(std::span<const GPUHit> gpuSteps, bool const callUserActions = false);
 
   /// @brief Returns the Z value of the user-defined uniform magnetic field
   /// @details This function can only be called when the user-defined field is a G4UniformMagField
@@ -62,6 +80,14 @@ public:
   int GetThreadID() const { return G4Threading::G4GetThreadId(); }
 
   HostTrackDataMapper &GetHostTrackDataMapper() { return *fHostTrackDataMapper; }
+
+  /// @brief Defer a returned step for later sorted replay on the host.
+  void QueueDeferredStep(std::span<const GPUHit> gpuSteps, DeferredStepType type = DeferredStepType::ReplayStep);
+
+  /// @brief Transfer ownership of the currently queued deferred steps.
+  /// @details
+  /// This drains the integration-local deferred-hit storage without copying it.
+  DeferredStepStore TakeDeferredSteps();
 
   void SetHepEmTrackingManager(G4HepEmTrackingManagerSpecialized *hepEmTrackingManager)
   {
@@ -89,8 +115,23 @@ private:
                   G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus, bool callUserTrackingAction,
                   bool callUserSteppingAction) const;
 
-  void ReturnTrack(adeptint::TrackData const &track, unsigned int trackIndex, int debugLevel,
-                   bool callUserActions = false) const;
+  /// @brief Create a heap-owned track that can be pushed onto the Geant4 stack.
+  /// @details
+  /// This is only used as a fallback for gamma/lepton nuclear when no Geant4
+  /// nuclear process is attached. In that case there is no temporary nuclear
+  /// replay track to continue on the CPU, and the visible reconstructed track
+  /// cannot be handed to the stack manager because it is reused integration
+  /// storage.
+  G4Track *MakeTrackForCPUStacking(const G4Track &track) const;
+
+  /// @brief Recreate a track to from a returned parent step to be continued on CPU.
+  /// @details
+  /// Out-of-GPU-region and finish-on-CPU steps used to hand Geant4 a returned
+  /// track built from the post-step state. The visible reconstructed step keeps
+  /// the transported GPU-step data, but the continued CPU track must still
+  /// match that old current-state handoff.
+  G4Track *MakeReturnedTrackFromStep(GPUHit const &parentStep, const HostTrackData &hostTData,
+                                     bool setStopButAlive) const;
 
   // pointer to specialized G4HepEmTrackingManager. Owned by AdePTTrackingManager,
   // this is just a reference to handle gamma-/lepton-nuclear reactions
@@ -101,6 +142,9 @@ private:
 
   std::unique_ptr<AdePTGeant4Integration_detail::ScoringObjects, AdePTGeant4Integration_detail::Deleter>
       fScoringObjects{nullptr};
+
+  std::vector<GPUHit> fDeferredHits;
+  std::vector<DeferredStep> fDeferredSteps;
 };
 
 #endif
