@@ -55,6 +55,7 @@ PERF_STATUS=1
 
 CERN_GITLAB_USERNAME="${CERN_GITLAB_USERNAME:-}"
 CERN_GITLAB_TOKEN="${CERN_GITLAB_TOKEN:-}"
+KEEP_BUILD_ROOT="${KEEP_BUILD_ROOT:-0}"
 
 log() {
   printf '[athena-perf] %s\n' "$*"
@@ -264,6 +265,13 @@ on_exit() {
   fi
 
   write_results || true
+
+  if [[ "${KEEP_BUILD_ROOT}" == "1" ]]; then
+    log "Keeping build root for debugging: ${BUILD_ROOT}"
+  elif [[ -n "${BUILD_ROOT}" && -d "${BUILD_ROOT}" ]]; then
+    rm -rf "${BUILD_ROOT}" || log "Failed to clean build root ${BUILD_ROOT}"
+  fi
+
   exit "${exit_code}"
 }
 
@@ -427,7 +435,7 @@ clone_athena() {
 
 prepare_local_atlasexternals() {
   local repo_dir="${BUILD_ROOT}/atlasexternals-under-test"
-  local cmake_file branch_name atlasexternals_repo_auth
+  local cmake_file coral_cmake_file coral_patch_dir coral_patch_file branch_name atlasexternals_repo_auth
 
   atlasexternals_repo_auth=$(auth_repo_url "${ATLAS_EXTERNALS_REPOSITORY}")
 
@@ -435,6 +443,9 @@ prepare_local_atlasexternals() {
   git_checkout_ref "${repo_dir}" ci-base "${ATLAS_EXTERNALS_BASE_REF}" || return 1
 
   cmake_file="${repo_dir}/External/AdePT/CMakeLists.txt"
+  coral_cmake_file="${repo_dir}/External/CORAL/CMakeLists.txt"
+  coral_patch_dir="${repo_dir}/External/CORAL/patches"
+  coral_patch_file="${coral_patch_dir}/coral-empty-manpath.patch"
   python3 - "${cmake_file}" "https://github.com/${ADEPT_REPOSITORY}.git" "${ADEPT_REF}" "${MODE}" <<'PY'
 import pathlib
 import re
@@ -480,11 +491,78 @@ if split_count == 0:
 path.write_text(text)
 PY
 
+  # Temporary workaround: the current Alma9 benchmark container does not ship
+  # man/manpath, which leaves CORAL's default_manpath empty. CORAL then
+  # misparses the generated environment commands and dies on "Unknown
+  # environment command BINARY_TAG". Keep this local patch only until the
+  # benchmark container includes man/manpath (or CORAL handles an empty
+  # default_manpath safely upstream).
+  mkdir -p "${coral_patch_dir}" || return 1
+  cat > "${coral_patch_file}" <<'EOF'
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -130,13 +130,15 @@ ENDIF()
+ coral_release_env(PREPEND PATH              ${CMAKE_INSTALL_PREFIX}/tests/bin
+                   PREPEND PATH              ${CMAKE_INSTALL_PREFIX}/bin
+                   PREPEND LD_LIBRARY_PATH   ${CMAKE_INSTALL_PREFIX}/tests/lib
+                   PREPEND LD_LIBRARY_PATH   ${CMAKE_INSTALL_PREFIX}/lib
+                   PREPEND PYTHONPATH        ${CMAKE_INSTALL_PREFIX}/tests/bin
+                   PREPEND PYTHONPATH        ${CMAKE_INSTALL_PREFIX}/lib
+                   PREPEND PYTHONPATH        ${CMAKE_INSTALL_PREFIX}/python
+-                  APPEND  MANPATH           ${default_manpath}
++                  # Temporary CI workaround: quote an empty default_manpath
++                  # until the benchmark container ships man/manpath.
++                  APPEND  MANPATH           "${default_manpath}"
+                   #SET     CMTCONFIG         ${BINARY_TAG} # NO (CORALCOOL-2850)
+                   SET     BINARY_TAG        ${BINARY_TAG})
+-coral_build_env(APPEND  MANPATH         ${default_manpath}
++coral_build_env(APPEND  MANPATH         "${default_manpath}"
+                 #SET     CMTCONFIG       ${BINARY_TAG} # NO (CORALCOOL-2850)
+                 SET     BINARY_TAG      ${BINARY_TAG})
+EOF
+
+  python3 - "${coral_cmake_file}" <<'PY'
+import pathlib
+import re
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+
+patch_pattern = re.compile(
+    r'set\(\s*ATLAS_CORAL_PATCH\s*.*?CACHE STRING "Patch command for CORAL" \)',
+    re.S,
+)
+patch_replacement = (
+    'set( ATLAS_CORAL_PATCH\n'
+    '   "PATCH_COMMAND;patch;-p1;-i;${CMAKE_CURRENT_SOURCE_DIR}/patches/coral-empty-manpath.patch"\n'
+    '   CACHE STRING "Patch command for CORAL" )'
+)
+text, patch_count = patch_pattern.subn(patch_replacement, text, count=1)
+if patch_count != 1:
+    raise SystemExit("Could not rewrite ATLAS_CORAL_PATCH")
+
+message_pattern = re.compile(
+    r'set\(\s*ATLAS_CORAL_FORCEDOWNLOAD_MESSAGE\s*.*?CACHE STRING "Download message to update whenever patching changes" \)',
+    re.S,
+)
+message_replacement = (
+    'set( ATLAS_CORAL_FORCEDOWNLOAD_MESSAGE\n'
+    '   "Forcing the re-download of CORAL (2026.04.22.)"\n'
+    '   CACHE STRING "Download message to update whenever patching changes" )'
+)
+text, message_count = message_pattern.subn(message_replacement, text, count=1)
+if message_count != 1:
+    raise SystemExit("Could not rewrite ATLAS_CORAL_FORCEDOWNLOAD_MESSAGE")
+
+path.write_text(text)
+PY
+
   branch_name="ci-athena-performance-${RUN_LABEL}"
   git -C "${repo_dir}" config user.name "AdePT Performance CI" || return 1
   git -C "${repo_dir}" config user.email "actions@users.noreply.github.com" || return 1
   git -C "${repo_dir}" checkout -B "${branch_name}" >/dev/null || return 1
-  git -C "${repo_dir}" add External/AdePT/CMakeLists.txt || return 1
+  git -C "${repo_dir}" add External/AdePT/CMakeLists.txt External/CORAL/CMakeLists.txt External/CORAL/patches/coral-empty-manpath.patch || return 1
   git -C "${repo_dir}" commit -m "CI performance benchmark for ${ADEPT_REF}" >/dev/null || return 1
 
   ATLAS_EXTERNALS_LOCAL_REPO="${repo_dir}"
@@ -504,11 +582,30 @@ prepare_athena_gpu_env() {
 
 build_athena() {
   (
+    build_status=0
+    setup_marker=""
+
     prepare_athena_gpu_env || exit 1
     export AtlasExternals_URL="${ATLAS_EXTERNALS_LOCAL_REPO}"
     export AtlasExternals_REF="${ATLAS_EXTERNALS_LOCAL_REF}"
     cd "${ATHENA_WORKTREE}" || exit 1
     ./Projects/AthSimulation/build_gpu.sh -b "${GPU_BUILD_RELATIVE}" > "${BUILD_LOG}" 2>&1
+
+    build_status=$?
+    if [[ "${build_status}" -ne 0 ]]; then
+      printf '[athena-perf] Athena build command failed with exit code %s; tail of %s follows\n' \
+        "${build_status}" "${BUILD_LOG}" >&2
+      tail -n 200 "${BUILD_LOG}" >&2 || true
+      exit "${build_status}"
+    fi
+
+    setup_marker=$(find "${GPU_BUILD_DIR}/build" -maxdepth 2 -type f -name setup.sh -print -quit 2>/dev/null)
+    if [[ -z "${setup_marker}" ]]; then
+      printf '[athena-perf] Athena build did not produce %s/build/*/setup.sh; tail of %s follows\n' \
+        "${GPU_BUILD_DIR}" "${BUILD_LOG}" >&2
+      tail -n 200 "${BUILD_LOG}" >&2 || true
+      exit 1
+    fi
   )
 }
 
