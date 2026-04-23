@@ -196,7 +196,7 @@ jobs:
             -e ADEPT_VALIDATION_REGIONS_CPU_CAPACITY_FACTOR=5.0 \
             -e ADEPT_VALIDATION_WDT_NUM_THREADS=32 \
             -e ADEPT_VALIDATION_WDT_NUM_TRACKSLOTS=8 \
-            -e ADEPT_VALIDATION_WDT_NUM_HITSLOTS=30 \
+            -e ADEPT_VALIDATION_WDT_NUM_HITSLOTS=28 \
             -e ADEPT_VALIDATION_WDT_CPU_CAPACITY_FACTOR=5.0 \
             -w /work/AdePT \
             gitlab-registry.cern.ch/sft/docker/alma9 \
