@@ -31,15 +31,27 @@ cleanup
 # Create temporary directory
 mkdir -p ${CI_TMP_DIR}
 
+num_threads=${ADEPT_VALIDATION_REGIONS_NUM_THREADS:-${ADEPT_VALIDATION_NUM_THREADS:-8}}
+num_events=${ADEPT_VALIDATION_REGIONS_NUM_EVENTS:-${ADEPT_VALIDATION_NUM_EVENTS:-400}}
+num_trackslots=${ADEPT_VALIDATION_REGIONS_NUM_TRACKSLOTS:-${ADEPT_VALIDATION_NUM_TRACKSLOTS:-3}}
+num_hitslots=${ADEPT_VALIDATION_REGIONS_NUM_HITSLOTS:-${ADEPT_VALIDATION_NUM_HITSLOTS:-12}}
+cpu_capacity_factor=${ADEPT_VALIDATION_REGIONS_CPU_CAPACITY_FACTOR:-${ADEPT_VALIDATION_CPU_CAPACITY_FACTOR:-2.5}}
+gun_number=${ADEPT_VALIDATION_REGIONS_GUN_NUMBER:-${ADEPT_VALIDATION_GUN_NUMBER:-100}}
+nprimaries=$((num_events * gun_number))
+
+echo "Validation settings (regions): threads=${num_threads}, events=${num_events}, gun=${gun_number}, trackslots=${num_trackslots}, hitslots=${num_hitslots}, cpu_capacity_factor=${cpu_capacity_factor}"
+
 # use gun_type hepmc or setDefault
 $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
     --output ${CI_TMP_DIR}/validation_testem3_regions.mac \
     --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_regions.gdml \
-    --num_threads 8 \
-    --num_events 400 \
-    --num_trackslots 3 \
-    --num_hitslots 12 \
+    --num_threads ${num_threads} \
+    --num_events ${num_events} \
+    --num_trackslots ${num_trackslots} \
+    --num_hitslots ${num_hitslots} \
+    --cpu_capacity_factor ${cpu_capacity_factor} \
+    --gun_number ${gun_number} \
     --track_in_all_regions False\
     --gun_type setDefault\
     --regions "caloregion, Layer1, Layer2, Layer3, Layer4, Layer5, Layer6, Layer7, Layer8, Layer9, Layer10,\
@@ -56,5 +68,5 @@ $ADEPT_EXECUTABLE --allsensitive --accumulated_events \
 # Validating the relative error per layer
 $CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_2.5e4_e-.csv \
                                                 --file2 ${CI_TEST_DIR}/benchmark_files/g4hepem_em3_10e7_e-.csv \
-                                                --n1 4e4 --n2 1e7 --tol 0.01 \
+                                                --n1 ${nprimaries} --n2 1e7 --tol 0.01 \
                                                 # --plot_file plot.png # uncomment to plot the validation plot

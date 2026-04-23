@@ -35,6 +35,7 @@ def generate_macro(template_path, output_path, args):
     macro_content = macro_content.replace("$num_events", str(args.num_events))
     macro_content = macro_content.replace("$num_trackslots", str(args.num_trackslots))
     macro_content = macro_content.replace("$num_hitslots", str(args.num_hitslots))
+    macro_content = macro_content.replace("$cpu_capacity_factor", str(args.cpu_capacity_factor))
     macro_content = macro_content.replace("$detector_field", str(args.detector_field))
     macro_content = macro_content.replace("$adept_seed", str(args.adept_seed))
     macro_content = macro_content.replace("$gun_type", str(args.gun_type))
@@ -98,6 +99,8 @@ def main():
                         help="Number of trackslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--num_hitslots", type=int, default=12,
                         help="Number of hitslots in million. Should be chosen according to the GPU memory")
+    parser.add_argument("--cpu_capacity_factor", type=float, default=2.5,
+                        help="CPU staging capacity factor for scored hits (default: 2.5)")
     parser.add_argument("--detector_field", type=str, default="0 0 0",
                         help="Constant magnetic field vector in tesla, format: 'Bx By Bz' (default: '0 0 0')")
     parser.add_argument("--adept_seed", type=int, default=1234567,
