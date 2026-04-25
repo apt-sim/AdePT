@@ -250,6 +250,7 @@ jobs:
     env:
       RESULTS_FILE: ${{ github.workspace }}/athena-performance-results.env
       ARTIFACTS_DIR: ${{ github.workspace }}/athena-performance-results/run-${{ github.run_id }}-${{ needs.prepare.outputs.mode }}
+      BENCHMARK_CONTAINER_IMAGE: adept/athena-benchmark:${{ github.run_id }}
     steps:
       - name: Checkout AdePT under test
         uses: actions/checkout@v6
@@ -277,8 +278,11 @@ jobs:
         run: |
           set -o pipefail
           ls /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/user/atlasLocalSetup.sh || exit 1
-          ls /cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_x86_64-el9-gcc14-opt/Geant4 || true
-          ls /cvmfs/geant4.cern.ch/share/data/G4ENSDFSTATE3.0/ENSDFSTATE.dat || exit 1
+          g4_path=/cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_x86_64-el9-gcc14-opt/Geant4
+          release_data_root=/cvmfs/atlas.cern.ch/repo/sw/software/25.0/atlas/offline/ReleaseData/v20
+          ls "${g4_path}" || exit 1
+          ls "${g4_path}"/share/geant4*/data/G4ENSDFSTATE/ENSDFSTATE.dat || exit 1
+          ls "${release_data_root}/LArG4EC/HVEMECMap_v02.dat" || exit 1
           if [ -d /afs ]; then
             ls /afs >/dev/null || exit 1
             echo "/afs is present on the host and will be mounted into the container"
@@ -296,7 +300,16 @@ jobs:
           set -o pipefail
           docker --version || exit 1
 
-      - name: Run Athena performance benchmark in Alma 9 container
+      - name: Build benchmark container image
+        run: |
+          set -o pipefail
+          docker build \
+            --pull \
+            -t "${BENCHMARK_CONTAINER_IMAGE}" \
+            -f test/athena-performance/Dockerfile.alma9-man \
+            .
+
+      - name: Run Athena performance benchmark in workflow-built container
         id: run_perf
         continue-on-error: true
         shell: bash --noprofile --norc {0}
@@ -339,7 +352,7 @@ jobs:
             docker_mount_args+=(-v /afs:/afs:ro,rslave)
           fi
 
-          docker run --rm --pull always \
+          docker run --rm --pull never \
             --gpus all \
             --user "$(id -u):$(id -g)" \
             "${docker_group_args[@]}" \
@@ -358,10 +371,11 @@ jobs:
             -e PERF_THREADS \
             -e PERF_EVENTS \
             -e PERF_REPETITIONS \
+            -e GITHUB_RUN_ID \
             -e CERN_GITLAB_USERNAME \
             -e CERN_GITLAB_TOKEN \
             -w /work/AdePT \
-            gitlab-registry.cern.ch/sft/docker/alma9 \
+            "${BENCHMARK_CONTAINER_IMAGE}" \
             bash -lc '
               set -o pipefail
               mkdir -p "${HOME}"
@@ -385,6 +399,11 @@ jobs:
                 --artifacts-dir "${container_artifacts_dir}" \
                 --results-file "${container_results_file}"
             '
+
+      - name: Remove benchmark container image
+        if: always()
+        run: |
+          docker image rm -f "${BENCHMARK_CONTAINER_IMAGE}" || true
 
       - name: Load benchmark results
         if: always() && hashFiles(env.RESULTS_FILE) != ''
@@ -452,14 +471,12 @@ jobs:
               body,
             });
 
+      - name: Clean benchmark workspace outputs
+        if: always()
+        run: |
+          rm -rf "${ARTIFACTS_DIR}" "${RESULTS_FILE}"
+
       - name: Fail workflow if benchmark failed
         if: always()
         run: |
-          if [ -r "${RESULTS_FILE}" ]; then
-            # shellcheck disable=SC1091
-            source "${RESULTS_FILE}"
-          else
-            PERF_STATUS=1
-          fi
-
-          test "${PERF_STATUS}" -eq 0
+          test "${PERF_STATUS:-1}" -eq 0

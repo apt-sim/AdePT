@@ -258,7 +258,19 @@ copy_runtime_logs() {
   mkdir -p "${ARTIFACTS_DIR}/run-logs"
 
   find "${RUN_DIR}" -maxdepth 1 -type f \
-    \( -name "adept_T*.log" -o -name "log.AtlasG4Tf_AdePT_T*" -o -name "run_adept.sh" -o -name "run_all_5.sh" \) \
+    \( \
+      -name "adept_T*.log" \
+      -o -name "log.AtlasG4Tf*" \
+      -o -name "run_adept.sh" \
+      -o -name "run_all_5.sh" \
+      -o -name "env.txt" \
+      -o -name "jobReport.json" \
+      -o -name "runargs.AtlasG4Tf.py" \
+      -o -name "runwrapper.AtlasG4Tf.sh" \
+      -o -name "prmon.AtlasG4Tf.log" \
+      -o -name "prmon.full.AtlasG4Tf" \
+      -o -name "prmon.summary.AtlasG4Tf.json" \
+    \) \
     -exec cp {} "${ARTIFACTS_DIR}/run-logs/" \;
 }
 
@@ -427,7 +439,7 @@ ATHENA_WORKTREE="${BUILD_ROOT}/athena"
 GPU_BUILD_DIR="${BUILD_ROOT}/gpu_build_${MODE_LABEL}_${ADEPT_SHORT_SHA}"
 GPU_BUILD_RELATIVE="../$(basename "${GPU_BUILD_DIR}")"
 BUILD_LOG="${ARTIFACTS_DIR}/output_build.txt"
-RUN_DIR="${BUILD_ROOT}/runs_validation_GammaRR/${RUN_DIR_LABEL}"
+RUN_DIR="${BUILD_ROOT}/runs/${RUN_DIR_LABEL}"
 SUMMARY_MARKDOWN_FILE="${ARTIFACTS_DIR}/summary.md"
 
 trap 'on_exit $?' EXIT
@@ -467,9 +479,46 @@ clone_athena() {
   ATHENA_HEAD_SHA=$(git -C "${ATHENA_WORKTREE}" rev-parse HEAD) || return 1
 }
 
+patch_athena_gpu_build_externals() {
+  local build_externals_path="${ATHENA_WORKTREE}/Projects/AthSimulation/build_externals.sh"
+
+  [[ -f "${build_externals_path}" ]] || return 1
+
+  python3 - "${build_externals_path}" "${ATLAS_EXTERNALS_LOCAL_REPO}" "${ATLAS_EXTERNALS_LOCAL_REF}" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+atlasexternals_repo = sys.argv[2]
+atlasexternals_ref = sys.argv[3]
+text = path.read_text()
+
+override_marker = "# Force benchmark wrapper atlasexternals override.\n"
+
+anchor = 'source "${ATLAS_PROJECT_DIR}/../../Build/AtlasBuildScripts/build_project_externals.sh"\n'
+override_block = (
+    override_marker +
+    f'export AtlasExternals_URL="{atlasexternals_repo}"\n'
+    f'export AtlasExternals_REF="{atlasexternals_ref}"\n\n' +
+    anchor
+)
+
+if override_marker in text:
+    start = text.index(override_marker)
+    end = text.index(anchor, start)
+    text = text[:start] + override_block + text[end + len(anchor):]
+else:
+    if anchor not in text:
+        raise SystemExit("Could not find insertion point for atlasexternals override block")
+    text = text.replace(anchor, override_block, 1)
+
+path.write_text(text)
+PY
+}
+
 prepare_local_atlasexternals() {
   local repo_dir="${BUILD_ROOT}/atlasexternals-under-test"
-  local cmake_file coral_cmake_file coral_patch_dir coral_patch_file branch_name atlasexternals_repo_auth
+  local cmake_file branch_name atlasexternals_repo_auth
 
   atlasexternals_repo_auth=$(auth_repo_url "${ATLAS_EXTERNALS_REPOSITORY}")
 
@@ -477,9 +526,6 @@ prepare_local_atlasexternals() {
   git_checkout_ref "${repo_dir}" ci-base "${ATLAS_EXTERNALS_BASE_REF}" || return 1
 
   cmake_file="${repo_dir}/External/AdePT/CMakeLists.txt"
-  coral_cmake_file="${repo_dir}/External/CORAL/CMakeLists.txt"
-  coral_patch_dir="${repo_dir}/External/CORAL/patches"
-  coral_patch_file="${coral_patch_dir}/coral-empty-manpath.patch"
   python3 - "${cmake_file}" "https://github.com/${ADEPT_REPOSITORY}.git" "${ADEPT_REF}" "${MODE}" <<'PY'
 import pathlib
 import re
@@ -528,70 +574,11 @@ PY
     return 1
   fi
 
-  # Temporary workaround: the current Alma9 benchmark container does not ship
-  # man/manpath. CORAL computes an empty default_manpath in that case, and its
-  # environment-generation logic then misparses the following BINARY_TAG token.
-  # Give default_manpath a harmless non-empty fallback until the benchmark
-  # container includes man/manpath (or CORAL handles an empty default_manpath
-  # safely upstream).
-  mkdir -p "${coral_patch_dir}" || return 1
-  cat > "${coral_patch_file}" <<'EOF'
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -128,6 +128,11 @@ ENDIF()
-+if(NOT default_manpath)
-+  # Temporary CI workaround until the benchmark container ships man/manpath.
-+  set(default_manpath "/usr/share/man")
-+endif()
-+
- coral_release_env(PREPEND PATH              ${CMAKE_INSTALL_PREFIX}/tests/bin
-EOF
-
-  python3 - "${coral_cmake_file}" <<'PY'
-import pathlib
-import re
-import sys
-
-path = pathlib.Path(sys.argv[1])
-text = path.read_text()
-
-patch_pattern = re.compile(
-    r'set\(\s*ATLAS_CORAL_PATCH\s*.*?CACHE STRING "Patch command for CORAL" \)',
-    re.S,
-)
-patch_replacement = (
-    'set( ATLAS_CORAL_PATCH\n'
-    '   "PATCH_COMMAND;patch;-p1;-i;${CMAKE_CURRENT_SOURCE_DIR}/patches/coral-empty-manpath.patch"\n'
-    '   CACHE STRING "Patch command for CORAL" )'
-)
-text, patch_count = patch_pattern.subn(patch_replacement, text, count=1)
-if patch_count != 1:
-    raise SystemExit("Could not rewrite ATLAS_CORAL_PATCH")
-
-message_pattern = re.compile(
-    r'set\(\s*ATLAS_CORAL_FORCEDOWNLOAD_MESSAGE\s*.*?CACHE STRING "Download message to update whenever patching changes" \)',
-    re.S,
-)
-message_replacement = (
-    'set( ATLAS_CORAL_FORCEDOWNLOAD_MESSAGE\n'
-    '   "Forcing the re-download of CORAL (2026.04.22.)"\n'
-    '   CACHE STRING "Download message to update whenever patching changes" )'
-)
-text, message_count = message_pattern.subn(message_replacement, text, count=1)
-if message_count != 1:
-    raise SystemExit("Could not rewrite ATLAS_CORAL_FORCEDOWNLOAD_MESSAGE")
-
-path.write_text(text)
-PY
-  if [[ $? -ne 0 ]]; then
-    return 1
-  fi
-
   branch_name="ci-athena-performance-${RUN_LABEL}"
   git -C "${repo_dir}" config user.name "AdePT Performance CI" || return 1
   git -C "${repo_dir}" config user.email "actions@users.noreply.github.com" || return 1
   git -C "${repo_dir}" checkout -B "${branch_name}" >/dev/null || return 1
-  git -C "${repo_dir}" add External/AdePT/CMakeLists.txt External/CORAL/CMakeLists.txt External/CORAL/patches/coral-empty-manpath.patch || return 1
+  git -C "${repo_dir}" add External/AdePT/CMakeLists.txt || return 1
   git -C "${repo_dir}" commit -m "CI performance benchmark for ${ADEPT_REF}" >/dev/null || return 1
 
   ATLAS_EXTERNALS_LOCAL_REPO="${repo_dir}"
@@ -608,6 +595,21 @@ prepare_athena_gpu_env() {
   export ATLAS_NIGHTLY_PLATFORM="${BINARY_TAG:-${LCG_PLATFORM:-${CMTCONFIG}}}"
   export ATLAS_NIGHTLY_G4PATH="${ATLAS_NIGHTLY_G4PATH:-/cvmfs/atlas-nightlies.cern.ch/repo/sw/main--simGPU_AthSimulation_${ATLAS_NIGHTLY_PLATFORM}/Geant4}"
   export G4PATH="${ATLAS_NIGHTLY_G4PATH}"
+}
+
+verify_adept_physics_list() {
+  local adept_object=""
+
+  adept_object=$(find "${GPU_BUILD_DIR}/build/Simulation/G4Utilities/G4PhysicsLists" \
+    -path '*/CMakeFiles/G4PhysicsLists.dir/src/AdePT/*.o' -print -quit 2>/dev/null)
+  if [[ -z "${adept_object}" ]]; then
+    printf '[athena-perf] G4PhysicsLists was built without AdePT objects under %s\n' \
+      "${GPU_BUILD_DIR}" >&2
+    printf '[athena-perf] This usually means AtlasExternals_URL/REF did not override the default externals checkout\n' >&2
+    grep -n 'atlasexternals tag/branch\|Externals .*overridden\|Building G4PhysicsLists with AdePT support\|src/AdePT/\|FTFP_BERT_ATL_AdePT' \
+      "${BUILD_LOG}" | head -n 200 >&2 || true
+    return 1
+  fi
 }
 
 build_athena() {
@@ -636,11 +638,14 @@ build_athena() {
       print_build_failure_context "${BUILD_LOG}"
       exit 1
     fi
+
+    verify_adept_physics_list || exit 1
   )
 }
 
 rewrite_setup_run() {
   local setup_path="${GPU_BUILD_DIR}/setup_run.sh"
+  local release_data_root="/cvmfs/atlas.cern.ch/repo/sw/software/25.0/atlas/offline/ReleaseData/v20"
 
   cat > "${GPU_BUILD_DIR}/setup_run.sh" <<EOF
 export ATLAS_LOCAL_ROOT_BASE="/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase"
@@ -652,6 +657,34 @@ export ATLAS_NIGHTLY_G4PATH=\${ATLAS_NIGHTLY_G4PATH:-/cvmfs/atlas-nightlies.cern
 export G4PATH=\${ATLAS_NIGHTLY_G4PATH}
 source ${ATHENA_WORKTREE}/Projects/AthSimulation/build_env.sh -b ${GPU_BUILD_DIR}/externals || return 1
 source ${GPU_BUILD_DIR}/build/\${LCG_PLATFORM}/setup.sh || return 1
+export G4PATH=\${ATLAS_NIGHTLY_G4PATH}
+g4_data_root=\$(printf '%s\n' "\${ATLAS_NIGHTLY_G4PATH}"/share/geant4*/data | sort -V | tail -n1)
+[ -d "\${g4_data_root}" ] || { echo "[athena-perf] ERROR: could not locate Geant4 data under \${ATLAS_NIGHTLY_G4PATH}/share" >&2; return 1; }
+export G4VERS=\$(basename "\$(dirname "\${g4_data_root}")")
+export G4ABLADATA=\${g4_data_root}/G4ABLA
+export G4ENSDFSTATEDATA=\${g4_data_root}/G4ENSDFSTATE
+export G4INCLDATA=\${g4_data_root}/G4INCL
+export G4LEDATA=\${g4_data_root}/G4EMLOW
+export G4LEVELGAMMADATA=\${g4_data_root}/PhotonEvaporation
+export G4NEUTRONHPDATA=\${g4_data_root}/G4NDL
+export G4PARTICLEXSDATA=\${g4_data_root}/G4PARTICLEXS
+export G4PIIDATA=\${g4_data_root}/G4PII
+export G4RADIOACTIVEDATA=\${g4_data_root}/RadioactiveDecay
+export G4REALSURFACEDATA=\${g4_data_root}/RealSurface
+export G4SAIDXSDATA=\${g4_data_root}/G4SAIDDATA
+export ATLASCALDATA=${release_data_root}
+export ATLASTESTDATA=${release_data_root}/testfile
+export DATAPATH=\${DATAPATH:+\${DATAPATH}:}\${ATLASCALDATA}:\${ATLASTESTDATA}
+export ADEPT_ATHENA_WORKTREE=${ATHENA_WORKTREE}
+export ADEPT_ATLASG4_TF=${ATHENA_WORKTREE}/Simulation/SimuJobTransforms/scripts/AtlasG4_tf.py
+mkdir -p ${GPU_BUILD_DIR}/runtime_python || return 1
+while IFS= read -r -d '' init_file; do
+  pkg_dir=\$(dirname "\${init_file}")
+  pkg_name=\$(basename "\$(dirname "\${pkg_dir}")")
+  ln -sfn "\${pkg_dir}" ${GPU_BUILD_DIR}/runtime_python/"\${pkg_name}" || return 1
+done < <(find ${ATHENA_WORKTREE} -type f -path '*/python/__init__.py' -print0) || return 1
+export PYTHONPATH=${GPU_BUILD_DIR}/runtime_python\${PYTHONPATH:+:\${PYTHONPATH}}
+export PATH=${ATHENA_WORKTREE}/Simulation/SimuJobTransforms/scripts:\${PATH}
 EOF
   chmod +x "${setup_path}" || return 1
 }
@@ -787,6 +820,7 @@ PY
 preflight_checks || die "Preflight checks failed"
 clone_athena || die "Failed to prepare Athena checkout"
 prepare_local_atlasexternals || die "Failed to prepare patched AtlasExternals checkout"
+patch_athena_gpu_build_externals || die "Failed to patch Athena GPU externals wrapper"
 build_athena || die "Athena build failed; inspect ${BUILD_LOG}"
 rewrite_setup_run || die "Failed to write benchmark setup script"
 prepare_run_dir || die "Failed to prepare benchmark run directory"

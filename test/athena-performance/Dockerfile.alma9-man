@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+FROM gitlab-registry.cern.ch/sft/docker/alma9:latest
+
+USER root
+RUN dnf -y install man-db && dnf clean all
