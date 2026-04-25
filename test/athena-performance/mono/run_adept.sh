@@ -34,7 +34,7 @@ flags.GeoModel.EMECStandard=True
 EOF
 )
 
-AtlasG4_tf.py \
+"${ADEPT_ATLASG4_TF:-AtlasG4_tf.py}" \
   --multithreaded \
   --randomSeed 1212353 \
   --conditionsTag 'default:OFLCOND-MC21-SDR-RUN4-02' \
