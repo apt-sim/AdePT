@@ -168,6 +168,14 @@ jobs:
 
           rm -f "${RESULTS_FILE}"
 
+          ci_container="adept-self-hosted-pr-ci-${{ needs.prepare.outputs.pr_number }}"
+          cleanup_container() {
+            docker rm -f "${ci_container}" >/dev/null 2>&1 || true
+          }
+          cleanup_container
+          trap cleanup_container EXIT
+          trap 'cleanup_container; exit 130' INT TERM
+
           docker_group_args=()
           for group_name in video render; do
             if getent group "${group_name}" >/dev/null 2>&1; then
@@ -176,6 +184,9 @@ jobs:
           done
 
           docker run --rm --pull always \
+            --name "${ci_container}" \
+            --label adept.workflow=self-hosted-pr-ci \
+            --label adept.pr="${{ needs.prepare.outputs.pr_number }}" \
             --gpus all \
             --user "$(id -u):$(id -g)" \
             "${docker_group_args[@]}" \
@@ -185,7 +196,6 @@ jobs:
             -v /cvmfs:/cvmfs:ro,rslave \
             -v "${GITHUB_WORKSPACE}:/work/AdePT" \
             -e HOME=/tmp/adeptci-home \
-            -e ADEPT_VALIDATION_NUM_EVENTS=600 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_THREADS=32 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_TRACKSLOTS=6 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_HITSLOTS=30 \
