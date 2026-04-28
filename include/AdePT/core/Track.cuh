@@ -36,8 +36,6 @@ struct NeutralTrack {
   vecgeom::NavigationState navState; ///< current navigation state
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
-  bool hepEmTrackExists{false};
-
   // Variables used to store track info needed for scoring
   vecgeom::NavigationState nextState;
   vecgeom::Vector3D<double> preStepPos;
@@ -56,6 +54,14 @@ struct NeutralTrack {
   unsigned short stepCounter{0};
   unsigned short looperCounter{0};
   unsigned short zeroStepCounter{0};
+#ifdef ADEPT_USE_SPLIT_KERNELS
+  bool hepEmTrackExists{false};
+  // These flags are only used by charged split kernels, but storing them here
+  // uses otherwise wasted tail padding in NeutralTrack.
+  bool propagated{false};
+  bool restrictedPhysicalStepLength{false};
+  bool stopped{false};
+#endif
 
   __host__ __device__ NeutralTrack()                                = default;
   __host__ __device__ NeutralTrack(const NeutralTrack &)            = default;
@@ -117,7 +123,7 @@ struct NeutralTrack {
 
 // Charged particles extend the neutral layout with state that is only needed by
 // e-/e+ transport: cached safety, MSC/range state, magnetic-field propagation
-// state, and split-kernel charged step flags.
+// state, and the split-kernel safe length.
 struct ChargedTrack : NeutralTrack {
   using NeutralTrack::NeutralTrack;
 
@@ -138,11 +144,6 @@ struct ChargedTrack : NeutralTrack {
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
   double safeLength{0};
-  bool propagated{false};
-
-  // Variables used to store results from G4HepEM
-  bool restrictedPhysicalStepLength{false};
-  bool stopped{false};
 #endif
 
   /// @brief Get recomputed cached safety ay a given track position
@@ -178,7 +179,4 @@ struct ChargedTrack : NeutralTrack {
   }
 };
 
-// Compatibility alias for code paths that have not yet been made explicitly
-// charged/neutral. New storage should use NeutralTrack or ChargedTrack directly.
-using Track = ChargedTrack;
 #endif
