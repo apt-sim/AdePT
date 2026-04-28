@@ -26,21 +26,22 @@
 namespace AsyncAdePT {
 
 // A bundle of pointers to generate particles of an implicit type.
+template <typename TrackT>
 struct SpeciesParticleManager {
-  Track *fTracks;
+  TrackT *fTracks;
   SlotManager *fSlotManager;
   adept::MParray *fActiveQueue;
   adept::MParray *fNextActiveQueue;
 
 public:
-  __host__ __device__ SpeciesParticleManager(Track *tracks, SlotManager *slotManager, adept::MParray *activeQueue,
+  __host__ __device__ SpeciesParticleManager(TrackT *tracks, SlotManager *slotManager, adept::MParray *activeQueue,
                                              adept::MParray *nextActiveQueue)
       : fTracks(tracks), fSlotManager(slotManager), fActiveQueue(activeQueue), fNextActiveQueue(nextActiveQueue)
   {
   }
 
   /// Obtain track at given slot position
-  __device__ __forceinline__ Track &TrackAt(SlotManager::value_type slot) { return fTracks[slot]; }
+  __device__ __forceinline__ TrackT &TrackAt(SlotManager::value_type slot) { return fTracks[slot]; }
 
   /// Obtain a slot for a track, but don't enqueue.
   __device__ auto NextSlot() { return fSlotManager->NextSlot(); }
@@ -59,14 +60,14 @@ public:
 
   /// Construct a track at the given location, forwarding all arguments to the constructor.
   template <typename... Ts>
-  __device__ Track &InitTrack(SlotManager::value_type slot, Ts &&...args)
+  __device__ TrackT &InitTrack(SlotManager::value_type slot, Ts &&...args)
   {
-    return *new (fTracks + slot) Track{std::forward<Ts>(args)...};
+    return *new (fTracks + slot) TrackT{std::forward<Ts>(args)...};
   }
 
   /// Obtain a slot and construct a track, forwarding args to the track constructor.
   template <typename... Ts>
-  __device__ Track &NextTrack(Ts &&...args)
+  __device__ TrackT &NextTrack(Ts &&...args)
   {
     const auto slot = NextSlot();
     // next track is only visible in next GPU iteration, therefore pushed in the NextActiveQueue
@@ -78,10 +79,10 @@ public:
 
 // A bundle of generators for the three particle types.
 struct ParticleManager {
-  SpeciesParticleManager electrons;
-  SpeciesParticleManager positrons;
-  SpeciesParticleManager gammas;
-  SpeciesParticleManager gammasWDT;
+  SpeciesParticleManager<ChargedTrack> electrons;
+  SpeciesParticleManager<ChargedTrack> positrons;
+  SpeciesParticleManager<NeutralTrack> gammas;
+  SpeciesParticleManager<NeutralTrack> gammasWDT;
 };
 
 // A bundle of queues per particle type:
@@ -154,15 +155,16 @@ static_assert(GPUQueueIndex::Gamma == static_cast<int>(ParticleType::Gamma),
 
 /// @brief Holds all GPU resources needed to manage in-flight tracks of one particle species:
 ///        track buffer, slot manager, interaction queues, CUDA stream and event.
+template <typename TrackT>
 struct SpeciesState {
-  Track *tracks;
-  SlotManager *slotManager;
-  ParticleQueues queues;
-  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream;
-  ADEPT_DEVICE_API_SYMBOL(Event_t) event;
-
-  static constexpr double relativeQueueSize[] = {0.35, 0.15, 0.5};
+  TrackT *tracks{nullptr};
+  SlotManager *slotManager{nullptr};
+  ParticleQueues queues{};
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stream {};
+  ADEPT_DEVICE_API_SYMBOL(Event_t) event {};
 };
+
+static constexpr double kRelativeQueueSize[GPUQueueIndex::NumSpecies] = {0.35, 0.15, 0.5};
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
 struct HepEmBuffers {
@@ -179,8 +181,17 @@ struct AllInteractionQueues {
 
 // Pointers to track storage for each particle type
 struct TracksAndSlots {
-  Track *const tracks[GPUQueueIndex::NumSpecies];
+  ChargedTrack *electrons;
+  ChargedTrack *positrons;
+  NeutralTrack *gammas;
   SlotManager *const slotManagers[GPUQueueIndex::NumSpecies];
+
+  __device__ __forceinline__ short ThreadIdAt(unsigned int particleType, SlotManager::value_type slot) const
+  {
+    if (particleType == GPUQueueIndex::Electron) return electrons[slot].threadId;
+    if (particleType == GPUQueueIndex::Positron) return positrons[slot].threadId;
+    return gammas[slot].threadId;
+  }
 };
 
 // A bundle of queues for the three particle types.
@@ -237,7 +248,9 @@ struct GPUstate {
   GeneralMagneticField magneticField;
 #endif
 
-  SpeciesState particles[GPUQueueIndex::NumSpecies];
+  SpeciesState<ChargedTrack> electrons;
+  SpeciesState<ChargedTrack> positrons;
+  SpeciesState<NeutralTrack> gammas;
 
   // particle queues for gammas doing woodcock tracking. Only the `initiallyActive` and `nextActive` queues are
   // allocated.
@@ -273,10 +286,13 @@ struct GPUstate {
       if (stats) ADEPT_DEVICE_API_CALL(FreeHost(stats));
       if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(stream));
 
-      for (SpeciesState &particleType : particles) {
+      auto destroySpeciesSync = [](auto &particleType) {
         if (particleType.stream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.stream));
         if (particleType.event) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.event));
-      }
+      };
+      destroySpeciesSync(electrons);
+      destroySpeciesSync(positrons);
+      destroySpeciesSync(gammas);
       for (void *ptr : allCudaPointers) {
         ADEPT_DEVICE_API_CALL(Free(ptr));
       }

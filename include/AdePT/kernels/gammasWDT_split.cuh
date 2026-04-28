@@ -41,8 +41,8 @@ __global__ void __launch_bounds__(256, 1)
   auto &slotManager                        = *particleManager.gammasWDT.fSlotManager;
   const int activeSize                     = particleManager.gammasWDT.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = particleManager.gammasWDT.ActiveAt(i);
-    Track &currentTrack = particleManager.gammasWDT.TrackAt(slot);
+    const auto slot            = particleManager.gammasWDT.ActiveAt(i);
+    NeutralTrack &currentTrack = particleManager.gammasWDT.TrackAt(slot);
 
     // Setup of the advanced debug printouts
     bool printErrors = true;

@@ -170,6 +170,23 @@ __device__ inline uint64_t GenerateSeedFromTrackInfo(const AsyncAdePT::TrackData
   return fnv1a_hash64(input, 12);
 }
 
+template <typename SpeciesManagerT>
+__device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const AsyncAdePT::TrackDataWithIDs &trackInfo,
+                                        short queueIndex, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
+                                        uint64_t initialSeed)
+{
+  // TODO: Delay when not enough slots?
+  const auto slot = speciesTM.NextSlot();
+  // Scramble the initial seed with track data so a particle returning from the
+  // device and being injected again does not collide with its old RNG stream.
+  auto seed = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
+  speciesTM.InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+                      static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
+                      trackInfo.direction, trackInfo.navState, trackInfo.eventId, trackInfo.trackId, trackInfo.parentId,
+                      trackInfo.threadId, trackInfo.stepCounter);
+  toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
+}
+
 // Kernel function to initialize tracks comming from a Geant4 buffer
 __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks, ParticleManager particleManager,
                            const vecgeom::VPlacedVolume *world, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
@@ -177,39 +194,25 @@ __global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks,
 {
   // constexpr double tolerance = 10. * vecgeom::kTolerance;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < ntracks; i += blockDim.x * gridDim.x) {
-    SpeciesParticleManager *speciesTM = nullptr;
-    const auto &trackInfo             = trackinfo[i];
-    short queueIndex                  = -1;
+    const auto &trackInfo = trackinfo[i];
+
     switch (trackInfo.pdg) {
     case 11:
-      speciesTM  = &particleManager.electrons;
-      queueIndex = GPUQueueIndex::Electron;
+      InitTrackToQueue(particleManager.electrons, trackInfo, GPUQueueIndex::Electron, toBeEnqueued, initialSeed);
       break;
     case -11:
-      speciesTM  = &particleManager.positrons;
-      queueIndex = GPUQueueIndex::Positron;
+      InitTrackToQueue(particleManager.positrons, trackInfo, GPUQueueIndex::Positron, toBeEnqueued, initialSeed);
       break;
     case 22:
-      speciesTM = &particleManager.gammas;
-
       // check for Woodcock tracking
-      const bool useWDT = ShouldUseWDT(trackinfo[i].navState, trackInfo.eKin);
-      queueIndex        = useWDT ? GPUQueueIndex::GammaWDT : GPUQueueIndex::Gamma;
+      InitTrackToQueue(particleManager.gammas, trackInfo,
+                       ShouldUseWDT(trackinfo[i].navState, trackInfo.eKin) ? GPUQueueIndex::GammaWDT
+                                                                           : GPUQueueIndex::Gamma,
+                       toBeEnqueued, initialSeed);
+      break;
+    default:
+      assert(false && "Unsupported pdg type");
     };
-    assert(speciesTM != nullptr && "Unsupported pdg type");
-
-    // TODO: Delay when not enough slots?
-    const auto slot = speciesTM->NextSlot();
-    // we need to scramble the initial seed with some more trackinfo to generate a unique seed.
-    // otherwise, if a particle returns from the device and is injected again (i.e., via lepton nuclear), it would have
-    // the same random number state, causing collisions in the track IDs
-    auto seed = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
-    Track &track =
-        speciesTM->InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
-                             static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
-                             trackInfo.direction, trackinfo[i].navState, trackInfo.eventId, trackInfo.trackId,
-                             trackInfo.parentId, trackInfo.threadId, trackInfo.stepCounter);
-    toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
   }
 }
 
@@ -329,7 +332,6 @@ __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, Trac
 
     // WDT gammas access the gamma tracks (but have their own queue)
     const unsigned int tracksId = particleType == GPUQueueIndex::GammaWDT ? GPUQueueIndex::Gamma : particleType;
-    Track const *const tracks   = tracksAndSlots.tracks[tracksId];
     adept::MParray const *queue = all.queues[particleType].initiallyActive;
 
     for (unsigned int i = threadIdx.x; i < N; i += blockDim.x)
@@ -340,7 +342,7 @@ __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, Trac
     const auto end = queue->size();
     for (unsigned int i = threadIdx.x; i < end; i += blockDim.x) {
       const auto slot     = (*queue)[i];
-      const auto threadId = tracks[slot].threadId;
+      const auto threadId = tracksAndSlots.ThreadIdAt(tracksId, slot);
       atomicAdd(sharedCount + threadId, 1u);
     }
 
@@ -614,21 +616,22 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   // Allocate all slot managers on device
   gpuState.slotManager_dev = nullptr;
   gpuMalloc(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
-  for (int i = 0; i < GPUQueueIndex::NumSpecies; i++) {
-    // Number of slots allocated computed based on the proportions set in SpeciesState::relativeQueueSize
-    const size_t nSlot              = trackCapacity * SpeciesState::relativeQueueSize[i];
+
+  auto initializeSpecies = [&](auto &particleType, int particleIndex) {
+    // Number of slots allocated computed based on the per-species capacity fractions.
+    const size_t nSlot              = trackCapacity * kRelativeQueueSize[particleIndex];
     const size_t sizeOfQueueStorage = adept::MParray::SizeOfInstance(nSlot);
 
     // Initialize all host slot managers (This call allocates GPU memory)
-    gpuState.allmgr_h.slotManagers[i] =
+    gpuState.allmgr_h.slotManagers[particleIndex] =
         SlotManager{static_cast<SlotManager::value_type>(nSlot), static_cast<SlotManager::value_type>(nSlot)};
     // Initialize dev slotmanagers by copying the host data
-    ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManager_dev[i], &gpuState.allmgr_h.slotManagers[i], sizeof(SlotManager),
+    ADEPT_DEVICE_API_CALL(Memcpy(&gpuState.slotManager_dev[particleIndex],
+                                 &gpuState.allmgr_h.slotManagers[particleIndex], sizeof(SlotManager),
                                  ADEPT_DEVICE_API_SYMBOL(MemcpyDefault)));
 
     // Allocate the queues where the active track indices are stored.
-    SpeciesState &particleType = gpuState.particles[i];
-    particleType.slotManager   = &gpuState.slotManager_dev[i];
+    particleType.slotManager = &gpuState.slotManager_dev[particleIndex];
 
     void *gpuPtr = nullptr;
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
@@ -650,35 +653,27 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
     // Allocate the array where the tracks are stored
     // This is the largest allocation. If it does not fit, we need to try again:
-    Track *trackStorage_dev = nullptr;
-    gpuMalloc(trackStorage_dev, nSlot);
+    gpuMalloc(particleType.tracks, nSlot);
 
-    gpuState.particles[i].tracks = trackStorage_dev;
+    printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot,
+           particleIndex, kRelativeQueueSize[particleIndex] * 100, trackCapacity);
+  };
 
-    printf("%lu track slots allocated for particle type %d on GPU (%.2lf%% of %d total slots allocated)\n", nSlot, i,
-           SpeciesState::relativeQueueSize[i] * 100, trackCapacity);
+  initializeSpecies(gpuState.electrons, GPUQueueIndex::Electron);
+  initializeSpecies(gpuState.positrons, GPUQueueIndex::Positron);
+  initializeSpecies(gpuState.gammas, GPUQueueIndex::Gamma);
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
-    // Allocate an array of HepEm tracks per particle type
-    switch (i) {
-    case 0: // Electrons
-      gpuMalloc(gpuState.hepEmBuffers_d.electronsHepEm, nSlot);
-      break;
-    case 1: // Positrons
-      gpuMalloc(gpuState.hepEmBuffers_d.positronsHepEm, nSlot);
-      break;
-    case 2: // Gammas
-      gpuMalloc(gpuState.hepEmBuffers_d.gammasHepEm, nSlot);
-      break;
-    default:
-      printf("Error: Undefined particle type");
-      break;
-    }
+  gpuMalloc(gpuState.hepEmBuffers_d.electronsHepEm,
+            static_cast<size_t>(trackCapacity * kRelativeQueueSize[GPUQueueIndex::Electron]));
+  gpuMalloc(gpuState.hepEmBuffers_d.positronsHepEm,
+            static_cast<size_t>(trackCapacity * kRelativeQueueSize[GPUQueueIndex::Positron]));
+  gpuMalloc(gpuState.hepEmBuffers_d.gammasHepEm,
+            static_cast<size_t>(trackCapacity * kRelativeQueueSize[GPUQueueIndex::Gamma]));
 #endif
-  }
 
   ParticleQueues &woodcockQueues  = gpuState.woodcockQueues;
-  const size_t nSlot              = trackCapacity * SpeciesState::relativeQueueSize[GPUQueueIndex::Gamma];
+  const size_t nSlot              = trackCapacity * kRelativeQueueSize[GPUQueueIndex::Gamma];
   const size_t sizeOfQueueStorage = adept::MParray::SizeOfInstance(nSlot);
   void *gpuPtr                    = nullptr;
   gpuMalloc(gpuPtr, sizeOfQueueStorage);
@@ -747,9 +742,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
   auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
   const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
 
-  SpeciesState &electrons        = gpuState.particles[GPUQueueIndex::Electron];
-  SpeciesState &positrons        = gpuState.particles[GPUQueueIndex::Positron];
-  SpeciesState &gammas           = gpuState.particles[GPUQueueIndex::Gamma];
+  auto &electrons                = gpuState.electrons;
+  auto &positrons                = gpuState.positrons;
+  auto &gammas                   = gpuState.gammas;
   ParticleQueues &woodcockQueues = gpuState.woodcockQueues;
 
   ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent;
@@ -863,7 +858,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
            positrons.queues.interactionQueues[2], positrons.queues.interactionQueues[3],
            positrons.queues.interactionQueues[4]}};
 #endif
-      const TracksAndSlots tracksAndSlots = {{electrons.tracks, positrons.tracks, gammas.tracks},
+      const TracksAndSlots tracksAndSlots = {electrons.tracks,
+                                             positrons.tracks,
+                                             gammas.tracks,
                                              {electrons.slotManager, positrons.slotManager, gammas.slotManager}};
       // --------------------------
       // *** Particle injection ***

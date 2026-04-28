@@ -15,34 +15,29 @@
 #include <G4HepEmRandomEngine.hh>
 #endif
 
-// A data structure to represent a particle track. The particle type is implicit
-// by the queue and not stored in memory.
-struct Track {
+// A data structure to represent a neutral particle track. The particle type is
+// implicit by the queue and not stored in memory.
+struct NeutralTrack {
   RanluxppDouble rngState;
   double eKin{0.};
   double globalTime{0.};
 
   float weight{0.};
 #ifndef ADEPT_USE_SPLIT_KERNELS
-  float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
-  // default values taken from G4HepEmMSCTrackData.hh
-  float initialRange{1.0e+21};
-  float dynamicRangeFactor{0.04};
-  float tlimitMin{1.0E-7};
+  // Gamma interaction length state is based only on the total macroscopic cross section.
+  float numIALeft{-1.f};
 #endif
 
   float localTime{0.f};
   float properTime{0.f};
 
-  vecgeom::Vector3D<double> pos;      ///< track position
-  vecgeom::Vector3D<double> dir;      ///< track direction
-  vecgeom::Vector3D<float> safetyPos; ///< last position where the safety was computed
-  // TODO: For better clarity in the split kernels, rename this to "stored safety" as opposed to the
-  // safety we get from GetSafety(), which is computed in the moment
-  float safety{0.f};                 ///< last computed safety value
+  vecgeom::Vector3D<double> pos;     ///< track position
+  vecgeom::Vector3D<double> dir;     ///< track direction
   vecgeom::NavigationState navState; ///< current navigation state
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
+  bool hepEmTrackExists{false};
+
   // Variables used to store track info needed for scoring
   vecgeom::NavigationState nextState;
   vecgeom::Vector3D<double> preStepPos;
@@ -50,7 +45,6 @@ struct Track {
   double preStepEKin{0};
   double preStepGlobalTime{0.};
   // Variables used to store navigation results
-  double safeLength{0};
   long hitsurfID{0};
 #endif
 
@@ -63,25 +57,17 @@ struct Track {
   unsigned short looperCounter{0};
   unsigned short zeroStepCounter{0};
 
-#ifdef ADEPT_USE_SPLIT_KERNELS
-  bool propagated{false};
-  bool hepEmTrackExists{false};
-
-  // Variables used to store results from G4HepEM
-  bool restrictedPhysicalStepLength{false};
-  bool stopped{false};
-#endif
-
-  __host__ __device__ Track(const Track &)            = default;
-  __host__ __device__ Track &operator=(const Track &) = default;
+  __host__ __device__ NeutralTrack()                                = default;
+  __host__ __device__ NeutralTrack(const NeutralTrack &)            = default;
+  __host__ __device__ NeutralTrack &operator=(const NeutralTrack &) = default;
 
   /// Construct a new track for GPU transport.
-  __device__ Track(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime, float weight,
-                   double const position[3], double const direction[3], const vecgeom::NavigationState &newNavState,
-                   unsigned int eventId, uint64_t trackId, uint64_t parentId, short threadId,
-                   unsigned short stepCounter)
-      : eKin{eKin}, weight{weight}, globalTime{globalTime}, localTime{localTime}, properTime{properTime},
-        navState{newNavState}, eventId{eventId}, trackId{trackId}, parentId{parentId}, threadId{threadId},
+  __device__ NeutralTrack(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
+                          float weight, double const position[3], double const direction[3],
+                          const vecgeom::NavigationState &newNavState, unsigned int eventId, uint64_t trackId,
+                          uint64_t parentId, short threadId, unsigned short stepCounter)
+      : eKin{eKin}, globalTime{globalTime}, weight{weight}, localTime{localTime}, properTime{properTime},
+        navState{newNavState}, trackId{trackId}, parentId{parentId}, eventId{eventId}, threadId{threadId},
         stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
@@ -91,22 +77,22 @@ struct Track {
 
   /// Construct a secondary from a parent track.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
-                   const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
-                   const Track &parentTrack, const double globalTime)
-      : Track(rng_state, eKin, parentPos, newDirection, newNavState, parentTrack, globalTime, parentTrack.weight)
+  __device__ NeutralTrack(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                          const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
+                          const NeutralTrack &parentTrack, const double globalTime)
+      : NeutralTrack(rng_state, eKin, parentPos, newDirection, newNavState, parentTrack, globalTime, parentTrack.weight)
   {
   }
 
   /// Construct a secondary from a parent track with an explicit child weight.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ Track(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
-                   const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
-                   const Track &parentTrack, const double globalTime, float childWeight)
-      : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, trackId{rngState.IntRndm64()}, eventId{parentTrack.eventId},
-        parentId{parentTrack.trackId}, threadId{parentTrack.threadId}, weight{childWeight}, stepCounter{0},
-        looperCounter{0}, zeroStepCounter{0}
+  __device__ NeutralTrack(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                          const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
+                          const NeutralTrack &parentTrack, const double globalTime, float childWeight)
+      : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, weight{childWeight}, pos{parentPos}, dir{newDirection},
+        navState{newNavState}, trackId{rngState.IntRndm64()}, parentId{parentTrack.trackId},
+        eventId{parentTrack.eventId}, threadId{parentTrack.threadId}, stepCounter{0}, looperCounter{0},
+        zeroStepCounter{0}
   {
   }
 
@@ -120,11 +106,44 @@ struct Track {
   __host__ __device__ void Print(const char *label) const
   {
     printf("== evt %u parentId %lu %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
-           "%.19f} remain_safe %g loop %u\n| | state: ",
+           "%.19f} loop %u\n| | state: ",
            eventId, parentId, label, trackId, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
-           dir[1], dir[2], GetSafety(pos), looperCounter);
+           dir[1], dir[2], looperCounter);
     navState.Print();
   }
+
+  __host__ __device__ double Uniform() { return rngState.Rndm(); }
+};
+
+// Charged particles extend the neutral layout with state that is only needed by
+// e-/e+ transport: cached safety, MSC/range state, magnetic-field propagation
+// state, and split-kernel charged step flags.
+struct ChargedTrack : NeutralTrack {
+  using NeutralTrack::NeutralTrack;
+
+  __host__ __device__ ChargedTrack() = default;
+
+  vecgeom::Vector3D<float> safetyPos; ///< last position where the safety was computed
+  // TODO: For better clarity in the split kernels, rename this to "stored safety" as opposed to the
+  // safety we get from GetSafety(), which is computed in the moment
+  float safety{0.f}; ///< last computed safety value
+
+#ifndef ADEPT_USE_SPLIT_KERNELS
+  float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
+  // default values taken from G4HepEmMSCTrackData.hh
+  float initialRange{1.0e+21};
+  float dynamicRangeFactor{0.04};
+  float tlimitMin{1.0E-7};
+#endif
+
+#ifdef ADEPT_USE_SPLIT_KERNELS
+  double safeLength{0};
+  bool propagated{false};
+
+  // Variables used to store results from G4HepEM
+  bool restrictedPhysicalStepLength{false};
+  bool stopped{false};
+#endif
 
   /// @brief Get recomputed cached safety ay a given track position
   /// @param new_pos Track position
@@ -149,6 +168,17 @@ struct Track {
     safety = vecCore::math::Max(safe, 0.f);
   }
 
-  __host__ __device__ double Uniform() { return rngState.Rndm(); }
+  __host__ __device__ void Print(const char *label) const
+  {
+    printf("== evt %u parentId %lu %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
+           "%.19f} remain_safe %g loop %u\n| | state: ",
+           eventId, parentId, label, trackId, stepCounter, eKin / copcore::units::MeV, pos[0], pos[1], pos[2], dir[0],
+           dir[1], dir[2], GetSafety(pos), looperCounter);
+    navState.Print();
+  }
 };
+
+// Compatibility alias for code paths that have not yet been made explicitly
+// charged/neutral. New storage should use NeutralTrack or ChargedTrack directly.
+using Track = ChargedTrack;
 #endif

@@ -39,8 +39,8 @@ __global__ void __launch_bounds__(256, 1)
   auto &slotManager                 = *particleManager.gammasWDT.fSlotManager;
   const int activeSize              = particleManager.gammasWDT.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = particleManager.gammasWDT.ActiveAt(i);
-    Track &currentTrack = particleManager.gammasWDT.TrackAt(slot);
+    const auto slot            = particleManager.gammasWDT.ActiveAt(i);
+    NeutralTrack &currentTrack = particleManager.gammasWDT.TrackAt(slot);
 
     // Setup of the advanced debug printouts
     bool printErrors = true;
@@ -335,7 +335,7 @@ __global__ void __launch_bounds__(256, 1)
     // In both cases: reset the number of interaction length left to trigger
     // resampling in the next call to `HowFar` and prevent its update in this step.
     thePrimaryTrack->SetNumIALeft(-1, 0);
-    currentTrack.numIALeft[0] = -1; // reset also in the GPU track
+    currentTrack.numIALeft = -1; // reset also in the GPU track
 
     // The track has the total, i.e. the WDT step length.
     // However, `thePrimaryTrack` has zero which results in: the number of interaction length left is
@@ -473,7 +473,7 @@ __global__ void __launch_bounds__(256, 1)
           // Deposit the energy here and kill the secondary
           edep = elKinEnergy;
         } else {
-          Track &electron = particleManager.electrons.NextTrack(
+          auto &electron = particleManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
@@ -489,7 +489,7 @@ __global__ void __launch_bounds__(256, 1)
           // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
         } else {
-          Track &positron = particleManager.positrons.NextTrack(
+          auto &positron = particleManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
@@ -526,7 +526,7 @@ __global__ void __launch_bounds__(256, 1)
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
-          Track &electron = particleManager.electrons.NextTrack(
+          auto &electron = particleManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 
           electron.dir.Normalize();
@@ -573,7 +573,7 @@ __global__ void __launch_bounds__(256, 1)
           G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
           // Create a secondary electron and sample directions.
-          Track &electron = particleManager.electrons.NextTrack(
+          auto &electron = particleManager.electrons.NextTrack(
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
 
