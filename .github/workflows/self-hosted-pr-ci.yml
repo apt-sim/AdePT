@@ -185,7 +185,6 @@ jobs:
             -v /cvmfs:/cvmfs:ro,rslave \
             -v "${GITHUB_WORKSPACE}:/work/AdePT" \
             -e HOME=/tmp/adeptci-home \
-            -e ADEPT_VALIDATION_NUM_EVENTS=600 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_THREADS=32 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_TRACKSLOTS=6 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_HITSLOTS=30 \
