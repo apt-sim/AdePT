@@ -215,7 +215,7 @@ struct ATLASAction {
       RanluxppDouble &rngState)
   {
     if (!originAuxData.fAtlasPhotonRussianRoulette) return {true, parentWeight};
-    if (parentWeight >= kPhotonRussianRouletteWeight) return {true, parentWeight};
+    if (parentWeight != 1.0f) return {true, parentWeight};
     if (gammaEkin >= kPhotonRussianRouletteThreshold) return {true, parentWeight};
 
     if (rngState.Rndm() > kOneOverPhotonRouletteWeight) return {false, parentWeight};
