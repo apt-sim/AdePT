@@ -23,6 +23,7 @@ public:
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void RemoveGPURegionName(std::string name) { fCPURegionNames.push_back(name); }
   void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
+  void AddDeadRegionName(std::string name) { fDeadRegionNames.push_back(name); }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
   void SetMillionsOfTrackSlots(double millionSlots) { fMillionsOfTrackSlots = millionSlots; }
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
@@ -72,6 +73,7 @@ public:
   std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
   std::vector<std::string> *GetCPURegionNames() { return &fCPURegionNames; }
   const std::vector<std::string> &GetWDTRegionNames() const { return fWDTRegionNames; }
+  const std::vector<std::string> &GetDeadRegionNames() const { return fDeadRegionNames; }
 
   // Temporary
   std::string GetVecGeomGDML() { return fVecGeomGDML; }
@@ -101,6 +103,7 @@ private:
   std::vector<std::string> fGPURegionNames{};
   std::vector<std::string> fCPURegionNames{};
   std::vector<std::string> fWDTRegionNames{};
+  std::vector<std::string> fDeadRegionNames{};
 
   std::string fVecGeomGDML{""};
   std::string fCovfieBfieldFile{""};

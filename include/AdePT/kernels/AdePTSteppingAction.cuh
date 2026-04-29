@@ -86,7 +86,7 @@ struct CMSAction {
                                                           double const &globalTime, adeptint::VolAuxData const &auxData,
                                                           Params const &params)
   {
-    // Default CMSSW dead regions from SimG4Core/Application/python/g4SimHits_cfi.py.
+    // Configured CMSSW dead regions from AdePTConfiguration.
     if (IsDeadRegion(auxData)) {
       KillTrack(alive, eKin, edep);
       return;

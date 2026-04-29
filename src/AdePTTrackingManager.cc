@@ -131,9 +131,9 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   // Initialize auxiliary per-LV data and collect the raw WDT metadata on the Geant4 side.
   auto *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
   adeptint::WDTHostRaw wdtRaw;
-  AdePTGeometryBridge::InitVolAuxData(auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
-                                      fAdePTConfiguration->GetTrackInAllRegions(),
-                                      fAdePTConfiguration->GetGPURegionNames(), wdtRaw);
+  AdePTGeometryBridge::InitVolAuxData(
+      auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(), fAdePTConfiguration->GetTrackInAllRegions(),
+      fAdePTConfiguration->GetGPURegionNames(), fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
 
   // Move the fully prepared host-side package into the shared transport. The

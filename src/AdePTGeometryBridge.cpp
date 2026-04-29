@@ -10,6 +10,7 @@
 #include <VecGeom/navigation/NavigationState.h>
 
 #include <G4HepEmData.hh>
+#include <G4Exception.hh>
 #include <G4HepEmMatCutData.hh>
 #include <G4LogicalVolume.hh>
 #include <G4MaterialCutsCouple.hh>
@@ -218,7 +219,8 @@ void AdePTGeometryBridge::CheckGeometry(G4HepEmData const *hepEmData)
 /// @brief Fill the auxiliary per-volume transport metadata used by AdePT.
 void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                                          G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
-                                         std::vector<std::string> const *gpuRegionNames, adeptint::WDTHostRaw &wdtRaw)
+                                         std::vector<std::string> const *gpuRegionNames,
+                                         std::vector<std::string> const &deadRegionNames, adeptint::WDTHostRaw &wdtRaw)
 {
   // Note: the hepEmTM must be passed explicitly here, since this is now a stateless
   // global bridge helper and therefore cannot reach any per-thread integration members.
@@ -236,6 +238,20 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
       gpuRegions.push_back(G4RegionStore::GetInstance()->GetRegion(regionName));
     }
   }
+
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+  std::vector<G4Region const *> deadRegions{};
+  for (const std::string &regionName : deadRegionNames) {
+    G4Region const *region = G4RegionStore::GetInstance()->GetRegion(regionName, false);
+    if (!region) {
+      G4Exception("AdePTGeometryBridge", "Invalid parameter", FatalErrorInArgument,
+                  ("Region given to AdePTConfiguration::AddDeadRegionName: " + regionName + " not found\n").c_str());
+    }
+    deadRegions.push_back(region);
+  }
+#else
+  (void)deadRegionNames;
+#endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
   std::vector<bool> atlasPhotonRRInitialized(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount(), false);
@@ -290,10 +306,14 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     }
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
-    // Flag volumes in CMSSW dead regions for the GPU stepping action.
-    // Note: QuadRegion and InterimRegion are the current hardcoded defaults from CMSSW.
-    const auto &regionName                   = g4_lvol->GetRegion()->GetName();
-    volAuxData[vg_lvol->id()].fCMSDeadRegion = (regionName == "QuadRegion" || regionName == "InterimRegion");
+    bool isDeadRegion = false;
+    for (G4Region const *deadRegion : deadRegions) {
+      if (g4_lvol->GetRegion() == deadRegion) {
+        isDeadRegion = true;
+        break;
+      }
+    }
+    volAuxData[vg_lvol->id()].fCMSDeadRegion = isDeadRegion;
 #endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
