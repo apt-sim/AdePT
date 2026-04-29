@@ -87,7 +87,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
         // check for experiment-specific SteppingAction
       } else {
         SteppingActionT::GammaAction(trackSurvives, currentTrack.eKin, energyDeposit, currentTrack.pos,
-                                     currentTrack.globalTime, auxData.fMCIndex, &g4HepEmData, params);
+                                     currentTrack.globalTime, auxData, &g4HepEmData, params);
       }
 
       // this one always needs to be last as it needs to be done only if the track survives

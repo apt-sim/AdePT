@@ -35,6 +35,8 @@ __global__ void __launch_bounds__(256, 1)
     auto navState             = currentTrack.navState;
     int lvolID                = navState.GetLogicalId();
     VolAuxData const &auxData = gVolAuxData[lvolID];
+    // Experiment stepping actions use the post-step volume, which is the auxData unless a boundary is crossed.
+    VolAuxData const *postStepAuxData = &auxData;
 
     bool trackSurvives                       = false;
     bool enterWDTRegion                      = false;
@@ -187,7 +189,9 @@ __global__ void __launch_bounds__(256, 1)
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const int nextlvolID          = nextState.GetLogicalId();
         VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
-        const auto regionId           = nextauxData.fGPUregionId;
+        // after relocation: set volAuxData for SteppingAction to next volume
+        postStepAuxData     = &nextauxData;
+        const auto regionId = nextauxData.fGPUregionId;
 
         // next region is a GPU region
         if (regionId >= 0) {
@@ -416,7 +420,7 @@ __global__ void __launch_bounds__(256, 1)
         eKin = 0.;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, auxData.fMCIndex, &g4HepEmData,
+        SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, *postStepAuxData, &g4HepEmData,
                                      params);
       }
     }

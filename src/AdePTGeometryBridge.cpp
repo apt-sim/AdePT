@@ -289,6 +289,13 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
       volAuxData[vg_lvol->id()].fSensIndex = 1;
     }
 
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+    // Flag volumes in CMSSW dead regions for the GPU stepping action.
+    // Note: QuadRegion and InterimRegion are the current hardcoded defaults from CMSSW.
+    const auto &regionName                   = g4_lvol->GetRegion()->GetName();
+    volAuxData[vg_lvol->id()].fCMSDeadRegion = (regionName == "QuadRegion" || regionName == "InterimRegion");
+#endif
+
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
     const bool atlasPhotonRR = g4_pvol->GetName().rfind("LAr", 0) == 0;
     auto &atlasPhotonRRFlag  = volAuxData[vg_lvol->id()].fAtlasPhotonRussianRoulette;

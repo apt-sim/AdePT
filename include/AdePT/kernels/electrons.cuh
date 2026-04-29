@@ -83,6 +83,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = navState.GetLogicalId();
     VolAuxData const &auxData = gVolAuxData[lvolID];
+    // Experiment stepping actions use the post-step volume, which is the auxData unless a boundary is crossed.
+    VolAuxData const *postStepAuxData = &auxData;
 
     bool trackSurvives                       = false;
     constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
@@ -431,6 +433,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           // Check if the next volume belongs to the GPU region and push it to the appropriate queue
           const int nextlvolID          = nextState.GetLogicalId();
           VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
+          // after relocation: set volAuxData for SteppingAction to next volume
+          postStepAuxData = &nextauxData;
           // track has left GPU region
           if (nextauxData.fGPUregionId < 0) {
             // To be safe, just push a bit the track exiting the GPU region to make sure
@@ -776,7 +780,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         eKin = 0.;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, pos, globalTime, auxData.fMCIndex,
+        SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, pos, globalTime, *postStepAuxData,
                                         &g4HepEmData, params);
       }
     }

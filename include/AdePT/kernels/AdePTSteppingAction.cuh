@@ -41,13 +41,14 @@ struct NoAction {
   static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
-                                                        double const &, int const &, G4HepEmData const *,
-                                                        Params const &)
+                                                        double const &, adeptint::VolAuxData const &,
+                                                        G4HepEmData const *, Params const &)
   {
   }
 
   __device__ __forceinline__ static void GammaAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
-                                                     double const &, int const &, G4HepEmData const *, Params const &)
+                                                     double const &, adeptint::VolAuxData const &, G4HepEmData const *,
+                                                     Params const &)
   {
   }
 
@@ -71,14 +72,25 @@ struct CMSAction {
   };
   static constexpr bool kGammaRussianRoulette = false;
 
+  __device__ __forceinline__ static bool IsDeadRegion(adeptint::VolAuxData const &auxData)
+  {
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+    return auxData.fCMSDeadRegion;
+#else
+    return false;
+#endif
+  }
+
   __device__ __forceinline__ static void AllParticleCheck(bool &alive, double &eKin, double &edep,
                                                           vecgeom::Vector3D<double> const &pos,
-                                                          double const &globalTime, Params const &params)
+                                                          double const &globalTime, adeptint::VolAuxData const &auxData,
+                                                          Params const &params)
   {
-    // dead-region cut:
-    // Missing: mark dead material regions in CMS
-    // Dead regions must be implemented explicitly for CMS and checked from the
-    // navigation state here if needed.
+    // Default CMSSW dead regions from SimG4Core/Application/python/g4SimHits_cfi.py.
+    if (IsDeadRegion(auxData)) {
+      KillTrack(alive, eKin, edep);
+      return;
+    }
 
     // Out-of-time and out-of-z cut
     if (globalTime > params.tmax && fabs(pos.z()) >= params.zmax) {
@@ -89,15 +101,15 @@ struct CMSAction {
 
   __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
                                                         vecgeom::Vector3D<double> const &pos, double const &globalTime,
-                                                        int const &mcIndex, G4HepEmData const *g4HepEmData,
-                                                        Params const &params)
+                                                        adeptint::VolAuxData const &auxData,
+                                                        G4HepEmData const *g4HepEmData, Params const &params)
   {
     if (!alive) return;
-    AllParticleCheck(alive, eKin, edep, pos, globalTime, params);
+    AllParticleCheck(alive, eKin, edep, pos, globalTime, auxData, params);
     if (!alive) return;
 
     // e-/e+ in vacuum cut
-    const int hmi        = g4HepEmData->fTheMatCutData->fMatCutData[mcIndex].fHepEmMatIndex;
+    const int hmi        = g4HepEmData->fTheMatCutData->fMatCutData[auxData.fMCIndex].fHepEmMatIndex;
     const double density = g4HepEmData->fTheMaterialData->fMaterialData[hmi].fDensity; // g/cm^3
     if (eKin < params.ecut && density < params.density) {
       KillTrack(alive, eKin, edep);
@@ -106,11 +118,11 @@ struct CMSAction {
 
   __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double &edep,
                                                      vecgeom::Vector3D<double> const &pos, double const &globalTime,
-                                                     int const & /*mcIndex*/, G4HepEmData const * /*g4HepEmData*/,
-                                                     Params const &params)
+                                                     adeptint::VolAuxData const &auxData,
+                                                     G4HepEmData const * /*g4HepEmData*/, Params const &params)
   {
     if (!alive) return;
-    AllParticleCheck(alive, eKin, edep, pos, globalTime, params);
+    AllParticleCheck(alive, eKin, edep, pos, globalTime, auxData, params);
   }
 
   __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
@@ -137,7 +149,8 @@ struct LHCbAction {
 
   __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
                                                         vecgeom::Vector3D<double> const &pos,
-                                                        double const & /*globalTime*/, int const & /*mcIndex*/,
+                                                        double const & /*globalTime*/,
+                                                        adeptint::VolAuxData const & /*auxData*/,
                                                         G4HepEmData const * /*g4HepEmData*/, Params const &params)
   {
     if (!alive) return;
@@ -151,11 +164,11 @@ struct LHCbAction {
 
   __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double &edep,
                                                      vecgeom::Vector3D<double> const &pos,
-                                                     double const & /*globalTime*/, int const & /*mcIndex*/,
+                                                     double const & /*globalTime*/, adeptint::VolAuxData const &auxData,
                                                      G4HepEmData const *g4HepEmData, Params const &params)
   {
     // same as electron stepping action
-    ElectronAction(alive, eKin, edep, pos, /*globalTime*/ 0.0, /*mcIndex*/ 0, g4HepEmData, params);
+    ElectronAction(alive, eKin, edep, pos, /*globalTime*/ 0.0, auxData, g4HepEmData, params);
   }
 
   __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
@@ -186,13 +199,14 @@ struct ATLASAction {
   static constexpr float kOneOverPhotonRouletteWeight     = 1.0f / kPhotonRussianRouletteWeight;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
-                                                        double const &, int const &, G4HepEmData const *,
-                                                        Params const &)
+                                                        double const &, adeptint::VolAuxData const &,
+                                                        G4HepEmData const *, Params const &)
   {
   }
 
   __device__ __forceinline__ static void GammaAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
-                                                     double const &, int const &, G4HepEmData const *, Params const &)
+                                                     double const &, adeptint::VolAuxData const &, G4HepEmData const *,
+                                                     Params const &)
   {
   }
 
@@ -217,13 +231,14 @@ struct ATLASAction {
   static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
-                                                        double const &, int const &, G4HepEmData const *,
-                                                        Params const &)
+                                                        double const &, adeptint::VolAuxData const &,
+                                                        G4HepEmData const *, Params const &)
   {
   }
 
   __device__ __forceinline__ static void GammaAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
-                                                     double const &, int const &, G4HepEmData const *, Params const &)
+                                                     double const &, adeptint::VolAuxData const &, G4HepEmData const *,
+                                                     Params const &)
   {
   }
 
