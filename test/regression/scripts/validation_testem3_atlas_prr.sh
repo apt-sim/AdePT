@@ -1,12 +1,12 @@
 #! /usr/bin/env bash
 
-# SPDX-FileCopyrightText: 2025 CERN
+# SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-# This is a CI test for reproducbility. The same 8 ttbar events are executed twice
-# and then it is checked that the total energy deposition is exactly the same.
+# This is a CI test for validation. 10 GeV electrons are shot at the testEm3
+# geometry with ATLAS photon Russian Roulette enabled in LAr volumes, and the
+# energy deposition is validated against a high-statistics benchmark file.
 
-# abort on first encounted error
 set -eu -o pipefail
 
 
@@ -16,6 +16,17 @@ PROJECT_BINARY_DIR=$2
 PROJECT_SOURCE_DIR=$3
 CI_TEST_DIR=$4
 CI_TMP_DIR=$5
+
+if [ ! -f "${PROJECT_BINARY_DIR}/CMakeCache.txt" ]; then
+  echo "Error: cannot verify AdePT stepping action, missing ${PROJECT_BINARY_DIR}/CMakeCache.txt"
+  exit 2
+fi
+
+if ! grep -Eq '^ADEPT_STEPPINGACTION:STRING=ATLAS$' "${PROJECT_BINARY_DIR}/CMakeCache.txt"; then
+  echo "Error: testEm3_validation_atlas_prr requires a build configured with ADEPT_STEPPINGACTION=ATLAS."
+  grep -E '^ADEPT_STEPPINGACTION:' "${PROJECT_BINARY_DIR}/CMakeCache.txt" || true
+  exit 2
+fi
 
 # Define cleanup function of temporary files
 cleanup() {
@@ -31,7 +42,7 @@ cleanup
 # Create temporary directory
 mkdir -p ${CI_TMP_DIR}
 
-num_threads=${ADEPT_VALIDATION_DEFAULT_NUM_THREADS:-${ADEPT_VALIDATION_NUM_THREADS:-8}}
+num_threads=${ADEPT_VALIDATION_DEFAULT_NUM_THREADS:-${ADEPT_VALIDATION_NUM_THREADS:-4}}
 num_events=${ADEPT_VALIDATION_DEFAULT_NUM_EVENTS:-${ADEPT_VALIDATION_NUM_EVENTS:-600}}
 num_trackslots=${ADEPT_VALIDATION_DEFAULT_NUM_TRACKSLOTS:-${ADEPT_VALIDATION_NUM_TRACKSLOTS:-3}}
 num_hitslots=${ADEPT_VALIDATION_DEFAULT_NUM_HITSLOTS:-${ADEPT_VALIDATION_NUM_HITSLOTS:-12}}
@@ -39,34 +50,31 @@ cpu_capacity_factor=${ADEPT_VALIDATION_DEFAULT_CPU_CAPACITY_FACTOR:-${ADEPT_VALI
 gun_number=${ADEPT_VALIDATION_DEFAULT_GUN_NUMBER:-${ADEPT_VALIDATION_GUN_NUMBER:-100}}
 nprimaries=$((num_events * gun_number))
 
-echo "Validation settings (regions): threads=${num_threads}, events=${num_events}, gun=${gun_number}, trackslots=${num_trackslots}, hitslots=${num_hitslots}, cpu_capacity_factor=${cpu_capacity_factor}"
+echo "Validation settings (atlas_prr): threads=${num_threads}, events=${num_events}, gun=${gun_number}, trackslots=${num_trackslots}, hitslots=${num_hitslots}, cpu_capacity_factor=${cpu_capacity_factor}"
 
 # use gun_type hepmc or setDefault
 $CI_TEST_DIR/python_scripts/macro_generator.py \
     --template ${CI_TEST_DIR}/example_template.mac \
-    --output ${CI_TMP_DIR}/validation_testem3_regions.mac \
-    --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_regions.gdml \
+    --output ${CI_TMP_DIR}/validation_testem3_atlas_prr.mac \
+    --gdml_name ${PROJECT_SOURCE_DIR}/examples/data/testEm3_atlas_prr.gdml \
     --num_threads ${num_threads} \
     --num_events ${num_events} \
     --num_trackslots ${num_trackslots} \
     --num_hitslots ${num_hitslots} \
     --cpu_capacity_factor ${cpu_capacity_factor} \
     --gun_number ${gun_number} \
-    --track_in_all_regions False\
-    --gun_type setDefault\
-    --regions "caloregion, Layer1, Layer2, Layer3, Layer4, Layer5, Layer6, Layer7, Layer8, Layer9, Layer10,\
-            Layer11, Layer12, Layer13, Layer14, Layer15, Layer16, Layer17, Layer18, Layer19, Layer20,\
-            Layer31, Layer32, Layer33, Layer34, Layer35, Layer36, Layer37, Layer38, Layer39, Layer40,\
-            Layer41, Layer42, Layer43, Layer44, Layer45, Layer46, Layer47, Layer48, Layer49, Layer50"
+    --track_in_all_regions True\
+    --gun_type setDefault
+
 
 # run test
 $ADEPT_EXECUTABLE --allsensitive --accumulated_events \
-                  -m "${CI_TMP_DIR}/validation_testem3_regions.mac" \
+                  -m "${CI_TMP_DIR}/validation_testem3_atlas_prr.mac" \
                   --output_dir "${CI_TMP_DIR}" \
-                  --output_file "adept_em3_2.5e4_e-"
+                  --output_file "adept_em3_atlas_prr_2.5e4_e-"
 
 # Validating the relative error per layer
-$CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_2.5e4_e-.csv \
+$CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_atlas_prr_2.5e4_e-.csv \
                                                 --file2 ${CI_TEST_DIR}/benchmark_files/g4hepem_em3_10e7_e-.csv \
                                                 --n1 ${nprimaries} --n2 1e7 --tol 0.01 \
                                                 # --plot_file plot.png # uncomment to plot the validation plot
