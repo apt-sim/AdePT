@@ -86,6 +86,16 @@ add_test(NAME testEm3_validation_WDT
 )
 set_tests_properties(testEm3_validation_WDT PROPERTIES LABELS "validation")
 
+if(ADEPT_STEPPINGACTION STREQUAL "ATLAS")
+  # Same test as above but using ATLAS photon Russian Roulette in LAr volumes
+  add_test(NAME testEm3_validation_atlas_prr
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_atlas_prr.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+  )
+  set_tests_properties(testEm3_validation_atlas_prr PROPERTIES LABELS "validation")
+endif()
+
 # Testing all UI commands of AdePT
 add_test(NAME test_UI_commands
   COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_UI_commands.sh
@@ -100,6 +110,10 @@ set(PHYSICS_DRIFT_SCENARIOS
   wdt
   bfield
 )
+
+if(ADEPT_STEPPINGACTION STREQUAL "ATLAS")
+  list(APPEND PHYSICS_DRIFT_SCENARIOS atlas_prr)
+endif()
 
 foreach(SCENARIO IN LISTS PHYSICS_DRIFT_SCENARIOS)
   add_test(NAME physics_drift_${SCENARIO}

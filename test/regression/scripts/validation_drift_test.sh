@@ -59,6 +59,7 @@ SCENARIO_TRACK_IN_ALL_REGIONS=""
 SCENARIO_REGIONS=""
 SCENARIO_WDT_REGIONS=""
 SCENARIO_FIELD="0 0 0"
+SCENARIO_REQUIRES_ATLAS_STEPPING_ACTION="False"
 
 case "${SCENARIO}" in
   default)
@@ -80,8 +81,13 @@ case "${SCENARIO}" in
     SCENARIO_TRACK_IN_ALL_REGIONS="True"
     SCENARIO_FIELD="0 0 1.0"
     ;;
+  atlas_prr)
+    SCENARIO_GDML="testEm3_atlas_prr.gdml"
+    SCENARIO_TRACK_IN_ALL_REGIONS="True"
+    SCENARIO_REQUIRES_ATLAS_STEPPING_ACTION="True"
+    ;;
   *)
-    echo "Unknown scenario '${SCENARIO}'. Supported: default, regions, wdt, bfield"
+    echo "Unknown scenario '${SCENARIO}'. Supported: default, regions, wdt, bfield, atlas_prr"
     exit 2
     ;;
 esac
@@ -133,6 +139,27 @@ supports_truth_root() {
   echo "0"
 }
 
+require_atlas_stepping_action() {
+  local executable=$1
+  local role=$2
+  local exe_dir build_dir cache
+
+  exe_dir=$(cd "$(dirname "${executable}")" && pwd)
+  build_dir=$(cd "${exe_dir}/../.." && pwd)
+  cache="${build_dir}/CMakeCache.txt"
+
+  if [ ! -f "${cache}" ]; then
+    echo "Error: physics_drift '${SCENARIO}' cannot verify ${role} stepping action, missing ${cache}"
+    exit 2
+  fi
+
+  if ! grep -Eq '^ADEPT_STEPPINGACTION:STRING=ATLAS$' "${cache}"; then
+    echo "Error: physics_drift '${SCENARIO}' requires ${role} build with ADEPT_STEPPINGACTION=ATLAS."
+    grep -E '^ADEPT_STEPPINGACTION:' "${cache}" || true
+    exit 2
+  fi
+}
+
 SCENARIO_TMP_DIR="${CI_TMP_DIR}/${SCENARIO}"
 MASTER_SCENARIO_DIR="${SCENARIO_TMP_DIR}/master"
 PR_SCENARIO_DIR="${SCENARIO_TMP_DIR}/pr"
@@ -144,6 +171,11 @@ mkdir -p "${MASTER_SCENARIO_DIR}" "${PR_SCENARIO_DIR}"
 
 PR_SUPPORTS_ROOT="$(supports_truth_root "${PR_EXECUTABLE}")"
 MASTER_SUPPORTS_ROOT="$(supports_truth_root "${MASTER_EXECUTABLE}")"
+
+if [ "${SCENARIO_REQUIRES_ATLAS_STEPPING_ACTION}" = "True" ]; then
+  require_atlas_stepping_action "${PR_EXECUTABLE}" "PR"
+  require_atlas_stepping_action "${MASTER_EXECUTABLE}" "master"
+fi
 
 if [ "${PR_SUPPORTS_ROOT}" = "1" ] && [ "${MASTER_SUPPORTS_ROOT}" = "1" ]; then
   # Adjust the number of events and primaries, as the ROOT-enabled test is much heavier.
