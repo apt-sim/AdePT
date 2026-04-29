@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/AdePTTrackingManager.hh>
+#include <AdePT/core/AdePTTransportConfig.hh>
 #include <AdePT/integration/AdePTGeometryBridge.hh>
 
 #include "G4Threading.hh"
@@ -46,8 +47,40 @@ std::weak_ptr<AdePTTransport> &SharedAdePTTransportStorage()
   return transport;
 }
 
+AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configuration)
+{
+  AdePTTransportConfig transportConfig;
+  transportConfig.adeptSeed       = configuration.GetAdePTSeed();
+  transportConfig.numThreads      = static_cast<unsigned short>(configuration.GetNumThreads());
+  transportConfig.trackCapacity   = static_cast<unsigned int>(1024 * 1024 * configuration.GetMillionsOfTrackSlots());
+  transportConfig.scoringCapacity = static_cast<unsigned int>(1024 * 1024 * configuration.GetMillionsOfHitSlots());
+  transportConfig.debugLevel      = configuration.GetVerbosity();
+  transportConfig.cudaStackLimit  = configuration.GetCUDAStackLimit();
+  transportConfig.cudaHeapLimit   = configuration.GetCUDAHeapLimit();
+  transportConfig.lastNParticlesOnCPU = configuration.GetLastNParticlesOnCPU();
+  transportConfig.maxWDTIter          = configuration.GetMaxWDTIter();
+  transportConfig.returnAllSteps      = configuration.GetCallUserSteppingAction();
+  transportConfig.returnFirstAndLastStep =
+      configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction();
+  transportConfig.bfieldFile            = configuration.GetCovfieBfieldFile();
+  transportConfig.cpuCapacityFactor     = configuration.GetCPUCapacityFactor();
+  transportConfig.cpuCopyFraction       = configuration.GetHitBufferFlushThreshold();
+  transportConfig.hitBufferSafetyFactor = configuration.GetHitBufferSafetyFactor();
+  return transportConfig;
+}
+
+bool ReturnAllSteps(const AdePTConfiguration &configuration)
+{
+  return configuration.GetCallUserSteppingAction();
+}
+
+bool ReturnFirstAndLastStep(const AdePTConfiguration &configuration)
+{
+  return configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction();
+}
+
 std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
-    AdePTConfiguration &conf, std::unique_ptr<AsyncAdePT::AdePTG4HepEmState> adeptG4HepEmState,
+    const AdePTTransportConfig &transportConfig, std::unique_ptr<AsyncAdePT::AdePTG4HepEmState> adeptG4HepEmState,
     adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
     const std::vector<float> &uniformFieldValues)
 {
@@ -61,9 +94,9 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
   // Create the shared AdePT transport engine on the first worker thread. At
   // this point all required host-side inputs have already been prepared, so the
   // transport constructor can perform the one-time device initialization.
-  auto created =
-      std::make_shared<AdePTTransport>(conf, std::move(adeptG4HepEmState), auxData, wdtPacked, uniformFieldValues);
-  transport = created;
+  auto created = std::make_shared<AdePTTransport>(transportConfig, std::move(adeptG4HepEmState), auxData, wdtPacked,
+                                                  uniformFieldValues);
+  transport    = created;
   return created;
 }
 
@@ -135,12 +168,13 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
       auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(), fAdePTConfiguration->GetTrackInAllRegions(),
       fAdePTConfiguration->GetGPURegionNames(), fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
+  auto transportConfig              = MakeAdePTTransportConfig(*fAdePTConfiguration);
 
   // Move the fully prepared host-side package into the shared transport. The
   // first worker creates the transport here; later workers only retrieve the
   // already-created shared instance.
-  fAdeptTransport = GetSharedAdePTTransport(*fAdePTConfiguration, std::move(adeptG4HepEmState), auxData, wdtPacked,
-                                            uniformFieldValues);
+  fAdeptTransport =
+      GetSharedAdePTTransport(transportConfig, std::move(adeptG4HepEmState), auxData, wdtPacked, uniformFieldValues);
 }
 
 void AdePTTrackingManager::InitializeAdePT()
@@ -222,9 +256,11 @@ void AdePTTrackingManager::InitializeAdePT()
   fAdeptTransport = GetSharedAdePTTransport();
 
   // Initialize the GPU region list
+  const auto &gpuRegionNames = *fAdePTConfiguration->GetGPURegionNames();
+  const auto &cpuRegionNames = *fAdePTConfiguration->GetCPURegionNames();
   if (!fAdePTConfiguration->GetTrackInAllRegions()) {
     // Case 1: GPU regions are explicitly listed, and CPU regions must not overlap
-    for (const std::string &regionName : *(fAdeptTransport->GetGPURegionNames())) {
+    for (const std::string &regionName : gpuRegionNames) {
       G4Region *region = G4RegionStore::GetInstance()->GetRegion(regionName);
       if (!region) {
         G4Exception("AdePTTrackingManager", "Invalid parameter", FatalErrorInArgument,
@@ -232,7 +268,7 @@ void AdePTTrackingManager::InitializeAdePT()
       }
 
       // Check for conflict with CPURegionNames
-      for (const std::string &cpuRegionName : *(fAdeptTransport->GetCPURegionNames())) {
+      for (const std::string &cpuRegionName : cpuRegionNames) {
         if (regionName == cpuRegionName) {
           G4Exception("AdePTTrackingManager", "Conflicting region assignment", FatalErrorInArgument,
                       ("Region '" + regionName + "' is defined in both /adept/addGPURegion and /adept/removeGPURegion")
@@ -246,10 +282,8 @@ void AdePTTrackingManager::InitializeAdePT()
 
     fHepEmTrackingManager->SetTrackInAllRegions(false);
 
-  } else if (!fAdeptTransport->GetCPURegionNames()->empty()) {
+  } else if (!cpuRegionNames.empty()) {
     // Case 2: Track everywhere except explicitly listed CPU regions
-    const auto &cpuRegionNames = *(fAdeptTransport->GetCPURegionNames());
-
     // First mark all regions as GPU regions
     for (G4Region *region : *G4RegionStore::GetInstance()) {
       if (region) {
@@ -331,7 +365,7 @@ void AdePTTrackingManager::PreparePhysicsTable(const G4ParticleDefinition &part)
 
 void AdePTTrackingManager::HandOverOneTrack(G4Track *aTrack)
 {
-  if (fGPURegions.empty() && !fAdeptTransport->GetTrackInAllRegions()) {
+  if (fGPURegions.empty() && !fAdePTConfiguration->GetTrackInAllRegions()) {
     // if no GPU regions, hand over directly to G4HepEmTrackingManager
     fHepEmTrackingManager->HandOverOneTrack(aTrack);
     if (aTrack->GetTrackStatus() != fStopAndKill) {
@@ -365,7 +399,9 @@ void AdePTTrackingManager::FlushEvent()
   // skipped just because the worker observed that host-visible terminal state.
   ProcessReturnedGPUHits(threadId, eventId);
 
-  auto deferredSteps = fGeant4Integration.TakeDeferredSteps();
+  auto deferredSteps                = fGeant4Integration.TakeDeferredSteps();
+  const bool returnAllSteps         = ReturnAllSteps(*fAdePTConfiguration);
+  const bool returnFirstAndLastStep = ReturnFirstAndLastStep(*fAdePTConfiguration);
 
   std::sort(deferredSteps.steps.begin(), deferredSteps.steps.end(),
             [&deferredSteps](const AdePTGeant4Integration::DeferredStep &lhs,
@@ -376,11 +412,9 @@ void AdePTTrackingManager::FlushEvent()
   for (const auto &deferredStep : deferredSteps.steps) {
     std::span<const GPUHit> gpuSteps(deferredSteps.hits.data() + deferredStep.firstHit, deferredStep.numHits);
     if (deferredStep.type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
-      fGeant4Integration.ReturnDeferredTrack(gpuSteps, fAdeptTransport->GetReturnAllSteps() ||
-                                                           fAdeptTransport->GetReturnFirstAndLastStep());
+      fGeant4Integration.ReturnDeferredTrack(gpuSteps, returnAllSteps || returnFirstAndLastStep);
     } else {
-      fGeant4Integration.ProcessGPUStep(gpuSteps, fAdeptTransport->GetReturnAllSteps(),
-                                        fAdeptTransport->GetReturnFirstAndLastStep());
+      fGeant4Integration.ProcessGPUStep(gpuSteps, returnAllSteps, returnFirstAndLastStep);
     }
   }
   fAdeptTransport->MarkHostFlushed(threadId);
@@ -388,6 +422,9 @@ void AdePTTrackingManager::FlushEvent()
 
 void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
 {
+  const bool returnAllSteps         = ReturnAllSteps(*fAdePTConfiguration);
+  const bool returnFirstAndLastStep = ReturnFirstAndLastStep(*fAdePTConfiguration);
+
   // Transport owns the hit-batch lifetime and calls this lambda once
   // for each currently available returned batch. This lambda provides the
   // Geant4-side step reconstruction for the current worker and event.
@@ -423,15 +460,14 @@ void AdePTTrackingManager::ProcessReturnedGPUHits(int threadId, int eventId)
            it->fStepLimProcessId == 3) ||
           it->fStepLimProcessId == kAdePTOutOfGPURegionProcess || it->fStepLimProcessId == kAdePTFinishOnCPUProcess;
       if (isDeferredStep) {
-        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, fAdeptTransport->GetReturnAllSteps());
+        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, returnAllSteps);
         fGeant4Integration.QueueDeferredStep(std::span<const GPUHit>(&*it, blockSize),
                                              returnTrackDirectly
                                                  ? AdePTGeant4Integration::DeferredStepType::ReturnTrack
                                                  : AdePTGeant4Integration::DeferredStepType::ReplayStep);
       } else {
-        fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize),
-                                          fAdeptTransport->GetReturnAllSteps(),
-                                          fAdeptTransport->GetReturnFirstAndLastStep());
+        fGeant4Integration.ProcessGPUStep(std::span<const GPUHit>(&*it, blockSize), returnAllSteps,
+                                          returnFirstAndLastStep);
       }
       it += blockSize;
     }
@@ -443,8 +479,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
-  const bool trackInAllRegions       = fAdeptTransport->GetTrackInAllRegions();
-  const bool callUserActions         = fAdeptTransport->GetReturnFirstAndLastStep();
+  const bool trackInAllRegions       = fAdePTConfiguration->GetTrackInAllRegions();
+  const bool callUserActions         = ReturnFirstAndLastStep(*fAdePTConfiguration);
 
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 

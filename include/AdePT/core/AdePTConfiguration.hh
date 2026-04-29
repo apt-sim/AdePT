@@ -4,18 +4,19 @@
 #ifndef ADEPT_CONFIGURATION_HH
 #define ADEPT_CONFIGURATION_HH
 
-#include <AdePT/integration/AdePTConfigurationMessenger.hh>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
+
+class AdePTConfigurationMessenger;
 
 /// @brief Create and configure instances of an AdePT transport implementation.
 ///
 class AdePTConfiguration {
 public:
-  AdePTConfiguration() : fAdePTConfigurationMessenger{new AdePTConfigurationMessenger(this)} {}
-  ~AdePTConfiguration() {}
+  AdePTConfiguration();
+  ~AdePTConfiguration();
   void SetNumThreads(int numThreads) { fNumThreads = numThreads; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
   void SetCallUserSteppingAction(bool callUserSteppingAction) { fCallUserSteppingAction = callUserSteppingAction; }
@@ -50,34 +51,34 @@ public:
   // loading external magnetic field from .cf file
   void SetCovfieBfieldFile(std::string filename) { fCovfieBfieldFile = filename; }
 
-  bool GetTrackInAllRegions() { return fTrackInAllRegions; }
-  bool GetCallUserSteppingAction() { return fCallUserSteppingAction; }
-  bool GetCallUserTrackingAction() { return fCallUserTrackingAction; }
-  bool GetSpeedOfLight() { return fSpeedOfLight; }
-  bool GetMultipleStepsInMSCWithTransportation() { return fSetMultipleStepsInMSCWithTransportation; }
-  bool GetEnergyLossFluctuation() { return fSetEnergyLossFluctuation; }
-  int GetNumThreads() { return fNumThreads; };
-  int GetVerbosity() { return fVerbosity; };
-  int GetCUDAStackLimit() { return fCUDAStackLimit; }
-  int GetCUDAHeapLimit() { return fCUDAHeapLimit; }
-  uint64_t GetAdePTSeed() { return fAdePTSeed; }
+  bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
+  bool GetCallUserSteppingAction() const { return fCallUserSteppingAction; }
+  bool GetCallUserTrackingAction() const { return fCallUserTrackingAction; }
+  bool GetSpeedOfLight() const { return fSpeedOfLight; }
+  bool GetMultipleStepsInMSCWithTransportation() const { return fSetMultipleStepsInMSCWithTransportation; }
+  bool GetEnergyLossFluctuation() const { return fSetEnergyLossFluctuation; }
+  int GetNumThreads() const { return fNumThreads; };
+  int GetVerbosity() const { return fVerbosity; };
+  int GetCUDAStackLimit() const { return fCUDAStackLimit; }
+  int GetCUDAHeapLimit() const { return fCUDAHeapLimit; }
+  uint64_t GetAdePTSeed() const { return fAdePTSeed; }
 
-  unsigned short GetLastNParticlesOnCPU() { return fLastNParticlesOnCPU; }
-  unsigned short GetMaxWDTIter() { return fMaxWDTIter; }
-  double GetWDTKineticEnergyLimit() { return fWDTKineticEnergyLimit; }
-  float GetHitBufferFlushThreshold() { return fHitBufferFlushThreshold; }
-  float GetCPUCapacityFactor() { return fCPUCapacityFactor; }
-  double GetHitBufferSafetyFactor() { return fHitBufferSafetyFactor; }
-  double GetMillionsOfTrackSlots() { return fMillionsOfTrackSlots; }
-  double GetMillionsOfHitSlots() { return fMillionsOfHitSlots; }
-  std::vector<std::string> *GetGPURegionNames() { return &fGPURegionNames; }
-  std::vector<std::string> *GetCPURegionNames() { return &fCPURegionNames; }
+  unsigned short GetLastNParticlesOnCPU() const { return fLastNParticlesOnCPU; }
+  unsigned short GetMaxWDTIter() const { return fMaxWDTIter; }
+  double GetWDTKineticEnergyLimit() const { return fWDTKineticEnergyLimit; }
+  float GetHitBufferFlushThreshold() const { return fHitBufferFlushThreshold; }
+  float GetCPUCapacityFactor() const { return fCPUCapacityFactor; }
+  double GetHitBufferSafetyFactor() const { return fHitBufferSafetyFactor; }
+  double GetMillionsOfTrackSlots() const { return fMillionsOfTrackSlots; }
+  double GetMillionsOfHitSlots() const { return fMillionsOfHitSlots; }
+  const std::vector<std::string> *GetGPURegionNames() const { return &fGPURegionNames; }
+  const std::vector<std::string> *GetCPURegionNames() const { return &fCPURegionNames; }
   const std::vector<std::string> &GetWDTRegionNames() const { return fWDTRegionNames; }
   const std::vector<std::string> &GetDeadRegionNames() const { return fDeadRegionNames; }
 
   // Temporary
-  std::string GetVecGeomGDML() { return fVecGeomGDML; }
-  std::string GetCovfieBfieldFile() { return fCovfieBfieldFile; } // todo add #ifdef guards?
+  std::string GetVecGeomGDML() const { return fVecGeomGDML; }
+  std::string GetCovfieBfieldFile() const { return fCovfieBfieldFile; } // todo add #ifdef guards?
 
 private:
   bool fTrackInAllRegions{false};

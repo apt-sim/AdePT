@@ -8,7 +8,6 @@
 
 #include <AdePT/core/AsyncAdePTTransportStruct.cuh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
-#include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/G4HepEmRandomEngineDeviceImpl.hh>
 #include <AdePT/core/GeometryAuxData.hh>
 #include <AdePT/core/TrackBuffer.hh>
@@ -820,7 +819,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     if (!gpuState.runTransport) break;
 
     if (debugLevel > 2) {
-      G4cout << "GPU transport starting" << std::endl;
+      std::cout << "GPU transport starting" << std::endl;
     }
 
     ADEPT_DEVICE_API_CALL(StreamSynchronize(gpuState.stream));
