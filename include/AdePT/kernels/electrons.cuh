@@ -76,8 +76,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
   const int activeSize = electronsOrPositrons.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = electronsOrPositrons.ActiveAt(i);
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const auto slot            = electronsOrPositrons.ActiveAt(i);
+    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
 
     auto navState = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
@@ -523,7 +523,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 #endif
 
           } else {
-            Track &secondary = particleManager.electrons.NextTrack(
+            ChargedTrack &secondary = particleManager.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 
@@ -587,7 +587,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
               const bool useWDT      = ShouldUseWDT(navState, deltaEkin);
               auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
 
-              Track &gamma = gammaPartManager.NextTrack(
+              auto &gamma = gammaPartManager.NextTrack(
                   newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                   navState, currentTrack, globalTime, gammaWeight);
 
@@ -652,7 +652,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             if (createGamma1) {
               const bool useWDT      = ShouldUseWDT(navState, theGamma1Ekin);
               auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-              Track &gamma1          = gammaPartManager.NextTrack(
+              auto &gamma1           = gammaPartManager.NextTrack(
                   newRNG, theGamma1Ekin, pos,
                   vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
                   globalTime, gamma1Weight);
@@ -679,7 +679,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             if (createGamma2) {
               const bool useWDT      = ShouldUseWDT(navState, theGamma2Ekin);
               auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-              Track &gamma2          = gammaPartManager.NextTrack(
+              auto &gamma2           = gammaPartManager.NextTrack(
                   currentTrack.rngState, theGamma2Ekin, pos,
                   vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
                   globalTime, gamma2Weight);
@@ -729,13 +729,13 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});
           auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
 
-          Track &gamma1 = gammaPartManager.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
-                                                     vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                                     navState, currentTrack, globalTime);
+          auto &gamma1 = gammaPartManager.NextTrack(newRNG2, double{copcore::units::kElectronMassC2}, pos,
+                                                    vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                                    navState, currentTrack, globalTime);
 
           // Reuse the RNG state of the dying track.
-          Track &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2},
-                                                     pos, -gamma1.dir, navState, currentTrack, globalTime);
+          auto &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, pos,
+                                                    -gamma1.dir, navState, currentTrack, globalTime);
 
           // if tracking or stepping action is called, return initial step
           if (returnLastStep) {

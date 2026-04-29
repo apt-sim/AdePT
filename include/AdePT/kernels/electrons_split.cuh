@@ -71,8 +71,8 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 
   const int activeSize = electronsOrPositrons.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = electronsOrPositrons.ActiveAt(i);
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const auto slot            = electronsOrPositrons.ActiveAt(i);
+    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -286,7 +286,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 }
 
 template <bool IsElectron>
-__global__ void ElectronPropagation(Track *electronsOrPositrons, G4HepEmElectronTrack *hepEMTracks,
+__global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmElectronTrack *hepEMTracks,
                                     const adept::MParray *propagationQueue)
 {
   constexpr double kPushDistance           = 1000 * vecgeom::kTolerance;
@@ -310,8 +310,8 @@ __global__ void ElectronPropagation(Track *electronsOrPositrons, G4HepEmElectron
 
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*propagationQueue)[i];
-    Track &currentTrack = electronsOrPositrons[slot];
+    const int slot             = (*propagationQueue)[i];
+    ChargedTrack &currentTrack = electronsOrPositrons[slot];
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -379,7 +379,7 @@ __global__ void ElectronPropagation(Track *electronsOrPositrons, G4HepEmElectron
 }
 
 template <bool IsElectron>
-__global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active)
+__global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active)
 {
   constexpr double restMass = copcore::units::kElectronMassC2;
 
@@ -387,7 +387,7 @@ __global__ void ElectronMSC(Track *electrons, G4HepEmElectronTrack *hepEMTracks,
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot = (*active)[i];
 
-    Track &currentTrack = electrons[slot];
+    ChargedTrack &currentTrack = electrons[slot];
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -467,8 +467,8 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
 
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*propagationQueue)[i];
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const int slot             = (*propagationQueue)[i];
+    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -611,8 +611,8 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   SlotManager &slotManager = *electronsOrPositrons.fSlotManager;
   int activeSize           = relocatingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot      = (*relocatingQueue)[i];
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const int slot             = (*relocatingQueue)[i];
+    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -714,7 +714,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   }
 }
 
-__device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track &currentTrack,
+__device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, ChargedTrack &currentTrack,
                                                            ParticleManager &particleManager, double &energyDeposit,
                                                            const bool ApplyCuts, const double theGammaCut,
                                                            SecondaryInitData *secondaryData, unsigned int &nSecondaries,
@@ -743,12 +743,12 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Track
 
     const bool useWDT      = ShouldUseWDT(currentTrack.navState, double{copcore::units::kElectronMassC2});
     auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-    Track &gamma1 = gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                               vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                               currentTrack.navState, currentTrack, currentTrack.globalTime);
+    auto &gamma1 = gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                              vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
+                                              currentTrack.navState, currentTrack, currentTrack.globalTime);
 
     // Reuse the RNG state of the dying track.
-    Track &gamma2 =
+    auto &gamma2 =
         gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, currentTrack.pos,
                                    -gamma1.dir, currentTrack.navState, currentTrack, currentTrack.globalTime);
 
@@ -772,8 +772,8 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   int activeSize             = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    const int slot      = (*interactingQueue)[i];
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const int slot             = (*interactingQueue)[i];
+    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -826,7 +826,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       energyDeposit += deltaEkin;
 
     } else {
-      Track &secondary = particleManager.electrons.NextTrack(
+      auto &secondary = particleManager.electrons.NextTrack(
           newRNG, deltaEkin, currentTrack.pos,
           vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
@@ -899,8 +899,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
   int activeSize             = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
-    const int slot      = (*interactingQueue)[i];
-    Track &currentTrack = electronsOrPositrons.TrackAt(slot);
+    const int slot             = (*interactingQueue)[i];
+    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -966,7 +966,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       if (createGamma) {
         const bool useWDT      = ShouldUseWDT(currentTrack.navState, deltaEkin);
         auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-        Track &gamma =
+        auto &gamma =
             gammaPartManager.NextTrack(newRNG, deltaEkin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime, gammaWeight);
@@ -1039,7 +1039,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot = (*interactingQueue)[i];
 
-    Track &currentTrack = particleManager.positrons.TrackAt(slot);
+    ChargedTrack &currentTrack = particleManager.positrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -1094,7 +1094,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       if (createGamma1) {
         const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma1Ekin);
         auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-        Track &gamma1 =
+        auto &gamma1 =
             gammaPartManager.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime, gamma1Weight);
@@ -1121,7 +1121,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       if (createGamma2) {
         const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma2Ekin);
         auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-        Track &gamma2 =
+        auto &gamma2 =
             gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime, gamma2Weight);
@@ -1177,7 +1177,7 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot = (*interactingQueue)[i];
 
-    Track &currentTrack = particleManager.positrons.TrackAt(slot);
+    ChargedTrack &currentTrack = particleManager.positrons.TrackAt(slot);
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 

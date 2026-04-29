@@ -29,8 +29,8 @@ __global__ void __launch_bounds__(256, 1)
   auto &slotManager                 = *particleManager.gammas.fSlotManager;
   const int activeSize              = particleManager.gammas.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const auto slot     = particleManager.gammas.ActiveAt(i);
-    Track &currentTrack = particleManager.gammas.TrackAt(slot);
+    const auto slot            = particleManager.gammas.ActiveAt(i);
+    NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
     auto navState             = currentTrack.navState;
     int lvolID                = navState.GetLogicalId();
@@ -92,11 +92,11 @@ __global__ void __launch_bounds__(256, 1)
 
     // Re-sample the `number-of-interaction-left` (if needed, otherwise use stored numIALeft) and put it into the
     // G4HepEmTrack. Use index 0 since numIALeft for gammas is based only on the total macroscopic cross section. The
-    // currentTrack.numIALeft[0] are updated later
-    if (currentTrack.numIALeft[0] <= 0.0) {
+    // currentTrack.numIALeft is updated later
+    if (currentTrack.numIALeft <= 0.0) {
       theTrack->SetNumIALeft(-std::log(currentTrack.Uniform()), 0);
     } else {
-      theTrack->SetNumIALeft(currentTrack.numIALeft[0], 0);
+      theTrack->SetNumIALeft(currentTrack.numIALeft, 0);
     }
 
     // Call G4HepEm to compute the physics step limit.
@@ -168,8 +168,8 @@ __global__ void __launch_bounds__(256, 1)
 
         // Save the `number-of-interaction-left` in our track.
         // Use index 0 since numIALeft stores for gammas only the total macroscopic cross section
-        double numIALeft          = theTrack->GetNumIALeft(0);
-        currentTrack.numIALeft[0] = numIALeft;
+        double numIALeft       = theTrack->GetNumIALeft(0);
+        currentTrack.numIALeft = numIALeft;
 
 #ifdef ADEPT_USE_SURF
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
@@ -231,7 +231,7 @@ __global__ void __launch_bounds__(256, 1)
 
       // Reset number of interaction left for the winner discrete process also in the currentTrack
       // (SampleInteraction() resets it for theTrack), will be resampled in the next iteration.
-      currentTrack.numIALeft[0] = -1.0;
+      currentTrack.numIALeft = -1.0;
 
       // Perform the discrete interaction.
       G4HepEmRandomEngine rnge(&currentTrack.rngState);
@@ -275,7 +275,7 @@ __global__ void __launch_bounds__(256, 1)
           // Deposit the energy here and kill the secondary
           edep = elKinEnergy;
         } else {
-          Track &electron = particleManager.electrons.NextTrack(
+          auto &electron = particleManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
               currentTrack, globalTime);
@@ -291,7 +291,7 @@ __global__ void __launch_bounds__(256, 1)
           // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
         } else {
-          Track &positron = particleManager.positrons.NextTrack(
+          auto &positron = particleManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
               currentTrack, globalTime);
@@ -328,7 +328,7 @@ __global__ void __launch_bounds__(256, 1)
         // Check the cuts and deposit energy in this volume if needed
         if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
           // Create a secondary electron and sample/compute directions.
-          Track &electron = particleManager.electrons.NextTrack(
+          auto &electron = particleManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
 
           electron.dir.Normalize();
@@ -375,7 +375,7 @@ __global__ void __launch_bounds__(256, 1)
           G4HepEmGammaInteractionPhotoelectric::SamplePhotoElectronDirection(photoElecE, dirGamma, dirPhotoElec, &rnge);
 
           // Create a secondary electron and sample directions.
-          Track &electron = particleManager.electrons.NextTrack(
+          auto &electron = particleManager.electrons.NextTrack(
               newRNG, photoElecE, pos, vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]},
               navState, currentTrack, globalTime);
 
