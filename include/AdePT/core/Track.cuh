@@ -51,7 +51,7 @@ struct TrackBase {
 #ifdef ADEPT_USE_SPLIT_KERNELS
   bool hepEmTrackExists{false};
   // These flags are only used by charged split kernels, but storing them here
-  // uses otherwise wasted tail padding in NeutralTrack.
+  // uses otherwise wasted tail padding in TrackBase.
   bool propagated{false};
   bool restrictedPhysicalStepLength{false};
   bool stopped{false};
@@ -127,7 +127,7 @@ struct NeutralTrack : TrackBase {
   }
 };
 
-// Charged particles extend the neutral layout with state that is only needed by
+// Charged particles extend the base layout with state that is only needed by
 // e-/e+ transport: cached safety, MSC/range state, magnetic-field propagation
 // state, and the split-kernel safe length.
 struct ChargedTrack : TrackBase {
