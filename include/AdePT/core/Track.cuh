@@ -17,7 +17,7 @@
 
 // Common state shared by neutral and charged particle tracks. The particle type
 // is implicit by the queue and not stored in memory.
-struct TrackCommon {
+struct TrackBase {
   RanluxppDouble rngState;
   double eKin{0.};
   double globalTime{0.};
@@ -57,15 +57,15 @@ struct TrackCommon {
   bool stopped{false};
 #endif
 
-  __host__ __device__ TrackCommon()                               = default;
-  __host__ __device__ TrackCommon(const TrackCommon &)            = default;
-  __host__ __device__ TrackCommon &operator=(const TrackCommon &) = default;
+  __host__ __device__ TrackBase()                             = default;
+  __host__ __device__ TrackBase(const TrackBase &)            = default;
+  __host__ __device__ TrackBase &operator=(const TrackBase &) = default;
 
   /// Construct a new track for GPU transport.
-  __device__ TrackCommon(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
-                         float weight, double const position[3], double const direction[3],
-                         const vecgeom::NavigationState &newNavState, unsigned int eventId, uint64_t trackId,
-                         uint64_t parentId, short threadId, unsigned short stepCounter)
+  __device__ TrackBase(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
+                       float weight, double const position[3], double const direction[3],
+                       const vecgeom::NavigationState &newNavState, unsigned int eventId, uint64_t trackId,
+                       uint64_t parentId, short threadId, unsigned short stepCounter)
       : eKin{eKin}, globalTime{globalTime}, trackId{trackId}, parentId{parentId}, navState{newNavState}, weight{weight},
         localTime{localTime}, properTime{properTime}, eventId{eventId}, threadId{threadId}, stepCounter{stepCounter},
         looperCounter{0}, zeroStepCounter{0}
@@ -77,18 +77,18 @@ struct TrackCommon {
 
   /// Construct a secondary from a parent track.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ TrackCommon(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
-                         const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
-                         const TrackCommon &parentTrack, const double globalTime)
-      : TrackCommon(rng_state, eKin, parentPos, newDirection, newNavState, parentTrack, globalTime, parentTrack.weight)
+  __device__ TrackBase(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                       const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
+                       const TrackBase &parentTrack, const double globalTime)
+      : TrackBase(rng_state, eKin, parentPos, newDirection, newNavState, parentTrack, globalTime, parentTrack.weight)
   {
   }
 
   /// Construct a secondary from a parent track with an explicit child weight.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ TrackCommon(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
-                         const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
-                         const TrackCommon &parentTrack, const double globalTime, float childWeight)
+  __device__ TrackBase(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                       const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
+                       const TrackBase &parentTrack, const double globalTime, float childWeight)
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         trackId{rngState.IntRndm64()}, parentId{parentTrack.trackId}, navState{newNavState}, weight{childWeight},
         eventId{parentTrack.eventId}, threadId{parentTrack.threadId}, stepCounter{0}, looperCounter{0},
@@ -107,8 +107,8 @@ struct TrackCommon {
 };
 
 // A data structure to represent a neutral particle track.
-struct NeutralTrack : TrackCommon {
-  using TrackCommon::TrackCommon;
+struct NeutralTrack : TrackBase {
+  using TrackBase::TrackBase;
 
   __host__ __device__ NeutralTrack() = default;
 
@@ -130,8 +130,8 @@ struct NeutralTrack : TrackCommon {
 // Charged particles extend the neutral layout with state that is only needed by
 // e-/e+ transport: cached safety, MSC/range state, magnetic-field propagation
 // state, and the split-kernel safe length.
-struct ChargedTrack : TrackCommon {
-  using TrackCommon::TrackCommon;
+struct ChargedTrack : TrackBase {
+  using TrackBase::TrackBase;
 
   __host__ __device__ ChargedTrack() = default;
 
