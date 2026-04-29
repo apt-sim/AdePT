@@ -240,6 +240,7 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   }
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+  // CMS stepping action: resolve configured dead-region names once on the host.
   std::vector<G4Region const *> deadRegions{};
   for (const std::string &regionName : deadRegionNames) {
     G4Region const *region = G4RegionStore::GetInstance()->GetRegion(regionName, false);
@@ -306,6 +307,7 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     }
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+    // CMS stepping action: flag volumes whose region kills tracks on GPU.
     bool isDeadRegion = false;
     for (G4Region const *deadRegion : deadRegions) {
       if (g4_lvol->GetRegion() == deadRegion) {
