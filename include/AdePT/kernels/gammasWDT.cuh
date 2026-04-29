@@ -612,7 +612,7 @@ __global__ void __launch_bounds__(256, 1)
         eKin = 0.;
       } else {
         // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, hepEmIMC, &g4HepEmData, params);
+        SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, nextauxData, &g4HepEmData, params);
       }
     }
 

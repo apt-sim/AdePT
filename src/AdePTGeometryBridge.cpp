@@ -10,6 +10,7 @@
 #include <VecGeom/navigation/NavigationState.h>
 
 #include <G4HepEmData.hh>
+#include <G4Exception.hh>
 #include <G4HepEmMatCutData.hh>
 #include <G4LogicalVolume.hh>
 #include <G4MaterialCutsCouple.hh>
@@ -218,7 +219,8 @@ void AdePTGeometryBridge::CheckGeometry(G4HepEmData const *hepEmData)
 /// @brief Fill the auxiliary per-volume transport metadata used by AdePT.
 void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                                          G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
-                                         std::vector<std::string> const *gpuRegionNames, adeptint::WDTHostRaw &wdtRaw)
+                                         std::vector<std::string> const *gpuRegionNames,
+                                         std::vector<std::string> const &deadRegionNames, adeptint::WDTHostRaw &wdtRaw)
 {
   // Note: the hepEmTM must be passed explicitly here, since this is now a stateless
   // global bridge helper and therefore cannot reach any per-thread integration members.
@@ -236,6 +238,21 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
       gpuRegions.push_back(G4RegionStore::GetInstance()->GetRegion(regionName));
     }
   }
+
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+  // CMS stepping action: resolve configured dead-region names once on the host.
+  std::vector<G4Region const *> deadRegions{};
+  for (const std::string &regionName : deadRegionNames) {
+    G4Region const *region = G4RegionStore::GetInstance()->GetRegion(regionName, false);
+    if (!region) {
+      G4Exception("AdePTGeometryBridge", "Invalid parameter", FatalErrorInArgument,
+                  ("Region given to AdePTConfiguration::AddDeadRegionName: " + regionName + " not found\n").c_str());
+    }
+    deadRegions.push_back(region);
+  }
+#else
+  (void)deadRegionNames;
+#endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
   std::vector<bool> atlasPhotonRRInitialized(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount(), false);
@@ -288,6 +305,18 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
       }
       volAuxData[vg_lvol->id()].fSensIndex = 1;
     }
+
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+    // CMS stepping action: flag volumes whose region kills tracks on GPU.
+    bool isDeadRegion = false;
+    for (G4Region const *deadRegion : deadRegions) {
+      if (g4_lvol->GetRegion() == deadRegion) {
+        isDeadRegion = true;
+        break;
+      }
+    }
+    volAuxData[vg_lvol->id()].fCMSDeadRegion = isDeadRegion;
+#endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
     const bool atlasPhotonRR = g4_pvol->GetName().rfind("LAr", 0) == 0;

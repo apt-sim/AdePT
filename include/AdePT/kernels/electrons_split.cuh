@@ -141,7 +141,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
         // check for experiment-specific SteppingAction
       } else {
         SteppingActionT::ElectronAction(trackSurvives, currentTrack.eKin, energyDeposit, currentTrack.pos,
-                                        currentTrack.globalTime, auxData.fMCIndex, &g4HepEmData, params);
+                                        currentTrack.globalTime, auxData, &g4HepEmData, params);
       }
 
       // this one always needs to be last as it needs to be done only if the track survives

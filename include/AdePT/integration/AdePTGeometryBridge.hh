@@ -41,7 +41,8 @@ public:
   /// @brief Fills the auxiliary per-volume data needed by AdePT.
   static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                              G4HepEmTrackingManagerSpecialized *hepEmTM, bool trackInAllRegions,
-                             std::vector<std::string> const *gpuRegionNames, adeptint::WDTHostRaw &wdtRaw);
+                             std::vector<std::string> const *gpuRegionNames,
+                             std::vector<std::string> const &deadRegionNames, adeptint::WDTHostRaw &wdtRaw);
 
   /// @brief Pack the Woodcock tracking data from the sparse host-side map into arrays that can be copied to the GPU.
   /// @param wdtRaw Raw WDT data collected during geometry traversal.
