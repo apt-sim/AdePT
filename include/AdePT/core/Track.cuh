@@ -15,25 +15,22 @@
 #include <G4HepEmRandomEngine.hh>
 #endif
 
-// A data structure to represent a neutral particle track. The particle type is
-// implicit by the queue and not stored in memory.
-struct NeutralTrack {
+// Common state shared by neutral and charged particle tracks. The particle type
+// is implicit by the queue and not stored in memory.
+struct TrackCommon {
   RanluxppDouble rngState;
   double eKin{0.};
   double globalTime{0.};
 
-  float weight{0.};
-#ifndef ADEPT_USE_SPLIT_KERNELS
-  // Gamma interaction length state is based only on the total macroscopic cross section.
-  float numIALeft{-1.f};
-#endif
-
-  float localTime{0.f};
-  float properTime{0.f};
-
   vecgeom::Vector3D<double> pos;     ///< track position
   vecgeom::Vector3D<double> dir;     ///< track direction
+  uint64_t trackId{0};               ///< track id (non-consecutive, reproducible)
+  uint64_t parentId{0};              ///< track id of the parent
   vecgeom::NavigationState navState; ///< current navigation state
+
+  float weight{0.};
+  float localTime{0.f};
+  float properTime{0.f};
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
   // Variables used to store track info needed for scoring
@@ -45,9 +42,6 @@ struct NeutralTrack {
   // Variables used to store navigation results
   long hitsurfID{0};
 #endif
-
-  uint64_t trackId{0};  ///< track id (non-consecutive, reproducible)
-  uint64_t parentId{0}; // track id of the parent
 
   unsigned int eventId{0};
   short threadId{-1};
@@ -63,18 +57,18 @@ struct NeutralTrack {
   bool stopped{false};
 #endif
 
-  __host__ __device__ NeutralTrack()                                = default;
-  __host__ __device__ NeutralTrack(const NeutralTrack &)            = default;
-  __host__ __device__ NeutralTrack &operator=(const NeutralTrack &) = default;
+  __host__ __device__ TrackCommon()                               = default;
+  __host__ __device__ TrackCommon(const TrackCommon &)            = default;
+  __host__ __device__ TrackCommon &operator=(const TrackCommon &) = default;
 
   /// Construct a new track for GPU transport.
-  __device__ NeutralTrack(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
-                          float weight, double const position[3], double const direction[3],
-                          const vecgeom::NavigationState &newNavState, unsigned int eventId, uint64_t trackId,
-                          uint64_t parentId, short threadId, unsigned short stepCounter)
-      : eKin{eKin}, globalTime{globalTime}, weight{weight}, localTime{localTime}, properTime{properTime},
-        navState{newNavState}, trackId{trackId}, parentId{parentId}, eventId{eventId}, threadId{threadId},
-        stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}
+  __device__ TrackCommon(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
+                         float weight, double const position[3], double const direction[3],
+                         const vecgeom::NavigationState &newNavState, unsigned int eventId, uint64_t trackId,
+                         uint64_t parentId, short threadId, unsigned short stepCounter)
+      : eKin{eKin}, globalTime{globalTime}, trackId{trackId}, parentId{parentId}, navState{newNavState}, weight{weight},
+        localTime{localTime}, properTime{properTime}, eventId{eventId}, threadId{threadId}, stepCounter{stepCounter},
+        looperCounter{0}, zeroStepCounter{0}
   {
     rngState.SetSeed(rngSeed);
     pos = {position[0], position[1], position[2]};
@@ -83,20 +77,20 @@ struct NeutralTrack {
 
   /// Construct a secondary from a parent track.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ NeutralTrack(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
-                          const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
-                          const NeutralTrack &parentTrack, const double globalTime)
-      : NeutralTrack(rng_state, eKin, parentPos, newDirection, newNavState, parentTrack, globalTime, parentTrack.weight)
+  __device__ TrackCommon(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                         const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
+                         const TrackCommon &parentTrack, const double globalTime)
+      : TrackCommon(rng_state, eKin, parentPos, newDirection, newNavState, parentTrack, globalTime, parentTrack.weight)
   {
   }
 
   /// Construct a secondary from a parent track with an explicit child weight.
   /// NB: The caller is responsible to branch a new RNG state.
-  __device__ NeutralTrack(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
-                          const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
-                          const NeutralTrack &parentTrack, const double globalTime, float childWeight)
-      : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, weight{childWeight}, pos{parentPos}, dir{newDirection},
-        navState{newNavState}, trackId{rngState.IntRndm64()}, parentId{parentTrack.trackId},
+  __device__ TrackCommon(RanluxppDouble const &rng_state, double eKin, const vecgeom::Vector3D<double> &parentPos,
+                         const vecgeom::Vector3D<double> &newDirection, const vecgeom::NavigationState &newNavState,
+                         const TrackCommon &parentTrack, const double globalTime, float childWeight)
+      : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
+        trackId{rngState.IntRndm64()}, parentId{parentTrack.trackId}, navState{newNavState}, weight{childWeight},
         eventId{parentTrack.eventId}, threadId{parentTrack.threadId}, stepCounter{0}, looperCounter{0},
         zeroStepCounter{0}
   {
@@ -109,6 +103,20 @@ struct NeutralTrack {
     return match_event && (itrack == trackId) && (stepCounter >= stepmin) && (stepCounter <= stepmax);
   }
 
+  __host__ __device__ double Uniform() { return rngState.Rndm(); }
+};
+
+// A data structure to represent a neutral particle track.
+struct NeutralTrack : TrackCommon {
+  using TrackCommon::TrackCommon;
+
+  __host__ __device__ NeutralTrack() = default;
+
+#ifndef ADEPT_USE_SPLIT_KERNELS
+  // Gamma interaction length state is based only on the total macroscopic cross section.
+  float numIALeft{-1.f};
+#endif
+
   __host__ __device__ void Print(const char *label) const
   {
     printf("== evt %u parentId %lu %s id %lu step %d ekin %g MeV | pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, "
@@ -117,15 +125,13 @@ struct NeutralTrack {
            dir[1], dir[2], looperCounter);
     navState.Print();
   }
-
-  __host__ __device__ double Uniform() { return rngState.Rndm(); }
 };
 
 // Charged particles extend the neutral layout with state that is only needed by
 // e-/e+ transport: cached safety, MSC/range state, magnetic-field propagation
 // state, and the split-kernel safe length.
-struct ChargedTrack : NeutralTrack {
-  using NeutralTrack::NeutralTrack;
+struct ChargedTrack : TrackCommon {
+  using TrackCommon::TrackCommon;
 
   __host__ __device__ ChargedTrack() = default;
 
