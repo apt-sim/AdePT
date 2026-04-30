@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
+#include <AdePT/integration/AdePTThreadId.hh>
 
 #include "G4Electron.hh"
 #include "G4Gamma.hh"
@@ -28,13 +29,14 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
   // the current volume is not yet updated
   G4Region const *region = track->GetNextVolume()->GetLogicalVolume()->GetRegion();
 
-  G4int threadId = G4Threading::G4GetThreadId();
+  const auto threadId = adept_integration::GetThreadId();
 
   // TODO: for more efficient use, we only have to check for region within GPURegions, if the region changed.
   //       This can be checked from the pre- and post-steppoint
 
   // Not in the GPU region, continue normal tracking with G4HepEmTrackingManager
-  if ((!GetTrackInAllRegions() && fGPURegions.find(region) == fGPURegions.end()) || fFinishEventOnCPU[threadId] > 0) {
+  if ((!GetTrackInAllRegions() && fGPURegions.find(region) == fGPURegions.end()) ||
+      GetFinishEventOnCPU(threadId) >= 0) {
     return false; // Continue tracking with G4HepEmTrackingManager
   } else {
 
