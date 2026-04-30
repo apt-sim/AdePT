@@ -486,6 +486,7 @@ set(ADEPT_CORE_SRCS
   src/AdePTG4HepEmState.cpp
   src/AsyncAdePTTransport.cc
   src/AsyncAdePTTransport.cu
+  src/HostCircularBuffer.cpp
 )
 
 set(ADEPT_G4_INTEGRATION_SRCS

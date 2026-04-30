@@ -6,10 +6,12 @@
 
 #include <AdePT/base/ResourceManagement.cuh>
 #include <AdePT/core/GPUStep.hh>
+#include <AdePT/core/HostCircularBuffer.hh>
 #include <AdePT/copcore/Global.h>
 
 #include <VecGeom/navigation/NavigationState.h>
 
+#include <algorithm>
 #include <atomic>
 #include <deque>
 #include <mutex>
@@ -19,6 +21,7 @@
 #include <thread>
 #include <condition_variable>
 #include <sstream>
+#include <vector>
 
 // definitions for printouts and advanced debugging
 // #define DEBUG
@@ -120,165 +123,6 @@ struct GPUStepBatch {
   }
 };
 
-class CircularBufferManager {
-  // the CircularBufferManager manages the memory of the pinned HostBuffer fBuffer (in returned-step transfer).
-  // It keeps track of the used space in the sorted vector of segments fSegments.
-  // The StepProcessingThread adds segments when it submits items to the StepQueue (in fact, the memory is already
-  // allocated as soon as the copy from TransferStepsToHost is done). The StepProcessingThread can delete segments when
-  // it copies the steps to the holdoutBuffer and the G4Worker finish their work. Since both StepProcessingThread and
-  // G4Workers can change the segments, a mutex is used to lock the access to the fSegments. In the TransferStepsToHost,
-  // the StepProcessingThread checks whether there is enough contiguous memory in the CircularBuffer before the copy can
-  // start
-public:
-  struct Segment {
-    GPUStep *begin;
-    GPUStep *end;
-
-    bool operator<(const Segment &other) const { return begin < other.begin; }
-  };
-
-  CircularBufferManager(GPUStep *bufferStart, size_t capacity)
-      : fBufferStart(bufferStart), fBufferEnd(bufferStart + capacity), fWritePtr(bufferStart),
-        fFreeContiguousSpace(capacity)
-  {
-  }
-
-  /// Adds a segment at the provided position. Ensures segments remain sorted.
-  bool addSegment(GPUStep *begin, GPUStep *end)
-  {
-    std::scoped_lock lock{bufferManagerMutex};
-
-    // Insert the segment into sorted position
-    fSegments.insert(std::upper_bound(fSegments.begin(), fSegments.end(), Segment{begin, end}), {begin, end});
-
-#ifdef DEBUG
-    if (begin != fWritePtr)
-      std::cout << BOLD_RED << " Begin != fWritePTr " << begin << " fWritePtr " << fWritePtr << RESET << std::endl;
-    size_t size = end - begin;
-    if (size > fFreeContiguousSpace)
-      std::cout << BOLD_RED << " Not enough space! size " << size << " fFreeContiguousSpace " << fFreeContiguousSpace
-                << RESET << std::endl;
-    if (!checkForOverlaps()) std::cout << BOLD_RED << " Overlaps after AddSegment! " << RESET << std::endl;
-#endif
-
-    fWritePtr = end;
-
-    return true;
-  }
-
-  /// Removes a segment based on its starting pointer and updates fWritePtr accordingly.
-  void removeSegment(GPUStep *segmentPtr)
-  {
-    std::scoped_lock lock{bufferManagerMutex};
-
-    // Find the segment
-    auto it = std::find_if(fSegments.begin(), fSegments.end(),
-                           [segmentPtr](const Segment &seg) { return seg.begin == segmentPtr; });
-
-#ifdef DEBUG
-    if (!segmentPtr) std::cout << BOLD_RED << " Trying to remove nullptr segment " << RESET << std::endl;
-    if (it == fSegments.end())
-      std::cout << BOLD_RED << " Trying to remove segment that doesn't exist !! segment : " << segmentPtr << RESET
-                << std::endl;
-    if (!checkForOverlaps()) std::cout << BOLD_RED << " Overlaps after removesegment! " << RESET << std::endl;
-#endif
-
-    // delete it from the list
-    fSegments.erase(it);
-  }
-
-  /// Returns the contiguous free space in front of the fWritePtr (or at the beginning of the buffer in case of a
-  /// wraparound)
-  size_t getFreeContiguousMemory(size_t transferSize)
-  {
-    std::scoped_lock lock{bufferManagerMutex};
-
-    if (fSegments.empty()) {
-      // if empty, reset WritePtr to Bufferstart
-      fWritePtr = fBufferStart;
-      return fBufferEnd - fBufferStart; // Everything is free
-    }
-
-    // Find the next segment after fWritePtr
-    auto nextSegment = std::lower_bound(fSegments.begin(), fSegments.end(), Segment{fWritePtr, nullptr},
-                                        [](const Segment &a, const Segment &b) { return a.begin < b.begin; });
-
-    // Find the previous segment before nextSegment (if it exists)
-    auto prevSegment = (nextSegment != fSegments.begin()) ? std::prev(nextSegment) : fSegments.end();
-
-    // If the fWritePtr was set on an end of a segment that was deleted, we can put it back to the last previous
-    // existing segment
-    if (prevSegment != fSegments.end() && fWritePtr != prevSegment->end) {
-      fWritePtr = prevSegment->end;
-    }
-
-    // Free space from `fWritePtr` to next segment
-    size_t forwardSpace = (nextSegment != fSegments.end()) ? nextSegment->begin - fWritePtr : fBufferEnd - fWritePtr;
-
-    // Free space for a wraparound
-    size_t wrapAroundSpace = (fSegments.front().begin > fBufferStart) ? (fSegments.front().begin - fBufferStart) : 0;
-
-    fFreeContiguousSpace = forwardSpace + wrapAroundSpace - transferSize;
-
-    if (forwardSpace >= transferSize) {
-      return forwardSpace; // Enough space in the current region
-    }
-
-    if (wrapAroundSpace >= transferSize) {
-      fWritePtr = fBufferStart; // Reset fWritePtr since we need to wrap around
-      return wrapAroundSpace;
-    }
-
-#ifdef DEBUG
-    std::cout << BOLD_RED
-              << "Cannot transfer from Device to Host due to lack of space in CPU HostBuffer. This should never be "
-                 "the case! transfersize "
-              << transferSize << " forwardSpace " << forwardSpace << " wraparoundspace " << wrapAroundSpace
-              << " total space : " << (fBufferEnd - fBufferStart) << " free space " << fFreeContiguousSpace << RESET
-              << std::endl;
-    checkForOverlaps();
-#endif
-
-    return 0; // Not enough contiguous space available
-  }
-
-  double getFillFraction() { return 1. - static_cast<double>(fFreeContiguousSpace) / (fBufferEnd - fBufferStart); }
-
-  size_t getOffset() { return fWritePtr - fBufferStart; }
-
-private:
-  GPUStep *fBufferStart;
-  GPUStep *fBufferEnd;
-  GPUStep *fWritePtr;
-  size_t fFreeContiguousSpace;
-  std::vector<Segment> fSegments; // **Sorted vector instead of set**
-  mutable std::mutex bufferManagerMutex;
-
-  // Consistency check for debugging
-  bool checkForOverlaps()
-  {
-    for (size_t i = 1; i < fSegments.size(); i++) {
-      if (fSegments[i - 1].end > fSegments[i].begin) {
-        std::cerr << "ERROR: Overlapping segments detected!\n";
-        std::cerr << " Segment 1: [" << fSegments[i - 1].begin << " - " << fSegments[i - 1].end << "]\n";
-        std::cerr << " Segment 2: [" << fSegments[i].begin << " - " << fSegments[i].end << "]\n";
-        assert(false && "Overlapping segments in CircularBufferManager!");
-        return false;
-      }
-    }
-    return true;
-  }
-
-  void printSegments(const std::string &msg)
-  {
-    std::cout << msg << " | Current segments: ";
-    for (const auto &seg : fSegments) {
-      std::cout << "[" << seg.begin << " - " << seg.end << "] ";
-    }
-    std::cout << std::endl;
-  }
-};
-
 class GPUStepTransferManager {
   unique_ptr_cuda<GPUStep> fGPUStepBuffer_dev;
   unique_ptr_cuda<GPUStep, CudaHostDeleter<GPUStep>> fGPUStepBuffer_host;
@@ -287,7 +131,7 @@ class GPUStepTransferManager {
 
   BufferHandle fBuffer;
 
-  std::unique_ptr<CircularBufferManager> fBufferManager;
+  std::unique_ptr<HostCircularBuffer> fBufferManager;
 
   enum class DeviceState { Free, Filling, NeedTransferToHost, TransferToHost };
   std::array<std::atomic<DeviceState>, 2>
@@ -430,7 +274,7 @@ public:
     fBuffer.hostStepCount = fGPUStepBufferCount_host.get();
     fBuffer.hostState     = BufferHandle::HostState::ReadyToBeFilled;
 
-    fBufferManager = std::make_unique<CircularBufferManager>(fGPUStepBuffer_host.get(), hostBufferCapacity);
+    fBufferManager = std::make_unique<HostCircularBuffer>(fGPUStepBuffer_host.get(), hostBufferCapacity);
 
     ADEPT_DEVICE_API_CALL(GetSymbolAddress(&fDeviceStepBuffer_deviceAddress, gDeviceStepBuffer));
     assert(fDeviceStepBuffer_deviceAddress != nullptr);
@@ -675,7 +519,7 @@ public:
     }
 #endif
 
-    // if data is in the hostBuffer (and not the holdoutBuffer), update the CircularBufferManager and release the memory
+    // if data is in the hostBuffer (and not the holdoutBuffer), update the HostCircularBuffer and release the memory
     if (dataOnBuffer) fBufferManager->removeSegment(begin);
     fStepQueues[threadId].pop_front();
   }
