@@ -79,15 +79,15 @@ void AsyncAdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId,
     return;
   }
 
-  TrackDataWithIDs track{pdg,         trackId,
-                         parentId,    energy,
-                         x,           y,
-                         z,           dirx,
-                         diry,        dirz,
-                         globalTime,  localTime,
-                         properTime,  weight,
-                         stepCounter, std::move(state),
-                         eventId,     static_cast<short>(threadId)};
+  adeptint::TrackData track{pdg,         trackId,
+                            parentId,    energy,
+                            x,           y,
+                            z,           dirx,
+                            diry,        dirz,
+                            globalTime,  localTime,
+                            properTime,  weight,
+                            stepCounter, std::move(state),
+                            eventId,     static_cast<short>(threadId)};
 
   {
     auto trackHandle  = fBuffer->createToDeviceSlot();
