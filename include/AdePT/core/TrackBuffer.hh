@@ -5,7 +5,7 @@
 #define ADEPT_TRACK_BUFFER_HH
 
 #include <AdePT/base/ResourceManagement.hh>
-#include <AdePT/core/ReturnedTrackData.hh>
+#include <AdePT/core/TrackData.h>
 
 #include <array>
 #include <atomic>
@@ -20,7 +20,7 @@ namespace AsyncAdePT {
 /// @brief Buffer holding input tracks to be transported on GPU.
 struct TrackBuffer {
   struct alignas(64) ToDeviceBuffer {
-    TrackDataWithIDs *tracks;
+    adeptint::TrackData *tracks;
     unsigned int maxTracks;
     std::atomic_uint nTrack;
     mutable std::shared_mutex mutex;
@@ -30,9 +30,9 @@ struct TrackBuffer {
   std::atomic_short toDeviceIndex{0};
 
   unsigned int fNumToDevice{0}; ///< number of slots in the toDevice buffer
-  unique_ptr_cuda<TrackDataWithIDs, CudaHostDeleter<TrackDataWithIDs>>
-      toDevice_host;                              ///< Tracks to be transported to the device
-  unique_ptr_cuda<TrackDataWithIDs> toDevice_dev; ///< toDevice buffer of tracks
+  unique_ptr_cuda<adeptint::TrackData, CudaHostDeleter<adeptint::TrackData>>
+      toDevice_host;                                 ///< Tracks to be transported to the device
+  unique_ptr_cuda<adeptint::TrackData> toDevice_dev; ///< toDevice buffer of tracks
 
   TrackBuffer(unsigned int numToDevice);
 
@@ -41,7 +41,7 @@ struct TrackBuffer {
 
   /// A handle to access TrackData vectors while holding a lock.
   struct TrackHandle {
-    TrackDataWithIDs &track;
+    adeptint::TrackData &track;
     std::shared_lock<std::shared_mutex> lock;
   };
 

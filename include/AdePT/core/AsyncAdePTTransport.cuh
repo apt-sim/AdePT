@@ -152,7 +152,7 @@ __device__ inline uint64_t fnv1a_hash64(const uint64_t *data, size_t count)
 }
 
 // helper function to generate the seed for the track via FNV-1a from the trackinfo
-__device__ inline uint64_t GenerateSeedFromTrackInfo(const AsyncAdePT::TrackDataWithIDs &trackInfo, uint64_t baseSeed)
+__device__ inline uint64_t GenerateSeedFromTrackInfo(const adeptint::TrackData &trackInfo, uint64_t baseSeed)
 {
   uint64_t input[12] = {baseSeed,
                         trackInfo.eventId,
@@ -170,7 +170,7 @@ __device__ inline uint64_t GenerateSeedFromTrackInfo(const AsyncAdePT::TrackData
 }
 
 template <typename SpeciesManagerT>
-__device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const AsyncAdePT::TrackDataWithIDs &trackInfo,
+__device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const adeptint::TrackData &trackInfo,
                                         short queueIndex, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
                                         uint64_t initialSeed)
 {
@@ -187,7 +187,7 @@ __device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const AsyncA
 }
 
 // Kernel function to initialize tracks comming from a Geant4 buffer
-__global__ void InitTracks(AsyncAdePT::TrackDataWithIDs *trackinfo, int ntracks, ParticleManager particleManager,
+__global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, ParticleManager particleManager,
                            const vecgeom::VPlacedVolume *world, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
                            uint64_t initialSeed)
 {
@@ -886,7 +886,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
 
           // copy buffer of tracks to device
           ADEPT_DEVICE_API_CALL(MemcpyAsync(trackBuffer.toDevice_dev.get(), toDevice.tracks,
-                                            nInject * sizeof(TrackDataWithIDs),
+                                            nInject * sizeof(adeptint::TrackData),
                                             ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice), injectStream));
           // Mark end of copy operation:
           ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, injectStream));
@@ -1437,10 +1437,10 @@ void InitVolAuxArray(adeptint::VolAuxArray &array)
 /// Initialise the track buffers used to communicate between host and device.
 TrackBuffer::TrackBuffer(unsigned int numToDevice) : fNumToDevice{numToDevice}
 {
-  TrackDataWithIDs *devPtr, *hostPtr;
+  adeptint::TrackData *devPtr, *hostPtr;
   // Double buffer for lock-free host runs:
-  ADEPT_DEVICE_API_CALL(MallocHost(&hostPtr, 2 * numToDevice * sizeof(TrackDataWithIDs)));
-  ADEPT_DEVICE_API_CALL(Malloc(&devPtr, numToDevice * sizeof(TrackDataWithIDs)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&hostPtr, 2 * numToDevice * sizeof(adeptint::TrackData)));
+  ADEPT_DEVICE_API_CALL(Malloc(&devPtr, numToDevice * sizeof(adeptint::TrackData)));
 
   toDevice_host.reset(hostPtr);
   toDevice_dev.reset(devPtr);
