@@ -13,7 +13,7 @@
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/AdePTTransportConfig.hh>
 #include <AdePT/core/GeometryAuxData.hh>
-#include <AdePT/core/ScoringCommons.hh>
+#include <AdePT/core/GPUStep.hh>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
@@ -38,7 +38,7 @@ public:
 private:
   unsigned short fNThread{0};             ///< Number of G4 workers
   unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
-  unsigned int fScoringCapacity{0};       ///< Number of hit slots to allocate on device
+  unsigned int fStepCapacity{0};          ///< Number of step slots to allocate on device
   int fDebugLevel{0};                     ///< Debug level
   int fCUDAStackLimit{0};                 ///< CUDA device stack limit
   int fCUDAHeapLimit{0};                  ///< CUDA device heap limit
@@ -59,12 +59,11 @@ private:
   bool fReturnFirstAndLastStep = false;
   std::string fBfieldFile{""}; ///< Path to magnetic field file (in the covfie format)
   double fCPUCapacityFactor{
-      2.5}; ///< Factor by which the ScoringCapacity on Host is larger than on Device. Must be at least 2
-  ///< Filling fraction of the ScoringCapacity on host when the hits are copied out and not taken directly by the
-  ///< G4workers
+      2.5}; ///< Factor by which the host step buffer is larger than the device step buffer. Must be at least 2
+  ///< Filling fraction of the host step buffer when the steps are copied out and not taken directly by the G4 workers
   double fCPUCopyFraction{0.5};
-  ///< Needed to stall the GPU, in case the nPartInFlight * fHitBufferSafetyFactor > available HitSlots
-  double fHitBufferSafetyFactor{1.5};
+  ///< Needed to stall the GPU, in case the nPartInFlight * fStepBufferSafetyFactor > available StepSlots
+  double fStepBufferSafetyFactor{1.5};
 
   void Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                   const std::vector<float> &uniformFieldValues);
@@ -84,22 +83,22 @@ public:
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
                 unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state);
   int GetDebugLevel() const { return fDebugLevel; }
-  /// @brief Handle the currently available returned GPU-hit batches for one thread and event.
+  /// @brief Handle the currently available returned GPU-step batches for one thread and event.
   /// @details
-  /// Transport retains ownership of the hit-buffer lifetime. For each available
-  /// batch, `callback` is invoked with a `std::span<const GPUHit>` view and the
+  /// Transport retains ownership of the step-buffer lifetime. For each available
+  /// batch, `callback` is invoked with a `std::span<const GPUStep>` view and the
   /// batch is released again when the callback returns.
   ///
   /// In this code path, the callback is the `AdePTTrackingManager` logic that
-  /// reconstructs Geant4 steps from the returned GPU hits.
+  /// reconstructs Geant4 steps from the returned GPU steps.
   template <typename Callback>
-  void HandleReturnedGPUHitBatchesWith(int threadId, int eventId, Callback &&callback);
+  void HandleGPUStepBatchesWith(int threadId, int eventId, Callback &&callback);
   /// @brief Request that the device flush all pending work for the given worker.
   void RequestFlush(int threadId);
   /// @brief Wait until the transport threads make further flush progress.
   void WaitForFlushProgress();
-  /// @brief Check whether all returned GPU-hit batches have been made available on the host.
-  bool IsHitsFlushed(int threadId) const;
+  /// @brief Check whether all returned GPU-step batches have been made available on the host.
+  bool AreReturnedStepsFlushed(int threadId) const;
   /// @brief Mark the worker event as fully handled on the host side after replaying the returned steps.
   void MarkHostFlushed(int threadId);
 };

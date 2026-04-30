@@ -6,7 +6,7 @@
 
 /// @brief Strongly-typed enum for the three EM particle species tracked by AdePT.
 ///
-/// Used in GPUHit, SecondaryInitData, HostTrackData, and anywhere a step or track
+/// Used in GPUStep, SecondaryInitData, HostTrackData, and anywhere a step or track
 /// needs to carry its particle species as data.
 ///
 /// Note: The numeric values (0, 1, 2) intentionally match `GPUQueueIndex`
@@ -14,7 +14,7 @@
 /// state arrays. Both enums represent the same three species, but
 /// `GPUQueueIndex` also carries `NumSpecies` / `GammaWDT` /
 /// `NumParticleQueues` sentinels for loop bounds and array sizing.
-/// Use `ParticleType` for physics data (hits, tracks, scoring); use
+/// Use `ParticleType` for physics data (steps, tracks); use
 /// `GPUQueueIndex::{Electron,Positron,Gamma}` for GPU state array indexing.
 /// A static_assert in `AsyncAdePTTransportStruct.cuh` guarantees the values
 /// stay in sync.

@@ -22,10 +22,10 @@ enum class EventState : unsigned char {
   InjectionCompleted,
   Transporting,
   WaitingForTransportToFinish,
-  RequestHitFlush,
-  SwappingHitBuffers,
-  FlushingHits,
-  HitsFlushed,
+  RequestStepFlush,
+  SwappingStepBuffers,
+  FlushingSteps,
+  StepsFlushed,
   DeviceFlushed
 };
 

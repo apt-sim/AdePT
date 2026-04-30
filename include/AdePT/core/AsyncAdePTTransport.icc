@@ -3,37 +3,37 @@
 
 #include <AdePT/core/AsyncAdePTTransport.hh>
 
-/// Forward declarations for the transport-owned hit-batch accessors that remain
-/// header-visible because `HandleReturnedGPUHitBatchesWith(...)` is templated.
+/// Forward declarations for the transport-owned step-batch accessors that remain
+/// header-visible because `HandleGPUStepBatchesWith(...)` is templated.
 namespace async_adept_impl {
-std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
-void CloseGPUBuffer(unsigned int, AsyncAdePT::GPUstate &, GPUHit *, const bool);
+std::pair<GPUStep *, GPUStep *> GetGPUStepBatchFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
+void CloseGPUStepBatch(unsigned int, AsyncAdePT::GPUstate &, GPUStep *, const bool);
 } // namespace async_adept_impl
 
 namespace AsyncAdePT {
 
 template <typename Callback>
-inline void AsyncAdePTTransport::HandleReturnedGPUHitBatchesWith(int threadId, int eventId, Callback &&callback)
+inline void AsyncAdePTTransport::HandleGPUStepBatchesWith(int threadId, int eventId, Callback &&callback)
 {
-  std::pair<GPUHit *, GPUHit *> range;
+  std::pair<GPUStep *, GPUStep *> range;
   bool dataOnBuffer;
 
-  while ((range = async_adept_impl::GetGPUHitsFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
+  while ((range = async_adept_impl::GetGPUStepBatchFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
          nullptr) {
-    // Transport still owns the hit-batch lifetime here. The callback only gets
+    // Transport still owns the step-batch lifetime here. The callback only gets
     // a temporary `std::span` view while the batch is valid.
-    struct CloseGPUHitBatch {
+    struct CloseGPUStepBatch {
       int threadId;
       GPUstate &gpuState;
-      GPUHit *begin;
+      GPUStep *begin;
       bool dataOnBuffer;
-      ~CloseGPUHitBatch() { async_adept_impl::CloseGPUBuffer(threadId, gpuState, begin, dataOnBuffer); }
+      ~CloseGPUStepBatch() { async_adept_impl::CloseGPUStepBatch(threadId, gpuState, begin, dataOnBuffer); }
     } closeBatch{threadId, *fGPUstate, range.first, dataOnBuffer};
 
-    // The callback runs the Geant4-side hit reconstruction for this batch.
+    // The callback runs the Geant4-side step reconstruction for this batch.
     // When it returns, `closeBatch` goes out of scope and releases the batch
     // back to transport automatically.
-    callback(std::span<const GPUHit>(range.first, range.second));
+    callback(std::span<const GPUStep>(range.first, range.second));
   }
 }
 

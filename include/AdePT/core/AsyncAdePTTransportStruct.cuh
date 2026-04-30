@@ -131,7 +131,7 @@ dynamic allocations
 /// @brief Named array-index enum for the per-species GPU state arrays in @ref SpeciesState.
 ///
 /// Carries the three physical species plus Woodcock-tracking sentinels (GammaWDT,
-/// NumParticleQueues).  For physics data (hits, scoring) use the free @ref ParticleType
+/// NumParticleQueues).  For physics data (steps, tracks) use the free @ref ParticleType
 /// enum class instead; a static_assert below guarantees the numeric values stay in sync.
 enum GPUQueueIndex {
   Electron = 0,
@@ -211,7 +211,7 @@ struct Stats {
   float slotFillLevel[GPUQueueIndex::NumSpecies];
   unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
   unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
-  unsigned int hitBufferOccupancy;
+  unsigned int stepBufferOccupancy;
 };
 
 /// Host-only counters accumulating transport-loop stop/stall/flush action reasons across the full run.
@@ -221,12 +221,12 @@ struct TransportLoopCounters {
   unsigned long long leakExtractionByQueuePressure{0}; ///< Iterations where leak queue exceeded 50% threshold
   unsigned long long leakExtractionByEventFlush{0};    ///< Iterations where an event flush requested leak extraction
   unsigned long long leakExtractionBlocked{0};         ///< Times transport stalled waiting for in-progress extraction
-  unsigned long long eventDrainedToHitFlush{0};        ///< Events that transitioned to RequestHitFlush (queues drained)
-  unsigned long long hitBufferSwaps{0};                ///< Total hit-buffer swaps performed
-  unsigned long long hitBufferSwapByOccupancy{0};      ///< Swaps triggered by occupancy >= half capacity
-  unsigned long long hitBufferSwapByOccupancy10k{0};   ///< Swaps triggered by occupancy >= 10000
-  unsigned long long hitBufferSwapByPressure{0};       ///< Swaps triggered by nextStepMightFail (overflow risk)
-  unsigned long long hitBufferSwapByEventFlush{0};     ///< Swaps triggered by event RequestHitFlush
+  unsigned long long eventDrainedToStepFlush{0};      ///< Events that transitioned to RequestStepFlush (queues drained)
+  unsigned long long stepBufferSwaps{0};              ///< Total step-buffer swaps performed
+  unsigned long long stepBufferSwapByOccupancy{0};    ///< Swaps triggered by occupancy >= half capacity
+  unsigned long long stepBufferSwapByOccupancy10k{0}; ///< Swaps triggered by occupancy >= 10000
+  unsigned long long stepBufferSwapByPressure{0};     ///< Swaps triggered by nextStepMightFail (overflow risk)
+  unsigned long long stepBufferSwapByEventFlush{0};   ///< Swaps triggered by event RequestStepFlush
 };
 
 /// @brief Array of flags whether the event can be finished off
@@ -272,7 +272,7 @@ struct GPUstate {
   Stats *stats_dev{nullptr}; ///< statistics object pointer on device
   Stats *stats{nullptr};     ///< statistics object pointer on host
 
-  std::unique_ptr<HitScoring> fHitScoring;
+  std::unique_ptr<GPUStepTransferManager> fGPUStepTransferManager;
 
   adept::MParrayT<QueueIndexPair> *injectionQueue;
 

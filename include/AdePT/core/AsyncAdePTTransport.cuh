@@ -67,9 +67,9 @@ using SteppingAction = adept::SteppingAction::Action;
 
 using namespace AsyncAdePT;
 
-/// Communication with the hit processing thread.
-struct HitProcessingContext {
-  ADEPT_DEVICE_API_SYMBOL(Stream_t) hitTransferStream;
+/// Communication with the step processing thread.
+struct StepProcessingContext {
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stepTransferStream;
   std::condition_variable cv{};
   std::mutex mutex{};
   std::atomic_bool keepRunning = true;
@@ -286,8 +286,8 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
     }
   } else if (blockIdx.x == 2) {
     if (threadIdx.x == 0) {
-      // Note: hitBufferOccupancy gives the maximum occupancy of all threads combined
-      stats->hitBufferOccupancy = AsyncAdePT::gHitScoringBuffer_dev.GetMaxSlotCount();
+      // Note: stepBufferOccupancy gives the maximum occupancy of all threads combined
+      stats->stepBufferOccupancy = AsyncAdePT::gDeviceStepBuffer.GetMaxSlotCount();
     }
   }
 
@@ -548,7 +548,7 @@ void FreeWDTOnDevice(adeptint::WDTDeviceBuffers &dev)
 /// If successful, this will initialise the member fGPUState.
 /// If memory allocation fails, an exception is thrown. In this case, the caller has to
 /// try again after some wait time or with less transport slots.
-std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int scoringCapacity, int numThreads,
+std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int stepCapacity, int numThreads,
                                                          TrackBuffer &trackBuffer, double CPUCapacityFactor,
                                                          double CPUCopyFraction, std::string &generalBfieldFile,
                                                          const std::vector<float> &uniformBfieldValues)
@@ -691,7 +691,8 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   InitializeTrackDebug();
 #endif
 
-  gpuState.fHitScoring.reset(new HitScoring(scoringCapacity, numThreads, CPUCapacityFactor, CPUCopyFraction));
+  gpuState.fGPUStepTransferManager.reset(
+      new GPUStepTransferManager(stepCapacity, numThreads, CPUCapacityFactor, CPUCopyFraction));
 
   const auto injectQueueSize = adept::MParrayT<QueueIndexPair>::SizeOfInstance(trackBuffer.fNumToDevice);
   gpuMalloc(gpuPtr, injectQueueSize);
@@ -709,32 +710,32 @@ void AdvanceEventStates(EventState oldState, EventState newState, std::vector<st
   }
 }
 
-void HitProcessingLoop(HitProcessingContext *const context, GPUstate &gpuState,
-                       std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
-                       int debugLevel)
+void StepProcessingLoop(StepProcessingContext *const context, GPUstate &gpuState,
+                        std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
+                        int debugLevel)
 {
   while (context->keepRunning) {
     std::unique_lock lock(context->mutex);
     context->cv.wait(lock);
 
-    AdvanceEventStates(EventState::SwappingHitBuffers, EventState::FlushingHits, eventStates);
-    gpuState.fHitScoring->TransferHitsToHost(context->hitTransferStream);
-    const bool haveNewHits = gpuState.fHitScoring->ProcessHits(cvG4Workers, debugLevel);
+    AdvanceEventStates(EventState::SwappingStepBuffers, EventState::FlushingSteps, eventStates);
+    gpuState.fGPUStepTransferManager->TransferStepsToHost(context->stepTransferStream);
+    const bool haveNewSteps = gpuState.fGPUStepTransferManager->ProcessSteps(cvG4Workers, debugLevel);
 
-    if (haveNewHits) {
-      AdvanceEventStates(EventState::FlushingHits, EventState::HitsFlushed, eventStates);
+    if (haveNewSteps) {
+      AdvanceEventStates(EventState::FlushingSteps, EventState::StepsFlushed, eventStates);
     }
 
-    // Notify all even without newHits because the HitProcessingThread could have been woken up because the Event
+    // Notify all even without new steps because the StepProcessingThread could have been woken up because the Event
     // finished
     cvG4Workers.notify_all();
   }
 }
 
-void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
+void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                    int adeptSeed, int debugLevel, bool returnAllSteps, bool returnLastStep,
-                   unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor, bool hasWDTRegions)
+                   unsigned short lastNParticlesOnCPU, const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
 
   using InjectState                             = GPUstate::InjectState;
@@ -747,15 +748,15 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
   ParticleQueues &woodcockQueues = gpuState.woodcockQueues;
 
   ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent;
-  ADEPT_DEVICE_API_SYMBOL(Stream_t) hitTransferStream, injectStream, statsStream;
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) stepTransferStream, injectStream, statsStream;
   ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
   ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaStatsEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaEventCleanup{&cudaEvent};
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaStatsEventCleanup{&cudaStatsEvent};
-  ADEPT_DEVICE_API_CALL(StreamCreate(&hitTransferStream));
+  ADEPT_DEVICE_API_CALL(StreamCreate(&stepTransferStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&injectStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&statsStream));
-  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaStreamCleanup{&hitTransferStream};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaStreamCleanup{&stepTransferStream};
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaInjectStreamCleanup{&injectStream};
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Stream_t)> cudaStatsStreamCleanup{&statsStream};
   auto waitForOtherStream = [&cudaEvent](ADEPT_DEVICE_API_SYMBOL(Stream_t) waitingStream,
@@ -767,10 +768,10 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
   // default constructed stepping action parameters (different for CMS or LHCb)
   adept::SteppingAction::Params steppingActionParams;
 
-  std::unique_ptr<HitProcessingContext> hitProcessing{new HitProcessingContext{hitTransferStream}};
-  std::thread hitProcessingThread{&HitProcessingLoop,    (HitProcessingContext *)hitProcessing.get(),
-                                  std::ref(gpuState),    std::ref(eventStates),
-                                  std::ref(cvG4Workers), std::ref(debugLevel)};
+  std::unique_ptr<StepProcessingContext> stepProcessing{new StepProcessingContext{stepTransferStream}};
+  std::thread stepProcessingThread{&StepProcessingLoop,   (StepProcessingContext *)stepProcessing.get(),
+                                   std::ref(gpuState),    std::ref(eventStates),
+                                   std::ref(cvG4Workers), std::ref(debugLevel)};
 
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
     constexpr int TransportThreads = 32;
@@ -803,7 +804,7 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     unsigned int particlesInFlight[GPUQueueIndex::NumSpecies] = {1, 1, 1};
 
     auto needTransport = [](std::atomic<EventState> const &state) {
-      return state.load(std::memory_order_acquire) < EventState::HitsFlushed;
+      return state.load(std::memory_order_acquire) < EventState::StepsFlushed;
     };
     // Wait for work from G4 workers:
     while (gpuState.runTransport && std::none_of(eventStates.begin(), eventStates.end(), needTransport)) {
@@ -951,8 +952,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** ELECTRONS ***
       {
 
-        // wait for swapping of hit buffers
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(electrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+        // wait for swapping of step buffers
+        ADEPT_DEVICE_API_CALL(
+            StreamWaitEvent(electrons.stream, gpuState.fGPUStepTransferManager->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Electron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
@@ -987,8 +989,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** POSITRONS ***
       {
 
-        // wait for swapping of hit buffers
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(positrons.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+        // wait for swapping of step buffers
+        ADEPT_DEVICE_API_CALL(
+            StreamWaitEvent(positrons.stream, gpuState.fGPUStepTransferManager->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Positron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
@@ -1030,8 +1033,8 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
       // *** GAMMAS ***
       {
 
-        // wait for swapping of hit buffers
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.stream, gpuState.fHitScoring->getSwapDoneEvent(), 0));
+        // wait for swapping of step buffers
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.stream, gpuState.fGPUStepTransferManager->getSwapDoneEvent(), 0));
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Gamma]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
@@ -1133,13 +1136,13 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
             // Freeing of slots has to run exclusively
             // FIXME: Revise this code and make sure all three streams actually need to be synchronized
             // with gpuState.stream
-            waitForOtherStream(gpuState.stream, hitTransferStream);
+            waitForOtherStream(gpuState.stream, stepTransferStream);
             waitForOtherStream(gpuState.stream, injectStream);
             static_assert(gpuState.nSlotManager_dev == GPUQueueIndex::NumSpecies,
                           "The below launches assume there is a slot manager per particle type.");
             FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
             FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
-            waitForOtherStream(hitTransferStream, gpuState.stream);
+            waitForOtherStream(stepTransferStream, gpuState.stream);
             waitForOtherStream(injectStream, gpuState.stream);
           }
         }
@@ -1176,9 +1179,9 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         for (unsigned short threadId = 0; threadId < numThreads; ++threadId) {
           const auto state = eventStates[threadId].load(std::memory_order_acquire);
           if (state == EventState::WaitingForTransportToFinish && gpuState.stats->perEventInFlight[threadId] == 0) {
-            eventStates[threadId] = EventState::RequestHitFlush;
+            eventStates[threadId] = EventState::RequestStepFlush;
           }
-          if (state >= EventState::RequestHitFlush && gpuState.stats->perEventInFlight[threadId] != 0) {
+          if (state >= EventState::RequestStepFlush && gpuState.stats->perEventInFlight[threadId] != 0) {
             // FIXME: this case should not happen and is related to some late injection that shows up too late in the
             // perEventInFlight for now, just reset state to WaitingForTransportToFinish and notify with a error message
             std::cerr << "ERROR thread " << threadId << " is in state " << static_cast<unsigned int>(state)
@@ -1188,84 +1191,87 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
           }
         }
 
-        // *** Hit management ***
+        // *** Step management ***
 
         // check the maximum number of tracks in flight per thread
         unsigned int maxInFlight =
             *std::max_element(gpuState.stats->perEventInFlight, gpuState.stats->perEventInFlight + numThreads);
 
-        // if there are more tracks in flight than the total HitCapacity, it could fail at any step!
-        // This is really dangerous and requires a larger hit capacity
-        if (1.2 * maxInFlight > gpuState.fHitScoring->HitCapacity() / numThreads)
-          std::cerr << "WARNING: particles in flight ( " << maxInFlight << " ) is close or above the HitCapacity ( "
-                    << gpuState.fHitScoring->HitCapacity() / numThreads
+        // if there are more tracks in flight than the total StepCapacity, it could fail at any step!
+        // This is really dangerous and requires a larger step capacity
+        if (1.2 * maxInFlight > gpuState.fGPUStepTransferManager->StepCapacity() / numThreads)
+          std::cerr << "WARNING: particles in flight ( " << maxInFlight << " ) is close or above the StepCapacity ( "
+                    << gpuState.fGPUStepTransferManager->StepCapacity() / numThreads
                     << " )! Must increase "
                        "/adept/setMillionsOfHitSlots or reduce /run/numberOfThreads!"
                     << std::endl;
 
-        // next step could fail because there are too tracks in flight. A track can cause multiple hits (one for each
-        // secondary and one for itself). The safety factor should be as low as possible to prevent stalling, but must
-        // be as high as needed to avoid crashes.
-        bool nextStepMightFail = gpuState.stats->hitBufferOccupancy + hitBufferSafetyFactor * maxInFlight >=
-                                 gpuState.fHitScoring->HitCapacity() / numThreads;
+        // next step could fail because there are too many tracks in flight. A track can cause multiple returned steps
+        // (one for itself and one for each secondary). The safety factor should be as low as possible to prevent
+        // stalling, but must be as high as needed to avoid crashes.
+        bool nextStepMightFail = gpuState.stats->stepBufferOccupancy + stepBufferSafetyFactor * maxInFlight >=
+                                 gpuState.fGPUStepTransferManager->StepCapacity() / numThreads;
 
-        if (!gpuState.fHitScoring->ReadyToSwapBuffers() && !nextStepMightFail) {
-          hitProcessing->cv.notify_one();
+        if (!gpuState.fGPUStepTransferManager->ReadyToSwapBuffers() && !nextStepMightFail) {
+          stepProcessing->cv.notify_one();
         } else {
 
           // if the next step might fail, one has to wait until the buffers are ready to swap again.
           if (nextStepMightFail) {
             // Wait until swap becomes available
-            std::cerr << "Warning: stalling transport loop because HitBuffers are overflowing: HitSlots left: "
-                      << (gpuState.fHitScoring->HitCapacity() / numThreads - gpuState.stats->hitBufferOccupancy)
+            std::cerr << "Warning: stalling transport loop because StepBuffers are overflowing: StepSlots left: "
+                      << (gpuState.fGPUStepTransferManager->StepCapacity() / numThreads -
+                          gpuState.stats->stepBufferOccupancy)
                       << " Max particles in flight: " << maxInFlight
-                      << "  | Waiting for HitBuffers to be freed by worker " << std::endl;
+                      << "  | Waiting for StepBuffers to be freed by worker " << std::endl;
 
             auto start = std::chrono::steady_clock::now();
-            while (!gpuState.fHitScoring->ReadyToSwapBuffers()) {
-              hitProcessing->cv.notify_one();
+            while (!gpuState.fGPUStepTransferManager->ReadyToSwapBuffers()) {
+              stepProcessing->cv.notify_one();
               std::this_thread::sleep_for(std::chrono::microseconds(100));
               // guard to avoid infinite stalls
               auto now = std::chrono::steady_clock::now();
               if (std::chrono::duration_cast<std::chrono::seconds>(now - start).count() > 5) {
-                std::cerr << "Error: Timed out waiting for hit buffer to become available.\n";
+                std::cerr << "Error: Timed out waiting for step buffer to become available.\n";
                 std::terminate();
               }
             }
             if (debugLevel >= 3) {
-              std::cerr << "Hit buffers freed, resuming with swapping of the buffers " << std::endl;
+              std::cerr << "Step buffers freed, resuming with swapping of the buffers " << std::endl;
             }
           }
 
-          if (gpuState.stats->hitBufferOccupancy >= gpuState.fHitScoring->HitCapacity() / numThreads / 2 ||
-              gpuState.stats->hitBufferOccupancy >= 10000 || nextStepMightFail ||
+          if (gpuState.stats->stepBufferOccupancy >=
+                  gpuState.fGPUStepTransferManager->StepCapacity() / numThreads / 2 ||
+              gpuState.stats->stepBufferOccupancy >= 10000 || nextStepMightFail ||
               std::any_of(eventStates.begin(), eventStates.end(), [](const auto &state) {
-                return state.load(std::memory_order_acquire) == EventState::RequestHitFlush;
+                return state.load(std::memory_order_acquire) == EventState::RequestStepFlush;
               })) {
-            // Reset hitBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted swap
+            // Reset stepBufferOccupancy to 0 when we swap, as the delay of updating it could cause another unwanted
+            // swap
             ADEPT_DEVICE_API_CALL(
-                MemsetAsync(&(gpuState.stats_dev->hitBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
-            gpuState.fHitScoring->SwapDeviceBuffers(gpuState.stream);
-            AdvanceEventStates(EventState::RequestHitFlush, EventState::SwappingHitBuffers, eventStates);
-            hitProcessing->cv.notify_one();
+                MemsetAsync(&(gpuState.stats_dev->stepBufferOccupancy), 0, sizeof(unsigned int), gpuState.stream));
+            gpuState.fGPUStepTransferManager->SwapDeviceBuffers(gpuState.stream);
+            AdvanceEventStates(EventState::RequestStepFlush, EventState::SwappingStepBuffers, eventStates);
+            stepProcessing->cv.notify_one();
           }
         }
 
-        // A flush request can also arrive after all returned hit batches have
+        // A flush request can also arrive after all returned step batches have
         // already been drained on the host. In that case there is nothing left
         // to swap, but the worker still needs a terminal host-visible state.
-        if (gpuState.stats->hitBufferOccupancy == 0 && gpuState.fHitScoring->ReadyToSwapBuffers()) {
-          AdvanceEventStates(EventState::RequestHitFlush, EventState::HitsFlushed, eventStates);
+        if (gpuState.stats->stepBufferOccupancy == 0 && gpuState.fGPUStepTransferManager->ReadyToSwapBuffers()) {
+          AdvanceEventStates(EventState::RequestStepFlush, EventState::StepsFlushed, eventStates);
         }
       }
 
       // *** Notify G4 workers if their events completed ***
       if (std::any_of(eventStates.begin(), eventStates.end(), [](const std::atomic<EventState> &state) {
-            return state.load(std::memory_order_acquire) >= EventState::HitsFlushed;
+            return state.load(std::memory_order_acquire) >= EventState::StepsFlushed;
           })) {
-        // Notify HitProcessingThread to notify the workers. Do not notify workers directly, as this could bypass the
-        // processing of hits
-        hitProcessing->cv.notify_one();
+        // Notify StepProcessingThread to notify the workers. Do not notify workers directly, as this could bypass the
+        // processing of steps
+        stepProcessing->cv.notify_one();
       }
 
       if (debugLevel >= 3 && inFlight > 0 || (debugLevel >= 2 && iteration % 500 == 0)) {
@@ -1282,10 +1288,10 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
         std::cerr << "\t slots [e-, e+, gamma]: [" << gpuState.stats->slotFillLevel[0] << ", "
                   << gpuState.stats->slotFillLevel[1] << ", " << gpuState.stats->slotFillLevel[2] << "]"
                   << "\tInjectState: " << static_cast<unsigned int>(gpuState.injectState.load())
-                  << "\tHitBuffer: " << gpuState.stats->hitBufferOccupancy
-                  << "\tHitBufferReadyToSwap: " << gpuState.fHitScoring->ReadyToSwapBuffers();
-        gpuState.fHitScoring->PrintHostBufferState();
-        gpuState.fHitScoring->PrintDeviceBufferStates();
+                  << "\tStepBuffer: " << gpuState.stats->stepBufferOccupancy
+                  << "\tStepBufferReadyToSwap: " << gpuState.fGPUStepTransferManager->ReadyToSwapBuffers();
+        gpuState.fGPUStepTransferManager->PrintHostBufferState();
+        gpuState.fGPUStepTransferManager->PrintDeviceBufferStates();
         if (debugLevel >= 4) {
           std::cerr << "\tper event: ";
           for (unsigned int i = 0; i < numThreads; ++i) {
@@ -1335,38 +1341,38 @@ void TransportLoop(int trackCapacity, int scoringCapacity, int numThreads, Track
     if (debugLevel > 2) std::cout << "End transport loop.\n";
   }
 
-  hitProcessing->keepRunning = false;
-  hitProcessing->cv.notify_one();
-  hitProcessingThread.join();
+  stepProcessing->keepRunning = false;
+  stepProcessing->cv.notify_one();
+  stepProcessingThread.join();
 }
 
-std::pair<GPUHit *, GPUHit *> GetGPUHitsFromBuffer(unsigned int threadId, unsigned int eventId, GPUstate &gpuState,
-                                                   bool &dataOnBuffer)
+std::pair<GPUStep *, GPUStep *> GetGPUStepBatchFromBuffer(unsigned int threadId, unsigned int eventId,
+                                                          GPUstate &gpuState, bool &dataOnBuffer)
 {
-  HitQueueItem *hitItem = gpuState.fHitScoring->GetNextHitsHandle(threadId, dataOnBuffer);
-  if (hitItem) {
-    return {hitItem->begin, hitItem->end};
+  GPUStepBatch *stepBatch = gpuState.fGPUStepTransferManager->GetNextStepBatch(threadId, dataOnBuffer);
+  if (stepBatch) {
+    return {stepBatch->begin, stepBatch->end};
   } else {
     return {nullptr, nullptr};
   }
 }
 
-void CloseGPUBuffer(unsigned int threadId, GPUstate &gpuState, GPUHit *begin, const bool dataOnBuffer)
+void CloseGPUStepBatch(unsigned int threadId, GPUstate &gpuState, GPUStep *begin, const bool dataOnBuffer)
 {
-  gpuState.fHitScoring->CloseHitsHandle(threadId, begin, dataOnBuffer);
+  gpuState.fGPUStepTransferManager->CloseStepBatch(threadId, begin, dataOnBuffer);
 }
 
 // TODO: Make it clear that this will initialize and return the GPUState or make a
 // separate init function that will compile here and be called from the .icc
-std::thread LaunchGPUWorker(int trackCapacity, int scoringCapacity, int numThreads, TrackBuffer &trackBuffer,
+std::thread LaunchGPUWorker(int trackCapacity, int stepCapacity, int numThreads, TrackBuffer &trackBuffer,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                             std::condition_variable &cvG4Workers, int adeptSeed, int debugLevel, bool returnAllSteps,
-                            bool returnLastStep, unsigned short lastNParticlesOnCPU, const double hitBufferSafetyFactor,
-                            bool hasWDTRegions)
+                            bool returnLastStep, unsigned short lastNParticlesOnCPU,
+                            const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
   return std::thread{&TransportLoop,
                      trackCapacity,
-                     scoringCapacity,
+                     stepCapacity,
                      numThreads,
                      std::ref(trackBuffer),
                      std::ref(gpuState),
@@ -1377,7 +1383,7 @@ std::thread LaunchGPUWorker(int trackCapacity, int scoringCapacity, int numThrea
                      returnAllSteps,
                      returnLastStep,
                      lastNParticlesOnCPU,
-                     hitBufferSafetyFactor,
+                     stepBufferSafetyFactor,
                      hasWDTRegions};
 }
 
