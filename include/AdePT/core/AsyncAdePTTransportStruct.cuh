@@ -7,7 +7,8 @@
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
 #include <AdePT/core/GeometryAuxData.hh>
 // #include <AdePT/core/AsyncAdePTTransport.hh>
-#include <AdePT/core/PerEventScoringImpl.cuh>
+#include <AdePT/core/GPUStepRecording.cuh>
+#include <AdePT/core/GPUStepTransferManager.cuh>
 #include <AdePT/core/Track.cuh>
 #include <AdePT/magneticfield/GeneralMagneticField.cuh>
 #include <AdePT/magneticfield/UniformMagneticField.cuh>
