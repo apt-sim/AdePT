@@ -602,7 +602,7 @@ public:
         transferSize += fBuffer.hostBufferCount[i];
       }
 
-      if (fBufferManager->getFreeContiguousMemory(transferSize) <= transferSize) {
+      if (fBufferManager->getFreeContiguousMemory(transferSize) < transferSize) {
         continue;
       }
 
