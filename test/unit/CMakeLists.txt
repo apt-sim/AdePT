@@ -49,6 +49,7 @@ set(ADEPT_UNIT_TESTS_BASE
   test_track_block.cu          # Unit test for BlockData
   test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
   compare_integration_precision.cpp # Script for generating float vs double trajectories
+  test_hostCircularBuffer.cpp  # Unit test for HostCircularBuffer
   test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
   # test_Bfield_step_debugger.cpp # experimental test to debug single stuck rays in AdePT
 )
@@ -65,6 +66,7 @@ set(ADEPT_UNIT_TEST_NAMES
   test_track_block
   test_magfieldRK
   compare_integration_precision
+  test_hostCircularBuffer
   test_hostTrackDataMapper
 )
 set_tests_properties(${ADEPT_UNIT_TEST_NAMES} PROPERTIES LABELS "unit")
