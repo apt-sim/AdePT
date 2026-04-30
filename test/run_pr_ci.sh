@@ -26,6 +26,7 @@ JOBS="auto"
 FETCH_MASTER=1
 FORCE_REBUILD=0
 REFRESH_MASTER=0
+RUN_VALIDATION_ALWAYS=0
 
 log() {
   printf '[pr-ci] %s\n' "$*"
@@ -44,7 +45,7 @@ Runs the AdePT PR CI flow on a self-hosted runner:
   1. build PR and upstream master reference for async/split/mixed
   2. run physics drift comparisons
   3. always run unit tests on async
-  4. run validation on async + split only when drift differs from master
+  4. run validation on async + split when drift differs from master, or when requested
 
 Options:
   --build-root <path>        Build/cache root (default: ${DEFAULT_BUILD_ROOT})
@@ -57,6 +58,7 @@ Options:
   --ctest-timeout-sec <sec>  Optional per-test timeout passed to ctest --timeout
   --force-rebuild            Force clean rebuilds in the matrix runner
   --refresh-master           Refresh cached master worktree/builds
+  --always-run-validation    Run validation even when drift matches master
   -h, --help                 Show this help
 EOF
 }
@@ -115,6 +117,7 @@ write_results() {
     printf 'DRIFT_STATUS=%s\n' "${DRIFT_STATUS}"
     printf 'UNIT_STATUS=%s\n' "${UNIT_STATUS}"
     printf 'VALIDATION_RAN=%s\n' "${VALIDATION_RAN}"
+    printf 'VALIDATION_FORCED=%s\n' "${RUN_VALIDATION_ALWAYS}"
     printf 'VALIDATION_STATUS=%s\n' "${VALIDATION_STATUS}"
     printf 'FULL_CI_STATUS=%s\n' "${FULL_CI_STATUS}"
   } > "${RESULTS_FILE}"
@@ -167,6 +170,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --refresh-master)
       REFRESH_MASTER=1
+      shift
+      ;;
+    --always-run-validation)
+      RUN_VALIDATION_ALWAYS=1
       shift
       ;;
     -h|--help)
@@ -225,6 +232,7 @@ log "Build root: ${BUILD_ROOT}"
 log "Master reference: ${MASTER_REF}"
 log "CUDA arch: ${CUDA_ARCH}"
 log "Build jobs: ${JOBS}"
+log "Always run validation: ${RUN_VALIDATION_ALWAYS}"
 log "Running drift matrix for async/split/mixed"
 
 for cfg in async split mixed; do
@@ -236,9 +244,11 @@ done
 
 MONOL_BUILD_DIR="${BUILD_ROOT}/BUILD_MONOL"
 SPLIT_BUILD_DIR="${BUILD_ROOT}/BUILD_SPLIT_ON"
+MONOL_BUILD_READY=0
 
 log "Ensuring async build has all test targets"
 if build_all_targets "${MONOL_BUILD_DIR}"; then
+  MONOL_BUILD_READY=1
   log "Running async unit tests"
   run_and_capture UNIT_STATUS run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L unit -j1
 else
@@ -246,18 +256,24 @@ else
   UNIT_STATUS=1
 fi
 
-if [[ "${DRIFT_STATUS}" -ne 0 ]]; then
+if [[ "${DRIFT_STATUS}" -ne 0 || "${RUN_VALIDATION_ALWAYS}" -eq 1 ]]; then
   VALIDATION_RAN=1
 
   validation_monol_status=1
   validation_split_status=1
 
-  log "Drift differs from master; running validation on async and split"
-
-  if [[ "${UNIT_STATUS}" -eq 0 ]]; then
-    run_and_capture validation_monol_status run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L validation -j1
+  if [[ "${DRIFT_STATUS}" -ne 0 ]]; then
+    log "Drift differs from master; running validation on async and split"
   else
-    log "Skipping async validation because the async build or unit stage failed"
+    log "Full validation requested; running validation on async and split"
+  fi
+
+  if [[ "${MONOL_BUILD_READY}" -eq 1 && ( "${UNIT_STATUS}" -eq 0 || "${RUN_VALIDATION_ALWAYS}" -eq 1 ) ]]; then
+    run_and_capture validation_monol_status run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L validation -j1
+  elif [[ "${MONOL_BUILD_READY}" -ne 1 ]]; then
+    log "Skipping async validation because the async build is unavailable"
+  else
+    log "Skipping async validation because the unit stage failed"
   fi
 
   if build_all_targets "${SPLIT_BUILD_DIR}"; then
@@ -277,7 +293,7 @@ else
   VALIDATION_STATUS=0
 fi
 
-if [[ "${UNIT_STATUS}" -eq 0 && ( "${DRIFT_STATUS}" -eq 0 || "${VALIDATION_STATUS}" -eq 0 ) ]]; then
+if [[ "${UNIT_STATUS}" -eq 0 && ( "${VALIDATION_RAN}" -eq 0 || "${VALIDATION_STATUS}" -eq 0 ) ]]; then
   FULL_CI_STATUS=0
 else
   FULL_CI_STATUS=1
@@ -288,6 +304,7 @@ write_results
 log "Drift status: ${DRIFT_STATUS}"
 log "Unit status: ${UNIT_STATUS}"
 log "Validation ran: ${VALIDATION_RAN}"
+log "Validation forced: ${RUN_VALIDATION_ALWAYS}"
 log "Validation status: ${VALIDATION_STATUS}"
 log "Full CI status: ${FULL_CI_STATUS}"
 

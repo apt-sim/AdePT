@@ -38,13 +38,14 @@ jobs:
             core.setOutput('command', body);
             core.setOutput('should_run', 'false');
 
-            if (body !== '/run-test') {
+            const supportedCommands = new Set(['/run-test', '/run-test-full']);
+            if (!supportedCommands.has(body)) {
               core.notice(`Ignoring comment '${body}'`);
               return;
             }
 
             if (!trusted) {
-              core.notice(`Ignoring /run-test from untrusted role ${assoc}`);
+              core.notice(`Ignoring ${body} from untrusted role ${assoc}`);
               return;
             }
 
@@ -68,6 +69,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_SHA: ${{ steps.prepare.outputs.pr_sha }}
           TARGET_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMAND: ${{ steps.prepare.outputs.command }}
         run: |
           set -eo pipefail
 
@@ -91,9 +93,16 @@ jobs:
                 "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}" >/dev/null
           }
 
-          post_status pending "AdePT / Full CI (EL9)" "Self-hosted EL9 CI queued"
+          full_description="Self-hosted EL9 CI queued"
+          validation_description="Waiting for drift result in EL9"
+          if [ "${COMMAND}" = "/run-test-full" ]; then
+            full_description="Self-hosted EL9 CI with full validation queued"
+            validation_description="Full validation requested in EL9"
+          fi
+
+          post_status pending "AdePT / Full CI (EL9)" "${full_description}"
           post_status pending "AdePT / Drift + Unit (EL9)" "Building PR/reference and running drift in EL9"
-          post_status pending "AdePT / Validation (EL9)" "Waiting for drift result in EL9"
+          post_status pending "AdePT / Validation (EL9)" "${validation_description}"
 
   full-ci:
     name: Full CI (EL9)
@@ -163,6 +172,8 @@ jobs:
       - name: Run self-hosted PR CI in Alma 9 container
         id: run_ci
         continue-on-error: true
+        env:
+          ALWAYS_RUN_VALIDATION: ${{ needs.prepare.outputs.command == '/run-test-full' && '1' || '0' }}
         run: |
           set -eo pipefail
 
@@ -196,6 +207,7 @@ jobs:
             -v /cvmfs:/cvmfs:ro,rslave \
             -v "${GITHUB_WORKSPACE}:/work/AdePT" \
             -e HOME=/tmp/adeptci-home \
+            -e ADEPT_PR_CI_ALWAYS_RUN_VALIDATION="${ALWAYS_RUN_VALIDATION}" \
             -e ADEPT_VALIDATION_DEFAULT_NUM_THREADS=32 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_TRACKSLOTS=6 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_HITSLOTS=30 \
@@ -214,14 +226,20 @@ jobs:
               set -eo pipefail
               mkdir -p "${HOME}"
               git config --global --add safe.directory /work/AdePT
-              ./test/run_pr_ci.sh \
-                --build-root "/tmp/adept-self-hosted-ci/pr-${{ needs.prepare.outputs.pr_number }}" \
-                --results-file "/work/AdePT/ci-results.env" \
-                --master-ref upstream/master \
-                --no-fetch-master \
-                --cuda-arch 89 \
-                --jobs auto \
+              pr_ci_args=(
+                ./test/run_pr_ci.sh
+                --build-root "/tmp/adept-self-hosted-ci/pr-${{ needs.prepare.outputs.pr_number }}"
+                --results-file "/work/AdePT/ci-results.env"
+                --master-ref upstream/master
+                --no-fetch-master
+                --cuda-arch 89
+                --jobs auto
                 --ctest-timeout-sec 900
+              )
+              if [[ "${ADEPT_PR_CI_ALWAYS_RUN_VALIDATION:-0}" == "1" ]]; then
+                pr_ci_args+=(--always-run-validation)
+              fi
+              "${pr_ci_args[@]}"
             '
 
       - name: Publish PR contexts
@@ -230,6 +248,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_SHA: ${{ needs.prepare.outputs.pr_sha }}
           TARGET_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMAND: ${{ needs.prepare.outputs.command }}
         run: |
           set -eo pipefail
 
@@ -241,6 +260,11 @@ jobs:
           : "${DRIFT_STATUS:=1}"
           : "${UNIT_STATUS:=1}"
           : "${VALIDATION_RAN:=1}"
+          if [ "${COMMAND}" = "/run-test-full" ]; then
+            : "${VALIDATION_FORCED:=1}"
+          else
+            : "${VALIDATION_FORCED:=0}"
+          fi
           : "${VALIDATION_STATUS:=1}"
           : "${FULL_CI_STATUS:=1}"
 
@@ -258,6 +282,9 @@ jobs:
           if [ "${VALIDATION_RAN}" -eq 0 ] && [ "${DRIFT_STATUS}" -eq 0 ]; then
             validation_state="success"
             validation_description="Skipped: drift matched master"
+          elif [ "${VALIDATION_STATUS}" -eq 0 ] && [ "${VALIDATION_FORCED}" -eq 1 ] && [ "${DRIFT_STATUS}" -eq 0 ]; then
+            validation_state="success"
+            validation_description="Full validation passed"
           elif [ "${VALIDATION_STATUS}" -eq 0 ]; then
             validation_state="success"
             validation_description="Validation tests passed"
@@ -266,9 +293,12 @@ jobs:
             validation_description="Validation tests failed"
           fi
 
-          if [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${DRIFT_STATUS}" -eq 0 ]; then
+          if [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${VALIDATION_RAN}" -eq 0 ]; then
             full_state="success"
             full_description="Drift matched master; validation skipped"
+          elif [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${DRIFT_STATUS}" -eq 0 ]; then
+            full_state="success"
+            full_description="Drift matched master; validation passed"
           elif [ "${FULL_CI_STATUS}" -eq 0 ]; then
             full_state="success"
             full_description="Validation passed after drift mismatch"
@@ -326,6 +356,7 @@ jobs:
             echo "- Drift status: \`${DRIFT_STATUS:-missing}\`"
             echo "- Unit status: \`${UNIT_STATUS:-missing}\`"
             echo "- Validation ran: \`${VALIDATION_RAN:-missing}\`"
+            echo "- Validation forced: \`${VALIDATION_FORCED:-missing}\`"
             echo "- Validation status: \`${VALIDATION_STATUS:-missing}\`"
             echo "- Full CI status: \`${FULL_CI_STATUS:-missing}\`"
             echo "- Build root: \`/tmp/adept-self-hosted-ci/pr-${{ needs.prepare.outputs.pr_number }}\`"
