@@ -4,6 +4,7 @@
 #include <AdePT/integration/AdePTTrackingManager.hh>
 #include <AdePT/core/AdePTTransportConfig.hh>
 #include <AdePT/integration/AdePTGeometryBridge.hh>
+#include <AdePT/integration/AdePTThreadId.hh>
 
 #include "G4Threading.hh"
 #include "G4Track.hh"
@@ -29,14 +30,6 @@
 
 namespace {
 using AdePTTransport = AdePTTrackingManager::AdePTTransport;
-
-// In sequential Geant4, G4GetThreadId() returns MASTER_ID (-1) or SEQUENTIAL_ID (-2).
-// AdePT uses non-negative slot indices 0..N-1, so map any negative ID to slot 0.
-static inline int GetAdePTThreadId()
-{
-  auto tid = G4Threading::G4GetThreadId();
-  return (tid < 0) ? 0 : tid;
-}
 
 // Store only a weak reference here so the transport lifetime is still owned by
 // the thread-local AdePTTrackingManager instances. A static owning shared_ptr
@@ -383,7 +376,7 @@ void AdePTTrackingManager::FlushEvent()
   if (fVerbosity > 1)
     G4cout << "No more particles on the stack, triggering shower to flush the AdePT buffer." << G4endl;
 
-  auto threadId = GetAdePTThreadId();
+  auto threadId = adept_integration::GetThreadId();
   auto eventId  = G4EventManager::GetEventManager()->GetConstCurrentEvent()->GetEventID();
 
   // AdePTTrackingManager requests the flush while AdePTTransport still
@@ -485,7 +478,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 
   // Check for GPU steps, to alleviate pressure on the GPU step buffer
-  G4int threadId = GetAdePTThreadId();
+  G4int threadId = adept_integration::GetThreadId();
   ProcessReturnedGPUHits(threadId, eventID);
   auto &trackMapper = fGeant4Integration.GetHostTrackDataMapper();
 

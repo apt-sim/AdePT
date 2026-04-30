@@ -37,7 +37,7 @@ public:
 
   void SetFinishEventOnCPU(int threadid, int eventid) { fFinishEventOnCPU[threadid] = eventid; }
 
-  int GetFinishEventOnCPU(int threadid) { return fFinishEventOnCPU[threadid]; }
+  int GetFinishEventOnCPU(int threadid) const { return fFinishEventOnCPU[threadid]; }
 
 private:
   bool fTrackInAllRegions = false;          ///< Whether the whole geometry is a GPU region
