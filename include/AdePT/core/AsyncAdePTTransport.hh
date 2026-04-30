@@ -9,9 +9,9 @@
 #ifndef ASYNC_ADEPT_TRANSPORT_HH
 #define ASYNC_ADEPT_TRANSPORT_HH
 
-#include <AdePT/core/AdePTConfiguration.hh>
 #include <AdePT/core/AdePTG4HepEmState.hh>
 #include <AdePT/core/AsyncAdePTTransportStruct.hh>
+#include <AdePT/core/AdePTTransportConfig.hh>
 #include <AdePT/core/GeometryAuxData.hh>
 #include <AdePT/core/ScoringCommons.hh>
 
@@ -53,10 +53,7 @@ private:
   std::condition_variable fCV_G4Workers;             ///< Communicate with G4 workers
   std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
   std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
-  bool fTrackInAllRegions = false;
-  bool fHasWDTRegions     = false;
-  std::vector<std::string> const *fGPURegionNames;
-  std::vector<std::string> const *fCPURegionNames;
+  bool fHasWDTRegions = false;
   // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction
   bool fReturnAllSteps         = false;
   bool fReturnFirstAndLastStep = false;
@@ -76,7 +73,7 @@ private:
   bool InitializePhysics();
 
 public:
-  AsyncAdePTTransport(AdePTConfiguration &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
+  AsyncAdePTTransport(const AdePTTransportConfig &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
                       adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                       const std::vector<float> &uniformFieldValues);
   AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
@@ -86,12 +83,7 @@ public:
   void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
                 unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state);
-  bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
-  bool GetReturnAllSteps() const { return fReturnAllSteps; }
-  bool GetReturnFirstAndLastStep() const { return fReturnFirstAndLastStep; }
   int GetDebugLevel() const { return fDebugLevel; }
-  std::vector<std::string> const *GetGPURegionNames() { return fGPURegionNames; }
-  std::vector<std::string> const *GetCPURegionNames() { return fCPURegionNames; }
   /// @brief Handle the currently available returned GPU-hit batches for one thread and event.
   /// @details
   /// Transport retains ownership of the hit-buffer lifetime. For each available

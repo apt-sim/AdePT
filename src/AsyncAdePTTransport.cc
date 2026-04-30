@@ -36,23 +36,18 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
 
 namespace AsyncAdePT {
 
-AsyncAdePTTransport::AsyncAdePTTransport(AdePTConfiguration &configuration,
+AsyncAdePTTransport::AsyncAdePTTransport(const AdePTTransportConfig &configuration,
                                          std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
                                          adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                                          const std::vector<float> &uniformFieldValues)
-    : fAdePTSeed{configuration.GetAdePTSeed()}, fNThread{(ushort)configuration.GetNumThreads()},
-      fTrackCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfTrackSlots())},
-      fScoringCapacity{(uint)(1024 * 1024 * configuration.GetMillionsOfHitSlots())},
-      fDebugLevel{configuration.GetVerbosity()}, fCUDAStackLimit{configuration.GetCUDAStackLimit()},
-      fCUDAHeapLimit{configuration.GetCUDAHeapLimit()}, fLastNParticlesOnCPU{configuration.GetLastNParticlesOnCPU()},
-      fMaxWDTIter{configuration.GetMaxWDTIter()}, fAdePTG4HepEmState(std::move(adeptG4HepEmState)),
-      fEventStates(fNThread), fTrackInAllRegions{configuration.GetTrackInAllRegions()},
-      fGPURegionNames{configuration.GetGPURegionNames()}, fCPURegionNames{configuration.GetCPURegionNames()},
-      fReturnAllSteps{configuration.GetCallUserSteppingAction()},
-      fReturnFirstAndLastStep{configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction()},
-      fBfieldFile{configuration.GetCovfieBfieldFile()}, fCPUCapacityFactor{configuration.GetCPUCapacityFactor()},
-      fCPUCopyFraction{configuration.GetHitBufferFlushThreshold()},
-      fHitBufferSafetyFactor{configuration.GetHitBufferSafetyFactor()}
+    : fAdePTSeed{configuration.adeptSeed}, fNThread{configuration.numThreads},
+      fTrackCapacity{configuration.trackCapacity}, fScoringCapacity{configuration.scoringCapacity},
+      fDebugLevel{configuration.debugLevel}, fCUDAStackLimit{configuration.cudaStackLimit},
+      fCUDAHeapLimit{configuration.cudaHeapLimit}, fLastNParticlesOnCPU{configuration.lastNParticlesOnCPU},
+      fMaxWDTIter{configuration.maxWDTIter}, fAdePTG4HepEmState(std::move(adeptG4HepEmState)), fEventStates(fNThread),
+      fReturnAllSteps{configuration.returnAllSteps}, fReturnFirstAndLastStep{configuration.returnFirstAndLastStep},
+      fBfieldFile{configuration.bfieldFile}, fCPUCapacityFactor{configuration.cpuCapacityFactor},
+      fCPUCopyFraction{configuration.cpuCopyFraction}, fHitBufferSafetyFactor{configuration.hitBufferSafetyFactor}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");

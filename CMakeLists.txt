@@ -489,6 +489,7 @@ set(ADEPT_CORE_SRCS
 )
 
 set(ADEPT_G4_INTEGRATION_SRCS
+  src/AdePTConfiguration.cc
   src/AdePTGeometryBridge.cpp
   src/G4HepEmTrackingManagerSpecialized.cc
   src/AdePTTrackingManager.cc
