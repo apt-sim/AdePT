@@ -27,9 +27,8 @@ std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT
                             std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &, int, int,
                             bool, bool, unsigned short, const double, bool);
 std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
-    int trackCapacity, int scoringCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer,
-    double CPUCapacityFactor, double CPUCopyFraction, std::string &generalBfieldFile,
-    const std::vector<float> &uniformBfieldValues);
+    int trackCapacity, int stepCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer, double CPUCapacityFactor,
+    double CPUCopyFraction, std::string &generalBfieldFile, const std::vector<float> &uniformBfieldValues);
 void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, std::thread &,
              adeptint::WDTDeviceBuffers &);
 } // namespace async_adept_impl
@@ -41,13 +40,13 @@ AsyncAdePTTransport::AsyncAdePTTransport(const AdePTTransportConfig &configurati
                                          adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                                          const std::vector<float> &uniformFieldValues)
     : fAdePTSeed{configuration.adeptSeed}, fNThread{configuration.numThreads},
-      fTrackCapacity{configuration.trackCapacity}, fScoringCapacity{configuration.scoringCapacity},
+      fTrackCapacity{configuration.trackCapacity}, fStepCapacity{configuration.stepCapacity},
       fDebugLevel{configuration.debugLevel}, fCUDAStackLimit{configuration.cudaStackLimit},
       fCUDAHeapLimit{configuration.cudaHeapLimit}, fLastNParticlesOnCPU{configuration.lastNParticlesOnCPU},
       fMaxWDTIter{configuration.maxWDTIter}, fAdePTG4HepEmState(std::move(adeptG4HepEmState)), fEventStates(fNThread),
       fReturnAllSteps{configuration.returnAllSteps}, fReturnFirstAndLastStep{configuration.returnFirstAndLastStep},
       fBfieldFile{configuration.bfieldFile}, fCPUCapacityFactor{configuration.cpuCapacityFactor},
-      fCPUCopyFraction{configuration.cpuCopyFraction}, fHitBufferSafetyFactor{configuration.hitBufferSafetyFactor}
+      fCPUCopyFraction{configuration.cpuCopyFraction}, fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
 {
   if (fNThread > kMaxThreads)
     throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
@@ -166,11 +165,11 @@ void AsyncAdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adepti
 
   assert(fBuffer != nullptr);
 
-  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, fCPUCapacityFactor,
+  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, fCPUCapacityFactor,
                                                fCPUCopyFraction, fBfieldFile, uniformFieldValues);
-  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fScoringCapacity, fNThread, *fBuffer, *fGPUstate,
+  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, *fGPUstate,
                                                  fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel, fReturnAllSteps,
-                                                 fReturnFirstAndLastStep, fLastNParticlesOnCPU, fHitBufferSafetyFactor,
+                                                 fReturnFirstAndLastStep, fLastNParticlesOnCPU, fStepBufferSafetyFactor,
                                                  fHasWDTRegions);
 }
 
@@ -192,9 +191,9 @@ void AsyncAdePTTransport::WaitForFlushProgress()
   fCV_G4Workers.wait_for(lock, 1ms);
 }
 
-bool AsyncAdePTTransport::IsHitsFlushed(int threadId) const
+bool AsyncAdePTTransport::AreReturnedStepsFlushed(int threadId) const
 {
-  return fEventStates[threadId].load(std::memory_order_acquire) >= EventState::HitsFlushed;
+  return fEventStates[threadId].load(std::memory_order_acquire) >= EventState::StepsFlushed;
 }
 
 void AsyncAdePTTransport::MarkHostFlushed(int threadId)

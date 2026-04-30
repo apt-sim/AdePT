@@ -51,7 +51,7 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
 
   fSetCPUCapacityFactorCmd = std::make_unique<G4UIcmdWithADouble>("/adept/setCPUCapacityFactor", this);
   fSetCPUCapacityFactorCmd->SetGuidance(
-      "Sets the CPUCapacity factor for scoring with respect to the GPU (see: /adept/setMillionsOfHitSlots). "
+      "Sets the CPUCapacity factor for returned GPU steps with respect to the GPU (see: /adept/setMillionsOfHitSlots). "
       "Must at least be 2.5");
   fSetCPUCapacityFactorCmd->SetParameterName("CPUCapacityFactor", false);
   fSetCPUCapacityFactorCmd->SetRange("CPUCapacityFactor>=2.5");

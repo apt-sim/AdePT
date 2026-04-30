@@ -5,7 +5,7 @@
 #define PER_EVENT_SCORING_CUH
 
 #include <AdePT/base/ResourceManagement.cuh>
-#include <AdePT/core/ScoringCommons.hh>
+#include <AdePT/core/GPUStep.hh>
 #include <AdePT/copcore/Global.h>
 
 #include <VecGeom/navigation/NavigationState.h>
@@ -27,15 +27,15 @@
 #define BOLD_BLUE "\033[1;34m"
 
 // Comparison for sorting tracks into events on device:
-struct CompareGPUHits {
-  __device__ bool operator()(const GPUHit &lhs, const GPUHit &rhs) const { return lhs.threadId < rhs.threadId; }
+struct CompareGPUSteps {
+  __device__ bool operator()(const GPUStep &lhs, const GPUStep &rhs) const { return lhs.threadId < rhs.threadId; }
 };
 
 namespace AsyncAdePT {
 
-/// Struct holding GPU hits to be used both on host and device.
-struct HitScoringBuffer {
-  GPUHit *hitBuffer_dev      = nullptr;
+/// Struct holding GPU steps to be used both on host and device.
+struct DeviceStepBufferView {
+  GPUStep *stepBuffer_dev    = nullptr;
   unsigned int *fSlotCounter = nullptr; // Array of per-thread counters
   unsigned int fNSlot        = 0;
   unsigned int fNThreads     = 0;
@@ -49,70 +49,71 @@ struct HitScoringBuffer {
     return maxVal;
   }
 
-  __device__ unsigned int ReserveHitSlots(unsigned int threadId, unsigned int nSlots)
+  __device__ unsigned int ReserveStepSlots(unsigned int threadId, unsigned int nSlots)
   {
     const auto slotStartIndex = atomicAdd(&fSlotCounter[threadId], nSlots);
     if (slotStartIndex + nSlots > fNSlot) {
-      printf("Trying to score hit #%d with only %d slots\n", slotStartIndex, fNSlot);
-      COPCORE_EXCEPTION("Out of slots in HitScoringBuffer::NextSlot");
+      printf("Trying to record step #%d with only %d slots\n", slotStartIndex, fNSlot);
+      COPCORE_EXCEPTION("Out of slots in DeviceStepBufferView::NextSlot");
     }
     return slotStartIndex;
   }
 
-  __device__ GPUHit &GetSlot(unsigned int threadId, unsigned int slot)
+  __device__ GPUStep &GetSlot(unsigned int threadId, unsigned int slot)
   {
-    return hitBuffer_dev[threadId * fNSlot + slot];
+    return stepBuffer_dev[threadId * fNSlot + slot];
   }
 };
 
-__device__ HitScoringBuffer gHitScoringBuffer_dev;
+__device__ DeviceStepBufferView gDeviceStepBuffer;
 
 struct BufferHandle {
-  std::array<HitScoringBuffer, 2> hitScoringInfo;
-  GPUHit *hostBuffer;
-  unsigned int *hostBufferCount;
+  std::array<DeviceStepBufferView, 2> stepBufferViews;
+  GPUStep *hostBuffer;
+  unsigned int *hostStepCount;
   enum class HostState { ReadyToBeFilled, AwaitingDeviceTransfer, TransferFromDevice, TransferFromDeviceFinished };
 
-  // the hostState is changed by the HitProcessingThread but also by the cudaHostFunction launch, so it must be atomic
+  // the hostState is changed by the StepProcessingThread but also by the cudaHostFunction launch, so it must be atomic
   std::atomic<HostState> hostState;
   // offset in the buffer at the time of the copy (maybe redundant now?)
   unsigned int offsetAtCopy = 0;
 };
 
-struct HitQueueItem {
-  // HitQueueItems are pushed into the HitQueue. They contain the begin and end pointers of the data that needs to be
-  // processed. If the G4Workers are too slow to respond, the HitProcessingThread copies the data from the buffer into
-  // the holdoutBuffer, so that the hostbuffer in pinned memory can be released.
-  GPUHit *begin;                           // begin of GPUHit pointer
-  GPUHit *end;                             // end of GPUHit pointer
-  std::atomic_bool ScoringStarted = false; // whether the scoring has started. If it has not, the HitProcessingThread
-                                           // will copy the data from the pinned memory host buffer to the holdoutBuffer
+struct GPUStepBatch {
+  // GPUStepBatch objects are pushed into the StepQueue. They contain the begin and end pointers of the data that needs
+  // to be processed. If the G4Workers are too slow to respond, the StepProcessingThread copies the data from the buffer
+  // into the holdoutBuffer, so that the host buffer in pinned memory can be released.
+  GPUStep *begin; // begin of GPUStep pointer
+  GPUStep *end;   // end of GPUStep pointer
+  std::atomic_bool ProcessingStarted =
+      false; // whether the processing has started. If it has not, the StepProcessingThread
+             // will copy the data from the pinned memory host buffer to the holdoutBuffer
   std::atomic_bool IsDataOnHostBuffer =
-      true; // whether the data resides in the HostBuffer in pinned memory (if false, it it is in the holdoutBuffer)
-  std::vector<GPUHit>
-      holdoutBuffer; // holdout buffer where the hits are copied to if the G4Worker is too slow to respond
+      true; // whether the data resides in the HostBuffer in pinned memory (if false, it is in the holdoutBuffer)
+  std::vector<GPUStep>
+      holdoutBuffer; // holdout buffer where the steps are copied to if the G4Worker is too slow to respond
 
-  HitQueueItem(GPUHit *begin_, GPUHit *end_) : begin(begin_), end(end_) {}
+  GPUStepBatch(GPUStep *begin_, GPUStep *end_) : begin(begin_), end(end_) {}
 
-  ~HitQueueItem() = default;
+  ~GPUStepBatch() = default;
 
-  // remove copy constructor and assigment operator
-  HitQueueItem(const HitQueueItem &)            = delete;
-  HitQueueItem &operator=(const HitQueueItem &) = delete;
+  // remove copy constructor and assignment operator
+  GPUStepBatch(const GPUStepBatch &)            = delete;
+  GPUStepBatch &operator=(const GPUStepBatch &) = delete;
 
   // write custom move constructor and assignment operator
-  HitQueueItem(HitQueueItem &&other) noexcept
-      : begin(other.begin), end(other.end), ScoringStarted(other.ScoringStarted.load()),
+  GPUStepBatch(GPUStepBatch &&other) noexcept
+      : begin(other.begin), end(other.end), ProcessingStarted(other.ProcessingStarted.load()),
         holdoutBuffer(std::move(other.holdoutBuffer))
   {
   }
 
-  HitQueueItem &operator=(HitQueueItem &&other) noexcept
+  GPUStepBatch &operator=(GPUStepBatch &&other) noexcept
   {
     if (this != &other) {
       begin = other.begin;
       end   = other.end;
-      ScoringStarted.store(other.ScoringStarted.load());
+      ProcessingStarted.store(other.ProcessingStarted.load());
       holdoutBuffer = std::move(other.holdoutBuffer);
     }
     return *this;
@@ -120,30 +121,30 @@ struct HitQueueItem {
 };
 
 class CircularBufferManager {
-  // the CircularBufferManager manages the memory of the pinned HostBuffer fBuffer (in HostScoring).
+  // the CircularBufferManager manages the memory of the pinned HostBuffer fBuffer (in returned-step transfer).
   // It keeps track of the used space in the sorted vector of segments fSegments.
-  // The HitProcessingThread adds segments when it submits items to the HitQueue (in fact, the memory is already
-  // allocated as soon as the copy from TransferHitsToHost is done). The HitProcessingThread can delete segments when it
-  // copies the hits to the holdoutBuffer and the G4Worker finish their work. Since both HitProcessingThread and
-  // G4Workers can change the segments, a mutex is used to lock the access to the fSegments. In the TransferHitsToHost,
-  // the HitProcessingThread checks whether there is enough contiguous memory in the CircularBuffer before the copy can
+  // The StepProcessingThread adds segments when it submits items to the StepQueue (in fact, the memory is already
+  // allocated as soon as the copy from TransferStepsToHost is done). The StepProcessingThread can delete segments when
+  // it copies the steps to the holdoutBuffer and the G4Worker finish their work. Since both StepProcessingThread and
+  // G4Workers can change the segments, a mutex is used to lock the access to the fSegments. In the TransferStepsToHost,
+  // the StepProcessingThread checks whether there is enough contiguous memory in the CircularBuffer before the copy can
   // start
 public:
   struct Segment {
-    GPUHit *begin;
-    GPUHit *end;
+    GPUStep *begin;
+    GPUStep *end;
 
     bool operator<(const Segment &other) const { return begin < other.begin; }
   };
 
-  CircularBufferManager(GPUHit *bufferStart, size_t capacity)
+  CircularBufferManager(GPUStep *bufferStart, size_t capacity)
       : fBufferStart(bufferStart), fBufferEnd(bufferStart + capacity), fWritePtr(bufferStart),
         fFreeContiguousSpace(capacity)
   {
   }
 
   /// Adds a segment at the provided position. Ensures segments remain sorted.
-  bool addSegment(GPUHit *begin, GPUHit *end)
+  bool addSegment(GPUStep *begin, GPUStep *end)
   {
     std::scoped_lock lock{bufferManagerMutex};
 
@@ -166,7 +167,7 @@ public:
   }
 
   /// Removes a segment based on its starting pointer and updates fWritePtr accordingly.
-  void removeSegment(GPUHit *segmentPtr)
+  void removeSegment(GPUStep *segmentPtr)
   {
     std::scoped_lock lock{bufferManagerMutex};
 
@@ -246,9 +247,9 @@ public:
   size_t getOffset() { return fWritePtr - fBufferStart; }
 
 private:
-  GPUHit *fBufferStart;
-  GPUHit *fBufferEnd;
-  GPUHit *fWritePtr;
+  GPUStep *fBufferStart;
+  GPUStep *fBufferEnd;
+  GPUStep *fWritePtr;
   size_t fFreeContiguousSpace;
   std::vector<Segment> fSegments; // **Sorted vector instead of set**
   mutable std::mutex bufferManagerMutex;
@@ -278,12 +279,11 @@ private:
   }
 };
 
-// TODO: Rename this. Maybe ScoringState? Check usage in GPUstate
-class HitScoring {
-  unique_ptr_cuda<GPUHit> fGPUHitBuffer_dev;
-  unique_ptr_cuda<GPUHit, CudaHostDeleter<GPUHit>> fGPUHitBuffer_host;
-  unique_ptr_cuda<unsigned int> fGPUHitBufferCount_dev;
-  unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>> fGPUHitBufferCount_host;
+class GPUStepTransferManager {
+  unique_ptr_cuda<GPUStep> fGPUStepBuffer_dev;
+  unique_ptr_cuda<GPUStep, CudaHostDeleter<GPUStep>> fGPUStepBuffer_host;
+  unique_ptr_cuda<unsigned int> fGPUStepBufferCount_dev;
+  unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>> fGPUStepBufferCount_host;
 
   BufferHandle fBuffer;
 
@@ -291,72 +291,72 @@ class HitScoring {
 
   enum class DeviceState { Free, Filling, NeedTransferToHost, TransferToHost };
   std::array<std::atomic<DeviceState>, 2>
-      fDeviceState; // the device state must be atomic as it is touched by both the HitProcesingThread in
-                    // TransferHitsToHost and by the TransportThread in SwapDeviceBuffers
+      fDeviceState; // the device state must be atomic as it is touched by both the StepProcessingThread in
+                    // TransferStepsToHost and by the TransportThread in SwapDeviceBuffers
 
-  void *fHitScoringBuffer_deviceAddress = nullptr;
-  unsigned int fHitCapacity;
+  void *fDeviceStepBuffer_deviceAddress = nullptr;
+  unsigned int fStepCapacity;
   double fCPUCapacityFactor;
   double fCPUCopyFraction;
   unsigned short fActiveBuffer = 0;
   ADEPT_DEVICE_API_SYMBOL(Event_t)
   fSwapDoneEvent; // cuda event to synchronize the swapping of the device buffers with the transport
 
-  // HitQueue with one lock per queue
-  std::vector<std::deque<HitQueueItem>> fHitQueues;
-  std::vector<std::shared_mutex> fHitQueueLocks;
+  // StepQueue with one lock per queue
+  std::vector<std::deque<GPUStepBatch>> fStepQueues;
+  std::vector<std::shared_mutex> fStepQueueLocks;
 
   void ProcessBuffer(BufferHandle &handle, std::condition_variable &cvG4Workers, int debugLevel)
   {
 
-    // Loop over HitQueue and add HitQueueItems that contain the begin and end of the GPUhits in the HostBuffer.
-    // Add the used segments in the BufferManager
+    // Loop over StepQueue and add GPUStepBatch objects that contain the begin and end of the GPUSteps in the
+    // HostBuffer. Add the used segments in the BufferManager
     unsigned int offset = 0;
-    for (int i = 0; i < fHitQueues.size(); i++) {
+    for (int i = 0; i < fStepQueues.size(); i++) {
 
-      GPUHit *begin = handle.hostBuffer + offset + handle.offsetAtCopy;
-      GPUHit *end   = handle.hostBuffer + offset + handle.offsetAtCopy + handle.hostBufferCount[i];
+      GPUStep *begin = handle.hostBuffer + offset + handle.offsetAtCopy;
+      GPUStep *end   = handle.hostBuffer + offset + handle.offsetAtCopy + handle.hostStepCount[i];
 
-      HitQueueItem hitItem{begin, end};
+      GPUStepBatch stepBatch{begin, end};
 
       if (begin != end) {
         fBufferManager->addSegment(begin, end);
 
-        std::scoped_lock lock{fHitQueueLocks[i]};
-        fHitQueues[i].push_back(std::move(hitItem));
+        std::scoped_lock lock{fStepQueueLocks[i]};
+        fStepQueues[i].push_back(std::move(stepBatch));
       }
-      offset += handle.hostBufferCount[i];
+      offset += handle.hostStepCount[i];
     }
     // release HostBuffer and notify G4Workers
     fBuffer.hostState.store(BufferHandle::HostState::ReadyToBeFilled);
     cvG4Workers.notify_all();
 
-    for (int i = 0; i < fHitQueues.size(); i++) {
+    for (int i = 0; i < fStepQueues.size(); i++) {
 
-      std::unique_lock lock{fHitQueueLocks[i]};
+      std::unique_lock lock{fStepQueueLocks[i]};
 
-      if (!fHitQueues[i].empty()) {
-        // Check whether the last item in the HitQueue is already taken by the G4Worker
-        auto &ret = fHitQueues[i].back();
+      if (!fStepQueues[i].empty()) {
+        // Check whether the last item in the StepQueue is already taken by the G4Worker
+        auto &ret = fStepQueues[i].back();
 
-        if (ret.ScoringStarted.load(std::memory_order_acquire) == true) {
-          // if G4Worker has alreay started working, all good
+        if (ret.ProcessingStarted.load(std::memory_order_acquire) == true) {
+          // if G4Worker has already started working, all good
           if (debugLevel > 5)
             std::cout << BOLD_BLUE << "G4worker " << i << " has taken their task and started working on "
-                      << (ret.end - ret.begin) << " hits " << RESET << std::endl;
+                      << (ret.end - ret.begin) << " steps " << RESET << std::endl;
         } else {
 
-          size_t numHits = ret.end - ret.begin;
+          size_t numSteps = ret.end - ret.begin;
 
-          // If the circular Buffer is too full and the G4Worker didn't pick up the work, we have to copy out the hits
+          // If the circular Buffer is too full and the G4Worker didn't pick up the work, we have to copy out the steps
           // to the holdoutBuffer
           if (fBufferManager->getFillFraction() > fCPUCopyFraction) {
             if (debugLevel > 5) {
               std::cout << BOLD_RED << "FillFraction too high: " << fBufferManager->getFillFraction()
-                        << ", threshold: " << fCPUCopyFraction << " copying out " << numHits << " hits for G4Worker "
+                        << ", threshold: " << fCPUCopyFraction << " copying out " << numSteps << " steps for G4Worker "
                         << i << RESET << std::endl;
             }
-            ret.holdoutBuffer.resize(numHits);                        // Allocate correct size
+            ret.holdoutBuffer.resize(numSteps);                       // Allocate correct size
             std::copy(ret.begin, ret.end, ret.holdoutBuffer.begin()); // Copy data
 
             // remove the segment first, before updating the pointers to the copied out memory
@@ -366,7 +366,7 @@ class HitScoring {
             ret.begin = ret.holdoutBuffer.data();
             ret.end   = ret.holdoutBuffer.data() + ret.holdoutBuffer.size();
 
-            ret.ScoringStarted     = true;
+            ret.ProcessingStarted  = true;
             ret.IsDataOnHostBuffer = false;
           }
         }
@@ -375,9 +375,10 @@ class HitScoring {
   }
 
 public:
-  HitScoring(unsigned int hitCapacity, unsigned int nThread, double CPUCapacityFactor, double CPUCopyFraction)
-      : fHitCapacity{hitCapacity}, fHitQueues(nThread), fHitQueueLocks(nThread), fCPUCapacityFactor(CPUCapacityFactor),
-        fCPUCopyFraction(CPUCopyFraction)
+  GPUStepTransferManager(unsigned int stepCapacity, unsigned int nThread, double CPUCapacityFactor,
+                         double CPUCopyFraction)
+      : fStepCapacity{stepCapacity}, fStepQueues(nThread), fStepQueueLocks(nThread),
+        fCPUCapacityFactor(CPUCapacityFactor), fCPUCopyFraction(CPUCopyFraction)
   {
 
     if (fCPUCapacityFactor <= 2.0) {
@@ -393,48 +394,48 @@ public:
     }
 
     // We allocate one (circular) HostBuffer in pinned memory
-    GPUHit *gpuHits = nullptr;
+    GPUStep *gpuSteps = nullptr;
 
-    // The HostBuffer is set to be fCPUCapacityFactor times the GPU buffer HitCapacity. Normally, maximally 2x of the
-    // GPU hitbuffer should reside in the hostbuffer: once a full buffer that is currently processed by the G4 workers
-    // and second another full buffer that is just copied from the GPU. Due to sparsity, we add another factor of .5 to
-    // prevent running out of buffer. Also, the filling quota of the CPU buffer decides whether hits are processed
-    // directly by the G4 workers or if they are copied out
-    unsigned int hostBufferCapacity = fCPUCapacityFactor * fHitCapacity;
-    ADEPT_DEVICE_API_CALL(MallocHost(&gpuHits, sizeof(GPUHit) * hostBufferCapacity));
-    fGPUHitBuffer_host.reset(gpuHits);
+    // The HostBuffer is set to be fCPUCapacityFactor times the GPU buffer StepCapacity. Normally, maximally 2x of the
+    // GPU step buffer should reside in the host buffer: once a full buffer that is currently processed by the G4
+    // workers and then another full buffer that is just copied from the GPU. Due to sparsity, we add another factor of
+    // .5 to prevent running out of buffer. Also, the filling quota of the CPU buffer decides whether steps are
+    // processed directly by the G4 workers or if they are copied out
+    unsigned int hostBufferCapacity = fCPUCapacityFactor * fStepCapacity;
+    ADEPT_DEVICE_API_CALL(MallocHost(&gpuSteps, sizeof(GPUStep) * hostBufferCapacity));
+    fGPUStepBuffer_host.reset(gpuSteps);
 
     // We use a single allocation for both GPU buffers:
-    auto result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&gpuHits, sizeof(GPUHit) * fDeviceState.size() * fHitCapacity);
-    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate hit buffer."};
-    fGPUHitBuffer_dev.reset(gpuHits);
+    auto result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&gpuSteps, sizeof(GPUStep) * fDeviceState.size() * fStepCapacity);
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate step buffer."};
+    fGPUStepBuffer_dev.reset(gpuSteps);
 
-    unsigned int *buffer_count = nullptr;
-    ADEPT_DEVICE_API_CALL(MallocHost(&buffer_count, sizeof(unsigned int) * nThread));
-    fGPUHitBufferCount_host.reset(buffer_count);
+    unsigned int *step_count = nullptr;
+    ADEPT_DEVICE_API_CALL(MallocHost(&step_count, sizeof(unsigned int) * nThread));
+    fGPUStepBufferCount_host.reset(step_count);
 
-    result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&buffer_count, sizeof(unsigned int) * fDeviceState.size() * nThread);
-    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate hit buffer."};
-    fGPUHitBufferCount_dev.reset(buffer_count);
+    result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&step_count, sizeof(unsigned int) * fDeviceState.size() * nThread);
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate step buffer."};
+    fGPUStepBufferCount_dev.reset(step_count);
 
     fDeviceState[0] = DeviceState::Filling;
     fDeviceState[1] = DeviceState::Free;
 
-    fBuffer.hitScoringInfo[0] =
-        HitScoringBuffer{fGPUHitBuffer_dev.get(), fGPUHitBufferCount_dev.get(), fHitCapacity / nThread, nThread};
-    fBuffer.hitScoringInfo[1] =
-        HitScoringBuffer{fGPUHitBuffer_dev.get() + fHitCapacity, fGPUHitBufferCount_dev.get() + nThread,
-                         fHitCapacity / nThread, nThread};
-    fBuffer.hostBuffer      = fGPUHitBuffer_host.get();
-    fBuffer.hostBufferCount = fGPUHitBufferCount_host.get();
-    fBuffer.hostState       = BufferHandle::HostState::ReadyToBeFilled;
+    fBuffer.stepBufferViews[0] =
+        DeviceStepBufferView{fGPUStepBuffer_dev.get(), fGPUStepBufferCount_dev.get(), fStepCapacity / nThread, nThread};
+    fBuffer.stepBufferViews[1] =
+        DeviceStepBufferView{fGPUStepBuffer_dev.get() + fStepCapacity, fGPUStepBufferCount_dev.get() + nThread,
+                             fStepCapacity / nThread, nThread};
+    fBuffer.hostBuffer    = fGPUStepBuffer_host.get();
+    fBuffer.hostStepCount = fGPUStepBufferCount_host.get();
+    fBuffer.hostState     = BufferHandle::HostState::ReadyToBeFilled;
 
-    fBufferManager = std::make_unique<CircularBufferManager>(fGPUHitBuffer_host.get(), hostBufferCapacity);
+    fBufferManager = std::make_unique<CircularBufferManager>(fGPUStepBuffer_host.get(), hostBufferCapacity);
 
-    ADEPT_DEVICE_API_CALL(GetSymbolAddress(&fHitScoringBuffer_deviceAddress, gHitScoringBuffer_dev));
-    assert(fHitScoringBuffer_deviceAddress != nullptr);
-    ADEPT_DEVICE_API_CALL(Memcpy(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo, sizeof(HitScoringBuffer),
-                                 ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+    ADEPT_DEVICE_API_CALL(GetSymbolAddress(&fDeviceStepBuffer_deviceAddress, gDeviceStepBuffer));
+    assert(fDeviceStepBuffer_deviceAddress != nullptr);
+    ADEPT_DEVICE_API_CALL(Memcpy(fDeviceStepBuffer_deviceAddress, &fBuffer.stepBufferViews,
+                                 sizeof(DeviceStepBufferView), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
     // create cuda event needed to tell the transport that the swap of the device buffers is executed
     ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&fSwapDoneEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
@@ -442,7 +443,7 @@ public:
 
   ADEPT_DEVICE_API_SYMBOL(Event_t) getSwapDoneEvent() const { return fSwapDoneEvent; }
 
-  unsigned int HitCapacity() const { return fHitCapacity; }
+  unsigned int StepCapacity() const { return fStepCapacity; }
 
   void SwapDeviceBuffers(ADEPT_DEVICE_API_SYMBOL(Stream_t) cudaStream)
   {
@@ -455,12 +456,12 @@ public:
       throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": On-device buffer in wrong state");
 #endif
 
-    // Get new HitBufferCounts from device:
-    ADEPT_DEVICE_API_CALL(MemcpyAsync(fBuffer.hostBufferCount, fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter,
-                                      sizeof(unsigned int) * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads,
+    // Get new StepBufferCounts from device:
+    ADEPT_DEVICE_API_CALL(MemcpyAsync(fBuffer.hostStepCount, fBuffer.stepBufferViews[fActiveBuffer].fSlotCounter,
+                                      sizeof(unsigned int) * fBuffer.stepBufferViews[fActiveBuffer].fNThreads,
                                       ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), cudaStream));
-    ADEPT_DEVICE_API_CALL(MemsetAsync(fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter, 0,
-                                      sizeof(unsigned int) * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads,
+    ADEPT_DEVICE_API_CALL(MemsetAsync(fBuffer.stepBufferViews[fActiveBuffer].fSlotCounter, 0,
+                                      sizeof(unsigned int) * fBuffer.stepBufferViews[fActiveBuffer].fNThreads,
                                       cudaStream));
 
     // Execute the swap:
@@ -470,25 +471,26 @@ public:
     if (fDeviceState[fActiveBuffer].load(std::memory_order_acquire) != DeviceState::Free)
       throw std::logic_error(__FILE__ + std::to_string(__LINE__) + ": Next on-device buffer in wrong state");
 
-    // adjust pointers to hitbuffer and slotcounter array to next active GPUbuffer
-    fBuffer.hitScoringInfo[fActiveBuffer].hitBuffer_dev = fGPUHitBuffer_dev.get() + fActiveBuffer * fHitCapacity;
-    fBuffer.hitScoringInfo[fActiveBuffer].fSlotCounter =
-        fGPUHitBufferCount_dev.get() + fActiveBuffer * fBuffer.hitScoringInfo[fActiveBuffer].fNThreads;
+    // adjust pointers to step buffer and slotcounter array to next active GPUbuffer
+    fBuffer.stepBufferViews[fActiveBuffer].stepBuffer_dev = fGPUStepBuffer_dev.get() + fActiveBuffer * fStepCapacity;
+    fBuffer.stepBufferViews[fActiveBuffer].fSlotCounter =
+        fGPUStepBufferCount_dev.get() + fActiveBuffer * fBuffer.stepBufferViews[fActiveBuffer].fNThreads;
 
-    ADEPT_DEVICE_API_CALL(MemcpyAsync(fHitScoringBuffer_deviceAddress, &fBuffer.hitScoringInfo[fActiveBuffer],
-                                      sizeof(HitScoringBuffer), ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), cudaStream));
+    ADEPT_DEVICE_API_CALL(MemcpyAsync(fDeviceStepBuffer_deviceAddress, &fBuffer.stepBufferViews[fActiveBuffer],
+                                      sizeof(DeviceStepBufferView), ADEPT_DEVICE_API_SYMBOL(MemcpyDefault),
+                                      cudaStream));
     ADEPT_DEVICE_API_CALL(
         EventRecord(fSwapDoneEvent, cudaStream)); // record event that the transport kernels must wait for
 
-    // need to set the hostState to awaiting device, this prevents the next swap until the hits in the hostBuffer are
-    // send to the HitQueue
+    // Need to set the hostState to awaiting device. This prevents the next swap until the steps in the host buffer are
+    // sent to the StepQueue.
     fBuffer.hostState.store(BufferHandle::HostState::AwaitingDeviceTransfer, std::memory_order_release);
 
     // the current active buffer can be set directly to block it from being seen as free
     fDeviceState[fActiveBuffer].store(DeviceState::Filling, std::memory_order_release);
 
     // However, the prevActiveDeviceBuffer state can only be advanced when the transfer is finished,
-    // otherwise the TransferHitsToHost may call the transfer before the correct hostBufferCount has arrived
+    // otherwise the TransferStepsToHost may call the transfer before the correct hostStepCount has arrived
     ADEPT_DEVICE_API_CALL(LaunchHostFunc(
         cudaStream,
         [](void *arg) {
@@ -498,10 +500,10 @@ public:
         &fDeviceState[prevActiveDeviceBuffer]));
   }
 
-  bool ProcessHits(std::condition_variable &cvG4Workers, int debugLevel)
+  bool ProcessSteps(std::condition_variable &cvG4Workers, int debugLevel)
   {
 
-    bool haveNewHits = false;
+    bool haveNewSteps = false;
 
     // here we need to do atomic checks on the hostState, as it is modified from the cudaLaunchHostFunc
     while (fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDevice ||
@@ -510,19 +512,19 @@ public:
       if (fBuffer.hostState.load(std::memory_order_acquire) == BufferHandle::HostState::TransferFromDeviceFinished) {
 
         ProcessBuffer(fBuffer, cvG4Workers, debugLevel);
-        haveNewHits = true;
+        haveNewSteps = true;
       }
       // sleep shortly to reduce pressure on atomic reads
       using namespace std::chrono_literals;
       std::this_thread::sleep_for(50us);
     }
 
-    return haveNewHits;
+    return haveNewSteps;
   }
 
   bool ReadyToSwapBuffers() const
   {
-    // we can swap if the next device state is free and the hostBuffer has been submitted to the HitQueue
+    // we can swap if the next device state is free and the hostBuffer has been submitted to the StepQueue
     return (std::any_of(fDeviceState.begin(), fDeviceState.end(),
                         [](const auto &deviceState) {
                           return deviceState.load(std::memory_order_acquire) == DeviceState::Free;
@@ -578,8 +580,8 @@ public:
     std::cout << std::endl;
   }
 
-  /// Copy the current contents of the GPU hit buffer to host.
-  void TransferHitsToHost(ADEPT_DEVICE_API_SYMBOL(Stream_t) cudaStreamForHitCopy)
+  /// Copy the current contents of the GPU step buffer to host.
+  void TransferStepsToHost(ADEPT_DEVICE_API_SYMBOL(Stream_t) cudaStreamForStepCopy)
   {
 
     while (std::any_of(fDeviceState.begin(), fDeviceState.end(),
@@ -598,8 +600,8 @@ public:
       }
 
       unsigned int transferSize = 0;
-      for (int i = 0; i < fBuffer.hitScoringInfo[fActiveBuffer].fNThreads; i++) {
-        transferSize += fBuffer.hostBufferCount[i];
+      for (int i = 0; i < fBuffer.stepBufferViews[fActiveBuffer].fNThreads; i++) {
+        transferSize += fBuffer.hostStepCount[i];
       }
 
       if (fBufferManager->getFreeContiguousMemory(transferSize) < transferSize) {
@@ -610,34 +612,34 @@ public:
       fDeviceState[prevActiveDeviceBuffer].store(DeviceState::TransferToHost, std::memory_order_release);
       fBuffer.hostState.store(BufferHandle::HostState::TransferFromDevice);
 
-      auto bufferBegin     = fBuffer.hitScoringInfo[prevActiveDeviceBuffer].hitBuffer_dev;
+      auto bufferBegin     = fBuffer.stepBufferViews[prevActiveDeviceBuffer].stepBuffer_dev;
       fBuffer.offsetAtCopy = fBufferManager->getOffset();
 
-      // Copy out the hits:
+      // Copy out the steps:
       // The start address on device is always i * fNSlot (Slots per thread), and we copy always to
       // the offset of the previous copy, to get a compact buffer on host.
       unsigned int offset = 0;
-      for (int i = 0; i < fBuffer.hitScoringInfo[prevActiveDeviceBuffer].fNThreads; i++) {
-        if (fBuffer.hostBufferCount[i] > 0) {
+      for (int i = 0; i < fBuffer.stepBufferViews[prevActiveDeviceBuffer].fNThreads; i++) {
+        if (fBuffer.hostStepCount[i] > 0) {
           ADEPT_DEVICE_API_CALL(MemcpyAsync(fBuffer.hostBuffer + fBuffer.offsetAtCopy + offset,
-                                            bufferBegin + i * fBuffer.hitScoringInfo[prevActiveDeviceBuffer].fNSlot,
-                                            sizeof(GPUHit) * fBuffer.hostBufferCount[i],
-                                            ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), cudaStreamForHitCopy));
-          offset += fBuffer.hostBufferCount[i];
+                                            bufferBegin + i * fBuffer.stepBufferViews[prevActiveDeviceBuffer].fNSlot,
+                                            sizeof(GPUStep) * fBuffer.hostStepCount[i],
+                                            ADEPT_DEVICE_API_SYMBOL(MemcpyDefault), cudaStreamForStepCopy));
+          offset += fBuffer.hostStepCount[i];
         }
       }
 
       // Launch the host function to set the states correctly
 
       ADEPT_DEVICE_API_CALL(LaunchHostFunc(
-          cudaStreamForHitCopy,
+          cudaStreamForStepCopy,
           [](void *arg) {
             static_cast<std::atomic<DeviceState> *>(arg)->store(DeviceState::Free, std::memory_order_release);
           },
           &fDeviceState[prevActiveDeviceBuffer]));
 
       ADEPT_DEVICE_API_CALL(LaunchHostFunc(
-          cudaStreamForHitCopy,
+          cudaStreamForStepCopy,
           [](void *arg) {
             static_cast<BufferHandle *>(arg)->hostState.store(BufferHandle::HostState::TransferFromDeviceFinished,
                                                               std::memory_order_release);
@@ -646,53 +648,54 @@ public:
     }
   }
 
-  HitQueueItem *GetNextHitsHandle(unsigned int threadId, bool &dataOnBuffer)
+  GPUStepBatch *GetNextStepBatch(unsigned int threadId, bool &dataOnBuffer)
   {
-    assert(threadId < fHitQueues.size());
-    std::unique_lock lock{fHitQueueLocks[threadId]}; // setting scoring started flag, need unique lock
+    assert(threadId < fStepQueues.size());
+    std::unique_lock lock{fStepQueueLocks[threadId]}; // setting processing started flag, need unique lock
 
-    if (fHitQueues[threadId].empty()) {
+    if (fStepQueues[threadId].empty()) {
       return nullptr;
     } else {
-      auto &ret    = fHitQueues[threadId].front();
+      auto &ret    = fStepQueues[threadId].front();
       dataOnBuffer = ret.IsDataOnHostBuffer.load();
-      ret.ScoringStarted.store(true, std::memory_order_release);
+      ret.ProcessingStarted.store(true, std::memory_order_release);
       lock.unlock(); // Unlock before returning pointer
       return &ret;
     }
   }
 
-  void CloseHitsHandle(unsigned int threadId, GPUHit *begin, const bool dataOnBuffer)
+  void CloseStepBatch(unsigned int threadId, GPUStep *begin, const bool dataOnBuffer)
   {
-    assert(threadId < fHitQueues.size());
-    std::unique_lock lock{fHitQueueLocks[threadId]}; // popping queue, requires unique lock
+    assert(threadId < fStepQueues.size());
+    std::unique_lock lock{fStepQueueLocks[threadId]}; // popping queue, requires unique lock
 
 #ifdef DEBUG
-    if (fHitQueues[threadId].empty()) {
-      std::cout << BOLD_RED << "ERROR no HitQueueItem to pop, this should nevre be the case! " << RESET << std::endl;
+    if (fStepQueues[threadId].empty()) {
+      std::cout << BOLD_RED << "ERROR no GPUStepBatch to pop, this should never be the case! " << RESET << std::endl;
     }
 #endif
 
     // if data is in the hostBuffer (and not the holdoutBuffer), update the CircularBufferManager and release the memory
     if (dataOnBuffer) fBufferManager->removeSegment(begin);
-    fHitQueues[threadId].pop_front();
+    fStepQueues[threadId].pop_front();
   }
 };
 
 } // namespace AsyncAdePT
 
-namespace adept_scoring {
+namespace adept_step_recording {
 
-/// @brief Record a hit
-__device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId, ParticleType aParticleType,
-                          double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
-                          vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<double> const &aPrePosition,
-                          vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
-                          vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
-                          vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime,
-                          float aLocalTime, float aProperTime, double aPreGlobalTime, unsigned int eventID,
-                          short threadID, bool isLastStep, unsigned short stepCounter,
-                          SecondaryInitData const *secondaryData, unsigned int nSecondaries)
+/// @brief Record a GPU step
+__device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId, ParticleType aParticleType,
+                              double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
+                              vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<double> const &aPrePosition,
+                              vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
+                              vecgeom::NavigationState const &aPostState,
+                              vecgeom::Vector3D<double> const &aPostPosition,
+                              vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin,
+                              double aGlobalTime, float aLocalTime, float aProperTime, double aPreGlobalTime,
+                              unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter,
+                              SecondaryInitData const *secondaryData, unsigned int nSecondaries)
 {
 
   // defensive check
@@ -700,31 +703,32 @@ __device__ void RecordHit(uint64_t aTrackID, uint64_t aParentID, short stepLimPr
     COPCORE_EXCEPTION("secondaryData is null but nSecondaries > 0");
   }
 
-  // allocate hit slots: one for the parent and then one for each secondary
-  auto slotStartIndex = AsyncAdePT::gHitScoringBuffer_dev.ReserveHitSlots(threadID, 1u + nSecondaries);
+  // allocate step slots: one for the parent and then one for each secondary
+  auto slotStartIndex = AsyncAdePT::gDeviceStepBuffer.ReserveStepSlots(threadID, 1u + nSecondaries);
 
   // The ProcessGPUSteps on the Host expects the step of the parent track first, and then all secondaries
   // that were generated in that step.
-  GPUHit &parentStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex);
+  GPUStep &parentStep = AsyncAdePT::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex);
   // Fill the required data for the parent step
-  FillHit(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
-          aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
-          aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aProperTime, aPreGlobalTime, eventID, threadID,
-          isLastStep, stepCounter, nSecondaries);
+  FillGPUStep(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
+              aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
+              aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aProperTime, aPreGlobalTime, eventID,
+              threadID, isLastStep, stepCounter, nSecondaries);
 
   // Fill the steps for the secondaries
   for (unsigned int i = 0; i < nSecondaries; ++i) {
     // The index is the startIndex + 1 (for the parent) + i for the current secondary
-    GPUHit &secondaryStep = AsyncAdePT::gHitScoringBuffer_dev.GetSlot(threadID, slotStartIndex + 1u + i);
-    FillHit(secondaryStep, secondaryData[i].trackId, aTrackID, secondaryData[i].creatorProcessId,
-            secondaryData[i].particleType,
-            /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
-            secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin, aGlobalTime,
-            /*localTime*/ 0.f, /*properTime*/ 0.f, aGlobalTime, eventID, threadID, /*isLastStep*/ false,
-            /*stepCounter*/ 0, /*nSecondaries*/ 0);
+    GPUStep &secondaryStep = AsyncAdePT::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex + 1u + i);
+    FillGPUStep(secondaryStep, secondaryData[i].trackId, aTrackID, secondaryData[i].creatorProcessId,
+                secondaryData[i].particleType,
+                /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
+                secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin,
+                aGlobalTime,
+                /*localTime*/ 0.f, /*properTime*/ 0.f, aGlobalTime, eventID, threadID, /*isLastStep*/ false,
+                /*stepCounter*/ 0, /*nSecondaries*/ 0);
   }
 }
 
-} // namespace adept_scoring
+} // namespace adept_step_recording
 
 #endif

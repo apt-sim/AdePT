@@ -33,7 +33,7 @@ struct TrackBase {
   float properTime{0.f};
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
-  // Variables used to store track info needed for scoring
+  // Variables used to store track info needed when returning GPU steps
   vecgeom::NavigationState nextState;
   vecgeom::Vector3D<double> preStepPos;
   vecgeom::Vector3D<double> preStepDir;

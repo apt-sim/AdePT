@@ -12,7 +12,7 @@ struct AdePTTransportConfig {
   uint64_t adeptSeed{1234567};
   unsigned short numThreads{0};
   unsigned int trackCapacity{0};
-  unsigned int scoringCapacity{0};
+  unsigned int stepCapacity{0};
   int debugLevel{0};
   int cudaStackLimit{0};
   int cudaHeapLimit{0};
@@ -23,7 +23,7 @@ struct AdePTTransportConfig {
   std::string bfieldFile{};
   double cpuCapacityFactor{2.5};
   double cpuCopyFraction{0.5};
-  double hitBufferSafetyFactor{1.5};
+  double stepBufferSafetyFactor{1.5};
 };
 
 #endif

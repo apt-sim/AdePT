@@ -27,12 +27,12 @@
 #include <type_traits>
 
 namespace AdePTGeant4Integration_detail {
-/// This struct holds temporary scoring objects that are needed to send hits to Geant4.
+/// This struct holds temporary Geant4 objects needed to replay GPU steps on the host.
 /// These are allocated as members or using placement new to go around G4's pool allocators,
 /// which cause a destruction order fiasco when the pools are destroyed before the objects,
 /// and then the objects' destructors are called.
 /// This also keeps all these objects much closer in memory.
-struct ScoringObjects {
+struct StepReconstructionObjects {
 
   static constexpr int kMaxSecElectrons     = 1;
   static constexpr int kMaxSecPositrons     = 1;
@@ -59,8 +59,8 @@ struct ScoringObjects {
   // only be set at construction time. Similarly, we can only set the dynamic particle for a track when creating it
   // For this reason we create one track per particle type for the parent track and up to kMaxTotalSecondaries tracks
   // for the secondary tracks that could be processed for each parent step, to be reused We set position to nullptr and
-  // kinetic energy to 0 for the dynamic particle since they need to be updated per hit The same goes for the G4Track
-  // global time and position
+  // kinetic energy to 0 for the dynamic particle since they need to be updated per step. The same goes for the G4Track
+  // global time and position.
   std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type dynParticleStorage[3];
   std::aligned_storage<sizeof(G4DynamicParticle), alignof(G4DynamicParticle)>::type secDynStorage[kMaxTotalSecondaries];
   std::aligned_storage<sizeof(G4Track), alignof(G4Track)>::type trackStorage[3];
@@ -92,7 +92,7 @@ struct ScoringObjects {
     secGUsed = 0;
   }
 
-  ScoringObjects()
+  StepReconstructionObjects()
   {
 
     // Cache particle definitions once
@@ -152,7 +152,7 @@ struct ScoringObjects {
   // Note: no destructor needed since we’re intentionally *not* calling dtors on the placement-new'ed objects
 };
 
-void Deleter::operator()(ScoringObjects *ptr)
+void Deleter::operator()(StepReconstructionObjects *ptr)
 {
   delete ptr;
 }
@@ -200,31 +200,31 @@ void MergeNuclearReplayIntoVisibleStep(const G4Track &scratchTrack, const G4Step
 
 AdePTGeant4Integration::~AdePTGeant4Integration() {}
 
-void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUHit> gpuSteps, DeferredStepType type)
+void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUStep> gpuSteps, DeferredStepType type)
 {
   if (gpuSteps.empty()) return;
 
   DeferredStep deferred;
-  deferred.firstHit = fDeferredHits.size();
-  deferred.numHits  = gpuSteps.size();
-  deferred.type     = type;
-  fDeferredHits.insert(fDeferredHits.end(), gpuSteps.begin(), gpuSteps.end());
+  deferred.firstGPUStep = fDeferredGPUSteps.size();
+  deferred.numGPUSteps  = gpuSteps.size();
+  deferred.type         = type;
+  fDeferredGPUSteps.insert(fDeferredGPUSteps.end(), gpuSteps.begin(), gpuSteps.end());
   fDeferredSteps.push_back(deferred);
 }
 
 AdePTGeant4Integration::DeferredStepStore AdePTGeant4Integration::TakeDeferredSteps()
 {
   DeferredStepStore deferred;
-  deferred.hits.swap(fDeferredHits);
+  deferred.gpuSteps.swap(fDeferredGPUSteps);
   deferred.steps.swap(fDeferredSteps);
   return deferred;
 }
 
-void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUHit> gpuSteps, bool const callUserActions)
+void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSteps, bool const callUserActions)
 {
   assert(gpuSteps.size() == 1);
 
-  const GPUHit &parentStep = gpuSteps.front();
+  const GPUStep &parentStep = gpuSteps.front();
   assert(parentStep.fParticleType == ParticleType::Gamma);
   assert(parentStep.fStepLimProcessId == kAdePTOutOfGPURegionProcess ||
          parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
@@ -268,7 +268,7 @@ G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track) c
   return clone;
 }
 
-G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUHit const &parentStep, const HostTrackData &hostTData,
+G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parentStep, const HostTrackData &hostTData,
                                                            bool setStopButAlive) const
 {
   constexpr double tolerance = 10. * vecgeom::kTolerance;
@@ -311,11 +311,11 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUHit const &parentS
   return track;
 }
 
-G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *secHit) const
+G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUStep const *secStep) const
 {
-  auto &so = *fScoringObjects;
+  auto &so = *fStepReconstructionObjects;
 
-  const ParticleType ptype = secHit->fParticleType;
+  const ParticleType ptype = secStep->fParticleType;
 
   if (ptype == ParticleType::Electron) {
     if (so.secEUsed >= so.kMaxSecElectrons) std::abort();
@@ -335,40 +335,40 @@ G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUHit const *se
   std::abort();
 }
 
-void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bool const callUserSteppingAction,
+void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, bool const callUserSteppingAction,
                                             bool const callUserTrackingAction)
 {
   // FIXME: to be removed, as it is not needed with the direct VecGeom to G4 NavState.
   // needed here only temporarily to match exactly the behavior of returning nuclear interaction steps as tracks
   constexpr double tolerance = 10. * vecgeom::kTolerance;
-  if (!fScoringObjects) {
-    fScoringObjects.reset(new AdePTGeant4Integration_detail::ScoringObjects());
+  if (!fStepReconstructionObjects) {
+    fStepReconstructionObjects.reset(new AdePTGeant4Integration_detail::StepReconstructionObjects());
   }
 
   // Reset secondary tracks, as their dynamic properties change from returned step to step
-  fScoringObjects->ResetSecondaryTracks();
+  fStepReconstructionObjects->ResetSecondaryTracks();
   // Clear the persistent secondary vector
-  fScoringObjects->fSecondaryVector->clear();
+  fStepReconstructionObjects->fSecondaryVector->clear();
 
   // first step in the span is the parent step
-  const GPUHit &parentStep = gpuSteps[0];
+  const GPUStep &parentStep = gpuSteps[0];
 
   assert(gpuSteps.size() == 1 + parentStep.fNumSecondaries);
 
-  // Reconstruct G4NavigationHistory and G4Step, and call the SD code for each hit
+  // Reconstruct G4NavigationHistory and G4Step, then call the SD code for the returned step
   vecgeom::NavigationState const &preNavState = parentStep.fPreStepPoint.fNavigationState;
   // Reconstruct Pre-Step point G4NavigationHistory
-  FillG4NavigationHistory(preNavState, fScoringObjects->fPreG4NavigationHistory);
-  (*fScoringObjects->fPreG4TouchableHistoryHandle)
-      ->UpdateYourself(fScoringObjects->fPreG4NavigationHistory.GetTopVolume(),
-                       &fScoringObjects->fPreG4NavigationHistory);
+  FillG4NavigationHistory(preNavState, fStepReconstructionObjects->fPreG4NavigationHistory);
+  (*fStepReconstructionObjects->fPreG4TouchableHistoryHandle)
+      ->UpdateYourself(fStepReconstructionObjects->fPreG4NavigationHistory.GetTopVolume(),
+                       &fStepReconstructionObjects->fPreG4NavigationHistory);
   // Reconstruct Post-Step point G4NavigationHistory
   vecgeom::NavigationState const &postNavState = parentStep.fPostStepPoint.fNavigationState;
   if (!postNavState.IsOutside()) {
-    FillG4NavigationHistory(postNavState, fScoringObjects->fPostG4NavigationHistory);
-    (*fScoringObjects->fPostG4TouchableHistoryHandle)
-        ->UpdateYourself(fScoringObjects->fPostG4NavigationHistory.GetTopVolume(),
-                         &fScoringObjects->fPostG4NavigationHistory);
+    FillG4NavigationHistory(postNavState, fStepReconstructionObjects->fPostG4NavigationHistory);
+    (*fStepReconstructionObjects->fPostG4TouchableHistoryHandle)
+        ->UpdateYourself(fStepReconstructionObjects->fPostG4NavigationHistory.GetTopVolume(),
+                         &fStepReconstructionObjects->fPostG4NavigationHistory);
   }
 
   // Get step status
@@ -413,25 +413,27 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   // Fill the G4Step, fill the G4Track, and intertwine them
   switch (parentStep.fParticleType) {
   case ParticleType::Electron:
-    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fElectronTrack);
+    fStepReconstructionObjects->fG4Step->SetTrack(fStepReconstructionObjects->fElectronTrack);
     break;
   case ParticleType::Positron:
-    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fPositronTrack);
+    fStepReconstructionObjects->fG4Step->SetTrack(fStepReconstructionObjects->fPositronTrack);
     break;
   case ParticleType::Gamma:
-    fScoringObjects->fG4Step->SetTrack(fScoringObjects->fGammaTrack);
+    fStepReconstructionObjects->fG4Step->SetTrack(fStepReconstructionObjects->fGammaTrack);
     break;
   default:
     std::cerr << "Error: unknown particle type " << static_cast<int>(parentStep.fParticleType) << "\n";
     std::abort();
   }
 
-  FillG4Step(&parentStep, fScoringObjects->fG4Step, parentTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
-             *fScoringObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus, callUserTrackingAction,
-             callUserSteppingAction);
-  FillG4Track(&parentStep, fScoringObjects->fG4Step->GetTrack(), parentTData,
-              *fScoringObjects->fPreG4TouchableHistoryHandle, *fScoringObjects->fPostG4TouchableHistoryHandle);
-  fScoringObjects->fG4Step->GetTrack()->SetStep(fScoringObjects->fG4Step);
+  FillG4Step(&parentStep, fStepReconstructionObjects->fG4Step, parentTData,
+             *fStepReconstructionObjects->fPreG4TouchableHistoryHandle,
+             *fStepReconstructionObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus,
+             callUserTrackingAction, callUserSteppingAction);
+  FillG4Track(&parentStep, fStepReconstructionObjects->fG4Step->GetTrack(), parentTData,
+              *fStepReconstructionObjects->fPreG4TouchableHistoryHandle,
+              *fStepReconstructionObjects->fPostG4TouchableHistoryHandle);
+  fStepReconstructionObjects->fG4Step->GetTrack()->SetStep(fStepReconstructionObjects->fG4Step);
 
   // Create and attach secondaries.
   // User tracking callbacks for the secondaries are delayed until after the
@@ -442,27 +444,27 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
     const auto parentID = parentTData.g4id;
 
     // the steps after the first one in the span are the initializing steps for the secondaries
-    std::span<const GPUHit> secondaries = gpuSteps.subspan(1);
+    std::span<const GPUStep> secondaries = gpuSteps.subspan(1);
     // Loop over secondaries, create and fill info, and attach to secondary vector of the GPUStep
-    for (const GPUHit &secStep : secondaries) {
+    for (const GPUStep &secStep : secondaries) {
 
       // 1. Create HostTrackData
       HostTrackData &secTData = fHostTrackDataMapper->create(secStep.fTrackID);
 
       // 2. Initialize from parent
       InitSecondaryHostTrackDataFromParent(&secStep, secTData, parentID,
-                                           *fScoringObjects->fPreG4TouchableHistoryHandle);
+                                           *fStepReconstructionObjects->fPreG4TouchableHistoryHandle);
 
       // 3. Construct G4Track in place
       G4Track *secTrack = ConstructSecondaryTrackInPlace(&secStep);
 
       // 4. Fill data for secondary track
-      FillG4Track(&secStep, secTrack, secTData, *fScoringObjects->fPreG4TouchableHistoryHandle,
-                  *fScoringObjects->fPostG4TouchableHistoryHandle);
+      FillG4Track(&secStep, secTrack, secTData, *fStepReconstructionObjects->fPreG4TouchableHistoryHandle,
+                  *fStepReconstructionObjects->fPostG4TouchableHistoryHandle);
 
       // 5. Attach secondaries to G4Step: the fSecondaryVector is the persistent
       // storage for the G4Step->SecondaryVector.
-      fScoringObjects->fSecondaryVector->push_back(secTrack);
+      fStepReconstructionObjects->fSecondaryVector->push_back(secTrack);
     }
   }
 
@@ -502,8 +504,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
                              parentStep.fPostStepPoint.fPosition.z());
       position += tolerance * direction;
 
-      auto *dynamic = new G4DynamicParticle(fScoringObjects->fG4Step->GetTrack()->GetParticleDefinition(), direction,
-                                            parentStep.fPostStepPoint.fEKin);
+      auto *dynamic = new G4DynamicParticle(fStepReconstructionObjects->fG4Step->GetTrack()->GetParticleDefinition(),
+                                            direction, parentStep.fPostStepPoint.fEKin);
 
       auto *nuclearReactionTrack = new G4Track(dynamic, parentStep.fGlobalTime, position);
       nuclearReactionTrack->IncrementCurrentStepNumber();
@@ -527,7 +529,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
             MakeTouchableFromNavState(parentTDataAfterSecondaries.originNavState));
 #endif
       }
-      if (const auto postVolume = (*fScoringObjects->fPostG4TouchableHistoryHandle)->GetVolume();
+      if (const auto postVolume = (*fStepReconstructionObjects->fPostG4TouchableHistoryHandle)->GetVolume();
           postVolume != nullptr) {
         postTouchable = MakeTouchableFromNavState(parentStep.fPostStepPoint.fNavigationState);
         nuclearReactionTrack->SetTouchableHandle(postTouchable);
@@ -548,20 +550,20 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       const double cutSecondaryEdep =
           fHepEmTrackingManager->PerformNuclear(nuclearReactionTrack, nuclearStep, particleID, isApplyCuts);
       if (cutSecondaryEdep > 0.0) {
-        fScoringObjects->fG4Step->AddTotalEnergyDeposit(cutSecondaryEdep);
+        fStepReconstructionObjects->fG4Step->AddTotalEnergyDeposit(cutSecondaryEdep);
       }
 
       if (auto *newSecondaries = nuclearStep->GetfSecondary(); newSecondaries != nullptr) {
         hadronicSecondaries.reserve(newSecondaries->size());
         for (auto *secondary : *newSecondaries) {
           hadronicSecondaries.push_back(secondary);
-          fScoringObjects->fSecondaryVector->push_back(secondary);
+          fStepReconstructionObjects->fSecondaryVector->push_back(secondary);
         }
       }
 
       // The visible step remains the transported GPU step. Only the nuclear
       // final state is merged back from the scratch replay object.
-      MergeNuclearReplayIntoVisibleStep(*nuclearReactionTrack, *nuclearStep, *fScoringObjects->fG4Step,
+      MergeNuclearReplayIntoVisibleStep(*nuclearReactionTrack, *nuclearStep, *fStepReconstructionObjects->fG4Step,
                                         isLeptonNuclearStep);
 
       if (isLeptonNuclearStep) {
@@ -578,7 +580,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       // Fallback only for the case without an attached Geant4 nuclear process:
       // there is then no temporary nuclear-replay track that can be continued
       // on the CPU, so we create a separate heap-owned track for the stack.
-      returnedParentTrack   = MakeTrackForCPUStacking(*fScoringObjects->fG4Step->GetTrack());
+      returnedParentTrack   = MakeTrackForCPUStacking(*fStepReconstructionObjects->fG4Step->GetTrack());
       returnParentTrackToG4 = true;
     }
   } else if (isOutOfGPURegionStep || isFinishOnCPUStep) {
@@ -588,28 +590,29 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
 
   // Now, the G4Step is fully initialized and also contains the secondaries created in that step.
 
-  // Call scoring if SD is defined and it is not the initializing step.
+  // Call the sensitive detector if it is defined and this is not the initializing step.
   // As in G4, this is called before the SteppingAction
   G4VSensitiveDetector *aSensitiveDetector =
-      fScoringObjects->fPreG4NavigationHistory.GetVolume(fScoringObjects->fPreG4NavigationHistory.GetDepth())
+      fStepReconstructionObjects->fPreG4NavigationHistory
+          .GetVolume(fStepReconstructionObjects->fPreG4NavigationHistory.GetDepth())
           ->GetLogicalVolume()
           ->GetSensitiveDetector();
 
   if (aSensitiveDetector != nullptr && parentStep.fStepCounter != 0) {
-    aSensitiveDetector->Hit(fScoringObjects->fG4Step);
+    aSensitiveDetector->Hit(fStepReconstructionObjects->fG4Step);
   }
 
   if (callUserSteppingAction) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userSteppingAction = evtMgr->GetUserSteppingAction();
-    if (userSteppingAction) userSteppingAction->UserSteppingAction(fScoringObjects->fG4Step);
+    if (userSteppingAction) userSteppingAction->UserSteppingAction(fStepReconstructionObjects->fG4Step);
   }
 
   // call UserTrackingAction if required
   if (parentStep.fLastStepOfTrack && !returnParentTrackToG4 && (callUserTrackingAction)) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
-    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fScoringObjects->fG4Step->GetTrack());
+    if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fStepReconstructionObjects->fG4Step->GetTrack());
   }
 
   // GPU-born secondaries only get the PreUserTracking callback after the parent
@@ -620,9 +623,9 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) {
-      std::span<const GPUHit> secondaries = gpuSteps.subspan(1);
+      std::span<const GPUStep> secondaries = gpuSteps.subspan(1);
       for (size_t i = 0; i < secondaries.size(); ++i) {
-        auto *secondary = (*fScoringObjects->fSecondaryVector)[i];
+        auto *secondary = (*fStepReconstructionObjects->fSecondaryVector)[i];
         if (secondary == nullptr) continue;
 
         userTrackingAction->PreUserTrackingAction(secondary);
@@ -647,7 +650,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
   // If this was the last step of a track, the hostTrackData of that track can be safely deleted.
   // Note: This deletes the AdePT-owned UserTrackInfo data
   if (isDeferredStep) {
-    auto *parentTrack = fScoringObjects->fG4Step->GetTrack();
+    auto *parentTrack = fStepReconstructionObjects->fG4Step->GetTrack();
     parentTrack->SetUserInformation(nullptr);
     if (returnParentTrackToG4) {
       fHostTrackDataMapper->retireToCPU(parentStep.fTrackID);
@@ -655,7 +658,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUHit> gpuSteps, bo
       fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
     }
   } else if (parentStep.fLastStepOfTrack) {
-    fScoringObjects->fG4Step->GetTrack()->SetUserInformation(nullptr);
+    fStepReconstructionObjects->fG4Step->GetTrack()->SetUserInformation(nullptr);
     fHostTrackDataMapper->removeTrack(parentStep.fTrackID);
   }
 }
@@ -730,44 +733,44 @@ G4TouchableHandle AdePTGeant4Integration::MakeTouchableFromNavState(vecgeom::Nav
   return G4TouchableHandle(touchableHistory.release());
 }
 
-void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *secHit, HostTrackData &secTData,
+void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUStep const *secStep, HostTrackData &secTData,
                                                                   int g4ParentID, G4TouchableHandle &preTouchable) const
 {
 #ifdef DEBUG
-  if (secHit->fStepCounter != 0) {
+  if (secStep->fStepCounter != 0) {
     std::cerr << "\033[1;31mERROR: secondary init called with stepCounter != 0\033[0m\n";
     std::abort();
   }
-  if (secHit->fParentID == 0) {
+  if (secStep->fParentID == 0) {
     std::cerr << "\033[1;31mERROR: secondary init called with parentID == 0\033[0m\n";
     std::abort();
   }
-  if (secHit->fStepCounter == 0 && fHostTrackDataMapper->contains(secHit->fTrackID)) {
-    std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << secHit->fTrackID
-              << ", parentID = " << secHit->fParentID << ") "
-              << " stepLimProcessId " << secHit->fStepLimProcessId << " pdg charge "
-              << static_cast<int>(secHit->fParticleType) << " stepCounter " << secHit->fStepCounter << "\033[0m"
+  if (secStep->fStepCounter == 0 && fHostTrackDataMapper->contains(secStep->fTrackID)) {
+    std::cerr << "\033[1;31mERROR: TRACK ALREADY HAS AN ENTRY (trackID = " << secStep->fTrackID
+              << ", parentID = " << secStep->fParentID << ") "
+              << " stepLimProcessId " << secStep->fStepLimProcessId << " pdg charge "
+              << static_cast<int>(secStep->fParticleType) << " stepCounter " << secStep->fStepCounter << "\033[0m"
               << std::endl;
     std::abort();
   }
 #endif
 
-  secTData.particleType = secHit->fParticleType;
+  secTData.particleType = secStep->fParticleType;
   secTData.g4parentid   = g4ParentID;
 
 #ifdef ADEPT_USE_ORIGINNAVSTATE
-  secTData.originNavState = secHit->fPostStepPoint.fNavigationState;
+  secTData.originNavState = secStep->fPostStepPoint.fNavigationState;
 #endif
   secTData.logicalVolumeAtVertex = preTouchable->GetVolume()->GetLogicalVolume();
-  secTData.vertexPosition = G4ThreeVector(secHit->fPostStepPoint.fPosition.x(), secHit->fPostStepPoint.fPosition.y(),
-                                          secHit->fPostStepPoint.fPosition.z());
+  secTData.vertexPosition = G4ThreeVector(secStep->fPostStepPoint.fPosition.x(), secStep->fPostStepPoint.fPosition.y(),
+                                          secStep->fPostStepPoint.fPosition.z());
   secTData.vertexMomentumDirection =
-      G4ThreeVector(secHit->fPostStepPoint.fMomentumDirection.x(), secHit->fPostStepPoint.fMomentumDirection.y(),
-                    secHit->fPostStepPoint.fMomentumDirection.z());
-  secTData.vertexKineticEnergy = secHit->fPostStepPoint.fEKin;
+      G4ThreeVector(secStep->fPostStepPoint.fMomentumDirection.x(), secStep->fPostStepPoint.fMomentumDirection.y(),
+                    secStep->fPostStepPoint.fMomentumDirection.z());
+  secTData.vertexKineticEnergy = secStep->fPostStepPoint.fEKin;
 
   // For the initializing step, the step defining process ID is the creator process
-  const int stepId = secHit->fStepLimProcessId;
+  const int stepId = secStep->fStepLimProcessId;
   assert(stepId >= 0);
   const ParticleType ptype = secTData.particleType;
   if (ptype == ParticleType::Electron || ptype == ParticleType::Positron) {
@@ -777,29 +780,29 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUHit const *
   }
 }
 
-void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack, const HostTrackData &hostTData,
+void AdePTGeant4Integration::FillG4Track(GPUStep const *aGPUStep, G4Track *aTrack, const HostTrackData &hostTData,
                                          G4TouchableHandle &aPreG4TouchableHandle,
                                          G4TouchableHandle &aPostG4TouchableHandle) const
 {
 
-  const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
-                                                      aGPUHit->fPostStepPoint.fMomentumDirection.y(),
-                                                      aGPUHit->fPostStepPoint.fMomentumDirection.z());
-  const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(),
-                                             aGPUHit->fPostStepPoint.fPosition.y(),
-                                             aGPUHit->fPostStepPoint.fPosition.z());
+  const G4ThreeVector aPostStepPointMomentumDirection(aGPUStep->fPostStepPoint.fMomentumDirection.x(),
+                                                      aGPUStep->fPostStepPoint.fMomentumDirection.y(),
+                                                      aGPUStep->fPostStepPoint.fMomentumDirection.z());
+  const G4ThreeVector aPostStepPointPosition(aGPUStep->fPostStepPoint.fPosition.x(),
+                                             aGPUStep->fPostStepPoint.fPosition.y(),
+                                             aGPUStep->fPostStepPoint.fPosition.z());
 
   // must const-cast as GetDynamicParticle only returns const
   aTrack->SetCreatorProcess(hostTData.creatorProcess);
   auto *dyn = const_cast<G4DynamicParticle *>(aTrack->GetDynamicParticle());
   dyn->SetPrimaryParticle(hostTData.primary);
 
-  aTrack->SetTrackID(hostTData.g4id);          // Real data
-  aTrack->SetParentID(hostTData.g4parentid);   // ID of the initial particle that entered AdePT
-  aTrack->SetPosition(aPostStepPointPosition); // Real data
-  aTrack->SetGlobalTime(aGPUHit->fGlobalTime); // Real data
-  aTrack->SetLocalTime(aGPUHit->fLocalTime);   // Real data
-  aTrack->SetProperTime(aGPUHit->fProperTime); // Real data
+  aTrack->SetTrackID(hostTData.g4id);           // Real data
+  aTrack->SetParentID(hostTData.g4parentid);    // ID of the initial particle that entered AdePT
+  aTrack->SetPosition(aPostStepPointPosition);  // Real data
+  aTrack->SetGlobalTime(aGPUStep->fGlobalTime); // Real data
+  aTrack->SetLocalTime(aGPUStep->fLocalTime);   // Real data
+  aTrack->SetProperTime(aGPUStep->fProperTime); // Real data
   if (const auto preVolume = aPreG4TouchableHandle->GetVolume();
       preVolume != nullptr) {                          // protect against nullptr if NavState is outside
     aTrack->SetTouchableHandle(aPreG4TouchableHandle); // Real data
@@ -809,14 +812,14 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
     aTrack->SetNextTouchableHandle(aPostG4TouchableHandle); // Real data
   }
   // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
-  aTrack->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
+  aTrack->SetKineticEnergy(aGPUStep->fPostStepPoint.fEKin);      // Real data
   aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
   // aTrack->SetVelocity(0);                                                                  // Missing data
   // aTrack->SetPolarization(); // Missing Data data
   // aTrack->SetTrackStatus(G4TrackStatus::fAlive);                                           // Missing data
   // aTrack->SetBelowThresholdFlag(false);                                                    // Missing data
   // aTrack->SetGoodForTrackingFlag(false);                                                   // Missing data
-  aTrack->SetStepLength(aGPUHit->fStepLength);                           // Real data
+  aTrack->SetStepLength(aGPUStep->fStepLength);                          // Real data
   aTrack->SetVertexPosition(hostTData.vertexPosition);                   // Real data
   aTrack->SetVertexMomentumDirection(hostTData.vertexMomentumDirection); // Real data
   aTrack->SetVertexKineticEnergy(hostTData.vertexKineticEnergy);         // Real data
@@ -824,32 +827,32 @@ void AdePTGeant4Integration::FillG4Track(GPUHit const *aGPUHit, G4Track *aTrack,
   // aTrack->SetCreatorModelID(0);                                                            // Missing data
   // aTrack->SetParentResonanceDef(nullptr);                                                  // Missing data
   // aTrack->SetParentResonanceID(0);                                                         // Missing data
-  aTrack->SetWeight(aGPUHit->fTrackWeight);
+  aTrack->SetWeight(aGPUStep->fTrackWeight);
   // if it exists, add UserTrackInfo
   aTrack->SetUserInformation(hostTData.userTrackInfo); // Real data
   // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
 }
 
-void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, const HostTrackData &hostTData,
+void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step, const HostTrackData &hostTData,
                                         G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
                                         G4StepStatus aPostStepStatus, bool callUserTrackingAction,
                                         bool callUserSteppingAction) const
 {
-  const G4ThreeVector aPostStepPointMomentumDirection(aGPUHit->fPostStepPoint.fMomentumDirection.x(),
-                                                      aGPUHit->fPostStepPoint.fMomentumDirection.y(),
-                                                      aGPUHit->fPostStepPoint.fMomentumDirection.z());
-  const G4ThreeVector aPostStepPointPosition(aGPUHit->fPostStepPoint.fPosition.x(),
-                                             aGPUHit->fPostStepPoint.fPosition.y(),
-                                             aGPUHit->fPostStepPoint.fPosition.z());
+  const G4ThreeVector aPostStepPointMomentumDirection(aGPUStep->fPostStepPoint.fMomentumDirection.x(),
+                                                      aGPUStep->fPostStepPoint.fMomentumDirection.y(),
+                                                      aGPUStep->fPostStepPoint.fMomentumDirection.z());
+  const G4ThreeVector aPostStepPointPosition(aGPUStep->fPostStepPoint.fPosition.x(),
+                                             aGPUStep->fPostStepPoint.fPosition.y(),
+                                             aGPUStep->fPostStepPoint.fPosition.z());
 
   // G4Step
-  aG4Step->SetStepLength(aGPUHit->fStepLength);                 // Real data
-  aG4Step->SetTotalEnergyDeposit(aGPUHit->fTotalEnergyDeposit); // Real data
+  aG4Step->SetStepLength(aGPUStep->fStepLength);                 // Real data
+  aG4Step->SetTotalEnergyDeposit(aGPUStep->fTotalEnergyDeposit); // Real data
   // aG4Step->SetNonIonizingEnergyDeposit(0);                      // Missing data
   // aG4Step->SetControlFlag(G4SteppingControl::NormalCondition);  // Missing data
-  if (aGPUHit->fStepCounter == 1) aG4Step->SetFirstStepFlag(); // Real data
-  if (aGPUHit->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
+  if (aGPUStep->fStepCounter == 1) aG4Step->SetFirstStepFlag(); // Real data
+  if (aGPUStep->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
   // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
 
   // G4Track
@@ -857,9 +860,9 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
 
   // set the step-defining process for non-initializing steps
   G4VProcess *stepDefiningProcess = nullptr;
-  if (aGPUHit->fStepCounter != 0) {
+  if (aGPUStep->fStepCounter != 0) {
     // not an initial step, therefore setting the step defining process:
-    const int stepId         = aGPUHit->fStepLimProcessId;
+    const int stepId         = aGPUStep->fStepLimProcessId;
     const ParticleType ptype = hostTData.particleType;
 
     if (ptype == ParticleType::Electron || ptype == ParticleType::Positron) {
@@ -888,15 +891,15 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
 
   // Pre-Step Point
   G4StepPoint *aPreStepPoint = aG4Step->GetPreStepPoint();
-  aPreStepPoint->SetPosition(G4ThreeVector(aGPUHit->fPreStepPoint.fPosition.x(), aGPUHit->fPreStepPoint.fPosition.y(),
-                                           aGPUHit->fPreStepPoint.fPosition.z())); // Real data
+  aPreStepPoint->SetPosition(G4ThreeVector(aGPUStep->fPreStepPoint.fPosition.x(), aGPUStep->fPreStepPoint.fPosition.y(),
+                                           aGPUStep->fPreStepPoint.fPosition.z())); // Real data
   // aPreStepPoint->SetLocalTime(0);                                                                // Missing data
-  aPreStepPoint->SetGlobalTime(aGPUHit->fPreGlobalTime); // Real data
+  aPreStepPoint->SetGlobalTime(aGPUStep->fPreGlobalTime); // Real data
   // aPreStepPoint->SetProperTime(0);                                                               // Missing data
-  aPreStepPoint->SetMomentumDirection(G4ThreeVector(aGPUHit->fPreStepPoint.fMomentumDirection.x(),
-                                                    aGPUHit->fPreStepPoint.fMomentumDirection.y(),
-                                                    aGPUHit->fPreStepPoint.fMomentumDirection.z())); // Real data
-  aPreStepPoint->SetKineticEnergy(aGPUHit->fPreStepPoint.fEKin);                                     // Real data
+  aPreStepPoint->SetMomentumDirection(G4ThreeVector(aGPUStep->fPreStepPoint.fMomentumDirection.x(),
+                                                    aGPUStep->fPreStepPoint.fMomentumDirection.y(),
+                                                    aGPUStep->fPreStepPoint.fMomentumDirection.z())); // Real data
+  aPreStepPoint->SetKineticEnergy(aGPUStep->fPreStepPoint.fEKin);                                     // Real data
   // aPreStepPoint->SetVelocity(0);                                                                 // Missing data
   aPreStepPoint->SetTouchableHandle(aPreG4TouchableHandle);                                          // Real data
   aPreStepPoint->SetMaterial(aPreG4TouchableHandle->GetVolume()->GetLogicalVolume()->GetMaterial()); // Real data
@@ -914,11 +917,11 @@ void AdePTGeant4Integration::FillG4Step(GPUHit const *aGPUHit, G4Step *aG4Step, 
   // Post-Step Point
   G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
   aPostStepPoint->SetPosition(aPostStepPointPosition);                   // Real data
-  aPostStepPoint->SetLocalTime(aGPUHit->fLocalTime);                     // Real data
-  aPostStepPoint->SetGlobalTime(aGPUHit->fGlobalTime);                   // Real data
-  aPostStepPoint->SetProperTime(aGPUHit->fProperTime);                   // Real data
+  aPostStepPoint->SetLocalTime(aGPUStep->fLocalTime);                    // Real data
+  aPostStepPoint->SetGlobalTime(aGPUStep->fGlobalTime);                  // Real data
+  aPostStepPoint->SetProperTime(aGPUStep->fProperTime);                  // Real data
   aPostStepPoint->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
-  aPostStepPoint->SetKineticEnergy(aGPUHit->fPostStepPoint.fEKin);       // Real data
+  aPostStepPoint->SetKineticEnergy(aGPUStep->fPostStepPoint.fEKin);      // Real data
   // aPostStepPoint->SetVelocity(0);                                                                  // Missing data
   if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
       postVolume != nullptr) {                                  // protect against nullptr if postNavState is outside

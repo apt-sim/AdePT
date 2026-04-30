@@ -384,7 +384,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
     if (nextState.IsOnBoundary()) {
       // if the particle hit a boundary, and is neither stopped or outside, relocate to have the correct next state
-      // before RecordHit is called
+      // before RecordGPUStep is called
       if (!stopped && !nextState.IsOutside()) {
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
@@ -813,28 +813,28 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
         (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
-      adept_scoring::RecordHit(currentTrack.trackId, currentTrack.parentId, returnedProcessId,
-                               IsElectron ? ParticleType::Electron : ParticleType::Positron,
-                               elTrack.GetPStepLength(),                    // Step length
-                               energyDeposit,                               // Total Edep
-                               currentTrack.weight,                         // Track weight
-                               navState,                                    // Pre-step point navstate
-                               preStepPos,                                  // Pre-step point position
-                               preStepDir,                                  // Pre-step point momentum direction
-                               preStepEnergy,                               // Pre-step point kinetic energy
-                               nextState,                                   // Post-step point navstate
-                               pos,                                         // Post-step point position
-                               dir,                                         // Post-step point momentum direction
-                               eKin,                                        // Post-step point kinetic energy
-                               globalTime,                                  // global time
-                               localTime,                                   // local time
-                               properTime,                                  // proper time
-                               preStepGlobalTime,                           // global time at preStepPoint
-                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                               !trackSurvives && !continuesOnCPU,           // whether this was the last step
-                               currentTrack.stepCounter,                    // stepcounter
-                               secondaryData,                               // pointer to secondary init data
-                               nSecondaries);                               // number of secondaries
+      adept_step_recording::RecordGPUStep(currentTrack.trackId, currentTrack.parentId, returnedProcessId,
+                                          IsElectron ? ParticleType::Electron : ParticleType::Positron,
+                                          elTrack.GetPStepLength(), // Step length
+                                          energyDeposit,            // Total Edep
+                                          currentTrack.weight,      // Track weight
+                                          navState,                 // Pre-step point navstate
+                                          preStepPos,               // Pre-step point position
+                                          preStepDir,               // Pre-step point momentum direction
+                                          preStepEnergy,            // Pre-step point kinetic energy
+                                          nextState,                // Post-step point navstate
+                                          pos,                      // Post-step point position
+                                          dir,                      // Post-step point momentum direction
+                                          eKin,                     // Post-step point kinetic energy
+                                          globalTime,               // global time
+                                          localTime,                // local time
+                                          properTime,               // proper time
+                                          preStepGlobalTime,        // global time at preStepPoint
+                                          currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                          !trackSurvives && !continuesOnCPU,           // whether this was the last step
+                                          currentTrack.stepCounter,                    // stepcounter
+                                          secondaryData,                               // pointer to secondary init data
+                                          nSecondaries);                               // number of secondaries
     }
   }
 }

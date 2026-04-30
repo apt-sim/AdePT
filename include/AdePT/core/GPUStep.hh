@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-// This file contains elements that can be shared between several scoring implementations
+// This file contains the step data returned from GPU transport to the host.
 
-#ifndef SCORING_COMMONS_HH
-#define SCORING_COMMONS_HH
+#ifndef ADEPT_GPU_STEP_HH
+#define ADEPT_GPU_STEP_HH
 
 #include <AdePT/core/ParticleTypes.hh>
 #include "VecGeom/navigation/NavigationState.h"
@@ -17,9 +17,8 @@ struct GPUStepPoint {
   vecgeom::NavigationState fNavigationState{0}; // VecGeom navigation state, used to identify the touchable
 };
 
-// Stores the necessary data to reconstruct GPU hits on the host , and
-// call the user-defined Geant4 sensitive detector code
-struct GPUHit {
+// Stores the data needed to reconstruct a Geant4 step on the host.
+struct GPUStep {
   // Data needed to reconstruct pre-post step points
   GPUStepPoint fPreStepPoint;
   GPUStepPoint fPostStepPoint;
@@ -41,7 +40,7 @@ struct GPUHit {
   ParticleType fParticleType{ParticleType::Electron};
   unsigned char fNumSecondaries{0};
 
-  bool operator<(GPUHit const &other) const
+  bool operator<(GPUStep const &other) const
   {
     const auto pdgFromParticleType = [](ParticleType particleType) {
       switch (particleType) {
@@ -82,7 +81,7 @@ struct GPUHit {
   }
 };
 
-/// @brief AdePT-specific step-limiting process ids stored in GPUHit::fStepLimProcessId.
+/// @brief AdePT-specific step-limiting process ids stored in GPUStep::fStepLimProcessId.
 constexpr short kAdePTTransportationProcess = 10;
 /// @brief Returned step for a track that leaves the GPU region and continues on the CPU.
 constexpr short kAdePTOutOfGPURegionProcess = 11;
@@ -108,9 +107,9 @@ __device__ __forceinline__ void Copy3DVector(vecgeom::Vector3D<double> const &so
   destination.z() = source.z();
 };
 
-/// @brief Fill the provided hit with the given data
-__device__ __forceinline__ void FillHit(
-    GPUHit &aGPUHit, uint64_t aTrackID, uint64_t aParentID, short aStepLimProcessId, ParticleType aParticleType,
+/// @brief Fill the provided GPU step with the given data
+__device__ __forceinline__ void FillGPUStep(
+    GPUStep &aGPUStep, uint64_t aTrackID, uint64_t aParentID, short aStepLimProcessId, ParticleType aParticleType,
     double aStepLength, double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
     vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
     double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
@@ -118,34 +117,34 @@ __device__ __forceinline__ void FillHit(
     float aProperTime, double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep,
     unsigned short stepCounter, unsigned char aNumSecondaries)
 {
-  aGPUHit.fEventId = eventID;
-  aGPUHit.threadId = threadID;
+  aGPUStep.fEventId = eventID;
+  aGPUStep.threadId = threadID;
 
-  aGPUHit.fStepCounter     = stepCounter;
-  aGPUHit.fLastStepOfTrack = isLastStep;
+  aGPUStep.fStepCounter     = stepCounter;
+  aGPUStep.fLastStepOfTrack = isLastStep;
   // Fill the required data
-  aGPUHit.fTrackID            = aTrackID;
-  aGPUHit.fParentID           = aParentID;
-  aGPUHit.fStepLimProcessId   = aStepLimProcessId;
-  aGPUHit.fParticleType       = aParticleType;
-  aGPUHit.fStepLength         = aStepLength;
-  aGPUHit.fTotalEnergyDeposit = aTotalEnergyDeposit;
-  aGPUHit.fTrackWeight        = aTrackWeight;
-  aGPUHit.fGlobalTime         = aGlobalTime;
-  aGPUHit.fLocalTime          = aLocalTime;
-  aGPUHit.fProperTime         = aProperTime;
-  aGPUHit.fPreGlobalTime      = aPreGlobalTime;
-  aGPUHit.fNumSecondaries     = aNumSecondaries;
+  aGPUStep.fTrackID            = aTrackID;
+  aGPUStep.fParentID           = aParentID;
+  aGPUStep.fStepLimProcessId   = aStepLimProcessId;
+  aGPUStep.fParticleType       = aParticleType;
+  aGPUStep.fStepLength         = aStepLength;
+  aGPUStep.fTotalEnergyDeposit = aTotalEnergyDeposit;
+  aGPUStep.fTrackWeight        = aTrackWeight;
+  aGPUStep.fGlobalTime         = aGlobalTime;
+  aGPUStep.fLocalTime          = aLocalTime;
+  aGPUStep.fProperTime         = aProperTime;
+  aGPUStep.fPreGlobalTime      = aPreGlobalTime;
+  aGPUStep.fNumSecondaries     = aNumSecondaries;
   // Pre step point
-  aGPUHit.fPreStepPoint.fNavigationState = aPreState;
-  Copy3DVector(aPrePosition, aGPUHit.fPreStepPoint.fPosition);
-  Copy3DVector(aPreMomentumDirection, aGPUHit.fPreStepPoint.fMomentumDirection);
-  aGPUHit.fPreStepPoint.fEKin = aPreEKin;
+  aGPUStep.fPreStepPoint.fNavigationState = aPreState;
+  Copy3DVector(aPrePosition, aGPUStep.fPreStepPoint.fPosition);
+  Copy3DVector(aPreMomentumDirection, aGPUStep.fPreStepPoint.fMomentumDirection);
+  aGPUStep.fPreStepPoint.fEKin = aPreEKin;
   // Post step point
-  aGPUHit.fPostStepPoint.fNavigationState = aPostState;
-  Copy3DVector(aPostPosition, aGPUHit.fPostStepPoint.fPosition);
-  Copy3DVector(aPostMomentumDirection, aGPUHit.fPostStepPoint.fMomentumDirection);
-  aGPUHit.fPostStepPoint.fEKin = aPostEKin;
+  aGPUStep.fPostStepPoint.fNavigationState = aPostState;
+  Copy3DVector(aPostPosition, aGPUStep.fPostStepPoint.fPosition);
+  Copy3DVector(aPostMomentumDirection, aGPUStep.fPostStepPoint.fMomentumDirection);
+  aGPUStep.fPostStepPoint.fEKin = aPostEKin;
 };
 
 #endif
