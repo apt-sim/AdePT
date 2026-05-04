@@ -1,26 +1,29 @@
-// SPDX-FileCopyrightText: 2024 CERN
+// SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef PER_EVENT_SCORING_CUH
-#define PER_EVENT_SCORING_CUH
+#ifndef ADEPT_GPU_STEP_TRANSFER_MANAGER_CUH
+#define ADEPT_GPU_STEP_TRANSFER_MANAGER_CUH
 
 #include <AdePT/base/ResourceManagement.cuh>
+#include <AdePT/core/DeviceStepBuffer.cuh>
 #include <AdePT/core/GPUStep.hh>
 #include <AdePT/core/HostCircularBuffer.hh>
-#include <AdePT/copcore/Global.h>
-
-#include <VecGeom/navigation/NavigationState.h>
 
 #include <algorithm>
+#include <array>
+#include <cassert>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cstddef>
 #include <deque>
+#include <iostream>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
-#include <array>
-#include <chrono>
-#include <thread>
-#include <condition_variable>
 #include <sstream>
+#include <thread>
+#include <utility>
 #include <vector>
 
 // definitions for printouts and advanced debugging
@@ -29,46 +32,7 @@
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE "\033[1;34m"
 
-// Comparison for sorting tracks into events on device:
-struct CompareGPUSteps {
-  __device__ bool operator()(const GPUStep &lhs, const GPUStep &rhs) const { return lhs.threadId < rhs.threadId; }
-};
-
 namespace AsyncAdePT {
-
-/// Struct holding GPU steps to be used both on host and device.
-struct DeviceStepBufferView {
-  GPUStep *stepBuffer_dev    = nullptr;
-  unsigned int *fSlotCounter = nullptr; // Array of per-thread counters
-  unsigned int fNSlot        = 0;
-  unsigned int fNThreads     = 0;
-
-  __host__ __device__ unsigned int GetMaxSlotCount()
-  {
-    unsigned int maxVal = 0;
-    for (unsigned int i = 0; i < fNThreads; ++i) {
-      maxVal = vecCore::math::Max(maxVal, fSlotCounter[i]);
-    }
-    return maxVal;
-  }
-
-  __device__ unsigned int ReserveStepSlots(unsigned int threadId, unsigned int nSlots)
-  {
-    const auto slotStartIndex = atomicAdd(&fSlotCounter[threadId], nSlots);
-    if (slotStartIndex + nSlots > fNSlot) {
-      printf("Trying to record step #%d with only %d slots\n", slotStartIndex, fNSlot);
-      COPCORE_EXCEPTION("Out of slots in DeviceStepBufferView::NextSlot");
-    }
-    return slotStartIndex;
-  }
-
-  __device__ GPUStep &GetSlot(unsigned int threadId, unsigned int slot)
-  {
-    return stepBuffer_dev[threadId * fNSlot + slot];
-  }
-};
-
-__device__ DeviceStepBufferView gDeviceStepBuffer;
 
 struct BufferHandle {
   std::array<DeviceStepBufferView, 2> stepBufferViews;
@@ -532,53 +496,5 @@ public:
 };
 
 } // namespace AsyncAdePT
-
-namespace adept_step_recording {
-
-/// @brief Record a GPU step
-__device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId, ParticleType aParticleType,
-                              double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
-                              vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<double> const &aPrePosition,
-                              vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
-                              vecgeom::NavigationState const &aPostState,
-                              vecgeom::Vector3D<double> const &aPostPosition,
-                              vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin,
-                              double aGlobalTime, float aLocalTime, float aProperTime, double aPreGlobalTime,
-                              unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter,
-                              SecondaryInitData const *secondaryData, unsigned int nSecondaries)
-{
-
-  // defensive check
-  if (nSecondaries > 0 && secondaryData == nullptr) {
-    COPCORE_EXCEPTION("secondaryData is null but nSecondaries > 0");
-  }
-
-  // allocate step slots: one for the parent and then one for each secondary
-  auto slotStartIndex = AsyncAdePT::gDeviceStepBuffer.ReserveStepSlots(threadID, 1u + nSecondaries);
-
-  // The ProcessGPUSteps on the Host expects the step of the parent track first, and then all secondaries
-  // that were generated in that step.
-  GPUStep &parentStep = AsyncAdePT::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex);
-  // Fill the required data for the parent step
-  FillGPUStep(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
-              aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
-              aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aProperTime, aPreGlobalTime, eventID,
-              threadID, isLastStep, stepCounter, nSecondaries);
-
-  // Fill the steps for the secondaries
-  for (unsigned int i = 0; i < nSecondaries; ++i) {
-    // The index is the startIndex + 1 (for the parent) + i for the current secondary
-    GPUStep &secondaryStep = AsyncAdePT::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex + 1u + i);
-    FillGPUStep(secondaryStep, secondaryData[i].trackId, aTrackID, secondaryData[i].creatorProcessId,
-                secondaryData[i].particleType,
-                /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,
-                secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin,
-                aGlobalTime,
-                /*localTime*/ 0.f, /*properTime*/ 0.f, aGlobalTime, eventID, threadID, /*isLastStep*/ false,
-                /*stepCounter*/ 0, /*nSecondaries*/ 0);
-  }
-}
-
-} // namespace adept_step_recording
 
 #endif
