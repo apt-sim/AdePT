@@ -504,7 +504,7 @@ set(ADEPT_G4_INTEGRATION_SRCS
 add_library(Core INTERFACE)
 target_include_directories(Core
   INTERFACE
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/AdePT/copcore/>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 add_library(AdePT::Core ALIAS Core)

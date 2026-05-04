@@ -13,7 +13,7 @@
 #include "G4Material.hh"
 #include "G4MaterialTable.hh"
 
-#include <AdePT/integration/G4EmStandardPhysics_HepEm.hh>
+#include <AdePT/g4integration/G4EmStandardPhysics_HepEm.hh>
 #include "G4DecayPhysics.hh"
 #include "G4EmExtraPhysics.hh"
 #include "G4IonPhysics.hh"

@@ -9,9 +9,9 @@
 
 #include <iostream>
 #include <cassert>
-#include <AdePT/base/Atomic.h>
+#include <AdePT/transport/containers/Atomic.h>
 
-#include <AdePT/core/Portability.hh>
+#include <AdePT/transport/support/Portability.hh>
 
 // Example data structure containing several atomics
 struct SomeStruct {

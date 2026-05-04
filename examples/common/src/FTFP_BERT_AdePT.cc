@@ -21,7 +21,7 @@
 #include "G4NeutronTrackingCut.hh"
 #include "G4HadronPhysicsFTFP_BERT.hh"
 
-#include <AdePT/integration/G4EmStandardPhysics_AdePT.hh>
+#include <AdePT/g4integration/G4EmStandardPhysics_AdePT.hh>
 #include "FTFP_BERT_AdePT.hh"
 
 FTFP_BERT_AdePT::FTFP_BERT_AdePT(G4int ver)

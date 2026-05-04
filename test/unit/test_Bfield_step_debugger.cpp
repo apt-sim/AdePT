@@ -4,14 +4,14 @@
 #define __device__
 #define __host__
 
-#include <AdePT/magneticfield/MagneticFieldEquation.h>
-#include <AdePT/magneticfield/UniformMagneticField.cuh>
-#include <AdePT/magneticfield/PrintFieldVectors.h>
-#include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
-#include <AdePT/magneticfield/MagneticFieldEquation.h>
-#include <AdePT/magneticfield/DormandPrinceRK45.h>
+#include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
+#include <AdePT/transport/magneticfield/PrintFieldVectors.h>
+#include <AdePT/transport/magneticfield/fieldPropagatorRungeKutta.h>
+#include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
 
-#include <AdePT/navigation/AdePTNavigator.h>
+#include <AdePT/transport/navigation/AdePTNavigator.h>
 
 #include <VecGeom/base/Vector3D.h>
 

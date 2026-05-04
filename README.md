@@ -180,6 +180,22 @@ cuda_rdc_target_link_libraries(example_target <SCOPE>
 ```
 Note that the cuda_rdc is required, which is inherited from VecGeom and needed to avoid multi-cuda dependency issues.
 
+The public Geant4 integration headers live under `AdePT/g4integration`. For
+example, an application physics list can include the AdePT EM physics
+constructor as:
+
+```cpp
+#include <AdePT/g4integration/G4EmStandardPhysics_AdePT.hh>
+```
+
+Applications that need direct access to the tracking manager or configuration
+should include:
+
+```cpp
+#include <AdePT/g4integration/AdePTConfiguration.hh>
+#include <AdePT/g4integration/AdePTTrackingManager.hh>
+```
+
 
 ## Copyright
 

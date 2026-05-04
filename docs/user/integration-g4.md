@@ -36,6 +36,24 @@ the following approaches:
 - Use the complete AdePT physics list (`FTFP_BERT_AdePT`).
 - Keep your existing list and register `G4EmStandardPhysics_AdePT`.
 
+The public headers for this integration are under `AdePT/g4integration`. For
+example, a physics-list wrapper can include and register the AdePT EM physics
+constructor as:
+
+```cpp
+#include <AdePT/g4integration/G4EmStandardPhysics_AdePT.hh>
+
+RegisterPhysics(new G4EmStandardPhysics_AdePT(ver));
+```
+
+If your application needs to configure AdePT or interact with the tracking
+manager directly, include those headers from the same public integration area:
+
+```cpp
+#include <AdePT/g4integration/AdePTConfiguration.hh>
+#include <AdePT/g4integration/AdePTTrackingManager.hh>
+```
+
 This step enables the AdePT transport/tracking integration in the Geant4
 application.
 

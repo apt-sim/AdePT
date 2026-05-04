@@ -9,9 +9,9 @@
 
 #include <iostream>
 #include <cassert>
-#include <AdePT/base/BlockData.h>
+#include <AdePT/transport/containers/BlockData.h>
 
-#include <AdePT/core/Portability.hh>
+#include <AdePT/transport/support/Portability.hh>
 
 struct MyTrack {
   int index{0};

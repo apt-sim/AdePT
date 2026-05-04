@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdePTGeant4Integration.hh>
-#include <AdePT/integration/AdePTGeometryBridge.hh>
+#include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
+#include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
 
 #include <VecGeom/navigation/NavigationState.h>
 

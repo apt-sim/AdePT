@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/G4HepEmTrackingManagerSpecialized.hh>
-#include <AdePT/integration/AdePTThreadId.hh>
+#include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
+#include <AdePT/g4integration/tracking_managers/AdePTThreadId.hh>
 
 #include "G4Electron.hh"
 #include "G4Gamma.hh"
