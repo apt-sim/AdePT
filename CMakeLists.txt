@@ -483,22 +483,22 @@ endif()
 # Build Targets
 #----------------------------------------------------------------------------#
 set(ADEPT_CORE_SRCS
-  src/AdePTG4HepEmState.cpp
-  src/AsyncAdePTTransport.cc
-  src/AsyncAdePTTransport.cu
-  src/HostCircularBuffer.cpp
+  src/transport/g4hepem/AdePTG4HepEmState.cpp
+  src/transport/AsyncAdePTTransport.cc
+  src/transport/AsyncAdePTTransport.cu
+  src/transport/steps/HostCircularBuffer.cpp
 )
 
 set(ADEPT_G4_INTEGRATION_SRCS
-  src/AdePTConfiguration.cc
-  src/AdePTGeometryBridge.cpp
-  src/G4HepEmTrackingManagerSpecialized.cc
-  src/AdePTTrackingManager.cc
-  src/G4EmStandardPhysics_AdePT.cc
-  src/G4EmStandardPhysics_HepEm.cc
-  src/AdePTGeant4Integration.cpp
-  src/AdePTConfigurationMessenger.cc
-  src/G4IntegrationRdcFacade.cu
+  src/g4integration/config/AdePTConfiguration.cc
+  src/g4integration/config/AdePTConfigurationMessenger.cc
+  src/g4integration/cuda/G4IntegrationRdcFacade.cu
+  src/g4integration/geometry/AdePTGeometryBridge.cpp
+  src/g4integration/physics_constructors/G4EmStandardPhysics_AdePT.cc
+  src/g4integration/physics_constructors/G4EmStandardPhysics_HepEm.cc
+  src/g4integration/returned_steps/AdePTGeant4Integration.cpp
+  src/g4integration/tracking_managers/AdePTTrackingManager.cc
+  src/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.cc
 )
 
 add_library(Core INTERFACE)
@@ -514,8 +514,8 @@ cuda_rdc_add_library(Transport ${_adept_library_type}
 )
 
 if(ADEPT_USE_HIP)
-  set_source_files_properties(src/AsyncAdePTTransport.cu PROPERTIES LANGUAGE HIP)
-  set_source_files_properties(src/G4IntegrationRdcFacade.cu PROPERTIES LANGUAGE HIP)
+  set_source_files_properties(src/transport/AsyncAdePTTransport.cu PROPERTIES LANGUAGE HIP)
+  set_source_files_properties(src/g4integration/cuda/G4IntegrationRdcFacade.cu PROPERTIES LANGUAGE HIP)
 endif()
 
 cuda_rdc_target_include_directories(Transport

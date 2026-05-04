@@ -5,7 +5,7 @@
 """Generate docs/user/runtime-parameters.md from source-defined UI commands.
 
 Command metadata source:
-  - src/AdePTConfigurationMessenger.cc
+  - src/g4integration/config/AdePTConfigurationMessenger.cc
 Example invocations source:
   - test/regression/scripts/test_ui_commands_template.mac
 """
@@ -228,14 +228,15 @@ def generate(output_path: Path, messenger_path: Path, template_path: Path) -> di
         "Do not edit manually.\n"
         "-->\n\n"
         "This page is generated from:\n\n"
-        "- `src/AdePTConfigurationMessenger.cc` (authoritative command definitions and guidance)\n"
+        "- `src/g4integration/config/AdePTConfigurationMessenger.cc` "
+        "(authoritative command definitions and guidance)\n"
         "- `test/regression/scripts/test_ui_commands_template.mac` (example invocations used in CI)\n\n"
         "Regenerate with:\n\n"
         "```console\n"
         "python3 docs/scripts/generate_runtime_parameters.py\n"
         "```\n\n"
         "Categories are sourced from `// ADEPT_DOCS_SECTION: ...` markers in\n"
-        "`src/AdePTConfigurationMessenger.cc`.\n\n"
+        "`src/g4integration/config/AdePTConfigurationMessenger.cc`.\n\n"
         "Examples come from the CI UI command macro. If a command shows `-` in the\n"
         "Example column, add an invocation in `test_ui_commands_template.mac`.\n\n"
     )
@@ -256,7 +257,7 @@ def main() -> int:
     docs_dir = Path(__file__).resolve().parents[1]
     repo_root = docs_dir.parent
 
-    messenger_path = repo_root / "src" / "AdePTConfigurationMessenger.cc"
+    messenger_path = repo_root / "src" / "g4integration" / "config" / "AdePTConfigurationMessenger.cc"
     template_path = repo_root / "test" / "regression" / "scripts" / "test_ui_commands_template.mac"
     output_path = docs_dir / "user" / "runtime-parameters.md"
 
