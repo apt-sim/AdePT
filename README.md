@@ -9,7 +9,7 @@ SPDX-License-Identifier: CC-BY-4.0
 [![Nightly CI (EL9)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml/badge.svg?branch=master)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml)
 
 
-Accelerated demonstrator of electromagnetic Particle Transport
+Accelerated detector Particle Transport
 
 AdePT is a lightweight Geant4 plugin designed to accelerate high-energy
 physics simulation by offloading electromagnetic transport to GPUs.
