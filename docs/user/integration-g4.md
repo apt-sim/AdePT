@@ -84,21 +84,22 @@ then configure the underlying G4HepEm tracking settings and attach the manager t
 the particle definitions:
 
 ```cpp
-// In the physics-constructor constructor or equivalent setup:
+// Required: In the physics-constructor constructor or equivalent setup:
 fAdePTConfiguration = new AdePTConfiguration();
 
-// Optional AdePT-side defaults. If these are set in ConstructProcess(), they override the usual /adept/* macro commands, since those are normally processed before /run/initialize.
+// Optional AdePT-side defaults. If these are set in ConstructProcess(), they override the usual /adept/* macro commands, since those are normally processed before /run/initialize. This might be useful to avoid having to call many UI commands for a fixed setup.
 fAdePTConfiguration->SetCUDAStackLimit(8192);
 fAdePTConfiguration->SetTrackInAllRegions(true);
 fAdePTConfiguration->SetCallUserTrackingAction(true);
 
-// In ConstructProcess(), after registering the EM processes for the custom
-// EM constructor:
+// Required: In ConstructProcess(), after registering the EM processes for the custom
+// EM constructor, create an AdePTTrackingManager:
 fTrackingManager = new AdePTTrackingManager(fAdePTConfiguration, /*verbosity=*/0);
 
+// Optional: change the G4HepEm configuration
 auto *g4hepemConfig = fTrackingManager->GetG4HepEmConfig();
 
-// Match the G4HepEm behavior to the EM constructor that is being replaced.
+// Optional: Match the G4HepEm behavior to the EM constructor that is being replaced.
 g4hepemConfig->SetMultipleStepsInMSCWithTransportation(false);
 g4hepemConfig->SetEnergyLossStepLimitFunctionParameters(0.8, 1.0 * CLHEP::mm);
 
@@ -110,7 +111,7 @@ auto *g4hepemParameters = g4hepemConfig->GetG4HepEmParameters();
 g4hepemParameters->fElectronTrackingCut = 1.0 * CLHEP::MeV;
 g4hepemParameters->fGammaTrackingCut    = 1.0 * CLHEP::MeV;
 
-// Attach the tracking manager to e-/e+ and gamma.
+// Required: Attach the tracking manager to e-/e+ and gamma.
 G4Electron::Definition()->SetTrackingManager(fTrackingManager);
 G4Positron::Definition()->SetTrackingManager(fTrackingManager);
 G4Gamma::Definition()->SetTrackingManager(fTrackingManager);
