@@ -164,7 +164,9 @@ class GPUStepTransferManager {
       GPUStepBatch stepBatch{begin, end};
 
       if (begin != end) {
-        fBufferManager->addSegment(begin, end);
+        const auto beginOffset = static_cast<std::size_t>(begin - handle.hostBuffer);
+        const auto endOffset   = static_cast<std::size_t>(end - handle.hostBuffer);
+        fBufferManager->AddSegment(beginOffset, endOffset);
 
         std::scoped_lock lock{fStepQueueLocks[i]};
         fStepQueues[i].push_back(std::move(stepBatch));
@@ -194,9 +196,9 @@ class GPUStepTransferManager {
 
           // If the circular Buffer is too full and the G4Worker didn't pick up the work, we have to copy out the steps
           // to the holdoutBuffer
-          if (fBufferManager->getFillFraction() > fCPUCopyFraction) {
+          if (fBufferManager->GetFillFractionAfterLastRequest() > fCPUCopyFraction) {
             if (debugLevel > 5) {
-              std::cout << BOLD_RED << "FillFraction too high: " << fBufferManager->getFillFraction()
+              std::cout << BOLD_RED << "FillFraction too high: " << fBufferManager->GetFillFractionAfterLastRequest()
                         << ", threshold: " << fCPUCopyFraction << " copying out " << numSteps << " steps for G4Worker "
                         << i << RESET << std::endl;
             }
@@ -204,7 +206,8 @@ class GPUStepTransferManager {
             std::copy(ret.begin, ret.end, ret.holdoutBuffer.begin()); // Copy data
 
             // remove the segment first, before updating the pointers to the copied out memory
-            fBufferManager->removeSegment(ret.begin);
+            const auto beginOffset = static_cast<std::size_t>(ret.begin - handle.hostBuffer);
+            fBufferManager->RemoveSegment(beginOffset);
 
             // Update pointers
             ret.begin = ret.holdoutBuffer.data();
@@ -274,7 +277,7 @@ public:
     fBuffer.hostStepCount = fGPUStepBufferCount_host.get();
     fBuffer.hostState     = BufferHandle::HostState::ReadyToBeFilled;
 
-    fBufferManager = std::make_unique<HostCircularBuffer>(fGPUStepBuffer_host.get(), hostBufferCapacity);
+    fBufferManager = std::make_unique<HostCircularBuffer>(hostBufferCapacity);
 
     ADEPT_DEVICE_API_CALL(GetSymbolAddress(&fDeviceStepBuffer_deviceAddress, gDeviceStepBuffer));
     assert(fDeviceStepBuffer_deviceAddress != nullptr);
@@ -448,7 +451,7 @@ public:
         transferSize += fBuffer.hostStepCount[i];
       }
 
-      if (fBufferManager->getFreeContiguousMemory(transferSize) < transferSize) {
+      if (fBufferManager->GetFreeContiguousSlots(transferSize) < transferSize) {
         continue;
       }
 
@@ -457,7 +460,7 @@ public:
       fBuffer.hostState.store(BufferHandle::HostState::TransferFromDevice);
 
       auto bufferBegin     = fBuffer.stepBufferViews[prevActiveDeviceBuffer].stepBuffer_dev;
-      fBuffer.offsetAtCopy = fBufferManager->getOffset();
+      fBuffer.offsetAtCopy = fBufferManager->GetWriteOffset();
 
       // Copy out the steps:
       // The start address on device is always i * fNSlot (Slots per thread), and we copy always to
@@ -520,7 +523,10 @@ public:
 #endif
 
     // if data is in the hostBuffer (and not the holdoutBuffer), update the HostCircularBuffer and release the memory
-    if (dataOnBuffer) fBufferManager->removeSegment(begin);
+    if (dataOnBuffer) {
+      const auto beginOffset = static_cast<std::size_t>(begin - fBuffer.hostBuffer);
+      fBufferManager->RemoveSegment(beginOffset);
+    }
     fStepQueues[threadId].pop_front();
   }
 };

@@ -15,13 +15,12 @@
 
 namespace AsyncAdePT {
 
-HostCircularBuffer::HostCircularBuffer(GPUStep *bufferStart, std::size_t capacity)
-    : fBufferStart(bufferStart), fBufferEnd(bufferStart + capacity), fWritePtr(bufferStart),
-      fFreeContiguousSpace(capacity)
+HostCircularBuffer::HostCircularBuffer(std::size_t capacity)
+    : fCapacity(capacity), fWriteOffset(0), fFreeContiguousSpace(capacity)
 {
 }
 
-bool HostCircularBuffer::addSegment(GPUStep *begin, GPUStep *end)
+bool HostCircularBuffer::AddSegment(std::size_t begin, std::size_t end)
 {
   std::scoped_lock lock{bufferManagerMutex};
 
@@ -29,8 +28,9 @@ bool HostCircularBuffer::addSegment(GPUStep *begin, GPUStep *end)
   fSegments.insert(std::upper_bound(fSegments.begin(), fSegments.end(), Segment{begin, end}), {begin, end});
 
 #ifdef DEBUG
-  if (begin != fWritePtr)
-    std::cout << BOLD_RED << " Begin != fWritePTr " << begin << " fWritePtr " << fWritePtr << RESET << std::endl;
+  if (begin != fWriteOffset)
+    std::cout << BOLD_RED << " Begin != fWriteOffset " << begin << " fWriteOffset " << fWriteOffset << RESET
+              << std::endl;
   std::size_t size = end - begin;
   if (size > fFreeContiguousSpace)
     std::cout << BOLD_RED << " Not enough space! size " << size << " fFreeContiguousSpace " << fFreeContiguousSpace
@@ -38,23 +38,22 @@ bool HostCircularBuffer::addSegment(GPUStep *begin, GPUStep *end)
   if (!checkForOverlaps()) std::cout << BOLD_RED << " Overlaps after AddSegment! " << RESET << std::endl;
 #endif
 
-  fWritePtr = end;
+  fWriteOffset = end;
 
   return true;
 }
 
-void HostCircularBuffer::removeSegment(GPUStep *segmentPtr)
+void HostCircularBuffer::RemoveSegment(std::size_t segmentBegin)
 {
   std::scoped_lock lock{bufferManagerMutex};
 
   // Find the segment
   auto it = std::find_if(fSegments.begin(), fSegments.end(),
-                         [segmentPtr](const Segment &seg) { return seg.begin == segmentPtr; });
+                         [segmentBegin](const Segment &seg) { return seg.begin == segmentBegin; });
 
 #ifdef DEBUG
-  if (!segmentPtr) std::cout << BOLD_RED << " Trying to remove nullptr segment " << RESET << std::endl;
   if (it == fSegments.end())
-    std::cout << BOLD_RED << " Trying to remove segment that doesn't exist !! segment : " << segmentPtr << RESET
+    std::cout << BOLD_RED << " Trying to remove segment that doesn't exist !! segment : " << segmentBegin << RESET
               << std::endl;
   if (!checkForOverlaps()) std::cout << BOLD_RED << " Overlaps after removesegment! " << RESET << std::endl;
 #endif
@@ -63,34 +62,35 @@ void HostCircularBuffer::removeSegment(GPUStep *segmentPtr)
   fSegments.erase(it);
 }
 
-std::size_t HostCircularBuffer::getFreeContiguousMemory(std::size_t transferSize)
+std::size_t HostCircularBuffer::GetFreeContiguousSlots(std::size_t transferSize)
 {
   std::scoped_lock lock{bufferManagerMutex};
 
   if (fSegments.empty()) {
-    // if empty, reset WritePtr to Bufferstart
-    fWritePtr = fBufferStart;
-    return fBufferEnd - fBufferStart; // Everything is free
+    // If empty, reset the write offset to the beginning of the buffer.
+    fWriteOffset = 0;
+    return fCapacity; // Everything is free
   }
 
-  // Find the next segment after fWritePtr
-  auto nextSegment = std::lower_bound(fSegments.begin(), fSegments.end(), Segment{fWritePtr, nullptr},
+  // Find the next segment after fWriteOffset
+  auto nextSegment = std::lower_bound(fSegments.begin(), fSegments.end(), Segment{fWriteOffset, 0},
                                       [](const Segment &a, const Segment &b) { return a.begin < b.begin; });
 
   // Find the previous segment before nextSegment (if it exists)
   auto prevSegment = (nextSegment != fSegments.begin()) ? std::prev(nextSegment) : fSegments.end();
 
-  // If the fWritePtr was set on an end of a segment that was deleted, we can put it back to the last previous
+  // If fWriteOffset was set on an end of a segment that was deleted, we can put it back to the last previous
   // existing segment
-  if (prevSegment != fSegments.end() && fWritePtr != prevSegment->end) {
-    fWritePtr = prevSegment->end;
+  if (prevSegment != fSegments.end() && fWriteOffset != prevSegment->end) {
+    fWriteOffset = prevSegment->end;
   }
 
-  // Free space from `fWritePtr` to next segment
-  std::size_t forwardSpace = (nextSegment != fSegments.end()) ? nextSegment->begin - fWritePtr : fBufferEnd - fWritePtr;
+  // Free space from fWriteOffset to next segment
+  std::size_t forwardSpace =
+      (nextSegment != fSegments.end()) ? nextSegment->begin - fWriteOffset : fCapacity - fWriteOffset;
 
   // Free space for a wraparound
-  std::size_t wrapAroundSpace = (fSegments.front().begin > fBufferStart) ? (fSegments.front().begin - fBufferStart) : 0;
+  std::size_t wrapAroundSpace = (fSegments.front().begin > 0) ? fSegments.front().begin : 0;
 
   fFreeContiguousSpace = forwardSpace + wrapAroundSpace - transferSize;
 
@@ -99,7 +99,7 @@ std::size_t HostCircularBuffer::getFreeContiguousMemory(std::size_t transferSize
   }
 
   if (wrapAroundSpace >= transferSize) {
-    fWritePtr = fBufferStart; // Reset fWritePtr since we need to wrap around
+    fWriteOffset = 0; // Reset fWriteOffset since we need to wrap around
     return wrapAroundSpace;
   }
 
@@ -108,22 +108,21 @@ std::size_t HostCircularBuffer::getFreeContiguousMemory(std::size_t transferSize
             << "Cannot transfer from Device to Host due to lack of space in CPU HostBuffer. This should never be "
                "the case! transfersize "
             << transferSize << " forwardSpace " << forwardSpace << " wraparoundspace " << wrapAroundSpace
-            << " total space : " << (fBufferEnd - fBufferStart) << " free space " << fFreeContiguousSpace << RESET
-            << std::endl;
+            << " total space : " << fCapacity << " free space " << fFreeContiguousSpace << RESET << std::endl;
   checkForOverlaps();
 #endif
 
   return 0; // Not enough contiguous space available
 }
 
-double HostCircularBuffer::getFillFraction() const
+double HostCircularBuffer::GetFillFractionAfterLastRequest() const
 {
-  return 1. - static_cast<double>(fFreeContiguousSpace) / (fBufferEnd - fBufferStart);
+  return 1. - static_cast<double>(fFreeContiguousSpace) / fCapacity;
 }
 
-std::size_t HostCircularBuffer::getOffset() const
+std::size_t HostCircularBuffer::GetWriteOffset() const
 {
-  return fWritePtr - fBufferStart;
+  return fWriteOffset;
 }
 
 bool HostCircularBuffer::checkForOverlaps() const

@@ -27,135 +27,126 @@ static bool near(double lhs, double rhs)
 
 static int test_empty_buffer_allows_exact_fit()
 {
-  std::vector<GPUStep> storage(8);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(8);
 
-  CHECK(buffer.getOffset() == 0);
-  CHECK(buffer.getFreeContiguousMemory(8) == 8);
-  CHECK(buffer.getOffset() == 0);
-  CHECK(near(buffer.getFillFraction(), 0.0));
+  CHECK(buffer.GetWriteOffset() == 0);
+  CHECK(buffer.GetFreeContiguousSlots(8) == 8);
+  CHECK(buffer.GetWriteOffset() == 0);
+  CHECK(near(buffer.GetFillFractionAfterLastRequest(), 0.0));
 
   return 0;
 }
 
 static int test_segment_add_remove_and_full_buffer()
 {
-  std::vector<GPUStep> storage(10);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(10);
 
-  CHECK(buffer.getFreeContiguousMemory(10) == 10);
-  CHECK(buffer.addSegment(storage.data(), storage.data() + 10));
-  CHECK(buffer.getOffset() == 10);
+  CHECK(buffer.GetFreeContiguousSlots(10) == 10);
+  CHECK(buffer.AddSegment(0, 10));
+  CHECK(buffer.GetWriteOffset() == 10);
 
-  CHECK(buffer.getFreeContiguousMemory(1) == 0);
+  CHECK(buffer.GetFreeContiguousSlots(1) == 0);
 
-  buffer.removeSegment(storage.data());
-  CHECK(buffer.getFreeContiguousMemory(10) == 10);
-  CHECK(buffer.getOffset() == 0);
+  buffer.RemoveSegment(0);
+  CHECK(buffer.GetFreeContiguousSlots(10) == 10);
+  CHECK(buffer.GetWriteOffset() == 0);
 
   return 0;
 }
 
 static int test_fill_fraction_preserves_existing_pending_transfer_semantics()
 {
-  std::vector<GPUStep> storage(10);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(10);
 
-  CHECK(buffer.getFreeContiguousMemory(4) == 10);
-  CHECK(buffer.addSegment(storage.data(), storage.data() + 4));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 10);
+  CHECK(buffer.AddSegment(0, 4));
 
-  // This intentionally documents the existing behavior: getFillFraction() is
-  // based on the contiguous-space bookkeeping after a transfer-size query. It
-  // is not simply occupiedSlots / capacity.
-  CHECK(buffer.getFreeContiguousMemory(3) == 6);
-  CHECK(near(buffer.getFillFraction(), 0.7));
+  // This intentionally documents the existing behavior: GetFillFractionAfterLastRequest() is based on the
+  // contiguous-space bookkeeping after a transfer-size query. It is not simply occupiedSlots / capacity.
+  CHECK(buffer.GetFreeContiguousSlots(3) == 6);
+  CHECK(near(buffer.GetFillFractionAfterLastRequest(), 0.7));
 
   return 0;
 }
 
 static int test_wraparound_after_front_segment_is_removed()
 {
-  std::vector<GPUStep> storage(10);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(10);
 
-  CHECK(buffer.getFreeContiguousMemory(6) == 10);
-  CHECK(buffer.addSegment(storage.data(), storage.data() + 6));
+  CHECK(buffer.GetFreeContiguousSlots(6) == 10);
+  CHECK(buffer.AddSegment(0, 6));
 
-  CHECK(buffer.getFreeContiguousMemory(4) == 4);
-  CHECK(buffer.getOffset() == 6);
-  CHECK(buffer.addSegment(storage.data() + 6, storage.data() + 10));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 4);
+  CHECK(buffer.GetWriteOffset() == 6);
+  CHECK(buffer.AddSegment(6, 10));
 
-  buffer.removeSegment(storage.data());
-  CHECK(buffer.getFreeContiguousMemory(6) == 6);
-  CHECK(buffer.getOffset() == 0);
-  CHECK(near(buffer.getFillFraction(), 1.0));
+  buffer.RemoveSegment(0);
+  CHECK(buffer.GetFreeContiguousSlots(6) == 6);
+  CHECK(buffer.GetWriteOffset() == 0);
+  CHECK(near(buffer.GetFillFractionAfterLastRequest(), 1.0));
 
   return 0;
 }
 
 static int test_tail_space_is_reused_after_tail_segment_is_removed()
 {
-  std::vector<GPUStep> storage(12);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(12);
 
-  CHECK(buffer.getFreeContiguousMemory(4) == 12);
-  CHECK(buffer.addSegment(storage.data(), storage.data() + 4));
-  CHECK(buffer.getFreeContiguousMemory(4) == 8);
-  CHECK(buffer.addSegment(storage.data() + 4, storage.data() + 8));
-  CHECK(buffer.getFreeContiguousMemory(4) == 4);
-  CHECK(buffer.addSegment(storage.data() + 8, storage.data() + 12));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 12);
+  CHECK(buffer.AddSegment(0, 4));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 8);
+  CHECK(buffer.AddSegment(4, 8));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 4);
+  CHECK(buffer.AddSegment(8, 12));
 
-  buffer.removeSegment(storage.data() + 8);
-  CHECK(buffer.getFreeContiguousMemory(4) == 4);
-  CHECK(buffer.getOffset() == 8);
+  buffer.RemoveSegment(8);
+  CHECK(buffer.GetFreeContiguousSlots(4) == 4);
+  CHECK(buffer.GetWriteOffset() == 8);
 
   return 0;
 }
 
 static int test_middle_hole_is_not_reused_from_end_write_position()
 {
-  std::vector<GPUStep> storage(12);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(12);
 
-  CHECK(buffer.getFreeContiguousMemory(4) == 12);
-  CHECK(buffer.addSegment(storage.data(), storage.data() + 4));
-  CHECK(buffer.getFreeContiguousMemory(4) == 8);
-  CHECK(buffer.addSegment(storage.data() + 4, storage.data() + 8));
-  CHECK(buffer.getFreeContiguousMemory(4) == 4);
-  CHECK(buffer.addSegment(storage.data() + 8, storage.data() + 12));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 12);
+  CHECK(buffer.AddSegment(0, 4));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 8);
+  CHECK(buffer.AddSegment(4, 8));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 4);
+  CHECK(buffer.AddSegment(8, 12));
 
-  buffer.removeSegment(storage.data() + 4);
-  CHECK(buffer.getFreeContiguousMemory(4) == 0);
-  CHECK(buffer.getOffset() == 12);
+  buffer.RemoveSegment(4);
+  CHECK(buffer.GetFreeContiguousSlots(4) == 0);
+  CHECK(buffer.GetWriteOffset() == 12);
 
   return 0;
 }
 
 static int test_fragmentation_can_block_larger_transfers()
 {
-  std::vector<GPUStep> storage(12);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(12);
 
-  CHECK(buffer.getFreeContiguousMemory(4) == 12);
-  CHECK(buffer.addSegment(storage.data(), storage.data() + 4));
-  CHECK(buffer.getFreeContiguousMemory(4) == 8);
-  CHECK(buffer.addSegment(storage.data() + 4, storage.data() + 8));
-  CHECK(buffer.getFreeContiguousMemory(4) == 4);
-  CHECK(buffer.addSegment(storage.data() + 8, storage.data() + 12));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 12);
+  CHECK(buffer.AddSegment(0, 4));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 8);
+  CHECK(buffer.AddSegment(4, 8));
+  CHECK(buffer.GetFreeContiguousSlots(4) == 4);
+  CHECK(buffer.AddSegment(8, 12));
 
-  buffer.removeSegment(storage.data());
-  buffer.removeSegment(storage.data() + 8);
-  CHECK(buffer.getFreeContiguousMemory(5) == 0);
-  CHECK(buffer.getFreeContiguousMemory(4) == 4);
-  CHECK(buffer.getOffset() == 8);
+  buffer.RemoveSegment(0);
+  buffer.RemoveSegment(8);
+  CHECK(buffer.GetFreeContiguousSlots(5) == 0);
+  CHECK(buffer.GetFreeContiguousSlots(4) == 4);
+  CHECK(buffer.GetWriteOffset() == 8);
 
   return 0;
 }
 
 static int test_concurrent_allocation_and_release()
 {
-  std::vector<GPUStep> storage(64);
-  AsyncAdePT::HostCircularBuffer buffer(storage.data(), storage.size());
+  AsyncAdePT::HostCircularBuffer buffer(64);
 
   constexpr int nSegments = 10000;
   constexpr int nWorkers  = 4;
@@ -163,26 +154,26 @@ static int test_concurrent_allocation_and_release()
   std::atomic_bool failed{false};
   std::atomic_int removedSegments{0};
   std::atomic_int producedSegments{0};
-  std::deque<GPUStep *> pointersToRelease;
+  std::deque<std::size_t> offsetsToRelease;
   std::mutex queueMutex;
   std::condition_variable queueCondition;
   bool producerDone = false;
 
   auto worker = [&]() {
     while (true) {
-      GPUStep *segmentBegin = nullptr;
+      std::size_t offset = 0;
       {
         std::unique_lock lock{queueMutex};
-        queueCondition.wait(lock, [&]() { return producerDone || !pointersToRelease.empty(); });
-        if (pointersToRelease.empty()) {
+        queueCondition.wait(lock, [&]() { return producerDone || !offsetsToRelease.empty(); });
+        if (offsetsToRelease.empty()) {
           if (producerDone) return;
           continue;
         }
-        segmentBegin = pointersToRelease.front();
-        pointersToRelease.pop_front();
+        offset = offsetsToRelease.front();
+        offsetsToRelease.pop_front();
       }
 
-      buffer.removeSegment(segmentBegin);
+      buffer.RemoveSegment(offset);
       removedSegments.fetch_add(1, std::memory_order_relaxed);
     }
   };
@@ -194,14 +185,12 @@ static int test_concurrent_allocation_and_release()
   }
 
   for (int i = 0; i < nSegments; ++i) {
-    while (buffer.getFreeContiguousMemory(1) == 0) {
+    while (buffer.GetFreeContiguousSlots(1) == 0) {
       std::this_thread::yield();
     }
 
-    const auto offset         = buffer.getOffset();
-    GPUStep *segmentBegin     = storage.data() + offset;
-    GPUStep *const segmentEnd = segmentBegin + 1;
-    if (!buffer.addSegment(segmentBegin, segmentEnd)) {
+    const auto offset = buffer.GetWriteOffset();
+    if (!buffer.AddSegment(offset, offset + 1)) {
       failed.store(true, std::memory_order_relaxed);
       break;
     }
@@ -209,7 +198,7 @@ static int test_concurrent_allocation_and_release()
 
     {
       std::scoped_lock lock{queueMutex};
-      pointersToRelease.push_back(segmentBegin);
+      offsetsToRelease.push_back(offset);
     }
     queueCondition.notify_one();
   }
@@ -227,8 +216,8 @@ static int test_concurrent_allocation_and_release()
   CHECK(!failed.load(std::memory_order_relaxed));
   CHECK(producedSegments.load(std::memory_order_relaxed) == nSegments);
   CHECK(removedSegments.load(std::memory_order_relaxed) == nSegments);
-  CHECK(buffer.getFreeContiguousMemory(storage.size()) == storage.size());
-  CHECK(buffer.getOffset() == 0);
+  CHECK(buffer.GetFreeContiguousSlots(64) == 64);
+  CHECK(buffer.GetWriteOffset() == 0);
 
   return 0;
 }

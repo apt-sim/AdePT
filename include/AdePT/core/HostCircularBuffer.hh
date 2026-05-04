@@ -4,8 +4,6 @@
 #ifndef ADEPT_HOST_CIRCULAR_BUFFER_HH
 #define ADEPT_HOST_CIRCULAR_BUFFER_HH
 
-#include <AdePT/core/GPUStep.hh>
-
 #include <cstddef>
 #include <mutex>
 #include <string>
@@ -25,40 +23,39 @@ namespace AsyncAdePT {
 class HostCircularBuffer {
 public:
   struct Segment {
-    GPUStep *begin;
-    GPUStep *end;
+    std::size_t begin{0};
+    std::size_t end{0};
 
     bool operator<(const Segment &other) const { return begin < other.begin; }
   };
 
-  HostCircularBuffer(GPUStep *bufferStart, std::size_t capacity);
+  explicit HostCircularBuffer(std::size_t capacity);
 
   /// Adds a segment at the provided position. Ensures segments remain sorted.
-  bool addSegment(GPUStep *begin, GPUStep *end);
+  bool AddSegment(std::size_t begin, std::size_t end);
 
-  /// Removes a segment based on its starting pointer and updates fWritePtr accordingly.
-  void removeSegment(GPUStep *segmentPtr);
+  /// Removes a segment based on its starting offset.
+  void RemoveSegment(std::size_t segmentBegin);
 
-  /// Returns the contiguous free space in front of the fWritePtr (or at the beginning of the buffer in case of a
+  /// Returns the contiguous free space in front of the write offset (or at the beginning of the buffer in case of a
   /// wraparound).
-  std::size_t getFreeContiguousMemory(std::size_t transferSize);
+  std::size_t GetFreeContiguousSlots(std::size_t transferSize);
 
-  /// @brief Return the current fill fraction according to the existing transfer-manager bookkeeping.
+  /// @brief Return the fill fraction according to the existing transfer-manager bookkeeping.
   /// @details This intentionally preserves the historical semantics: the value is based on fFreeContiguousSpace,
-  /// which is updated by getFreeContiguousMemory(transferSize) and includes the pending transfer size.
-  double getFillFraction() const;
+  /// which is updated by GetFreeContiguousSlots(transferSize) and includes the pending transfer size.
+  double GetFillFractionAfterLastRequest() const;
 
-  std::size_t getOffset() const;
+  std::size_t GetWriteOffset() const;
 
 private:
   bool checkForOverlaps() const;
   void printSegments(const std::string &msg) const;
 
-  GPUStep *fBufferStart;
-  GPUStep *fBufferEnd;
-  GPUStep *fWritePtr;
+  std::size_t fCapacity{0};
+  std::size_t fWriteOffset{0};
   std::size_t fFreeContiguousSpace;
-  std::vector<Segment> fSegments; // **Sorted vector instead of set**
+  std::vector<Segment> fSegments; // sorted by segment start offset
   mutable std::mutex bufferManagerMutex;
 };
 
