@@ -14,6 +14,7 @@
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/state/EventState.hh>
 #include <AdePT/transport/steps/GPUStep.hh>
+#include <AdePT/transport/woodcock/WoodcockData.hh>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume

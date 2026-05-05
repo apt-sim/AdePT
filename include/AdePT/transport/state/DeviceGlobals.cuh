@@ -8,6 +8,7 @@
 #include <AdePT/transport/magneticfield/GeneralMagneticField.cuh>
 #include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
 #include <AdePT/transport/support/SystemOfUnits.h>
+#include <AdePT/transport/woodcock/WoodcockData.hh>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>

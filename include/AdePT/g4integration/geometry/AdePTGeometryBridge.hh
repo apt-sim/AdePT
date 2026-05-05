@@ -5,6 +5,7 @@
 #define ADEPT_GEOMETRY_BRIDGE_HH
 
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
+#include <AdePT/transport/woodcock/WoodcockData.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
 
 #include <VecGeom/base/Config.h>
