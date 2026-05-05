@@ -26,9 +26,9 @@ extern __constant__ __device__ adeptint::WDTDeviceView gWDTData;
 constexpr double kPush = 1.e-8 * copcore::units::cm;
 
 #ifdef ADEPT_USE_EXT_BFIELD
-__device__ GeneralMagneticField *gMagneticField = nullptr;
+extern __device__ GeneralMagneticField *gMagneticField;
 #else
-__device__ UniformMagneticField *gMagneticField = nullptr;
+extern __device__ UniformMagneticField *gMagneticField;
 #endif
 
 } // namespace AsyncAdePT

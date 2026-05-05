@@ -128,11 +128,6 @@ struct GPUstate {
   }
 };
 
-void GPUstateDeleter::operator()(GPUstate *ptr)
-{
-  delete ptr;
-}
-
 } // namespace AsyncAdePT
 
 #endif

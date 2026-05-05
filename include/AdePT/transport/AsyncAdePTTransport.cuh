@@ -1431,6 +1431,12 @@ __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 
 __constant__ __device__ adeptint::WDTDeviceView gWDTData;
 
+#ifdef ADEPT_USE_EXT_BFIELD
+__device__ GeneralMagneticField *gMagneticField = nullptr;
+#else
+__device__ UniformMagneticField *gMagneticField = nullptr;
+#endif
+
 /// Transfer volume auxiliary data to GPU
 void InitVolAuxArray(adeptint::VolAuxArray &array)
 {
