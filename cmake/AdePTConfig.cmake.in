@@ -31,10 +31,10 @@ if(G4HepEm_FOUND)
   message(STATUS "G4HepEm Found ${G4HepEm_INCLUDE_DIR}")
 endif()
 
-find_dependency(G4VG 1.0.1 REQUIRED)
+find_dependency(G4VG @ADEPT_G4VG_VERSION@ REQUIRED)
 
 if(@ADEPT_USE_EXT_BFIELD@)
-  find_dependency(covfie REQUIRED)
+  find_dependency(covfie @ADEPT_COVFIE_VERSION@ REQUIRED)
 endif()
 
 if(@ADEPT_ENABLE_POWER_METER@)

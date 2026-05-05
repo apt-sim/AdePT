@@ -7,10 +7,16 @@ cmake_minimum_required(VERSION 3.25.2)
 include(cmake/RecordCmdLine.cmake)
 
 project(AdePT
-  VERSION 0.1.0
-  DESCRIPTION "Accelerated demonstrator of electromagnetic Particle Transport"
+  VERSION 0.3.1
+  DESCRIPTION "Accelerated detector Particle Transport"
   LANGUAGES C CXX
 )
+
+# Set versions of G4VG and covfie that are pulled in the CMake configuration
+set(ADEPT_G4VG_VERSION 1.0.6)
+set(ADEPT_G4VG_TAG v${ADEPT_G4VG_VERSION})
+set(ADEPT_COVFIE_VERSION 0.15.5)
+set(ADEPT_COVFIE_TAG v${ADEPT_COVFIE_VERSION})
 
 #----------------------------------------------------------------------------#
 # CMake and Build Settings
@@ -378,7 +384,7 @@ if(ADEPT_USE_BUILTIN_G4VG)
   FetchContent_Declare(
     g4vg
     GIT_REPOSITORY https://github.com/celeritas-project/g4vg
-    GIT_TAG f4308d392a502b7bd7468938f8d9a63198d3d866 # v1.0.3
+    GIT_TAG ${ADEPT_G4VG_TAG}
   )
   # Keep the fetched G4VG library type aligned with AdePT.
   if(_adept_library_type STREQUAL "SHARED")
@@ -389,7 +395,7 @@ if(ADEPT_USE_BUILTIN_G4VG)
   FetchContent_MakeAvailable(g4vg)
   message(STATUS "Using FetchContent to build G4VG as part of AdePT")
 else()
-  find_package(G4VG 1.0.3 REQUIRED)
+  find_package(G4VG ${ADEPT_G4VG_VERSION} REQUIRED)
   message(STATUS "Found G4VG: ${G4VG_DIR}")
 endif()
 
@@ -402,21 +408,20 @@ if(ADEPT_USE_EXT_BFIELD)
   message(STATUS "Compiling with external magnetic field support via covfie")
   add_compile_definitions(ADEPT_USE_EXT_BFIELD)
 
-  find_package(covfie QUIET)
+  find_package(covfie ${ADEPT_COVFIE_VERSION} QUIET)
   if (covfie_FOUND)
     get_target_property(COVFIE_INCLUDE_DIR covfie::core INTERFACE_INCLUDE_DIRECTORIES)
     message(STATUS "covfie found at: ${COVFIE_INCLUDE_DIR}")
   else()
     set(ADEPT_COVFIE_REPO "https://github.com/acts-project/covfie.git")
-    set(ADEPT_COVFIE_BRANCH "v0.15.3") # latest version number at 06.08.2025
 
-    message(STATUS "No covfie provided, fetching from: ${ADEPT_COVFIE_REPO} (branch: ${ADEPT_COVFIE_BRANCH})")
+    message(STATUS "No covfie provided, fetching from: ${ADEPT_COVFIE_REPO} (tag: ${ADEPT_COVFIE_TAG})")
 
     include(FetchContent)
     FetchContent_Declare(
       covfie
       GIT_REPOSITORY ${ADEPT_COVFIE_REPO}
-      GIT_TAG ${ADEPT_COVFIE_BRANCH}
+      GIT_TAG ${ADEPT_COVFIE_TAG}
     )
 
     set(COVFIE_PLATFORM_CUDA ON CACHE BOOL "Enable CUDA support in covfie" FORCE)
