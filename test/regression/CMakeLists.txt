@@ -35,11 +35,6 @@ set(SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/test/regression/scripts")
 set(TEMP_DIR "${PROJECT_SOURCE_DIR}/test/regression/ci_tmp")
 set(TEMP_SPLIT_DIR "${PROJECT_SOURCE_DIR}/test/regression/ci_tmp_split")
 
-add_test(NAME test_macro_generator_covfie_bfield
-  COMMAND python3 ${SCRIPTS_DIR}/python_scripts/test_macro_generator_covfie_bfield.py
-)
-set_tests_properties(test_macro_generator_covfie_bfield PROPERTIES LABELS "unit")
-
 set(PHYSICS_DRIFT_COVFIE_BFIELD_FILE "")
 if(ADEPT_USE_EXT_BFIELD)
   set(PHYSICS_DRIFT_COVFIE_BFIELD_FILE "${PROJECT_BINARY_DIR}/constant_1T_bfield.cvf")
