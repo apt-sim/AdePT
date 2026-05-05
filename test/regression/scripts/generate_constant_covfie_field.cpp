@@ -17,6 +17,10 @@ int main(int argc, char **argv)
     return 2;
   }
 
+  // Macro commands specify magnetic fields in tesla, but Geant4 and AdePT
+  // transport use Geant4's internal magnetic-field units. Store those internal
+  // values in the Covfie file so a generated "1 T" map matches
+  // /detector/setField 0 0 1 tesla.
   std::array<float, 3> fieldValue{{0.f, 0.f, static_cast<float>(tesla)}};
   if (argc == 5) {
     fieldValue = {{static_cast<float>(std::atof(argv[2]) * tesla), static_cast<float>(std::atof(argv[3]) * tesla),
@@ -29,6 +33,9 @@ int main(int argc, char **argv)
     return 1;
   }
 
+  // The generated map is intentionally tiny and deterministic. It is a test
+  // fixture, not a detector field map: every grid point stores the same field
+  // vector, so interpolation represents a constant field throughout the volume.
   adept_test::WriteConstantCovfieField(output, fieldValue);
   return 0;
 }

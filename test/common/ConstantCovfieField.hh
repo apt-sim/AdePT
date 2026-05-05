@@ -17,6 +17,9 @@
 
 namespace adept_test {
 
+// Match the IO field type consumed by AdePT's GeneralMagneticField:
+// an affine transform from world coordinates into a linearly interpolated,
+// strided 3D array storing float3 magnetic-field values.
 using ConstantCovfieInnerBackend =
     covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>;
 using ConstantCovfieBackend = covfie::backend::affine<covfie::backend::linear<ConstantCovfieInnerBackend>>;
@@ -25,6 +28,9 @@ using ConstantCovfieField   = covfie::field<ConstantCovfieBackend>;
 inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &fieldValue, float minExtent = -10000.f,
                                                    float maxExtent = 10000.f)
 {
+  // A 2x2x2 grid is the smallest useful 3D map for linear interpolation.
+  // Because every sample has the same value, interpolation anywhere inside
+  // the mapped volume still represents a constant field.
   constexpr std::size_t kSamplesPerAxis = 2;
 
   covfie::field<ConstantCovfieInnerBackend> inner(covfie::make_parameter_pack(
@@ -39,6 +45,10 @@ inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &f
     }
   }
 
+  // Convert world coordinates in [minExtent, maxExtent] along each axis into
+  // the index range [0, kSamplesPerAxis - 1] used by the strided backend.
+  // Values outside the range are clamped by the CPU-side Covfie wrapper used
+  // in MagneticFields.hh; the GPU texture backend also clamps accesses.
   const auto translation = covfie::algebra::affine<3>::translation(-minExtent, -minExtent, -minExtent);
   const auto scale       = static_cast<float>(kSamplesPerAxis - 1) / (maxExtent - minExtent);
   const auto scaling     = covfie::algebra::affine<3>::scaling(scale, scale, scale);
@@ -51,6 +61,8 @@ inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &f
 inline void WriteConstantCovfieField(std::ostream &output, const std::array<float, 3> &fieldValue,
                                      float minExtent = -10000.f, float maxExtent = 10000.f)
 {
+  // Keep the helper header-only so tests and tiny generators can share exactly
+  // the same fixture creation code without introducing another library target.
   auto field = MakeConstantCovfieField(fieldValue, minExtent, maxExtent);
   field.dump(output);
 }
