@@ -35,6 +35,31 @@ set(SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/test/regression/scripts")
 set(TEMP_DIR "${PROJECT_SOURCE_DIR}/test/regression/ci_tmp")
 set(TEMP_SPLIT_DIR "${PROJECT_SOURCE_DIR}/test/regression/ci_tmp_split")
 
+add_test(NAME test_macro_generator_covfie_bfield
+  COMMAND python3 ${SCRIPTS_DIR}/python_scripts/test_macro_generator_covfie_bfield.py
+)
+set_tests_properties(test_macro_generator_covfie_bfield PROPERTIES LABELS "unit")
+
+set(PHYSICS_DRIFT_COVFIE_BFIELD_FILE "")
+if(ADEPT_USE_EXT_BFIELD)
+  set(PHYSICS_DRIFT_COVFIE_BFIELD_FILE "${PROJECT_BINARY_DIR}/constant_1T_bfield.cvf")
+  add_executable(generate_constant_covfie_field scripts/generate_constant_covfie_field.cpp)
+  target_include_directories(generate_constant_covfie_field
+    PRIVATE
+      ${PROJECT_SOURCE_DIR}/test/common
+      ${Geant4_INCLUDE_DIRS}
+  )
+  target_link_libraries(generate_constant_covfie_field PRIVATE covfie::core)
+  add_custom_command(
+    OUTPUT "${PHYSICS_DRIFT_COVFIE_BFIELD_FILE}"
+    COMMAND generate_constant_covfie_field "${PHYSICS_DRIFT_COVFIE_BFIELD_FILE}" 0 0 1
+    DEPENDS generate_constant_covfie_field
+    VERBATIM
+  )
+  add_custom_target(physics_drift_covfie_bfield_file DEPENDS "${PHYSICS_DRIFT_COVFIE_BFIELD_FILE}")
+  add_dependencies(integrationTest physics_drift_covfie_bfield_file)
+endif()
+
 # This test checks the reproducibility of AdePT by running 8 ttbar events and checking that the energy deposition is exactly the same.
 add_test(NAME reproducibility_cms_ttbar
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/reproducibility.sh
@@ -118,7 +143,7 @@ endif()
 foreach(SCENARIO IN LISTS PHYSICS_DRIFT_SCENARIOS)
   add_test(NAME physics_drift_${SCENARIO}
       COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_drift_test.sh
-      "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${PROJECT_BINARY_DIR}/physics_drift_tmp_${SCENARIO}" "${SCENARIO}"
+      "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${PROJECT_BINARY_DIR}/physics_drift_tmp_${SCENARIO}" "${SCENARIO}" "${PHYSICS_DRIFT_COVFIE_BFIELD_FILE}"
       WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
   )
   set_tests_properties(physics_drift_${SCENARIO} PROPERTIES LABELS "drift;physics_drift")

@@ -15,6 +15,7 @@ PR_SOURCE_DIR=$2
 CI_TEST_DIR=$3
 CI_TMP_DIR=$4
 SCENARIO=$5
+COVFIE_BFIELD_FILE=${6:-}
 
 MASTER_EXECUTABLE=${ADEPT_MASTER_EXECUTABLE:-}
 
@@ -59,6 +60,7 @@ SCENARIO_TRACK_IN_ALL_REGIONS=""
 SCENARIO_REGIONS=""
 SCENARIO_WDT_REGIONS=""
 SCENARIO_FIELD="0 0 0"
+SCENARIO_COVFIE_BFIELD_FILE=""
 SCENARIO_REQUIRES_ATLAS_STEPPING_ACTION="False"
 
 case "${SCENARIO}" in
@@ -79,7 +81,12 @@ case "${SCENARIO}" in
   bfield)
     SCENARIO_GDML="testEm3.gdml"
     SCENARIO_TRACK_IN_ALL_REGIONS="True"
-    SCENARIO_FIELD="0 0 1.0"
+    if [ -n "${COVFIE_BFIELD_FILE}" ]; then
+      SCENARIO_COVFIE_BFIELD_FILE="${COVFIE_BFIELD_FILE}"
+    else
+      echo "Warning: no Covfie field file provided for physics_drift_bfield; falling back to constant field."
+      SCENARIO_FIELD="0 0 1.0"
+    fi
     ;;
   atlas_prr)
     SCENARIO_GDML="testEm3_atlas_prr.gdml"
@@ -102,6 +109,7 @@ generate_validation_macro() {
   local detector_field=$7
   local call_user_stepping_action=$8
   local call_user_tracking_action=$9
+  local covfie_bfield_file=${10}
 
   "${CI_TEST_DIR}/python_scripts/macro_generator.py" \
       --template "${CI_TEST_DIR}/example_template.mac" \
@@ -119,7 +127,8 @@ generate_validation_macro() {
       --wdt_regions "${wdt_regions_list}" \
       --call_user_stepping_action "${call_user_stepping_action}" \
       --call_user_tracking_action "${call_user_tracking_action}" \
-      --detector_field "${detector_field}"
+      --detector_field "${detector_field}" \
+      --covfie_bfield_file "${covfie_bfield_file}"
 }
 
 supports_truth_root() {
@@ -160,6 +169,27 @@ require_atlas_stepping_action() {
   fi
 }
 
+require_ext_bfield_build() {
+  local executable=$1
+  local role=$2
+  local exe_dir build_dir cache
+
+  exe_dir=$(cd "$(dirname "${executable}")" && pwd)
+  build_dir=$(cd "${exe_dir}/../.." && pwd)
+  cache="${build_dir}/CMakeCache.txt"
+
+  if [ ! -f "${cache}" ]; then
+    echo "Error: physics_drift '${SCENARIO}' cannot verify ${role} external B-field support, missing ${cache}"
+    exit 2
+  fi
+
+  if ! grep -Eq '^ADEPT_USE_EXT_BFIELD:BOOL=ON$' "${cache}"; then
+    echo "Error: physics_drift '${SCENARIO}' requires ${role} build with ADEPT_USE_EXT_BFIELD=ON."
+    grep -E '^ADEPT_USE_EXT_BFIELD:' "${cache}" || true
+    exit 2
+  fi
+}
+
 SCENARIO_TMP_DIR="${CI_TMP_DIR}/${SCENARIO}"
 MASTER_SCENARIO_DIR="${SCENARIO_TMP_DIR}/master"
 PR_SCENARIO_DIR="${SCENARIO_TMP_DIR}/pr"
@@ -177,6 +207,15 @@ if [ "${SCENARIO_REQUIRES_ATLAS_STEPPING_ACTION}" = "True" ]; then
   require_atlas_stepping_action "${MASTER_EXECUTABLE}" "master"
 fi
 
+if [ -n "${SCENARIO_COVFIE_BFIELD_FILE}" ]; then
+  if [ ! -f "${SCENARIO_COVFIE_BFIELD_FILE}" ]; then
+    echo "Error: physics_drift '${SCENARIO}' field file not found: ${SCENARIO_COVFIE_BFIELD_FILE}"
+    exit 2
+  fi
+  require_ext_bfield_build "${PR_EXECUTABLE}" "PR"
+  require_ext_bfield_build "${MASTER_EXECUTABLE}" "master"
+fi
+
 if [ "${PR_SUPPORTS_ROOT}" = "1" ] && [ "${MASTER_SUPPORTS_ROOT}" = "1" ]; then
   # Adjust the number of events and primaries, as the ROOT-enabled test is much heavier.
   # Covering multi-threading by running with 4 threads.
@@ -192,7 +231,7 @@ fi
 # macro with the right geometry, field, AdePT options, and callback settings.
 generate_validation_macro "${PR_SOURCE_DIR}" "${SCENARIO_MACRO}" \
   "${SCENARIO_GDML}" "${SCENARIO_TRACK_IN_ALL_REGIONS}" "${SCENARIO_REGIONS}" "${SCENARIO_WDT_REGIONS}" \
-  "${SCENARIO_FIELD}" "${CALL_USER_STEPPING_ACTION}" "${CALL_USER_TRACKING_ACTION}"
+  "${SCENARIO_FIELD}" "${CALL_USER_STEPPING_ACTION}" "${CALL_USER_TRACKING_ACTION}" "${SCENARIO_COVFIE_BFIELD_FILE}"
 
 if [ "${CALL_USER_STEPPING_ACTION}" = "True" ]; then
   # ROOT truth mode: produce aggregated histogram files for PR and master and

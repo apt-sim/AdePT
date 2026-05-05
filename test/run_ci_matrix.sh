@@ -47,7 +47,7 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Runs AdePT in a local matrix similar to Jenkins:
-  - async (default flags)
+  - async (default flags, external B-field support)
   - split (-DADEPT_USE_SPLIT_KERNELS=ON)
   - mixed (-DADEPT_MIXED_PRECISION=ON)
 
@@ -257,6 +257,7 @@ COMMON_CMAKE_ARGS=(
   "-DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}"
   "-DADEPT_BUILD_TESTING=ON"
   "-DADEPT_STEPPINGACTION=ATLAS"
+  "-DADEPT_USE_EXT_BFIELD=ON"
 )
 if [[ -n "${G4VG_DIR}" ]]; then
   COMMON_CMAKE_ARGS+=("-DADEPT_USE_BUILTIN_G4VG=OFF" "-DG4VG_DIR=${G4VG_DIR}")
@@ -311,10 +312,10 @@ resolve_master_ref() {
   if [[ "${MASTER_REF}" != "auto" ]]; then
     case "${MASTER_REF}" in
       upstream/master)
-        fetch_remote_master_ref upstream
+        fetch_remote_master_ref upstream >&2
         ;;
       origin/master)
-        fetch_remote_master_ref origin
+        fetch_remote_master_ref origin >&2
         ;;
     esac
 
@@ -326,8 +327,8 @@ resolve_master_ref() {
     die "Could not resolve requested master reference '${MASTER_REF}'"
   fi
 
-  fetch_remote_master_ref upstream
-  fetch_remote_master_ref origin
+  fetch_remote_master_ref upstream >&2
+  fetch_remote_master_ref origin >&2
 
   local ref
   for ref in upstream/master origin/master master main HEAD; do

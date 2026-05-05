@@ -36,7 +36,14 @@ def generate_macro(template_path, output_path, args):
     macro_content = macro_content.replace("$num_trackslots", str(args.num_trackslots))
     macro_content = macro_content.replace("$num_hitslots", str(args.num_hitslots))
     macro_content = macro_content.replace("$cpu_capacity_factor", str(args.cpu_capacity_factor))
-    macro_content = macro_content.replace("$detector_field", str(args.detector_field))
+    if args.covfie_bfield_file:
+        field_setup = (
+            f"/detector/setCovfieBfieldFile {args.covfie_bfield_file}\n"
+            f"/adept/setCovfieBfieldFile {args.covfie_bfield_file}"
+        )
+    else:
+        field_setup = f"/detector/setField {args.detector_field} tesla"
+    macro_content = macro_content.replace("$field_setup", field_setup)
     macro_content = macro_content.replace("$adept_seed", str(args.adept_seed))
     macro_content = macro_content.replace("$gun_type", str(args.gun_type))
     macro_content = macro_content.replace("$gun_number", str(args.gun_number))
@@ -103,6 +110,8 @@ def main():
                         help="CPU staging capacity factor for scored hits (default: 2.5)")
     parser.add_argument("--detector_field", type=str, default="0 0 0",
                         help="Constant magnetic field vector in tesla, format: 'Bx By Bz' (default: '0 0 0')")
+    parser.add_argument("--covfie_bfield_file", type=str, default="",
+                        help="Path to a Covfie magnetic field file. If set, detector_field is ignored.")
     parser.add_argument("--adept_seed", type=int, default=1234567,
                         help="Base seed for AdePT RNG (default: 1234567)")
     parser.add_argument("--gun_type", default="setDefault",

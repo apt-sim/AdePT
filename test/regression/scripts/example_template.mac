@@ -33,9 +33,9 @@ $wdt_regions
 /process/em/applyCuts true
 
 ## -----------------------------------------------------------------------------
-## Optionally, set a constant magnetic field:
+## Optionally, set a magnetic field:
 ## -----------------------------------------------------------------------------
-/detector/setField $detector_field tesla
+$field_setup
 
 ## -----------------------------------------------------------------------------
 ## Set secondary production threshold, init. the run and set primary properties
