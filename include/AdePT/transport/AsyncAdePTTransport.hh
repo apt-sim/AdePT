@@ -10,9 +10,9 @@
 #define ASYNC_ADEPT_TRANSPORT_HH
 
 #include <AdePT/transport/g4hepem/AdePTG4HepEmState.hh>
-#include <AdePT/transport/AsyncAdePTTransportStruct.hh>
 #include <AdePT/transport/config/AdePTTransportConfig.hh>
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
+#include <AdePT/transport/state/EventState.hh>
 #include <AdePT/transport/steps/GPUStep.hh>
 
 #include <VecGeom/base/Config.h>
@@ -27,7 +27,6 @@
 #include <optional>
 namespace AsyncAdePT {
 struct TrackBuffer;
-struct GPUstate;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
 

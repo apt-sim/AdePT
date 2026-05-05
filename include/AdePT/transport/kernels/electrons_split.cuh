@@ -12,6 +12,10 @@
 #include <AdePT/transport/support/AdePTPrecision.hh>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
+#include <AdePT/transport/queues/ParticleManager.cuh>
+#include <AdePT/transport/state/DeviceGlobals.cuh>
+#include <AdePT/transport/state/TransportStats.hh>
+#include <AdePT/transport/steps/GPUStepRecording.cuh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>

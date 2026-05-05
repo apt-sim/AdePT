@@ -5,6 +5,10 @@
 
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
+#include <AdePT/transport/queues/ParticleManager.cuh>
+#include <AdePT/transport/state/DeviceGlobals.cuh>
+#include <AdePT/transport/state/TransportStats.hh>
+#include <AdePT/transport/steps/GPUStepRecording.cuh>
 
 #include <G4HepEmGammaManager.hh>
 #include <G4HepEmGammaTrack.hh>

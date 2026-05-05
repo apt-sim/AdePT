@@ -6,8 +6,9 @@
 
 #include <AdePT/transport/support/Portability.hh>
 
-#include <AdePT/transport/AsyncAdePTTransportStruct.cuh>
-#include <AdePT/transport/AsyncAdePTTransportStruct.hh>
+#include <AdePT/transport/state/DeviceGlobals.cuh>
+#include <AdePT/transport/state/EventState.hh>
+#include <AdePT/transport/state/GPUState.cuh>
 #include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/queues/TrackBuffer.hh>
