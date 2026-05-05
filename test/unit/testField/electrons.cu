@@ -3,16 +3,16 @@
 
 #include "testField.cuh"
 
-#include <AdePT/navigation/AdePTNavigator.h>
+#include <AdePT/transport/navigation/AdePTNavigator.h>
 
-#include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/transport/support/PhysicalConstants.h>
 
 // Classes for Runge-Kutta integration
-#include <AdePT/magneticfield/MagneticFieldEquation.h>
-#include <AdePT/magneticfield/DormandPrinceRK45.h>
-#include <AdePT/magneticfield/fieldPropagatorRungeKutta.h>
-#include <AdePT/magneticfield/fieldPropagatorConstBz.h>
-#include <AdePT/magneticfield/UniformMagneticField.cuh>
+#include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
+#include <AdePT/transport/magneticfield/fieldPropagatorRungeKutta.h>
+#include <AdePT/transport/magneticfield/fieldPropagatorConstBz.h>
+#include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
 
 #include <G4HepEmElectronManager.hh>
 #include <G4HepEmElectronTrack.hh>

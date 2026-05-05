@@ -5,7 +5,7 @@
 #include <limits>
 #include <vector>
 
-#include "AdePT/integration/HostTrackDataMapper.hh"
+#include "AdePT/g4integration/returned_steps/HostTrackDataMapper.hh"
 
 #define CHECK(expr)                                                                         \
   do {                                                                                      \

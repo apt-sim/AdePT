@@ -36,9 +36,9 @@
 
 #include <G4VG.hh>
 
-#include <AdePT/copcore/SystemOfUnits.h>
-#include <AdePT/base/ArgParser.h>
-#include <AdePT/integration/AdePTGeant4Integration.hh>
+#include <AdePT/transport/support/SystemOfUnits.h>
+#include <AdePT/transport/support/ArgParser.h>
+#include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
 
 void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
 

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/AdePTG4HepEmState.hh>
+#include <AdePT/transport/g4hepem/AdePTG4HepEmState.hh>
 
 #include <G4HepEmConfig.hh>
 #include <G4HepEmData.hh>

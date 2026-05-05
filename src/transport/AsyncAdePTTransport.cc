@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/AsyncAdePTTransport.hh>
-#include <AdePT/core/TrackBuffer.hh>
+#include <AdePT/transport/AsyncAdePTTransport.hh>
+#include <AdePT/transport/queues/TrackBuffer.hh>
 
 #include <VecGeom/management/BVHManager.h>
 #include <VecGeom/management/GeoManager.h>

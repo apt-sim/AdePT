@@ -9,7 +9,7 @@ SPDX-License-Identifier: CC-BY-4.0
 [![Nightly CI (EL9)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml/badge.svg?branch=master)](https://github.com/apt-sim/AdePT/actions/workflows/nightly-ci-el9.yml)
 
 
-Accelerated demonstrator of electromagnetic Particle Transport
+Accelerated detector Particle Transport
 
 AdePT is a lightweight Geant4 plugin designed to accelerate high-energy
 physics simulation by offloading electromagnetic transport to GPUs.
@@ -179,6 +179,22 @@ cuda_rdc_target_link_libraries(example_target <SCOPE>
                                ${AdePT_LIBRARIES})
 ```
 Note that the cuda_rdc is required, which is inherited from VecGeom and needed to avoid multi-cuda dependency issues.
+
+The public Geant4 integration headers live under `AdePT/g4integration`. For
+example, an application physics list can include the AdePT EM physics
+constructor as:
+
+```cpp
+#include <AdePT/g4integration/G4EmStandardPhysics_AdePT.hh>
+```
+
+Applications that need direct access to the tracking manager or configuration
+should include:
+
+```cpp
+#include <AdePT/g4integration/AdePTConfiguration.hh>
+#include <AdePT/g4integration/AdePTTrackingManager.hh>
+```
 
 
 ## Copyright

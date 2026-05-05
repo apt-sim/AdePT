@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/AdePTTrackingManager.hh>
-#include <AdePT/core/AdePTTransportConfig.hh>
-#include <AdePT/integration/AdePTGeometryBridge.hh>
-#include <AdePT/integration/AdePTThreadId.hh>
+#include <AdePT/g4integration/AdePTTrackingManager.hh>
+#include <AdePT/transport/config/AdePTTransportConfig.hh>
+#include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
+#include <AdePT/g4integration/tracking_managers/AdePTThreadId.hh>
 
 #include "G4Threading.hh"
 #include "G4Track.hh"

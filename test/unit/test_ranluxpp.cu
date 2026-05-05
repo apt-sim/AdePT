@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/copcore/Ranluxpp.h>
+#include <AdePT/transport/random/Ranluxpp.h>
 
 #include <iostream>
 
-#include <AdePT/core/Portability.hh>
+#include <AdePT/transport/support/Portability.hh>
 
 __global__ void kernel(RanluxppDouble *r, double *d, uint64_t *i, double *d2)
 {

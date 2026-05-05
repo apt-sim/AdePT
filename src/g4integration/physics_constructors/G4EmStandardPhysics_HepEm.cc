@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/integration/G4EmStandardPhysics_HepEm.hh>
+#include <AdePT/g4integration/G4EmStandardPhysics_HepEm.hh>
 
 #include "G4Electron.hh"
 #include "G4Gamma.hh"

@@ -4,13 +4,13 @@
 #include "testField.h"
 #include "testField.cuh"
 
-#include <AdePT/base/Atomic.h>
-#include <AdePT/navigation/AdePTNavigator.h>
-#include <AdePT/base/MParray.h>
+#include <AdePT/transport/containers/Atomic.h>
+#include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/containers/MParray.h>
 
-#include <AdePT/copcore/Global.h>
-#include <AdePT/copcore/PhysicalConstants.h>
-#include <AdePT/copcore/Ranluxpp.h>
+#include <AdePT/transport/support/Global.h>
+#include <AdePT/transport/support/PhysicalConstants.h>
+#include <AdePT/transport/random/Ranluxpp.h>
 
 #include <VecGeom/base/Config.h>
 #include <G4Timer.hh>
@@ -32,7 +32,7 @@
 #include <iomanip>
 #include <stdio.h>
 
-#include <AdePT/core/Portability.hh>
+#include <AdePT/transport/support/Portability.hh>
 
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;

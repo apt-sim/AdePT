@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/HostCircularBuffer.hh>
+#include <AdePT/transport/steps/HostCircularBuffer.hh>
 
 #include <atomic>
 #include <cmath>

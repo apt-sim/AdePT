@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/core/AdePTConfiguration.hh>
-#include <AdePT/integration/AdePTConfigurationMessenger.hh>
+#include <AdePT/g4integration/AdePTConfiguration.hh>
+#include <AdePT/g4integration/config/AdePTConfigurationMessenger.hh>
 
 #include <memory>
 

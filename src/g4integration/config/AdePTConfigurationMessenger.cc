@@ -5,8 +5,8 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-#include <AdePT/integration/AdePTConfigurationMessenger.hh>
-#include <AdePT/core/AdePTConfiguration.hh>
+#include <AdePT/g4integration/config/AdePTConfigurationMessenger.hh>
+#include <AdePT/g4integration/AdePTConfiguration.hh>
 
 #include "G4UIdirectory.hh"
 #include "G4UIcmdWithAnInteger.hh"

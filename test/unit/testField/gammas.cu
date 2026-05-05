@@ -3,10 +3,10 @@
 
 #include "testField.cuh"
 
-#include <AdePT/navigation/AdePTNavigator.h>
-#include <AdePT/magneticfield/UniformMagneticField.cuh>
+#include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
 
-#include <AdePT/copcore/PhysicalConstants.h>
+#include <AdePT/transport/support/PhysicalConstants.h>
 
 #include <G4HepEmGammaManager.hh>
 #include <G4HepEmGammaTrack.hh>

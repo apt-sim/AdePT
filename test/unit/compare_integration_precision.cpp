@@ -8,13 +8,13 @@
 #define __host__
 
 #include <VecGeom/base/Vector3D.h>
-#include <AdePT/magneticfield/MagneticFieldEquation.h>
-#include <AdePT/magneticfield/UniformMagneticField.cuh>
-#include <AdePT/magneticfield/PrintFieldVectors.h>
-#include <AdePT/magneticfield/ConstFieldHelixStepper.h>
-#include <AdePT/magneticfield/DormandPrinceRK45.h>
-#include <AdePT/copcore/PhysicalConstants.h>
-#include <AdePT/magneticfield/RkIntegrationDriver.h>
+#include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
+#include <AdePT/transport/magneticfield/PrintFieldVectors.h>
+#include <AdePT/transport/magneticfield/ConstFieldHelixStepper.h>
+#include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
+#include <AdePT/transport/support/PhysicalConstants.h>
+#include <AdePT/transport/magneticfield/RkIntegrationDriver.h>
 #include <iostream>
 #include <vector>
 #include <cstdlib>
