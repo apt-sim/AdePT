@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <AdePT/transport/AsyncAdePTTransportStruct.cuh>
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
+#include <AdePT/transport/state/DeviceGlobals.cuh>
 
 namespace AsyncAdePT {
 

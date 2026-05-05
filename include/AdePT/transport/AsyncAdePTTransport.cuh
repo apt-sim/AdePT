@@ -6,8 +6,9 @@
 
 #include <AdePT/transport/support/Portability.hh>
 
-#include <AdePT/transport/AsyncAdePTTransportStruct.cuh>
-#include <AdePT/transport/AsyncAdePTTransportStruct.hh>
+#include <AdePT/transport/state/DeviceGlobals.cuh>
+#include <AdePT/transport/state/EventState.hh>
+#include <AdePT/transport/state/GPUState.cuh>
 #include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/queues/TrackBuffer.hh>
@@ -1429,6 +1430,12 @@ __constant__ __device__ struct G4HepEmData g4HepEmData;
 __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 
 __constant__ __device__ adeptint::WDTDeviceView gWDTData;
+
+#ifdef ADEPT_USE_EXT_BFIELD
+__constant__ __device__ GeneralMagneticField *gMagneticField = nullptr;
+#else
+__constant__ __device__ UniformMagneticField *gMagneticField = nullptr;
+#endif
 
 /// Transfer volume auxiliary data to GPU
 void InitVolAuxArray(adeptint::VolAuxArray &array)

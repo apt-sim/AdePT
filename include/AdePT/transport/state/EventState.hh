@@ -1,16 +1,17 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ASYNC_ADEPT_TRANSPORT_STRUCT_HH
-#define ASYNC_ADEPT_TRANSPORT_STRUCT_HH
+#ifndef ADEPT_TRANSPORT_STATE_EVENT_STATE_HH
+#define ADEPT_TRANSPORT_STATE_EVENT_STATE_HH
 
 namespace AsyncAdePT {
 
 struct GPUstate;
+
 static constexpr int kMaxThreads = 256;
 
-// We need a deleter for the unique_ptr to the GPUstate
-// This deleter is implemented in AsyncAdePTTransportStruct.cuh
+// Keep the public transport header independent of the full CUDA-side GPUstate
+// definition while still allowing unique_ptr ownership.
 struct GPUstateDeleter {
   void operator()(GPUstate *ptr);
 };
