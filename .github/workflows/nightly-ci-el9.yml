@@ -123,6 +123,9 @@ jobs:
             echo "- LCG setup: \`${LCG_SETUP:-missing}\`"
             echo "- Build type: \`${BUILD_TYPE:-missing}\`"
             echo "- Build root: \`${BUILD_ROOT:-/tmp/adept-nightly-ci}\`"
+            echo "- Release CI status: \`${RELEASE_CI_STATUS:-missing}\`"
+            echo "- Debug drift smoke build root: \`${DEBUG_DRIFT_SMOKE_BUILD_ROOT:-missing}\`"
+            echo "- Debug drift smoke status: \`${DEBUG_DRIFT_SMOKE_STATUS:-missing}\`"
             echo "- Nightly status: \`${NIGHTLY_STATUS:-missing}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
