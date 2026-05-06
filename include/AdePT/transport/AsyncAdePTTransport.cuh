@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ASYNC_ADEPT_TRANSPORT_CUH
-#define ASYNC_ADEPT_TRANSPORT_CUH
+#pragma once
 
 #include <AdePT/transport/support/Portability.hh>
 
@@ -1469,5 +1468,3 @@ TrackBuffer::TrackBuffer(unsigned int numToDevice) : fNumToDevice{numToDevice}
 }
 
 } // namespace AsyncAdePT
-
-#endif // ASYNC_ADEPT_TRANSPORT_CUH

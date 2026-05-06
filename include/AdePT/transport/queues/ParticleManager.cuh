@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_QUEUES_PARTICLE_MANAGER_CUH
-#define ADEPT_TRANSPORT_QUEUES_PARTICLE_MANAGER_CUH
+#pragma once
 
 #include <AdePT/transport/containers/SlotManager.cuh>
 #include <AdePT/transport/queues/ParticleQueues.cuh>
@@ -73,5 +72,3 @@ struct ParticleManager {
 };
 
 } // namespace AsyncAdePT
-
-#endif

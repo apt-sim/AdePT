@@ -27,8 +27,7 @@
  *
  */
 
-#ifndef COPCORE_PHYSICALCONSTANTS_H
-#define COPCORE_PHYSICALCONSTANTS_H
+#pragma once
 
 #include <AdePT/transport/support/SystemOfUnits.h>
 
@@ -115,5 +114,3 @@ static constexpr double kUniverseMeanDensity = 1.e-25 * g / cm3;
 
 } // namespace units
 } // namespace copcore
-
-#endif // COPCORE_PHYSICALCONSTANTS_H

@@ -3,8 +3,7 @@
 //
 // Author:  S. Diederichs,   11 Nov 2024
 
-#ifndef GeneralMagneticField_H__
-#define GeneralMagneticField_H__
+#pragma once
 
 #include <VecGeom/base/Vector3D.h>
 
@@ -121,5 +120,3 @@ private:
   field_view_t *fFieldView = nullptr;      // Device-stored field view, needed to access the data
 #endif
 };
-
-#endif // GeneralMagneticField_H__

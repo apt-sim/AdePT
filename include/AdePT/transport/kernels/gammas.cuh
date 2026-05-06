@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#pragma once
+
 #include <AdePT/transport/navigation/AdePTNavigator.h>
 #include <AdePT/transport/kernels/gammasWDT.cuh>
 

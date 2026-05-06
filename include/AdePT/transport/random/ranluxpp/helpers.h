@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
-#ifndef COPCORE_RANLUXPP_HELPERS_H_
-#define COPCORE_RANLUXPP_HELPERS_H_
+#pragma once
 
 #include <cstdint>
 
@@ -144,5 +143,3 @@ __host__ __device__ static inline int64_t compute_r(const uint64_t *upper, uint6
   }
   return c + (c == 0 && greater_m);
 }
-
-#endif

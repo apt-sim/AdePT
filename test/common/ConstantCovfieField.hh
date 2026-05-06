@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TEST_COMMON_CONSTANTCOVFIEFIELD_HH
-#define ADEPT_TEST_COMMON_CONSTANTCOVFIEFIELD_HH
+#pragma once
 
 #include <array>
 #include <ostream>
@@ -68,5 +67,3 @@ inline void WriteConstantCovfieField(std::ostream &output, const std::array<floa
 }
 
 } // namespace adept_test
-
-#endif

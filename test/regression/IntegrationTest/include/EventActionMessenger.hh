@@ -27,8 +27,7 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-#ifndef EVENTACTIONMESSENGER_HH
-#define EVENTACTIONMESSENGER_HH
+#pragma once
 
 #include "globals.hh"
 #include "G4UImessenger.hh"
@@ -54,5 +53,3 @@ private:
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-#endif // EVENTACTIONMESSENGER_HH

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2025 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef HOSTTRACKDATAMAPPER_H
-#define HOSTTRACKDATAMAPPER_H
+#pragma once
 
 #include "G4VUserTrackInformation.hh"
 #include "G4VProcess.hh"
@@ -216,5 +215,3 @@ private:
   int currentGpuReturnG4ID = std::numeric_limits<int>::max();
   int currentEventID       = -1;
 };
-
-#endif

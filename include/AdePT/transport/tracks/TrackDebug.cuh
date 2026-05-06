@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRACK_DEBUG_CUH
-#define ADEPT_TRACK_DEBUG_CUH
+#pragma once
 
 // Track debug information
 struct TrackDebug {
@@ -14,5 +13,3 @@ struct TrackDebug {
 };
 
 __device__ TrackDebug gTrackDebug;
-
-#endif

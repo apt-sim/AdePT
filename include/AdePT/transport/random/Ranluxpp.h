@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
-#ifndef COPCORE_RANLUXPP_H_
-#define COPCORE_RANLUXPP_H_
+#pragma once
 
 #include <AdePT/transport/support/Global.h>
 
@@ -188,5 +187,3 @@ public:
     return newRNG;
   }
 };
-
-#endif

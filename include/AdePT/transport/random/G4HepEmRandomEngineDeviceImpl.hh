@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_G4HEPEM_RANDOM_ENGINE_DEVICE_IMPL_HH
-#define ADEPT_G4HEPEM_RANDOM_ENGINE_DEVICE_IMPL_HH
+#pragma once
 
 #include <AdePT/transport/random/Ranluxpp.h>
 
@@ -22,6 +21,4 @@ inline __device__ void G4HepEmRandomEngine::flatArray(const int size, double *ve
     vect[i] = ((RanluxppDouble *)fObject)->Rndm();
   }
 }
-#endif
-
 #endif

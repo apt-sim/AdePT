@@ -7,13 +7,10 @@
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */
 
-#ifndef ADEPT_MPARRAY_H_
-#define ADEPT_MPARRAY_H_
+#pragma once
 
 #include <AdePT/transport/containers/MParrayT.h>
 
 namespace adept {
 using MParray = MParrayT<int>;
 } // End namespace adept
-
-#endif // ADEPT_MPARRAY_H_

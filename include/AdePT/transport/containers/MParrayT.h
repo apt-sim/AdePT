@@ -7,8 +7,7 @@
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */
 
-#ifndef ADEPT_MPARRAYT_H_
-#define ADEPT_MPARRAYT_H_
+#pragma once
 
 #include <AdePT/transport/containers/Atomic.h>
 #include <AdePT/transport/containers/VariableSizeObj.h>
@@ -113,5 +112,3 @@ public:
 
 }; // End class MParrayT
 } // End namespace adept
-
-#endif // ADEPT_MPARRAYT_H_

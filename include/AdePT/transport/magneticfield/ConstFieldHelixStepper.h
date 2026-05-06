@@ -9,8 +9,7 @@
  *      Author: J. Apostolakis
  */
 
-#ifndef CONSTFIELDHELIXSTEPPER_H_
-#define CONSTFIELDHELIXSTEPPER_H_
+#pragma once
 
 #include <VecGeom/base/Vector3D.h>
 // Needed for Vector3D
@@ -266,5 +265,3 @@ inline void ConstFieldHelixStepper::PrintStep(vecgeom::Vector3D<Real_t> const &s
 
 // } // namespace ADEPT_IMPL_NAMESPACE
 // } // namespace adept
-
-#endif /* CONSTFIELDHELIXSTEPPER_H_ */

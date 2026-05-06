@@ -7,8 +7,7 @@
 //  use in solving ODEs of motion using Runge-Kutta methods.
 //
 
-#ifndef MagneticFieldEquation_H_
-#define MagneticFieldEquation_H_
+#pragma once
 
 #include <AdePT/transport/support/PhysicalConstants.h>
 
@@ -264,5 +263,3 @@ inline __host__ __device__ void MagneticFieldEquation<MagField_t>::EvaluateDeriv
   // std::endl;
   EvaluateRhsGivenB<Real_t, int>(y, charge, BfieldVec, dy_ds);
 }
-
-#endif

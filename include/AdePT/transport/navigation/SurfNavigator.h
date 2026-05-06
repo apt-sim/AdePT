@@ -6,8 +6,7 @@
  * @brief Navigation methods using the surface model.
  */
 
-#ifndef RT_SURF_NAVIGATOR_H_
-#define RT_SURF_NAVIGATOR_H_
+#pragma once
 
 #include <AdePT/transport/support/Global.h>
 
@@ -105,4 +104,3 @@ public:
 };
 
 // } // End namespace COPCORE_IMPL
-#endif // RT_SURF_NAVIGATOR_H_

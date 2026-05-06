@@ -7,8 +7,7 @@
 //
 //
 
-#ifndef HEPMC3_G4_ASCII_READER_H
-#define HEPMC3_G4_ASCII_READER_H
+#pragma once
 
 #include "HepMC3G4Interface.hh"
 #include "HepMC3/Print.h"
@@ -100,5 +99,3 @@ inline G4int HepMC3G4AsciiReader::GetFirstEventNumber() const
 {
   return fFirstEventNumber;
 }
-
-#endif

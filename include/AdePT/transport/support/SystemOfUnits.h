@@ -33,8 +33,7 @@
  *
  */
 
-#ifndef COPCORE_SYSTEMOFUNITS_H
-#define COPCORE_SYSTEMOFUNITS_H
+#pragma once
 
 namespace copcore {
 namespace units {
@@ -305,5 +304,3 @@ static constexpr double perMillion  = 0.000001;
 
 } // namespace units
 } // namespace copcore
-
-#endif // COPCORE_SYSTEMOFUNITS_H

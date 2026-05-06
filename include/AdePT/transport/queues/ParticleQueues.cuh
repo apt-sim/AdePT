@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_QUEUES_PARTICLE_QUEUES_CUH
-#define ADEPT_TRANSPORT_QUEUES_PARTICLE_QUEUES_CUH
+#pragma once
 
 #include <AdePT/transport/containers/MParray.h>
 #include <AdePT/transport/tracks/ParticleTypes.hh>
@@ -100,5 +99,3 @@ struct QueueIndexPair {
 };
 
 } // namespace AsyncAdePT
-
-#endif

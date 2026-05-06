@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRACK_BUFFER_HH
-#define ADEPT_TRACK_BUFFER_HH
+#pragma once
 
 #include <AdePT/transport/support/ResourceManagement.hh>
 #include <AdePT/transport/tracks/TrackData.h>
@@ -79,5 +78,3 @@ struct TrackBuffer {
 };
 
 } // namespace AsyncAdePT
-
-#endif

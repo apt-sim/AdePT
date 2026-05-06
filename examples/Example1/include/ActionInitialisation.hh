@@ -25,8 +25,7 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef ACTIONINITIALISATION_HH
-#define ACTIONINITIALISATION_HH
+#pragma once
 
 #include "G4VUserActionInitialization.hh"
 #include "G4String.hh"
@@ -50,5 +49,3 @@ public:
   /// Create run action in the master thread to allow analysis merging.
   virtual void BuildForMaster() const final;
 };
-
-#endif /* ACTIONINITIALISATION_HH */

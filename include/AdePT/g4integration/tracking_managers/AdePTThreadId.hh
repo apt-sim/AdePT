@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_THREAD_ID_HH
-#define ADEPT_THREAD_ID_HH
+#pragma once
 
 #include "G4Threading.hh"
 
@@ -20,5 +19,3 @@ inline int GetThreadId()
 }
 
 } // namespace adept_integration
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_DEVICE_STEP_BUFFER_CUH
-#define ADEPT_DEVICE_STEP_BUFFER_CUH
+#pragma once
 
 #include <AdePT/transport/steps/GPUStep.hh>
 #include <AdePT/transport/support/Global.h>
@@ -53,5 +52,3 @@ struct DeviceStepBufferView {
 __device__ DeviceStepBufferView gDeviceStepBuffer;
 
 } // namespace AsyncAdePT
-
-#endif

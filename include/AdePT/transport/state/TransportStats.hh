@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_STATE_TRANSPORT_STATS_HH
-#define ADEPT_TRANSPORT_STATE_TRANSPORT_STATS_HH
+#pragma once
 
 #include <AdePT/transport/queues/ParticleQueues.cuh>
 #include <AdePT/transport/state/EventState.hh>
@@ -42,5 +41,3 @@ struct AllowFinishOffEventArray {
 };
 
 } // namespace AsyncAdePT
-
-#endif

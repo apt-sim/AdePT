@@ -3,8 +3,7 @@
 
 // Author:   J. Apostolakis,  22 June 2022
 
-#ifndef CompareResponses_hh
-#define CompareResponses_hh 1
+#pragma once
 
 #include <VecGeom/base/Vector3D.h>
 
@@ -52,5 +51,3 @@ static __device__ __host__ void ReportSameMoveVector3D(int id, vecgeom::Vector3D
          (resultVec - originalVec).Mag(), originalVec[0], originalVec[1], originalVec[2], originalVec.Mag(),
          resultVec[0], resultVec[1], resultVec[2], resultVec.Mag());
 }
-
-#endif /* CompareResponses_hh */

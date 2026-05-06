@@ -25,8 +25,7 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef SIMPLEHIT_HH
-#define SIMPLEHIT_HH
+#pragma once
 
 #include "G4VHit.hh"
 #include "G4THitsCollection.hh"
@@ -117,5 +116,3 @@ inline void SimpleHit::operator delete(void *aHit)
 {
   SimpleHitAllocator->FreeSingle((SimpleHit *)aHit);
 }
-
-#endif /* SIMPLEHIT_HH */

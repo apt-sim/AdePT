@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef RUN_HH
-#define RUN_HH
+#pragma once
 
 #include "G4Run.hh"
 
@@ -47,5 +46,3 @@ private:
   std::unique_ptr<TruthHistogrammer> fTruthHistogrammer;
   RunAction *fRunAction;
 };
-
-#endif

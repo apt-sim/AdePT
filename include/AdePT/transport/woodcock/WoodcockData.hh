@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_WOODCOCK_WOODCOCK_DATA_HH
-#define ADEPT_TRANSPORT_WOODCOCK_WOODCOCK_DATA_HH
+#pragma once
 
 #include <VecGeom/navigation/NavigationState.h>
 
@@ -56,5 +55,3 @@ struct WDTDeviceBuffers {
 };
 
 } // namespace adeptint
-
-#endif

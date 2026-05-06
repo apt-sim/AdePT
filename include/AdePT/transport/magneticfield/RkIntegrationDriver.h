@@ -7,8 +7,7 @@
  *      Author: J. Apostolakis
  */
 
-#ifndef RKINTEGRATION_DRIVER_H_
-#define RKINTEGRATION_DRIVER_H_
+#pragma once
 
 #include "ErrorEstimatorRK.h"
 
@@ -298,5 +297,3 @@ inline __host__ __device__ void RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
     printf(" End> Pos= %9.6f %9.6f %9.6f  Mom= %9.6f %9.6f %9.6f\n", x, y, z, dx, dy, dz);
   }
 }
-
-#endif /* RKINTEGRATION_DRIVER_H_ */

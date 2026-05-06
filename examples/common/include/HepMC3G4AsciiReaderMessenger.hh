@@ -7,8 +7,7 @@
 //
 //
 
-#ifndef HEPMC3_G4_ASCII_READER_MESSENGER_H
-#define HEPMC3_G4_ASCII_READER_MESSENGER_H
+#pragma once
 
 #include "G4UImessenger.hh"
 
@@ -37,5 +36,3 @@ private:
   std::unique_ptr<G4UIcmdWithAnInteger> fFirstevent;
   std::unique_ptr<G4UIcmdWithAString> fOpen;
 };
-
-#endif

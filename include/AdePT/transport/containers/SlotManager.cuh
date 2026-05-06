@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
-#ifndef SLOTMANAGER_CUH
-#define SLOTMANAGER_CUH
+#pragma once
 
 #include "AdePT/transport/support/Global.h"
 
@@ -200,5 +199,3 @@ __global__ void AssertConsistencyOfSlotManagers(SlotManager *mgrs, std::size_t N
   }
 }
 #endif
-
-#endif // SLOTMANAGER_CUH

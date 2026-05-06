@@ -6,8 +6,7 @@
  * @brief Benchmarking utilities: Timers, accumulators and formatted output.
  */
 
-#ifndef TEST_H
-#define TEST_H
+#pragma once
 
 // The clock to use for measurements
 #define CLOCK std::chrono::system_clock
@@ -222,5 +221,3 @@ public:
 
 #endif
 */
-
-#endif

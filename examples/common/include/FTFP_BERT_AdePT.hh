@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef FTFP_BERT_AdePT_h
-#define FTFP_BERT_AdePT_h 1
+#pragma once
 
 #include <CLHEP/Units/SystemOfUnits.h>
 
@@ -17,5 +16,3 @@ public:
   FTFP_BERT_AdePT(const FTFP_BERT_AdePT &)            = delete;
   FTFP_BERT_AdePT &operator=(const FTFP_BERT_AdePT &) = delete;
 };
-
-#endif

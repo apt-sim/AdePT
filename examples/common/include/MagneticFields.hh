@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 //
-#ifndef MAGNETICFIELDS_H
-#define MAGNETICFIELDS_H
+#pragma once
 
 #include "G4MagneticField.hh"
 #include "G4ThreeVector.hh"
@@ -98,5 +97,3 @@ public:
 private:
   std::unique_ptr<IField> fField;
 };
-
-#endif // MAGNETICFIELDS_H

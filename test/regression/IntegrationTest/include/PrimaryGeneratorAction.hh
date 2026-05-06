@@ -25,8 +25,7 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef PRIMARYGENERATORACTION_HH
-#define PRIMARYGENERATORACTION_HH
+#pragma once
 
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "G4ParticleGun.hh"
@@ -54,5 +53,3 @@ private:
   /// Particle gun
   ParticleGun *fParticleGun;
 };
-
-#endif /* PRIMARYGENERATORACTION_HH */

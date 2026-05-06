@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_GEOMETRY_AUX_DATA_HH
-#define ADEPT_GEOMETRY_AUX_DATA_HH
+#pragma once
 
 namespace adeptint {
 
@@ -34,5 +33,3 @@ struct VolAuxArray {
 };
 
 } // namespace adeptint
-
-#endif

@@ -6,8 +6,7 @@
  * @brief Top switch for different navigators
  */
 
-#ifndef ADEPT_NAVIGATOR_H_
-#define ADEPT_NAVIGATOR_H_
+#pragma once
 
 #include <AdePT/transport/navigation/BVHNavigator.h>
 #ifdef ADEPT_USE_SURF
@@ -25,4 +24,3 @@ using AdePTNavigator = SurfNavigator<double>;
 using AdePTNavigator = BVHNavigator;
 #endif
 // } // End namespace COPCORE_IMPL
-#endif // ADEPT_NAVIGATOR_H_

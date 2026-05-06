@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_STATE_GPU_STATE_CUH
-#define ADEPT_TRANSPORT_STATE_GPU_STATE_CUH
+#pragma once
 
 #include <AdePT/transport/containers/MParrayT.h>
 #include <AdePT/transport/containers/SlotManager.cuh>
@@ -129,5 +128,3 @@ struct GPUstate {
 };
 
 } // namespace AsyncAdePT
-
-#endif

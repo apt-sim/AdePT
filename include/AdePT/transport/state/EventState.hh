@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_STATE_EVENT_STATE_HH
-#define ADEPT_TRANSPORT_STATE_EVENT_STATE_HH
+#pragma once
 
 namespace AsyncAdePT {
 
@@ -31,5 +30,3 @@ enum class EventState : unsigned char {
 };
 
 } // namespace AsyncAdePT
-
-#endif

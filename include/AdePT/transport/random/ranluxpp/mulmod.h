@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
-#ifndef COPCORE_RANLUXPP_MULMOD_H_
-#define COPCORE_RANLUXPP_MULMOD_H_
+#pragma once
 
 #include "helpers.h"
 
@@ -248,6 +247,4 @@ __host__ __device__ static void powermod(const uint64_t *base, uint64_t *res, ui
 // end disabling of -Wpedantic
 #if defined(__GNUC__) && !defined(__CUDA_ARCH__)
 #pragma GCC diagnostic pop
-#endif
-
 #endif

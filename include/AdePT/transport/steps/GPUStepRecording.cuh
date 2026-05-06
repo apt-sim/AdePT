@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_GPU_STEP_RECORDING_CUH
-#define ADEPT_GPU_STEP_RECORDING_CUH
+#pragma once
 
 #include <AdePT/transport/steps/DeviceStepBuffer.cuh>
 #include <AdePT/transport/steps/GPUStep.hh>
@@ -57,5 +56,3 @@ __device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepL
 }
 
 } // namespace adept_step_recording
-
-#endif

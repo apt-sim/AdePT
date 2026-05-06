@@ -3,8 +3,7 @@
 
 // This file contains the step data returned from GPU transport to the host.
 
-#ifndef ADEPT_GPU_STEP_HH
-#define ADEPT_GPU_STEP_HH
+#pragma once
 
 #include <AdePT/transport/tracks/ParticleTypes.hh>
 #include "VecGeom/navigation/NavigationState.h"
@@ -146,5 +145,3 @@ __device__ __forceinline__ void FillGPUStep(
   Copy3DVector(aPostMomentumDirection, aGPUStep.fPostStepPoint.fMomentumDirection);
   aGPUStep.fPostStepPoint.fEKin = aPostEKin;
 };
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 //
-#ifndef DETECTORCONSTRUCTION_H
-#define DETECTORCONSTRUCTION_H
+#pragma once
 
 #include "MagneticFields.hh"
 
@@ -63,5 +62,3 @@ private:
   G4GDMLParser fParser;
   bool fAllSensitive;
 };
-
-#endif /* DETECTORCONSTRUCTION_H */

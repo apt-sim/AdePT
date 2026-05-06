@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef FTFP_BERT_HepEm_h
-#define FTFP_BERT_HepEm_h 1
+#pragma once
 
 #include <CLHEP/Units/SystemOfUnits.h>
 
@@ -17,5 +16,3 @@ public:
   FTFP_BERT_HepEm(const FTFP_BERT_HepEm &)            = delete;
   FTFP_BERT_HepEm &operator=(const FTFP_BERT_HepEm &) = delete;
 };
-
-#endif

@@ -25,8 +25,7 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef RUNACTION_HH
-#define RUNACTION_HH
+#pragma once
 
 #include "G4UserRunAction.hh"
 #include "G4String.hh"
@@ -66,5 +65,3 @@ private:
   static std::mutex fgRunTimerMutex;
   static bool fgRunTimerStarted;
 };
-
-#endif /* RUNACTION_HH */

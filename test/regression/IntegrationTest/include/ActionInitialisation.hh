@@ -25,8 +25,7 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef ACTIONINITIALISATION_HH
-#define ACTIONINITIALISATION_HH
+#pragma once
 
 #include "G4VUserActionInitialization.hh"
 #include "G4String.hh"
@@ -54,5 +53,3 @@ private:
   bool fDoAccumulatedEvents;
   bool fWriteTruthROOT;
 };
-
-#endif /* ACTIONINITIALISATION_HH */

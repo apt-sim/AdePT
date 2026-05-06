@@ -7,8 +7,7 @@
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */
 
-#ifndef ADEPT_ATOMIC_H_
-#define ADEPT_ATOMIC_H_
+#pragma once
 
 #include <AdePT/transport/support/Global.h>
 #include <cassert>
@@ -247,4 +246,3 @@ struct Atomic_t<Type, typename std::enable_if<!std::is_integral<Type>::value>::t
 };
 
 } // End namespace adept
-#endif // ADEPT_ATOMIC_H_
