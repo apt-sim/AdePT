@@ -14,6 +14,7 @@
 #include <AdePT/transport/queues/TrackBuffer.hh>
 #include <AdePT/transport/containers/Atomic.h>
 #include <AdePT/transport/containers/MParray.h>
+#include <AdePT/transport/containers/SlotManager.cuh>
 #include <AdePT/transport/support/Global.h>
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/random/Ranluxpp.h>
