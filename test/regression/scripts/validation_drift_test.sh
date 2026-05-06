@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # PR-vs-master physics drift check for one scenario.
-# Master executable is provided via environment:
+# A one-sided smoke run can be requested with:
+#   ADEPT_DRIFT_SMOKE_ONLY=1
+# Master executable is provided via environment for comparison mode:
 #   ADEPT_MASTER_EXECUTABLE
 
 set -eu -o pipefail
@@ -18,8 +20,22 @@ SCENARIO=$5
 COVFIE_BFIELD_FILE=${6:-}
 
 MASTER_EXECUTABLE=${ADEPT_MASTER_EXECUTABLE:-}
+DRIFT_SMOKE_ONLY=${ADEPT_DRIFT_SMOKE_ONLY:-0}
 
-if [ -z "${MASTER_EXECUTABLE}" ]; then
+case "${DRIFT_SMOKE_ONLY}" in
+  1|ON|On|on|TRUE|True|true|YES|Yes|yes)
+    DRIFT_SMOKE_ONLY=1
+    ;;
+  0|OFF|Off|off|FALSE|False|false|NO|No|no)
+    DRIFT_SMOKE_ONLY=0
+    ;;
+  *)
+    echo "Error: ADEPT_DRIFT_SMOKE_ONLY must be 0/1 or a boolean value, got '${DRIFT_SMOKE_ONLY}'."
+    exit 2
+    ;;
+esac
+
+if [ "${DRIFT_SMOKE_ONLY}" = "0" ] && [ -z "${MASTER_EXECUTABLE}" ]; then
   echo "Error: physics_drift '${SCENARIO}' requires ADEPT_MASTER_EXECUTABLE."
   echo "Set ADEPT_MASTER_EXECUTABLE to the integrationTest executable path of the master branch."
   echo "Example:"
@@ -27,7 +43,7 @@ if [ -z "${MASTER_EXECUTABLE}" ]; then
   exit 2
 fi
 
-if [ ! -x "${MASTER_EXECUTABLE}" ]; then
+if [ "${DRIFT_SMOKE_ONLY}" = "0" ] && [ ! -x "${MASTER_EXECUTABLE}" ]; then
   echo "Error: ADEPT_MASTER_EXECUTABLE is not an executable file: ${MASTER_EXECUTABLE}"
   exit 2
 fi
@@ -200,11 +216,17 @@ PR_OUTPUT="pr_${SCENARIO}"
 mkdir -p "${MASTER_SCENARIO_DIR}" "${PR_SCENARIO_DIR}"
 
 PR_SUPPORTS_ROOT="$(supports_truth_root "${PR_EXECUTABLE}")"
-MASTER_SUPPORTS_ROOT="$(supports_truth_root "${MASTER_EXECUTABLE}")"
+if [ "${DRIFT_SMOKE_ONLY}" = "1" ]; then
+  MASTER_SUPPORTS_ROOT="${PR_SUPPORTS_ROOT}"
+else
+  MASTER_SUPPORTS_ROOT="$(supports_truth_root "${MASTER_EXECUTABLE}")"
+fi
 
 if [ "${SCENARIO_REQUIRES_ATLAS_STEPPING_ACTION}" = "True" ]; then
   require_atlas_stepping_action "${PR_EXECUTABLE}" "PR"
-  require_atlas_stepping_action "${MASTER_EXECUTABLE}" "master"
+  if [ "${DRIFT_SMOKE_ONLY}" = "0" ]; then
+    require_atlas_stepping_action "${MASTER_EXECUTABLE}" "master"
+  fi
 fi
 
 if [ -n "${SCENARIO_COVFIE_BFIELD_FILE}" ]; then
@@ -213,7 +235,9 @@ if [ -n "${SCENARIO_COVFIE_BFIELD_FILE}" ]; then
     exit 2
   fi
   require_ext_bfield_build "${PR_EXECUTABLE}" "PR"
-  require_ext_bfield_build "${MASTER_EXECUTABLE}" "master"
+  if [ "${DRIFT_SMOKE_ONLY}" = "0" ]; then
+    require_ext_bfield_build "${MASTER_EXECUTABLE}" "master"
+  fi
 fi
 
 if [ "${PR_SUPPORTS_ROOT}" = "1" ] && [ "${MASTER_SUPPORTS_ROOT}" = "1" ]; then
@@ -234,6 +258,16 @@ generate_validation_macro "${PR_SOURCE_DIR}" "${SCENARIO_MACRO}" \
   "${SCENARIO_FIELD}" "${CALL_USER_STEPPING_ACTION}" "${CALL_USER_TRACKING_ACTION}" "${SCENARIO_COVFIE_BFIELD_FILE}"
 
 if [ "${CALL_USER_STEPPING_ACTION}" = "True" ]; then
+  if [ "${DRIFT_SMOKE_ONLY}" = "1" ]; then
+    "${PR_EXECUTABLE}" --allsensitive --accumulated_events --truth_root \
+                       -m "${SCENARIO_MACRO}" \
+                       --output_dir "${PR_SCENARIO_DIR}" \
+                       --output_file "${PR_OUTPUT}"
+
+    echo "Scenario '${SCENARIO}' smoke run completed."
+    exit 0
+  fi
+
   # ROOT truth mode: produce aggregated histogram files for PR and master and
   # compare them semantically, histogram by histogram.
   "${MASTER_EXECUTABLE}" --allsensitive --accumulated_events --truth_root \
@@ -250,6 +284,16 @@ if [ "${CALL_USER_STEPPING_ACTION}" = "True" ]; then
     --file1 "${MASTER_SCENARIO_DIR}/${MASTER_OUTPUT}.root" \
     --file2 "${PR_SCENARIO_DIR}/${PR_OUTPUT}.root"
 else
+  if [ "${DRIFT_SMOKE_ONLY}" = "1" ]; then
+    "${PR_EXECUTABLE}" --allsensitive --accumulated_events \
+                       -m "${SCENARIO_MACRO}" \
+                       --output_dir "${PR_SCENARIO_DIR}" \
+                       --output_file "${PR_OUTPUT}"
+
+    echo "Scenario '${SCENARIO}' smoke run completed."
+    exit 0
+  fi
+
   # FIXME: This legacy CSV fallback should be removed once the master/reference
   # executable also supports --truth_root. The drift gate should then require
   # ROOT truth support instead of silently keeping the old CSV-only mode alive.

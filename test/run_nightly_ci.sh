@@ -38,9 +38,10 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Runs the nightly CI selection on the self-hosted runner:
-  1. build Release matrix for async/split/mixed
+  1. build ${BUILD_TYPE} matrix for async/split/mixed
   2. run unit tests on async
   3. run validation tests on async and split
+  4. build Debug matrix for async/split/mixed and run one-sided physics_drift smoke tests
 
 Options:
   --build-root <path>        Build root (default: ${DEFAULT_BUILD_ROOT})
@@ -62,6 +63,9 @@ write_results() {
     printf 'LCG_SETUP=%q\n' "${LCG_SETUP}"
     printf 'BUILD_ROOT=%q\n' "${BUILD_ROOT}"
     printf 'BUILD_TYPE=%q\n' "${BUILD_TYPE}"
+    printf 'RELEASE_CI_STATUS=%s\n' "${RELEASE_CI_STATUS}"
+    printf 'DEBUG_DRIFT_SMOKE_BUILD_ROOT=%q\n' "${DEBUG_DRIFT_SMOKE_BUILD_ROOT}"
+    printf 'DEBUG_DRIFT_SMOKE_STATUS=%s\n' "${DEBUG_DRIFT_SMOKE_STATUS}"
     printf 'NIGHTLY_STATUS=%s\n' "${NIGHTLY_STATUS}"
   } > "${RESULTS_FILE}"
 }
@@ -148,11 +152,27 @@ for arg in "${CMAKE_EXTRA_ARGS[@]}"; do
   matrix_args+=(--cmake-extra "${arg}")
 done
 
+DEBUG_DRIFT_SMOKE_BUILD_ROOT="${BUILD_ROOT}/debug-drift-smoke"
+debug_drift_smoke_args=(
+  --suite drift-smoke
+  --configs async,split,mixed
+  --build-root "${DEBUG_DRIFT_SMOKE_BUILD_ROOT}"
+  --build-type Debug
+  --cuda-arch "${CUDA_ARCH}"
+  --jobs "${JOBS}"
+  --ctest-timeout-sec "${CTEST_TIMEOUT_SEC}"
+)
+
+for arg in "${CMAKE_EXTRA_ARGS[@]}"; do
+  debug_drift_smoke_args+=(--cmake-extra "${arg}")
+done
+
 log "Using LCG setup: ${LCG_SETUP}"
 log "Build type: ${BUILD_TYPE}"
 log "Build root: ${BUILD_ROOT}"
 log "CUDA arch: ${CUDA_ARCH}"
 log "Build jobs: ${JOBS}"
+log "Debug drift smoke build root: ${DEBUG_DRIFT_SMOKE_BUILD_ROOT}"
 log "Running Jenkins-like nightly CI selection"
 
 # Increase self-hosted nightly validation concurrency and buffer capacity unless explicitly overridden.
@@ -173,13 +193,26 @@ export ADEPT_VALIDATION_WDT_NUM_TRACKSLOTS
 export ADEPT_VALIDATION_WDT_NUM_HITSLOTS
 export ADEPT_VALIDATION_WDT_CPU_CAPACITY_FACTOR
 
+RELEASE_CI_STATUS=1
+DEBUG_DRIFT_SMOKE_STATUS=1
 NIGHTLY_STATUS=1
 if "${MATRIX_RUNNER}" "${matrix_args[@]}"; then
+  RELEASE_CI_STATUS=0
+fi
+
+log "Running Debug physics_drift smoke suite"
+if "${MATRIX_RUNNER}" "${debug_drift_smoke_args[@]}"; then
+  DEBUG_DRIFT_SMOKE_STATUS=0
+fi
+
+if [[ "${RELEASE_CI_STATUS}" -eq 0 && "${DEBUG_DRIFT_SMOKE_STATUS}" -eq 0 ]]; then
   NIGHTLY_STATUS=0
 fi
 
 write_results
 
+log "Release CI status: ${RELEASE_CI_STATUS}"
+log "Debug drift smoke status: ${DEBUG_DRIFT_SMOKE_STATUS}"
 log "Nightly status: ${NIGHTLY_STATUS}"
 
 exit "${NIGHTLY_STATUS}"

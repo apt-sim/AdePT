@@ -52,7 +52,8 @@ Runs AdePT in a local matrix similar to Jenkins:
   - mixed (-DADEPT_MIXED_PRECISION=ON)
 
 Options:
-  --suite <drift|ci>         Test suite to run (default: drift)
+  --suite <drift|drift-smoke|ci>
+                              Test suite to run (default: drift)
   --configs <list>           Comma list: async,split,mixed (default: async,split,mixed)
   --build-type <type>        CMake build type (default: Release)
   --cuda-arch <arch|auto>    CUDA arch (default: auto)
@@ -72,6 +73,7 @@ Options:
 
 Suite behavior:
   drift (default): builds PR + master for each config and runs physics_drift_* tests
+  drift-smoke    : builds only this checkout and runs physics_drift_* once, without comparison
   ci              : runs Jenkins-like selection for each config (can take much longer)
 USAGE
 }
@@ -186,10 +188,10 @@ if [[ "${JOBS}" != "auto" && ! "${JOBS}" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 case "${SUITE}" in
-  drift|ci)
+  drift|drift-smoke|ci)
     ;;
   *)
-    die "Invalid --suite '${SUITE}'. Allowed: drift, ci"
+    die "Invalid --suite '${SUITE}'. Allowed: drift, drift-smoke, ci"
     ;;
 esac
 
@@ -401,6 +403,24 @@ run_drift_tests() {
   run_ctest --test-dir "${pr_build_dir}" --output-on-failure -R '^physics_drift_' -j1
 }
 
+run_drift_smoke_tests() {
+  local pr_build_dir=$1
+
+  local pr_exec="${pr_build_dir}/BuildProducts/bin/integrationTest"
+
+  [[ -x "${pr_exec}" ]] || die "Executable not found: ${pr_exec}"
+
+  local drift_count
+  drift_count=$(run_ctest --test-dir "${pr_build_dir}" -N -R '^physics_drift_' | awk '/Total Tests:/ {print $3}')
+  if [[ -z "${drift_count}" || "${drift_count}" == "0" ]]; then
+    die "No physics_drift tests were found in ${pr_build_dir}"
+  fi
+
+  log "Running physics_drift smoke tests in ${pr_build_dir}"
+  ADEPT_DRIFT_SMOKE_ONLY=1 \
+  run_ctest --test-dir "${pr_build_dir}" --output-on-failure -R '^physics_drift_' -j1
+}
+
 run_ci_subset_tests() {
   local cfg=$1
   local build_dir=$2
@@ -455,6 +475,8 @@ for cfg in "${CONFIGS[@]}"; do
     master_build_dir="${BUILD_ROOT}/BUILD_MASTER_REFERENCE_${suffix}"
     build_config "master" "${MASTER_WORKTREE_DIR}" "${master_build_dir}" "${cfg}"
     run_drift_tests "${pr_build_dir}" "${master_build_dir}"
+  elif [[ "${SUITE}" == "drift-smoke" ]]; then
+    run_drift_smoke_tests "${pr_build_dir}"
   else
     run_ci_subset_tests "${cfg}" "${pr_build_dir}"
   fi
