@@ -54,9 +54,27 @@ set(ADEPT_UNIT_TESTS_BASE
   # test_Bfield_step_debugger.cpp # experimental test to debug single stuck rays in AdePT
 )
 
+if(ADEPT_USE_EXT_BFIELD)
+  list(APPEND ADEPT_UNIT_TESTS_BASE
+    test_covfie_field.cpp       # Unit test for Geant4-side Covfie field loading
+    test_general_magnetic_field.cu # Unit test for device-side Covfie field evaluation
+  )
+endif()
+
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
 build_tests("${ADEPT_UNIT_TESTS_BASE}")
+
+if(ADEPT_USE_EXT_BFIELD)
+  foreach(TARGET_NAME test_covfie_field test_general_magnetic_field)
+    target_include_directories(${TARGET_NAME}
+      PRIVATE
+        ${PROJECT_SOURCE_DIR}/test/common
+        ${PROJECT_SOURCE_DIR}/examples/common/include
+    )
+  endforeach()
+endif()
+
 add_to_test("${ADEPT_UNIT_TESTS_BASE}")
 
 set(ADEPT_UNIT_TEST_NAMES
@@ -69,4 +87,10 @@ set(ADEPT_UNIT_TEST_NAMES
   test_hostCircularBuffer
   test_hostTrackDataMapper
 )
+if(ADEPT_USE_EXT_BFIELD)
+  list(APPEND ADEPT_UNIT_TEST_NAMES
+    test_covfie_field
+    test_general_magnetic_field
+  )
+endif()
 set_tests_properties(${ADEPT_UNIT_TEST_NAMES} PROPERTIES LABELS "unit")
