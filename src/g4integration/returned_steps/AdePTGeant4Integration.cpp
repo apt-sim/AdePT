@@ -353,7 +353,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
   // first step in the span is the parent step
   const GPUStep &parentStep = gpuSteps[0];
 
-  assert(gpuSteps.size() == 1 + parentStep.fNumSecondaries);
+  assert(gpuSteps.size() == static_cast<decltype(gpuSteps.size())>(1 + parentStep.fNumSecondaries));
 
   // Reconstruct G4NavigationHistory and G4Step, then call the SD code for the returned step
   vecgeom::NavigationState const &preNavState = parentStep.fPreStepPoint.fNavigationState;
