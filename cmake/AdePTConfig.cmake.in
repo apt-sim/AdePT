@@ -34,7 +34,7 @@ endif()
 find_dependency(G4VG @ADEPT_G4VG_VERSION@ REQUIRED)
 
 if(@ADEPT_USE_EXT_BFIELD@)
-  find_dependency(covfie @ADEPT_COVFIE_VERSION@ REQUIRED)
+  find_dependency(covfie @ADEPT_COVFIE_PACKAGE_VERSION@ REQUIRED)
 endif()
 
 if(@ADEPT_ENABLE_POWER_METER@)
