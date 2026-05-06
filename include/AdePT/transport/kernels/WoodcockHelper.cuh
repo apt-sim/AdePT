@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/state/DeviceGlobals.cuh>
+#include <AdePT/transport/woodcock/WoodcockData.hh>
 
 namespace AsyncAdePT {
 

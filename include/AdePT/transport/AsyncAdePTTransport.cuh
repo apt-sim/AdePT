@@ -11,6 +11,7 @@
 #include <AdePT/transport/state/GPUState.cuh>
 #include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
+#include <AdePT/transport/woodcock/WoodcockData.hh>
 #include <AdePT/transport/queues/TrackBuffer.hh>
 #include <AdePT/transport/containers/Atomic.h>
 #include <AdePT/transport/containers/MParray.h>

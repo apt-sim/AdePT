@@ -8,6 +8,12 @@
 
 #include <VecGeom/base/Vector3D.h>
 
+#include <exception>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <string>
+
 #ifdef ADEPT_USE_EXT_BFIELD
 
 #include <covfie/core/backend/transformer/affine.hpp>
