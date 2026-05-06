@@ -27,6 +27,7 @@ FETCH_MASTER=1
 FORCE_REBUILD=0
 REFRESH_MASTER=0
 RUN_VALIDATION_ALWAYS=0
+RUN_DEBUG_DRIFT=0
 
 log() {
   printf '[pr-ci] %s\n' "$*"
@@ -46,6 +47,7 @@ Runs the AdePT PR CI flow on a self-hosted runner:
   2. run physics drift comparisons
   3. always run unit tests on async
   4. run validation on async + split when drift differs from master, or when requested
+  5. optionally build and run the physics drift matrix in Debug mode
 
 Options:
   --build-root <path>        Build/cache root (default: ${DEFAULT_BUILD_ROOT})
@@ -59,6 +61,7 @@ Options:
   --force-rebuild            Force clean rebuilds in the matrix runner
   --refresh-master           Refresh cached master worktree/builds
   --always-run-validation    Run validation even when drift matches master
+  --run-debug-drift          Also build and run the drift matrix with CMAKE_BUILD_TYPE=Debug
   -h, --help                 Show this help
 EOF
 }
@@ -115,6 +118,8 @@ write_results() {
     printf 'BUILD_ROOT=%q\n' "${BUILD_ROOT}"
     printf 'MASTER_REF=%q\n' "${MASTER_REF}"
     printf 'DRIFT_STATUS=%s\n' "${DRIFT_STATUS}"
+    printf 'DEBUG_DRIFT_RAN=%s\n' "${DEBUG_DRIFT_RAN}"
+    printf 'DEBUG_DRIFT_STATUS=%s\n' "${DEBUG_DRIFT_STATUS}"
     printf 'UNIT_STATUS=%s\n' "${UNIT_STATUS}"
     printf 'VALIDATION_RAN=%s\n' "${VALIDATION_RAN}"
     printf 'VALIDATION_FORCED=%s\n' "${RUN_VALIDATION_ALWAYS}"
@@ -176,6 +181,10 @@ while [[ $# -gt 0 ]]; do
       RUN_VALIDATION_ALWAYS=1
       shift
       ;;
+    --run-debug-drift)
+      RUN_DEBUG_DRIFT=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -203,6 +212,8 @@ normalize_lcg_cuda_env || die "Failed to normalize CUDA environment from LCG set
 mkdir -p "${BUILD_ROOT}"
 
 DRIFT_STATUS=0
+DEBUG_DRIFT_RAN=0
+DEBUG_DRIFT_STATUS=0
 UNIT_STATUS=1
 VALIDATION_RAN=0
 VALIDATION_STATUS=0
@@ -233,6 +244,7 @@ log "Master reference: ${MASTER_REF}"
 log "CUDA arch: ${CUDA_ARCH}"
 log "Build jobs: ${JOBS}"
 log "Always run validation: ${RUN_VALIDATION_ALWAYS}"
+log "Run Debug drift: ${RUN_DEBUG_DRIFT}"
 log "Running drift matrix for async/split/mixed"
 
 for cfg in async split mixed; do
@@ -241,6 +253,41 @@ for cfg in async split mixed; do
     DRIFT_STATUS=1
   fi
 done
+
+if [[ "${RUN_DEBUG_DRIFT}" -eq 1 ]]; then
+  DEBUG_DRIFT_RAN=1
+  DEBUG_DRIFT_BUILD_ROOT="${BUILD_ROOT}/debug-drift"
+  debug_matrix_common_args=(
+    --suite drift
+    --build-root "${DEBUG_DRIFT_BUILD_ROOT}"
+    --build-type Debug
+    --master-ref "${MASTER_REF}"
+    --cuda-arch "${CUDA_ARCH}"
+    --jobs "${JOBS}"
+    --ctest-timeout-sec "${CTEST_TIMEOUT_SEC}"
+  )
+
+  if [[ "${FETCH_MASTER}" -eq 0 ]]; then
+    debug_matrix_common_args+=(--no-fetch-master)
+  fi
+  if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+    debug_matrix_common_args+=(--force-rebuild)
+  fi
+  if [[ "${REFRESH_MASTER}" -eq 1 ]]; then
+    debug_matrix_common_args+=(--refresh-master)
+  fi
+
+  log "Running Debug drift matrix for async/split/mixed"
+  log "Debug drift build root: ${DEBUG_DRIFT_BUILD_ROOT}"
+  for cfg in async split mixed; do
+    log "Debug drift phase for config: ${cfg}"
+    if ! "${MATRIX_RUNNER}" "${debug_matrix_common_args[@]}" --configs "${cfg}"; then
+      DEBUG_DRIFT_STATUS=1
+    fi
+  done
+else
+  log "Debug drift matrix skipped"
+fi
 
 MONOL_BUILD_DIR="${BUILD_ROOT}/BUILD_MONOL"
 SPLIT_BUILD_DIR="${BUILD_ROOT}/BUILD_SPLIT_ON"
@@ -293,7 +340,9 @@ else
   VALIDATION_STATUS=0
 fi
 
-if [[ "${UNIT_STATUS}" -eq 0 && ( "${VALIDATION_RAN}" -eq 0 || "${VALIDATION_STATUS}" -eq 0 ) ]]; then
+if [[ "${UNIT_STATUS}" -eq 0 &&
+      ( "${VALIDATION_RAN}" -eq 0 || "${VALIDATION_STATUS}" -eq 0 ) &&
+      "${DEBUG_DRIFT_STATUS}" -eq 0 ]]; then
   FULL_CI_STATUS=0
 else
   FULL_CI_STATUS=1
@@ -302,6 +351,8 @@ fi
 write_results
 
 log "Drift status: ${DRIFT_STATUS}"
+log "Debug drift ran: ${DEBUG_DRIFT_RAN}"
+log "Debug drift status: ${DEBUG_DRIFT_STATUS}"
 log "Unit status: ${UNIT_STATUS}"
 log "Validation ran: ${VALIDATION_RAN}"
 log "Validation forced: ${RUN_VALIDATION_ALWAYS}"

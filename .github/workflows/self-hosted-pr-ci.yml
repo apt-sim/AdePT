@@ -96,7 +96,7 @@ jobs:
           full_description="Self-hosted EL9 CI queued"
           validation_description="Waiting for drift result in EL9"
           if [ "${COMMAND}" = "/run-test-full" ]; then
-            full_description="Self-hosted EL9 CI with full validation queued"
+            full_description="Self-hosted EL9 CI with full validation and Debug drift queued"
             validation_description="Full validation requested in EL9"
           fi
 
@@ -174,6 +174,7 @@ jobs:
         continue-on-error: true
         env:
           ALWAYS_RUN_VALIDATION: ${{ needs.prepare.outputs.command == '/run-test-full' && '1' || '0' }}
+          RUN_DEBUG_DRIFT: ${{ needs.prepare.outputs.command == '/run-test-full' && '1' || '0' }}
         run: |
           set -eo pipefail
 
@@ -208,6 +209,7 @@ jobs:
             -v "${GITHUB_WORKSPACE}:/work/AdePT" \
             -e HOME=/tmp/adeptci-home \
             -e ADEPT_PR_CI_ALWAYS_RUN_VALIDATION="${ALWAYS_RUN_VALIDATION}" \
+            -e ADEPT_PR_CI_RUN_DEBUG_DRIFT="${RUN_DEBUG_DRIFT}" \
             -e ADEPT_VALIDATION_DEFAULT_NUM_THREADS=32 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_TRACKSLOTS=6 \
             -e ADEPT_VALIDATION_DEFAULT_NUM_HITSLOTS=30 \
@@ -239,6 +241,9 @@ jobs:
               if [[ "${ADEPT_PR_CI_ALWAYS_RUN_VALIDATION:-0}" == "1" ]]; then
                 pr_ci_args+=(--always-run-validation)
               fi
+              if [[ "${ADEPT_PR_CI_RUN_DEBUG_DRIFT:-0}" == "1" ]]; then
+                pr_ci_args+=(--run-debug-drift)
+              fi
               "${pr_ci_args[@]}"
             '
 
@@ -266,6 +271,13 @@ jobs:
             : "${VALIDATION_FORCED:=0}"
           fi
           : "${VALIDATION_STATUS:=1}"
+          if [ "${COMMAND}" = "/run-test-full" ]; then
+            : "${DEBUG_DRIFT_RAN:=1}"
+            : "${DEBUG_DRIFT_STATUS:=1}"
+          else
+            : "${DEBUG_DRIFT_RAN:=0}"
+            : "${DEBUG_DRIFT_STATUS:=0}"
+          fi
           : "${FULL_CI_STATUS:=1}"
 
           if [ "${UNIT_STATUS}" -ne 0 ]; then
@@ -293,7 +305,10 @@ jobs:
             validation_description="Validation tests failed"
           fi
 
-          if [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${VALIDATION_RAN}" -eq 0 ]; then
+          if [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${DEBUG_DRIFT_RAN}" -eq 1 ]; then
+            full_state="success"
+            full_description="Debug drift and validation passed"
+          elif [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${VALIDATION_RAN}" -eq 0 ]; then
             full_state="success"
             full_description="Drift matched master; validation skipped"
           elif [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${DRIFT_STATUS}" -eq 0 ]; then
@@ -305,6 +320,9 @@ jobs:
           elif [ "${UNIT_STATUS}" -ne 0 ]; then
             full_state="failure"
             full_description="Unit tests failed"
+          elif [ "${DEBUG_DRIFT_RAN}" -eq 1 ] && [ "${DEBUG_DRIFT_STATUS}" -ne 0 ]; then
+            full_state="failure"
+            full_description="Debug drift failed"
           elif [ "${VALIDATION_RAN}" -eq 1 ] && [ "${VALIDATION_STATUS}" -ne 0 ]; then
             full_state="failure"
             full_description="Validation tests failed"
@@ -354,6 +372,8 @@ jobs:
             echo "- User: \`$(whoami)\`"
             echo "- Workflow step outcome: \`${{ steps.run_ci.outcome }}\`"
             echo "- Drift status: \`${DRIFT_STATUS:-missing}\`"
+            echo "- Debug drift ran: \`${DEBUG_DRIFT_RAN:-missing}\`"
+            echo "- Debug drift status: \`${DEBUG_DRIFT_STATUS:-missing}\`"
             echo "- Unit status: \`${UNIT_STATUS:-missing}\`"
             echo "- Validation ran: \`${VALIDATION_RAN:-missing}\`"
             echo "- Validation forced: \`${VALIDATION_FORCED:-missing}\`"
