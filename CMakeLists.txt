@@ -15,8 +15,10 @@ project(AdePT
 # Set versions of G4VG and covfie that are pulled in the CMake configuration
 set(ADEPT_G4VG_VERSION 1.0.6)
 set(ADEPT_G4VG_TAG v${ADEPT_G4VG_VERSION})
-set(ADEPT_COVFIE_VERSION 0.15.5)
-set(ADEPT_COVFIE_TAG v${ADEPT_COVFIE_VERSION})
+set(ADEPT_COVFIE_TAG_VERSION 0.15.5)
+set(ADEPT_COVFIE_TAG v${ADEPT_COVFIE_TAG_VERSION})
+# covfie tag v0.15.5 still exports CMake package version 0.15.3.
+set(ADEPT_COVFIE_PACKAGE_VERSION 0.15.3)
 
 #----------------------------------------------------------------------------#
 # CMake and Build Settings
@@ -408,7 +410,7 @@ if(ADEPT_USE_EXT_BFIELD)
   message(STATUS "Compiling with external magnetic field support via covfie")
   add_compile_definitions(ADEPT_USE_EXT_BFIELD)
 
-  find_package(covfie ${ADEPT_COVFIE_VERSION} QUIET)
+  find_package(covfie ${ADEPT_COVFIE_PACKAGE_VERSION} QUIET)
   if (covfie_FOUND)
     get_target_property(COVFIE_INCLUDE_DIR covfie::core INTERFACE_INCLUDE_DIRECTORIES)
     message(STATUS "covfie found at: ${COVFIE_INCLUDE_DIR}")
