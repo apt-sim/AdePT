@@ -96,7 +96,7 @@ jobs:
           full_description="Self-hosted EL9 CI queued"
           validation_description="Waiting for drift result in EL9"
           if [ "${COMMAND}" = "/run-test-full" ]; then
-            full_description="Self-hosted EL9 CI with full validation and Debug drift queued"
+            full_description="Self-hosted EL9 CI with full validation and Debug smoke queued"
             validation_description="Full validation requested in EL9"
           fi
 
@@ -307,7 +307,7 @@ jobs:
 
           if [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${DEBUG_DRIFT_RAN}" -eq 1 ]; then
             full_state="success"
-            full_description="Debug drift and validation passed"
+            full_description="Debug smoke and validation passed"
           elif [ "${FULL_CI_STATUS}" -eq 0 ] && [ "${VALIDATION_RAN}" -eq 0 ]; then
             full_state="success"
             full_description="Drift matched master; validation skipped"
@@ -322,7 +322,7 @@ jobs:
             full_description="Unit tests failed"
           elif [ "${DEBUG_DRIFT_RAN}" -eq 1 ] && [ "${DEBUG_DRIFT_STATUS}" -ne 0 ]; then
             full_state="failure"
-            full_description="Debug drift failed"
+            full_description="Debug smoke failed"
           elif [ "${VALIDATION_RAN}" -eq 1 ] && [ "${VALIDATION_STATUS}" -ne 0 ]; then
             full_state="failure"
             full_description="Validation tests failed"
@@ -372,8 +372,8 @@ jobs:
             echo "- User: \`$(whoami)\`"
             echo "- Workflow step outcome: \`${{ steps.run_ci.outcome }}\`"
             echo "- Drift status: \`${DRIFT_STATUS:-missing}\`"
-            echo "- Debug drift ran: \`${DEBUG_DRIFT_RAN:-missing}\`"
-            echo "- Debug drift status: \`${DEBUG_DRIFT_STATUS:-missing}\`"
+            echo "- Debug smoke ran: \`${DEBUG_DRIFT_RAN:-missing}\`"
+            echo "- Debug smoke status: \`${DEBUG_DRIFT_STATUS:-missing}\`"
             echo "- Unit status: \`${UNIT_STATUS:-missing}\`"
             echo "- Validation ran: \`${VALIDATION_RAN:-missing}\`"
             echo "- Validation forced: \`${VALIDATION_FORCED:-missing}\`"

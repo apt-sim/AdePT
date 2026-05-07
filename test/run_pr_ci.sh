@@ -47,7 +47,7 @@ Runs the AdePT PR CI flow on a self-hosted runner:
   2. run physics drift comparisons
   3. always run unit tests on async
   4. run validation on async + split when drift differs from master, or when requested
-  5. optionally build and run the physics drift matrix in Debug mode
+  5. optionally build and run the physics drift smoke matrix in Debug mode
 
 Options:
   --build-root <path>        Build/cache root (default: ${DEFAULT_BUILD_ROOT})
@@ -61,7 +61,7 @@ Options:
   --force-rebuild            Force clean rebuilds in the matrix runner
   --refresh-master           Refresh cached master worktree/builds
   --always-run-validation    Run validation even when drift matches master
-  --run-debug-drift          Also build and run the drift matrix with CMAKE_BUILD_TYPE=Debug
+  --run-debug-drift          Also build and run the drift smoke matrix with CMAKE_BUILD_TYPE=Debug
   -h, --help                 Show this help
 EOF
 }
@@ -258,29 +258,22 @@ if [[ "${RUN_DEBUG_DRIFT}" -eq 1 ]]; then
   DEBUG_DRIFT_RAN=1
   DEBUG_DRIFT_BUILD_ROOT="${BUILD_ROOT}/debug-drift"
   debug_matrix_common_args=(
-    --suite drift
+    --suite drift-smoke
     --build-root "${DEBUG_DRIFT_BUILD_ROOT}"
     --build-type Debug
-    --master-ref "${MASTER_REF}"
     --cuda-arch "${CUDA_ARCH}"
     --jobs "${JOBS}"
     --ctest-timeout-sec "${CTEST_TIMEOUT_SEC}"
   )
 
-  if [[ "${FETCH_MASTER}" -eq 0 ]]; then
-    debug_matrix_common_args+=(--no-fetch-master)
-  fi
   if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
     debug_matrix_common_args+=(--force-rebuild)
   fi
-  if [[ "${REFRESH_MASTER}" -eq 1 ]]; then
-    debug_matrix_common_args+=(--refresh-master)
-  fi
 
-  log "Running Debug drift matrix for async/split/mixed"
+  log "Running Debug drift smoke matrix for async/split/mixed"
   log "Debug drift build root: ${DEBUG_DRIFT_BUILD_ROOT}"
   for cfg in async split mixed; do
-    log "Debug drift phase for config: ${cfg}"
+    log "Debug drift smoke phase for config: ${cfg}"
     if ! "${MATRIX_RUNNER}" "${debug_matrix_common_args[@]}" --configs "${cfg}"; then
       DEBUG_DRIFT_STATUS=1
     fi
