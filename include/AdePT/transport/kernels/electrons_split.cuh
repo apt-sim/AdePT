@@ -511,7 +511,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         ++currentTrack.looperCounter;
 
         // mark winner process to be transport, although this is not strictly true
-        winnerProcessIndex = 10;
+        winnerProcessIndex = kAdePTTransportationProcess;
 
         reached_interaction = false;
       } else if (winnerProcessIndex < 0) {
@@ -523,6 +523,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         // Reset number of interaction left for the winner discrete process.
         // (Will be resampled in the next iteration.)
         theTrack->SetNumIALeft(-1.0, winnerProcessIndex);
+        winnerProcessIndex = kAdePTTransportationProcess;
       }
     } else {
       // Stopped positrons annihilate, stopped electrons score and die
