@@ -499,7 +499,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| delta interaction\n");
 #endif
-        trackSurvives = true;
+        winnerProcessIndex = kAdePTTransportationProcess;
+        returnedProcessId  = kAdePTTransportationProcess;
+        trackSurvives      = true;
       } else {
         // Perform the discrete interaction, make sure the branched RNG state is
         // ready to be used.
