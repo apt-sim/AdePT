@@ -6,7 +6,7 @@
 #include <AdePT/transport/queues/ParticleQueues.cuh>
 #include <AdePT/transport/state/EventState.hh>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 // A data structure to transfer statistics after each iteration.
 struct Stats {
@@ -40,4 +40,4 @@ struct AllowFinishOffEventArray {
   __host__ __device__ unsigned short operator[](int idx) const { return flags[idx]; }
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

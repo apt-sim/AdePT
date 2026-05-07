@@ -7,7 +7,7 @@
 #include "G4RegionStore.hh"
 
 #include "globals.hh"
-#include <AdePT/transport/AsyncAdePTTransport.hh>
+#include <AdePT/transport/AdePTTransport.hh>
 #include "AdePT/transport/support/SystemOfUnits.h"
 #include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
 #include <AdePT/g4integration/AdePTConfiguration.hh>
@@ -20,7 +20,7 @@
 
 class AdePTTrackingManager : public G4VTrackingManager {
 public:
-  using AdePTTransport = AsyncAdePT::AsyncAdePTTransport;
+  using AdePTTransport = adept::transport::AdePTTransport;
 
   explicit AdePTTrackingManager(AdePTConfiguration *config, int verbosity = 0);
   ~AdePTTrackingManager();
@@ -70,7 +70,7 @@ private:
   /// - packed WDT metadata
   ///
   /// Once that host-side preparation is complete, the worker creates the
-  /// shared `AsyncAdePTTransport`. The transport constructor then performs the
+  /// shared `AdePTTransport`. The transport constructor then performs the
   /// corresponding one-time device initialization and upload.
   void InitializeSharedAdePTTransport();
 

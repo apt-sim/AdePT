@@ -31,7 +31,7 @@
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE "\033[1;34m"
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 struct BufferHandle {
   std::array<DeviceStepBufferView, 2> stepBufferViews;
@@ -494,4 +494,4 @@ public:
   }
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

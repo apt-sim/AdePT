@@ -73,7 +73,7 @@ bool ReturnFirstAndLastStep(const AdePTConfiguration &configuration)
 }
 
 std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
-    const AdePTTransportConfig &transportConfig, std::unique_ptr<AsyncAdePT::AdePTG4HepEmState> adeptG4HepEmState,
+    const AdePTTransportConfig &transportConfig, std::unique_ptr<adept::transport::AdePTG4HepEmState> adeptG4HepEmState,
     adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
     const std::vector<float> &uniformFieldValues)
 {
@@ -149,7 +149,7 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   // shared transport. The transport constructor then performs the one-time
   // device-side initialization from these prepared inputs.
   const auto uniformFieldValues = fGeant4Integration.GetUniformField();
-  auto adeptG4HepEmState        = std::make_unique<AsyncAdePT::AdePTG4HepEmState>(fHepEmTrackingManager->GetConfig());
+  auto adeptG4HepEmState = std::make_unique<adept::transport::AdePTG4HepEmState>(fHepEmTrackingManager->GetConfig());
 
   // Check VecGeom geometry matches Geant4 before deriving any geometry metadata for transport.
   AdePTGeometryBridge::CheckGeometry(adeptG4HepEmState->GetData());

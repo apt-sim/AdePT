@@ -6,7 +6,7 @@
 #include <AdePT/transport/state/DeviceGlobals.cuh>
 #include <AdePT/transport/woodcock/WoodcockData.hh>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 // Helper function to decide whether a gamma should be processed via Woodcock tracking based on navigation state and
 // kinetic energy
@@ -34,4 +34,4 @@ __device__ __forceinline__ bool ShouldUseWDT(const vecgeom::NavigationState &sta
   return true;
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

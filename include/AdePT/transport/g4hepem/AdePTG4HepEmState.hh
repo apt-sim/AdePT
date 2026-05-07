@@ -9,7 +9,7 @@ struct G4HepEmConfig;
 struct G4HepEmData;
 struct G4HepEmParameters;
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 /// @brief Owns the prepared host-side G4HepEm inputs used by transport.
 /// @details
@@ -74,4 +74,4 @@ private:
   std::unique_ptr<G4HepEmParameters, ParametersDeleter> fParameters;
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

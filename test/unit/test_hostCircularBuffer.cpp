@@ -27,7 +27,7 @@ static bool near(double lhs, double rhs)
 
 static int test_empty_buffer_allows_exact_fit()
 {
-  AsyncAdePT::HostCircularBuffer buffer(8);
+  adept::transport::HostCircularBuffer buffer(8);
 
   CHECK(buffer.GetWriteOffset() == 0);
   CHECK(buffer.GetFreeContiguousSlots(8) == 8);
@@ -39,7 +39,7 @@ static int test_empty_buffer_allows_exact_fit()
 
 static int test_segment_add_remove_and_full_buffer()
 {
-  AsyncAdePT::HostCircularBuffer buffer(10);
+  adept::transport::HostCircularBuffer buffer(10);
 
   CHECK(buffer.GetFreeContiguousSlots(10) == 10);
   CHECK(buffer.AddSegment(0, 10));
@@ -56,7 +56,7 @@ static int test_segment_add_remove_and_full_buffer()
 
 static int test_fill_fraction_preserves_existing_pending_transfer_semantics()
 {
-  AsyncAdePT::HostCircularBuffer buffer(10);
+  adept::transport::HostCircularBuffer buffer(10);
 
   CHECK(buffer.GetFreeContiguousSlots(4) == 10);
   CHECK(buffer.AddSegment(0, 4));
@@ -71,7 +71,7 @@ static int test_fill_fraction_preserves_existing_pending_transfer_semantics()
 
 static int test_wraparound_after_front_segment_is_removed()
 {
-  AsyncAdePT::HostCircularBuffer buffer(10);
+  adept::transport::HostCircularBuffer buffer(10);
 
   CHECK(buffer.GetFreeContiguousSlots(6) == 10);
   CHECK(buffer.AddSegment(0, 6));
@@ -90,7 +90,7 @@ static int test_wraparound_after_front_segment_is_removed()
 
 static int test_tail_space_is_reused_after_tail_segment_is_removed()
 {
-  AsyncAdePT::HostCircularBuffer buffer(12);
+  adept::transport::HostCircularBuffer buffer(12);
 
   CHECK(buffer.GetFreeContiguousSlots(4) == 12);
   CHECK(buffer.AddSegment(0, 4));
@@ -108,7 +108,7 @@ static int test_tail_space_is_reused_after_tail_segment_is_removed()
 
 static int test_middle_hole_is_not_reused_from_end_write_position()
 {
-  AsyncAdePT::HostCircularBuffer buffer(12);
+  adept::transport::HostCircularBuffer buffer(12);
 
   CHECK(buffer.GetFreeContiguousSlots(4) == 12);
   CHECK(buffer.AddSegment(0, 4));
@@ -126,7 +126,7 @@ static int test_middle_hole_is_not_reused_from_end_write_position()
 
 static int test_fragmentation_can_block_larger_transfers()
 {
-  AsyncAdePT::HostCircularBuffer buffer(12);
+  adept::transport::HostCircularBuffer buffer(12);
 
   CHECK(buffer.GetFreeContiguousSlots(4) == 12);
   CHECK(buffer.AddSegment(0, 4));
@@ -146,7 +146,7 @@ static int test_fragmentation_can_block_larger_transfers()
 
 static int test_concurrent_allocation_and_release()
 {
-  AsyncAdePT::HostCircularBuffer buffer(64);
+  adept::transport::HostCircularBuffer buffer(64);
 
   constexpr int nSegments = 10000;
   constexpr int nWorkers  = 4;

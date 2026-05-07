@@ -8,7 +8,7 @@
 #include <AdePT/transport/support/ResourceManagement.hh>
 #include "AdePT/transport/support/Global.h"
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 void freeCuda(void *ptr)
 {
@@ -42,4 +42,4 @@ struct CudaDeleter<ADEPT_DEVICE_API_SYMBOL(Event_t)> {
 };
 #endif
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

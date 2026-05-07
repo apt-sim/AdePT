@@ -24,7 +24,7 @@
 #include <memory>
 #include <vector>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 /// @brief Holds all GPU resources needed to manage in-flight tracks of one particle species:
 ///        track buffer, slot manager, interaction queues, CUDA stream and event.
@@ -127,4 +127,4 @@ struct GPUstate {
   }
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

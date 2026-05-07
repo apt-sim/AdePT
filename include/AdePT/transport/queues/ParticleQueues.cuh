@@ -8,7 +8,7 @@
 
 #include <utility>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 // A bundle of queues per particle type:
 //  * Two for active particles, one for the current iteration and the second for the next.
@@ -98,4 +98,4 @@ struct QueueIndexPair {
   short queue;
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

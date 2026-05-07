@@ -491,8 +491,8 @@ endif()
 #----------------------------------------------------------------------------#
 set(ADEPT_CORE_SRCS
   src/transport/g4hepem/AdePTG4HepEmState.cpp
-  src/transport/AsyncAdePTTransport.cc
-  src/transport/AsyncAdePTTransport.cu
+  src/transport/AdePTTransport.cc
+  src/transport/AdePTTransport.cu
   src/transport/steps/HostCircularBuffer.cpp
 )
 
@@ -521,7 +521,7 @@ cuda_rdc_add_library(Transport ${_adept_library_type}
 )
 
 if(ADEPT_USE_HIP)
-  set_source_files_properties(src/transport/AsyncAdePTTransport.cu PROPERTIES LANGUAGE HIP)
+  set_source_files_properties(src/transport/AdePTTransport.cu PROPERTIES LANGUAGE HIP)
   set_source_files_properties(src/g4integration/cuda/G4IntegrationRdcFacade.cu PROPERTIES LANGUAGE HIP)
 endif()
 

@@ -3,7 +3,7 @@
 
 #pragma once
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 struct GPUstate;
 
@@ -29,4 +29,4 @@ enum class EventState : unsigned char {
   DeviceFlushed
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

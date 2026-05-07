@@ -14,7 +14,7 @@
 #include <shared_mutex>
 #include <thread>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 /// @brief Buffer holding input tracks to be transported on GPU.
 struct TrackBuffer {
@@ -77,4 +77,4 @@ struct TrackBuffer {
   }
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

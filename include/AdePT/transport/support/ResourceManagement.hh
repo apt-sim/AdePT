@@ -5,7 +5,7 @@
 
 #include <memory>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 void freeCuda(void *ptr);
 void freeCudaHost(void *ptr);
 void freeCudaStream(void *stream);
@@ -23,4 +23,4 @@ struct CudaHostDeleter {
 template <typename T = void, typename Deleter = CudaDeleter<T>>
 using unique_ptr_cuda = std::unique_ptr<T, Deleter>;
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

@@ -15,7 +15,7 @@ struct CompareGPUSteps {
   __device__ bool operator()(const GPUStep &lhs, const GPUStep &rhs) const { return lhs.threadId < rhs.threadId; }
 };
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 /// Struct holding GPU steps to be used both on host and device.
 struct DeviceStepBufferView {
@@ -51,4 +51,4 @@ struct DeviceStepBufferView {
 
 __device__ DeviceStepBufferView gDeviceStepBuffer;
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

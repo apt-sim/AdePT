@@ -12,7 +12,7 @@
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 // Constant data structures from G4HepEm accessed by the kernels.
 extern __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
@@ -31,4 +31,4 @@ extern __constant__ __device__ GeneralMagneticField *gMagneticField;
 extern __constant__ __device__ UniformMagneticField *gMagneticField;
 #endif
 
-} // namespace AsyncAdePT
+} // namespace adept::transport
