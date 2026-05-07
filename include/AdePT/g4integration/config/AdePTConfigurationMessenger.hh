@@ -7,8 +7,7 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-#ifndef ADEPTCONFIGURATIONMESSENGER_HH
-#define ADEPTCONFIGURATIONMESSENGER_HH
+#pragma once
 
 #include "G4UImessenger.hh"
 #include "globals.hh"
@@ -66,5 +65,3 @@ private:
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-#endif // ADEPTCONFIGURATIONMESSENGER_HH

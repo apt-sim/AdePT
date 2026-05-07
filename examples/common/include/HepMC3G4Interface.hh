@@ -7,8 +7,7 @@
 //
 //
 
-#ifndef HEPMC3_G4_INTERFACE_H
-#define HEPMC3_G4_INTERFACE_H
+#pragma once
 
 #include "G4VPrimaryGenerator.hh"
 
@@ -43,5 +42,3 @@ public:
   // GenerateHepMCEvent() will be converted to G4Event through HepMC2G4().
   virtual void GeneratePrimaryVertex(G4Event *anEvent);
 };
-
-#endif

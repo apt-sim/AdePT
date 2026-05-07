@@ -3,8 +3,7 @@
 
 // Author:   J. Apostolakis,  29 Nov 2021
 
-#ifndef FIELD_CONSTANTS_H__
-#define FIELD_CONSTANTS_H__
+#pragma once
 
 namespace fieldConstants {
 
@@ -20,5 +19,3 @@ static constexpr float deltaChord = 0.25 * copcore::units::millimeter;
 // deltaChord in G4, so we keep the same name
 
 }; // namespace fieldConstants
-
-#endif

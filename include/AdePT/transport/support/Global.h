@@ -6,8 +6,7 @@
  * @brief CopCore global macros and types
  */
 
-#ifndef COPCORE_GLOBAL_H_
-#define COPCORE_GLOBAL_H_
+#pragma once
 
 #include <cstdio>
 #include <type_traits>
@@ -127,5 +126,3 @@ const char *BackendName(Backend const &backend)
 #else
 #define COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(HVAR, NAMESPACE, FUNC) auto HVAR = NAMESPACE::FUNC;
 #endif
-
-#endif // COPCORE_GLOBAL_H_

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_CONFIG_HH
-#define ADEPT_TRANSPORT_CONFIG_HH
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -25,5 +24,3 @@ struct AdePTTransportConfig {
   double cpuCopyFraction{0.5};
   double stepBufferSafetyFactor{1.5};
 };
-
-#endif

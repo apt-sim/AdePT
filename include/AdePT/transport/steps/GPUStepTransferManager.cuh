@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_GPU_STEP_TRANSFER_MANAGER_CUH
-#define ADEPT_GPU_STEP_TRANSFER_MANAGER_CUH
+#pragma once
 
 #include <AdePT/transport/support/ResourceManagement.cuh>
 #include <AdePT/transport/steps/DeviceStepBuffer.cuh>
@@ -496,5 +495,3 @@ public:
 };
 
 } // namespace AsyncAdePT
-
-#endif

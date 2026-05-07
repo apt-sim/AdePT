@@ -6,8 +6,7 @@
 /// - filling the buffer with tracks to be transported on the GPU
 /// - driving the GPU transport worker
 
-#ifndef ASYNC_ADEPT_TRANSPORT_HH
-#define ASYNC_ADEPT_TRANSPORT_HH
+#pragma once
 
 #include <AdePT/transport/g4hepem/AdePTG4HepEmState.hh>
 #include <AdePT/transport/config/AdePTTransportConfig.hh>
@@ -106,5 +105,3 @@ public:
 } // namespace AsyncAdePT
 
 #include "AsyncAdePTTransport.icc"
-
-#endif

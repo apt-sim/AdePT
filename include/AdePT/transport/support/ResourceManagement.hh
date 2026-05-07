@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef RESOURCE_MANAGEMENT_HH
-#define RESOURCE_MANAGEMENT_HH
+#pragma once
 
 #include <memory>
 
@@ -25,5 +24,3 @@ template <typename T = void, typename Deleter = CudaDeleter<T>>
 using unique_ptr_cuda = std::unique_ptr<T, Deleter>;
 
 } // namespace AsyncAdePT
-
-#endif // RESOURCE_MANAGEMENT_HH

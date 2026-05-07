@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2021 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef testField_CUH
-#define testField_CUH
+#pragma once
 
 #include "testField.h"
 
@@ -165,5 +164,3 @@ extern float BzFieldValue_host; //   = 1.0 * copcore::units::tesla;
 extern /*__device__*/ float *BzFieldValue_dev;
 
 __global__ void SetBzFieldPtr(float *pBzFieldValue_dev);
-
-#endif

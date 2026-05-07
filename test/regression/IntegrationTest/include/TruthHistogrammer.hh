@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef TRUTHHISTOGRAMMER_HH
-#define TRUTHHISTOGRAMMER_HH
+#pragma once
 
 #include <cstdint>
 #include <map>
@@ -73,5 +72,3 @@ private:
   /// Store one exact floating-point observation by value and count its population.
   void IncrementValue(const std::string &histogramName, double value, std::uint64_t count = 1);
 };
-
-#endif

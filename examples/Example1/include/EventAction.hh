@@ -25,8 +25,7 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef EVENTACTION_HH
-#define EVENTACTION_HH
+#pragma once
 
 #include "G4UserEventAction.hh"
 #include "G4Types.hh"
@@ -63,5 +62,3 @@ private:
   /// Messenger for this
   EventActionMessenger *fMessenger{nullptr};
 };
-
-#endif /* EVENTACTION_HH */

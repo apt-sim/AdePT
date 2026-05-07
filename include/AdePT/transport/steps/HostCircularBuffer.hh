@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_HOST_CIRCULAR_BUFFER_HH
-#define ADEPT_HOST_CIRCULAR_BUFFER_HH
+#pragma once
 
 #include <cstddef>
 #include <mutex>
@@ -60,5 +59,3 @@ private:
 };
 
 } // namespace AsyncAdePT
-
-#endif

@@ -5,8 +5,7 @@
 ///   The derived class from G4HepEmTrackingManager must implement HandOverOneTrack and CheckEarlyTrackingExit to allow
 ///   for an early exit of the tracking loop in the G4HepEmTrackingManager
 
-#ifndef G4HepEmTrackingManagerSpecialized_h
-#define G4HepEmTrackingManagerSpecialized_h
+#pragma once
 
 #include "G4HepEmTrackingManager.hh"
 
@@ -46,5 +45,3 @@ private:
 
   // G4Region const * fPreviousRegion = nullptr;
 };
-
-#endif // G4HepEmTrackingManagerSpecialized_h

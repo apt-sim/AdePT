@@ -7,8 +7,7 @@
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */
 
-#ifndef ADEPT_BLOCKDATA_H_
-#define ADEPT_BLOCKDATA_H_
+#pragma once
 
 #include <AdePT/transport/containers/Atomic.h>
 #include <AdePT/transport/containers/VariableSizeObj.h>
@@ -136,5 +135,3 @@ public:
 
 }; // End BlockData
 } // End namespace adept
-
-#endif // ADEPT_BLOCKDATA_H_

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRANSPORT_STATE_DEVICE_GLOBALS_CUH
-#define ADEPT_TRANSPORT_STATE_DEVICE_GLOBALS_CUH
+#pragma once
 
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/magneticfield/GeneralMagneticField.cuh>
@@ -33,5 +32,3 @@ extern __constant__ __device__ UniformMagneticField *gMagneticField;
 #endif
 
 } // namespace AsyncAdePT
-
-#endif

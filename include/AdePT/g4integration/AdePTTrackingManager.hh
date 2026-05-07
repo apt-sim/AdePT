@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef AdePTTrackingManager_h
-#define AdePTTrackingManager_h 1
+#pragma once
 
 #include "G4VTrackingManager.hh"
 #include "G4RegionStore.hh"
@@ -100,5 +99,3 @@ private:
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-#endif

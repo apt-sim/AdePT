@@ -8,8 +8,7 @@
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-#ifndef PARTICLEGUNMESSENGER_HH
-#define PARTICLEGUNMESSENGER_HH
+#pragma once
 
 #include "G4UImessenger.hh"
 #include "globals.hh"
@@ -49,5 +48,3 @@ private:
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
-#endif // PARTICLEGUNMESSENGER_HH

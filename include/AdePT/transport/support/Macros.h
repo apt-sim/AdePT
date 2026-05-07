@@ -37,8 +37,7 @@
  * expands to `inline __attribute__((always_inline))` on host compilers.
  */
 
-#ifndef COPCORE_MACROS_H_
-#define COPCORE_MACROS_H_
+#pragma once
 
 // Macros for separating CUDA compiler from others
 #ifdef __CUDACC__
@@ -76,5 +75,3 @@
 #define DISABLE_PEDANTIC_WARNINGS
 #define ENABLE_PEDANTIC_WARNINGS
 #endif
-
-#endif // COPCORE_MACROS_H_

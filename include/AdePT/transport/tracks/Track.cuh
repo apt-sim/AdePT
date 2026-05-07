@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRACK_CUH
-#define ADEPT_TRACK_CUH
+#pragma once
 
 #include <AdePT/transport/tracks/TrackData.h>
 #include <AdePT/transport/support/SystemOfUnits.h>
@@ -184,5 +183,3 @@ struct ChargedTrack : TrackBase {
     navState.Print();
   }
 };
-
-#endif

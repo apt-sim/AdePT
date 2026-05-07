@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#pragma once
+
 /**
  * @file VariableSizeObjAllocator.h
  * @brief Backend-aware allocator for variable size objects

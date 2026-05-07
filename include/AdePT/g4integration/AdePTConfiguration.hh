@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2024 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_CONFIGURATION_HH
-#define ADEPT_CONFIGURATION_HH
+#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -110,5 +109,3 @@ private:
   std::string fCovfieBfieldFile{""};
   std::unique_ptr<AdePTConfigurationMessenger> fAdePTConfigurationMessenger;
 };
-
-#endif

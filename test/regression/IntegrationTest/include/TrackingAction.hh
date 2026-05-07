@@ -3,8 +3,7 @@
 
 /// \brief Definition of the TrackingAction class
 
-#ifndef TRACKINGACTION_HH
-#define TRACKINGACTION_HH
+#pragma once
 
 #include "G4UserTrackingAction.hh"
 
@@ -25,5 +24,3 @@ public:
   void PreUserTrackingAction(const G4Track *) override;
   void PostUserTrackingAction(const G4Track *) override;
 };
-
-#endif // TRACKINGACTION_HH

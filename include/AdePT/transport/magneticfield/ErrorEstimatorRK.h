@@ -7,8 +7,7 @@
 //  Created on: November 15, 2021
 //      Author: J. Apostolakis
 
-#ifndef ErrorEstimatorRK_h
-#define ErrorEstimatorRK_h
+#pragma once
 
 class ErrorEstimatorRK {
 public:
@@ -70,4 +69,3 @@ ErrorEstimatorRK::EstimateSquareError(const Real_t yEstError[], // [fNoComponent
 
   return vecCore::math::Max(errpos_sq, errmom_sq); // Maximum Square Error
 }
-#endif

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2025 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_PARTICLE_TYPES_HH
-#define ADEPT_PARTICLE_TYPES_HH
+#pragma once
 
 /// @brief Strongly-typed enum for the three EM particle species tracked by AdePT.
 ///
@@ -23,5 +22,3 @@ enum class ParticleType : char {
   Positron = 1,
   Gamma    = 2,
 };
-
-#endif // ADEPT_PARTICLE_TYPES_HH

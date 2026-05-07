@@ -3,8 +3,7 @@
 //
 // Author:  J. Apostolakis,   16 Nov 2021
 
-#ifndef UniformMagneticField_H__
-#define UniformMagneticField_H__
+#pragma once
 
 // #include <VecCore/Math.h>
 #include <VecGeom/base/Vector3D.h>
@@ -65,5 +64,3 @@ public:
 private:
   vecgeom::Vector3D<float> fFieldComponents;
 };
-
-#endif

@@ -3,8 +3,7 @@
 
 // Author: J. Apostolakis  15 Nov 2021
 
-#ifndef FIELD_PROPAGATOR_RUNGEKUTTA_H
-#define FIELD_PROPAGATOR_RUNGEKUTTA_H
+#pragma once
 
 #include <VecGeom/base/Vector3D.h>
 
@@ -347,5 +346,3 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
   return stepDone;
 }
-
-#endif

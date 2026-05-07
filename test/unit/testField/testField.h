@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2021 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef testField_H
-#define testField_H
+#pragma once
 
 struct G4HepEmState;
 
@@ -30,5 +29,3 @@ struct ScoringPerVolume {
 void testField(int numParticles, double energy, int batch, const int *MCCindex, ScoringPerVolume *scoringPerVolume,
                GlobalScoring *globalScoring, int numVolumes, int numPlaced, G4HepEmState *state,
                bool rotatingParticleGun);
-
-#endif

@@ -6,8 +6,7 @@
 ///   - G4Step reconstruction from GPU steps
 ///   - Processing of reconstructed steps using the Geant4 sensitive detector
 
-#ifndef ADEPTGEANT4_INTEGRATION_H
-#define ADEPTGEANT4_INTEGRATION_H
+#pragma once
 
 #include <AdePT/transport/steps/GPUStep.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
@@ -144,5 +143,3 @@ private:
   std::vector<GPUStep> fDeferredGPUSteps;
   std::vector<DeferredStep> fDeferredSteps;
 };
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef DETECTORMESSENGER_H
-#define DETECTORMESSENGER_H
+#pragma once
 
 #include "G4UImessenger.hh"
 
@@ -46,5 +45,3 @@ private:
   G4UIcmdWith3VectorAndUnit *fFieldCmd  = nullptr;
   G4UIcmdWithAString *fFieldFileNameCmd = nullptr;
 };
-
-#endif

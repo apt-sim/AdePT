@@ -8,8 +8,7 @@
  * based on http://www.1024cores.net/home/lock-free-algorithms/queues/bounded-mpmc-queue
  */
 
-#ifndef ADEPT_MPMC_BOUNDED_QUEUE
-#define ADEPT_MPMC_BOUNDED_QUEUE
+#pragma once
 
 #include <stdint.h>
 #include <cassert>
@@ -184,4 +183,3 @@ public:
 
 }; // End mpmc_bounded_queue
 } // End namespace adept
-#endif // ADEPT_MPMC_BOUNDED_QUEUE

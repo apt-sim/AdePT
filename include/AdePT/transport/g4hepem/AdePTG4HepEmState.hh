@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_G4_HEPEM_STATE_HH
-#define ADEPT_G4_HEPEM_STATE_HH
+#pragma once
 
 #include <memory>
 
@@ -76,5 +75,3 @@ private:
 };
 
 } // namespace AsyncAdePT
-
-#endif

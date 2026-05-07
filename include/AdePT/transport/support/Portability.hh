@@ -16,8 +16,7 @@
 
 // Portability macros used to switch between cuda/hip
 
-#ifndef PORTABILITY_HH
-#define PORTABILITY_HH
+#pragma once
 
 #ifndef __CUDA_ARCH__
 #include <stdexcept>
@@ -376,5 +375,3 @@ inline ADEPT_ATT_HOST_DEVICE char const *operator<<(StreamlikeIdentity const &, 
 } // namespace detail
 
 } // namespace portability
-
-#endif

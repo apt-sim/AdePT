@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef TRACKLINEAGEINFO_HH
-#define TRACKLINEAGEINFO_HH
+#pragma once
 
 #include "G4VUserTrackInformation.hh"
 
@@ -45,5 +44,3 @@ private:
   unsigned int fGeneration;
   bool fInitialRecorded{false};
 };
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef G4EmStandardPhysics_AdePT_h
-#define G4EmStandardPhysics_AdePT_h 1
+#pragma once
 
 #include "G4EmStandardPhysics.hh"
 
@@ -22,5 +21,3 @@ private:
   AdePTTrackingManager *fTrackingManager{nullptr};
   AdePTConfiguration *fAdePTConfiguration{nullptr};
 };
-
-#endif

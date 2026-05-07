@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef G4EmStandardPhysics_HepEm_h
-#define G4EmStandardPhysics_HepEm_h 1
+#pragma once
 
 #include "G4EmStandardPhysics.hh"
 
@@ -20,5 +19,3 @@ public:
 private:
   G4HepEmTrackingManager *fTrackingManager{nullptr};
 };
-
-#endif

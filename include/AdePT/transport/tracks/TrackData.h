@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_TRACKDATA_H
-#define ADEPT_TRACKDATA_H
+#pragma once
 
 #include <AdePT/transport/containers/MParray.h>
 
@@ -43,4 +42,3 @@ struct TrackData {
 } // namespace adeptint
 
 using MParrayTracks = adept::MParrayT<adeptint::TrackData>;
-#endif

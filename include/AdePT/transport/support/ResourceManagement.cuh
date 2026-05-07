@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
-#ifndef RESOURCE_MANAGEMENT_CUH
-#define RESOURCE_MANAGEMENT_CUH
+#pragma once
 
 #include <AdePT/transport/support/Portability.hh>
 
@@ -44,5 +43,3 @@ struct CudaDeleter<ADEPT_DEVICE_API_SYMBOL(Event_t)> {
 #endif
 
 } // namespace AsyncAdePT
-
-#endif // RESOURCE_MANAGEMENT_CUH

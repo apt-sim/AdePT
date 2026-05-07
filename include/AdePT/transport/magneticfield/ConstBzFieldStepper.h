@@ -10,8 +10,7 @@
  *  Original Author: swenzel   ( S. Wenzel ) Apr 23, 2014
  */
 
-#ifndef CONSTBzFIELDSTEPPER_H_
-#define CONSTBzFIELDSTEPPER_H_
+#pragma once
 
 #include "VecGeom/base/Global.h"
 
@@ -112,5 +111,3 @@ inline __attribute__((always_inline)) void ConstBzFieldStepper::DoStep(
   dy = dx0 * sinphi + cosphi * dy0;
   dz = dz0;
 }
-
-#endif /* CONSTBzFIELDSTEPPER_H_ */

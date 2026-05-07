@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 //
-#ifndef PARTICLEGUN_HH
-#define PARTICLEGUN_HH
+#pragma once
 
 #include "G4ParticleGun.hh"
 #include "G4VPrimaryGenerator.hh"
@@ -59,5 +58,3 @@ private:
 
   std::unique_ptr<ParticleGunMessenger> fMessenger;
 };
-
-#endif /* PARTICLEGUN_HH */

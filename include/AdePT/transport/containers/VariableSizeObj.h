@@ -123,8 +123,7 @@
  * If omitting new_size above, the copy will have the same size as the source.
  */
 
-#ifndef COPCORE_VARIABLESIZEOBJ_H
-#define COPCORE_VARIABLESIZEOBJ_H
+#pragma once
 
 #include <AdePT/transport/support/Global.h>
 
@@ -313,5 +312,3 @@ private:
   }
 };
 } // namespace copcore
-
-#endif //  COPCORE_VARIABLESIZEOBJ_H

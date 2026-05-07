@@ -3,8 +3,7 @@
 
 // Author: J. Apostolakis  Nov/Dec 2020
 
-#ifndef FIELD_PROPAGATOR_CONST_BANY_H
-#define FIELD_PROPAGATOR_CONST_BANY_H
+#pragma once
 
 #include <VecGeom/base/Vector3D.h>
 
@@ -42,5 +41,3 @@ inline __host__ __device__ void fieldPropagatorConstBany::stepInField(ConstField
     position = position + step * direction;
   }
 }
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2021 CERN
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
-#ifndef COPCORE_RANLUXPP_RANLUX_LCG_H_
-#define COPCORE_RANLUXPP_RANLUX_LCG_H_
+#pragma once
 
 #include "helpers.h"
 
@@ -81,5 +80,3 @@ __host__ __device__ static void to_ranlux(const uint64_t *lcg, uint64_t *ranlux,
 
   c_out = carry;
 }
-
-#endif

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ADEPT_GEOMETRY_BRIDGE_HH
-#define ADEPT_GEOMETRY_BRIDGE_HH
+#pragma once
 
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/woodcock/WoodcockData.hh>
@@ -62,5 +61,3 @@ private:
   static std::vector<G4VPhysicalVolume const *> fGlobalVecGeomPvToG4Map;
   static std::vector<G4LogicalVolume const *> fGlobalVecGeomLvToG4Map;
 };
-
-#endif

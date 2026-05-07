@@ -25,8 +25,7 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-#ifndef SENSITIVEDETECTOR_HH
-#define SENSITIVEDETECTOR_HH
+#pragma once
 
 #include <unordered_map>
 #include <set>
@@ -74,5 +73,3 @@ private:
   /// Number of sensitive detectors
   std::size_t fNumSensitive{0};
 };
-
-#endif /* SENSITIVEDETECTOR_HH */

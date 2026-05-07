@@ -3,8 +3,7 @@
 //
 // Author:  J. Apostolakis,  19 Nov 2021
 //
-#ifndef PRINT_FIELD_VECTORS_H__
-#define PRINT_FIELD_VECTORS_H__
+#pragma once
 
 static constexpr int NvarPrint = 6;
 
@@ -155,5 +154,3 @@ static inline // __host__ __device__
 // { }
 
 }; // namespace PrintFieldVectors
-
-#endif
