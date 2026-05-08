@@ -24,7 +24,7 @@ using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
 
 namespace adept::transport {
-// Asynchronous TransportGammas Interface
+// TransportGammas Interface
 template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     TransportGammas(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,

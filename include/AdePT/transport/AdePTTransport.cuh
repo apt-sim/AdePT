@@ -29,9 +29,6 @@
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
 
 #include <AdePT/transport/tracks/TrackDebug.cuh>
-// deprecated kernels that split the gamma interactions:
-// #include <AdePT/transport/kernels/electrons_async.cuh>
-// #include <AdePT/transport/kernels/gammas_async.cuh>
 
 #include <AdePT/transport/navigation/BVHNavigator.h>
 

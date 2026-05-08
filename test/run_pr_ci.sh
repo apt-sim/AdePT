@@ -43,10 +43,10 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Runs the AdePT PR CI flow on a self-hosted runner:
-  1. build PR and upstream master reference for async/split/mixed
+  1. build PR and upstream master reference for mono/split/mixed
   2. run physics drift comparisons
-  3. always run unit tests on async
-  4. run validation on async + split when drift differs from master, or when requested
+  3. always run unit tests on mono
+  4. run validation on mono + split when drift differs from master, or when requested
   5. optionally build and run the physics drift smoke matrix in Debug mode
 
 Options:
@@ -245,9 +245,9 @@ log "CUDA arch: ${CUDA_ARCH}"
 log "Build jobs: ${JOBS}"
 log "Always run validation: ${RUN_VALIDATION_ALWAYS}"
 log "Run Debug drift: ${RUN_DEBUG_DRIFT}"
-log "Running drift matrix for async/split/mixed"
+log "Running drift matrix for mono/split/mixed"
 
-for cfg in async split mixed; do
+for cfg in mono split mixed; do
   log "Drift phase for config: ${cfg}"
   if ! "${MATRIX_RUNNER}" "${matrix_common_args[@]}" --configs "${cfg}"; then
     DRIFT_STATUS=1
@@ -270,9 +270,9 @@ if [[ "${RUN_DEBUG_DRIFT}" -eq 1 ]]; then
     debug_matrix_common_args+=(--force-rebuild)
   fi
 
-  log "Running Debug drift smoke matrix for async/split/mixed"
+  log "Running Debug drift smoke matrix for mono/split/mixed"
   log "Debug drift build root: ${DEBUG_DRIFT_BUILD_ROOT}"
-  for cfg in async split mixed; do
+  for cfg in mono split mixed; do
     log "Debug drift smoke phase for config: ${cfg}"
     if ! "${MATRIX_RUNNER}" "${debug_matrix_common_args[@]}" --configs "${cfg}"; then
       DEBUG_DRIFT_STATUS=1
@@ -286,13 +286,13 @@ MONOL_BUILD_DIR="${BUILD_ROOT}/BUILD_MONOL"
 SPLIT_BUILD_DIR="${BUILD_ROOT}/BUILD_SPLIT_ON"
 MONOL_BUILD_READY=0
 
-log "Ensuring async build has all test targets"
+log "Ensuring mono build has all test targets"
 if build_all_targets "${MONOL_BUILD_DIR}"; then
   MONOL_BUILD_READY=1
-  log "Running async unit tests"
+  log "Running mono unit tests"
   run_and_capture UNIT_STATUS run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L unit -j1
 else
-  log "Skipping async unit tests because the async build is unavailable"
+  log "Skipping mono unit tests because the mono build is unavailable"
   UNIT_STATUS=1
 fi
 
@@ -303,17 +303,17 @@ if [[ "${DRIFT_STATUS}" -ne 0 || "${RUN_VALIDATION_ALWAYS}" -eq 1 ]]; then
   validation_split_status=1
 
   if [[ "${DRIFT_STATUS}" -ne 0 ]]; then
-    log "Drift differs from master; running validation on async and split"
+    log "Drift differs from master; running validation on mono and split"
   else
-    log "Full validation requested; running validation on async and split"
+    log "Full validation requested; running validation on mono and split"
   fi
 
   if [[ "${MONOL_BUILD_READY}" -eq 1 && ( "${UNIT_STATUS}" -eq 0 || "${RUN_VALIDATION_ALWAYS}" -eq 1 ) ]]; then
     run_and_capture validation_monol_status run_ctest --test-dir "${MONOL_BUILD_DIR}" --output-on-failure -L validation -j1
   elif [[ "${MONOL_BUILD_READY}" -ne 1 ]]; then
-    log "Skipping async validation because the async build is unavailable"
+    log "Skipping mono validation because the mono build is unavailable"
   else
-    log "Skipping async validation because the unit stage failed"
+    log "Skipping mono validation because the unit stage failed"
   fi
 
   if build_all_targets "${SPLIT_BUILD_DIR}"; then
