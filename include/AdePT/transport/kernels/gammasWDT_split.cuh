@@ -29,7 +29,7 @@ using VolAuxData      = adeptint::VolAuxData;
 
 namespace adept::transport {
 
-// Asynchronous TransportGammasWoodcock Interface
+// TransportGammasWoodcock Interface
 template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     GammaWoodcock(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,

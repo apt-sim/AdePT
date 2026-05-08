@@ -38,10 +38,10 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Runs the nightly CI selection on the self-hosted runner:
-  1. build ${BUILD_TYPE} matrix for async/split/mixed
-  2. run unit tests on async
-  3. run validation tests on async and split
-  4. build Debug matrix for async/split/mixed and run one-sided physics_drift smoke tests
+  1. build ${BUILD_TYPE} matrix for mono/split/mixed
+  2. run unit tests on mono
+  3. run validation tests on mono and split
+  4. build Debug matrix for mono/split/mixed and run one-sided physics_drift smoke tests
 
 Options:
   --build-root <path>        Build root (default: ${DEFAULT_BUILD_ROOT})
@@ -140,7 +140,7 @@ mkdir -p "${BUILD_ROOT}"
 
 matrix_args=(
   --suite ci
-  --configs async,split,mixed
+  --configs mono,split,mixed
   --build-root "${BUILD_ROOT}"
   --build-type "${BUILD_TYPE}"
   --cuda-arch "${CUDA_ARCH}"
@@ -155,7 +155,7 @@ done
 DEBUG_DRIFT_SMOKE_BUILD_ROOT="${BUILD_ROOT}/debug-drift-smoke"
 debug_drift_smoke_args=(
   --suite drift-smoke
-  --configs async,split,mixed
+  --configs mono,split,mixed
   --build-root "${DEBUG_DRIFT_SMOKE_BUILD_ROOT}"
   --build-type Debug
   --cuda-arch "${CUDA_ARCH}"

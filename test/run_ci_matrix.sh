@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Tracked local matrix runner for AdePT CI-like checks.
-# Default mode runs fast physics_drift tests for async/split/mixed.
+# Default mode runs fast physics_drift tests for mono/split/mixed.
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ DEFAULT_MASTER_REF="auto"
 
 BUILD_TYPE="Release"
 SUITE="drift"
-CONFIG_LIST="async,split,mixed"
+CONFIG_LIST="mono,split,mixed"
 BUILD_ROOT="${SCRIPT_DIR}/build"
 MASTER_REF="${DEFAULT_MASTER_REF}"
 FETCH_MASTER=1
@@ -47,14 +47,14 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Runs AdePT in a local matrix similar to Jenkins:
-  - async (default flags, external B-field support)
+  - mono (default monolithic kernels, external B-field support)
   - split (-DADEPT_USE_SPLIT_KERNELS=ON)
   - mixed (-DADEPT_MIXED_PRECISION=ON)
 
 Options:
   --suite <drift|drift-smoke|ci>
                               Test suite to run (default: drift)
-  --configs <list>           Comma list: async,split,mixed (default: async,split,mixed)
+  --configs <list>           Comma list: mono,split,mixed (default: mono,split,mixed)
   --build-type <type>        CMake build type (default: Release)
   --cuda-arch <arch|auto>    CUDA arch (default: auto)
   --jobs <N|auto>            Parallel build jobs (default: auto = nproc)
@@ -205,10 +205,10 @@ IFS=',' read -r -a CONFIGS <<< "${CONFIG_LIST}"
 
 for cfg in "${CONFIGS[@]}"; do
   case "${cfg}" in
-    async|split|mixed)
+    mono|split|mixed)
       ;;
     *)
-      die "Invalid config '${cfg}'. Allowed: async, split, mixed"
+      die "Invalid config '${cfg}'. Allowed: mono, split, mixed"
       ;;
   esac
 done
@@ -268,7 +268,7 @@ COMMON_CMAKE_ARGS+=("${CMAKE_EXTRA_ARGS[@]}")
 
 config_suffix() {
   case "$1" in
-    async) echo "MONOL" ;;
+    mono) echo "MONOL" ;;
     split) echo "SPLIT_ON" ;;
     mixed) echo "MIXED_PRECISION" ;;
   esac
@@ -282,7 +282,7 @@ build_config() {
 
   local -a cfg_args=()
   case "${cfg}" in
-    async)
+    mono)
       ;;
     split)
       cfg_args+=("-DADEPT_USE_SPLIT_KERNELS=ON")
@@ -426,7 +426,7 @@ run_ci_subset_tests() {
   local build_dir=$2
 
   case "${cfg}" in
-    async)
+    mono)
       log "Running monolithic CI subset: unit + validation"
       run_ctest --test-dir "${build_dir}" --output-on-failure -L unit -j1
       run_ctest --test-dir "${build_dir}" --output-on-failure -L validation -j1
