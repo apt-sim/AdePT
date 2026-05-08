@@ -36,7 +36,7 @@
 #include <AdePT/transport/navigation/BVHNavigator.h>
 
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
-using SteppingAction = adept::SteppingAction::Action;
+using SelectedSteppingAction = adept::SteppingAction::Action;
 
 #include <VecGeom/base/Config.h>
 #ifdef VECGEOM_ENABLE_CUDA
@@ -67,7 +67,7 @@ using SteppingAction = adept::SteppingAction::Action;
 #include <cstdlib>
 #include <cstdint>
 
-using namespace AsyncAdePT;
+using namespace adept::transport;
 
 /// Communication with the step processing thread.
 struct StepProcessingContext {
@@ -289,7 +289,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
   } else if (blockIdx.x == 2) {
     if (threadIdx.x == 0) {
       // Note: stepBufferOccupancy gives the maximum occupancy of all threads combined
-      stats->stepBufferOccupancy = AsyncAdePT::gDeviceStepBuffer.GetMaxSlotCount();
+      stats->stepBufferOccupancy = adept::transport::gDeviceStepBuffer.GetMaxSlotCount();
     }
   }
 
@@ -386,7 +386,7 @@ __global__ void InitSlotManagers(SlotManager *mgr, std::size_t N)
 }
 
 // Free functions implementing the CUDA parts
-namespace async_adept_impl {
+namespace adept::transport::detail {
 
 /**
  * @brief Sets stack and heap size limits for the device. If 0, the default limit is kept
@@ -543,7 +543,7 @@ void FreeWDTOnDevice(adeptint::WDTDeviceBuffers &dev)
 
   // clear the constant view
   adeptint::WDTDeviceView zero{};
-  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(AsyncAdePT::gWDTData, &zero, sizeof(zero)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(adept::transport::gWDTData, &zero, sizeof(zero)));
 }
 
 /// Allocate memory on device, as well as streams and cuda events to synchronise kernels.
@@ -588,11 +588,11 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   if (!generalBfieldFile.empty()) {
     // Initialize magnetic field data from file
     if (!gpuState.magneticField.InitializeFromFile(generalBfieldFile)) {
-      throw std::runtime_error("AsyncAdePTTransport::InitializeGPU cannot initialize GeneralMagneticField on GPU");
+      throw std::runtime_error("AdePTTransport::InitializeGPU cannot initialize GeneralMagneticField on GPU");
     }
     // Copy the GeneralMagneticField instance to GPU and setup the global view pointer
-    if (!async_adept_impl::InitializeBField(gpuState.magneticField)) {
-      throw std::runtime_error("AsyncAdePTTransport::InitializeBField cannot initialize GeneralMagneticField on GPU");
+    if (!adept::transport::detail::InitializeBField(gpuState.magneticField)) {
+      throw std::runtime_error("AdePTTransport::InitializeBField cannot initialize GeneralMagneticField on GPU");
     }
   }
 #else
@@ -607,7 +607,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   auto field_value = Bfield->Evaluate(position);
   if (field_value.Mag2() > 0) {
     if (!InitializeBField(*Bfield))
-      throw std::runtime_error("AsyncAdePTTransport::InitializeBField cannot initialize UniformMagneticField on GPU");
+      throw std::runtime_error("AdePTTransport::InitializeBField cannot initialize UniformMagneticField on GPU");
   }
 #endif
 
@@ -960,7 +960,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Electron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        ElectronHowFar<true, SteppingAction><<<blocks, threads, 0, electrons.stream>>>(
+        ElectronHowFar<true, SelectedSteppingAction><<<blocks, threads, 0, electrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, gpuState.stats_dev,
             steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
         ElectronPropagation<true><<<blocks, threads, 0, electrons.stream>>>(
@@ -980,7 +980,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager, electrons.queues.interactionQueues[1],
             returnAllSteps, returnLastStep);
 #else
-        TransportElectrons<SteppingAction>
+        TransportElectrons<SelectedSteppingAction>
             <<<blocks, threads, 0, electrons.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
                                                        allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
@@ -997,7 +997,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Positron]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        ElectronHowFar<false, SteppingAction><<<blocks, threads, 0, positrons.stream>>>(
+        ElectronHowFar<false, SelectedSteppingAction><<<blocks, threads, 0, positrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, gpuState.stats_dev,
             steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
         ElectronPropagation<false><<<blocks, threads, 0, positrons.stream>>>(
@@ -1023,7 +1023,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager, positrons.queues.interactionQueues[3],
             returnAllSteps, returnLastStep);
 #else
-        TransportPositrons<SteppingAction>
+        TransportPositrons<SelectedSteppingAction>
             <<<blocks, threads, 0, positrons.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
                                                        allowFinishOffEvent, returnAllSteps, returnLastStep);
 #endif
@@ -1040,7 +1040,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Gamma]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        GammaHowFar<SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
+        GammaHowFar<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
             steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
         GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
@@ -1049,7 +1049,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
           // The GammaWoodcock kernel has to run after the HowFar and Propagation, GammaPropagation uses the propagation
           // queue and GammaWockcock can add slots the the propagationqueue, as it will be consumed in the
           // SetupInteractions kernel
-          GammaWoodcock<SteppingAction><<<blocks, threads, 0, gammas.stream>>>(
+          GammaWoodcock<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
               gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
               steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
         }
@@ -1073,12 +1073,12 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
                                                                   gammas.queues.interactionQueues[2], returnAllSteps,
                                                                   returnLastStep);
 #else
-        TransportGammas<SteppingAction>
+        TransportGammas<SelectedSteppingAction>
             <<<blocks, threads, 0, gammas.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
                                                     allowFinishOffEvent, returnAllSteps, returnLastStep);
 
         if (hasWDTRegions) {
-          TransportGammasWoodcock<SteppingAction>
+          TransportGammasWoodcock<SelectedSteppingAction>
               <<<blocks, threads, 0, gammas.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
                                                       allowFinishOffEvent, returnAllSteps, returnLastStep);
         }
@@ -1389,14 +1389,14 @@ std::thread LaunchGPUWorker(int trackCapacity, int stepCapacity, int numThreads,
                      hasWDTRegions};
 }
 
-void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &gpuState, std::thread &gpuWorker,
-             adeptint::WDTDeviceBuffers &wdtDev)
+void FreeGPU(std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> &gpuState,
+             std::thread &gpuWorker, adeptint::WDTDeviceBuffers &wdtDev)
 {
   gpuState->runTransport = false;
   gpuWorker.join();
 
   adeptint::VolAuxData *volAux = nullptr;
-  ADEPT_DEVICE_API_CALL(MemcpyFromSymbol(&volAux, AsyncAdePT::gVolAuxData, sizeof(adeptint::VolAuxData *)));
+  ADEPT_DEVICE_API_CALL(MemcpyFromSymbol(&volAux, adept::transport::gVolAuxData, sizeof(adeptint::VolAuxData *)));
   ADEPT_DEVICE_API_CALL(Free(volAux));
 
   // Free WDT device buffers and clear its constant view
@@ -1422,9 +1422,9 @@ void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> 
 template bool InitializeBField<GeneralMagneticField>(GeneralMagneticField &);
 template bool InitializeBField<UniformMagneticField>(UniformMagneticField &);
 
-} // namespace async_adept_impl
+} // namespace adept::transport::detail
 
-namespace AsyncAdePT {
+namespace adept::transport {
 __constant__ __device__ struct G4HepEmParameters g4HepEmPars;
 __constant__ __device__ struct G4HepEmData g4HepEmData;
 
@@ -1467,4 +1467,4 @@ TrackBuffer::TrackBuffer(unsigned int numToDevice) : fNumToDevice{numToDevice}
   toDeviceBuffer[1].nTrack    = 0;
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

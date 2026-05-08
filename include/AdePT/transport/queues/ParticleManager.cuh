@@ -9,7 +9,7 @@
 
 #include <utility>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 // A bundle of pointers to generate particles of an implicit type.
 template <typename TrackT>
@@ -71,4 +71,4 @@ struct ParticleManager {
   SpeciesParticleManager<NeutralTrack> gammasWDT;
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

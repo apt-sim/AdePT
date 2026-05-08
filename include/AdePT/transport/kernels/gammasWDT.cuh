@@ -27,7 +27,7 @@
 using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
 
-namespace AsyncAdePT {
+namespace adept::transport {
 // Asynchronous TransportGammasWoodcock Interface
 template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
@@ -688,4 +688,4 @@ __global__ void __launch_bounds__(256, 1)
   } // end for loop over tracks
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

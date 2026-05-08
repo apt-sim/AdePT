@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 /// @brief Tracks occupied ranges in the pinned host buffer used for returned GPU steps.
 /// @details
@@ -58,4 +58,4 @@ private:
   mutable std::mutex bufferManagerMutex;
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

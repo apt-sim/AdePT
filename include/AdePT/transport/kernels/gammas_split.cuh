@@ -23,7 +23,7 @@
 using StepActionParam = adept::SteppingAction::Params;
 using VolAuxData      = adeptint::VolAuxData;
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 template <class SteppingActionT>
 __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
@@ -41,7 +41,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     currentTrack.preStepEKin       = currentTrack.eKin;
     currentTrack.preStepGlobalTime = currentTrack.globalTime;
@@ -340,7 +340,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 #endif
 
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
-      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+      VolAuxData const &nextauxData = adept::transport::gVolAuxData[nextlvolID];
       returnsToCPU                  = nextauxData.fGPUregionId < 0;
 
       short stepProcessId = kAdePTTransportationProcess;
@@ -444,7 +444,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     // Write local variables back into track and enqueue
     auto survive = [&]() {
@@ -574,7 +574,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
     bool trackSurvives        = false;
 
     // Write local variables back into track and enqueue
@@ -703,7 +703,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID                = currentTrack.navState.GetLogicalId();
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     G4HepEmGammaTrack &gammaTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
@@ -795,4 +795,4 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
   }
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

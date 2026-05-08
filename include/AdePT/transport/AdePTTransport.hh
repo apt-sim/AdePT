@@ -25,12 +25,12 @@
 #include <thread>
 #include <unordered_map>
 #include <optional>
-namespace AsyncAdePT {
+namespace adept::transport {
 struct TrackBuffer;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
 
-class AsyncAdePTTransport {
+class AdePTTransport {
 public:
   uint64_t fAdePTSeed = 1234567;
 
@@ -71,11 +71,11 @@ private:
   bool InitializePhysics();
 
 public:
-  AsyncAdePTTransport(const AdePTTransportConfig &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
-                      adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
-                      const std::vector<float> &uniformFieldValues);
-  AsyncAdePTTransport(const AsyncAdePTTransport &other) = delete;
-  ~AsyncAdePTTransport();
+  AdePTTransport(const AdePTTransportConfig &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
+                 adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+                 const std::vector<float> &uniformFieldValues);
+  AdePTTransport(const AdePTTransport &other) = delete;
+  ~AdePTTransport();
 
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
@@ -102,6 +102,6 @@ public:
   void MarkHostFlushed(int threadId);
 };
 
-} // namespace AsyncAdePT
+} // namespace adept::transport
 
-#include "AsyncAdePTTransport.icc"
+#include "AdePTTransport.icc"

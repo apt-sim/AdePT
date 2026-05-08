@@ -30,11 +30,11 @@ __device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepL
   }
 
   // allocate step slots: one for the parent and then one for each secondary
-  auto slotStartIndex = AsyncAdePT::gDeviceStepBuffer.ReserveStepSlots(threadID, 1u + nSecondaries);
+  auto slotStartIndex = adept::transport::gDeviceStepBuffer.ReserveStepSlots(threadID, 1u + nSecondaries);
 
   // The ProcessGPUSteps on the Host expects the step of the parent track first, and then all secondaries
   // that were generated in that step.
-  GPUStep &parentStep = AsyncAdePT::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex);
+  GPUStep &parentStep = adept::transport::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex);
   // Fill the required data for the parent step
   FillGPUStep(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
               aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
@@ -44,7 +44,7 @@ __device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepL
   // Fill the steps for the secondaries
   for (unsigned int i = 0; i < nSecondaries; ++i) {
     // The index is the startIndex + 1 (for the parent) + i for the current secondary
-    GPUStep &secondaryStep = AsyncAdePT::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex + 1u + i);
+    GPUStep &secondaryStep = adept::transport::gDeviceStepBuffer.GetSlot(threadID, slotStartIndex + 1u + i);
     FillGPUStep(secondaryStep, secondaryData[i].trackId, aTrackID, secondaryData[i].creatorProcessId,
                 secondaryData[i].particleType,
                 /*steplength*/ 0., /*energydeposit*/ 0., aTrackWeight, aPostState, aPostPosition, secondaryData[i].dir,

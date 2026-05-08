@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/transport/AsyncAdePTTransport.hh>
+#include <AdePT/transport/AdePTTransport.hh>
 #include <AdePT/transport/queues/TrackBuffer.hh>
 
 #include <VecGeom/management/BVHManager.h>
@@ -18,27 +18,27 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace async_adept_impl {
+namespace adept::transport::detail {
 void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
 void CopySurfaceModelToGPU();
 void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers &, unsigned short);
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters);
-std::thread LaunchGPUWorker(int, int, int, AsyncAdePT::TrackBuffer &, AsyncAdePT::GPUstate &,
-                            std::vector<std::atomic<AsyncAdePT::EventState>> &, std::condition_variable &, int, int,
-                            bool, bool, unsigned short, const double, bool);
-std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> InitializeGPU(
-    int trackCapacity, int stepCapacity, int numThreads, AsyncAdePT::TrackBuffer &trackBuffer, double CPUCapacityFactor,
-    double CPUCopyFraction, std::string &generalBfieldFile, const std::vector<float> &uniformBfieldValues);
-void FreeGPU(std::unique_ptr<AsyncAdePT::GPUstate, AsyncAdePT::GPUstateDeleter> &, std::thread &,
+std::thread LaunchGPUWorker(int, int, int, adept::transport::TrackBuffer &, adept::transport::GPUstate &,
+                            std::vector<std::atomic<adept::transport::EventState>> &, std::condition_variable &, int,
+                            int, bool, bool, unsigned short, const double, bool);
+std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> InitializeGPU(
+    int trackCapacity, int stepCapacity, int numThreads, adept::transport::TrackBuffer &trackBuffer,
+    double CPUCapacityFactor, double CPUCopyFraction, std::string &generalBfieldFile,
+    const std::vector<float> &uniformBfieldValues);
+void FreeGPU(std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> &, std::thread &,
              adeptint::WDTDeviceBuffers &);
-} // namespace async_adept_impl
+} // namespace adept::transport::detail
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
-AsyncAdePTTransport::AsyncAdePTTransport(const AdePTTransportConfig &configuration,
-                                         std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
-                                         adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
-                                         const std::vector<float> &uniformFieldValues)
+AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
+                               std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState, adeptint::VolAuxData *auxData,
+                               const adeptint::WDTHostPacked &wdtPacked, const std::vector<float> &uniformFieldValues)
     : fAdePTSeed{configuration.adeptSeed}, fNThread{configuration.numThreads},
       fTrackCapacity{configuration.trackCapacity}, fStepCapacity{configuration.stepCapacity},
       fDebugLevel{configuration.debugLevel}, fCUDAStackLimit{configuration.cudaStackLimit},
@@ -49,7 +49,7 @@ AsyncAdePTTransport::AsyncAdePTTransport(const AdePTTransportConfig &configurati
       fCPUCopyFraction{configuration.cpuCopyFraction}, fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
 {
   if (fNThread > kMaxThreads)
-    throw std::invalid_argument("AsyncAdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
+    throw std::invalid_argument("AdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
 
   for (auto &eventState : fEventStates) {
     std::atomic_init(&eventState, EventState::DeviceFlushed);
@@ -58,15 +58,15 @@ AsyncAdePTTransport::AsyncAdePTTransport(const AdePTTransportConfig &configurati
   Initialize(auxData, wdtPacked, uniformFieldValues);
 }
 
-AsyncAdePTTransport::~AsyncAdePTTransport()
+AdePTTransport::~AdePTTransport()
 {
-  async_adept_impl::FreeGPU(std::ref(fGPUstate), fGPUWorker, fWDTDev);
+  adept::transport::detail::FreeGPU(std::ref(fGPUstate), fGPUWorker, fWDTDev);
 }
 
-void AsyncAdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y,
-                                   double z, double dirx, double diry, double dirz, double globalTime, double localTime,
-                                   double properTime, float weight, unsigned short stepCounter, int threadId,
-                                   unsigned int eventId, vecgeom::NavigationState &&state)
+void AdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z,
+                              double dirx, double diry, double dirz, double globalTime, double localTime,
+                              double properTime, float weight, unsigned short stepCounter, int threadId,
+                              unsigned int eventId, vecgeom::NavigationState &&state)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     std::cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
@@ -91,10 +91,10 @@ void AsyncAdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId,
   fEventStates[threadId].store(EventState::NewTracksFromG4, std::memory_order_release);
 }
 
-bool AsyncAdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
+bool AdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world)
 {
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
-  async_adept_impl::setDeviceLimits(fCUDAStackLimit, fCUDAHeapLimit);
+  adept::transport::detail::setDeviceLimits(fCUDAStackLimit, fCUDAHeapLimit);
 
   bool success = true;
 #ifdef ADEPT_USE_SURF
@@ -111,7 +111,7 @@ bool AsyncAdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *
   auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start);
   std::cout << "== Conversion to surface model done in " << elapsed.count() << " [s]\n";
   cudaManager.SynchronizeNavigationTable();
-  async_adept_impl::CopySurfaceModelToGPU();
+  adept::transport::detail::CopySurfaceModelToGPU();
 #else
   cudaManager.LoadGeometry(world);
   auto world_dev = cudaManager.Synchronize();
@@ -121,43 +121,42 @@ bool AsyncAdePTTransport::InitializeGeometry(const vecgeom::cxx::VPlacedVolume *
   return success;
 }
 
-bool AsyncAdePTTransport::InitializePhysics()
+bool AdePTTransport::InitializePhysics()
 {
   if (!fAdePTG4HepEmState) {
-    throw std::runtime_error("AsyncAdePTTransport::InitializePhysics: Missing AdePT-owned G4HepEm state.");
+    throw std::runtime_error("AdePTTransport::InitializePhysics: Missing AdePT-owned G4HepEm state.");
   }
 
-  async_adept_impl::UploadG4HepEmToGPU(fAdePTG4HepEmState->GetData(), fAdePTG4HepEmState->GetParameters());
+  adept::transport::detail::UploadG4HepEmToGPU(fAdePTG4HepEmState->GetData(), fAdePTG4HepEmState->GetParameters());
   return true;
 }
 
-void AsyncAdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
-                                     const std::vector<float> &uniformFieldValues)
+void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+                                const std::vector<float> &uniformFieldValues)
 {
   if (vecgeom::GeoManager::Instance().GetRegisteredVolumesCount() == 0)
-    throw std::runtime_error("AsyncAdePTTransport::Initialize: Number of geometry volumes is zero.");
+    throw std::runtime_error("AdePTTransport::Initialize: Number of geometry volumes is zero.");
 
-  std::cout << "=== AsyncAdePTTransport: initializing geometry and physics\n";
+  std::cout << "=== AdePTTransport: initializing geometry and physics\n";
   if (!vecgeom::GeoManager::Instance().IsClosed())
-    throw std::runtime_error("AsyncAdePTTransport::Initialize: VecGeom geometry not closed.");
+    throw std::runtime_error("AdePTTransport::Initialize: VecGeom geometry not closed.");
 
   const vecgeom::cxx::VPlacedVolume *world = vecgeom::GeoManager::Instance().GetWorld();
   if (!InitializeGeometry(world))
-    throw std::runtime_error("AsyncAdePTTransport::Initialize: Cannot initialize geometry on GPU");
+    throw std::runtime_error("AdePTTransport::Initialize: Cannot initialize geometry on GPU");
 
-  if (!InitializePhysics())
-    throw std::runtime_error("AsyncAdePTTransport::Initialize cannot initialize physics on GPU");
+  if (!InitializePhysics()) throw std::runtime_error("AdePTTransport::Initialize cannot initialize physics on GPU");
 
   const auto numVolumes   = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
   auto &volAuxArray       = adeptint::VolAuxArray::GetInstance();
   volAuxArray.fNumVolumes = numVolumes;
   volAuxArray.fAuxData    = auxData;
-  AsyncAdePT::InitVolAuxArray(volAuxArray);
+  adept::transport::InitVolAuxArray(volAuxArray);
 
   fHasWDTRegions = !wdtPacked.regions.empty();
 
   adeptint::WDTDeviceBuffers wdtDev;
-  async_adept_impl::InitWDTOnDevice(wdtPacked, wdtDev, fMaxWDTIter);
+  adept::transport::detail::InitWDTOnDevice(wdtPacked, wdtDev, fMaxWDTIter);
   fWDTDev = wdtDev;
 
   std::cout << "\nAllocating " << 4 * 8192 * fNThread << " To-device buffer slots\n";
@@ -165,40 +164,41 @@ void AsyncAdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adepti
 
   assert(fBuffer != nullptr);
 
-  fGPUstate  = async_adept_impl::InitializeGPU(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, fCPUCapacityFactor,
-                                               fCPUCopyFraction, fBfieldFile, uniformFieldValues);
-  fGPUWorker = async_adept_impl::LaunchGPUWorker(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, *fGPUstate,
-                                                 fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel, fReturnAllSteps,
-                                                 fReturnFirstAndLastStep, fLastNParticlesOnCPU, fStepBufferSafetyFactor,
-                                                 fHasWDTRegions);
+  fGPUstate =
+      adept::transport::detail::InitializeGPU(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, fCPUCapacityFactor,
+                                              fCPUCopyFraction, fBfieldFile, uniformFieldValues);
+  fGPUWorker = adept::transport::detail::LaunchGPUWorker(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, *fGPUstate,
+                                                         fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
+                                                         fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU,
+                                                         fStepBufferSafetyFactor, fHasWDTRegions);
 }
 
-void AsyncAdePTTransport::InitBVH()
+void AdePTTransport::InitBVH()
 {
   vecgeom::cxx::BVHManager::Init();
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 
-void AsyncAdePTTransport::RequestFlush(int threadId)
+void AdePTTransport::RequestFlush(int threadId)
 {
   fEventStates[threadId].store(EventState::G4RequestsFlush, std::memory_order_release);
 }
 
-void AsyncAdePTTransport::WaitForFlushProgress()
+void AdePTTransport::WaitForFlushProgress()
 {
   std::unique_lock lock{fMutex_G4Workers};
   using namespace std::chrono_literals;
   fCV_G4Workers.wait_for(lock, 1ms);
 }
 
-bool AsyncAdePTTransport::AreReturnedStepsFlushed(int threadId) const
+bool AdePTTransport::AreReturnedStepsFlushed(int threadId) const
 {
   return fEventStates[threadId].load(std::memory_order_acquire) >= EventState::StepsFlushed;
 }
 
-void AsyncAdePTTransport::MarkHostFlushed(int threadId)
+void AdePTTransport::MarkHostFlushed(int threadId)
 {
   fEventStates[threadId].store(EventState::DeviceFlushed, std::memory_order_release);
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

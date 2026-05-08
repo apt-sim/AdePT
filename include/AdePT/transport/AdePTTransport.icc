@@ -1,25 +1,26 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-#include <AdePT/transport/AsyncAdePTTransport.hh>
+#include <AdePT/transport/AdePTTransport.hh>
 
 /// Forward declarations for the transport-owned step-batch accessors that remain
 /// header-visible because `HandleGPUStepBatchesWith(...)` is templated.
-namespace async_adept_impl {
-std::pair<GPUStep *, GPUStep *> GetGPUStepBatchFromBuffer(unsigned int, unsigned int, AsyncAdePT::GPUstate &, bool &);
-void CloseGPUStepBatch(unsigned int, AsyncAdePT::GPUstate &, GPUStep *, const bool);
-} // namespace async_adept_impl
+namespace adept::transport::detail {
+std::pair<GPUStep *, GPUStep *> GetGPUStepBatchFromBuffer(unsigned int, unsigned int, adept::transport::GPUstate &,
+                                                          bool &);
+void CloseGPUStepBatch(unsigned int, adept::transport::GPUstate &, GPUStep *, const bool);
+} // namespace adept::transport::detail
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 template <typename Callback>
-inline void AsyncAdePTTransport::HandleGPUStepBatchesWith(int threadId, int eventId, Callback &&callback)
+inline void AdePTTransport::HandleGPUStepBatchesWith(int threadId, int eventId, Callback &&callback)
 {
   std::pair<GPUStep *, GPUStep *> range;
   bool dataOnBuffer;
 
-  while ((range = async_adept_impl::GetGPUStepBatchFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer)).first !=
-         nullptr) {
+  while ((range = adept::transport::detail::GetGPUStepBatchFromBuffer(threadId, eventId, *fGPUstate, dataOnBuffer))
+             .first != nullptr) {
     // Transport still owns the step-batch lifetime here. The callback only gets
     // a temporary `std::span` view while the batch is valid.
     struct CloseGPUStepBatch {
@@ -27,7 +28,7 @@ inline void AsyncAdePTTransport::HandleGPUStepBatchesWith(int threadId, int even
       GPUstate &gpuState;
       GPUStep *begin;
       bool dataOnBuffer;
-      ~CloseGPUStepBatch() { async_adept_impl::CloseGPUStepBatch(threadId, gpuState, begin, dataOnBuffer); }
+      ~CloseGPUStepBatch() { adept::transport::detail::CloseGPUStepBatch(threadId, gpuState, begin, dataOnBuffer); }
     } closeBatch{threadId, *fGPUstate, range.first, dataOnBuffer};
 
     // The callback runs the Geant4-side step reconstruction for this batch.
@@ -37,4 +38,4 @@ inline void AsyncAdePTTransport::HandleGPUStepBatchesWith(int threadId, int even
   }
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

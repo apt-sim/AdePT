@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 /// @brief Release the tables owned by `G4HepEmData` and then delete the outer object.
 /// @details
@@ -97,4 +97,4 @@ AdePTG4HepEmState::AdePTG4HepEmState(G4HepEmConfig *hepEmConfig)
 
 AdePTG4HepEmState::~AdePTG4HepEmState() = default;
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

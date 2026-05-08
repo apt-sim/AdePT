@@ -47,7 +47,7 @@ __device__ double GetVelocity(double eKin)
   return copcore::units::kCLight * beta;
 }
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 template <bool IsElectron, class SteppingActionT>
 __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronTrack *hepEMTracks,
@@ -82,7 +82,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     currentTrack.preStepEKin       = currentTrack.eKin;
     currentTrack.preStepGlobalTime = currentTrack.globalTime;
@@ -479,7 +479,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     bool trackSurvives = true;
 
@@ -625,7 +625,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     auto survive = [&]() { electronsOrPositrons.EnqueueNext(slot); };
 
@@ -669,7 +669,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     bool isLastStep     = !trackSurvives;
     if (cross_boundary) {
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
-      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+      VolAuxData const &nextauxData = adept::transport::gVolAuxData[nextlvolID];
       returnsToCPU                  = nextauxData.fGPUregionId < 0;
       if (returnsToCPU) {
         // Push the handoff point a little into the CPU region so Geant4 does
@@ -710,7 +710,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     if (cross_boundary) {
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
-      VolAuxData const &nextauxData = AsyncAdePT::gVolAuxData[nextlvolID];
+      VolAuxData const &nextauxData = adept::transport::gVolAuxData[nextlvolID];
       if (!returnsToCPU) {
         // Move to the next boundary now that the step is recorded.
         currentTrack.navState = currentTrack.nextState;
@@ -786,7 +786,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
     bool trackSurvives        = false;
 
     auto survive = [&]() {
@@ -913,7 +913,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
     bool trackSurvives        = false;
 
     auto survive = [&]() {
@@ -1052,7 +1052,7 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -1191,7 +1191,7 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
-    VolAuxData const &auxData = AsyncAdePT::gVolAuxData[lvolID];
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -1251,4 +1251,4 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
   }
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

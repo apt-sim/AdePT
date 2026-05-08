@@ -13,7 +13,7 @@
 #define RESET "\033[0m"
 #define BOLD_RED "\033[1;31m"
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 HostCircularBuffer::HostCircularBuffer(std::size_t capacity)
     : fCapacity(capacity), fWriteOffset(0), fFreeContiguousSpace(capacity)
@@ -148,4 +148,4 @@ void HostCircularBuffer::printSegments(const std::string &msg) const
   std::cout << std::endl;
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport

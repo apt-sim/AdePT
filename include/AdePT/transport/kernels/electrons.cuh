@@ -48,7 +48,7 @@ __device__ double GetVelocity(double eKin)
   return copcore::units::kCLight * beta;
 }
 
-namespace AsyncAdePT {
+namespace adept::transport {
 
 // Compute the physics and geometry step limit, transport the electrons while
 // applying the continuous effects and maybe a discrete process that could
@@ -865,4 +865,4 @@ __global__ void TransportPositrons(ParticleManager particleManager, Stats *InFli
                                                             returnAllSteps, returnLastStep);
 }
 
-} // namespace AsyncAdePT
+} // namespace adept::transport
