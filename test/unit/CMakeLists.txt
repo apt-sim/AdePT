@@ -4,7 +4,15 @@
 #----------------------------------------------------------------------------#
 # Helper Macros/Functions
 #----------------------------------------------------------------------------#
-function(build_tests LINK_TARGET)
+function(build_header_only_tests)
+  foreach(TEST IN LISTS ARGN)
+    get_filename_component(TARGET_NAME ${TEST} NAME_WE)
+    add_executable(${TARGET_NAME} ${TEST})
+    target_include_directories(${TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+  endforeach()
+endfunction()
+
+function(build_linked_tests LINK_TARGET)
   foreach(TEST IN LISTS ARGN)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
@@ -32,17 +40,10 @@ configure_file(${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml ${PROJECT_BIN
 add_subdirectory(testField)
 
 #----------------------------------------------------------------------------#
-# Link/RDC tests
-#----------------------------------------------------------------------------#
-# - Check Core links as expected
-add_executable(test_copcore_link test_copcore_link.cpp)
-target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(test_copcore_link PRIVATE AdePT::Core)
-
-#----------------------------------------------------------------------------#
 # Basic Unit Tests
 #----------------------------------------------------------------------------#
-set(ADEPT_CORE_UNIT_TESTS
+set(ADEPT_HEADER_ONLY_UNIT_TESTS
+  test_header_only_include.cpp  # Include smoke test for header-only AdePT utilities
   test_atomic.cu               # Unit test for atomic ops
   test_ranluxpp.cu             # Unit test for RANLUX++
   test_queue.cu                # Unit test for mpmc_bounded_queue
@@ -71,9 +72,9 @@ endif()
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
-build_tests(AdePT::Core ${ADEPT_CORE_UNIT_TESTS})
-build_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS})
-build_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UNIT_TESTS})
+build_header_only_tests(${ADEPT_HEADER_ONLY_UNIT_TESTS})
+build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS})
+build_linked_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UNIT_TESTS})
 
 if(ADEPT_USE_EXT_BFIELD)
   foreach(TARGET_NAME test_covfie_field test_general_magnetic_field)
@@ -86,7 +87,7 @@ if(ADEPT_USE_EXT_BFIELD)
 endif()
 
 set(ADEPT_UNIT_TESTS
-  ${ADEPT_CORE_UNIT_TESTS}
+  ${ADEPT_HEADER_ONLY_UNIT_TESTS}
   ${ADEPT_TRANSPORT_UNIT_TESTS}
   ${ADEPT_G4_INTEGRATION_UNIT_TESTS}
 )
@@ -94,6 +95,7 @@ set(ADEPT_UNIT_TESTS
 add_to_test(${ADEPT_UNIT_TESTS})
 
 set(ADEPT_UNIT_TEST_NAMES
+  test_header_only_include
   test_atomic
   test_ranluxpp
   test_queue

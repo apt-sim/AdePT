@@ -38,7 +38,6 @@
 
 #include <AdePT/transport/support/SystemOfUnits.h>
 #include <AdePT/transport/support/ArgParser.h>
-#include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
 
 void setDeviceLimits(int stackLimit = 0, int heapLimit = 0);
 
