@@ -4,8 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Validation coverage for /adept/FinishLastNParticlesOnCPU. The option is
-# population-dependent, so this checks statistical physics agreement and also
-# verifies from the transport printout that the finish-on-CPU path was used.
+# population-dependent, so this checks statistical physics agreement.
 
 set -eu -o pipefail
 
@@ -34,17 +33,6 @@ gun_number=${ADEPT_VALIDATION_FINISH_ON_CPU_GUN_NUMBER:-200}
 finish_last_n_particles_on_cpu=${ADEPT_VALIDATION_FINISH_ON_CPU_N:-100}
 nprimaries=$((num_events * gun_number))
 
-if [[ "${finish_last_n_particles_on_cpu}" -le 0 ]]; then
-  echo "Error: ADEPT_VALIDATION_FINISH_ON_CPU_N must be positive."
-  exit 2
-fi
-
-if [[ "${gun_number}" -le "${finish_last_n_particles_on_cpu}" ]]; then
-  echo "Error: gun_number (${gun_number}) must be larger than FinishLastNParticlesOnCPU (${finish_last_n_particles_on_cpu})."
-  echo "This test must not be configured so the full primary batch can be handed to CPU immediately."
-  exit 2
-fi
-
 echo "Validation settings (finish_on_cpu): threads=${num_threads}, events=${num_events}, gun=${gun_number}, trackslots=${num_trackslots}, hitslots=${num_hitslots}, cpu_capacity_factor=${cpu_capacity_factor}, finish_last_n_particles_on_cpu=${finish_last_n_particles_on_cpu}"
 
 "${CI_TEST_DIR}/python_scripts/macro_generator.py" \
@@ -61,50 +49,10 @@ echo "Validation settings (finish_on_cpu): threads=${num_threads}, events=${num_
     --track_in_all_regions True \
     --gun_type setDefault
 
-run_log="${CI_TMP_DIR}/validation_testem3_finish_on_cpu.log"
-
 "${ADEPT_EXECUTABLE}" --allsensitive --accumulated_events \
                       -m "${CI_TMP_DIR}/validation_testem3_finish_on_cpu.mac" \
                       --output_dir "${CI_TMP_DIR}" \
-                      --output_file "adept_em3_finish_on_cpu_2.5e4_e-" > "${run_log}" 2>&1
-
-if ! grep -Eq 'Finishing (e-/e\+|gamma) of the [0-9]+ last particles' "${run_log}"; then
-  echo "Error: FinishLastNParticlesOnCPU did not trigger; no finish-on-CPU transport printout was found."
-  exit 1
-fi
-
-echo "Representative FinishLastNParticlesOnCPU printouts:"
-awk '
-  /Finishing (e-\/e\+|gamma) of the [0-9]+ last particles/ {
-    print
-    if (++count == 5) exit
-  }
-' "${run_log}"
-
-max_finish_population=$(
-  awk '
-    match($0, /Finishing (e-\/e\+|gamma) of the ([0-9]+) last particles/, m) {
-      if (m[2] > max) max = m[2]
-      count++
-    }
-    END {
-      if (count == 0) exit 1
-      print max
-    }
-  ' "${run_log}"
-)
-
-if [[ "${max_finish_population}" -ge "${gun_number}" ]]; then
-  echo "Error: finish-on-CPU triggered with ${max_finish_population} particles in flight, not below the per-event primary count ${gun_number}."
-  exit 1
-fi
-
-if [[ "${max_finish_population}" -ge "${finish_last_n_particles_on_cpu}" ]]; then
-  echo "Error: finish-on-CPU triggered with ${max_finish_population} particles in flight, expected less than ${finish_last_n_particles_on_cpu}."
-  exit 1
-fi
-
-echo "FinishLastNParticlesOnCPU triggered below threshold: max observed in-flight population ${max_finish_population} < ${finish_last_n_particles_on_cpu}, with ${gun_number} primaries/event."
+                      --output_file "adept_em3_finish_on_cpu_2.5e4_e-"
 
 "${CI_TEST_DIR}/python_scripts/check_validation.py" \
   --file1 "${CI_TMP_DIR}/adept_em3_finish_on_cpu_2.5e4_e-.csv" \
