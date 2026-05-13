@@ -4,21 +4,29 @@
 #----------------------------------------------------------------------------#
 # Helper Macros/Functions
 #----------------------------------------------------------------------------#
-macro(build_tests TESTS)
-  foreach(TEST ${TESTS})
+function(build_header_only_tests)
+  foreach(TEST IN LISTS ARGN)
+    get_filename_component(TARGET_NAME ${TEST} NAME_WE)
+    add_executable(${TARGET_NAME} ${TEST})
+    target_include_directories(${TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+  endforeach()
+endfunction()
+
+function(build_linked_tests LINK_TARGET)
+  foreach(TEST IN LISTS ARGN)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_executable(${TARGET_NAME} ${TEST})
     #set_target_properties(${TARGET_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    cuda_rdc_target_link_libraries(${TARGET_NAME} AdePT::G4Integration)
-   endforeach()
-endmacro()
+    cuda_rdc_target_link_libraries(${TARGET_NAME} PRIVATE ${LINK_TARGET})
+  endforeach()
+endfunction()
 
-macro(add_to_test TESTS)
-  foreach(TEST ${TESTS})
+function(add_to_test)
+  foreach(TEST IN LISTS ARGN)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
     add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
-   endforeach()
-endmacro()
+  endforeach()
+endfunction()
 
 #----------------------------------------------------------------------------#
 # Common Data
@@ -32,38 +40,41 @@ configure_file(${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml ${PROJECT_BIN
 add_subdirectory(testField)
 
 #----------------------------------------------------------------------------#
-# Link/RDC tests
-#----------------------------------------------------------------------------#
-# - Check Core links as expected
-add_executable(test_copcore_link test_copcore_link.cpp)
-target_include_directories(test_copcore_link PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(test_copcore_link PRIVATE AdePT::Core)
-
-#----------------------------------------------------------------------------#
 # Basic Unit Tests
 #----------------------------------------------------------------------------#
-set(ADEPT_UNIT_TESTS_BASE
+set(ADEPT_HEADER_ONLY_UNIT_TESTS
+  test_header_only_include.cpp  # Include smoke test for header-only AdePT utilities
   test_atomic.cu               # Unit test for atomic ops
   test_ranluxpp.cu             # Unit test for RANLUX++
   test_queue.cu                # Unit test for mpmc_bounded_queue
   test_track_block.cu          # Unit test for BlockData
+)
+
+set(ADEPT_TRANSPORT_UNIT_TESTS
   test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
   compare_integration_precision.cpp # Script for generating float vs double trajectories
   test_hostCircularBuffer.cpp  # Unit test for HostCircularBuffer
-  test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
   # test_Bfield_step_debugger.cpp # experimental test to debug single stuck rays in AdePT
 )
 
+set(ADEPT_G4_INTEGRATION_UNIT_TESTS
+  test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
+)
+
 if(ADEPT_USE_EXT_BFIELD)
-  list(APPEND ADEPT_UNIT_TESTS_BASE
-    test_covfie_field.cpp       # Unit test for Geant4-side Covfie field loading
+  list(APPEND ADEPT_TRANSPORT_UNIT_TESTS
     test_general_magnetic_field.cu # Unit test for device-side Covfie field evaluation
+  )
+  list(APPEND ADEPT_G4_INTEGRATION_UNIT_TESTS
+    test_covfie_field.cpp       # Unit test for Geant4-side Covfie field loading
   )
 endif()
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
-build_tests("${ADEPT_UNIT_TESTS_BASE}")
+build_header_only_tests(${ADEPT_HEADER_ONLY_UNIT_TESTS})
+build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS})
+build_linked_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UNIT_TESTS})
 
 if(ADEPT_USE_EXT_BFIELD)
   foreach(TARGET_NAME test_covfie_field test_general_magnetic_field)
@@ -75,9 +86,16 @@ if(ADEPT_USE_EXT_BFIELD)
   endforeach()
 endif()
 
-add_to_test("${ADEPT_UNIT_TESTS_BASE}")
+set(ADEPT_UNIT_TESTS
+  ${ADEPT_HEADER_ONLY_UNIT_TESTS}
+  ${ADEPT_TRANSPORT_UNIT_TESTS}
+  ${ADEPT_G4_INTEGRATION_UNIT_TESTS}
+)
+
+add_to_test(${ADEPT_UNIT_TESTS})
 
 set(ADEPT_UNIT_TEST_NAMES
+  test_header_only_include
   test_atomic
   test_ranluxpp
   test_queue

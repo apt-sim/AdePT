@@ -28,7 +28,6 @@ target_include_directories(testField
 )
 cuda_rdc_target_link_libraries(testField
   PRIVATE
-    AdePT::Core
     VecGeom::vecgeom
     $<$<BOOL:${VECGEOM_GDML_SUPPORT}>:VecGeom::vgdml>
     ${Geant4_LIBRARIES}
