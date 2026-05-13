@@ -111,8 +111,10 @@ bool CanReturnTrackDirectly(const GPUStep &step, unsigned int blockSize, bool ca
   if (step.fStepLimProcessId != kAdePTOutOfGPURegionProcess && step.fStepLimProcessId != kAdePTFinishOnCPUProcess) {
     return false;
   }
-  assert(blockSize == 1);
-  assert(step.fTotalEnergyDeposit == 0.);
+  // kAdePTFinishOnCPUProcess is set after a real interaction can happen. Thus,
+  // an extra guard is needed to check for steps that have to call the SD code
+  if (blockSize != 1) return false;
+  if (step.fTotalEnergyDeposit != 0.) return false;
   return true;
 }
 
