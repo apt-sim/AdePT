@@ -22,6 +22,7 @@
 /adept/setMillionsOfHitSlots $num_hitslots
 /adept/setCPUCapacityFactor $cpu_capacity_factor
 /adept/setCUDAStackLimit 8192
+$finish_last_n_particles_on_cpu
 
 # If true, particles are transported on the GPU across the whole geometry, GPU regions are ignored
 /adept/setTrackInAllRegions $track_in_all_regions

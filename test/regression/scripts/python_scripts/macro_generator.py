@@ -36,6 +36,16 @@ def generate_macro(template_path, output_path, args):
     macro_content = macro_content.replace("$num_trackslots", str(args.num_trackslots))
     macro_content = macro_content.replace("$num_hitslots", str(args.num_hitslots))
     macro_content = macro_content.replace("$cpu_capacity_factor", str(args.cpu_capacity_factor))
+    if args.finish_last_n_particles_on_cpu > 0:
+        finish_last_n_particles_on_cpu = (
+            f"/adept/FinishLastNParticlesOnCPU {args.finish_last_n_particles_on_cpu}"
+        )
+    else:
+        finish_last_n_particles_on_cpu = ""
+    macro_content = macro_content.replace(
+        "$finish_last_n_particles_on_cpu",
+        finish_last_n_particles_on_cpu,
+    )
     if args.covfie_bfield_file:
         field_setup = (
             f"/detector/setCovfieBfieldFile {args.covfie_bfield_file}\n"
@@ -108,6 +118,8 @@ def main():
                         help="Number of hitslots in million. Should be chosen according to the GPU memory")
     parser.add_argument("--cpu_capacity_factor", type=float, default=2.5,
                         help="CPU staging capacity factor for scored hits (default: 2.5)")
+    parser.add_argument("--finish_last_n_particles_on_cpu", type=int, default=0,
+                        help="Finish the last N in-flight particles of each event on CPU (default: 0)")
     parser.add_argument("--detector_field", type=str, default="0 0 0",
                         help="Constant magnetic field vector in tesla, format: 'Bx By Bz' (default: '0 0 0')")
     parser.add_argument("--covfie_bfield_file", type=str, default="",
