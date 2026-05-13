@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Tracked local matrix runner for AdePT CI-like checks.
-# Default mode runs fast physics_drift tests for mono/split/mixed.
+# Default mode runs fast physics_drift tests for mono/split.
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ DEFAULT_MASTER_REF="auto"
 
 BUILD_TYPE="Release"
 SUITE="drift"
-CONFIG_LIST="mono,split,mixed"
+CONFIG_LIST="mono,split"
 BUILD_ROOT="${SCRIPT_DIR}/build"
 MASTER_REF="${DEFAULT_MASTER_REF}"
 FETCH_MASTER=1
@@ -54,7 +54,7 @@ Runs AdePT in a local matrix similar to Jenkins:
 Options:
   --suite <drift|drift-smoke|ci>
                               Test suite to run (default: drift)
-  --configs <list>           Comma list: mono,split,mixed (default: mono,split,mixed)
+  --configs <list>           Comma list: mono,split,mixed (default: mono,split)
   --build-type <type>        CMake build type (default: Release)
   --cuda-arch <arch|auto>    CUDA arch (default: auto)
   --jobs <N|auto>            Parallel build jobs (default: auto = nproc)

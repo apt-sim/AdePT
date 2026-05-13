@@ -126,6 +126,8 @@ jobs:
             echo "- Release CI status: \`${RELEASE_CI_STATUS:-missing}\`"
             echo "- Debug drift smoke build root: \`${DEBUG_DRIFT_SMOKE_BUILD_ROOT:-missing}\`"
             echo "- Debug drift smoke status: \`${DEBUG_DRIFT_SMOKE_STATUS:-missing}\`"
+            echo "- Mixed precision drift smoke build root: \`${MIXED_DRIFT_SMOKE_BUILD_ROOT:-missing}\`"
+            echo "- Mixed precision drift smoke status: \`${MIXED_DRIFT_SMOKE_STATUS:-missing}\`"
             echo "- Nightly status: \`${NIGHTLY_STATUS:-missing}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
