@@ -27,7 +27,7 @@ FETCH_MASTER=1
 FORCE_REBUILD=0
 REFRESH_MASTER=0
 RUN_VALIDATION_ALWAYS=0
-RUN_DEBUG_DRIFT=0
+RUN_DRIFT_SMOKE=0
 
 log() {
   printf '[pr-ci] %s\n' "$*"
@@ -43,11 +43,11 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Runs the AdePT PR CI flow on a self-hosted runner:
-  1. build PR and upstream master reference for mono/split/mixed
+  1. build PR and upstream master reference for mono/split
   2. run physics drift comparisons
   3. always run unit tests on mono
   4. run validation on mono + split when drift differs from master, or when requested
-  5. optionally build and run the physics drift smoke matrix in Debug mode
+  5. optionally build and run one-sided physics drift smoke checks for Debug and mixed precision
 
 Options:
   --build-root <path>        Build/cache root (default: ${DEFAULT_BUILD_ROOT})
@@ -61,7 +61,8 @@ Options:
   --force-rebuild            Force clean rebuilds in the matrix runner
   --refresh-master           Refresh cached master worktree/builds
   --always-run-validation    Run validation even when drift matches master
-  --run-debug-drift          Also build and run the drift smoke matrix with CMAKE_BUILD_TYPE=Debug
+  --run-drift-smoke          Also build and run Debug and mixed precision drift smoke checks
+  --run-debug-drift          Compatibility alias for --run-drift-smoke
   -h, --help                 Show this help
 EOF
 }
@@ -118,8 +119,8 @@ write_results() {
     printf 'BUILD_ROOT=%q\n' "${BUILD_ROOT}"
     printf 'MASTER_REF=%q\n' "${MASTER_REF}"
     printf 'DRIFT_STATUS=%s\n' "${DRIFT_STATUS}"
-    printf 'DEBUG_DRIFT_RAN=%s\n' "${DEBUG_DRIFT_RAN}"
-    printf 'DEBUG_DRIFT_STATUS=%s\n' "${DEBUG_DRIFT_STATUS}"
+    printf 'DRIFT_SMOKE_RAN=%s\n' "${DRIFT_SMOKE_RAN}"
+    printf 'DRIFT_SMOKE_STATUS=%s\n' "${DRIFT_SMOKE_STATUS}"
     printf 'UNIT_STATUS=%s\n' "${UNIT_STATUS}"
     printf 'VALIDATION_RAN=%s\n' "${VALIDATION_RAN}"
     printf 'VALIDATION_FORCED=%s\n' "${RUN_VALIDATION_ALWAYS}"
@@ -181,8 +182,8 @@ while [[ $# -gt 0 ]]; do
       RUN_VALIDATION_ALWAYS=1
       shift
       ;;
-    --run-debug-drift)
-      RUN_DEBUG_DRIFT=1
+    --run-drift-smoke|--run-debug-drift)
+      RUN_DRIFT_SMOKE=1
       shift
       ;;
     -h|--help)
@@ -212,8 +213,8 @@ normalize_lcg_cuda_env || die "Failed to normalize CUDA environment from LCG set
 mkdir -p "${BUILD_ROOT}"
 
 DRIFT_STATUS=0
-DEBUG_DRIFT_RAN=0
-DEBUG_DRIFT_STATUS=0
+DRIFT_SMOKE_RAN=0
+DRIFT_SMOKE_STATUS=0
 UNIT_STATUS=1
 VALIDATION_RAN=0
 VALIDATION_STATUS=0
@@ -244,18 +245,18 @@ log "Master reference: ${MASTER_REF}"
 log "CUDA arch: ${CUDA_ARCH}"
 log "Build jobs: ${JOBS}"
 log "Always run validation: ${RUN_VALIDATION_ALWAYS}"
-log "Run Debug drift: ${RUN_DEBUG_DRIFT}"
-log "Running drift matrix for mono/split/mixed"
+log "Run drift smoke: ${RUN_DRIFT_SMOKE}"
+log "Running drift matrix for mono/split"
 
-for cfg in mono split mixed; do
+for cfg in mono split; do
   log "Drift phase for config: ${cfg}"
   if ! "${MATRIX_RUNNER}" "${matrix_common_args[@]}" --configs "${cfg}"; then
     DRIFT_STATUS=1
   fi
 done
 
-if [[ "${RUN_DEBUG_DRIFT}" -eq 1 ]]; then
-  DEBUG_DRIFT_RAN=1
+if [[ "${RUN_DRIFT_SMOKE}" -eq 1 ]]; then
+  DRIFT_SMOKE_RAN=1
   DEBUG_DRIFT_BUILD_ROOT="${BUILD_ROOT}/debug-drift"
   debug_matrix_common_args=(
     --suite drift-smoke
@@ -270,16 +271,36 @@ if [[ "${RUN_DEBUG_DRIFT}" -eq 1 ]]; then
     debug_matrix_common_args+=(--force-rebuild)
   fi
 
-  log "Running Debug drift smoke matrix for mono/split/mixed"
+  log "Running Debug drift smoke matrix for mono/split"
   log "Debug drift build root: ${DEBUG_DRIFT_BUILD_ROOT}"
-  for cfg in mono split mixed; do
+  for cfg in mono split; do
     log "Debug drift smoke phase for config: ${cfg}"
     if ! "${MATRIX_RUNNER}" "${debug_matrix_common_args[@]}" --configs "${cfg}"; then
-      DEBUG_DRIFT_STATUS=1
+      DRIFT_SMOKE_STATUS=1
     fi
   done
+
+  MIXED_DRIFT_SMOKE_BUILD_ROOT="${BUILD_ROOT}/mixed-drift-smoke"
+  mixed_matrix_common_args=(
+    --suite drift-smoke
+    --configs mixed
+    --build-root "${MIXED_DRIFT_SMOKE_BUILD_ROOT}"
+    --cuda-arch "${CUDA_ARCH}"
+    --jobs "${JOBS}"
+    --ctest-timeout-sec "${CTEST_TIMEOUT_SEC}"
+  )
+
+  if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+    mixed_matrix_common_args+=(--force-rebuild)
+  fi
+
+  log "Running mixed precision drift smoke"
+  log "Mixed precision drift smoke build root: ${MIXED_DRIFT_SMOKE_BUILD_ROOT}"
+  if ! "${MATRIX_RUNNER}" "${mixed_matrix_common_args[@]}"; then
+    DRIFT_SMOKE_STATUS=1
+  fi
 else
-  log "Debug drift matrix skipped"
+  log "Drift smoke checks skipped"
 fi
 
 MONOL_BUILD_DIR="${BUILD_ROOT}/BUILD_MONOL"
@@ -335,7 +356,7 @@ fi
 
 if [[ "${UNIT_STATUS}" -eq 0 &&
       ( "${VALIDATION_RAN}" -eq 0 || "${VALIDATION_STATUS}" -eq 0 ) &&
-      "${DEBUG_DRIFT_STATUS}" -eq 0 ]]; then
+      "${DRIFT_SMOKE_STATUS}" -eq 0 ]]; then
   FULL_CI_STATUS=0
 else
   FULL_CI_STATUS=1
@@ -344,8 +365,8 @@ fi
 write_results
 
 log "Drift status: ${DRIFT_STATUS}"
-log "Debug drift ran: ${DEBUG_DRIFT_RAN}"
-log "Debug drift status: ${DEBUG_DRIFT_STATUS}"
+log "Drift smoke ran: ${DRIFT_SMOKE_RAN}"
+log "Drift smoke status: ${DRIFT_SMOKE_STATUS}"
 log "Unit status: ${UNIT_STATUS}"
 log "Validation ran: ${VALIDATION_RAN}"
 log "Validation forced: ${RUN_VALIDATION_ALWAYS}"

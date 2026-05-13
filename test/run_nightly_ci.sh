@@ -38,10 +38,10 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Runs the nightly CI selection on the self-hosted runner:
-  1. build ${BUILD_TYPE} matrix for mono/split/mixed
+  1. build ${BUILD_TYPE} matrix for mono/split
   2. run unit tests on mono
   3. run validation tests on mono and split
-  4. build Debug matrix for mono/split/mixed and run one-sided physics_drift smoke tests
+  4. run one-sided physics_drift smoke tests for Debug mono/split and mixed precision
 
 Options:
   --build-root <path>        Build root (default: ${DEFAULT_BUILD_ROOT})
@@ -66,6 +66,8 @@ write_results() {
     printf 'RELEASE_CI_STATUS=%s\n' "${RELEASE_CI_STATUS}"
     printf 'DEBUG_DRIFT_SMOKE_BUILD_ROOT=%q\n' "${DEBUG_DRIFT_SMOKE_BUILD_ROOT}"
     printf 'DEBUG_DRIFT_SMOKE_STATUS=%s\n' "${DEBUG_DRIFT_SMOKE_STATUS}"
+    printf 'MIXED_DRIFT_SMOKE_BUILD_ROOT=%q\n' "${MIXED_DRIFT_SMOKE_BUILD_ROOT}"
+    printf 'MIXED_DRIFT_SMOKE_STATUS=%s\n' "${MIXED_DRIFT_SMOKE_STATUS}"
     printf 'NIGHTLY_STATUS=%s\n' "${NIGHTLY_STATUS}"
   } > "${RESULTS_FILE}"
 }
@@ -140,7 +142,7 @@ mkdir -p "${BUILD_ROOT}"
 
 matrix_args=(
   --suite ci
-  --configs mono,split,mixed
+  --configs mono,split
   --build-root "${BUILD_ROOT}"
   --build-type "${BUILD_TYPE}"
   --cuda-arch "${CUDA_ARCH}"
@@ -155,7 +157,7 @@ done
 DEBUG_DRIFT_SMOKE_BUILD_ROOT="${BUILD_ROOT}/debug-drift-smoke"
 debug_drift_smoke_args=(
   --suite drift-smoke
-  --configs mono,split,mixed
+  --configs mono,split
   --build-root "${DEBUG_DRIFT_SMOKE_BUILD_ROOT}"
   --build-type Debug
   --cuda-arch "${CUDA_ARCH}"
@@ -167,12 +169,28 @@ for arg in "${CMAKE_EXTRA_ARGS[@]}"; do
   debug_drift_smoke_args+=(--cmake-extra "${arg}")
 done
 
+MIXED_DRIFT_SMOKE_BUILD_ROOT="${BUILD_ROOT}/mixed-drift-smoke"
+mixed_drift_smoke_args=(
+  --suite drift-smoke
+  --configs mixed
+  --build-root "${MIXED_DRIFT_SMOKE_BUILD_ROOT}"
+  --build-type "${BUILD_TYPE}"
+  --cuda-arch "${CUDA_ARCH}"
+  --jobs "${JOBS}"
+  --ctest-timeout-sec "${CTEST_TIMEOUT_SEC}"
+)
+
+for arg in "${CMAKE_EXTRA_ARGS[@]}"; do
+  mixed_drift_smoke_args+=(--cmake-extra "${arg}")
+done
+
 log "Using LCG setup: ${LCG_SETUP}"
 log "Build type: ${BUILD_TYPE}"
 log "Build root: ${BUILD_ROOT}"
 log "CUDA arch: ${CUDA_ARCH}"
 log "Build jobs: ${JOBS}"
 log "Debug drift smoke build root: ${DEBUG_DRIFT_SMOKE_BUILD_ROOT}"
+log "Mixed precision drift smoke build root: ${MIXED_DRIFT_SMOKE_BUILD_ROOT}"
 log "Running Jenkins-like nightly CI selection"
 
 # Increase self-hosted nightly validation concurrency and buffer capacity unless explicitly overridden.
@@ -195,6 +213,7 @@ export ADEPT_VALIDATION_WDT_CPU_CAPACITY_FACTOR
 
 RELEASE_CI_STATUS=1
 DEBUG_DRIFT_SMOKE_STATUS=1
+MIXED_DRIFT_SMOKE_STATUS=1
 NIGHTLY_STATUS=1
 if "${MATRIX_RUNNER}" "${matrix_args[@]}"; then
   RELEASE_CI_STATUS=0
@@ -205,7 +224,14 @@ if "${MATRIX_RUNNER}" "${debug_drift_smoke_args[@]}"; then
   DEBUG_DRIFT_SMOKE_STATUS=0
 fi
 
-if [[ "${RELEASE_CI_STATUS}" -eq 0 && "${DEBUG_DRIFT_SMOKE_STATUS}" -eq 0 ]]; then
+log "Running mixed precision physics_drift smoke suite"
+if "${MATRIX_RUNNER}" "${mixed_drift_smoke_args[@]}"; then
+  MIXED_DRIFT_SMOKE_STATUS=0
+fi
+
+if [[ "${RELEASE_CI_STATUS}" -eq 0 &&
+      "${DEBUG_DRIFT_SMOKE_STATUS}" -eq 0 &&
+      "${MIXED_DRIFT_SMOKE_STATUS}" -eq 0 ]]; then
   NIGHTLY_STATUS=0
 fi
 
@@ -213,6 +239,7 @@ write_results
 
 log "Release CI status: ${RELEASE_CI_STATUS}"
 log "Debug drift smoke status: ${DEBUG_DRIFT_SMOKE_STATUS}"
+log "Mixed precision drift smoke status: ${MIXED_DRIFT_SMOKE_STATUS}"
 log "Nightly status: ${NIGHTLY_STATUS}"
 
 exit "${NIGHTLY_STATUS}"
