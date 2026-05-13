@@ -65,11 +65,10 @@ struct TrackBase {
                        float weight, double const position[3], double const direction[3],
                        const vecgeom::NavigationState &newNavState, unsigned int eventId, uint64_t trackId,
                        uint64_t parentId, short threadId, unsigned short stepCounter)
-      : eKin{eKin}, globalTime{globalTime}, trackId{trackId}, parentId{parentId}, navState{newNavState}, weight{weight},
-        localTime{localTime}, properTime{properTime}, eventId{eventId}, threadId{threadId}, stepCounter{stepCounter},
-        looperCounter{0}, zeroStepCounter{0}
+      : rngState{rngSeed}, eKin{eKin}, globalTime{globalTime}, trackId{trackId}, parentId{parentId},
+        navState{newNavState}, weight{weight}, localTime{localTime}, properTime{properTime}, eventId{eventId},
+        threadId{threadId}, stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}
   {
-    rngState.SetSeed(rngSeed);
     pos = {position[0], position[1], position[2]};
     dir = {direction[0], direction[1], direction[2]};
   }
