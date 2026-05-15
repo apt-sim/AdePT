@@ -121,8 +121,8 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTranspo
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.nextActive);
 #ifdef ADEPT_USE_SPLIT_KERNELS
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.propagation);
-  for (int i = 0; i < ParticleQueues::numInteractions; i++) {
-    adept::MParray::MakeInstanceAt(CapacityTransport, queues.interactionQueues[i]);
+  for (int i = 0; i < ParticleQueues::numSplitQueues; i++) {
+    adept::MParray::MakeInstanceAt(CapacityTransport, queues.splitQueues[i]);
   }
 #endif
 }
@@ -251,17 +251,20 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       all.queues[i].initiallyActive->clear();
 #ifdef ADEPT_USE_SPLIT_KERNELS
       all.queues[i].propagation->clear();
-      for (int j = 0; j < ParticleQueues::numInteractions; j++) {
-        all.queues[i].interactionQueues[j]->clear();
+      for (int j = 0; j < ParticleQueues::numSplitQueues; j++) {
+        all.queues[i].splitQueues[j]->clear();
       }
 #endif
       stats->inFlight[i]       = all.queues[i].nextActive->size();
       stats->queueFillLevel[i] = float(all.queues[i].nextActive->size()) / all.queues[i].nextActive->max_size();
     }
+    // Thread 0 folds WDT gammas into the gamma total below; wait until the per-species counts are written.
+    __syncthreads();
     if (threadIdx.x == 0) {
       // reset Woodcock tracking gamma queue and add to gammas
       all.queues[GPUQueueIndex::GammaWDT].initiallyActive->clear();
-      stats->inFlight[GPUQueueIndex::Gamma] += all.queues[GPUQueueIndex::GammaWDT].nextActive->size();
+      stats->wdtGammasInFlight = all.queues[GPUQueueIndex::GammaWDT].nextActive->size();
+      stats->inFlight[GPUQueueIndex::Gamma] += stats->wdtGammasInFlight;
       stats->queueFillLevel[GPUQueueIndex::GammaWDT] = float(all.queues[GPUQueueIndex::GammaWDT].nextActive->size()) /
                                                        all.queues[GPUQueueIndex::GammaWDT].nextActive->max_size();
     }
@@ -369,8 +372,8 @@ __global__ void ClearAllQueues(AllParticleQueues all)
     if (i == GPUQueueIndex::GammaWDT) return;
 #ifdef ADEPT_USE_SPLIT_KERNELS
     all.queues[i].propagation->clear();
-    for (int j = 0; j < ParticleQueues::numInteractions; j++) {
-      all.queues[i].interactionQueues[j]->clear();
+    for (int j = 0; j < ParticleQueues::numSplitQueues; j++) {
+      all.queues[i].splitQueues[j]->clear();
     }
 #endif
   }
@@ -640,20 +643,20 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 #ifdef ADEPT_USE_SPLIT_KERNELS
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
     particleType.queues.propagation = static_cast<adept::MParray *>(gpuPtr);
-    for (int j = 0; j < ParticleQueues::numInteractions; j++) {
+    for (int j = 0; j < ParticleQueues::numSplitQueues; j++) {
       gpuMalloc(gpuPtr, sizeOfQueueStorage);
-      particleType.queues.interactionQueues[j] = static_cast<adept::MParray *>(gpuPtr);
+      particleType.queues.splitQueues[j] = static_cast<adept::MParray *>(gpuPtr);
     }
 #endif
     InitParticleQueues<<<1, 1>>>(particleType.queues, nSlot);
 
     ADEPT_DEVICE_API_CALL(StreamCreate(&particleType.stream));
     ADEPT_DEVICE_API_CALL(EventCreate(&particleType.event));
-#ifdef ADEPT_USE_SPLIT_KERNELS
-    ADEPT_DEVICE_API_CALL(StreamCreate(&particleType.physicsStream));
-    ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&particleType.setupEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+    ADEPT_DEVICE_API_CALL(StreamCreate(&particleType.auxiliaryStream));
     ADEPT_DEVICE_API_CALL(
-        EventCreateWithFlags(&particleType.physicsEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+        EventCreateWithFlags(&particleType.auxiliaryEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+#ifdef ADEPT_USE_SPLIT_KERNELS
+    ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&particleType.setupEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
 #endif
 
     // Allocate the array where the tracks are stored
@@ -809,8 +812,8 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
     ADEPT_DEVICE_API_CALL(MemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
 
-    int inFlight                                              = 0;
-    unsigned int particlesInFlight[GPUQueueIndex::NumSpecies] = {1, 1, 1};
+    int inFlight                                                     = 0;
+    unsigned int particlesInFlight[GPUQueueIndex::NumParticleQueues] = {1, 1, 1, 1};
 
     auto needTransport = [](std::atomic<EventState> const &state) {
       return state.load(std::memory_order_acquire) < EventState::StepsFlushed;
@@ -859,16 +862,21 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
       };
       const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
 #ifdef ADEPT_USE_SPLIT_KERNELS
-      const AllInteractionQueues allGammaInteractionQueues = {
-          {gammas.queues.interactionQueues[0], gammas.queues.interactionQueues[1], gammas.queues.interactionQueues[2],
-           nullptr, gammas.queues.interactionQueues[4]}};
-      const AllInteractionQueues allElectronInteractionQueues = {{electrons.queues.interactionQueues[0],
-                                                                  electrons.queues.interactionQueues[1], nullptr,
-                                                                  nullptr, electrons.queues.interactionQueues[4]}};
-      const AllInteractionQueues allPositronInteractionQueues = {
-          {positrons.queues.interactionQueues[0], positrons.queues.interactionQueues[1],
-           positrons.queues.interactionQueues[2], positrons.queues.interactionQueues[3],
-           positrons.queues.interactionQueues[4]}};
+      const SplitQueues gammaSplitQueues    = {{gammas.queues.splitQueues[ParticleQueues::gammaConversion],
+                                                gammas.queues.splitQueues[ParticleQueues::gammaCompton],
+                                                gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric],
+                                                gammas.queues.splitQueues[ParticleQueues::gammaWoodcock],
+                                                gammas.queues.splitQueues[ParticleQueues::relocation]}};
+      const SplitQueues electronSplitQueues = {{electrons.queues.splitQueues[ParticleQueues::chargedIonization],
+                                                electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung],
+                                                nullptr, nullptr,
+                                                electrons.queues.splitQueues[ParticleQueues::relocation]}};
+      const SplitQueues positronSplitQueues = {
+          {positrons.queues.splitQueues[ParticleQueues::chargedIonization],
+           positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung],
+           positrons.queues.splitQueues[ParticleQueues::positronAnnihilation],
+           positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation],
+           positrons.queues.splitQueues[ParticleQueues::relocation]}};
 #endif
       const TracksAndSlots tracksAndSlots = {electrons.tracks,
                                              positrons.tracks,
@@ -978,20 +986,20 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronSetupInteractions<true><<<blocks, threads, 0, electrons.stream>>>(
-            gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, particleManager,
-            allElectronInteractionQueues, returnAllSteps, returnLastStep);
+            gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, particleManager, electronSplitQueues,
+            returnAllSteps, returnLastStep);
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.setupEvent, electrons.stream));
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(electrons.physicsStream, electrons.setupEvent, 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(electrons.auxiliaryStream, electrons.setupEvent, 0));
         ElectronRelocation<true><<<blocks, threads, 0, electrons.stream>>>(
-            gpuState.hepEmBuffers_d.electronsHepEm, particleManager, electrons.queues.interactionQueues[4],
-            returnAllSteps, returnLastStep);
-        ElectronIonization<true><<<blocks, threads, 0, electrons.physicsStream>>>(
-            gpuState.hepEmBuffers_d.electronsHepEm, particleManager, electrons.queues.interactionQueues[0],
-            returnAllSteps, returnLastStep);
-        ElectronBremsstrahlung<true><<<blocks, threads, 0, electrons.physicsStream>>>(
-            gpuState.hepEmBuffers_d.electronsHepEm, particleManager, electrons.queues.interactionQueues[1],
-            returnAllSteps, returnLastStep);
-        ADEPT_DEVICE_API_CALL(EventRecord(electrons.physicsEvent, electrons.physicsStream));
+            gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
+            electrons.queues.splitQueues[ParticleQueues::relocation], returnAllSteps, returnLastStep);
+        ElectronIonization<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
+            electrons.queues.splitQueues[ParticleQueues::chargedIonization], returnAllSteps, returnLastStep);
+        ElectronBremsstrahlung<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
+            electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], returnAllSteps, returnLastStep);
+        ADEPT_DEVICE_API_CALL(EventRecord(electrons.auxiliaryEvent, electrons.auxiliaryStream));
 #else
         TransportElectrons<SelectedSteppingAction>
             <<<blocks, threads, 0, electrons.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
@@ -1000,7 +1008,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.event, electrons.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, electrons.event, 0));
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, electrons.physicsEvent, 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, electrons.auxiliaryEvent, 0));
 #endif
       }
 
@@ -1021,26 +1029,26 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronSetupInteractions<false><<<blocks, threads, 0, positrons.stream>>>(
-            gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, particleManager,
-            allPositronInteractionQueues, returnAllSteps, returnLastStep);
+            gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, particleManager, positronSplitQueues,
+            returnAllSteps, returnLastStep);
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.setupEvent, positrons.stream));
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(positrons.physicsStream, positrons.setupEvent, 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(positrons.auxiliaryStream, positrons.setupEvent, 0));
         ElectronRelocation<false><<<blocks, threads, 0, positrons.stream>>>(
-            gpuState.hepEmBuffers_d.positronsHepEm, particleManager, positrons.queues.interactionQueues[4],
-            returnAllSteps, returnLastStep);
-        ElectronIonization<false><<<blocks, threads, 0, positrons.physicsStream>>>(
-            gpuState.hepEmBuffers_d.positronsHepEm, particleManager, positrons.queues.interactionQueues[0],
-            returnAllSteps, returnLastStep);
-        ElectronBremsstrahlung<false><<<blocks, threads, 0, positrons.physicsStream>>>(
-            gpuState.hepEmBuffers_d.positronsHepEm, particleManager, positrons.queues.interactionQueues[1],
-            returnAllSteps, returnLastStep);
-        PositronAnnihilation<<<blocks, threads, 0, positrons.physicsStream>>>(
-            gpuState.hepEmBuffers_d.positronsHepEm, particleManager, positrons.queues.interactionQueues[2],
-            returnAllSteps, returnLastStep);
-        PositronStoppedAnnihilation<<<blocks, threads, 0, positrons.physicsStream>>>(
-            gpuState.hepEmBuffers_d.positronsHepEm, particleManager, positrons.queues.interactionQueues[3],
-            returnAllSteps, returnLastStep);
-        ADEPT_DEVICE_API_CALL(EventRecord(positrons.physicsEvent, positrons.physicsStream));
+            gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
+            positrons.queues.splitQueues[ParticleQueues::relocation], returnAllSteps, returnLastStep);
+        ElectronIonization<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
+            positrons.queues.splitQueues[ParticleQueues::chargedIonization], returnAllSteps, returnLastStep);
+        ElectronBremsstrahlung<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
+            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], returnAllSteps, returnLastStep);
+        PositronAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
+            positrons.queues.splitQueues[ParticleQueues::positronAnnihilation], returnAllSteps, returnLastStep);
+        PositronStoppedAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
+            positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation], returnAllSteps, returnLastStep);
+        ADEPT_DEVICE_API_CALL(EventRecord(positrons.auxiliaryEvent, positrons.auxiliaryStream));
 #else
         TransportPositrons<SelectedSteppingAction>
             <<<blocks, threads, 0, positrons.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
@@ -1050,7 +1058,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.event, positrons.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, positrons.event, 0));
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, positrons.physicsEvent, 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, positrons.auxiliaryEvent, 0));
 #endif
       }
 
@@ -1059,60 +1067,80 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 
         // wait for swapping of step buffers
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.stream, gpuState.fGPUStepTransferManager->getSwapDoneEvent(), 0));
+#ifdef ADEPT_USE_SPLIT_KERNELS
+        ADEPT_DEVICE_API_CALL(
+            StreamWaitEvent(gammas.auxiliaryStream, gpuState.fGPUStepTransferManager->getSwapDoneEvent(), 0));
+#else
+        if (hasWDTRegions) {
+          ADEPT_DEVICE_API_CALL(
+              StreamWaitEvent(gammas.auxiliaryStream, gpuState.fGPUStepTransferManager->getSwapDoneEvent(), 0));
+        }
+#endif
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Gamma]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
+        const auto [wdtThreads, wdtBlocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::GammaWDT]);
+        const auto [interactionThreads, interactionBlocks] = computeThreadsAndBlocks(
+            particlesInFlight[GPUQueueIndex::Gamma] + particlesInFlight[GPUQueueIndex::GammaWDT]);
         GammaHowFar<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
             steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
+        if (hasWDTRegions) {
+          GammaWoodcock<SelectedSteppingAction><<<wdtBlocks, wdtThreads, 0, gammas.auxiliaryStream>>>(
+              gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
+              gammaSplitQueues.queues[ParticleQueues::gammaWoodcock], gpuState.stats_dev, steppingActionParams,
+              allowFinishOffEvent, returnAllSteps, returnLastStep);
+          ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
+        }
         GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
                                                                 gammas.queues.propagation);
         if (hasWDTRegions) {
-          // The GammaWoodcock kernel has to run after the HowFar and Propagation, GammaPropagation uses the propagation
-          // queue and GammaWockcock can add slots the the propagationqueue, as it will be consumed in the
-          // SetupInteractions kernel
-          GammaWoodcock<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
-              gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
-              steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
+          ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.stream, gammas.auxiliaryEvent, 0));
         }
-        GammaSetupInteractions<<<blocks, threads, 0, gammas.stream>>>(
-            gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, particleManager, allGammaInteractionQueues,
+        GammaSetupInteractions<<<interactionBlocks, interactionThreads, 0, gammas.stream>>>(
+            gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, particleManager, gammaSplitQueues,
             returnAllSteps, returnLastStep);
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.setupEvent, gammas.stream));
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.physicsStream, gammas.setupEvent, 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.auxiliaryStream, gammas.setupEvent, 0));
         GammaRelocation<<<blocks, threads, 0, gammas.stream>>>(gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-                                                               gammas.queues.interactionQueues[4], returnAllSteps,
-                                                               returnLastStep);
+                                                               gammas.queues.splitQueues[ParticleQueues::relocation],
+                                                               returnAllSteps, returnLastStep);
         // Copying the number of interacting tracks back to host and using this information to adjust
         // the launch parameters of the interactions kernel is complicated and expensive due to a
         // required additional kernel launch and copy. Instead, launch the kernels with the same
         // parameters, the unneeded threads immediately return and become free again.
-        GammaConversion<<<blocks, threads, 0, gammas.physicsStream>>>(
-            gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.interactionQueues[0], returnAllSteps,
-            returnLastStep);
-        GammaCompton<<<blocks, threads, 0, gammas.physicsStream>>>(gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-                                                                   gammas.queues.interactionQueues[1], returnAllSteps,
-                                                                   returnLastStep);
-        GammaPhotoelectric<<<blocks, threads, 0, gammas.physicsStream>>>(
-            gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.interactionQueues[2], returnAllSteps,
-            returnLastStep);
-        ADEPT_DEVICE_API_CALL(EventRecord(gammas.physicsEvent, gammas.physicsStream));
+        GammaConversion<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
+            gammas.queues.splitQueues[ParticleQueues::gammaConversion], returnAllSteps, returnLastStep);
+        GammaCompton<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
+            gammas.queues.splitQueues[ParticleQueues::gammaCompton], returnAllSteps, returnLastStep);
+        GammaPhotoelectric<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
+            gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric], returnAllSteps, returnLastStep);
+        ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
 #else
         TransportGammas<SelectedSteppingAction>
             <<<blocks, threads, 0, gammas.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
                                                     allowFinishOffEvent, returnAllSteps, returnLastStep);
 
         if (hasWDTRegions) {
-          TransportGammasWoodcock<SelectedSteppingAction>
-              <<<blocks, threads, 0, gammas.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
-                                                      allowFinishOffEvent, returnAllSteps, returnLastStep);
+          const auto [wdtThreads, wdtBlocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::GammaWDT]);
+          TransportGammasWoodcock<SelectedSteppingAction><<<wdtBlocks, wdtThreads, 0, gammas.auxiliaryStream>>>(
+              particleManager, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, returnAllSteps,
+              returnLastStep);
+          ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
         }
 #endif
 
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.event, gammas.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, gammas.event, 0));
 #ifdef ADEPT_USE_SPLIT_KERNELS
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, gammas.physicsEvent, 0));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, gammas.auxiliaryEvent, 0));
+#else
+        if (hasWDTRegions) {
+          ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, gammas.auxiliaryEvent, 0));
+        }
 #endif
       }
 
@@ -1184,8 +1212,12 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaEvent));
       }
 #ifdef ADEPT_USE_SPLIT_KERNELS
-      for (auto stream : {electrons.physicsStream, positrons.physicsStream, gammas.physicsStream}) {
+      for (auto stream : {electrons.auxiliaryStream, positrons.auxiliaryStream, gammas.auxiliaryStream}) {
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaEvent));
+      }
+#else
+      if (hasWDTRegions) {
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.auxiliaryStream, cudaEvent));
       }
 #endif
       // ------------------------------------------
@@ -1208,6 +1240,12 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         for (int i = 0; i < GPUQueueIndex::NumSpecies; i++) {
           inFlight += gpuState.stats->inFlight[i];
           particlesInFlight[i] = gpuState.stats->inFlight[i];
+        }
+        particlesInFlight[GPUQueueIndex::GammaWDT] = gpuState.stats->wdtGammasInFlight;
+        if (particlesInFlight[GPUQueueIndex::Gamma] > particlesInFlight[GPUQueueIndex::GammaWDT]) {
+          particlesInFlight[GPUQueueIndex::Gamma] -= particlesInFlight[GPUQueueIndex::GammaWDT];
+        } else {
+          particlesInFlight[GPUQueueIndex::Gamma] = 0;
         }
 
         for (unsigned short threadId = 0; threadId < numThreads; ++threadId) {
@@ -1314,9 +1352,9 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         std::cerr << inFlight << " in flight ";
         std::cerr << "(" << gpuState.stats->inFlight[GPUQueueIndex::Electron] << " "
                   << gpuState.stats->inFlight[GPUQueueIndex::Positron] << " "
-                  << gpuState.stats->inFlight[GPUQueueIndex::Gamma] << "),\tqueues:(" << std::setprecision(3)
-                  << gpuState.stats->queueFillLevel[GPUQueueIndex::Electron] << " "
-                  << gpuState.stats->queueFillLevel[GPUQueueIndex::Positron] << " "
+                  << gpuState.stats->inFlight[GPUQueueIndex::Gamma] << " " << gpuState.stats->wdtGammasInFlight
+                  << "),\tqueues:(" << std::setprecision(3) << gpuState.stats->queueFillLevel[GPUQueueIndex::Electron]
+                  << " " << gpuState.stats->queueFillLevel[GPUQueueIndex::Positron] << " "
                   << gpuState.stats->queueFillLevel[GPUQueueIndex::Gamma] << " "
                   << gpuState.stats->queueFillLevel[GPUQueueIndex::GammaWDT] << ")";
         std::cerr << "\t slots [e-, e+, gamma]: [" << gpuState.stats->slotFillLevel[0] << ", "

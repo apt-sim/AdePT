@@ -13,41 +13,37 @@ namespace adept::transport {
 // A bundle of queues per particle type:
 //  * Two for active particles, one for the current iteration and the second for the next.
 struct ParticleQueues {
-  /*
-Gamma interactions:
-0 - Conversion
-1 - Compton
-2 - Photoelectric
-3 - Unused
-4 - Relocation
+  // Extra queues used only by the split-kernel transport path. The slot meaning
+  // depends on the particle type and is named below.
 
-Electron interactions:
-0 - Ionization
-1 - Bremsstrahlung
-2 - Unused
-3 - Unused
-4 - Relocation
+  //   In-flight and stopped annihilation use different codes but may be merged to save space
+  // in unused queues or if launching one kernel is faster than two smaller ones
 
-Positron interactions:
-0 - Ionization
-1 - Bremsstrahlung
-2 - In flight annihilation
-3 - Stopped annihilation
-4 - Relocation
+  // It is not straightforward to allocate just the needed queues per particle type because
+  // ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
+  // dynamic allocations
 
-In-flight and stopped annihilation use different codes but may be merged to save space
-in unused queues or if launching one kernel is faster than two smaller ones
+  static constexpr char numSplitQueues = 5;
 
-It is not straightforward to allocate just the needed queues per particle type because
-ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
-dynamic allocations
-*/
-  static constexpr char numInteractions = 5;
+  // gamma queues:
+  static constexpr char gammaConversion    = 0;
+  static constexpr char gammaCompton       = 1;
+  static constexpr char gammaPhotoelectric = 2;
+  static constexpr char gammaWoodcock      = 3;
+  // electron + positron queues:
+  static constexpr char chargedIonization     = 0;
+  static constexpr char chargedBremsstrahlung = 1;
+  // positron only queues:
+  static constexpr char positronAnnihilation        = 2;
+  static constexpr char positronStoppedAnnihilation = 3;
+  // common to all queues:
+  static constexpr char relocation = 4;
+
   adept::MParray *nextActive;
   adept::MParray *initiallyActive;
 #ifdef ADEPT_USE_SPLIT_KERNELS
   adept::MParray *propagation;
-  adept::MParray *interactionQueues[numInteractions];
+  adept::MParray *splitQueues[numSplitQueues];
 #endif
 
   void SwapActive() { std::swap(initiallyActive, nextActive); }
@@ -87,9 +83,9 @@ struct AllParticleQueues {
 };
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
-// A bundle of queues per interaction type
-struct AllInteractionQueues {
-  adept::MParray *queues[ParticleQueues::numInteractions];
+// A bundle of the extra queues used by split kernels for one particle type.
+struct SplitQueues {
+  adept::MParray *queues[ParticleQueues::numSplitQueues];
 };
 #endif
 

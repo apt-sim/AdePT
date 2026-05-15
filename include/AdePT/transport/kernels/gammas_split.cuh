@@ -237,13 +237,16 @@ __global__ void GammaPropagation(NeutralTrack *gammas, G4HepEmGammaTrack *hepEMT
 }
 
 __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const adept::MParray *propagationQueue,
-                                       ParticleManager particleManager, AllInteractionQueues interactionQueues,
+                                       ParticleManager particleManager, SplitQueues splitQueues,
                                        const bool returnAllSteps, const bool returnLastStep)
 {
-  auto &slotManager = *particleManager.gammas.fSlotManager;
-  int activeSize    = propagationQueue->size();
+  auto &slotManager   = *particleManager.gammas.fSlotManager;
+  auto *wdtSetupQueue = splitQueues.queues[ParticleQueues::gammaWoodcock];
+  int normalSize      = propagationQueue->size();
+  int wdtSize         = wdtSetupQueue->size();
+  int activeSize      = normalSize + wdtSize;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot             = (*propagationQueue)[i];
+    const int slot             = i < normalSize ? (*propagationQueue)[i] : (*wdtSetupQueue)[i - normalSize];
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID = currentTrack.navState.GetLogicalId();
@@ -252,7 +255,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
     if (currentTrack.nextState.IsOnBoundary()) {
-      interactionQueues.queues[4]->push_back(slot);
+      splitQueues.queues[ParticleQueues::relocation]->push_back(slot);
       continue;
     } else {
       // NOTE: This may be moved to the next kernel
@@ -263,7 +266,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
       theTrack->SetNumIALeft(-1.0, 0);
 
       if (theTrack->GetWinnerProcessIndex() < 3) {
-        interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
+        splitQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
       } else {
         // Gamma nuclear is handled on the host from the returned step only.
         slotManager.MarkSlotForFreeing(slot);
