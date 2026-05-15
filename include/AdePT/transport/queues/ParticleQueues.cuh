@@ -15,17 +15,29 @@ namespace adept::transport {
 struct ParticleQueues {
   // Extra queues used only by the split-kernel transport path. The slot meaning
   // depends on the particle type and is named below.
+
+  //   In-flight and stopped annihilation use different codes but may be merged to save space
+  // in unused queues or if launching one kernel is faster than two smaller ones
+
+  // It is not straightforward to allocate just the needed queues per particle type because
+  // ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
+  // dynamic allocations
+
   static constexpr char numSplitQueues = 5;
 
-  static constexpr char gammaConversion             = 0;
-  static constexpr char gammaCompton                = 1;
-  static constexpr char gammaPhotoelectric          = 2;
-  static constexpr char gammaWoodcock               = 3;
-  static constexpr char chargedIonization           = 0;
-  static constexpr char chargedBremsstrahlung       = 1;
+  // gamma queues:
+  static constexpr char gammaConversion    = 0;
+  static constexpr char gammaCompton       = 1;
+  static constexpr char gammaPhotoelectric = 2;
+  static constexpr char gammaWoodcock      = 3;
+  // electron + positron queues:
+  static constexpr char chargedIonization     = 0;
+  static constexpr char chargedBremsstrahlung = 1;
+  // positron only queues:
   static constexpr char positronAnnihilation        = 2;
   static constexpr char positronStoppedAnnihilation = 3;
-  static constexpr char relocation                  = 4;
+  // common to all queues:
+  static constexpr char relocation = 4;
 
   adept::MParray *nextActive;
   adept::MParray *initiallyActive;
