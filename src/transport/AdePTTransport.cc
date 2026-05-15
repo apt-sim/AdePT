@@ -60,6 +60,11 @@ bool StartTransportProfilerCapture()
 void StopTransportProfilerCapture()
 {
   if (!gTransportProfilerStarted) return;
+  const auto syncResult = cudaDeviceSynchronize();
+  if (syncResult != cudaSuccess) {
+    std::cerr << "AdePTTransport: cudaDeviceSynchronize before cudaProfilerStop failed: "
+              << cudaGetErrorString(syncResult) << std::endl;
+  }
   const auto result = cudaProfilerStop();
   if (result != cudaSuccess) {
     std::cerr << "AdePTTransport: cudaProfilerStop failed: " << cudaGetErrorString(result) << std::endl;
