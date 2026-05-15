@@ -60,6 +60,7 @@ option(ADEPT_MIXED_PRECISION "Use B-field integration and surface model in mixed
 option(ADEPT_USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
 option(ADEPT_DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
+option(ADEPT_ENABLE_NSYS_PROFILING "Compile CUDA profiler API hooks for transport-loop nsys captures" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
@@ -86,6 +87,13 @@ if(ADEPT_COMPUTE_BACKEND STREQUAL CUDA)
   set(ADEPT_USE_CUDA TRUE)
 elseif(ADEPT_COMPUTE_BACKEND STREQUAL HIP)
   set(ADEPT_USE_HIP TRUE)
+endif()
+
+if(ADEPT_ENABLE_NSYS_PROFILING AND NOT ADEPT_USE_CUDA)
+  message(FATAL_ERROR
+    "ADEPT_ENABLE_NSYS_PROFILING requires ADEPT_COMPUTE_BACKEND=CUDA because "
+    "it uses the CUDA profiler API used by nsys capture ranges."
+  )
 endif()
 
 if(ADEPT_USE_CUDA)
@@ -278,6 +286,10 @@ endif()
 if (ADEPT_USE_SPLIT_KERNELS)
   add_compile_definitions(ADEPT_USE_SPLIT_KERNELS)
   message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
+endif()
+if (ADEPT_ENABLE_NSYS_PROFILING)
+  add_compile_definitions(ADEPT_ENABLE_NSYS_PROFILING)
+  message(STATUS "${Green}AdePT will compile nsys CUDA profiler hooks${ColorReset}")
 endif()
 # Debugging in single-thread mode
 if (ADEPT_DEBUG_SINGLE_THREAD)
@@ -568,6 +580,7 @@ set(ADEPT_PUBLIC_CONFIG_DEFINITIONS
   $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
   $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>
   $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
+  $<$<BOOL:${ADEPT_ENABLE_NSYS_PROFILING}>:ADEPT_ENABLE_NSYS_PROFILING>
   $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
   $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
 )

@@ -18,6 +18,7 @@
 #include <AdePT/transport/support/Global.h>
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/random/Ranluxpp.h>
+#include <AdePT/transport/support/ScopedTransportProfiler.hh>
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
 #include <AdePT/transport/kernels/electrons_split.cuh>
@@ -777,6 +778,9 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
   std::thread stepProcessingThread{&StepProcessingLoop,   (StepProcessingContext *)stepProcessing.get(),
                                    std::ref(gpuState),    std::ref(eventStates),
                                    std::ref(cvG4Workers), std::ref(debugLevel)};
+#ifdef ADEPT_ENABLE_NSYS_PROFILING
+  ScopedTransportProfiler profiler;
+#endif
 
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
     constexpr int TransportThreads = 32;
@@ -833,6 +837,9 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
     for (unsigned int iteration = 0; inFlight > 0 || gpuState.injectState != InjectState::Idle ||
                                      std::any_of(eventStates.begin(), eventStates.end(), needTransport);
          ++iteration) {
+#ifdef ADEPT_ENABLE_NSYS_PROFILING
+      profiler.BeginIteration(iteration);
+#endif
 
       // Swap the queues for the next iteration.
       electrons.queues.SwapActive();
@@ -1367,6 +1374,10 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 
     if (debugLevel > 2) std::cout << "End transport loop.\n";
   }
+
+#ifdef ADEPT_ENABLE_NSYS_PROFILING
+  profiler.Stop();
+#endif
 
   stepProcessing->keepRunning = false;
   stepProcessing->cv.notify_one();

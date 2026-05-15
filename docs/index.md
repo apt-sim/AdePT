@@ -37,6 +37,7 @@ user/gpu_tracking
 user/integration-g4
 user/runtime-parameters
 user/examples
+user/profiling
 ```
 
 ```{toctree}
