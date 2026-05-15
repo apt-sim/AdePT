@@ -240,10 +240,13 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
                                        ParticleManager particleManager, AllInteractionQueues interactionQueues,
                                        const bool returnAllSteps, const bool returnLastStep)
 {
-  auto &slotManager = *particleManager.gammas.fSlotManager;
-  int activeSize    = propagationQueue->size();
+  auto &slotManager   = *particleManager.gammas.fSlotManager;
+  auto *wdtSetupQueue = interactionQueues.queues[ParticleQueues::gammaWoodcockSetupQueue];
+  int normalSize      = propagationQueue->size();
+  int wdtSize         = wdtSetupQueue->size();
+  int activeSize      = normalSize + wdtSize;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot             = (*propagationQueue)[i];
+    const int slot             = i < normalSize ? (*propagationQueue)[i] : (*wdtSetupQueue)[i - normalSize];
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
     int lvolID = currentTrack.navState.GetLogicalId();

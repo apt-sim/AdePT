@@ -18,7 +18,7 @@ Gamma interactions:
 0 - Conversion
 1 - Compton
 2 - Photoelectric
-3 - Unused
+3 - Woodcock setup queue for split kernels
 4 - Relocation
 
 Electron interactions:
@@ -42,7 +42,8 @@ It is not straightforward to allocate just the needed queues per particle type b
 ParticleQueues needs to be passed by copy to the kernels, which means that we can't do
 dynamic allocations
 */
-  static constexpr char numInteractions = 5;
+  static constexpr char numInteractions         = 5;
+  static constexpr char gammaWoodcockSetupQueue = 3;
   adept::MParray *nextActive;
   adept::MParray *initiallyActive;
 #ifdef ADEPT_USE_SPLIT_KERNELS
