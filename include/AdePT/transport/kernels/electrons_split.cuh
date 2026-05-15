@@ -496,7 +496,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
     // Set Non-stopped, on-boundary tracks for relocation
     if (currentTrack.nextState.IsOnBoundary() && !currentTrack.stopped) {
       // Add particle to relocation queue
-      splitQueues.queues[ParticleQueues::relocationQueue]->push_back(slot);
+      splitQueues.queues[ParticleQueues::relocation]->push_back(slot);
       continue;
     }
 
@@ -552,7 +552,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         splitQueues.queues[winnerProcessIndex]->push_back(slot);
       } else {
         // Stopped positron
-        splitQueues.queues[ParticleQueues::positronStoppedAnnihilationQueue]->push_back(slot);
+        splitQueues.queues[ParticleQueues::positronStoppedAnnihilation]->push_back(slot);
       }
 
     } else {

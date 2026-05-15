@@ -862,21 +862,21 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
       };
       const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
 #ifdef ADEPT_USE_SPLIT_KERNELS
-      const SplitQueues gammaSplitQueues    = {{gammas.queues.splitQueues[ParticleQueues::gammaConversionQueue],
-                                                gammas.queues.splitQueues[ParticleQueues::gammaComptonQueue],
-                                                gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectricQueue],
-                                                gammas.queues.splitQueues[ParticleQueues::gammaWoodcockQueue],
-                                                gammas.queues.splitQueues[ParticleQueues::relocationQueue]}};
-      const SplitQueues electronSplitQueues = {
-          {electrons.queues.splitQueues[ParticleQueues::chargedIonizationQueue],
-           electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlungQueue], nullptr, nullptr,
-           electrons.queues.splitQueues[ParticleQueues::relocationQueue]}};
+      const SplitQueues gammaSplitQueues    = {{gammas.queues.splitQueues[ParticleQueues::gammaConversion],
+                                                gammas.queues.splitQueues[ParticleQueues::gammaCompton],
+                                                gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric],
+                                                gammas.queues.splitQueues[ParticleQueues::gammaWoodcock],
+                                                gammas.queues.splitQueues[ParticleQueues::relocation]}};
+      const SplitQueues electronSplitQueues = {{electrons.queues.splitQueues[ParticleQueues::chargedIonization],
+                                                electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung],
+                                                nullptr, nullptr,
+                                                electrons.queues.splitQueues[ParticleQueues::relocation]}};
       const SplitQueues positronSplitQueues = {
-          {positrons.queues.splitQueues[ParticleQueues::chargedIonizationQueue],
-           positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlungQueue],
-           positrons.queues.splitQueues[ParticleQueues::positronAnnihilationQueue],
-           positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilationQueue],
-           positrons.queues.splitQueues[ParticleQueues::relocationQueue]}};
+          {positrons.queues.splitQueues[ParticleQueues::chargedIonization],
+           positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung],
+           positrons.queues.splitQueues[ParticleQueues::positronAnnihilation],
+           positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation],
+           positrons.queues.splitQueues[ParticleQueues::relocation]}};
 #endif
       const TracksAndSlots tracksAndSlots = {electrons.tracks,
                                              positrons.tracks,
@@ -992,13 +992,13 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(electrons.auxiliaryStream, electrons.setupEvent, 0));
         ElectronRelocation<true><<<blocks, threads, 0, electrons.stream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::relocationQueue], returnAllSteps, returnLastStep);
+            electrons.queues.splitQueues[ParticleQueues::relocation], returnAllSteps, returnLastStep);
         ElectronIonization<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::chargedIonizationQueue], returnAllSteps, returnLastStep);
+            electrons.queues.splitQueues[ParticleQueues::chargedIonization], returnAllSteps, returnLastStep);
         ElectronBremsstrahlung<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlungQueue], returnAllSteps, returnLastStep);
+            electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], returnAllSteps, returnLastStep);
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.auxiliaryEvent, electrons.auxiliaryStream));
 #else
         TransportElectrons<SelectedSteppingAction>
@@ -1035,20 +1035,19 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(positrons.auxiliaryStream, positrons.setupEvent, 0));
         ElectronRelocation<false><<<blocks, threads, 0, positrons.stream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::relocationQueue], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::relocation], returnAllSteps, returnLastStep);
         ElectronIonization<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::chargedIonizationQueue], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::chargedIonization], returnAllSteps, returnLastStep);
         ElectronBremsstrahlung<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlungQueue], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], returnAllSteps, returnLastStep);
         PositronAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::positronAnnihilationQueue], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::positronAnnihilation], returnAllSteps, returnLastStep);
         PositronStoppedAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilationQueue], returnAllSteps,
-            returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation], returnAllSteps, returnLastStep);
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.auxiliaryEvent, positrons.auxiliaryStream));
 #else
         TransportPositrons<SelectedSteppingAction>
@@ -1083,15 +1082,13 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         const auto [wdtThreads, wdtBlocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::GammaWDT]);
         const auto [interactionThreads, interactionBlocks] = computeThreadsAndBlocks(
             particlesInFlight[GPUQueueIndex::Gamma] + particlesInFlight[GPUQueueIndex::GammaWDT]);
-        // These counts only size the launches; the kernels read the queue sizes they consume.
-        // Keep WDT launch decisions tied to the configured WDT regions, not to the previous iteration's count.
         GammaHowFar<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
             steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
         if (hasWDTRegions) {
           GammaWoodcock<SelectedSteppingAction><<<wdtBlocks, wdtThreads, 0, gammas.auxiliaryStream>>>(
               gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-              gammaSplitQueues.queues[ParticleQueues::gammaWoodcockQueue], gpuState.stats_dev, steppingActionParams,
+              gammaSplitQueues.queues[ParticleQueues::gammaWoodcock], gpuState.stats_dev, steppingActionParams,
               allowFinishOffEvent, returnAllSteps, returnLastStep);
           ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
         }
@@ -1105,22 +1102,22 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             returnAllSteps, returnLastStep);
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.setupEvent, gammas.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.auxiliaryStream, gammas.setupEvent, 0));
-        GammaRelocation<<<blocks, threads, 0, gammas.stream>>>(
-            gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::relocationQueue], returnAllSteps, returnLastStep);
+        GammaRelocation<<<blocks, threads, 0, gammas.stream>>>(gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
+                                                               gammas.queues.splitQueues[ParticleQueues::relocation],
+                                                               returnAllSteps, returnLastStep);
         // Copying the number of interacting tracks back to host and using this information to adjust
         // the launch parameters of the interactions kernel is complicated and expensive due to a
         // required additional kernel launch and copy. Instead, launch the kernels with the same
         // parameters, the unneeded threads immediately return and become free again.
         GammaConversion<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaConversionQueue], returnAllSteps, returnLastStep);
+            gammas.queues.splitQueues[ParticleQueues::gammaConversion], returnAllSteps, returnLastStep);
         GammaCompton<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaComptonQueue], returnAllSteps, returnLastStep);
+            gammas.queues.splitQueues[ParticleQueues::gammaCompton], returnAllSteps, returnLastStep);
         GammaPhotoelectric<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectricQueue], returnAllSteps, returnLastStep);
+            gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric], returnAllSteps, returnLastStep);
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
 #else
         TransportGammas<SelectedSteppingAction>

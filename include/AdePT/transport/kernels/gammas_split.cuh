@@ -241,7 +241,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
                                        const bool returnAllSteps, const bool returnLastStep)
 {
   auto &slotManager   = *particleManager.gammas.fSlotManager;
-  auto *wdtSetupQueue = splitQueues.queues[ParticleQueues::gammaWoodcockQueue];
+  auto *wdtSetupQueue = splitQueues.queues[ParticleQueues::gammaWoodcock];
   int normalSize      = propagationQueue->size();
   int wdtSize         = wdtSetupQueue->size();
   int activeSize      = normalSize + wdtSize;
@@ -255,7 +255,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
     if (currentTrack.nextState.IsOnBoundary()) {
-      splitQueues.queues[ParticleQueues::relocationQueue]->push_back(slot);
+      splitQueues.queues[ParticleQueues::relocation]->push_back(slot);
       continue;
     } else {
       // NOTE: This may be moved to the next kernel

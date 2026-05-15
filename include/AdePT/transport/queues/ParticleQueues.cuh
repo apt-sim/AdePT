@@ -17,15 +17,15 @@ struct ParticleQueues {
   // depends on the particle type and is named below.
   static constexpr char numSplitQueues = 5;
 
-  static constexpr char gammaConversionQueue             = 0;
-  static constexpr char gammaComptonQueue                = 1;
-  static constexpr char gammaPhotoelectricQueue          = 2;
-  static constexpr char gammaWoodcockQueue               = 3;
-  static constexpr char chargedIonizationQueue           = 0;
-  static constexpr char chargedBremsstrahlungQueue       = 1;
-  static constexpr char positronAnnihilationQueue        = 2;
-  static constexpr char positronStoppedAnnihilationQueue = 3;
-  static constexpr char relocationQueue                  = 4;
+  static constexpr char gammaConversion             = 0;
+  static constexpr char gammaCompton                = 1;
+  static constexpr char gammaPhotoelectric          = 2;
+  static constexpr char gammaWoodcock               = 3;
+  static constexpr char chargedIonization           = 0;
+  static constexpr char chargedBremsstrahlung       = 1;
+  static constexpr char positronAnnihilation        = 2;
+  static constexpr char positronStoppedAnnihilation = 3;
+  static constexpr char relocation                  = 4;
 
   adept::MParray *nextActive;
   adept::MParray *initiallyActive;
