@@ -141,6 +141,7 @@ The table below shows the available CMake options for AdePT that may be used to 
 |ADEPT_DEBUG_SINGLE_THREAD|OFF| Run transport kernels in single thread mode |
 |ADEPT_DEBUG_TRACK|0| Debug tracking level (0=off, >0=on with levels) |
 |ADEPT_ENFORCE_STRICT_FLAGS|0| Use strict compiler flags, as also used in CMSSW. Many warnings are promoted to errors using this flag. |
+|ADEPT_ENABLE_NSYS_PROFILING|OFF| Compile CUDA profiler API hooks for transport-loop `nsys` captures. Requires `ADEPT_COMPUTE_BACKEND=CUDA`. |
 |ADEPT_STEPPINGACTION|NONE| SteppingAction mode: `NONE`, `CMS`, `LHCb`, or `ATLAS`. |
 
 To build, run:
@@ -156,6 +157,13 @@ $ cd adept-build
 $ ./BuildProducts/bin/example1 -m <macro_file>   ### for more option, use -h
 ```
 In the build folder, several example `<macro_file>` are generated, such as `example1.mac` or `example1_ttbar.mac`.
+
+### Profiling
+
+AdePT can be profiled with Nsight Systems (`nsys`) and Nsight Compute (`ncu`).
+For transport-only `nsys` capture hooks, configure with
+`ADEPT_ENABLE_NSYS_PROFILING=ON`. The full workflow is documented in
+[Profiling AdePT](docs/user/profiling.md).
 
 ## Including AdePT in other CMake projects
 

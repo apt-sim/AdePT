@@ -9,6 +9,10 @@
 #ifdef ADEPT_USE_SURF
 #include <VecGeom/surfaces/BrepHelper.h>
 #endif
+#ifdef ADEPT_ENABLE_NSYS_PROFILING
+#include <cuda_profiler_api.h>
+#include <cuda_runtime_api.h>
+#endif
 
 #include <G4HepEmData.hh>
 #include <G4HepEmParameters.hh>
@@ -32,6 +36,37 @@ std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> I
     const std::vector<float> &uniformBfieldValues);
 void FreeGPU(std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> &, std::thread &,
              adeptint::WDTDeviceBuffers &);
+
+#ifdef ADEPT_ENABLE_NSYS_PROFILING
+// AdePT owns one active transport loop at a time, so profiler capture state is
+// intentionally process-global and unsynchronized. If multiple concurrent
+// transport loops are introduced, protect this state with an atomic or mutex.
+static bool gTransportProfilerStarted = false;
+
+bool StartTransportProfilerCapture()
+{
+  if (gTransportProfilerStarted) return false;
+  const auto result = cudaProfilerStart();
+  if (result != cudaSuccess) {
+    std::cerr << "AdePTTransport: cudaProfilerStart failed: " << cudaGetErrorString(result)
+              << "; disabling transport profiler capture" << std::endl;
+    return false;
+  }
+  gTransportProfilerStarted = true;
+  std::cout << "AdePT: CUDA profiler capture started" << std::endl;
+  return true;
+}
+
+void StopTransportProfilerCapture()
+{
+  if (!gTransportProfilerStarted) return;
+  const auto result = cudaProfilerStop();
+  if (result != cudaSuccess) {
+    std::cerr << "AdePTTransport: cudaProfilerStop failed: " << cudaGetErrorString(result) << std::endl;
+  }
+  gTransportProfilerStarted = false;
+}
+#endif
 } // namespace adept::transport::detail
 
 namespace adept::transport {
