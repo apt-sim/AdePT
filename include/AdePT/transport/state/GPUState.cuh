@@ -35,8 +35,8 @@ struct SpeciesState {
   ParticleQueues queues{};
   ADEPT_DEVICE_API_SYMBOL(Stream_t) stream {};
   ADEPT_DEVICE_API_SYMBOL(Event_t) event {};
-  ADEPT_DEVICE_API_SYMBOL(Stream_t) physicsStream {}; ///< Auxiliary stream for species-local physics kernels.
-  ADEPT_DEVICE_API_SYMBOL(Event_t) physicsEvent {};   ///< Completion event for work on the physics stream.
+  ADEPT_DEVICE_API_SYMBOL(Stream_t) auxiliaryStream {}; ///< Extra per-species stream for split/WDT kernels.
+  ADEPT_DEVICE_API_SYMBOL(Event_t) auxiliaryEvent {};   ///< Completion event for work on the auxiliary stream.
 #ifdef ADEPT_USE_SPLIT_KERNELS
   ADEPT_DEVICE_API_SYMBOL(Event_t) setupEvent {};
 #endif
@@ -117,8 +117,8 @@ struct GPUstate {
       auto destroySpeciesSync = [](auto &particleType) {
         if (particleType.stream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.stream));
         if (particleType.event) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.event));
-        if (particleType.physicsStream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.physicsStream));
-        if (particleType.physicsEvent) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.physicsEvent));
+        if (particleType.auxiliaryStream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.auxiliaryStream));
+        if (particleType.auxiliaryEvent) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.auxiliaryEvent));
 #ifdef ADEPT_USE_SPLIT_KERNELS
         if (particleType.setupEvent) ADEPT_DEVICE_API_CALL(EventDestroy(particleType.setupEvent));
 #endif

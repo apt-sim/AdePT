@@ -237,11 +237,11 @@ __global__ void GammaPropagation(NeutralTrack *gammas, G4HepEmGammaTrack *hepEMT
 }
 
 __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const adept::MParray *propagationQueue,
-                                       ParticleManager particleManager, AllInteractionQueues interactionQueues,
+                                       ParticleManager particleManager, SplitQueues splitQueues,
                                        const bool returnAllSteps, const bool returnLastStep)
 {
   auto &slotManager   = *particleManager.gammas.fSlotManager;
-  auto *wdtSetupQueue = interactionQueues.queues[ParticleQueues::gammaWoodcockSetupQueue];
+  auto *wdtSetupQueue = splitQueues.queues[ParticleQueues::gammaWoodcockQueue];
   int normalSize      = propagationQueue->size();
   int wdtSize         = wdtSetupQueue->size();
   int activeSize      = normalSize + wdtSize;
@@ -255,7 +255,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
     G4HepEmTrack *theTrack        = gammaTrack.GetTrack();
 
     if (currentTrack.nextState.IsOnBoundary()) {
-      interactionQueues.queues[4]->push_back(slot);
+      splitQueues.queues[ParticleQueues::relocationQueue]->push_back(slot);
       continue;
     } else {
       // NOTE: This may be moved to the next kernel
@@ -266,7 +266,7 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
       theTrack->SetNumIALeft(-1.0, 0);
 
       if (theTrack->GetWinnerProcessIndex() < 3) {
-        interactionQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
+        splitQueues.queues[theTrack->GetWinnerProcessIndex()]->push_back(slot);
       } else {
         // Gamma nuclear is handled on the host from the returned step only.
         slotManager.MarkSlotForFreeing(slot);

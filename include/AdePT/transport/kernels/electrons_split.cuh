@@ -466,7 +466,7 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
  */
 template <bool IsElectron>
 __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, const adept::MParray *propagationQueue,
-                                          ParticleManager particleManager, AllInteractionQueues interactionQueues,
+                                          ParticleManager particleManager, SplitQueues splitQueues,
                                           const bool returnAllSteps, const bool returnLastStep)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
@@ -496,7 +496,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
     // Set Non-stopped, on-boundary tracks for relocation
     if (currentTrack.nextState.IsOnBoundary() && !currentTrack.stopped) {
       // Add particle to relocation queue
-      interactionQueues.queues[4]->push_back(slot);
+      splitQueues.queues[ParticleQueues::relocationQueue]->push_back(slot);
       continue;
     }
 
@@ -549,10 +549,10 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         // (Will be resampled in the next iteration.)
         theTrack->SetNumIALeft(-1.0, winnerProcessIndex);
         // Enqueue the particles
-        interactionQueues.queues[winnerProcessIndex]->push_back(slot);
+        splitQueues.queues[winnerProcessIndex]->push_back(slot);
       } else {
         // Stopped positron
-        interactionQueues.queues[3]->push_back(slot);
+        splitQueues.queues[ParticleQueues::positronStoppedAnnihilationQueue]->push_back(slot);
       }
 
     } else {

@@ -10,9 +10,10 @@ namespace adept::transport {
 
 // A data structure to transfer statistics after each iteration.
 struct Stats {
-  // The gamma entry includes WDT gammas for transport-loop control.
+  // Gamma total used by transport-loop control; includes normal and WDT gamma queues.
   int inFlight[GPUQueueIndex::NumSpecies];
-  // WDT-only launch-size hint. Device queue sizes remain authoritative.
+  // WDT contribution to the gamma total, kept so normal and WDT gamma kernels can be launched with different grid
+  // sizes.
   int wdtGammasInFlight;
   float queueFillLevel[GPUQueueIndex::NumParticleQueues];
   float slotFillLevel[GPUQueueIndex::NumSpecies];
