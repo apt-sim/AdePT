@@ -9,7 +9,7 @@
 /// @brief Plain configuration values required to initialize the AdePT transport engine.
 struct AdePTTransportConfig {
   uint64_t adeptSeed{1234567};
-  unsigned short numThreads{0};
+  unsigned int numThreads{0};
   unsigned int trackCapacity{0};
   unsigned int stepCapacity{0};
   int debugLevel{0};

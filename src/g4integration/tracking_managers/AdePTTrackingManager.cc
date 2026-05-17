@@ -44,7 +44,8 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
 {
   AdePTTransportConfig transportConfig;
   transportConfig.adeptSeed      = configuration.GetAdePTSeed();
-  transportConfig.numThreads     = static_cast<unsigned short>(configuration.GetNumThreads());
+  const auto numThreads          = configuration.GetNumThreads();
+  transportConfig.numThreads     = numThreads > 0 ? static_cast<unsigned int>(numThreads) : 0u;
   transportConfig.trackCapacity  = static_cast<unsigned int>(1024 * 1024 * configuration.GetMillionsOfTrackSlots());
   transportConfig.stepCapacity   = static_cast<unsigned int>(1024 * 1024 * configuration.GetMillionsOfHitSlots());
   transportConfig.debugLevel     = configuration.GetVerbosity();

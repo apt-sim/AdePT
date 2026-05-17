@@ -88,8 +88,12 @@ AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
       fBfieldFile{configuration.bfieldFile}, fCPUCapacityFactor{configuration.cpuCapacityFactor},
       fCPUCopyFraction{configuration.cpuCopyFraction}, fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
 {
-  if (fNThread > kMaxThreads)
-    throw std::invalid_argument("AdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
+  if (fNThread == 0) throw std::invalid_argument("AdePTTransport requires a positive number of threads");
+  constexpr unsigned int kMaxThreadsForEventCounters = (48u * 1024u) / sizeof(unsigned int);
+  if (fNThread > kMaxThreadsForEventCounters) {
+    throw std::invalid_argument("AdePTTransport supports up to " + std::to_string(kMaxThreadsForEventCounters) +
+                                " threads for per-event population counters");
+  }
 
   for (auto &eventState : fEventStates) {
     std::atomic_init(&eventState, EventState::DeviceFlushed);
@@ -199,8 +203,9 @@ void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::W
   adept::transport::detail::InitWDTOnDevice(wdtPacked, wdtDev, fMaxWDTIter);
   fWDTDev = wdtDev;
 
-  std::cout << "\nAllocating " << 4 * 8192 * fNThread << " To-device buffer slots\n";
-  fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread);
+  const auto toDeviceSlots = 4u * 8192u * fNThread;
+  std::cout << "\nAllocating " << toDeviceSlots << " To-device buffer slots\n";
+  fBuffer = std::make_unique<TrackBuffer>(toDeviceSlots);
 
   assert(fBuffer != nullptr);
 
