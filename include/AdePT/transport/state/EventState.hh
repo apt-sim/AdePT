@@ -7,7 +7,7 @@ namespace adept::transport {
 
 struct GPUstate;
 
-static constexpr int kMaxThreads = 256;
+static constexpr int kMaxThreads = 512;
 
 // Keep the public transport header independent of the full CUDA-side GPUstate
 // definition while still allowing unique_ptr ownership.
