@@ -787,12 +787,14 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
   auto &gammas                   = gpuState.gammas;
   ParticleQueues &woodcockQueues = gpuState.woodcockQueues;
 
-  ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent;
+  ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent, cudaFinishOffEvent;
   ADEPT_DEVICE_API_SYMBOL(Stream_t) stepTransferStream, injectStream, statsStream;
   ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
   ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaStatsEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaFinishOffEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaEventCleanup{&cudaEvent};
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaStatsEventCleanup{&cudaStatsEvent};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaFinishOffEventCleanup{&cudaFinishOffEvent};
   ADEPT_DEVICE_API_CALL(StreamCreate(&stepTransferStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&injectStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&statsStream));
@@ -1002,16 +1004,16 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
       ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.allowFinishOffEvent_dev, gpuState.allowFinishOffEvent.data(),
                                         sizeof(unsigned short) * numThreads,
                                         ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice), statsStream));
-      ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, statsStream));
+      ADEPT_DEVICE_API_CALL(EventRecord(cudaFinishOffEvent, statsStream));
       for (auto stream : {electrons.stream, positrons.stream, gammas.stream}) {
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaEvent));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaFinishOffEvent));
       }
 #ifdef ADEPT_USE_SPLIT_KERNELS
       for (auto stream : {electrons.auxiliaryStream, positrons.auxiliaryStream, gammas.auxiliaryStream}) {
-        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaEvent));
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaFinishOffEvent));
       }
 #else
-      if (hasWDTRegions) ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.auxiliaryStream, cudaEvent));
+      if (hasWDTRegions) ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.auxiliaryStream, cudaFinishOffEvent));
 #endif
 
       // *** ELECTRONS ***

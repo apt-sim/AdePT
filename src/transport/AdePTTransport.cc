@@ -76,10 +76,26 @@ void StopTransportProfilerCapture()
 
 namespace adept::transport {
 
+namespace {
+
+constexpr unsigned int kMaxSupportedTransportThreads = 10000u;
+
+unsigned int ValidateNumThreads(unsigned int numThreads)
+{
+  if (numThreads == 0) throw std::invalid_argument("AdePTTransport requires a positive number of threads");
+  if (numThreads > kMaxSupportedTransportThreads) {
+    throw std::invalid_argument("AdePTTransport supports up to " + std::to_string(kMaxSupportedTransportThreads) +
+                                " threads");
+  }
+  return numThreads;
+}
+
+} // namespace
+
 AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
                                std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState, adeptint::VolAuxData *auxData,
                                const adeptint::WDTHostPacked &wdtPacked, const std::vector<float> &uniformFieldValues)
-    : fAdePTSeed{configuration.adeptSeed}, fNThread{configuration.numThreads},
+    : fAdePTSeed{configuration.adeptSeed}, fNThread{ValidateNumThreads(configuration.numThreads)},
       fTrackCapacity{configuration.trackCapacity}, fStepCapacity{configuration.stepCapacity},
       fDebugLevel{configuration.debugLevel}, fCUDAStackLimit{configuration.cudaStackLimit},
       fCUDAHeapLimit{configuration.cudaHeapLimit}, fLastNParticlesOnCPU{configuration.lastNParticlesOnCPU},
@@ -88,13 +104,6 @@ AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
       fBfieldFile{configuration.bfieldFile}, fCPUCapacityFactor{configuration.cpuCapacityFactor},
       fCPUCopyFraction{configuration.cpuCopyFraction}, fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
 {
-  if (fNThread == 0) throw std::invalid_argument("AdePTTransport requires a positive number of threads");
-  constexpr unsigned int kMaxThreadsForEventCounters = (48u * 1024u) / sizeof(unsigned int);
-  if (fNThread > kMaxThreadsForEventCounters) {
-    throw std::invalid_argument("AdePTTransport supports up to " + std::to_string(kMaxThreadsForEventCounters) +
-                                " threads for per-event population counters");
-  }
-
   for (auto &eventState : fEventStates) {
     std::atomic_init(&eventState, EventState::DeviceFlushed);
   }
