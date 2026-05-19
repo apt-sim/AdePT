@@ -85,7 +85,6 @@ __global__ void __launch_bounds__(256, 1)
     // their child steps, which would cause missing links in the HostTrackData
     if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
         InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      const int handoffLvolID = currentTrack.navState.GetLogicalId();
       slotManager.MarkSlotForFreeing(slot);
 
       adept_step_recording::RecordGPUStep(currentTrack.trackId,     // Track ID
