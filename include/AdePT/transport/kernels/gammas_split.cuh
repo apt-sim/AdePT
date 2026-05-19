@@ -101,13 +101,6 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
         if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] <
                 allowFinishOffEvent[currentTrack.threadId] &&
             InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-          if (printErrors) {
-            printf(
-                "Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-                currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-                currentTrack.eventId, currentTrack.eKin, lvolID, currentTrack.stepCounter);
-          }
-
           slotManager.MarkSlotForFreeing(slot);
 
           adept_step_recording::RecordGPUStep(currentTrack.trackId,           // Track ID
