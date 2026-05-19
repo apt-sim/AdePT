@@ -125,6 +125,46 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     printErrors = !gTrackDebug.active || verbose;
 #endif
 
+    // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
+    // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
+    // their child steps, which would cause missing links in the HostTrackData
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      if (printErrors) {
+        printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
+               currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
+               currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
+      }
+
+      slotManager.MarkSlotForFreeing(slot);
+
+      adept_step_recording::RecordGPUStep(currentTrack.trackId,     // Track ID
+                                          currentTrack.parentId,    // parent Track ID
+                                          kAdePTFinishOnCPUProcess, // step-defining process id
+                                          IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
+                                          0.,                                                           // Step length
+                                          0.,                                                           // Total Edep
+                                          currentTrack.weight,                                          // Track weight
+                                          navState,          // Pre-step point navstate
+                                          preStepPos,        // Pre-step point position
+                                          preStepDir,        // Pre-step point momentum direction
+                                          preStepEnergy,     // Pre-step point kinetic energy
+                                          navState,          // Post-step point navstate
+                                          pos,               // Post-step point position
+                                          dir,               // Post-step point momentum direction
+                                          eKin,              // Post-step point kinetic energy
+                                          globalTime,        // global time
+                                          localTime,         // local time
+                                          properTime,        // proper time
+                                          preStepGlobalTime, // global time at preStepPoint
+                                          currentTrack.eventId, currentTrack.threadId, // eventID and threadID
+                                          false,                                       // parent continues on CPU
+                                          currentTrack.stepCounter,                    // stepcounter
+                                          nullptr,                                     // pointer to secondary init data
+                                          0);                                          // number of secondaries
+      continue;
+    }
+
     auto survive = [&]() {
       currentTrack.eKin       = eKin;
       currentTrack.pos        = pos;
@@ -790,20 +830,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         // call experiment-specific SteppingAction:
         SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, pos, globalTime, *postStepAuxData,
                                         &g4HepEmData, params);
-      }
-    }
-
-    // this one always needs to be last as it needs to be done only if the track survives
-    if (trackSurvives) {
-      if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-          InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-        if (printErrors)
-          printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-                 currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-                 currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-        trackSurvives     = false;
-        continuesOnCPU    = true;
-        returnedProcessId = kAdePTFinishOnCPUProcess;
       }
     }
 
