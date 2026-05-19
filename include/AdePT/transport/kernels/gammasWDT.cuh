@@ -86,12 +86,6 @@ __global__ void __launch_bounds__(256, 1)
     if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
         InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
       const int handoffLvolID = currentTrack.navState.GetLogicalId();
-      if (printErrors) {
-        printf("Thread %d Finishing gamma of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-               currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-               currentTrack.eventId, eKin, handoffLvolID, currentTrack.stepCounter);
-      }
-
       slotManager.MarkSlotForFreeing(slot);
 
       adept_step_recording::RecordGPUStep(currentTrack.trackId,     // Track ID

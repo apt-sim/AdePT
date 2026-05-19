@@ -493,9 +493,12 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, -1);
   }
 
-  // first particle to be finished on CPU detected, let's finish the full event on CPU
+  // First particle to be finished on CPU detected, so finish the full event on CPU.
   if (fHepEmTrackingManager->GetFinishEventOnCPU(threadId) < 0 && aTrack->GetTrackStatus() == fStopButAlive) {
     fHepEmTrackingManager->SetFinishEventOnCPU(threadId, eventID);
+    if (fAdePTConfiguration->GetVerbosity() >= 2) {
+      std::cout << "AdePTTrackingManager: particles are finished on CPU for event " << eventID << std::endl;
+    }
   }
 
   // If this is the first step, set touchable and next touchable via SetInitialStep

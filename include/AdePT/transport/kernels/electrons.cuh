@@ -130,12 +130,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // their child steps, which would cause missing links in the HostTrackData
     if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
         InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      if (printErrors) {
-        printf("Thread %d Finishing e-/e+ of the %d last particles of event %d on CPU E=%f lvol=%d after %d steps.\n",
-               currentTrack.threadId, InFlightStats->perEventInFlightPrevious[currentTrack.threadId],
-               currentTrack.eventId, eKin, lvolID, currentTrack.stepCounter);
-      }
-
       slotManager.MarkSlotForFreeing(slot);
 
       adept_step_recording::RecordGPUStep(currentTrack.trackId,     // Track ID
