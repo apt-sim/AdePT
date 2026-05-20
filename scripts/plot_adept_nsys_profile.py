@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import csv
@@ -394,8 +395,12 @@ def draw_summary_plot(output_png, title, bucket_ns, species_detail_ns, limiter_c
     ax = axes[0, 1]
     labels = list(PARTICLE_ORDER)
     values = [transport_by_particle[label] for label in labels]
-    ax.pie(values, labels=[f"{label}\n{pct(transport_by_particle[label], transport_ns):.1f}%" for label in labels],
-           startangle=90, textprops={"fontsize": 9})
+    if transport_ns > 0:
+        ax.pie(values, labels=[f"{label}\n{pct(transport_by_particle[label], transport_ns):.1f}%" for label in labels],
+               startangle=90, textprops={"fontsize": 9})
+    else:
+        ax.text(0.5, 0.5, "no matching transport kernels", ha="center", va="center")
+        ax.axis("off")
     ax.set_title("Transport kernels by particle")
 
     ax = axes[1, 0]
