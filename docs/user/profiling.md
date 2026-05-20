@@ -94,9 +94,9 @@ The limiter plots use the latest-ending waited non-`FinishIteration` CUDA
 kernel before `FinishIteration` as the limiting category. `InitTracks` kernels
 are excluded from this limiter view because they run on a separate injection
 stream and `FinishIteration` does not directly wait for them; they remain visible
-in the total CUDA kernel-time view. The count view shows how often each waited
-category is last. The critical-margin view credits only the time by which that
-latest kernel extends the iteration beyond the runner-up latest kernel, capped
+in the total CUDA kernel-time view. The frequency view shows what percentage of transport iterations each
+waited category limits. The critical-margin view credits only the time by which
+that latest kernel extends the iteration beyond the runner-up latest kernel, capped
 by the latest kernel's own duration.
 
 ```{figure} images/nsys_kernel_profile_example.png

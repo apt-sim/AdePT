@@ -405,13 +405,13 @@ def draw_summary_plot(output_png, title, bucket_ns, species_detail_ns, limiter_c
 
     ax = axes[1, 0]
     limiter_labels = [bucket for bucket in ITERATION_ORDER if limiter_counts[bucket] or limiter_kernel_ns[bucket]]
-    iter_counts = [limiter_counts[bucket] for bucket in limiter_labels]
-    ax.bar(limiter_labels, iter_counts)
+    iter_fractions = [pct(limiter_counts[bucket], total_iterations) for bucket in limiter_labels]
+    ax.bar(limiter_labels, iter_fractions)
     ax.tick_params(axis="x", rotation=20)
     for label in ax.get_xticklabels():
         label.set_ha("right")
-    ax.set_ylim(0, max(iter_counts) * 1.25 if iter_counts else 1)
-    ax.set_ylabel("iterations")
+    ax.set_ylim(0, max(iter_fractions) * 1.25 if iter_fractions else 1)
+    ax.set_ylabel("iterations [%]")
     ax.set_title("Latest waited category before FinishIteration")
 
     ax = axes[1, 1]
