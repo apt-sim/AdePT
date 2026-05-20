@@ -52,7 +52,7 @@ Run `nsys` with the CUDA profiler API capture range:
 ```console
 nsys profile --capture-range=cudaProfilerApi --capture-range-end=stop \
   --trace=cuda,nvtx --sample=none --cpuctxsw=none \
-  --stats=true --force-overwrite=true \
+  --stats=true --export=sqlite --force-overwrite=true \
   --output adept_transport_profile \
   <application command>
 ```
@@ -61,6 +61,54 @@ Open the report with:
 
 ```console
 nsys-ui adept_transport_profile.nsys-rep
+```
+
+### Plotting AdePT kernel profiles
+
+The exported SQLite file can be summarized with the AdePT profile plotting
+script:
+
+```console
+python3 scripts/plot_adept_nsys_profile.py \
+  --sqlite adept_transport_profile.sqlite \
+  --output-prefix adept_transport_profile \
+  --title "AdePT"
+```
+
+This writes:
+
+- `adept_transport_profile_kernel_profile.png`: total CUDA kernel-time buckets,
+  particle transport shares, the kernel category that most often ends an AdePT
+  transport iteration, and the same last-kernel category weighted by
+  GPU-active iteration time.
+- `adept_transport_profile_species_pies.png`: per-species pie charts showing
+  which split kernels dominate electron, positron, and gamma transport.
+- `adept_transport_profile.txt` plus CSV files with the numeric summaries.
+
+The percentages labelled as "all kernels" are normalized to all CUDA kernels in
+the captured range, including injection, population statistics, and bookkeeping.
+The percentages labelled as "transport" are normalized only to electron,
+positron, and gamma transport kernels.
+
+The limiter plots use the latest-ending non-`FinishIteration` CUDA kernel before
+`FinishIteration` as the limiting category. The count-weighted view shows how
+often each category is last. The time-weighted view weights the same category by
+the GPU-active interval from the first kernel in that paired iteration to the
+latest-ending kernel, so expensive iterations matter more than tiny ones. This
+identifies which path tends to gate expensive iterations; it is not by itself a
+speedup estimate for very short kernels that run after long transport work.
+Large gaps between two `FinishIteration` kernels can also be reported in the
+text file as diagnostics, but those gaps may include CPU-side work or
+profiler/capture latency and should not be interpreted as single GPU transport
+iterations.
+
+```{figure} images/nsys_kernel_profile_example.png
+:name: fig-nsys-kernel-profile-example
+:alt: Example AdePT Nsight Systems kernel profile summary plot.
+:align: center
+:width: 95%
+
+Example summary from an AdePT split-kernel `nsys` profile.
 ```
 
 ## Nsight Compute
