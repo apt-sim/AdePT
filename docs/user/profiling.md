@@ -77,10 +77,10 @@ python3 scripts/plot_adept_nsys_profile.py \
 
 This writes:
 
-- `adept_transport_profile_kernel_profile.png`: total CUDA kernel-time buckets,
-  particle transport shares, the kernel category that most often ends an AdePT
-  transport iteration, and the same last-kernel category weighted by
-  GPU-active iteration time.
+- `adept_transport_profile_kernel_profile.png`: total CUDA kernel times,
+  transport shares by particle type, the kernel category or particle type that
+  most often limits an AdePT transport iteration, and the same limiter summary
+  weighted by GPU-active iteration time.
 - `adept_transport_profile_species_pies.png`: per-species pie charts showing
   which split kernels dominate electron, positron, and gamma transport.
 - `adept_transport_profile.txt` plus CSV files with the numeric summaries.
@@ -91,16 +91,20 @@ The percentages labelled as "transport" are normalized only to electron,
 positron, and gamma transport kernels.
 
 The limiter plots use the latest-ending non-`FinishIteration` CUDA kernel before
-`FinishIteration` as the limiting category. The count-weighted view shows how
-often each category is last. The time-weighted view weights the same category by
-the GPU-active interval from the first kernel in that paired iteration to the
-latest-ending kernel, so expensive iterations matter more than tiny ones. This
-identifies which path tends to gate expensive iterations; it is not by itself a
-speedup estimate for very short kernels that run after long transport work.
-Large gaps between two `FinishIteration` kernels can also be reported in the
-text file as diagnostics, but those gaps may include CPU-side work or
-profiler/capture latency and should not be interpreted as single GPU transport
-iterations.
+`FinishIteration` as the limiting kernel or particle type. The
+count-weighted view shows how often each category is last. The time-weighted
+view weights the same category by the GPU-active interval from the first kernel
+in that paired iteration to the latest-ending kernel, so expensive iterations
+matter more than tiny ones. This can give useful performance insight. In the
+example plots below, obtained from simulating ttbar events in CMSSW, electrons
+and positrons dominate the last-kernel count (bottom-left plot). Although gamma
+kernels account for 27.7% of the kernel runtime, they rarely limit the overall
+iteration time because the kernels run in parallel. For this profile, reducing
+the gamma workload, for example via Russian roulette, would therefore not be
+expected to improve the iteration wall time unless gamma kernels become the
+limiter. Short tail iterations can skew the unweighted view, so the
+time-weighted plot gives a better view of which kernel block limits most of the
+work.
 
 ```{figure} images/nsys_kernel_profile_example.png
 :name: fig-nsys-kernel-profile-example
@@ -108,7 +112,17 @@ iterations.
 :align: center
 :width: 95%
 
-Example summary from an AdePT split-kernel `nsys` profile.
+Example kernel summary from an AdePT split-kernel `nsys` profile.
+```
+
+```{figure} images/nsys_species_pies_example.png
+:name: fig-nsys-species-pies-example
+:alt: Example AdePT Nsight Systems per-species transport kernel pie charts.
+:align: center
+:width: 95%
+
+Example per-species transport-kernel summary from the same kind of AdePT
+split-kernel `nsys` profile.
 ```
 
 ## Nsight Compute
