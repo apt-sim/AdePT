@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import csv
@@ -125,35 +124,21 @@ def read_kernel_rows(sqlite_path):
         JOIN StringIds s ON k.demangledName = s.id
         ORDER BY k.start
     """
-    path = Path(sqlite_path).resolve()
-    uri = f"file:{path}?mode=ro"
+    uri = f"file:{Path(sqlite_path).resolve()}?mode=ro"
     with sqlite3.connect(uri, uri=True) as conn:
-        required_tables = ("CUPTI_ACTIVITY_KIND_KERNEL", "StringIds")
-        missing_tables = [
-            table for table in required_tables
-            if not conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-                (table,),
-            ).fetchone()
-        ]
-        if missing_tables:
-            raise SystemExit(
-                f"{path} does not contain CUDA kernel activity tables "
-                f"({', '.join(missing_tables)} missing). Re-export an nsys "
-                "report captured with CUDA tracing enabled."
-            )
-        try:
-            rows = conn.execute(query)
-        except sqlite3.OperationalError as err:
-            raise SystemExit(f"Failed to read CUDA kernel activity from {path}: {err}") from err
-        yield from rows
+        yield from conn.execute(query)
 
 
-def finalize_iteration(rows, limiter_counts, limiter_kernel_ns, limiter_active_ns, limiter_durations,
-                       limiter_active_spans_ns):
+def finalize_iteration(rows, finish_start, finish_end, limiter_counts, limiter_kernel_ns, limiter_critical_ns,
+                       limiter_durations, finish_gap_ns, idle_gap_threshold_ns):
     if not rows:
         return
-    candidates = [row for row in rows if not is_finish_iteration(row[4])]
+    candidates = [
+        row for row in rows
+        if not is_finish_iteration(row[4])
+        and row[3] != "track injection"
+        and row[1] <= finish_start
+    ]
     if not candidates:
         return
     limiter = max(candidates, key=lambda row: row[1])
@@ -163,28 +148,34 @@ def finalize_iteration(rows, limiter_counts, limiter_kernel_ns, limiter_active_n
     limiter_kernel_ns[bucket] += duration
     limiter_durations.append(duration)
 
-    # Weight the last-kernel category by the GPU-active part of this iteration.
-    # This avoids giving tiny iterations the same importance as expensive ones.
+    # Approximate the critical-path margin of the last kernel. If a tiny
+    # bookkeeping kernel happens to run after a long transport phase, it should
+    # only receive credit for the time by which it actually extends the end of
+    # the iteration, not for all preceding transport work.
+    sorted_by_end = sorted(candidates, key=lambda row: row[1])
+    runner_up_end = sorted_by_end[-2][1] if len(sorted_by_end) > 1 else limiter[0]
+    critical_ns = min(duration, max(0, limiter[1] - runner_up_end))
+    limiter_critical_ns[bucket] += critical_ns
+
     first_start = min(row[0] for row in candidates)
     active_ns = limiter[1] - first_start
-    limiter_active_ns[bucket] += active_ns
-    limiter_active_spans_ns.append(active_ns)
+    finish_gap_ns.append(active_ns)
 
 
-def summarize(sqlite_path):
+def summarize(sqlite_path, idle_gap_threshold_ms):
     bucket_ns = defaultdict(int)
     species_detail_ns = {particle: defaultdict(int) for particle in PARTICLE_ORDER}
     top_kernel_ns = defaultdict(int)
     top_kernel_calls = defaultdict(int)
     limiter_counts = defaultdict(int)
     limiter_kernel_ns = defaultdict(int)
-    limiter_active_ns = defaultdict(int)
+    limiter_critical_ns = defaultdict(int)
     limiter_durations = []
-    limiter_active_spans_ns = []
     finish_gap_ns = []
 
     current_iteration = []
     previous_finish_end = -1
+    idle_gap_threshold_ns = int(idle_gap_threshold_ms * 1.0e6)
 
     for start, end, _stream, name in read_kernel_rows(sqlite_path):
         duration = end - start
@@ -199,15 +190,12 @@ def summarize(sqlite_path):
             continue
         current_iteration.append((start, end, duration, iteration_bucket, name))
         if is_finish_iteration(name):
-            if previous_finish_end >= 0:
-                finish_gap_ns.append(max(0, start - previous_finish_end))
-            finalize_iteration(current_iteration, limiter_counts, limiter_kernel_ns, limiter_active_ns, limiter_durations,
-                               limiter_active_spans_ns)
+            finalize_iteration(current_iteration, start, end, limiter_counts, limiter_kernel_ns, limiter_critical_ns,
+                               limiter_durations, finish_gap_ns, idle_gap_threshold_ns)
             previous_finish_end = end
             current_iteration = []
 
-    return (bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns, limiter_active_ns, limiter_durations,
-            limiter_active_spans_ns, finish_gap_ns, top_kernel_ns, top_kernel_calls)
+    return bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns, limiter_critical_ns, limiter_durations, finish_gap_ns, top_kernel_ns, top_kernel_calls
 
 
 def collapsed_particle_limiter(limiter_counts, limiter_kernel_ns):
@@ -221,12 +209,12 @@ def collapsed_particle_limiter(limiter_counts, limiter_kernel_ns):
     return counts, kernel_ns
 
 
-def write_csvs(output_prefix, bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns, limiter_active_ns):
+def write_csvs(output_prefix, bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns, limiter_critical_ns):
     total_kernel_ns = sum(bucket_ns.values())
     transport_ns = sum(sum(values.values()) for values in species_detail_ns.values())
     total_iterations = sum(limiter_counts.values())
     total_limiter_kernel_ns = sum(limiter_kernel_ns.values())
-    total_limiter_active_ns = sum(limiter_active_ns.values())
+    total_limiter_critical_ns = sum(limiter_critical_ns.values())
 
     bucket_csv = output_prefix.with_name(output_prefix.name + "_kernel_buckets.csv")
     with bucket_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -260,8 +248,8 @@ def write_csvs(output_prefix, bucket_ns, species_detail_ns, limiter_counts, limi
             "iteration_fraction",
             "limiter_kernel_ms",
             "limiter_kernel_fraction",
-            "time_weighted_active_ms",
-            "time_weighted_active_fraction",
+            "critical_margin_ms",
+            "critical_margin_fraction",
         ])
         for bucket in ITERATION_ORDER:
             if limiter_counts[bucket] == 0 and limiter_kernel_ns[bucket] == 0:
@@ -272,8 +260,8 @@ def write_csvs(output_prefix, bucket_ns, species_detail_ns, limiter_counts, limi
                 pct(limiter_counts[bucket], total_iterations) / 100.0,
                 ns_to_ms(limiter_kernel_ns[bucket]),
                 pct(limiter_kernel_ns[bucket], total_limiter_kernel_ns) / 100.0,
-                ns_to_ms(limiter_active_ns[bucket]),
-                pct(limiter_active_ns[bucket], total_limiter_active_ns) / 100.0,
+                ns_to_ms(limiter_critical_ns[bucket]),
+                pct(limiter_critical_ns[bucket], total_limiter_critical_ns) / 100.0,
             ])
 
     particle_counts, particle_kernel_ns = collapsed_particle_limiter(limiter_counts, limiter_kernel_ns)
@@ -294,13 +282,13 @@ def write_csvs(output_prefix, bucket_ns, species_detail_ns, limiter_counts, limi
 
 
 def write_summary(output_prefix, title, bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns,
-                  limiter_active_ns, limiter_durations, limiter_active_spans_ns, finish_gap_ns, top_kernel_ns,
-                  top_kernel_calls, idle_gap_threshold_ms):
+                  limiter_critical_ns, limiter_durations, finish_gap_ns, top_kernel_ns, top_kernel_calls, idle_gap_threshold_ms):
     total_kernel_ns = sum(bucket_ns.values())
     transport_by_particle = {particle: sum(values.values()) for particle, values in species_detail_ns.items()}
     transport_ns = sum(transport_by_particle.values())
     total_iterations = sum(limiter_counts.values())
-    total_limiter_active_ns = sum(limiter_active_ns.values())
+    total_limiter_kernel_ns = sum(limiter_kernel_ns.values())
+    total_limiter_critical_ns = sum(limiter_critical_ns.values())
     particle_counts, particle_kernel_ns = collapsed_particle_limiter(limiter_counts, limiter_kernel_ns)
     particle_iterations = sum(particle_counts.values())
     particle_kernel_total = sum(particle_kernel_ns.values())
@@ -315,14 +303,10 @@ def write_summary(output_prefix, title, bucket_ns, species_detail_ns, limiter_co
         handle.write(f"Transport iterations paired: {total_iterations}\n")
         if limiter_durations:
             handle.write(f"Max limiter-kernel duration: {ns_to_ms(max(limiter_durations)):.3f} ms\n")
-        if limiter_active_spans_ns:
-            handle.write(
-                f"Max finish-paired active span: {ns_to_ms(max(limiter_active_spans_ns)):.3f} ms\n"
-            )
         if finish_gap_ns:
             handle.write(
-                f"Max gap between paired FinishIteration kernels: {ns_to_ms(max(finish_gap_ns)):.3f} ms "
-                f"({len(large_finish_gaps)} gaps > {idle_gap_threshold_ms:g} ms; diagnostic only)\n"
+                f"Max finish-paired active span: {ns_to_ms(max(finish_gap_ns)):.3f} ms "
+                f"({len(large_finish_gaps)} spans > {idle_gap_threshold_ms:g} ms; diagnostic only)\n"
             )
         handle.write("\n")
 
@@ -343,12 +327,12 @@ def write_summary(output_prefix, title, bucket_ns, species_detail_ns, limiter_co
         for bucket in ITERATION_ORDER:
             count = limiter_counts[bucket]
             value = limiter_kernel_ns[bucket]
-            active = limiter_active_ns[bucket]
+            active = limiter_critical_ns[bucket]
             if count == 0 and value == 0 and active == 0:
                 continue
             handle.write(
                 f"  {bucket:16s} {count:8d} iters  {pct(count, total_iterations):6.2f}%"
-                f"  {ns_to_ms(active):12.3f} ms  {pct(active, total_limiter_active_ns):6.2f}% time-weighted active"
+                f"  {ns_to_ms(active):12.3f} ms  {pct(active, total_limiter_critical_ns):6.2f}% critical margin"
                 f"  ({ns_to_ms(value):.3f} ms direct limiter-kernel time)\n"
             )
 
@@ -365,7 +349,7 @@ def write_summary(output_prefix, title, bucket_ns, species_detail_ns, limiter_co
         for name, value in sorted(top_kernel_ns.items(), key=lambda item: item[1], reverse=True)[:25]:
             handle.write(f"  {ns_to_ms(value):12.3f} ms  {top_kernel_calls[name]:8d} calls  {name}\n")
 
-    write_csvs(output_prefix, bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns, limiter_active_ns)
+    write_csvs(output_prefix, bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns, limiter_critical_ns)
     return txt_path
 
 
@@ -390,11 +374,11 @@ def draw_pie(ax, title, values):
 
 
 def draw_summary_plot(output_png, title, bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns,
-                      limiter_active_ns):
+                      limiter_critical_ns):
     transport_by_particle = {particle: sum(values.values()) for particle, values in species_detail_ns.items()}
     transport_ns = sum(transport_by_particle.values())
     total_iterations = sum(limiter_counts.values())
-    total_limiter_active_ns = sum(limiter_active_ns.values())
+    total_limiter_critical_ns = sum(limiter_critical_ns.values())
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
     fig.suptitle(f"{title} - GPU Kernel Profile", fontsize=16)
@@ -410,34 +394,30 @@ def draw_summary_plot(output_png, title, bucket_ns, species_detail_ns, limiter_c
     ax = axes[0, 1]
     labels = list(PARTICLE_ORDER)
     values = [transport_by_particle[label] for label in labels]
-    if transport_ns:
-        ax.pie(values, labels=[f"{label}\n{pct(transport_by_particle[label], transport_ns):.1f}%" for label in labels],
-               startangle=90, textprops={"fontsize": 9})
-    else:
-        ax.text(0.5, 0.5, "no matching transport kernels", ha="center", va="center")
-        ax.axis("off")
+    ax.pie(values, labels=[f"{label}\n{pct(transport_by_particle[label], transport_ns):.1f}%" for label in labels],
+           startangle=90, textprops={"fontsize": 9})
     ax.set_title("Transport kernels by particle")
 
     ax = axes[1, 0]
     limiter_labels = [bucket for bucket in ITERATION_ORDER if limiter_counts[bucket] or limiter_kernel_ns[bucket]]
-    iter_frac = [pct(limiter_counts[bucket], total_iterations) for bucket in limiter_labels]
-    ax.bar(limiter_labels, iter_frac)
+    iter_counts = [limiter_counts[bucket] for bucket in limiter_labels]
+    ax.bar(limiter_labels, iter_counts)
     ax.tick_params(axis="x", rotation=20)
     for label in ax.get_xticklabels():
         label.set_ha("right")
-    ax.set_ylim(0, max(iter_frac) * 1.25 if iter_frac else 1)
-    ax.set_ylabel("iterations [%]")
-    ax.set_title("Latest-ending kernel category before FinishIteration")
+    ax.set_ylim(0, max(iter_counts) * 1.25 if iter_counts else 1)
+    ax.set_ylabel("iterations")
+    ax.set_title("Latest waited category before FinishIteration")
 
     ax = axes[1, 1]
-    time_frac = [pct(limiter_active_ns[bucket], total_limiter_active_ns) for bucket in limiter_labels]
-    ax.bar(limiter_labels, time_frac)
+    critical_ms = [ns_to_ms(limiter_critical_ns[bucket]) for bucket in limiter_labels]
+    ax.bar(limiter_labels, critical_ms)
     ax.tick_params(axis="x", rotation=20)
     for label in ax.get_xticklabels():
         label.set_ha("right")
-    ax.set_ylim(0, max(time_frac) * 1.25 if time_frac else 1)
-    ax.set_ylabel("GPU-active iteration time [%]")
-    ax.set_title("Time-weighted latest-ending kernel category")
+    ax.set_ylim(0, max(critical_ms) * 1.25 if critical_ms else 1)
+    ax.set_ylabel("critical-path margin [ms]")
+    ax.set_title("Critical-path margin of latest waited category")
 
     fig.tight_layout()
     fig.savefig(output_png, dpi=180)
@@ -466,13 +446,13 @@ def main():
     parser.add_argument("--output-prefix", required=True, help="Output prefix for PNG/TXT/CSV files")
     parser.add_argument("--title", default="AdePT", help="Title prefix for plots and summaries")
     parser.add_argument("--idle-gap-threshold-ms", type=float, default=1000.0,
-                        help="Threshold for reporting large gaps between paired FinishIteration kernels")
+                        help="Threshold for reporting large finish-paired spans as diagnostics")
     args = parser.parse_args()
 
     output_prefix = Path(args.output_prefix)
     output_prefix.parent.mkdir(parents=True, exist_ok=True)
 
-    summary = summarize(args.sqlite)
+    summary = summarize(args.sqlite, args.idle_gap_threshold_ms)
     txt_path = write_summary(output_prefix, args.title, *summary, args.idle_gap_threshold_ms)
     summary_png = output_prefix.with_name(output_prefix.name + "_kernel_profile.png")
     species_png = output_prefix.with_name(output_prefix.name + "_species_pies.png")

@@ -78,9 +78,9 @@ python3 scripts/plot_adept_nsys_profile.py \
 This writes:
 
 - `adept_transport_profile_kernel_profile.png`: total CUDA kernel times,
-  transport shares by particle type, the kernel category or particle type that
-  most often limits an AdePT transport iteration, and the same limiter summary
-  weighted by GPU-active iteration time.
+  transport shares by particle type, the waited kernel category that most often
+  reaches the end of an AdePT transport iteration, and the corresponding
+  critical-path margin in milliseconds.
 - `adept_transport_profile_species_pies.png`: per-species pie charts showing
   which split kernels dominate electron, positron, and gamma transport.
 - `adept_transport_profile.txt` plus CSV files with the numeric summaries.
@@ -90,21 +90,14 @@ the captured range, including injection, population statistics, and bookkeeping.
 The percentages labelled as "transport" are normalized only to electron,
 positron, and gamma transport kernels.
 
-The limiter plots use the latest-ending non-`FinishIteration` CUDA kernel before
-`FinishIteration` as the limiting kernel or particle type. The
-count-weighted view shows how often each category is last. The time-weighted
-view weights the same category by the GPU-active interval from the first kernel
-in that paired iteration to the latest-ending kernel, so expensive iterations
-matter more than tiny ones. This can give useful performance insight. In the
-example plots below, obtained from simulating ttbar events in CMSSW, electrons
-and positrons dominate the last-kernel count (bottom-left plot). Although gamma
-kernels account for 27.7% of the kernel runtime, they rarely limit the overall
-iteration time because the kernels run in parallel. For this profile, reducing
-the gamma workload, for example via Russian roulette, would therefore not be
-expected to improve the iteration wall time unless gamma kernels become the
-limiter. Short tail iterations can skew the unweighted view, so the
-time-weighted plot gives a better view of which kernel block limits most of the
-work.
+The limiter plots use the latest-ending waited non-`FinishIteration` CUDA
+kernel before `FinishIteration` as the limiting category. `InitTracks` kernels
+are excluded from this limiter view because they run on a separate injection
+stream and `FinishIteration` does not directly wait for them; they remain visible
+in the total CUDA kernel-time view. The count view shows how often each waited
+category is last. The critical-margin view credits only the time by which that
+latest kernel extends the iteration beyond the runner-up latest kernel, capped
+by the latest kernel's own duration.
 
 ```{figure} images/nsys_kernel_profile_example.png
 :name: fig-nsys-kernel-profile-example
@@ -114,6 +107,18 @@ work.
 
 Example kernel summary from an AdePT split-kernel `nsys` profile.
 ```
+
+The example above was produced from a CMSSW ttbar simulation. It illustrates why
+both the total kernel-time view and the limiter view are useful: gamma transport
+accounts for about 25% of all CUDA kernel time and about 27% of transport kernel
+time, but gamma kernels almost never determine the end of the transport
+iteration in this profile. Electrons and positrons dominate the waited
+last-kernel counts, and electrons alone account for most of the critical-path
+margin. This means that reducing the gamma workload, for example with Russian
+roulette, is not expected to improve the iteration wall time unless the gamma
+kernels become the latest waited path. Conversely, `InitTracks` is visible as a
+non-negligible total kernel-time bucket, but it is intentionally excluded from
+the limiter view because it runs asynchronously on the injection stream.
 
 ```{figure} images/nsys_species_pies_example.png
 :name: fig-nsys-species-pies-example
