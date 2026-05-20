@@ -323,7 +323,7 @@ def write_summary(output_prefix, title, bucket_ns, species_detail_ns, limiter_co
         for bucket, value in sorted(bucket_ns.items(), key=lambda item: item[1], reverse=True):
             handle.write(f"  {bucket:24s} {ns_to_ms(value):12.3f} ms  {pct(value, total_kernel_ns):6.2f}%\n")
 
-        handle.write("\nLimiter categories, latest-ending non-FinishIteration kernel before FinishIteration:\n")
+        handle.write("\nLimiter categories, latest-ending waited non-FinishIteration kernel before FinishIteration (async track injection excluded):\n")
         for bucket in ITERATION_ORDER:
             count = limiter_counts[bucket]
             value = limiter_kernel_ns[bucket]
