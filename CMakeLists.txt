@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.25.2)
 include(cmake/RecordCmdLine.cmake)
 
 project(AdePT
-  VERSION 0.3.4
+  VERSION 0.3.5
   DESCRIPTION "Accelerated detector Particle Transport"
   LANGUAGES C CXX
 )
