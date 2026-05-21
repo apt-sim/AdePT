@@ -17,8 +17,8 @@ struct Stats {
   int wdtGammasInFlight;
   float queueFillLevel[GPUQueueIndex::NumParticleQueues];
   float slotFillLevel[GPUQueueIndex::NumSpecies];
-  unsigned int perEventInFlight[kMaxThreads];         // Updated asynchronously
-  unsigned int perEventInFlightPrevious[kMaxThreads]; // Used in transport kernels
+  unsigned int *perEventInFlight{nullptr};         ///< Updated asynchronously; sized to the G4 worker count.
+  unsigned int *perEventInFlightPrevious{nullptr}; ///< Used in transport kernels; sized to the G4 worker count.
   unsigned int stepBufferOccupancy;
 };
 
@@ -39,9 +39,9 @@ struct TransportLoopCounters {
 
 /// @brief Array of flags whether the event can be finished off
 struct AllowFinishOffEventArray {
-  unsigned short flags[kMaxThreads];
+  const unsigned short *flags{nullptr};
 
-  __host__ __device__ unsigned short operator[](int idx) const { return flags[idx]; }
+  __host__ __device__ unsigned short operator[](unsigned int idx) const { return flags[idx]; }
 };
 
 } // namespace adept::transport

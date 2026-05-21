@@ -98,7 +98,12 @@ struct GPUstate {
 #endif
 
   Stats *stats_dev{nullptr}; ///< statistics object pointer on device
-  Stats *stats{nullptr};     ///< statistics object pointer on host
+  unsigned int *perEventInFlight_dev{nullptr};
+  unsigned int *perEventInFlightPrevious_dev{nullptr};
+  unsigned int *perEventInFlight{nullptr};
+  unsigned short *allowFinishOffEvent_dev{nullptr};
+  std::vector<unsigned short> allowFinishOffEvent;
+  Stats *stats{nullptr}; ///< statistics object pointer on host
 
   std::unique_ptr<GPUStepTransferManager> fGPUStepTransferManager;
 
@@ -113,6 +118,7 @@ struct GPUstate {
     try {
       if (stats) ADEPT_DEVICE_API_CALL(FreeHost(stats));
       if (stream) ADEPT_DEVICE_API_CALL(StreamDestroy(stream));
+      if (perEventInFlight) ADEPT_DEVICE_API_CALL(FreeHost(perEventInFlight));
 
       auto destroySpeciesSync = [](auto &particleType) {
         if (particleType.stream) ADEPT_DEVICE_API_CALL(StreamDestroy(particleType.stream));

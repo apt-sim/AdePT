@@ -61,6 +61,7 @@ using SelectedSteppingAction = adept::SteppingAction::Action;
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <cassert>
 #include <type_traits>
 #include <cstdlib>
 #include <cstdint>
@@ -313,10 +314,28 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
 #endif
 }
 
-__global__ void ZeroEventCounters(Stats *stats)
+__global__ void ResetStats(Stats *stats, unsigned int numThreads)
 {
-  constexpr auto size = std::extent<decltype(stats->perEventInFlight)>::value;
-  for (unsigned int i = threadIdx.x; i < size; i += blockDim.x) {
+  for (unsigned int i = threadIdx.x; i < GPUQueueIndex::NumSpecies; i += blockDim.x) {
+    stats->inFlight[i]      = 0;
+    stats->slotFillLevel[i] = 0;
+  }
+  for (unsigned int i = threadIdx.x; i < GPUQueueIndex::NumParticleQueues; i += blockDim.x) {
+    stats->queueFillLevel[i] = 0;
+  }
+  for (unsigned int i = threadIdx.x; i < numThreads; i += blockDim.x) {
+    stats->perEventInFlight[i]         = 0;
+    stats->perEventInFlightPrevious[i] = 0;
+  }
+  if (threadIdx.x == 0) {
+    stats->wdtGammasInFlight   = 0;
+    stats->stepBufferOccupancy = 0;
+  }
+}
+
+__global__ void ZeroEventCounters(Stats *stats, unsigned int numThreads)
+{
+  for (unsigned int i = threadIdx.x; i < numThreads; i += blockDim.x) {
     stats->perEventInFlight[i] = 0;
   }
 }
@@ -324,10 +343,10 @@ __global__ void ZeroEventCounters(Stats *stats)
 /**
  * Count how many tracks are currently in flight for each event.
  */
-__global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots)
+__global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, TracksAndSlots tracksAndSlots,
+                                       unsigned int numThreads)
 {
-  constexpr unsigned int N = kMaxThreads;
-  __shared__ unsigned int sharedCount[N];
+  extern __shared__ unsigned int sharedCount[];
 
   for (unsigned int particleType = blockIdx.x; particleType < GPUQueueIndex::NumParticleQueues;
        particleType += gridDim.x) {
@@ -336,21 +355,22 @@ __global__ void CountCurrentPopulation(AllParticleQueues all, Stats *stats, Trac
     const unsigned int tracksId = particleType == GPUQueueIndex::GammaWDT ? GPUQueueIndex::Gamma : particleType;
     adept::MParray const *queue = all.queues[particleType].initiallyActive;
 
-    for (unsigned int i = threadIdx.x; i < N; i += blockDim.x)
+    for (unsigned int i = threadIdx.x; i < numThreads; i += blockDim.x)
       sharedCount[i] = 0;
 
     __syncthreads();
 
     const auto end = queue->size();
     for (unsigned int i = threadIdx.x; i < end; i += blockDim.x) {
-      const auto slot     = (*queue)[i];
-      const auto threadId = tracksAndSlots.ThreadIdAt(tracksId, slot);
-      atomicAdd(sharedCount + threadId, 1u);
+      const auto slot       = (*queue)[i];
+      const auto threadId   = tracksAndSlots.ThreadIdAt(tracksId, slot);
+      const auto eventIndex = static_cast<unsigned int>(threadId);
+      if (threadId >= 0 && eventIndex < numThreads) atomicAdd(sharedCount + eventIndex, 1u);
     }
 
     __syncthreads();
 
-    for (unsigned int i = threadIdx.x; i < N; i += blockDim.x)
+    for (unsigned int i = threadIdx.x; i < numThreads; i += blockDim.x)
       atomicAdd(stats->perEventInFlight + i, sharedCount[i]);
 
     __syncthreads();
@@ -693,7 +713,18 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
 
   // initialize statistics
   gpuMalloc(gpuState.stats_dev, 1);
+  gpuMalloc(gpuState.perEventInFlight_dev, static_cast<std::size_t>(numThreads));
+  gpuMalloc(gpuState.perEventInFlightPrevious_dev, static_cast<std::size_t>(numThreads));
+  gpuMalloc(gpuState.allowFinishOffEvent_dev, static_cast<std::size_t>(numThreads));
   ADEPT_DEVICE_API_CALL(MallocHost(&gpuState.stats, sizeof(Stats)));
+  ADEPT_DEVICE_API_CALL(MallocHost(&gpuState.perEventInFlight, sizeof(unsigned int) * numThreads));
+  gpuState.allowFinishOffEvent.resize(numThreads);
+
+  Stats statsInit{};
+  statsInit.perEventInFlight         = gpuState.perEventInFlight_dev;
+  statsInit.perEventInFlightPrevious = gpuState.perEventInFlightPrevious_dev;
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(gpuState.stats_dev, &statsInit, sizeof(Stats), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
 
 #if ADEPT_DEBUG_TRACK > 0
   // initialize track debugging
@@ -756,12 +787,14 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
   auto &gammas                   = gpuState.gammas;
   ParticleQueues &woodcockQueues = gpuState.woodcockQueues;
 
-  ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent;
+  ADEPT_DEVICE_API_SYMBOL(Event_t) cudaEvent, cudaStatsEvent, cudaFinishOffEvent;
   ADEPT_DEVICE_API_SYMBOL(Stream_t) stepTransferStream, injectStream, statsStream;
   ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
   ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaStatsEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
+  ADEPT_DEVICE_API_CALL(EventCreateWithFlags(&cudaFinishOffEvent, ADEPT_DEVICE_API_SYMBOL(EventDisableTiming)));
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaEventCleanup{&cudaEvent};
   unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaStatsEventCleanup{&cudaStatsEvent};
+  unique_ptr_cuda<ADEPT_DEVICE_API_SYMBOL(Event_t)> cudaFinishOffEventCleanup{&cudaFinishOffEvent};
   ADEPT_DEVICE_API_CALL(StreamCreate(&stepTransferStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&injectStream));
   ADEPT_DEVICE_API_CALL(StreamCreate(&statsStream));
@@ -810,7 +843,8 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 
   while (gpuState.runTransport) {
     InitSlotManagers<<<80, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev, gpuState.nSlotManager_dev);
-    ADEPT_DEVICE_API_CALL(MemsetAsync(gpuState.stats_dev, 0, sizeof(Stats), gpuState.stream));
+    ResetStats<<<1, 256, 0, gpuState.stream>>>(gpuState.stats_dev, numThreads);
+    waitForOtherStream(statsStream, gpuState.stream);
 
     int inFlight                                                     = 0;
     unsigned int particlesInFlight[GPUQueueIndex::NumParticleQueues] = {1, 1, 1, 1};
@@ -959,15 +993,28 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
       // *** Transport ***
       // ------------------
 
-      AllowFinishOffEventArray allowFinishOffEvent;
+      AllowFinishOffEventArray allowFinishOffEvent{gpuState.allowFinishOffEvent_dev};
       for (int i = 0; i < numThreads; ++i) {
         // if waiting for transport to finish, the last N particles may be finished on CPU
-        if (eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish) {
-          allowFinishOffEvent.flags[i] = lastNParticlesOnCPU;
-        } else {
-          allowFinishOffEvent.flags[i] = 0;
-        }
+        gpuState.allowFinishOffEvent[i] =
+            eventStates[i].load(std::memory_order_acquire) == EventState::WaitingForTransportToFinish
+                ? lastNParticlesOnCPU
+                : 0;
       }
+      ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.allowFinishOffEvent_dev, gpuState.allowFinishOffEvent.data(),
+                                        sizeof(unsigned short) * numThreads,
+                                        ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice), statsStream));
+      ADEPT_DEVICE_API_CALL(EventRecord(cudaFinishOffEvent, statsStream));
+      for (auto stream : {electrons.stream, positrons.stream, gammas.stream}) {
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaFinishOffEvent));
+      }
+#ifdef ADEPT_USE_SPLIT_KERNELS
+      for (auto stream : {electrons.auxiliaryStream, positrons.auxiliaryStream, gammas.auxiliaryStream}) {
+        ADEPT_DEVICE_API_CALL(StreamWaitEvent(stream, cudaFinishOffEvent));
+      }
+#else
+      if (hasWDTRegions) ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.auxiliaryStream, cudaFinishOffEvent));
+#endif
 
       // *** ELECTRONS ***
       {
@@ -1159,20 +1206,24 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         AdvanceEventStates(EventState::Transporting, EventState::WaitingForTransportToFinish, eventStates);
         AdvanceEventStates(EventState::InjectionCompleted, EventState::Transporting, eventStates);
 
-        // Reset all counters count the currently flying population
-        ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev);
-        CountCurrentPopulation<<<GPUQueueIndex::NumParticleQueues, 128, 0, statsStream>>>(
-            allParticleQueues, gpuState.stats_dev, tracksAndSlots);
+        // Reset all counters and count the currently flying population.
+        ZeroEventCounters<<<1, 256, 0, statsStream>>>(gpuState.stats_dev, numThreads);
+        const auto eventCounterSharedBytes = static_cast<std::size_t>(numThreads) * sizeof(unsigned int);
+        CountCurrentPopulation<<<GPUQueueIndex::NumParticleQueues, 128, eventCounterSharedBytes, statsStream>>>(
+            allParticleQueues, gpuState.stats_dev, tracksAndSlots, numThreads);
 
         waitForOtherStream(gpuState.stream, statsStream);
 
         // Copy the number of particles in flight to the previous one, which is used within the kernel
-        ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.stats_dev->perEventInFlightPrevious,
-                                          gpuState.stats_dev->perEventInFlight, kMaxThreads * sizeof(unsigned int),
+        ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.perEventInFlightPrevious_dev, gpuState.perEventInFlight_dev,
+                                          sizeof(unsigned int) * numThreads,
                                           ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToDevice), statsStream));
 
         // Get results to host:
         ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.stats, gpuState.stats_dev, sizeof(Stats),
+                                          ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), statsStream));
+        ADEPT_DEVICE_API_CALL(MemcpyAsync(gpuState.perEventInFlight, gpuState.perEventInFlight_dev,
+                                          sizeof(unsigned int) * numThreads,
                                           ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost), statsStream));
         ADEPT_DEVICE_API_CALL(EventRecord(cudaStatsEvent, statsStream));
       }
@@ -1248,16 +1299,16 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
           particlesInFlight[GPUQueueIndex::Gamma] = 0;
         }
 
-        for (unsigned short threadId = 0; threadId < numThreads; ++threadId) {
+        for (unsigned int threadId = 0; threadId < static_cast<unsigned int>(numThreads); ++threadId) {
           const auto state = eventStates[threadId].load(std::memory_order_acquire);
-          if (state == EventState::WaitingForTransportToFinish && gpuState.stats->perEventInFlight[threadId] == 0) {
+          if (state == EventState::WaitingForTransportToFinish && gpuState.perEventInFlight[threadId] == 0) {
             eventStates[threadId] = EventState::RequestStepFlush;
           }
-          if (state >= EventState::RequestStepFlush && gpuState.stats->perEventInFlight[threadId] != 0) {
+          if (state >= EventState::RequestStepFlush && gpuState.perEventInFlight[threadId] != 0) {
             // FIXME: this case should not happen and is related to some late injection that shows up too late in the
             // perEventInFlight for now, just reset state to WaitingForTransportToFinish and notify with a error message
             std::cerr << "ERROR thread " << threadId << " is in state " << static_cast<unsigned int>(state)
-                      << " and occupancy is " << gpuState.stats->perEventInFlight[threadId]
+                      << " and occupancy is " << gpuState.perEventInFlight[threadId]
                       << " ... Resetting state to WaitingForTransportToFinish\n";
             eventStates[threadId] = EventState::WaitingForTransportToFinish;
           }
@@ -1266,8 +1317,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         // *** Step management ***
 
         // check the maximum number of tracks in flight per thread
-        unsigned int maxInFlight =
-            *std::max_element(gpuState.stats->perEventInFlight, gpuState.stats->perEventInFlight + numThreads);
+        unsigned int maxInFlight = *std::max_element(gpuState.perEventInFlight, gpuState.perEventInFlight + numThreads);
 
         // if there are more tracks in flight than the total StepCapacity, it could fail at any step!
         // This is really dangerous and requires a larger step capacity
@@ -1367,7 +1417,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         if (debugLevel >= 4) {
           std::cerr << "\tper event: ";
           for (unsigned int i = 0; i < numThreads; ++i) {
-            std::cerr << i << ": " << gpuState.stats->perEventInFlight[i]
+            std::cerr << i << ": " << gpuState.perEventInFlight[i]
                       << " (s=" << static_cast<unsigned short>(eventStates[i].load(std::memory_order_acquire)) << ")\t";
           }
         }

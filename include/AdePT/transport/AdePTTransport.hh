@@ -35,7 +35,7 @@ public:
   uint64_t fAdePTSeed = 1234567;
 
 private:
-  unsigned short fNThread{0};             ///< Number of G4 workers
+  unsigned int fNThread{0};               ///< Number of G4 workers
   unsigned int fTrackCapacity{0};         ///< Number of track slots to allocate on device
   unsigned int fStepCapacity{0};          ///< Number of step slots to allocate on device
   int fDebugLevel{0};                     ///< Debug level

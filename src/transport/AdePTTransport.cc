@@ -76,10 +76,26 @@ void StopTransportProfilerCapture()
 
 namespace adept::transport {
 
+namespace {
+
+constexpr unsigned int kMaxSupportedTransportThreads = 10000u;
+
+unsigned int ValidateNumThreads(unsigned int numThreads)
+{
+  if (numThreads == 0) throw std::invalid_argument("AdePTTransport requires a positive number of threads");
+  if (numThreads > kMaxSupportedTransportThreads) {
+    throw std::invalid_argument("AdePTTransport supports up to " + std::to_string(kMaxSupportedTransportThreads) +
+                                " threads");
+  }
+  return numThreads;
+}
+
+} // namespace
+
 AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
                                std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState, adeptint::VolAuxData *auxData,
                                const adeptint::WDTHostPacked &wdtPacked, const std::vector<float> &uniformFieldValues)
-    : fAdePTSeed{configuration.adeptSeed}, fNThread{configuration.numThreads},
+    : fAdePTSeed{configuration.adeptSeed}, fNThread{ValidateNumThreads(configuration.numThreads)},
       fTrackCapacity{configuration.trackCapacity}, fStepCapacity{configuration.stepCapacity},
       fDebugLevel{configuration.debugLevel}, fCUDAStackLimit{configuration.cudaStackLimit},
       fCUDAHeapLimit{configuration.cudaHeapLimit}, fLastNParticlesOnCPU{configuration.lastNParticlesOnCPU},
@@ -88,9 +104,6 @@ AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
       fBfieldFile{configuration.bfieldFile}, fCPUCapacityFactor{configuration.cpuCapacityFactor},
       fCPUCopyFraction{configuration.cpuCopyFraction}, fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
 {
-  if (fNThread > kMaxThreads)
-    throw std::invalid_argument("AdePTTransport limited to " + std::to_string(kMaxThreads) + " threads");
-
   for (auto &eventState : fEventStates) {
     std::atomic_init(&eventState, EventState::DeviceFlushed);
   }
@@ -199,8 +212,9 @@ void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::W
   adept::transport::detail::InitWDTOnDevice(wdtPacked, wdtDev, fMaxWDTIter);
   fWDTDev = wdtDev;
 
-  std::cout << "\nAllocating " << 4 * 8192 * fNThread << " To-device buffer slots\n";
-  fBuffer = std::make_unique<TrackBuffer>(4 * 8192 * fNThread);
+  const auto toDeviceSlots = 4u * 8192u * fNThread;
+  std::cout << "\nAllocating " << toDeviceSlots << " To-device buffer slots\n";
+  fBuffer = std::make_unique<TrackBuffer>(toDeviceSlots);
 
   assert(fBuffer != nullptr);
 
