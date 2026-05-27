@@ -37,6 +37,7 @@
 using SelectedSteppingAction = adept::SteppingAction::Action;
 
 #include <VecGeom/base/Config.h>
+#include <VecGeom/management/CudaManager.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif

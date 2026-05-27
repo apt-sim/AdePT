@@ -14,6 +14,7 @@
 
 #include <VecGeom/base/Config.h>
 #include <G4Timer.hh>
+#include <VecGeom/management/CudaManager.h>
 #include <VecGeom/management/GeoManager.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
