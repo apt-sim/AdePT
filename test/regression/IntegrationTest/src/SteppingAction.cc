@@ -9,6 +9,8 @@
 #include "G4RunManager.hh"
 #include "G4Step.hh"
 
+#include <stdexcept>
+
 namespace {
 
 /// Helper to access the mutable regression run object from Geant4 callbacks.
@@ -48,13 +50,14 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
 
       for (auto *secondary : *secondaries) {
         if (secondary == nullptr) continue;
-        auto *secondaryInfo = static_cast<TrackLineageInfo *>(secondary->GetUserInformation());
-        if (secondaryInfo == nullptr) {
-          secondaryInfo = new TrackLineageInfo(primaryTrackID, generation);
-          secondary->SetUserInformation(secondaryInfo);
+        if (secondary->GetUserInformation() != nullptr) {
+          throw std::runtime_error("Secondary track already has user information attached before stepping action");
         }
 
-        if (truthHistogrammer != nullptr && secondaryInfo != nullptr && !secondaryInfo->HasRecordedInitial()) {
+        auto *secondaryInfo = new TrackLineageInfo(primaryTrackID, generation);
+        secondary->SetUserInformation(secondaryInfo);
+
+        if (truthHistogrammer != nullptr && !secondaryInfo->HasRecordedInitial()) {
           // The initial snapshot is recorded when the secondary first becomes
           // fully linked to its parent lineage. Mark it so later callbacks do
           // not duplicate the same track in the truth histograms.
