@@ -52,10 +52,6 @@ void SteppingAction::UserSteppingAction(const G4Step *theStep)
         if (secondaryInfo == nullptr) {
           secondaryInfo = new TrackLineageInfo(primaryTrackID, generation);
           secondary->SetUserInformation(secondaryInfo);
-        } else {
-          // Keep the lineage payload in sync if the same secondary is observed
-          // again while the parent step is still being processed.
-          secondaryInfo->SetLineage(primaryTrackID, generation);
         }
 
         if (truthHistogrammer != nullptr && secondaryInfo != nullptr && !secondaryInfo->HasRecordedInitial()) {
