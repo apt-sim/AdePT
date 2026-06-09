@@ -193,7 +193,6 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, Particle
                            const vecgeom::VPlacedVolume *world, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
                            uint64_t initialSeed)
 {
-  // constexpr double tolerance = 10. * vecgeom::kTolerance;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < ntracks; i += blockDim.x * gridDim.x) {
     const auto &trackInfo = trackinfo[i];
 

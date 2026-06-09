@@ -59,7 +59,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                                           AllowFinishOffEventArray allowFinishOffEvent,
                                                           const bool returnAllSteps, const bool returnLastStep)
 {
-  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
@@ -317,8 +316,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
                                                                     navState, nextState, hitsurf_index);
 #else
-      geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
-                                                                    navState, nextState, kPushDistance);
+      geometryStepLength =
+          AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
 #endif
       pos += geometryStepLength * dir;
     }
@@ -477,9 +476,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           postStepAuxData = &nextauxData;
           // track has left GPU region
           if (nextauxData.fGPUregionId < 0) {
-            // To be safe, just push a bit the track exiting the GPU region to make sure
-            // Geant4 does not relocate it again inside the same region
-            pos += kPushDistance * dir;
 
 #if ADEPT_DEBUG_TRACK > 0
             if (verbose) printf("\n| track returned to Geant4\n");

@@ -186,7 +186,6 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
 
 __global__ void GammaPropagation(NeutralTrack *gammas, G4HepEmGammaTrack *hepEMTracks, const adept::MParray *active)
 {
-  constexpr double kPushDistance           = 1000 * vecgeom::kTolerance;
   constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
   constexpr unsigned short kStepsStuckPush = 5;
 
@@ -207,9 +206,8 @@ __global__ void GammaPropagation(NeutralTrack *gammas, G4HepEmGammaTrack *hepEMT
         AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
                                                  currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID);
 #else
-    auto geometryStepLength =
-        AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
-                                                 currentTrack.navState, currentTrack.nextState, kPushDistance);
+    auto geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(
+        currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(), currentTrack.navState, currentTrack.nextState);
 #endif
     //  printf("pvol=%d  step=%g  onboundary=%d  pos={%g, %g, %g}  dir={%g, %g, %g}\n", navState.TopId(),
     //  geometryStepLength,
@@ -308,9 +306,8 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
 __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                                 adept::MParray *relocatingQueue, const bool returnAllSteps, const bool returnLastStep)
 {
-  constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
-  auto &slotManager              = *particleManager.gammas.fSlotManager;
-  int activeSize                 = relocatingQueue->size();
+  auto &slotManager = *particleManager.gammas.fSlotManager;
+  int activeSize    = relocatingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot             = (*relocatingQueue)[i];
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
@@ -351,9 +348,6 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
       short stepProcessId = kAdePTTransportationProcess;
       if (returnsToCPU) {
-        // Push the handoff point a little into the CPU region so Geant4 does
-        // not relocate the track back into the same GPU region.
-        currentTrack.pos += kPushDistance * currentTrack.dir;
         stepProcessId = kAdePTOutOfGPURegionProcess;
       }
 

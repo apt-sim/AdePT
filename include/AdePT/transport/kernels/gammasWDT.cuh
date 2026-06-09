@@ -43,7 +43,6 @@ __global__ void __launch_bounds__(256, 1)
   // G4HepEmTrackingManager.cc. Here, it is adopted and adjusted to AdePT's GPU track structures and using VecGeom
   // instead of G4 navigation
 
-  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   auto &slotManager                 = *particleManager.gammasWDT.fSlotManager;
   const int activeSize              = particleManager.gammasWDT.ActiveSize();
@@ -446,9 +445,6 @@ __global__ void __launch_bounds__(256, 1)
           // particle is still alive
           trackSurvives = true;
         } else {
-          // To be safe, just push a bit the track exiting the GPU region to make sure
-          // Geant4 does not relocate it again inside the same region
-          pos += kPushDistance * dir;
 
 #if ADEPT_DEBUG_TRACK > 0
           if (verbose) printf("\n| track returned to Geant4\n");
