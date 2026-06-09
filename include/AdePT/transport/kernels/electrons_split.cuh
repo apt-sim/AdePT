@@ -289,7 +289,6 @@ template <bool IsElectron>
 __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmElectronTrack *hepEMTracks,
                                     const adept::MParray *propagationQueue)
 {
-  constexpr double kPushDistance           = 1000 * vecgeom::kTolerance;
   constexpr int Charge                     = IsElectron ? -1 : 1;
   constexpr double restMass                = copcore::units::kElectronMassC2;
   constexpr int Nvar                       = 6;
@@ -351,7 +350,7 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
 #else
       geometryStepLength =
           AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
-                                                   currentTrack.navState, currentTrack.nextState, kPushDistance);
+                                                   currentTrack.navState, currentTrack.nextState);
 #endif
       currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
@@ -607,8 +606,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                    adept::MParray *relocatingQueue, const bool returnAllSteps,
                                    const bool returnLastStep)
 {
-  constexpr double kPushDistance = 1000 * vecgeom::kTolerance;
-  auto &electronsOrPositrons     = (IsElectron ? particleManager.electrons : particleManager.positrons);
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
 
   SlotManager &slotManager = *electronsOrPositrons.fSlotManager;
   int activeSize           = relocatingQueue->size();
@@ -665,9 +663,6 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       VolAuxData const &nextauxData = adept::transport::gVolAuxData[nextlvolID];
       returnsToCPU                  = nextauxData.fGPUregionId < 0;
       if (returnsToCPU) {
-        // Push the handoff point a little into the CPU region so Geant4 does
-        // not relocate the track back into the same GPU region.
-        currentTrack.pos += kPushDistance * currentTrack.dir;
         stepProcessId = kAdePTOutOfGPURegionProcess;
         isLastStep    = false;
       }
