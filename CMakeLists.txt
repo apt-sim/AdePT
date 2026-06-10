@@ -372,6 +372,20 @@ block()
       return 0;
     }
     ]] AdePT_HAS_G4VTRACKINGMANAGER)
+
+  # Check whether G4Track can increment the current step number by nSteps
+  check_cxx_source_compiles([[
+    #include "G4Track.hh"
+
+    int main() {
+      auto increment = static_cast<void (G4Track::*)(G4int)>(&G4Track::IncrementCurrentStepNumber);
+      (void)increment;
+      return 0;
+    }
+    ]] ADEPT_HAS_G4TRACK_NSTEP_INCREMENT)
+  if(ADEPT_HAS_G4TRACK_NSTEP_INCREMENT)
+    add_compile_definitions(ADEPT_HAS_G4TRACK_NSTEP_INCREMENT)
+  endif()
 endblock()
 
 # Find HepMC3, used by integration examples to load realistic events
