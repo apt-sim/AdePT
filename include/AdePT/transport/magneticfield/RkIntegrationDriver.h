@@ -35,7 +35,8 @@ public:
 
   // Propagate the track along the numerical solution of the ODE by the requested length
   //   Inputs: current position, current direction, some particle properties, max # of steps
-  //   Output: new position, new direction of particle, number of integration steps (current integration)
+  //   Output: new position and momentum at the last accepted endpoint
+  //   Return: accepted arc length in this call
   //
   //
   //   Note: care needed to 'tune' max number of steps - compromise between getting work done & divergence
@@ -44,12 +45,12 @@ public:
   //   1. Vector3D version
   // template <class Stepper_t, class Equation_t, class MagField_t>
   template <int Verbose = 1>
-  static inline __host__ __device__ bool Advance(vecgeom::Vector3D<double> &position,
-                                                 vecgeom::Vector3D<double> &momentumVec, Int_t const &charge,
-                                                 // Real_t const &momentum,
-                                                 Real_t const &step, MagField_t const &magField, Real_t dydx_next[],
-                                                 Real_t &hgood, // dy_ds[Nvar] at final point (return only !! )
-                                                 unsigned int maxTrials = 5, int cordIters = 0);
+  static inline __host__ __device__ Real_t Advance(vecgeom::Vector3D<double> &position,
+                                                   vecgeom::Vector3D<double> &momentumVec, Int_t const &charge,
+                                                   // Real_t const &momentum,
+                                                   Real_t const &step, MagField_t const &magField, Real_t dydx_next[],
+                                                   Real_t &hgood, // last good step suggestion
+                                                   unsigned int maxTrials = 5, int cordIters = 0);
 
   // Invariants
   // ----------
@@ -90,11 +91,11 @@ protected:
 
 template <class Stepper_t, typename Real_t, typename Int_t, class Equation_t, class MagField_t>
 template <int Verbose>
-inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::Advance(
+inline __host__ __device__ Real_t RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::Advance(
     vecgeom::Vector3D<double> &position,    //   In/Out
     vecgeom::Vector3D<double> &momentumVec, //   In/Out
     Int_t const &chargeInt, Real_t const &length, MagField_t const &magField, Real_t dydx_next[Nvar],
-    Real_t &hgood,                        // dy_ds[] at final point (return only !! ), last good step
+    Real_t &hgood,                        // last good step suggestion
     unsigned int maxTrials, int cordIters // max allowed trials
 )
 {
@@ -170,7 +171,7 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
     }
   }
 
-  return done;
+  return stepAdvance;
 }
 
 // ----------------------------------------------------------------------------------------

@@ -127,36 +127,42 @@ struct OneRejectedSubstepStepper {
 // leaves the endpoint unchanged, which is the case that used to risk normalizing
 // a zero-length chord.
 struct FailingPropagatorDriver {
-  static bool Advance(vecgeom::Vector3D<double> &, vecgeom::Vector3D<double> &, int, double, const DummyField &,
-                      double[kNvar], double &, unsigned int, int)
+  static double Advance(vecgeom::Vector3D<double> &, vecgeom::Vector3D<double> &, int, double, const DummyField &,
+                        double[kNvar], double &, unsigned int, int)
   {
-    return false;
+    return 0.0;
   }
 };
 
 // Deterministic successful RK substitute: advance exactly along the incoming
 // momentum direction and report the full trial step as the last good step.
 struct StraightLinePropagatorDriver {
-  static bool Advance(vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &momentum, int, double step,
-                      const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
+  static double Advance(vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &momentum, int, double step,
+                        const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
   {
     position += step * momentum.Unit();
     lastGoodStep = step;
-    return true;
+    return step;
   }
 };
 
 // Reports that the requested RK advance did not fully finish, while still
 // returning a nonzero accepted endpoint. RkIntegrationDriver can do this after
 // exhausting its trial budget with partial accepted progress, and the propagator
-// must not throw that endpoint away.
-struct IncompleteButAdvancingPropagatorDriver {
-  static bool Advance(vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &momentum, int, double step,
-                      const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
+// must bookkeep only that accepted distance.
+struct PartialThenCompletePropagatorDriver {
+  inline static int calls = 0;
+
+  static void Reset() { calls = 0; }
+
+  static double Advance(vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &momentum, int, double step,
+                        const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
   {
-    position += step * momentum.Unit();
-    lastGoodStep = step;
-    return false;
+    ++calls;
+    const double acceptedStep = (calls == 1) ? 2.0 : step;
+    position += acceptedStep * momentum.Unit();
+    lastGoodStep = acceptedStep;
+    return acceptedStep;
   }
 };
 
@@ -248,9 +254,10 @@ void CheckUniformFieldAgainstHelix(const RkCase &testCase, double positionTolera
   Real_t dydxEnd[kNvar]                          = {};
   Real_t lastGoodStep                            = 0.0;
 
-  const bool done =
+  const Real_t advanced =
       Driver::Advance(position, momentum, testCase.charge, Real_t(testCase.step), field, dydxEnd, lastGoodStep, 500);
-  ASSERT_TRUE(done);
+  constexpr double stepTolerance = std::is_same_v<Real_t, float> ? 1.0e-5 : 1.0e-12;
+  EXPECT_NEAR(advanced, Real_t(testCase.step), stepTolerance);
 
   vecgeom::Vector3D<double> expectedPosition;
   vecgeom::Vector3D<double> expectedDirection;
@@ -425,6 +432,24 @@ TEST(RkIntegrationDriver, RejectedStepKeepsCumulativeProgress)
   EXPECT_DOUBLE_EQ(progress, 7.5);
 }
 
+TEST(RkIntegrationDriver, ReportsAcceptedProgressWhenTrialBudgetIsExhausted)
+{
+  using Driver = RkIntegrationDriver<OneRejectedSubstepStepper, double, int, LinearEquation, DummyField>;
+
+  OneRejectedSubstepStepper::Reset();
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> momentum{1.0, 0.0, 0.0};
+  double dydxEnd[kNvar] = {};
+  double lastGoodStep   = 4.0;
+  const double advanced = Driver::Advance(position, momentum, 1, 10.0, DummyField{}, dydxEnd, lastGoodStep, 2, 1);
+
+  EXPECT_LT(advanced, 10.0);
+  EXPECT_DOUBLE_EQ(advanced, 4.0);
+  EXPECT_NEAR(position[0], 4.0, 1.0e-12);
+  EXPECT_NEAR(position[1], 0.0, 1.0e-12);
+  EXPECT_NEAR(position[2], 0.0, 1.0e-12);
+}
+
 TEST(RkIntegrationDriver, AdvanceDoesNotOvershootAfterRejectedSubstep)
 {
   using Driver = RkIntegrationDriver<OneRejectedSubstepStepper, double, int, LinearEquation, DummyField>;
@@ -435,9 +460,8 @@ TEST(RkIntegrationDriver, AdvanceDoesNotOvershootAfterRejectedSubstep)
   double dydxEnd[kNvar] = {};
   double lastGoodStep   = 4.0;
 
-  const bool done = Driver::Advance(position, momentum, 1, 10.0, DummyField{}, dydxEnd, lastGoodStep, 20, 1);
-
-  ASSERT_TRUE(done);
+  const double advanced = Driver::Advance(position, momentum, 1, 10.0, DummyField{}, dydxEnd, lastGoodStep, 20, 1);
+  EXPECT_DOUBLE_EQ(advanced, 10.0);
   EXPECT_NEAR(position[0], 10.0, 1.0e-12);
   EXPECT_NEAR(position[1], 0.0, 1.0e-12);
   EXPECT_NEAR(position[2], 0.0, 1.0e-12);
@@ -463,9 +487,9 @@ void CheckZeroFieldStraightLine()
   Real_t dydxEnd[kNvar]                          = {};
   Real_t lastGoodStep                            = 0.0;
 
-  const bool done = Driver::Advance(position, momentum, -1, Real_t(125.0), field, dydxEnd, lastGoodStep, 100);
-
-  ASSERT_TRUE(done);
+  const Real_t advanced = Driver::Advance(position, momentum, -1, Real_t(125.0), field, dydxEnd, lastGoodStep, 100);
+  constexpr double stepTolerance = std::is_same_v<Real_t, float> ? 1.0e-5 : 1.0e-12;
+  EXPECT_NEAR(advanced, Real_t(125.0), stepTolerance);
   ExpectVectorNear(position, startPosition + 125.0 * startDirection, std::is_same_v<Real_t, float> ? 2.0e-5 : 1.0e-12);
   ExpectVectorNear(momentum.Unit(), startDirection, std::is_same_v<Real_t, float> ? 2.0e-7 : 1.0e-14);
 }
@@ -526,11 +550,12 @@ TEST(FieldPropagatorRungeKutta, FailedAdvanceStopsBeforeZeroChordNormalization)
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
 }
 
-TEST(FieldPropagatorRungeKutta, PreservesNonzeroAdvanceWhenDriverReportsIncomplete)
+TEST(FieldPropagatorRungeKutta, UsesAcceptedArcLengthWhenDriverReportsIncomplete)
 {
   using Propagator =
-      fieldPropagatorRungeKutta<DummyField, IncompleteButAdvancingPropagatorDriver, double, ThrowingNavigator>;
+      fieldPropagatorRungeKutta<DummyField, PartialThenCompletePropagatorDriver, double, ThrowingNavigator>;
 
+  PartialThenCompletePropagatorDriver::Reset();
   ThrowingNavigator::Reset();
   vecgeom::Vector3D<double> position{1.0, 2.0, 3.0};
   vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0};
@@ -547,6 +572,7 @@ TEST(FieldPropagatorRungeKutta, PreservesNonzeroAdvanceWhenDriverReportsIncomple
 
   EXPECT_DOUBLE_EQ(moved, 5.0);
   EXPECT_TRUE(propagated);
+  EXPECT_EQ(PartialThenCompletePropagatorDriver::calls, 2);
   EXPECT_EQ(ThrowingNavigator::stepCalls, 0);
   ExpectVectorNear(position, vecgeom::Vector3D<double>{6.0, 2.0, 3.0}, 1.0e-14);
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
