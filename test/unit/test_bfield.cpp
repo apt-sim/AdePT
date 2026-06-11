@@ -146,6 +146,20 @@ struct StraightLinePropagatorDriver {
   }
 };
 
+// Reports that the requested RK advance did not fully finish, while still
+// returning a nonzero accepted endpoint. RkIntegrationDriver can do this after
+// exhausting its trial budget with partial accepted progress, and the propagator
+// must not throw that endpoint away.
+struct IncompleteButAdvancingPropagatorDriver {
+  static bool Advance(vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &momentum, int, double step,
+                      const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
+  {
+    position += step * momentum.Unit();
+    lastGoodStep = step;
+    return false;
+  }
+};
+
 // Navigator used when a test expects the propagator to return before geometry
 // stepping. Any ComputeStepAndNextVolume call is therefore a test failure.
 struct ThrowingNavigator {
@@ -509,6 +523,32 @@ TEST(FieldPropagatorRungeKutta, FailedAdvanceStopsBeforeZeroChordNormalization)
   EXPECT_FALSE(propagated);
   EXPECT_EQ(ThrowingNavigator::stepCalls, 0);
   ExpectVectorNear(position, vecgeom::Vector3D<double>{1.0, 2.0, 3.0}, 0.0);
+  ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
+}
+
+TEST(FieldPropagatorRungeKutta, PreservesNonzeroAdvanceWhenDriverReportsIncomplete)
+{
+  using Propagator =
+      fieldPropagatorRungeKutta<DummyField, IncompleteButAdvancingPropagatorDriver, double, ThrowingNavigator>;
+
+  ThrowingNavigator::Reset();
+  vecgeom::Vector3D<double> position{1.0, 2.0, 3.0};
+  vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0};
+  vecgeom::NavigationState currentState;
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  bool zeroFirstStep   = false;
+  int itersDone        = 0;
+
+  const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 5.0, 5.0, position, direction,
+                                                            currentState, nextState, hitSurfaceIndex, propagated, 100.0,
+                                                            10, itersDone, 0, zeroFirstStep, false);
+
+  EXPECT_DOUBLE_EQ(moved, 5.0);
+  EXPECT_TRUE(propagated);
+  EXPECT_EQ(ThrowingNavigator::stepCalls, 0);
+  ExpectVectorNear(position, vecgeom::Vector3D<double>{6.0, 2.0, 3.0}, 1.0e-14);
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
 }
 

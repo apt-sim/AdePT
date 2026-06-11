@@ -167,14 +167,16 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
     Real_t dydx_end[Nvar]; // not re-used at the moment, but could be used for FSAL between cord integrations
                            // Integrate the step.
-    const bool rkDone = RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end,
-                                            last_good_step, kMaxTrials, chordIters);
+    RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, last_good_step, kMaxTrials,
+                        chordIters);
 
     //----------------- Get chord
     vecgeom::Vector3D<double> chordDir = endPosition - position; // not yet normalized!
     double chordLen                    = chordDir.Length();
-    // check that chordLen is sane before normalizing to avoid NaNs in case the integration failed
-    if (!rkDone || !(chordLen > 0.0)) {
+    // Advance returns false both for an all-failed step and for a step that made
+    // partial accepted progress before exhausting trials. A nonzero chord is a
+    // valid accepted endpoint; only a zero/NaN chord cannot be normalized.
+    if (!(chordLen > 0.0)) {
       propagated = false;
       break;
     }
