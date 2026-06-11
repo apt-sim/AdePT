@@ -126,9 +126,10 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
   // The allowed safe move is normally determined by the bending accuracy
   // This is reduced if starting from a boundary and crossing a boundary in the first step
-  Real_t maxNextSafeMove = max(safeLength, safetyIn); // It can be reduced if, at the start, a boundary is encountered
-  int chordIters         = 0;                         ///< number of iterations for this integration
-  Real_t last_good_step  = 0.0;                       ///< to be re-used for next cord iteration
+  Real_t maxNextSafeMove =
+      vecCore::Max(Real_t(safeLength), safetyIn); // It can be reduced if, at the start, a boundary is encountered
+  int chordIters         = 0;                     ///< number of iterations for this integration
+  Real_t last_good_step  = 0.0;                   ///< to be re-used for next cord iteration
   bool found_end         = false;
   bool continueIteration = false;
   bool fullChord         = false;
@@ -162,17 +163,21 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
     vecgeom::Vector3D<double> endMomentumVec = momentumVec;
 
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
-    const Real_t safeArc = min(remains, maxNextSafeMove);
+    const Real_t safeArc = vecCore::Min(remains, maxNextSafeMove);
 
     Real_t dydx_end[Nvar]; // not re-used at the moment, but could be used for FSAL between cord integrations
                            // Integrate the step.
-    /*bool done = */
-    RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end, last_good_step, kMaxTrials,
-                        chordIters);
+    const bool rkDone = RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end,
+                                            last_good_step, kMaxTrials, chordIters);
 
     //----------------- Get chord
     vecgeom::Vector3D<double> chordDir = endPosition - position; // not yet normalized!
     double chordLen                    = chordDir.Length();
+    // check that chordLen is sane before normalizing to avoid NaNs in case the integration failed
+    if (!rkDone || !(chordLen > 0.0)) {
+      propagated = false;
+      break;
+    }
     chordDir *= (1.0 / chordLen); // Now the normalized direction of the chord!
     vecgeom::Vector3D<double> endDirection = inv_momentumMag * endMomentumVec;
     // Normalize direction, which is NOT after calling Advance
@@ -244,7 +249,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       if (verbose) printf("| full chord advance %g ", safeArc);
 #endif
 
-      maxNextSafeMove   = max(safeArc, safety); // Reset it, once a step succeeds!!
+      maxNextSafeMove   = vecCore::Max(safeArc, Real_t(safety)); // Reset it, once a step succeeds!!
       continueIteration = true;
     } else if (stepDone == 0 && move <= kDistCheckPush) {
       // Cope with a track at a boundary that wants to bend back into the previous

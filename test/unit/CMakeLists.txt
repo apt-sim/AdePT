@@ -21,6 +21,19 @@ function(build_linked_tests LINK_TARGET)
   endforeach()
 endfunction()
 
+include(GoogleTest)
+
+function(build_gtest_tests LINK_TARGET)
+  foreach(TEST IN LISTS ARGN)
+    get_filename_component(TARGET_NAME ${TEST} NAME_WE)
+    add_executable(${TARGET_NAME} ${TEST})
+    cuda_rdc_target_link_libraries(${TARGET_NAME} PRIVATE ${LINK_TARGET} GTest::gtest_main)
+    gtest_discover_tests(${TARGET_NAME}
+      DISCOVERY_MODE PRE_TEST
+      PROPERTIES LABELS "unit")
+  endforeach()
+endfunction()
+
 function(add_to_test)
   foreach(TEST IN LISTS ARGN)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
@@ -51,10 +64,16 @@ set(ADEPT_HEADER_ONLY_UNIT_TESTS
 )
 
 set(ADEPT_TRANSPORT_UNIT_TESTS
-  test_magfieldRK.cpp          # Unit test for Mag-Field integration classes
-  compare_integration_precision.cpp # Script for generating float vs double trajectories
   test_hostCircularBuffer.cpp  # Unit test for HostCircularBuffer
   # test_Bfield_step_debugger.cpp # experimental test to debug single stuck rays in AdePT
+)
+
+set(ADEPT_TRANSPORT_GTESTS
+  test_bfield.cpp              # Deterministic B-field integration tests
+)
+
+set(ADEPT_TRANSPORT_UTILITIES
+  compare_integration_precision.cpp # Diagnostic utility for generating float vs double trajectories
 )
 
 set(ADEPT_G4_INTEGRATION_UNIT_TESTS
@@ -73,7 +92,8 @@ endif()
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
 build_header_only_tests(${ADEPT_HEADER_ONLY_UNIT_TESTS})
-build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS})
+build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS} ${ADEPT_TRANSPORT_UTILITIES})
+build_gtest_tests(AdePT::Transport ${ADEPT_TRANSPORT_GTESTS})
 build_linked_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UNIT_TESTS})
 
 if(ADEPT_USE_EXT_BFIELD)
@@ -100,8 +120,6 @@ set(ADEPT_UNIT_TEST_NAMES
   test_ranluxpp
   test_queue
   test_track_block
-  test_magfieldRK
-  compare_integration_precision
   test_hostCircularBuffer
   test_hostTrackDataMapper
 )

@@ -106,7 +106,31 @@ message(STATUS "${Green}${ADEPT_COMPUTE_BACKEND} backend enabled${ColorReset}")
 
 # Ensure that ctest is enabled when ADEPT_BUILD_TESTING is ON
 if(ADEPT_BUILD_TESTING)
- set(BUILD_TESTING ON)
+  set(BUILD_TESTING ON)
+
+  # Try using GoogleTest from the system/dev toolchain.
+  # Set CMAKE_REQUIRE_FIND_PACKAGE_GTest=ON to require a toolchain-provided
+  # package, or CMAKE_DISABLE_FIND_PACKAGE_GTest=ON to force the pinned
+  # FetchContent fallback.
+  set(ADEPT_GTEST_MIN_VERSION 1.17.0)
+  find_package(GTest ${ADEPT_GTEST_MIN_VERSION} CONFIG QUIET)
+
+  if(GTest_FOUND)
+    message(STATUS "Found GTest at ${GTest_DIR}")
+  else()
+    message(STATUS "Using FetchContent to import GoogleTest ${ADEPT_GTEST_MIN_VERSION} locally")
+    include(FetchContent)
+    FetchContent_Declare(
+      googletest
+      # v1.17.0
+      URL https://github.com/google/googletest/archive/52eb8108c5bdec04579160ae17225d66034bd723.zip)
+    # For Windows: Prevent overriding the parent project compiler/linker settings.
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    # Do not install gtest itself.
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+  endif()
+  unset(ADEPT_GTEST_MIN_VERSION)
 endif()
 
 # Compile flag for AdePT SteppingActions on the GPU

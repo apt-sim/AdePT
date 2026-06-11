@@ -231,14 +231,6 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
       Real_t htemp = safetyFactor * htry * std::pow(errmax_sq, 0.5 * shrinkPower);
       hnext        = vecCore::Max(htemp, max_step_decrease * htry);
       // no more than than a factor of 10 smaller
-
-      xCurrent = 0.0;
-
-      if (xCurrent + hnext == xCurrent) {
-        // Serious Problem --- under FLOW !!!   Report it ??????????????????????????
-        printf("This should never happen, under flow in next step\n");
-        hnext = 2.0 * vecCore::math::Max(htemp, htry);
-      }
     }
   }
   return goodStep;
