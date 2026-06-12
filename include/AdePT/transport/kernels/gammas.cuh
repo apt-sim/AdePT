@@ -30,7 +30,6 @@ __global__ void __launch_bounds__(256, 1)
     TransportGammas(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
                     AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps, const bool returnLastStep)
 {
-  constexpr double kPushDistance    = 1000 * vecgeom::kTolerance;
   constexpr unsigned short maxSteps = 10'000;
   auto &slotManager                 = *particleManager.gammas.fSlotManager;
   const int activeSize              = particleManager.gammas.ActiveSize();
@@ -161,8 +160,8 @@ __global__ void __launch_bounds__(256, 1)
     geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
                                                                   nextState, hitsurf_index);
 #else
-    geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState,
-                                                                  nextState, kPushDistance);
+    geometryStepLength =
+        AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
 #endif
     if (geometryStepLength < kPushStuck && geometryStepLength < geometricalStepLengthFromPhysics) {
       currentTrack.zeroStepCounter++;
@@ -249,9 +248,6 @@ __global__ void __launch_bounds__(256, 1)
           }
           trackSurvives = true;
         } else {
-          // To be safe, just push a bit the track exiting the GPU region to make sure
-          // Geant4 does not relocate it again inside the same region
-          pos += kPushDistance * dir;
 
 #if ADEPT_DEBUG_TRACK > 0
           if (verbose) printf("\n| track returned to Geant4\n");

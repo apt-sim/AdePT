@@ -57,8 +57,6 @@ public:
 protected:
   static constexpr unsigned int fMaxTrials = 100;
   static constexpr unsigned int Nvar       = 6; // For position (3) and momentum (3) -- invariant
-  static constexpr Real_t kPush            = 0.;
-  static constexpr Real_t kDistCheckPush   = kPush + Navigator::kBoundaryPush;
   // Cannot change the energy (or momentum magnitude) -- currently usable only for pure magnetic fields
 };
 
@@ -106,11 +104,10 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       false; // This could be a per-region flag ... - better depend on template parameter?
   if (inZeroFieldRegion) {
 #ifdef ADEPT_USE_SURF
-    stepDone = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state,
-                                                     hitsurf_index, kDistCheckPush);
-#else
     stepDone =
-        Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, kDistCheckPush);
+        Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, hitsurf_index);
+#else
+    stepDone = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
 #endif
     position += stepDone * direction;
     return stepDone;
@@ -221,16 +218,15 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose)
           printf("\n| +++  ComputeStepAndNextVolume pos {%.17f, %.17f, %.17f} chordDir {%.17f, %.17f, %.17f} "
-                 "chordLen %g push %g\n",
-                 position[0], position[1], position[2], chordDir[0], chordDir[1], chordDir[2], chordLen, kPush);
+                 "chordLen %g\n",
+                 position[0], position[1], position[2], chordDir[0], chordDir[1], chordDir[2], chordLen);
 #endif
 
 #ifdef ADEPT_USE_SURF
         move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
-                                                     hitsurf_index, kDistCheckPush);
+                                                     hitsurf_index);
 #else
-        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
-                                                     kDistCheckPush);
+        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
 #endif
       }
     }
@@ -253,20 +249,19 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
       maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safety)); // Reset it, once a step succeeds!!
       continueIteration = true;
-    } else if (stepDone == 0 && move <= kDistCheckPush) {
+    } else if (stepDone == 0 && move <= Navigator_t::kBoundaryPush) {
       // Cope with a track at a boundary that wants to bend back into the previous
       // volume in the first step (by reducing the attempted distance.)
 
       // Deal with back-scattered tracks that need to be relocated. Check distance along initial direction.
 #ifdef ADEPT_USE_SURF
-      move = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state,
-                                                   hitsurf_index, kDistCheckPush);
+      move =
+          Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, hitsurf_index);
 #else
-      move = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state,
-                                                   kDistCheckPush);
+      move = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
 #endif
 
-      if (move <= kDistCheckPush) {
+      if (move <= Navigator_t::kBoundaryPush) {
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
           printf("| BACK-SCATTERING or WRONG RELOCATION detected hitting ");

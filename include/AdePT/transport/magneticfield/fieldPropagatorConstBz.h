@@ -63,7 +63,6 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated, const double safetyIn,
     const int max_iterations)
 {
-  const double kPush = 0;
 
   double momentumMag = sqrt(kinE * (kinE + 2 * mass));
 
@@ -118,10 +117,10 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
         safety       = newSafety;
       } else {
 #ifdef ADEPT_USE_SURF
-        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
-                                                   hitsurf_index, kPush);
+        move =
+            Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, hitsurf_index);
 #else
-        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, kPush);
+        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
 #endif
       }
     }
@@ -140,8 +139,8 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
       // We want to try the maximum step in the next iteration.
       maxNextSafeMove   = safeLength;
       continueIteration = true;
-    } else if (move <= kPush + Navigator::kBoundaryPush && stepDone == 0) {
-      // FIXME: Even for zero steps, the Navigator will return kPush + possibly
+    } else if (move <= Navigator::kBoundaryPush && stepDone == 0) {
+      // FIXME: Even for zero steps, the Navigator will return possibly
       // Navigator::kBoundaryPush instead of a real 0.
       move        = 0;
       lastWasZero = true;
