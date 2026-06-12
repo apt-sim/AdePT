@@ -4,7 +4,10 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/kernels/WoodcockHelper.cuh>
+#ifdef ADEPT_ENABLE_WDT
 #include <AdePT/transport/kernels/gammasWDT.cuh>
+#endif
 
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/tracks/TrackDebug.cuh>
@@ -19,6 +22,13 @@
 #include <G4HepEmGammaInteractionCompton.hh>
 #include <G4HepEmGammaInteractionConversion.hh>
 #include <G4HepEmGammaInteractionPhotoelectric.hh>
+#ifndef ADEPT_G4HEPEM_GAMMA_ICC_INCLUDED
+#define ADEPT_G4HEPEM_GAMMA_ICC_INCLUDED
+#include <G4HepEmGammaManager.icc>
+#include <G4HepEmGammaInteractionCompton.icc>
+#include <G4HepEmGammaInteractionConversion.icc>
+#include <G4HepEmGammaInteractionPhotoelectric.icc>
+#endif
 
 using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;
@@ -235,19 +245,8 @@ __global__ void __launch_bounds__(256, 1)
 
         // next region is a GPU region
         if (regionId >= 0) {
-
-          const adeptint::WDTDeviceView &view = gWDTData;
-          const int wdtIdx                    = view.regionToWDT[regionId]; // index into view.regions (or -1)
-
-          // next region is a Woodcock tracking region
-          if (wdtIdx >= 0) {
-            const adeptint::WDTRegion reg = view.regions[wdtIdx];
-            // minimal energy for Woodcock tracking succeeded, do Woodcock tracking
-            if (eKin > reg.ekinMin) {
-              enterWDTRegion = true;
-            }
-          }
-          trackSurvives = true;
+          enterWDTRegion = ShouldUseWDT(nextState, eKin);
+          trackSurvives  = true;
         } else {
           // To be safe, just push a bit the track exiting the GPU region to make sure
           // Geant4 does not relocate it again inside the same region

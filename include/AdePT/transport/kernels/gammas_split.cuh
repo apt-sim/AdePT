@@ -4,10 +4,13 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/kernels/WoodcockHelper.cuh>
 
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
+#ifdef ADEPT_ENABLE_WDT
 #include <AdePT/transport/kernels/gammasWDT_split.cuh>
+#endif
 #include <AdePT/transport/queues/ParticleManager.cuh>
 #include <AdePT/transport/state/DeviceGlobals.cuh>
 #include <AdePT/transport/state/TransportStats.hh>
@@ -19,6 +22,13 @@
 #include <G4HepEmGammaInteractionCompton.hh>
 #include <G4HepEmGammaInteractionConversion.hh>
 #include <G4HepEmGammaInteractionPhotoelectric.hh>
+#ifndef ADEPT_G4HEPEM_GAMMA_ICC_INCLUDED
+#define ADEPT_G4HEPEM_GAMMA_ICC_INCLUDED
+#include <G4HepEmGammaManager.icc>
+#include <G4HepEmGammaInteractionCompton.icc>
+#include <G4HepEmGammaInteractionConversion.icc>
+#include <G4HepEmGammaInteractionPhotoelectric.icc>
+#endif
 
 using StepActionParam = adept::SteppingAction::Params;
 using VolAuxData      = adeptint::VolAuxData;
@@ -378,16 +388,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
         // Move to the next boundary after recording the transported step.
         currentTrack.navState = currentTrack.nextState;
 
-        // Check whether next region is a Woodcock tracking region
-        const adeptint::WDTDeviceView &view = gWDTData;
-        const int wdtIdx = view.regionToWDT[nextauxData.fGPUregionId]; // index into view.regions (or -1)
-        if (wdtIdx >= 0) {
-          const adeptint::WDTRegion reg = view.regions[wdtIdx];
-          // minimal energy for Woodcock tracking succeeded, do Woodcock tracking
-          if (currentTrack.eKin > reg.ekinMin) {
-            enterWDTRegion = true;
-          }
-        }
+        enterWDTRegion = ShouldUseWDT(currentTrack.nextState, currentTrack.eKin);
 
         theTrack->SetMCIndex(nextauxData.fMCIndex);
         survive();

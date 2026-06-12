@@ -50,11 +50,12 @@ Runs AdePT in a local matrix similar to Jenkins:
   - mono (default monolithic kernels, external B-field support)
   - split (-DADEPT_USE_SPLIT_KERNELS=ON)
   - mixed (-DADEPT_MIXED_PRECISION=ON)
+  - surface (-DADEPT_USE_SURF=ON; WDT disabled by CMake)
 
 Options:
   --suite <drift|drift-smoke|ci>
                               Test suite to run (default: drift)
-  --configs <list>           Comma list: mono,split,mixed (default: mono,split)
+  --configs <list>           Comma list: mono,split,mixed,surface (default: mono,split)
   --build-type <type>        CMake build type (default: Release)
   --cuda-arch <arch|auto>    CUDA arch (default: auto)
   --jobs <N|auto>            Parallel build jobs (default: auto = nproc)
@@ -74,6 +75,7 @@ Options:
 Suite behavior:
   drift (default): builds PR + master for each config and runs physics_drift_* tests
   drift-smoke    : builds only this checkout and runs physics_drift_* once, without comparison
+                   (surface builds only and runs the B-field unit tests)
   ci              : runs Jenkins-like selection for each config (can take much longer)
 USAGE
 }
@@ -204,11 +206,14 @@ IFS=',' read -r -a CONFIGS <<< "${CONFIG_LIST}"
 [[ ${#CONFIGS[@]} -gt 0 ]] || die "No configs provided"
 
 for cfg in "${CONFIGS[@]}"; do
+  if [[ "${SUITE}" == "drift" && "${cfg}" == "surface" ]]; then
+    die "Surface is not part of the PR-vs-master drift suite; use --suite drift-smoke --configs surface."
+  fi
   case "${cfg}" in
-    mono|split|mixed)
+    mono|split|mixed|surface)
       ;;
     *)
-      die "Invalid config '${cfg}'. Allowed: mono, split, mixed"
+      die "Invalid config '${cfg}'. Allowed: mono, split, mixed, surface"
       ;;
   esac
 done
@@ -271,6 +276,7 @@ config_suffix() {
     mono) echo "MONOL" ;;
     split) echo "SPLIT_ON" ;;
     mixed) echo "MIXED_PRECISION" ;;
+    surface) echo "SURFACE" ;;
   esac
 }
 
@@ -289,6 +295,9 @@ build_config() {
       ;;
     mixed)
       cfg_args+=("-DADEPT_MIXED_PRECISION=ON")
+      ;;
+    surface)
+      cfg_args+=("-DADEPT_USE_SURF=ON")
       ;;
     *)
       die "Internal error: unsupported config '${cfg}'"
@@ -421,6 +430,17 @@ run_drift_smoke_tests() {
   run_ctest --test-dir "${pr_build_dir}" --output-on-failure -R '^physics_drift_' -j1
 }
 
+run_bfield_unit_tests() {
+  local build_dir=$1
+
+  log "Building surface B-field unit target in ${build_dir}"
+  cmake --build "${build_dir}" --target test_bfield -j"${JOBS}"
+
+  log "Running surface B-field unit tests in ${build_dir}"
+  run_ctest --test-dir "${build_dir}" --output-on-failure \
+    -R '^(UniformMagneticField|MagneticFieldEquation|RkIntegrationDriver|FieldPropagatorRungeKutta)\.' -j1
+}
+
 run_ci_subset_tests() {
   local cfg=$1
   local build_dir=$2
@@ -437,6 +457,10 @@ run_ci_subset_tests() {
       ;;
     mixed)
       log "Skipping mixed CI subset tests (no mixed non-drift stage in current Jenkins pipeline)"
+      ;;
+    surface)
+      log "Running surface CI subset: B-field unit tests"
+      run_bfield_unit_tests "${build_dir}"
       ;;
     *)
       die "Internal error: unsupported config '${cfg}'"
@@ -476,7 +500,12 @@ for cfg in "${CONFIGS[@]}"; do
     build_config "master" "${MASTER_WORKTREE_DIR}" "${master_build_dir}" "${cfg}"
     run_drift_tests "${pr_build_dir}" "${master_build_dir}"
   elif [[ "${SUITE}" == "drift-smoke" ]]; then
-    run_drift_smoke_tests "${pr_build_dir}"
+    if [[ "${cfg}" == "surface" ]]; then
+      log "Surface config is compile-only plus B-field unit tests; skipping physics_drift smoke"
+      run_bfield_unit_tests "${pr_build_dir}"
+    else
+      run_drift_smoke_tests "${pr_build_dir}"
+    fi
   else
     run_ci_subset_tests "${cfg}" "${pr_build_dir}"
   fi

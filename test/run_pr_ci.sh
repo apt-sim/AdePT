@@ -47,7 +47,7 @@ Runs the AdePT PR CI flow on a self-hosted runner:
   2. run physics drift comparisons
   3. always run unit tests on mono
   4. run validation on mono + split when drift differs from master, or when requested
-  5. optionally build and run one-sided physics drift smoke checks for Debug and mixed precision
+  5. optionally build/run Debug and mixed precision drift smoke checks, plus surface compile/B-field checks
 
 Options:
   --build-root <path>        Build/cache root (default: ${DEFAULT_BUILD_ROOT})
@@ -61,7 +61,7 @@ Options:
   --force-rebuild            Force clean rebuilds in the matrix runner
   --refresh-master           Refresh cached master worktree/builds
   --always-run-validation    Run validation even when drift matches master
-  --run-drift-smoke          Also build and run Debug and mixed precision drift smoke checks
+  --run-drift-smoke          Also build/run Debug and mixed precision drift smoke, plus surface compile/B-field checks
   --run-debug-drift          Compatibility alias for --run-drift-smoke
   -h, --help                 Show this help
 EOF
@@ -297,6 +297,26 @@ if [[ "${RUN_DRIFT_SMOKE}" -eq 1 ]]; then
   log "Running mixed precision drift smoke"
   log "Mixed precision drift smoke build root: ${MIXED_DRIFT_SMOKE_BUILD_ROOT}"
   if ! "${MATRIX_RUNNER}" "${mixed_matrix_common_args[@]}"; then
+    DRIFT_SMOKE_STATUS=1
+  fi
+
+  SURFACE_BUILD_ROOT="${BUILD_ROOT}/surface-compile"
+  surface_matrix_common_args=(
+    --suite drift-smoke
+    --configs surface
+    --build-root "${SURFACE_BUILD_ROOT}"
+    --cuda-arch "${CUDA_ARCH}"
+    --jobs "${JOBS}"
+    --ctest-timeout-sec "${CTEST_TIMEOUT_SEC}"
+  )
+
+  if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+    surface_matrix_common_args+=(--force-rebuild)
+  fi
+
+  log "Running surface navigation compile and B-field unit tests"
+  log "Surface navigation compile build root: ${SURFACE_BUILD_ROOT}"
+  if ! "${MATRIX_RUNNER}" "${surface_matrix_common_args[@]}"; then
     DRIFT_SMOKE_STATUS=1
   fi
 else
