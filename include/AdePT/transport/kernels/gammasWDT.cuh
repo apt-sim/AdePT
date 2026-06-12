@@ -19,10 +19,13 @@
 #include <G4HepEmGammaInteractionConversion.hh>
 #include <G4HepEmGammaInteractionPhotoelectric.hh>
 // Pull in implementation.
+#ifndef ADEPT_G4HEPEM_GAMMA_ICC_INCLUDED
+#define ADEPT_G4HEPEM_GAMMA_ICC_INCLUDED
 #include <G4HepEmGammaManager.icc>
 #include <G4HepEmGammaInteractionCompton.icc>
 #include <G4HepEmGammaInteractionConversion.icc>
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
+#endif
 
 using VolAuxData      = adeptint::VolAuxData;
 using StepActionParam = adept::SteppingAction::Params;

@@ -206,10 +206,20 @@ void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::W
   volAuxArray.fAuxData    = auxData;
   adept::transport::InitVolAuxArray(volAuxArray);
 
+#ifdef ADEPT_ENABLE_WDT
   fHasWDTRegions = !wdtPacked.regions.empty();
+#else
+  fHasWDTRegions = false;
+  if (!wdtPacked.regions.empty()) {
+    std::cout << "=== AdePTTransport: Woodcock tracking is disabled in this build; ignoring "
+              << wdtPacked.regions.size() << " configured WDT region(s)\n";
+  }
+#endif
 
   adeptint::WDTDeviceBuffers wdtDev;
+#ifdef ADEPT_ENABLE_WDT
   adept::transport::detail::InitWDTOnDevice(wdtPacked, wdtDev, fMaxWDTIter);
+#endif
   fWDTDev = wdtDev;
 
   const auto toDeviceSlots = 4u * 8192u * fNThread;

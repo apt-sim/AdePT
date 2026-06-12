@@ -56,6 +56,7 @@ set(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
 # Options
 option(ADEPT_USE_SURF "Enable surface model navigation on GPU" OFF)
+option(ADEPT_ENABLE_WDT "Enable Woodcock tracking" ON)
 option(ADEPT_MIXED_PRECISION "Use B-field integration and surface model in mixed precision" OFF)
 option(ADEPT_USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
@@ -336,12 +337,22 @@ if(ADEPT_USE_SURF)
       message(STATUS "${Green}Using the surface model in VecGeom in double precision${ColorReset}")
     endif()
     add_compile_definitions(ADEPT_USE_SURF)
+    if(ADEPT_ENABLE_WDT)
+      message(STATUS "${Magenta}Surface navigation currently disables Woodcock tracking${ColorReset}")
+      set(ADEPT_ENABLE_WDT OFF CACHE BOOL "Enable Woodcock tracking" FORCE)
+    endif()
   else()
     message(STATUS "${Magenta}No VecGeom surface support. Forcing ADEPT_USE_SURF to OFF${ColorReset}")
     set(ADEPT_USE_SURF OFF CACHE BOOL "Disable using the surface model" FORCE)
   endif()
 else()
   message(STATUS "${Green}Using the solid model in VecGeom${ColorReset}")
+endif()
+if(ADEPT_ENABLE_WDT)
+  message(STATUS "${Green}Woodcock tracking enabled${ColorReset}")
+  add_compile_definitions(ADEPT_ENABLE_WDT)
+else()
+  message(STATUS "${Magenta}Woodcock tracking disabled${ColorReset}")
 endif()
 
 # Find Geant4, optional for now
@@ -600,6 +611,7 @@ endif()
 set(ADEPT_PUBLIC_CONFIG_DEFINITIONS
   ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
   $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
+  $<$<BOOL:${ADEPT_ENABLE_WDT}>:ADEPT_ENABLE_WDT>
   $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
   $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
   $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>

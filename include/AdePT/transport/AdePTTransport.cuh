@@ -1127,12 +1127,15 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 
         const auto [threads, blocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::Gamma]);
 #ifdef ADEPT_USE_SPLIT_KERNELS
+#ifdef ADEPT_ENABLE_WDT
         const auto [wdtThreads, wdtBlocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::GammaWDT]);
+#endif
         const auto [interactionThreads, interactionBlocks] = computeThreadsAndBlocks(
             particlesInFlight[GPUQueueIndex::Gamma] + particlesInFlight[GPUQueueIndex::GammaWDT]);
         GammaHowFar<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
             steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
+#ifdef ADEPT_ENABLE_WDT
         if (hasWDTRegions) {
           GammaWoodcock<SelectedSteppingAction><<<wdtBlocks, wdtThreads, 0, gammas.auxiliaryStream>>>(
               gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
@@ -1140,6 +1143,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
               allowFinishOffEvent, returnAllSteps, returnLastStep);
           ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
         }
+#endif
         GammaPropagation<<<blocks, threads, 0, gammas.stream>>>(gammas.tracks, gpuState.hepEmBuffers_d.gammasHepEm,
                                                                 gammas.queues.propagation);
         if (hasWDTRegions) {
@@ -1172,6 +1176,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             <<<blocks, threads, 0, gammas.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
                                                     allowFinishOffEvent, returnAllSteps, returnLastStep);
 
+#ifdef ADEPT_ENABLE_WDT
         if (hasWDTRegions) {
           const auto [wdtThreads, wdtBlocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::GammaWDT]);
           TransportGammasWoodcock<SelectedSteppingAction><<<wdtBlocks, wdtThreads, 0, gammas.auxiliaryStream>>>(
@@ -1179,6 +1184,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
               returnLastStep);
           ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
         }
+#endif
 #endif
 
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.event, gammas.stream));

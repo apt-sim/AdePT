@@ -12,6 +12,11 @@ namespace adept::transport {
 // kinetic energy
 __device__ __forceinline__ bool ShouldUseWDT(const vecgeom::NavigationState &state, double eKin)
 {
+#ifndef ADEPT_ENABLE_WDT
+  (void)state;
+  (void)eKin;
+  return false;
+#else
   // 1) region from current logical volume
   const int lvolId   = state.GetLogicalId();
   const auto &aux    = gVolAuxData[lvolId];
@@ -32,6 +37,7 @@ __device__ __forceinline__ bool ShouldUseWDT(const vecgeom::NavigationState &sta
   // Now it is 1) a GPU region 2) a Woodcock tracking region and 3) the track has enough energy:
   // mark for Woodcock tracking
   return true;
+#endif
 }
 
 } // namespace adept::transport
