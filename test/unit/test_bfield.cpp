@@ -192,6 +192,15 @@ struct ThrowingNavigator {
     ADD_FAILURE() << "navigation should not be called";
     return 0.0;
   }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
+                                         const vecgeom::Vector3D<double> &direction, double step,
+                                         const vecgeom::NavigationState &currentState,
+                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex, double push)
+  {
+    hitSurfaceIndex = -1;
+    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState, push);
+  }
 };
 
 // Fake navigator with a boundary at one quarter of the proposed chord. This
@@ -215,6 +224,15 @@ struct BoundaryNavigator {
     ++stepCalls;
     nextState.SetBoundaryState(true);
     return 0.25 * step;
+  }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
+                                         const vecgeom::Vector3D<double> &direction, double step,
+                                         const vecgeom::NavigationState &currentState,
+                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex, double push)
+  {
+    hitSurfaceIndex = 0;
+    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState, push);
   }
 };
 
