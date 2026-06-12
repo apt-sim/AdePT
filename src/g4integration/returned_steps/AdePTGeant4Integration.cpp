@@ -176,6 +176,18 @@ G4ParticleDefinition *GetParticleDefinition(ParticleType particleType)
   }
 }
 
+void IncrementCurrentStepNumber(G4Track &track, G4int nSteps)
+{
+  if (nSteps < 1) nSteps = 1;
+#ifdef ADEPT_HAS_G4TRACK_NSTEP_INCREMENT
+  track.IncrementCurrentStepNumber(nSteps);
+#else
+  for (G4int i = 0; i < nSteps; ++i) {
+    track.IncrementCurrentStepNumber();
+  }
+#endif
+}
+
 void MergeNuclearReplayIntoVisibleStep(const G4Track &scratchTrack, const G4Step &scratchStep, G4Step &visibleStep,
                                        bool isLeptonNuclearStep)
 {
@@ -238,14 +250,14 @@ void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSte
   fHostTrackDataMapper->retireToCPU(parentStep.fTrackID);
 }
 
-G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track) const
+G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track, G4int nSteps) const
 {
   auto *dynamic =
       new G4DynamicParticle(track.GetParticleDefinition(), track.GetMomentumDirection(), track.GetKineticEnergy());
   dynamic->SetPrimaryParticle(track.GetDynamicParticle()->GetPrimaryParticle());
 
   auto *clone = new G4Track(dynamic, track.GetGlobalTime(), track.GetPosition());
-  clone->IncrementCurrentStepNumber();
+  IncrementCurrentStepNumber(*clone, nSteps);
   clone->SetTrackID(track.GetTrackID());
   clone->SetParentID(track.GetParentID());
   clone->SetLocalTime(track.GetLocalTime());
@@ -285,7 +297,7 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parent
   dynamic->SetPrimaryParticle(hostTData.primary);
 
   auto *track = new G4Track(dynamic, parentStep.fGlobalTime, position);
-  track->IncrementCurrentStepNumber();
+  IncrementCurrentStepNumber(*track, static_cast<G4int>(parentStep.fStepCounter));
   track->SetTrackID(hostTData.g4id);
   track->SetParentID(hostTData.g4parentid);
   track->SetLocalTime(parentStep.fLocalTime);
@@ -508,7 +520,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
                                             direction, parentStep.fPostStepPoint.fEKin);
 
       auto *nuclearReactionTrack = new G4Track(dynamic, parentStep.fGlobalTime, position);
-      nuclearReactionTrack->IncrementCurrentStepNumber();
+      IncrementCurrentStepNumber(*nuclearReactionTrack, static_cast<G4int>(parentStep.fStepCounter));
       nuclearReactionTrack->SetLocalTime(parentStep.fLocalTime);
       nuclearReactionTrack->SetProperTime(parentStep.fProperTime);
       nuclearReactionTrack->SetWeight(parentStep.fTrackWeight);
@@ -580,7 +592,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       // Fallback only for the case without an attached Geant4 nuclear process:
       // there is then no temporary nuclear-replay track that can be continued
       // on the CPU, so we create a separate heap-owned track for the stack.
-      returnedParentTrack   = MakeTrackForCPUStacking(*fStepReconstructionObjects->fG4Step->GetTrack());
+      returnedParentTrack   = MakeTrackForCPUStacking(*fStepReconstructionObjects->fG4Step->GetTrack(),
+                                                      static_cast<G4int>(parentStep.fStepCounter));
       returnParentTrackToG4 = true;
     }
   } else if (isOutOfGPURegionStep || isFinishOnCPUStep) {

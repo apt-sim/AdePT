@@ -119,7 +119,7 @@ private:
   /// replay track to continue on the CPU, and the visible reconstructed track
   /// cannot be handed to the stack manager because it is reused integration
   /// storage.
-  G4Track *MakeTrackForCPUStacking(const G4Track &track) const;
+  G4Track *MakeTrackForCPUStacking(const G4Track &track, G4int nSteps) const;
 
   /// @brief Recreate a track to from a returned parent step to be continued on CPU.
   /// @details
