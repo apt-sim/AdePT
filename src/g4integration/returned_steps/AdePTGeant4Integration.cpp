@@ -161,8 +161,6 @@ void Deleter::operator()(StepReconstructionObjects *ptr)
 
 namespace {
 
-constexpr double kG4HandoffPush = 100. * vecgeom::kTolerance;
-
 G4ParticleDefinition *GetParticleDefinition(ParticleType particleType)
 {
   switch (particleType) {
@@ -285,21 +283,14 @@ G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track, G
 G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parentStep, const HostTrackData &hostTData,
                                                            bool setStopButAlive) const
 {
+  constexpr double tolerance = 10. * vecgeom::kTolerance;
+
   G4ThreeVector direction(parentStep.fPostStepPoint.fMomentumDirection.x(),
                           parentStep.fPostStepPoint.fMomentumDirection.y(),
                           parentStep.fPostStepPoint.fMomentumDirection.z());
   G4ThreeVector position(parentStep.fPostStepPoint.fPosition.x(), parentStep.fPostStepPoint.fPosition.y(),
                          parentStep.fPostStepPoint.fPosition.z());
-  // VecGeom has decided that the track left the GPU region and is now in the CPU region. The coordinate can
-  // still be exactly on the shared boundary, though. Geant4 did not make that boundary crossing itself, so its
-  // navigator has no last-exited-daughter state to stop the next geometry step from immediately finding the GPU
-  // daughter again. If that happens, AdePT offloads the track back to the GPU without any real progress and the track
-  // can bounce. This tiny handoff-only push moves the point just far enough along the outgoing direction for CPU
-  // tracking to resume on the CPU side of the boundary.
-  if (parentStep.fStepLimProcessId == kAdePTOutOfGPURegionProcess &&
-      parentStep.fPostStepPoint.fNavigationState.IsOnBoundary()) {
-    position += kG4HandoffPush * direction;
-  }
+  position += tolerance * direction;
 
   auto *dynamic = new G4DynamicParticle(GetParticleDefinition(parentStep.fParticleType), direction,
                                         parentStep.fPostStepPoint.fEKin);
