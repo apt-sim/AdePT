@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+# AdePT/domain-specific spellings accepted by codespell.
+nd
+inout
