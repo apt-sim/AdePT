@@ -186,7 +186,7 @@ struct ThrowingNavigator {
   }
 
   static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &, const vecgeom::Vector3D<double> &, double,
-                                         const vecgeom::NavigationState &, vecgeom::NavigationState &, double)
+                                         const vecgeom::NavigationState &, vecgeom::NavigationState &)
   {
     ++stepCalls;
     ADD_FAILURE() << "navigation should not be called";
@@ -196,10 +196,10 @@ struct ThrowingNavigator {
   static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
                                          const vecgeom::Vector3D<double> &direction, double step,
                                          const vecgeom::NavigationState &currentState,
-                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex, double push)
+                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex)
   {
     hitSurfaceIndex = -1;
-    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState, push);
+    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState);
   }
 };
 
@@ -219,7 +219,7 @@ struct BoundaryNavigator {
 
   static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &, const vecgeom::Vector3D<double> &,
                                          double step, const vecgeom::NavigationState &,
-                                         vecgeom::NavigationState &nextState, double)
+                                         vecgeom::NavigationState &nextState)
   {
     ++stepCalls;
     nextState.SetBoundaryState(true);
@@ -229,10 +229,10 @@ struct BoundaryNavigator {
   static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
                                          const vecgeom::Vector3D<double> &direction, double step,
                                          const vecgeom::NavigationState &currentState,
-                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex, double push)
+                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex)
   {
     hitSurfaceIndex = 0;
-    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState, push);
+    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState);
   }
 };
 
