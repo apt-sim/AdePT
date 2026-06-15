@@ -161,6 +161,8 @@ void Deleter::operator()(StepReconstructionObjects *ptr)
 
 namespace {
 
+constexpr double kG4HandoffPush = 100. * vecgeom::kTolerance;
+
 G4ParticleDefinition *GetParticleDefinition(ParticleType particleType)
 {
   switch (particleType) {
@@ -283,14 +285,21 @@ G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track, G
 G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parentStep, const HostTrackData &hostTData,
                                                            bool setStopButAlive) const
 {
-  constexpr double tolerance = 10. * vecgeom::kTolerance;
-
   G4ThreeVector direction(parentStep.fPostStepPoint.fMomentumDirection.x(),
                           parentStep.fPostStepPoint.fMomentumDirection.y(),
                           parentStep.fPostStepPoint.fMomentumDirection.z());
   G4ThreeVector position(parentStep.fPostStepPoint.fPosition.x(), parentStep.fPostStepPoint.fPosition.y(),
                          parentStep.fPostStepPoint.fPosition.z());
-  position += tolerance * direction;
+  // VecGeom has decided that the track left the GPU region and is now in the CPU region. The coordinate can
+  // still be exactly on the shared boundary, though. Geant4 did not make that boundary crossing itself, so its
+  // navigator has no last-exited-daughter state to stop the next geometry step from immediately finding the GPU
+  // daughter again. If that happens, AdePT offloads the track back to the GPU without any real progress and the track
+  // can bounce. This tiny handoff-only push moves the point just far enough along the outgoing direction for CPU
+  // tracking to resume on the CPU side of the boundary.
+  if (parentStep.fStepLimProcessId == kAdePTOutOfGPURegionProcess &&
+      parentStep.fPostStepPoint.fNavigationState.IsOnBoundary()) {
+    position += kG4HandoffPush * direction;
+  }
 
   auto *dynamic = new G4DynamicParticle(GetParticleDefinition(parentStep.fParticleType), direction,
                                         parentStep.fPostStepPoint.fEKin);
@@ -350,9 +359,7 @@ G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUStep const *s
 void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, bool const callUserSteppingAction,
                                             bool const callUserTrackingAction)
 {
-  // FIXME: to be removed, as it is not needed with the direct VecGeom to G4 NavState.
-  // needed here only temporarily to match exactly the behavior of returning nuclear interaction steps as tracks
-  constexpr double tolerance = 10. * vecgeom::kTolerance;
+
   if (!fStepReconstructionObjects) {
     fStepReconstructionObjects.reset(new AdePTGeant4Integration_detail::StepReconstructionObjects());
   }
@@ -509,12 +516,11 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     if (nuclearProcess != nullptr) {
       returnParentTrackToG4 = isLeptonNuclearStep;
 
-      const G4ThreeVector direction(parentStep.fPostStepPoint.fMomentumDirection.x(),
+      G4ThreeVector const position(parentStep.fPostStepPoint.fPosition.x(), parentStep.fPostStepPoint.fPosition.y(),
+                                   parentStep.fPostStepPoint.fPosition.z());
+      G4ThreeVector const direction(parentStep.fPostStepPoint.fMomentumDirection.x(),
                                     parentStep.fPostStepPoint.fMomentumDirection.y(),
                                     parentStep.fPostStepPoint.fMomentumDirection.z());
-      G4ThreeVector position(parentStep.fPostStepPoint.fPosition.x(), parentStep.fPostStepPoint.fPosition.y(),
-                             parentStep.fPostStepPoint.fPosition.z());
-      position += tolerance * direction;
 
       auto *dynamic = new G4DynamicParticle(fStepReconstructionObjects->fG4Step->GetTrack()->GetParticleDefinition(),
                                             direction, parentStep.fPostStepPoint.fEKin);
