@@ -20,8 +20,8 @@ add_executable(testField
   electrons.cu
   gammas.cu
 )
-target_include_directories(testField 
-  PUBLIC 
+target_include_directories(testField
+  PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/>
     $<BUILD_INTERFACE:${Geant4_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${G4HepEm_INCLUDE_DIR}>
@@ -43,9 +43,9 @@ if(ADEPT_USE_EXT_BFIELD)
   )
 endif()
 
-#set_target_properties(testField 
-#  PROPERTIES 
-#    CUDA_SEPARABLE_COMPILATION ON 
+#set_target_properties(testField
+#  PROPERTIES
+#    CUDA_SEPARABLE_COMPILATION ON
 #    CUDA_RESOLVE_DEVICE_SYMBOLS ON
 #)
 

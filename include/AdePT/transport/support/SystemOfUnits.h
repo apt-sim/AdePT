@@ -22,7 +22,7 @@
  * \li  radian                  (radian)
  * \li  steradian               (steradian)
  *
- * It's a non exhaustive list of derived and pratical units (i.e. mostly the SI
+ * It's a non exhaustive list of derived and practical units (i.e. mostly the SI
  * units).
  *
  * The value of \f$ \pi \f$ (kPi) is defined here as it is needed for radian to degree

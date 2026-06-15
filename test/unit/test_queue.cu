@@ -41,7 +41,7 @@ int main(void)
   // Define the kernels granularity: 10K blocks of 32 treads each
   dim3 nblocks(1000), nthreads(32);
 
-  int capacity      = 1 << 15; // 32768 - accomodates values pushed by all threads
+  int capacity      = 1 << 15; // 32768 - accommodates values pushed by all threads
   size_t buffersize = Queue_t::SizeOfInstance(capacity);
   char *buffer      = nullptr;
   ADEPT_DEVICE_API_CALL(MallocManaged(&buffer, buffersize));

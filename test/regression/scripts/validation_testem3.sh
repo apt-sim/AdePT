@@ -3,10 +3,10 @@
 # SPDX-FileCopyrightText: 2025 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-# This is a CI test for reproducbility. The same 8 ttbar events are executed twice
+# This is a CI test for reproducibility. The same 8 ttbar events are executed twice
 # and then it is checked that the total energy deposition is exactly the same.
 
-# abort on first encounted error
+# abort on first encountered error
 set -eu -o pipefail
 
 
@@ -53,7 +53,7 @@ $CI_TEST_DIR/python_scripts/macro_generator.py \
     --cpu_capacity_factor ${cpu_capacity_factor} \
     --gun_number ${gun_number} \
     --track_in_all_regions True\
-    --gun_type setDefault 
+    --gun_type setDefault
 
 
 # run test
@@ -65,7 +65,7 @@ $ADEPT_EXECUTABLE --allsensitive --accumulated_events \
 # Validating the relative error per layer
 # The saved G4 benchmark file was run with --noadept and 1e7 primary 10 GeV electrons.
 # Comparing against the configured AdePT validation statistics should give errors below 1%.
-# This is a compromise between run time and accuracy of the test 
+# This is a compromise between run time and accuracy of the test
 $CI_TEST_DIR/python_scripts/check_validation.py --file1 ${CI_TMP_DIR}/adept_em3_2.5e4_e-.csv \
                                                 --file2 ${CI_TEST_DIR}/benchmark_files/g4hepem_em3_10e7_e-.csv \
                                                 --n1 ${nprimaries} --n2 1e7 --tol 0.01 \

@@ -5,7 +5,7 @@ SPDX-License-Identifier: CC-BY-ND-4.0
 
 # Code Of Conduct
 
-The AdePT project observes [CERN's Code of Conduct](https://cern.ch/codeofconduct). 
+The AdePT project observes [CERN's Code of Conduct](https://cern.ch/codeofconduct).
 Below is a plain text summary of the [official PDF](https://cds.cern.ch/record/2240689/files/BrochureCodeofConductEN.pdf?)
 as of 1. April 2020. Please consult the [PDF](https://cds.cern.ch/record/2240689/files/BrochureCodeofConductEN.pdf?)
 for up-to-date information.
@@ -107,4 +107,3 @@ CERN’s excellence derives from an environment in which the knowledge and persp
 - Abstain from and actively discourage discrimination in all forms.
 - Avoid offending others by exercising restraint, and are aware that statements or actions not intended to be offensive to another person may be perceived as such.
 - Refrain from unpleasant or disparaging remarks or actions, in particular on the basis of sex, age, religion, beliefs, nationality, culture, ethnicity, race, sexual orientation, status at CERN, disability, or family situation.
-

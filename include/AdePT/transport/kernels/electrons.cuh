@@ -214,7 +214,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       safety = currentTrack.GetSafety(pos);
       if (safety < physicalStepLength) {
         // Recompute safety and update it in the track.
-        // Use maximum accuracy only if safety is samller than physicalStepLength
+        // Use maximum accuracy only if safety is smaller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
         currentTrack.SetSafety(pos, safety);
 #if ADEPT_DEBUG_TRACK > 0
@@ -279,7 +279,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     if (verbose) printf("| geometricalStepLengthFromPhysics %g ", geometricalStepLengthFromPhysics);
 #endif
 
-    // The phyiscal step length is the amount that the particle experiences
+    // The physical step length is the amount that the particle experiences
     // which might be longer than the geometrical step length due to MSC. As
     // long as we call PerformContinuous in the same kernel we don't need to
     // care, but we need to make this available when splitting the operations.
@@ -341,7 +341,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     }
 #endif
 
-    // punish miniscule steps by increasing the looperCounter by 10
+    // punish minuscule steps by increasing the looperCounter by 10
     if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
 
     // Set boundary state in navState so the next step and secondaries get the
@@ -832,7 +832,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     if (trackSurvives) {
       survive();
     } else {
-      // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
+      // particles that don't survive are killed by not enqueuing them to the next queue and freeing the slot
       slotManager.MarkSlotForFreeing(slot);
     }
 

@@ -55,8 +55,8 @@ pipeline {
           label "$DOCKER_LABEL"
           args  """-v /cvmfs:/cvmfs
                    -v /ec:/ec
-                   -e SHELL 
-                   -e ghprbPullAuthorLogin 
+                   -e SHELL
+                   -e ghprbPullAuthorLogin
                    -e ghprbPullId
                    --net=host
                    --hostname ${LABEL}-docker
@@ -164,7 +164,7 @@ pipeline {
 def setJobName() {
   if (params.ghprbPullId) {
     currentBuild.displayName = "#${BUILD_NUMBER}" + '-' + params.ghprbPullAuthorLogin + '#' +  params.ghprbPullId + '-' + params.COMPILER + '-' + params.BUILDTYPE
-  } 
+  }
   else {
     currentBuild.displayName = "#${BUILD_NUMBER}" + ' ' + params.COMPILER + '-' + params.BUILDTYPE
   }

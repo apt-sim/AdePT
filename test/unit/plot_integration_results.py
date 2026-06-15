@@ -331,7 +331,7 @@ def compare_errors_fig(
 def mean_multi_error_fig(
     traj_pairs_dict: Dict[str, List[Tuple[Trajectory, Trajectory]]], use_relative: bool, n_pts: int = 500
 ):
-    """Plots errors accross multiple sets of ref/test trajectories in the same plots."""
+    """Plots errors across multiple sets of ref/test trajectories in the same plots."""
     comps = ("x", "y", "z", "px", "py", "pz")
     err_arrays = {c: {name: [] for name in traj_pairs_dict.keys()} for c in comps}
 
@@ -476,7 +476,7 @@ def main():
             sel_labels=args.labels,
         )
         plt.show()
-    
+
     elif args.cmd == "multierrs":
         pairs_dict = {}
         for file, base_label, pairs_name in zip(args.files, args.base_labels, args.names):

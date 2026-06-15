@@ -31,17 +31,17 @@
 # Set the total number of track slots that will be allocated on the GPU, in millions
 
 /adept/setMillionsOfHitSlots 1
-# Set the total number of hit slots that will be allocated on the GPU, in millions 
+# Set the total number of hit slots that will be allocated on the GPU, in millions
 
 /adept/setHitBufferThreshold 0.8
-# Set the fractional threshold at which the GPU steps are copied from the buffer and not taken 
-# directly by the G4 workers 
+# Set the fractional threshold at which the GPU steps are copied from the buffer and not taken
+# directly by the G4 workers
 
 /adept/setCPUCapacityFactor 3
 # Sets the CPUCapacity factor for scoring with respect to the GPU (see: /adept/setMillionsOfHitSlots). "
 # Must at least be 2.5
 
-/adept/setHitBufferSafetyFactor 1.5  
+/adept/setHitBufferSafetyFactor 1.5
 # Sets the HitBuffer safety factor for stalling the GPU. If nParticlesInFlight * HitBufferSafetyFactor > "
 # NumHitSlotsLeft, the GPU will stall. Default: 1.5
 
@@ -56,7 +56,7 @@
 ### ------------
 ### Specifying where the GPU is used:
 
-/adept/setTrackInAllRegions false 
+/adept/setTrackInAllRegions false
 # If true, particles are tracked on the GPU across the whole geometry (unless removed via /adept/removeGPURegion )
 
 /adept/addGPURegion Layer1
@@ -71,13 +71,13 @@
 ### ------------
 ### UserActions:
 /adept/CallUserSteppingAction true
-# If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that 
-# means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the 
+# If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that
+# means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the
 # secondary before the primary has finished its track.
 # NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance
 
 /adept/CallUserTrackingAction true
-# If true, the PostUserTrackingAction is called for on every track. NOTE: This 
+# If true, the PostUserTrackingAction is called for on every track. NOTE: This
 # means that the last step of every track is recorded on GPU and send back to CPU
 
 
@@ -86,22 +86,22 @@
 ### Special Settings:
 
 /adept/setSeed 1242342
-# Set the base seed for the rng. Default: 1234567 
+# Set the base seed for the rng. Default: 1234567
 
-#/adept/setCovfieBfieldFile 
+#/adept/setCovfieBfieldFile
 # Set the path the the covfie file for reading in an external magnetic field
 
 /adept/SpeedOfLight false
 # If true, all electrons, positrons, gammas handed over to the GPU are immediately killed. That means, for region-based offload,
-# that tracking happens normally in non-GPU regions. 
+# that tracking happens normally in non-GPU regions.
 # WARNING: Only to be used for testing the speed and fraction of EM, all results are wrong!
 
 /adept/setVecGeomGDML $gdml_name
-# Sets the geometry via VecGeom through a gdml. 
+# Sets the geometry via VecGeom through a gdml.
 # WARNING: this will not convert the G4 geometry anymore, so there can be a mismatch between CPU and GPU geometry if used incorrectly!
 
 /adept/FinishLastNParticlesOnCPU 100
-# Set N, the number of last N particles per event that are finished on CPU. Default: 0. 
+# Set N, the number of last N particles per event that are finished on CPU. Default: 0.
 # This is an important parameter for handling loopers in a magnetic field, but breaks reproducibility!
 
 /adept/MaxWDTIterations 5
@@ -112,8 +112,8 @@
 ### Special settings for G4EmStandard_AdePT physics constructor ###
 
 /adept/addWDTRegion Layer1
-# Add a region in which the gamma transport is done via Woodcock tracking. 
-# NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other physics 
+# Add a region in which the gamma transport is done via Woodcock tracking.
+# NOTE: This ONLY applies to the AdePTPhysics, if the PhysicsList uses ANY other physics
 # (which is done in LHCb, CMS, ATLAS) then this will have NO effect!
 
 /adept/addWDTKineticEnergyLimit 200 keV

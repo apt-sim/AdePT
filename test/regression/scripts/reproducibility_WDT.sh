@@ -6,7 +6,7 @@
 # This is a CI test for reproducibility. The same testEm3 runs with shooting electrons twice
 # and then it is checked that the total energy deposition is exactly the same.
 
-# abort on first encounted error
+# abort on first encountered error
 set -eu -o pipefail
 
 

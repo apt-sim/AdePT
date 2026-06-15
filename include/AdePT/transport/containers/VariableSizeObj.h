@@ -38,7 +38,7 @@
  *    using Base_t::MakeInstance;
  *    using Base_t::MakeInstanceAt;
  *
- * These methods internally invoke the private constructor, their invokation being dependent on the
+ * These methods internally invoke the private constructor, their invocation being dependent on the
  * extra parameters taken by this constructor and explained in the `Usage` section.
  *
  * In case the derived type should be copiable, it has to expose the Base_t copy interfaces:
@@ -61,7 +61,7 @@
  *
  * Important note: the derived type should not contain any pointer data members that have to be dynamically
  * allocated, or if it does then it has to be supported in the constructors and in the SizeOfInstance method.
- * The base helper class is taylored for data member types for which the size can be computed at compilation
+ * The base helper class is tailored for data member types for which the size can be computed at compilation
  * time (i.e. sizeof will return the actual object size).
  *
  * Composition using data members of types derived from VariableSizeObject is allowed. In such case it is

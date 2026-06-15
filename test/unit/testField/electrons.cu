@@ -150,7 +150,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
     // Get result into variables.
     double geometricalStepLengthFromPhysics = theTrack->GetGStepLength();
-    // The phyiscal step length is the amount that the particle experiences
+    // The physical step length is the amount that the particle experiences
     // which might be longer than the geometrical step length due to MSC. As
     // long as we call PerformContinuous in the same kernel we don't need to
     // care, but we need to make this available when splitting the operations.

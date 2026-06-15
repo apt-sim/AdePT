@@ -3,10 +3,10 @@
 # SPDX-FileCopyrightText: 2025 CERN
 # SPDX-License-Identifier: Apache-2.0
 
-# This is a CI test for reproducbility. The same 8 ttbar events are executed twice
+# This is a CI test for reproducibility. The same 8 ttbar events are executed twice
 # and then it is checked that the total energy deposition is exactly the same.
 
-# abort on first encounted error
+# abort on first encountered error
 set -eu -o pipefail
 
 

@@ -240,7 +240,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
       safety = currentTrack.GetSafety(currentTrack.pos);
       if (safety < physicalStepLength) {
         // Recompute safety and update it in the track.
-        // Use maximum accuracy only if safety is samller than physicalStepLength
+        // Use maximum accuracy only if safety is smaller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, physicalStepLength);
         currentTrack.SetSafety(currentTrack.pos, safety);
       }
@@ -362,7 +362,7 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     } else
       currentTrack.zeroStepCounter = 0;
 
-    // punish miniscule steps by increasing the looperCounter by 10
+    // punish minuscule steps by increasing the looperCounter by 10
     if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
 
     // Set boundary state in navState so the next step and secondaries get the
@@ -423,7 +423,7 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
           currentTrack.pos += displacement;
         } else {
           // Recompute safety.
-          // Use maximum accuracy only if safety is samller than physicalStepLength
+          // Use maximum accuracy only if safety is smaller than physicalStepLength
           safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, dispR);
           currentTrack.SetSafety(currentTrack.pos, safety);
           reducedSafety = sFact * safety;

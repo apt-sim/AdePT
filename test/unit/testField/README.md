@@ -10,7 +10,7 @@ Example demonstrating particle transportation on GPUs with a non-uniform magneti
 New feature is
  - definition of a non-uniform magnetic field
  - integration of the equation of motion of charged particles using embedded Runge-Kutta method, Dormand Prince 4(5).
- Caveats (at present) : 
+ Caveats (at present) :
    - fixed accuracy of integration (constant in source)
 
 The features carried over from Example13 are:

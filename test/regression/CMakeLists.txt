@@ -98,7 +98,7 @@ add_test(NAME testEm3_validation_finish_on_cpu
 )
 set_tests_properties(testEm3_validation_finish_on_cpu PROPERTIES LABELS "validation")
 
-# test that compares the physics output of a full AdePT run with transport only in some regions against a high-statistics 
+# test that compares the physics output of a full AdePT run with transport only in some regions against a high-statistics
 # Geant4 simulation using G4HepEm. The energy deposition per layer error must be < 1% to pass the test
 add_test(NAME testEm3_validation_regions
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_regions.sh
