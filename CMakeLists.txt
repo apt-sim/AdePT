@@ -13,7 +13,7 @@ project(AdePT
 )
 
 # Set versions of G4VG and covfie that are pulled in the CMake configuration
-set(ADEPT_G4VG_VERSION 1.0.6)
+set(ADEPT_G4VG_VERSION 1.0.7)
 set(ADEPT_G4VG_TAG v${ADEPT_G4VG_VERSION})
 set(ADEPT_COVFIE_TAG_VERSION 0.15.5)
 set(ADEPT_COVFIE_TAG v${ADEPT_COVFIE_TAG_VERSION})
