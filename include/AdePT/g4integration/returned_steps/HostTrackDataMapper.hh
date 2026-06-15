@@ -22,7 +22,7 @@ class G4PrimaryParticle;
 struct HostTrackData {
   int g4id                               = 0; // the Geant4 track ID
   int g4parentid                         = 0; // the Geant4 parent ID
-  uint64_t gpuId                         = 0; // the GPU’s 64-bit track ID
+  uint64_t gpuId                         = 0; // the GPU's 64-bit track ID
   G4PrimaryParticle *primary             = nullptr;
   G4VProcess *creatorProcess             = nullptr;
   G4VUserTrackInformation *userTrackInfo = nullptr;
@@ -208,7 +208,7 @@ private:
     if (!keepReverseMap) g4idToGpuId.erase(g4idToErase);
   }
 
-  std::unordered_map<uint64_t, int> gpuToIndex;  // key→slot in hostDataVec
+  std::unordered_map<uint64_t, int> gpuToIndex;  // key->slot in hostDataVec
   std::unordered_map<int, uint64_t> g4idToGpuId; // geant4 id to GPU id, needed for reverse lookup
   std::vector<HostTrackData> hostDataVec;        // contiguous array of all data
 

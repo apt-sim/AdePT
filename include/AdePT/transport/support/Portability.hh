@@ -8,7 +8,7 @@
  * \brief Macros, exceptions, and helpers for assertions and error handling.
  *
  * This defines host- and device-compatible assertion macros that are
- * currenntly toggled on the \c NDEBUG configure macros.
+ * currently toggled on the \c NDEBUG configure macros.
  *
  * Derived from celeritas corecel: DeviceRuntimeApi.hh, Macros.hh, Assert.hh
  */

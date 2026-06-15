@@ -188,7 +188,7 @@ __device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const adepti
   toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
 }
 
-// Kernel function to initialize tracks comming from a Geant4 buffer
+// Kernel function to initialize tracks coming from a Geant4 buffer
 __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, ParticleManager particleManager,
                            const vecgeom::VPlacedVolume *world, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
                            uint64_t initialSeed)

@@ -366,7 +366,7 @@ __global__ void __launch_bounds__(256, 1)
     // cases when WDT tracking happened (see below).
 
     // If the WDT region boundary has not been reached in this step then delta
-    // interaction happend so just keep moving the post-step point toward the
+    // interaction happened so just keep moving the post-step point toward the
     // WDT (root) volume boundary.
 
     // Update the time based on the accumulated WDT step length
@@ -672,7 +672,7 @@ __global__ void __launch_bounds__(256, 1)
     if (trackSurvives) {
       survive();
     } else {
-      // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
+      // particles that don't survive are killed by not enqueuing them to the next queue and freeing the slot
       slotManager.MarkSlotForFreeing(slot);
     }
 

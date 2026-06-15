@@ -33,7 +33,7 @@ The following packages are a required to build and run:
 - CUDA Toolkit (> 12 recommended, tested 10.1, min version TBD)
 - [Geant4](https://gitlab.cern.ch/geant4/geant4) > 11.0
 - VecCore [library](https://github.com/root-project/veccore) 0.8.2
-- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >=  2.0.0-rc.4 
+- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >=  2.0.0-rc.4
 - G4HepEm [library](https://github.com/mnovak42/g4hepem) >= tag 20250610
 - optional: HepMC3 [library](https://gitlab.cern.ch/hepmc/HepMC3)
 
@@ -64,7 +64,7 @@ $ export PATH=${PATH}:/usr/local/cuda/bin
 $ export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
 ```
 
-Find the CUDA architecture for the target GPU. The GPU can be found via `nvidia-smi`. Then, the list of compute capabilities is available on the [nvidia-website](https://developer.nvidia.com/cuda-gpus). 
+Find the CUDA architecture for the target GPU. The GPU can be found via `nvidia-smi`. Then, the list of compute capabilities is available on the [nvidia-website](https://developer.nvidia.com/cuda-gpus).
 Then, the required `cuda_architecture` is the compute capability without the `.` for the version, i.e., compute capability 8.9 corresponds to `<cuda_architecture> = 89`.
 
 To configure and build VecGeom, use the configuration options below, using as <cuda_architecture> the value from the step above:
@@ -178,7 +178,7 @@ Which has the same dependencies as before (VecGeom, VecCore and G4HepEM).
 Then, for the targets using AdePT:
 
 ```
-cuda_rdc_target_include_directories(example_target <SCOPE> 
+cuda_rdc_target_include_directories(example_target <SCOPE>
                                     <TARGET INCLUDE DIRECTORIES>
                                     ${AdePT_INCLUDE_DIRS})
 

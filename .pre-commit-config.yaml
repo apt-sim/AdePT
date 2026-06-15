@@ -2,6 +2,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0, 9 Aug 2025
+    hooks:
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+        exclude: '(^LICENSES/|\.(diff|patch|gdml|hepmc3|csv)$)'
+      - id: trailing-whitespace
+        exclude: '(^LICENSES/|\.(diff|patch|gdml|hepmc3|csv)$)'
+      - id: check-json
+      - id: check-yaml
+
+  - repo: https://github.com/sethrj/fix-non-ascii
+    rev: v1.0.0 # 18 May 2026
+    hooks:
+      - id: fix-non-ascii
+        files: '\.(cc|cpp|cu|cuh|h|hh|icc|cmake)$|CMakeLists\.txt$'
+
   - repo: local
     hooks:
       - id: clang-format
@@ -9,3 +27,8 @@ repos:
         entry: ./tools/clang-format-pre-commit.sh
         language: system
         files: \.(cc|cpp|cu|cuh|h|hh|icc)$
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: 2ccb47ff45ad361a21071a7eedda4c37e6ae8c5a # v2.4.2, 5 Mar 2026
+    hooks:
+      - id: codespell

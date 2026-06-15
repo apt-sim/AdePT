@@ -397,11 +397,11 @@ block()
   check_cxx_source_compiles([[
     #include "G4VTrackingManager.hh"
     #include "G4Track.hh"
-  
+
     struct testtm_ : G4VTrackingManager {
       void HandOverOneTrack(G4Track*) override {}
     };
-  
+
     int main() {
       testtm_ t;
       return 0;
@@ -462,12 +462,12 @@ else()
   message(STATUS "Found G4VG: ${G4VG_DIR}")
 endif()
 
-# Find covfie to load external fields from file. 
+# Find covfie to load external fields from file.
 if(ADEPT_USE_EXT_BFIELD)
   # An 3D magnetic field map requires the covfie library.
   # The default is to use an installed covfie version. If no covfie installation is provided,
-  # it is fetched from source and made available via FetchContent  
-  
+  # it is fetched from source and made available via FetchContent
+
   message(STATUS "Compiling with external magnetic field support via covfie")
   add_compile_definitions(ADEPT_USE_EXT_BFIELD)
 

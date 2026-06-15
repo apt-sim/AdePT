@@ -97,7 +97,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
                              const Real_t &safetyIn, //  eventually In/Out ?
                              const int max_iterations,
                              int &itersDone, //  useful for now - to monitor and report -- unclear if needed later
-                             int indx, bool &zero_first_step, bool verbose)
+                             int index, bool &zero_first_step, bool verbose)
 {
   double stepDone = 0.0;         ///< step already done
   Real_t remains  = physicsStep; ///< remainder of the step to be done
@@ -129,7 +129,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   Real_t maxNextSafeMove =
       vecCore::Max(Real_t(safeLength), safetyIn); // It can be reduced if, at the start, a boundary is encountered
   int chordIters         = 0;                     ///< number of iterations for this integration
-  Real_t last_good_step  = 0.0;                   ///< to be re-used for next cord iteration
+  Real_t last_good_step  = 0.0;                   ///< to be reused for next cord iteration
   bool found_end         = false;
   bool continueIteration = false;
   bool fullChord         = false;
@@ -165,7 +165,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
     const Real_t safeArc = vecCore::Min(remains, maxNextSafeMove);
 
-    Real_t dydx_end[Nvar]; // not re-used at the moment, but could be used for FSAL between cord integrations
+    Real_t dydx_end[Nvar]; // not reused at the moment, but could be used for FSAL between cord integrations
                            // Integrate the step.
     const Real_t arcAdvanced = RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end,
                                                    last_good_step, kMaxTrials, chordIters);
@@ -217,7 +217,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
         safetyOrigin = position;
         safety       = newSafety;
       } else {
-        // We need to check if the arc actually crosses any boundary along the chord and withing chordLen
+        // We need to check if the arc actually crosses any boundary along the chord and within chordLen
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose)
           printf("\n| +++  ComputeStepAndNextVolume pos {%.17f, %.17f, %.17f} chordDir {%.17f, %.17f, %.17f} "

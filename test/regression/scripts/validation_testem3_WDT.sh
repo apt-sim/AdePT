@@ -6,7 +6,7 @@
 # This is a CI test for validation. 10 GeV electrons are shot at the testEm3 geometry and the energy deposition is validated
 # against a high-statistics benchmark file
 
-# abort on first encounted error
+# abort on first encountered error
 set -eu -o pipefail
 
 

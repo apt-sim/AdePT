@@ -35,7 +35,7 @@ ParticleGun::~ParticleGun() {}
 
 void ParticleGun::GeneratePrimaries(G4Event *aEvent)
 {
-  // this function is called at the begining of event
+  // this function is called at the beginning of event
   //
 
   if (!fUseHepMC && fRandomizeGun && !fInitializationDone) {

@@ -47,9 +47,9 @@ int main(int argc, char **argv)
   printf("Ekin [MeV] = %.15f\n", kinE / copcore::units::MeV);
   double stepLength = 0.004715360602658;
   int charge        = 1;
-  int indx          = 0;
+  int index         = 0;
 
-  TestPropagator::IntegrateTrackToEnd(Bz, position, momentumVec, charge, stepLength, indx);
+  TestPropagator::IntegrateTrackToEnd(Bz, position, momentumVec, charge, stepLength, index);
 
   return true;
 }

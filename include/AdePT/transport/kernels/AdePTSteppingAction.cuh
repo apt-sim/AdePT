@@ -182,7 +182,7 @@ struct LHCbAction {
 
 // ---------- ATLAS ----------
 // The ATLAS SteppingAction must be guarded as it requires a compile time specific
-// paramater in the VolumeAuxData
+// parameter in the VolumeAuxData
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
 // Custom SteppingAction for ATLAS.
 // Photon Russian Roulette follows Athena's stacking-action policy for photons

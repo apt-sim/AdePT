@@ -420,7 +420,7 @@ __global__ void __launch_bounds__(256, 1)
     // cases when WDT tracking happened (see below).
 
     // If the WDT region boundary has not been reached in this step then delta
-    // interaction happend so just keep moving the post-step point toward the
+    // interaction happened so just keep moving the post-step point toward the
     // WDT (root) volume boundary.
 
     // Update the time based on the accumulated WDT step length

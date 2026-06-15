@@ -149,7 +149,7 @@ struct StepReconstructionObjects {
     }
   }
 
-  // Note: no destructor needed since we’re intentionally *not* calling dtors on the placement-new'ed objects
+  // Note: no destructor needed since we're intentionally *not* calling dtors on the placement-new'ed objects
 };
 
 void Deleter::operator()(StepReconstructionObjects *ptr)

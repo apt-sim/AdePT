@@ -472,7 +472,7 @@ __global__ void __launch_bounds__(256, 1)
     if (trackSurvives) {
       survive();
     } else {
-      // particles that don't survive are killed by not enqueing them to the next queue and freeing the slot
+      // particles that don't survive are killed by not enqueuing them to the next queue and freeing the slot
       slotManager.MarkSlotForFreeing(slot);
     }
 

@@ -96,9 +96,9 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     G4cout << "EndOfEventAction " << eventId << ": killed    " << number_killed << G4endl;
   }
 
-  // Store the original IO precission and width
-  auto aOriginalPrecission = std::cout.precision();
-  auto aOriginalWidth      = std::cout.width();
+  // Store the original IO precision and width
+  auto aOriginalPrecision = std::cout.precision();
+  auto aOriginalWidth     = std::cout.width();
 
   for (size_t iHit = 0; iHit < hitsCollection->entries(); iHit++) {
     hit   = static_cast<SimpleHit *>(hitsCollection->GetHit(iHit));
@@ -135,6 +135,6 @@ void EventAction::EndOfEventAction(const G4Event *aEvent)
     aTestManager->exportCSV(false);
   }
 
-  // Restore the original IO precission
-  G4cout << std::setprecision(aOriginalPrecission) << std::setw(aOriginalWidth) << std::defaultfloat;
+  // Restore the original IO precision
+  G4cout << std::setprecision(aOriginalPrecision) << std::setw(aOriginalWidth) << std::defaultfloat;
 }

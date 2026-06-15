@@ -95,7 +95,7 @@ inline __host__ __device__ void DormandPrinceRK45<Equation_t, T_Field, Nvar, Rea
 
   // Initialise time to t0, needed when it is not updated by the integration.
   //       [ Note: Only for time dependent fields (usually electric)
-  //                 is it neccessary to integrate the time.]
+  //                 is it necessary to integrate the time.]
   // yOut[7] = yTemp[7]   = yIn[7];
 
   // EvaluateDerivatives( field, yIn, charge,  dydx) ;      // 1st Step

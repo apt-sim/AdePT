@@ -5,7 +5,7 @@
 
 # This is a CI test for testing that all UI commands work without failing
 
-# abort on first encounted error
+# abort on first encountered error
 set -eu -o pipefail
 
 

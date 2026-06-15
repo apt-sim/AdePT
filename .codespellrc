@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+
+[codespell]
+skip = *.csv,*.gdml,*.hepmc3,*.json,*.jpg,*.jpeg,*.pdf,*.png,*.root,*.svg,./LICENSES/*
+ignore-words = ./tools/codespell-ignore.txt
