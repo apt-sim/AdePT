@@ -355,6 +355,9 @@ std::array<RkCase, 5> UniformFieldCases()
 // Field storage and equation tests. These are cheap invariants for the lowest
 // layers of the magnetic-field stack.
 
+// UniformMagneticField should be a position-independent field lookup. This
+// catches accidental dependence on the position type or lossy return conversion
+// when callers use either float or double coordinates.
 TEST(UniformMagneticField, EvaluatesStoredFloatFieldForFloatAndDoublePositions)
 {
   const vecgeom::Vector3D<float> storedField{1.25f, -2.5f, 0.75f};
@@ -371,6 +374,8 @@ TEST(UniformMagneticField, EvaluatesStoredFloatFieldForFloatAndDoublePositions)
   EXPECT_DOUBLE_EQ(doubleValue[2], double(storedField[2]));
 }
 
+// The equation of motion must use the unit momentum direction for dx/ds and
+// produce a Lorentz kick perpendicular to both momentum and magnetic field.
 TEST(MagneticFieldEquation, DerivativeDirectionIsUnitAndForceIsPerpendicular)
 {
   using Equation = MagneticFieldEquation<UniformMagneticField>;
@@ -397,6 +402,8 @@ TEST(MagneticFieldEquation, DerivativeDirectionIsUnitAndForceIsPerpendicular)
   EXPECT_NEAR(bField.Dot(force), 0.0, 1.0e-12 * bField.Length() * force.Length());
 }
 
+// Flipping the charge should only flip dp/ds. The spatial derivative is the
+// track direction and must not depend on the charge sign.
 TEST(MagneticFieldEquation, ChargeSignOnlyFlipsMomentumDerivative)
 {
   using Equation = MagneticFieldEquation<UniformMagneticField>;
@@ -415,6 +422,8 @@ TEST(MagneticFieldEquation, ChargeSignOnlyFlipsMomentumDerivative)
   }
 }
 
+// With B = 0 the momentum derivative must vanish exactly. This guards against
+// stale field values or cross-product sign mistakes leaking into zero-field mode.
 TEST(MagneticFieldEquation, ZeroFieldKeepsMomentumConstant)
 {
   using Equation = MagneticFieldEquation<UniformMagneticField>;
@@ -433,6 +442,8 @@ TEST(MagneticFieldEquation, ZeroFieldKeepsMomentumConstant)
 // substep progress accounting; the later ones exercise the real stepper against
 // simple physics expectations in both precisions.
 
+// A rejected substep must not alter progress already owned by the caller. This
+// protects the retry path where the driver rejects before accepting new distance.
 TEST(RkIntegrationDriver, RejectedStepKeepsCumulativeProgress)
 {
   using Driver = RkIntegrationDriver<RejectingStepper, double, int, LinearEquation, DummyField>;
@@ -450,6 +461,8 @@ TEST(RkIntegrationDriver, RejectedStepKeepsCumulativeProgress)
   EXPECT_DOUBLE_EQ(progress, 7.5);
 }
 
+// If the trial budget runs out after some accepted progress, Advance must report
+// only that accepted distance instead of pretending the requested step completed.
 TEST(RkIntegrationDriver, ReportsAcceptedProgressWhenTrialBudgetIsExhausted)
 {
   using Driver = RkIntegrationDriver<OneRejectedSubstepStepper, double, int, LinearEquation, DummyField>;
@@ -468,6 +481,8 @@ TEST(RkIntegrationDriver, ReportsAcceptedProgressWhenTrialBudgetIsExhausted)
   EXPECT_NEAR(position[2], 0.0, 1.0e-12);
 }
 
+// A rejected substep in the middle of the integration should not make the next
+// accepted trial overshoot the requested path length.
 TEST(RkIntegrationDriver, AdvanceDoesNotOvershootAfterRejectedSubstep)
 {
   using Driver = RkIntegrationDriver<OneRejectedSubstepStepper, double, int, LinearEquation, DummyField>;
@@ -512,16 +527,22 @@ void CheckZeroFieldStraightLine()
   ExpectVectorNear(momentum.Unit(), startDirection, std::is_same_v<Real_t, float> ? 2.0e-7 : 1.0e-14);
 }
 
+// Double-precision RK integration should collapse to straight-line transport
+// when the magnetic field is zero.
 TEST(RkIntegrationDriver, ZeroFieldIsStraightLineInDoublePrecision)
 {
   CheckZeroFieldStraightLine<double>();
 }
 
+// Float-precision RK integration should obey the same zero-field straight-line
+// contract, within the looser float tolerance.
 TEST(RkIntegrationDriver, ZeroFieldIsStraightLineInFloatPrecision)
 {
   CheckZeroFieldStraightLine<float>();
 }
 
+// In a constant field the double-precision RK result should match the analytic
+// helix. This catches unit, charge-sign, and field-orientation regressions.
 TEST(RkIntegrationDriver, UniformFieldMatchesHelixInDoublePrecision)
 {
   for (const auto &testCase : UniformFieldCases()) {
@@ -531,6 +552,8 @@ TEST(RkIntegrationDriver, UniformFieldMatchesHelixInDoublePrecision)
   }
 }
 
+// The same helix comparison is run for the float RK path, where the tolerance
+// reflects the float field storage and integration arithmetic.
 TEST(RkIntegrationDriver, UniformFieldMatchesHelixInFloatPrecision)
 {
   for (const auto &testCase : UniformFieldCases()) {
@@ -543,6 +566,8 @@ TEST(RkIntegrationDriver, UniformFieldMatchesHelixInFloatPrecision)
 // and focus on the surrounding propagation logic: failed RK advance, safety
 // shortcut, and navigator-limited chord acceptance.
 
+// If the RK driver makes no accepted progress, the propagator must stop before
+// normalizing a zero-length chord or asking geometry to navigate a bogus step.
 TEST(FieldPropagatorRungeKutta, FailedAdvanceStopsBeforeZeroChordNormalization)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, FailingPropagatorDriver, double, ThrowingNavigator>;
@@ -568,6 +593,8 @@ TEST(FieldPropagatorRungeKutta, FailedAdvanceStopsBeforeZeroChordNormalization)
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
 }
 
+// The RK driver may return partial accepted progress after exhausting its trial
+// budget. The propagator must bookkeep that accepted arc length and continue.
 TEST(FieldPropagatorRungeKutta, UsesAcceptedArcLengthWhenDriverReportsIncomplete)
 {
   using Propagator =
@@ -596,6 +623,8 @@ TEST(FieldPropagatorRungeKutta, UsesAcceptedArcLengthWhenDriverReportsIncomplete
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
 }
 
+// A large cached geometric safety should allow the whole chord to be accepted
+// without calling VecGeom navigation. This protects the fast safety shortcut.
 TEST(FieldPropagatorRungeKutta, UsesSafetyToAcceptFullChordWithoutNavigation)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, StraightLinePropagatorDriver, double, ThrowingNavigator>;
@@ -621,6 +650,35 @@ TEST(FieldPropagatorRungeKutta, UsesSafetyToAcceptFullChordWithoutNavigation)
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
 }
 
+// The cached safety has to be reduced to the current chord start, not to the
+// proposed endpoint. Otherwise a safe chord can be rejected and sent to geometry.
+TEST(FieldPropagatorRungeKutta, UsesCurrentSafetyBeforeTestingCandidateChord)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, StraightLinePropagatorDriver, double, ThrowingNavigator>;
+
+  ThrowingNavigator::Reset();
+  vecgeom::Vector3D<double> position{1.0, 2.0, 3.0};
+  vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0};
+  vecgeom::NavigationState currentState;
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  bool zeroFirstStep   = false;
+  int itersDone        = 0;
+
+  const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 5.0, 5.0, position, direction,
+                                                            currentState, nextState, hitSurfaceIndex, propagated, 6.0,
+                                                            10, itersDone, 0, zeroFirstStep, false);
+
+  EXPECT_DOUBLE_EQ(moved, 5.0);
+  EXPECT_TRUE(propagated);
+  EXPECT_EQ(ThrowingNavigator::stepCalls, 0);
+  ExpectVectorNear(position, vecgeom::Vector3D<double>{6.0, 2.0, 3.0}, 1.0e-14);
+  ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
+}
+
+// When the safety shortcut is not enough, the propagator must defer to the
+// navigator and stop at the boundary distance reported along the chord.
 TEST(FieldPropagatorRungeKutta, StopsAtNavigatorBoundaryAlongChord)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, StraightLinePropagatorDriver, double, BoundaryNavigator>;

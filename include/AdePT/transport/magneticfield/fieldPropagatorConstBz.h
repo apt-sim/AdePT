@@ -30,7 +30,7 @@ public:
                                                       Vector3D &position, Vector3D &direction,
                                                       vecgeom::NavigationState const &current_state,
                                                       vecgeom::NavigationState &new_state, long &hitsurf_index,
-                                                      bool &propagated, const double safety = 0.0,
+                                                      bool &propagated, const double safetyIn = 0.0,
                                                       const int max_iteration = 100);
 
 private:
@@ -78,7 +78,8 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
 
   bool continueIteration = false;
 
-  double safety         = safetyIn;
+  // Cache the safety value together with the point where it was computed.
+  double safetyAtOrigin = safetyIn;
   Vector3D safetyOrigin = position;
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
@@ -93,6 +94,9 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     Vector3D endPosition  = position;
     Vector3D endDirection = direction;
     double safeMove       = min(remains, maxNextSafeMove);
+    // Reduce the cached safety to the current chord start before testing the
+    // proposed chord. The position is updated only after the chord is accepted.
+    double safetyAtChordStart = safetyAtOrigin - (position - safetyOrigin).Length();
 
     helixBz.DoStep<Vector3D, double, int>(position, direction, charge, momentumMag, safeMove, endPosition,
                                           endDirection);
@@ -101,28 +105,24 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double chordLen   = chordVec.Length();
     Vector3D chordDir = (1 / chordLen) * chordVec;
 
-    double currentSafety = safety - (position - safetyOrigin).Length();
+    if (safetyAtChordStart <= chordLen && stepDone > 0) {
+      // The reduced cached safety is not enough for this chord, so refresh the
+      // cache at the current chord start before falling back to navigation.
+      safetyOrigin       = position;
+      safetyAtOrigin     = Navigator::ComputeSafety(position, current_state, remains);
+      safetyAtChordStart = safetyAtOrigin;
+    }
+
     double move;
-    if (currentSafety > chordLen) {
+    if (safetyAtChordStart > chordLen) {
       move = chordLen;
     } else {
-      double newSafety = 0;
-      if (stepDone > 0) {
-        // Use maximum accuracy only if safety is smaller than physicalStepLength
-        newSafety = Navigator::ComputeSafety(position, current_state, remains);
-      }
-      if (newSafety > chordLen) {
-        move         = chordLen;
-        safetyOrigin = position;
-        safety       = newSafety;
-      } else {
 #ifdef ADEPT_USE_SURF
-        move =
-            Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, hitsurf_index);
+      move =
+          Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, hitsurf_index);
 #else
-        move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
+      move = Navigator::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
 #endif
-      }
     }
 
     static constexpr double ReduceFactor = 0.1;

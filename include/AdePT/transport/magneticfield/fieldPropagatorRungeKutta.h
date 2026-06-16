@@ -133,8 +133,8 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   // bool lastWasZero             = false; // Debug only ?  JA 2022.09.05
   const Real_t inv_momentumMag = 1.0 / momentumMag;
 
-  // Cache safety origin and value at the start point
-  double safety                          = safetyIn;
+  // Cache the safety value together with the point where it was computed.
+  double safetyAtOrigin                  = safetyIn;
   vecgeom::Vector3D<double> safetyOrigin = position;
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
@@ -143,7 +143,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   if (verbose) {
     printf("| fieldPropagatorRK start pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, %.19f} physicsStep %g safety %g "
            "safeLength %g",
-           position[0], position[1], position[2], direction[0], direction[1], direction[2], physicsStep, safety,
+           position[0], position[1], position[2], direction[0], direction[1], direction[2], physicsStep, safetyAtOrigin,
            safeLength);
     current_state.Print();
   }
@@ -158,6 +158,10 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
     // Position and momentum at the end of the current arc
     vecgeom::Vector3D<double> endPosition    = position;
     vecgeom::Vector3D<double> endMomentumVec = momentumVec;
+
+    // Reduce the cached safety to the current chord start before testing the
+    // proposed chord. The position is updated only after the chord is accepted.
+    Real_t safetyAtChordStart = safetyAtOrigin - (position - safetyOrigin).Length();
 
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
     const Real_t safeArc = vecCore::Min(remains, maxNextSafeMove);
@@ -182,53 +186,46 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
     // Normalize direction, which is NOT after calling Advance
     endDirection.Normalize();
 
-    // Subtract from the existing safety after the move
-    Real_t currentSafety = safety - (endPosition - safetyOrigin).Length();
 #if ADEPT_DEBUG_TRACK > 0
     if (verbose) {
       if (chordIters > 0)
         printf("| field_point: pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, %.19f}\n", position[0], position[1],
                position[2], direction[0], direction[1], direction[2]);
       printf("| Advance #%d: safeArc %g | chordLen %g | reducedSafety %g ", chordIters, safeArc, chordLen,
-             currentSafety);
+             safetyAtChordStart);
     }
 #endif
+    if (safetyAtChordStart <= chordLen && stepDone > 0) {
+      // The reduced cached safety is not enough for this chord, so refresh the
+      // cache at the current chord start before falling back to navigation.
+      safetyOrigin       = position;
+      safetyAtOrigin     = Navigator_t::ComputeSafety(position, current_state, remains);
+      safetyAtChordStart = safetyAtOrigin;
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| refreshedSafety %g  ", safetyAtChordStart);
+#endif
+    }
+
     double move;
-    if (currentSafety > chordLen) {
-      // The move is still safe
+    if (safetyAtChordStart > chordLen) {
+      // The move is safe
       move = chordLen;
     } else {
-      // Safety is violated by the move, set it to 0 and recompute it if not the first step
-      double newSafety = 0;
-      if (stepDone > 0) {
-        // Use maximum accuracy only if safety is smaller than the step remainder
-        newSafety = Navigator_t::ComputeSafety(position, current_state, remains);
+      // The move is not safe.
+      // We need to check if the arc actually crosses any boundary along the chord and within chordLen
 #if ADEPT_DEBUG_TRACK > 0
-        if (verbose) printf("| newSafety %g  ", newSafety);
-#endif
-      }
-      if (newSafety > chordLen) {
-        // The recomputed safety was actually larger than the chord -> safe step
-        move = chordLen;
-        // update safety with the computed one BEFORE the arc advance
-        safetyOrigin = position;
-        safety       = newSafety;
-      } else {
-        // We need to check if the arc actually crosses any boundary along the chord and within chordLen
-#if ADEPT_DEBUG_TRACK > 0
-        if (verbose)
-          printf("\n| +++  ComputeStepAndNextVolume pos {%.17f, %.17f, %.17f} chordDir {%.17f, %.17f, %.17f} "
-                 "chordLen %g\n",
-                 position[0], position[1], position[2], chordDir[0], chordDir[1], chordDir[2], chordLen);
+      if (verbose)
+        printf("\n| +++  ComputeStepAndNextVolume pos {%.17f, %.17f, %.17f} chordDir {%.17f, %.17f, %.17f} "
+               "chordLen %g\n",
+               position[0], position[1], position[2], chordDir[0], chordDir[1], chordDir[2], chordLen);
 #endif
 
 #ifdef ADEPT_USE_SURF
-        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state,
-                                                     hitsurf_index);
+      move =
+          Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state, hitsurf_index);
 #else
-        move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
+      move = Navigator_t::ComputeStepAndNextVolume(position, chordDir, chordLen, current_state, next_state);
 #endif
-      }
     }
 
     // lastWasZero &= chordIters < ReduceIters;
@@ -247,7 +244,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       if (verbose) printf("| full chord advance %g ", arcAdvanced);
 #endif
 
-      maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safety)); // Reset it, once a step succeeds!!
+      maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safetyAtOrigin)); // Reset it, once a step succeeds!!
       continueIteration = true;
     } else if (stepDone == 0 && move <= Navigator_t::kBoundaryPush) {
       // Cope with a track at a boundary that wants to bend back into the previous
