@@ -77,20 +77,55 @@ jobs:
             local state=$1
             local context=$2
             local description=$3
+            local payload
+            local response_file
+            local http_code
+            local curl_status
+            local attempt
+            local delay=5
 
-            jq -n \
+            payload=$(jq -n \
               --arg state "${state}" \
               --arg context "${context}" \
               --arg description "${description}" \
               --arg target_url "${TARGET_URL}" \
-              '{state: $state, context: $context, description: $description, target_url: $target_url}' |
-              curl --fail --silent --show-error \
+              '{state: $state, context: $context, description: $description, target_url: $target_url}')
+            response_file=$(mktemp)
+
+            for attempt in 1 2 3 4 5; do
+              http_code=$(curl --silent --show-error \
+                --output "${response_file}" \
+                --write-out "%{http_code}" \
+                --connect-timeout 10 \
+                --max-time 60 \
                 -H "Authorization: Bearer ${GH_TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
                 -H "Content-Type: application/json" \
                 -X POST \
-                -d @- \
-                "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}" >/dev/null
+                -d "${payload}" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}") && curl_status=0 || curl_status=$?
+
+              if [ "${curl_status}" -eq 0 ] && [ "${http_code}" -ge 200 ] && [ "${http_code}" -lt 300 ]; then
+                rm -f "${response_file}"
+                return 0
+              fi
+
+              if [ "${curl_status}" -eq 0 ] && [ "${http_code}" -ge 400 ] && [ "${http_code}" -lt 500 ]; then
+                cat "${response_file}" >&2
+                rm -f "${response_file}"
+                return 1
+              fi
+
+              if [ "${attempt}" -lt 5 ]; then
+                echo "Posting status '${context}' failed (attempt ${attempt}/5, curl=${curl_status}, http=${http_code}); retrying in ${delay}s" >&2
+                sleep "${delay}"
+                delay=$((delay * 2))
+              fi
+            done
+
+            cat "${response_file}" >&2
+            rm -f "${response_file}"
+            return 1
           }
 
           full_description="Self-hosted EL9 CI queued"
@@ -335,20 +370,55 @@ jobs:
             local state=$1
             local context=$2
             local description=$3
+            local payload
+            local response_file
+            local http_code
+            local curl_status
+            local attempt
+            local delay=5
 
-            jq -n \
+            payload=$(jq -n \
               --arg state "${state}" \
               --arg context "${context}" \
               --arg description "${description}" \
               --arg target_url "${TARGET_URL}" \
-              '{state: $state, context: $context, description: $description, target_url: $target_url}' |
-              curl --fail --silent --show-error \
+              '{state: $state, context: $context, description: $description, target_url: $target_url}')
+            response_file=$(mktemp)
+
+            for attempt in 1 2 3 4 5; do
+              http_code=$(curl --silent --show-error \
+                --output "${response_file}" \
+                --write-out "%{http_code}" \
+                --connect-timeout 10 \
+                --max-time 60 \
                 -H "Authorization: Bearer ${GH_TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
                 -H "Content-Type: application/json" \
                 -X POST \
-                -d @- \
-                "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}" >/dev/null
+                -d "${payload}" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${PR_SHA}") && curl_status=0 || curl_status=$?
+
+              if [ "${curl_status}" -eq 0 ] && [ "${http_code}" -ge 200 ] && [ "${http_code}" -lt 300 ]; then
+                rm -f "${response_file}"
+                return 0
+              fi
+
+              if [ "${curl_status}" -eq 0 ] && [ "${http_code}" -ge 400 ] && [ "${http_code}" -lt 500 ]; then
+                cat "${response_file}" >&2
+                rm -f "${response_file}"
+                return 1
+              fi
+
+              if [ "${attempt}" -lt 5 ]; then
+                echo "Posting status '${context}' failed (attempt ${attempt}/5, curl=${curl_status}, http=${http_code}); retrying in ${delay}s" >&2
+                sleep "${delay}"
+                delay=$((delay * 2))
+              fi
+            done
+
+            cat "${response_file}" >&2
+            rm -f "${response_file}"
+            return 1
           }
 
           post_status "${drift_state}" "AdePT / Drift + Unit (EL9)" "${drift_description}"
