@@ -131,7 +131,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                  "geoStepLength=%E "
                  "safety=%E\n",
                  currentTrack.eKin, currentTrack.eventId, currentTrack.trackId, currentTrack.looperCounter,
-                 energyDeposit, theTrack->GetGStepLength(), currentTrack.safety);
+                 energyDeposit, theTrack->GetGStepLength(), currentTrack.GetSafety(currentTrack.pos));
         trackSurvives = false;
         energyDeposit += IsElectron ? currentTrack.eKin : currentTrack.eKin + 2 * copcore::units::kElectronMassC2;
         currentTrack.eKin = 0.;
@@ -326,6 +326,7 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     currentTrack.hitsurfID  = -1;
     double geometryStepLength;
     bool zero_first_step = false;
+    SafetyCache geometrySafetyCache(currentTrack.safetyCache);
 
     if (gMagneticField) {
       int iterDone = -1;
@@ -333,8 +334,7 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticField, currentTrack.eKin, restMass, Charge, theTrack->GetGStepLength(), currentTrack.safeLength,
               currentTrack.pos, currentTrack.dir, currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID,
-              currentTrack.propagated,
-              /*lengthDone,*/ currentTrack.safety,
+              currentTrack.propagated, geometrySafetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot, zero_first_step);
       // In case of zero step detected by the field propagator this could be due to back scattering, or wrong relocation
@@ -358,8 +358,9 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     if (geometryStepLength < kPushStuck && geometryStepLength < theTrack->GetGStepLength()) {
       currentTrack.zeroStepCounter++;
       if (currentTrack.zeroStepCounter > kStepsStuckPush) currentTrack.pos += kPushStuck * currentTrack.dir;
-    } else
+    } else {
       currentTrack.zeroStepCounter = 0;
+    }
 
     // punish minuscule steps by increasing the looperCounter by 10
     if (geometryStepLength < 100 * vecgeom::kTolerance) currentTrack.looperCounter += 10;
@@ -368,7 +369,11 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
     currentTrack.navState.SetBoundaryState(currentTrack.nextState.IsOnBoundary());
-    if (currentTrack.nextState.IsOnBoundary()) currentTrack.SetSafety(currentTrack.pos, 0.);
+    if (currentTrack.nextState.IsOnBoundary()) {
+      currentTrack.SetSafety(currentTrack.pos, 0.);
+    } else {
+      currentTrack.SetSafety(currentTrack.pos, geometrySafetyCache.SafetyAt(currentTrack.pos));
+    }
 
     // Propagate information from geometrical step to MSC.
     theTrack->SetDirection(currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z());

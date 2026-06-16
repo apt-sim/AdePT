@@ -7,6 +7,7 @@
 
 #include <VecGeom/base/Vector3D.h>
 #include <AdePT/transport/support/PhysicalConstants.h>
+#include <AdePT/transport/tracks/SafetyCache.cuh>
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
 
@@ -30,7 +31,7 @@ public:
                                                       Vector3D &position, Vector3D &direction,
                                                       vecgeom::NavigationState const &current_state,
                                                       vecgeom::NavigationState &new_state, long &hitsurf_index,
-                                                      bool &propagated, const double safetyIn = 0.0,
+                                                      bool &propagated, SafetyCache &safetyCache,
                                                       const int max_iteration = 100);
 
 private:
@@ -60,7 +61,7 @@ template <class Navigator>
 __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double kinE, double mass, int charge, double physicsStep, vecgeom::Vector3D<double> &position,
     vecgeom::Vector3D<double> &direction, vecgeom::NavigationState const &current_state,
-    vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated, const double safetyIn,
+    vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated, SafetyCache &safetyCache,
     const int max_iterations)
 {
 
@@ -78,9 +79,6 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
 
   bool continueIteration = false;
 
-  // Cache the safety value together with the point where it was computed.
-  double safetyAtOrigin = safetyIn;
-  Vector3D safetyOrigin = position;
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
   next_state.SetBoundaryState(false);
@@ -96,7 +94,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     double safeMove       = min(remains, maxNextSafeMove);
     // Reduce the cached safety to the current chord start before testing the
     // proposed chord. The position is updated only after the chord is accepted.
-    double safetyAtChordStart = safetyAtOrigin - (position - safetyOrigin).Length();
+    double safetyAtChordStart = safetyCache.SafetyAt(position);
 
     helixBz.DoStep<Vector3D, double, int>(position, direction, charge, momentumMag, safeMove, endPosition,
                                           endDirection);
@@ -108,9 +106,7 @@ __host__ __device__ double fieldPropagatorConstBz::ComputeStepAndNextVolume(
     if (safetyAtChordStart <= chordLen && stepDone > 0) {
       // The reduced cached safety is not enough for this chord, so refresh the
       // cache at the current chord start before falling back to navigation.
-      safetyOrigin       = position;
-      safetyAtOrigin     = Navigator::ComputeSafety(position, current_state, remains);
-      safetyAtChordStart = safetyAtOrigin;
+      safetyAtChordStart = safetyCache.Refresh(position, Navigator::ComputeSafety(position, current_state, remains));
     }
 
     double move;
