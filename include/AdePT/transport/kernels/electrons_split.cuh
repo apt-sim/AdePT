@@ -242,9 +242,9 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
         // Recompute safety and update it in the track.
         // Use maximum accuracy only if safety is smaller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, physicalStepLength);
-        currentTrack.SetSafety(currentTrack.pos, safety);
       }
     }
+    currentTrack.SetSafety(currentTrack.pos, safety);
     theTrack->SetSafety(safety);
     currentTrack.restrictedPhysicalStepLength = false;
 
