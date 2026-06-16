@@ -295,10 +295,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       // ( This involves a bias -- typically important only for muons in trackers.
       //   Currently it's controlled/limited by the acceptable step size ie. 'safeLength' )
       double fraction = vecCore::Max(move / chordLen, 0.); // linearStep
-      // The actual distance to the boundary is along the arc, so changing it as below would
-      // be appropriate, however this won't put the last step on the real boundary which is error-prone
-      // move = fraction * safeArc; // curvedStep
-#ifndef ENDPOINT_ON_CURVE
+
       // Primitive approximation of end direction and linearStep to the crossing point ...
       position += move * chordDir; // linearStep
       direction   = direction * (1.0 - fraction) + endDirection * fraction;
@@ -307,15 +304,6 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       // safeArc is how much the track would have been moved if not hitting the boundary
       // We approximate the actual reduction along the curved trajectory to be the same
       // as the reduction of the full chord due to the boundary crossing.
-#else
-      // Alternative approximation of end position & direction -- calling RK again
-      //  Better accuracy (e.g. for comparing with Helix) but the point will not be on the surface !!
-      RkDriver_t::Advance(position, momentumVec, charge, move, magField, dydx_end, last_good_step, kMaxTrials,
-                          chordIters);
-
-      direction = inv_momentumMag * momentumVec; // requires re-normalization after Advance
-      direction.Normalize();
-#endif
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose) {
         printf("| linear step to crossing point %g hitting ", move);
