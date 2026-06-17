@@ -152,8 +152,8 @@ struct ChargedTrack : TrackBase {
   /// @param new_pos Track position
   /// @param accurate_limit Only return non-zero if the recomputed safety if larger than the accurate_limit
   /// @return Recomputed safety.
-  __host__ __device__ VECGEOM_FORCE_INLINE float GetSafety(vecgeom::Vector3D<double> const &new_pos,
-                                                           float accurate_limit = 0.f) const
+  __host__ __device__ VECGEOM_FORCE_INLINE double GetSafety(vecgeom::Vector3D<double> const &new_pos,
+                                                            double accurate_limit = 0.) const
   {
     return safetyCache.SafetyAt(new_pos, accurate_limit);
   }
@@ -161,7 +161,7 @@ struct ChargedTrack : TrackBase {
   /// @brief Set Safety value computed in a new point
   /// @param new_pos Position where the safety is computed
   /// @param safe Safety value
-  __host__ __device__ VECGEOM_FORCE_INLINE void SetSafety(vecgeom::Vector3D<double> const &new_pos, float safe)
+  __host__ __device__ VECGEOM_FORCE_INLINE void SetSafety(vecgeom::Vector3D<double> const &new_pos, double safe)
   {
     safetyCache.Refresh(new_pos, safe);
   }

@@ -562,6 +562,21 @@ TEST(RkIntegrationDriver, UniformFieldMatchesHelixInFloatPrecision)
   }
 }
 
+// Safety is allowed to be conservative, but it must never be overestimated by
+// losing a small displacement at large global coordinates. This catches the case
+// where the safety origin is stored in float and a sub-ULP move disappears.
+TEST(SafetyCache, PreservesSmallDisplacementsAtLargeGlobalCoordinates)
+{
+  SafetyCache safetyCache;
+  const vecgeom::Vector3D<double> origin{4601.5, 0.0, 0.0};
+  const vecgeom::Vector3D<double> position{4601.5002, 0.0, 0.0};
+
+  safetyCache.Refresh(origin, 3.0e-4);
+
+  const double expectedSafety = 3.0e-4 - (position - origin).Length();
+  EXPECT_NEAR(safetyCache.SafetyAt(position), expectedSafety, 1.0e-15);
+}
+
 // Full fieldPropagatorRungeKutta contract tests. These keep the RK driver fake
 // and focus on the surrounding propagation logic: failed RK advance, safety
 // shortcut, and navigator-limited chord acceptance.
