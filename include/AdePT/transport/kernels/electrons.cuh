@@ -215,12 +215,12 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         // Recompute safety and update it in the track.
         // Use maximum accuracy only if safety is smaller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
-        currentTrack.SetSafety(pos, safety);
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| new safety %g ", safety);
 #endif
       }
     }
+    currentTrack.SetSafety(pos, safety);
     theTrack->SetSafety(safety);
     bool restrictedPhysicalStepLength = false;
 
@@ -298,13 +298,14 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     long hitsurf_index = -1;
     double geometryStepLength;
     bool zero_first_step = false;
+    SafetyCache geometrySafetyCache(currentTrack.safetyCache);
 
     if (gMagneticField) {
       int iterDone = -1;
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
-              nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
+              nextState, hitsurf_index, propagated, geometrySafetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot, zero_first_step, verbose);
       // In case of zero step detected by the field propagator this could be due to back scattering, or wrong relocation
@@ -347,7 +348,11 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
     navState.SetBoundaryState(nextState.IsOnBoundary());
-    if (nextState.IsOnBoundary()) currentTrack.SetSafety(pos, 0.);
+    if (nextState.IsOnBoundary()) {
+      currentTrack.SetSafety(pos, 0.);
+    } else {
+      currentTrack.SetSafety(pos, geometrySafetyCache.SafetyAt(pos));
+    }
 
     // Propagate information from geometrical step to MSC.
     theTrack->SetDirection(dir.x(), dir.y(), dir.z());

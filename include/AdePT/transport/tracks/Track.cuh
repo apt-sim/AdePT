@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/tracks/TrackData.h>
+#include <AdePT/transport/tracks/SafetyCache.cuh>
 #include <AdePT/transport/support/SystemOfUnits.h>
 #include <AdePT/transport/random/Ranluxpp.h>
 
@@ -133,10 +134,7 @@ struct ChargedTrack : TrackBase {
 
   __host__ __device__ ChargedTrack() = default;
 
-  vecgeom::Vector3D<float> safetyPos; ///< last position where the safety was computed
-  // TODO: For better clarity in the split kernels, rename this to "stored safety" as opposed to the
-  // safety we get from GetSafety(), which is computed in the moment
-  float safety{0.f}; ///< last computed safety value
+  SafetyCache safetyCache; ///< cached geometric safety and its origin
 
 #ifndef ADEPT_USE_SPLIT_KERNELS
   float numIALeft[4]{-1.f, -1.f, -1.f, -1.f};
@@ -154,23 +152,18 @@ struct ChargedTrack : TrackBase {
   /// @param new_pos Track position
   /// @param accurate_limit Only return non-zero if the recomputed safety if larger than the accurate_limit
   /// @return Recomputed safety.
-  __host__ __device__ VECGEOM_FORCE_INLINE float GetSafety(vecgeom::Vector3D<double> const &new_pos,
-                                                           float accurate_limit = 0.f) const
+  __host__ __device__ VECGEOM_FORCE_INLINE double GetSafety(vecgeom::Vector3D<double> const &new_pos,
+                                                            double accurate_limit = 0.) const
   {
-    float dsafe = safety - accurate_limit;
-    if (dsafe <= 0.f) return 0.f;
-    float distSq = (vecgeom::Vector3D<float>(new_pos) - safetyPos).Mag2();
-    if (dsafe * dsafe < distSq) return 0.f;
-    return (safety - vecCore::math::Sqrt(distSq));
+    return safetyCache.SafetyAt(new_pos, accurate_limit);
   }
 
   /// @brief Set Safety value computed in a new point
   /// @param new_pos Position where the safety is computed
   /// @param safe Safety value
-  __host__ __device__ VECGEOM_FORCE_INLINE void SetSafety(vecgeom::Vector3D<double> const &new_pos, float safe)
+  __host__ __device__ VECGEOM_FORCE_INLINE void SetSafety(vecgeom::Vector3D<double> const &new_pos, double safe)
   {
-    safetyPos.Set(static_cast<float>(new_pos[0]), static_cast<float>(new_pos[1]), static_cast<float>(new_pos[2]));
-    safety = vecCore::math::Max(safe, 0.f);
+    safetyCache.Refresh(new_pos, safe);
   }
 
   __host__ __device__ void Print(const char *label) const

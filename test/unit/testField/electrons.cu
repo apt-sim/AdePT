@@ -197,9 +197,11 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
       bool propagatedHx;
 
       fieldPropagatorConstBz fieldPropagatorBz(BzFieldValue);
+      SafetyCache helixSafetyCache;
+      helixSafetyCache.Refresh(positionHx, safety);
       double helixStepLength = fieldPropagatorBz.ComputeStepAndNextVolume<AdePTNavigator>(
           energy, Mass, Charge, geometricalStepLengthFromPhysics, positionHx, directionHx, navState, nextStateHx,
-          hitsurf_index, propagatedHx, safety, max_iterations);
+          hitsurf_index, propagatedHx, helixSafetyCache, max_iterations);
       // activeSize < 100 ? max_iterations : max_iters_tail );
       // End   Baseline reply
 #endif
@@ -215,10 +217,12 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
 
       int iterDone         = -1;
       bool zero_first_step = false;
+      SafetyCache fieldSafetyCache;
+      fieldSafetyCache.Refresh(pos, safety);
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, double, AdePTNavigator>::ComputeStepAndNextVolume(
               magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
-              nextState, hitsurf_index, propagated, /*lengthDone,*/ safety,
+              nextState, hitsurf_index, propagated, fieldSafetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot, zero_first_step);
 #ifdef CHECK_RESULTS

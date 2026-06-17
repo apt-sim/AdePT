@@ -10,6 +10,7 @@
 #include "fieldConstants.h" // For kB2C factor with units
 
 #include <AdePT/transport/magneticfield/RkIntegrationDriver.h>
+#include <AdePT/transport/tracks/SafetyCache.cuh>
 
 #include <VecGeom/navigation/NavigationState.h>
 
@@ -34,7 +35,7 @@ public:
   /// @param[out] next_state Geometry state after propagation
   /// @param[out] hitsurf_index Index of the hit surface (surface model only)
   /// @param[out] propagated Checks if the step was fully propagated
-  /// @param safetyIn Geometric isotropic safety
+  /// @param safetyCache Cached geometric isotropic safety
   /// @param max_iterations Maximum allowed iterations
   /// @param[out] iterDone Number of iterations performed
   /// @param threadId Thread id
@@ -45,7 +46,7 @@ public:
       Field_t const &magneticField, double kinE, double mass, int charge, double physicsStep, double safeLength,
       vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &direction,
       vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
-      bool &propagated, const Real_t &safetyIn, const int max_iterations, int &iterDone, int threadId,
+      bool &propagated, SafetyCache &safetyCache, const int max_iterations, int &iterDone, int threadId,
       bool &zero_first_step, bool verbose = false);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
@@ -92,8 +93,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
                              double safeLength, vecgeom::Vector3D<double> &position,
                              vecgeom::Vector3D<double> &direction, vecgeom::NavigationState const &current_state,
                              vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated,
-                             const Real_t &safetyIn, //  eventually In/Out ?
-                             const int max_iterations,
+                             SafetyCache &safetyCache, const int max_iterations,
                              int &itersDone, //  useful for now - to monitor and report -- unclear if needed later
                              int index, bool &zero_first_step, bool verbose)
 {
@@ -121,21 +121,17 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   const double momentumMag              = sqrt(kinE * (kinE + 2.0 * mass));
   vecgeom::Vector3D<double> momentumVec = momentumMag * direction;
 
-  // The allowed safe move is normally determined by the bending accuracy
-  // This is reduced if starting from a boundary and crossing a boundary in the first step
-  Real_t maxNextSafeMove =
-      vecCore::Max(Real_t(safeLength), safetyIn); // It can be reduced if, at the start, a boundary is encountered
-  int chordIters         = 0;                     ///< number of iterations for this integration
-  Real_t last_good_step  = 0.0;                   ///< to be reused for next cord iteration
+  // The allowed safe move is normally determined by the bending accuracy.
+  // It can be enlarged by the geometric safety at the current position.
+  Real_t maxNextSafeMove = vecCore::Max(Real_t(safeLength), Real_t(safetyCache.SafetyAt(position)));
+  int chordIters         = 0;   ///< number of iterations for this integration
+  Real_t last_good_step  = 0.0; ///< to be reused for next cord iteration
   bool found_end         = false;
   bool continueIteration = false;
   bool fullChord         = false;
   // bool lastWasZero             = false; // Debug only ?  JA 2022.09.05
   const Real_t inv_momentumMag = 1.0 / momentumMag;
 
-  // Cache the safety value together with the point where it was computed.
-  double safetyAtOrigin                  = safetyIn;
-  vecgeom::Vector3D<double> safetyOrigin = position;
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
   next_state.SetBoundaryState(false);
@@ -143,8 +139,8 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   if (verbose) {
     printf("| fieldPropagatorRK start pos {%.19f, %.19f, %.19f} dir {%.19f, %.19f, %.19f} physicsStep %g safety %g "
            "safeLength %g",
-           position[0], position[1], position[2], direction[0], direction[1], direction[2], physicsStep, safetyAtOrigin,
-           safeLength);
+           position[0], position[1], position[2], direction[0], direction[1], direction[2], physicsStep,
+           safetyCache.SafetyAt(position), safeLength);
     current_state.Print();
   }
 #endif
@@ -161,7 +157,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
     // Reduce the cached safety to the current chord start before testing the
     // proposed chord. The position is updated only after the chord is accepted.
-    Real_t safetyAtChordStart = safetyAtOrigin - (position - safetyOrigin).Length();
+    Real_t safetyAtChordStart = safetyCache.SafetyAt(position);
 
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
     const Real_t safeArc = vecCore::Min(remains, maxNextSafeMove);
@@ -198,9 +194,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
     if (safetyAtChordStart <= chordLen && stepDone > 0) {
       // The reduced cached safety is not enough for this chord, so refresh the
       // cache at the current chord start before falling back to navigation.
-      safetyOrigin       = position;
-      safetyAtOrigin     = Navigator_t::ComputeSafety(position, current_state, remains);
-      safetyAtChordStart = safetyAtOrigin;
+      safetyAtChordStart = safetyCache.Refresh(position, Navigator_t::ComputeSafety(position, current_state, remains));
 #if ADEPT_DEBUG_TRACK > 0
       if (verbose) printf("| refreshedSafety %g  ", safetyAtChordStart);
 #endif
@@ -244,7 +238,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       if (verbose) printf("| full chord advance %g ", arcAdvanced);
 #endif
 
-      maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safetyAtOrigin)); // Reset it, once a step succeeds!!
+      maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safetyCache.SafetyAt(position))); // Reset after success.
       continueIteration = true;
     } else if (stepDone == 0 && move <= Navigator_t::kBoundaryPush) {
       // Cope with a track at a boundary that wants to bend back into the previous

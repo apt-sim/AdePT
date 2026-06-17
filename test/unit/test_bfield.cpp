@@ -562,6 +562,21 @@ TEST(RkIntegrationDriver, UniformFieldMatchesHelixInFloatPrecision)
   }
 }
 
+// Safety is allowed to be conservative, but it must never be overestimated by
+// losing a small displacement at large global coordinates. This catches the case
+// where the safety origin is stored in float and a sub-ULP move disappears.
+TEST(SafetyCache, PreservesSmallDisplacementsAtLargeGlobalCoordinates)
+{
+  SafetyCache safetyCache;
+  const vecgeom::Vector3D<double> origin{4601.5, 0.0, 0.0};
+  const vecgeom::Vector3D<double> position{4601.5002, 0.0, 0.0};
+
+  safetyCache.Refresh(origin, 3.0e-4);
+
+  const double expectedSafety = 3.0e-4 - (position - origin).Length();
+  EXPECT_NEAR(safetyCache.SafetyAt(position), expectedSafety, 1.0e-15);
+}
+
 // Full fieldPropagatorRungeKutta contract tests. These keep the RK driver fake
 // and focus on the surrounding propagation logic: failed RK advance, safety
 // shortcut, and navigator-limited chord acceptance.
@@ -581,10 +596,12 @@ TEST(FieldPropagatorRungeKutta, FailedAdvanceStopsBeforeZeroChordNormalization)
   bool propagated      = true;
   bool zeroFirstStep   = false;
   int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
 
   const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 5.0, 5.0, position, direction,
-                                                            currentState, nextState, hitSurfaceIndex, propagated, 0.0,
-                                                            10, itersDone, 0, zeroFirstStep, false);
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, zeroFirstStep, false);
 
   EXPECT_DOUBLE_EQ(moved, 0.0);
   EXPECT_FALSE(propagated);
@@ -610,10 +627,12 @@ TEST(FieldPropagatorRungeKutta, UsesAcceptedArcLengthWhenDriverReportsIncomplete
   bool propagated      = false;
   bool zeroFirstStep   = false;
   int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 100.0);
 
   const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 5.0, 5.0, position, direction,
-                                                            currentState, nextState, hitSurfaceIndex, propagated, 100.0,
-                                                            10, itersDone, 0, zeroFirstStep, false);
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, zeroFirstStep, false);
 
   EXPECT_DOUBLE_EQ(moved, 5.0);
   EXPECT_TRUE(propagated);
@@ -638,10 +657,12 @@ TEST(FieldPropagatorRungeKutta, UsesSafetyToAcceptFullChordWithoutNavigation)
   bool propagated      = false;
   bool zeroFirstStep   = false;
   int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 100.0);
 
   const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 5.0, 5.0, position, direction,
-                                                            currentState, nextState, hitSurfaceIndex, propagated, 100.0,
-                                                            10, itersDone, 0, zeroFirstStep, false);
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, zeroFirstStep, false);
 
   EXPECT_DOUBLE_EQ(moved, 5.0);
   EXPECT_TRUE(propagated);
@@ -665,15 +686,47 @@ TEST(FieldPropagatorRungeKutta, UsesCurrentSafetyBeforeTestingCandidateChord)
   bool propagated      = false;
   bool zeroFirstStep   = false;
   int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 6.0);
 
   const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 5.0, 5.0, position, direction,
-                                                            currentState, nextState, hitSurfaceIndex, propagated, 6.0,
-                                                            10, itersDone, 0, zeroFirstStep, false);
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, zeroFirstStep, false);
 
   EXPECT_DOUBLE_EQ(moved, 5.0);
   EXPECT_TRUE(propagated);
   EXPECT_EQ(ThrowingNavigator::stepCalls, 0);
   ExpectVectorNear(position, vecgeom::Vector3D<double>{6.0, 2.0, 3.0}, 1.0e-14);
+  ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
+}
+
+// The stored cache value belongs to its origin, not necessarily to the current
+// position. A cache from an older point must be reduced before accepting a chord.
+TEST(FieldPropagatorRungeKutta, ReducesSafetyFromCacheOriginBeforeTestingChord)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, StraightLinePropagatorDriver, double, BoundaryNavigator>;
+
+  BoundaryNavigator::Reset();
+  vecgeom::Vector3D<double> position{1.0, 2.0, 3.0};
+  vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0};
+  vecgeom::NavigationState currentState;
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  bool zeroFirstStep   = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(vecgeom::Vector3D<double>{0.0, 2.0, 3.0}, 5.5);
+
+  const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 5.0, 5.0, position, direction,
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, zeroFirstStep, false);
+
+  EXPECT_DOUBLE_EQ(moved, 1.25);
+  EXPECT_TRUE(propagated);
+  EXPECT_TRUE(nextState.IsOnBoundary());
+  EXPECT_EQ(BoundaryNavigator::stepCalls, 1);
+  ExpectVectorNear(position, vecgeom::Vector3D<double>{2.25, 2.0, 3.0}, 0.0);
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
 }
 
@@ -692,10 +745,12 @@ TEST(FieldPropagatorRungeKutta, StopsAtNavigatorBoundaryAlongChord)
   bool propagated      = false;
   bool zeroFirstStep   = false;
   int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
 
   const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 8.0, 8.0, position, direction,
-                                                            currentState, nextState, hitSurfaceIndex, propagated, 0.0,
-                                                            10, itersDone, 0, zeroFirstStep, false);
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, zeroFirstStep, false);
 
   EXPECT_DOUBLE_EQ(moved, 2.0);
   EXPECT_TRUE(propagated);
