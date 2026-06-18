@@ -245,20 +245,23 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       // the physical direction stays in the current volume. Probe once along the
       // physical direction before accepting the chord result.
       constexpr Real_t kBoundaryAmbiguity = Real_t(10.0) * Navigator_t::kBoundaryPush;
+      const Real_t directionProbeLimit    = vecCore::Min(Real_t(remains), kBoundaryAmbiguity);
       vecgeom::NavigationState directionState;
 #ifdef ADEPT_USE_SURF
       long directionHitsurfIndex = hitsurf_index;
 #endif
       current_state.CopyTo(&directionState);
+      directionState.SetBoundaryState(false);
 
 #ifdef ADEPT_USE_SURF
-      const double directionMove = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state,
-                                                                         directionState, directionHitsurfIndex);
+      const double directionMove = Navigator_t::ComputeStepAndNextVolume(
+          position, direction, directionProbeLimit, current_state, directionState, directionHitsurfIndex);
 #else
-      const double directionMove =
-          Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, directionState);
+      const double directionMove = Navigator_t::ComputeStepAndNextVolume(position, direction, directionProbeLimit,
+                                                                         current_state, directionState);
 #endif
-      const bool directionTiny         = directionMove <= kBoundaryAmbiguity;
+      const bool directionHit          = directionState.IsOnBoundary();
+      const bool directionTiny         = directionHit && directionMove <= kBoundaryAmbiguity;
       const bool directionStateChanged = !directionState.HasSamePathAsOther(current_state);
 
       if (!directionTiny) {
@@ -273,7 +276,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| TINY CHORD ARTIFACT reducedAdvance %g continue %d", maxNextSafeMove, continueIteration);
 #endif
-      } else if (move <= Navigator_t::kBoundaryPush) {
+      } else if (directionMove <= Navigator_t::kBoundaryPush) {
         // Both chord and physical direction report a boundary at the push scale.
         // Treat a clean state change as a zero-length relocation/backscatter,
         // matching the navigator contract without fabricating travelled length.
@@ -300,8 +303,16 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
         continueIteration = !directionStateChanged && chordIters < ReduceIters;
       } else {
         // The boundary is inside the ambiguity band, but it is still farther than
-        // the navigator push. Preserve the ordinary chord-limited crossing; do
-        // not round it up to the whole ambiguity distance.
+        // the navigator push. If the chord itself only clipped the tolerance
+        // surface at push scale, preserve the physical-direction crossing that
+        // resolved the ambiguity instead.
+        if (move <= Navigator_t::kBoundaryPush) {
+          directionState.CopyTo(&next_state);
+#ifdef ADEPT_USE_SURF
+          hitsurf_index = directionHitsurfIndex;
+#endif
+          move = directionMove;
+        }
         double fraction = vecCore::Max(move / chordLen, 0.);
         position += move * chordDir;
         direction   = direction * (1.0 - fraction) + endDirection * fraction;

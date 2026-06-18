@@ -184,15 +184,18 @@ struct NavigationResponse {
 // interpreted as "no boundary before the proposed step", so the response returns
 // the input step length.
 struct ScriptedNavigator {
-  static constexpr double kBoundaryPush                     = 1.0e-8;
-  inline static std::array<NavigationResponse, 8> responses = {};
-  inline static int responseCount                           = 0;
-  inline static int stepCalls                               = 0;
+  static constexpr double kBoundaryPush                                     = 1.0e-8;
+  static constexpr int kMaxScriptedCalls                                    = 256;
+  inline static std::array<NavigationResponse, kMaxScriptedCalls> responses = {};
+  inline static std::array<double, kMaxScriptedCalls> requestedSteps        = {};
+  inline static int responseCount                                           = 0;
+  inline static int stepCalls                                               = 0;
 
   static void Reset(std::initializer_list<NavigationResponse> script)
   {
     responseCount = 0;
     stepCalls     = 0;
+    requestedSteps.fill(0.0);
     for (const NavigationResponse &response : script) {
       responses[responseCount++] = response;
     }
@@ -208,6 +211,7 @@ struct ScriptedNavigator {
                                          vecgeom::NavigationState &nextState)
   {
     const int responseIndex = (stepCalls < responseCount) ? stepCalls : responseCount - 1;
+    if (stepCalls < kMaxScriptedCalls) requestedSteps[stepCalls] = step;
     ++stepCalls;
     const NavigationResponse &response = responses[responseIndex];
     currentState.CopyTo(&nextState);
@@ -424,7 +428,7 @@ TEST(FieldPropagatorRungeKuttaNavigation, ReducesTinyChordArtifactWhenPhysicalDi
 
   ScriptedNavigator::Reset({
       {2.5e-8, kDaughterNavIndex, true},
-      {1.0, kParentNavIndex, false},
+      {-1.0, kParentNavIndex, false},
       {-1.0, kParentNavIndex, false},
   });
 
@@ -434,8 +438,9 @@ TEST(FieldPropagatorRungeKuttaNavigation, ReducesTinyChordArtifactWhenPhysicalDi
 
   EXPECT_GT(moved, 2.5e-8);
   EXPECT_TRUE(propagated);
-  EXPECT_TRUE(nextState.HasSamePathAsOther(currentState));
+  EXPECT_EQ(nextState.GetNavIndex(), currentState.GetNavIndex());
   EXPECT_FALSE(nextState.IsOnBoundary());
+  EXPECT_DOUBLE_EQ(ScriptedNavigator::requestedSteps[1], 10.0 * ScriptedNavigator::kBoundaryPush);
   EXPECT_GE(ScriptedNavigator::stepCalls, 2);
 }
 
@@ -531,6 +536,40 @@ TEST(FieldPropagatorRungeKuttaNavigation, AcceptsImmediatePhysicalReturnCrossing
   EXPECT_TRUE(nextState.HasSamePathAsOther(parentState));
   EXPECT_TRUE(nextState.IsOnBoundary());
   ExpectVectorNear(position, vecgeom::Vector3D<double>{0.0, 0.0, 0.0}, 0.0);
+  EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
+}
+
+TEST(FieldPropagatorRungeKuttaNavigation, UsesFiniteDirectionCrossingWhenChordHitIsPushScale)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{0.0, 0.0, 1.0};
+  const vecgeom::NavigationState currentState = MakeState(kDaughterNavIndex, true);
+  const vecgeom::NavigationState parentState  = MakeState(kParentNavIndex, true);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  ScriptedNavigator::Reset({
+      {0.0, kParentNavIndex, true},
+      {5.0e-8, kParentNavIndex, true},
+  });
+
+  const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 4.0, 1.0, position, direction,
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, false);
+
+  EXPECT_DOUBLE_EQ(moved, 5.0e-8);
+  EXPECT_TRUE(propagated);
+  EXPECT_TRUE(nextState.HasSamePathAsOther(parentState));
+  EXPECT_TRUE(nextState.IsOnBoundary());
+  EXPECT_GT(moved, ScriptedNavigator::kBoundaryPush);
+  EXPECT_LT(moved, 10.0 * ScriptedNavigator::kBoundaryPush);
+  EXPECT_DOUBLE_EQ(ScriptedNavigator::requestedSteps[1], 10.0 * ScriptedNavigator::kBoundaryPush);
   EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
 }
 
