@@ -439,6 +439,69 @@ TEST(FieldPropagatorRungeKuttaNavigation, ReducesTinyChordArtifactWhenPhysicalDi
   EXPECT_GE(ScriptedNavigator::stepCalls, 2);
 }
 
+TEST(FieldPropagatorRungeKuttaNavigation, DoesNotProbePhysicalDirectionWhenStartIsNotOnBoundary)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{0.0, 0.0, 1.0};
+  const vecgeom::NavigationState currentState  = MakeState(kParentNavIndex, false);
+  const vecgeom::NavigationState daughterState = MakeState(kDaughterNavIndex, true);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  ScriptedNavigator::Reset({
+      {5.0e-9, kDaughterNavIndex, true},
+      {-1.0, kParentNavIndex, false},
+  });
+
+  const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 4.0, 1.0, position, direction,
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, false);
+
+  EXPECT_DOUBLE_EQ(moved, 5.0e-9);
+  EXPECT_TRUE(propagated);
+  EXPECT_TRUE(nextState.HasSamePathAsOther(daughterState));
+  EXPECT_TRUE(nextState.IsOnBoundary());
+  EXPECT_EQ(ScriptedNavigator::stepCalls, 1);
+}
+
+TEST(FieldPropagatorRungeKuttaNavigation, DoesNotProbePhysicalDirectionOutsideTinyBoundaryBand)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{0.0, 0.0, 1.0};
+  const vecgeom::NavigationState currentState  = MakeState(kParentNavIndex, true);
+  const vecgeom::NavigationState daughterState = MakeState(kDaughterNavIndex, true);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  ScriptedNavigator::Reset({
+      {1.1e-7, kDaughterNavIndex, true},
+      {-1.0, kParentNavIndex, false},
+  });
+
+  const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 4.0, 1.0, position, direction,
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, false);
+
+  EXPECT_DOUBLE_EQ(moved, 1.1e-7);
+  EXPECT_TRUE(propagated);
+  EXPECT_TRUE(nextState.HasSamePathAsOther(daughterState));
+  EXPECT_TRUE(nextState.IsOnBoundary());
+  EXPECT_GT(moved, 10.0 * ScriptedNavigator::kBoundaryPush);
+  EXPECT_EQ(ScriptedNavigator::stepCalls, 1);
+}
+
 TEST(FieldPropagatorRungeKuttaNavigation, AcceptsImmediatePhysicalReturnCrossing)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
