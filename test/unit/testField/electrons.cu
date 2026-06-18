@@ -215,8 +215,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, double, AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (
               momentumVec, B0fieldVec, Charge);
 
-      int iterDone         = -1;
-      bool zero_first_step = false;
+      int iterDone = -1;
       SafetyCache fieldSafetyCache;
       fieldSafetyCache.Refresh(pos, safety);
       geometryStepLength =
@@ -224,7 +223,7 @@ static __device__ __forceinline__ void TransportElectrons(Track *electrons, cons
               magneticFieldB, energy, Mass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
               nextState, hitsurf_index, propagated, fieldSafetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
-              max_iterations, iterDone, slot, zero_first_step);
+              max_iterations, iterDone, slot);
 #ifdef CHECK_RESULTS
 #define formatBool(b) ((b) ? "yes " : "no")
       constexpr double thresholdDiff = 3.0e-3;

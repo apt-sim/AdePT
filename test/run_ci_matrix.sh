@@ -433,12 +433,13 @@ run_drift_smoke_tests() {
 run_bfield_unit_tests() {
   local build_dir=$1
 
-  log "Building surface B-field unit target in ${build_dir}"
+  log "Building surface B-field unit targets in ${build_dir}"
   cmake --build "${build_dir}" --target test_bfield -j"${JOBS}"
+  cmake --build "${build_dir}" --target test_bfield_navigation -j"${JOBS}"
 
   log "Running surface B-field unit tests in ${build_dir}"
   run_ctest --test-dir "${build_dir}" --output-on-failure \
-    -R '^(UniformMagneticField|MagneticFieldEquation|RkIntegrationDriver|FieldPropagatorRungeKutta)\.' -j1
+    -R '^(UniformMagneticField|MagneticFieldEquation|RkIntegrationDriver|SafetyCache|FieldPropagatorRungeKuttaNavigation)\.' -j1
 }
 
 run_ci_subset_tests() {

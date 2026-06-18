@@ -39,7 +39,6 @@ public:
   /// @param max_iterations Maximum allowed iterations
   /// @param[out] iterDone Number of iterations performed
   /// @param threadId Thread id
-  /// @param zero_first_step Detected zero first step
   /// @param verbose Verbosity
   /// @return Length of the step made
   static inline __host__ __device__ double ComputeStepAndNextVolume(
@@ -47,7 +46,7 @@ public:
       vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &direction,
       vecgeom::NavigationState const &current_state, vecgeom::NavigationState &next_state, long &hitsurf_index,
       bool &propagated, SafetyCache &safetyCache, const int max_iterations, int &iterDone, int threadId,
-      bool &zero_first_step, bool verbose = false);
+      bool verbose = false);
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
 
@@ -95,11 +94,10 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
                              vecgeom::NavigationState &next_state, long &hitsurf_index, bool &propagated,
                              SafetyCache &safetyCache, const int max_iterations,
                              int &itersDone, //  useful for now - to monitor and report -- unclear if needed later
-                             int index, bool &zero_first_step, bool verbose)
+                             int index, bool verbose)
 {
   double stepDone = 0.0;         ///< step already done
   Real_t remains  = physicsStep; ///< remainder of the step to be done
-  zero_first_step = false;
   constexpr bool inZeroFieldRegion =
       false; // This could be a per-region flag ... - better depend on template parameter?
   if (inZeroFieldRegion) {
@@ -240,45 +238,83 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
       maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safetyCache.SafetyAt(position))); // Reset after success.
       continueIteration = true;
-    } else if (stepDone == 0 && move <= Navigator_t::kBoundaryPush) {
-      // Cope with a track at a boundary that wants to bend back into the previous
-      // volume in the first step (by reducing the attempted distance.)
-
-      // Deal with back-scattered tracks that need to be relocated. Check distance along initial direction.
+    } else if (stepDone == 0 && current_state.IsOnBoundary() && next_state.IsOnBoundary() &&
+               move <= Real_t(10.0) * Navigator_t::kBoundaryPush) {
+      // A first chord step that immediately reports a boundary while already on
+      // a boundary is ambiguous: the chord may touch a tolerance surface even if
+      // the physical direction stays in the current volume. Probe once along the
+      // physical direction before accepting the chord result.
+      constexpr Real_t kBoundaryAmbiguity = Real_t(10.0) * Navigator_t::kBoundaryPush;
+      vecgeom::NavigationState directionState;
 #ifdef ADEPT_USE_SURF
-      move =
-          Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state, hitsurf_index);
-#else
-      move = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, next_state);
+      long directionHitsurfIndex = hitsurf_index;
 #endif
+      current_state.CopyTo(&directionState);
 
-      if (move <= Navigator_t::kBoundaryPush) {
+#ifdef ADEPT_USE_SURF
+      const double directionMove = Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state,
+                                                                         directionState, directionHitsurfIndex);
+#else
+      const double directionMove =
+          Navigator_t::ComputeStepAndNextVolume(position, direction, remains, current_state, directionState);
+#endif
+      const bool directionTiny         = directionMove <= kBoundaryAmbiguity;
+      const bool directionStateChanged = !directionState.HasSamePathAsOther(current_state);
+
+      if (!directionTiny) {
+        // Chord-only boundary artifact: do not accept the chord state. Retry the
+        // field integration with a shorter arc so the next chord is less likely
+        // to clip the nearby surface.
+        current_state.CopyTo(&next_state);
+        next_state.SetBoundaryState(false);
+        move              = 0.;
+        maxNextSafeMove   = ReduceFactor * arcAdvanced;
+        continueIteration = chordIters < ReduceIters;
+#if ADEPT_DEBUG_TRACK > 0
+        if (verbose) printf("| TINY CHORD ARTIFACT reducedAdvance %g continue %d", maxNextSafeMove, continueIteration);
+#endif
+      } else if (move <= Navigator_t::kBoundaryPush) {
+        // Both chord and physical direction report a boundary at the push scale.
+        // Treat a clean state change as a zero-length relocation/backscatter,
+        // matching the navigator contract without fabricating travelled length.
+        if (directionStateChanged) {
+          directionState.CopyTo(&next_state);
+#ifdef ADEPT_USE_SURF
+          hitsurf_index = directionHitsurfIndex;
+#endif
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) {
+            printf("| DIRECTION-RESOLVED ZERO-LENGTH BOUNDARY RELOCATION hitting ");
+            next_state.Print();
+          }
+#endif
+        } else {
+          current_state.CopyTo(&next_state);
+          next_state.SetBoundaryState(false);
+          maxNextSafeMove = ReduceFactor * arcAdvanced;
+#if ADEPT_DEBUG_TRACK > 0
+          if (verbose) printf("| UNRESOLVED TINY BOUNDARY AMBIGUITY");
+#endif
+        }
+        move              = 0.;
+        continueIteration = !directionStateChanged && chordIters < ReduceIters;
+      } else {
+        // The boundary is inside the ambiguity band, but it is still farther than
+        // the navigator push. Preserve the ordinary chord-limited crossing; do
+        // not round it up to the whole ambiguity distance.
+        double fraction = vecCore::Max(move / chordLen, 0.);
+        position += move * chordDir;
+        direction   = direction * (1.0 - fraction) + endDirection * fraction;
+        direction   = direction.Unit();
+        momentumVec = momentumMag * direction;
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
-          printf("| BACK-SCATTERING or WRONG RELOCATION detected hitting ");
+          printf("| finite tiny boundary crossing %g hitting ", move);
           next_state.Print();
         }
 #endif
-        zero_first_step = true;
-        return 0.;
+        continueIteration = false;
       }
-
-      // Reduce the step attempted in the next iteration to navigate around
-      // boundaries where the chord step may end in a volume we just left.
-      // lastWasZero = true;
-      move              = 0.;
-      maxNextSafeMove   = ReduceFactor * arcAdvanced;
-      continueIteration = chordIters < ReduceIters;
-
-      if (!continueIteration) {
-        // Let's move to the other side of this boundary -- this side we cannot progress !!
-        move = Navigator_t::kBoundaryPush; // curvedStep
-        position += move * chordDir;
-      }
-#if ADEPT_DEBUG_TRACK > 0
-      if (verbose)
-        printf("| FIRST STEP BENDING BACK %g  reducedAdvance %g continue %d", move, maxNextSafeMove, continueIteration);
-#endif
     } else {
       // A boundary is on the way at non-zero distance
       assert(next_state.IsOnBoundary());
