@@ -146,8 +146,9 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   //  Locate the intersection of the curved trajectory and the boundaries of the current
   //    volume (including daughters).
   do {
-    static constexpr Real_t ReduceFactor = 0.1; ///< Factor to reduce the first step in case of crossing
-    static constexpr int ReduceIters     = 6;   ///< Number of reduced step trials to move away from the boundary
+    static constexpr Real_t ReduceFactor       = 0.1; ///< Factor to reduce the first step in case of crossing
+    static constexpr int ReduceIters           = 6;   ///< Number of reduced step trials to move away from the boundary
+    static constexpr Real_t kBoundaryAmbiguity = Real_t(10.0) * Navigator_t::kBoundaryPush;
 
     // Position and momentum at the end of the current arc
     vecgeom::Vector3D<double> endPosition    = position;
@@ -239,21 +240,23 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safetyCache.SafetyAt(position))); // Reset after success.
       continueIteration = true;
     } else if (stepDone == 0 && current_state.IsOnBoundary() && next_state.IsOnBoundary() &&
-               move <= Real_t(10.0) * Navigator_t::kBoundaryPush) {
+               move <= kBoundaryAmbiguity) {
       // A first chord step that immediately reports a boundary while already on
       // a boundary is ambiguous: the chord may touch a tolerance surface even if
       // the physical direction stays in the current volume. Probe once along the
       // physical direction before accepting the chord result.
-      constexpr Real_t kBoundaryAmbiguity = Real_t(10.0) * Navigator_t::kBoundaryPush;
-      const Real_t directionProbeLimit    = vecCore::Min(Real_t(remains), kBoundaryAmbiguity);
+      // The probe is also bounded by this RK chord so any accepted
+      // distance stays inside the integrated endpoint used for the
+      // chord interpolation below.
+      const Real_t directionProbeLimit =
+          vecCore::Min(Real_t(chordLen), vecCore::Min(Real_t(remains), kBoundaryAmbiguity));
+
       vecgeom::NavigationState directionState;
-#ifdef ADEPT_USE_SURF
-      long directionHitsurfIndex = hitsurf_index;
-#endif
       current_state.CopyTo(&directionState);
       directionState.SetBoundaryState(false);
 
 #ifdef ADEPT_USE_SURF
+      long directionHitsurfIndex = hitsurf_index;
       const double directionMove = Navigator_t::ComputeStepAndNextVolume(
           position, direction, directionProbeLimit, current_state, directionState, directionHitsurfIndex);
 #else

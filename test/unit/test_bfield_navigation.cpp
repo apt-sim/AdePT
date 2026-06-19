@@ -104,6 +104,22 @@ struct BentChordPropagatorDriver {
   }
 };
 
+// Produces a first RK chord shorter than the ambiguity band. This protects the
+// classifier from accepting a physical-direction crossing that lies beyond the
+// endpoint actually integrated by the RK driver.
+struct TinyBentChordPropagatorDriver {
+  static constexpr double kAcceptedStep = 4.0e-8;
+
+  static double Advance(vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &, int, double step,
+                        const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
+  {
+    const double acceptedStep = (step < kAcceptedStep) ? step : kAcceptedStep;
+    position += acceptedStep * vecgeom::Vector3D<double>{1.0, 0.0, -1.0e-5}.Unit();
+    lastGoodStep = acceptedStep;
+    return acceptedStep;
+  }
+};
+
 // Navigator used when a test expects the propagator to return before geometry
 // stepping. Any ComputeStepAndNextVolume call is therefore a test failure.
 struct ThrowingNavigator {
@@ -180,9 +196,10 @@ struct NavigationResponse {
   bool onBoundary;
 };
 
-// Scripted navigator for boundary-ambiguity algorithm tests. A negative move is
-// interpreted as "no boundary before the proposed step", so the response returns
-// the input step length.
+// Scripted navigator for boundary-ambiguity algorithm tests. A negative move,
+// or a positive move beyond the requested maximum step, is interpreted as "no
+// boundary before the proposed step". This models the VecGeom max-step contract
+// used by the physical-direction probe.
 struct ScriptedNavigator {
   static constexpr double kBoundaryPush                                     = 1.0e-8;
   static constexpr int kMaxScriptedCalls                                    = 256;
@@ -215,9 +232,13 @@ struct ScriptedNavigator {
     ++stepCalls;
     const NavigationResponse &response = responses[responseIndex];
     currentState.CopyTo(&nextState);
-    nextState.SetNavIndex(response.navIndex);
-    nextState.SetBoundaryState(response.onBoundary);
-    return (response.move < 0.0) ? step : response.move;
+    if (response.move >= 0.0 && response.move <= step) {
+      nextState.SetNavIndex(response.navIndex);
+      nextState.SetBoundaryState(response.onBoundary);
+      return response.move;
+    }
+    nextState.SetBoundaryState(false);
+    return step;
   }
 
   static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
@@ -410,8 +431,12 @@ TEST(FieldPropagatorRungeKuttaNavigation, StopsAtNavigatorBoundaryAlongChord)
 }
 
 // Boundary-ambiguity tests for the Geant4-inspired direction-resolved
-// classifier in the RK field propagator.
+// classifier in the RK field propagator. These use a bent RK chord so the
+// chord navigator and physical-direction probe can deliberately disagree.
 
+// Chord artifact case: the chord clips a daughter boundary inside the ambiguity
+// band, but the physical-direction probe finds no boundary before the ambiguity
+// limit. The propagator must reduce the arc and stay in the current volume.
 TEST(FieldPropagatorRungeKuttaNavigation, ReducesTinyChordArtifactWhenPhysicalDirectionStaysInCurrentVolume)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
@@ -444,6 +469,9 @@ TEST(FieldPropagatorRungeKuttaNavigation, ReducesTinyChordArtifactWhenPhysicalDi
   EXPECT_GE(ScriptedNavigator::stepCalls, 2);
 }
 
+// The ambiguity classifier is only for tracks already located on a boundary.
+// Away from a boundary, even a push-scale chord crossing is a normal navigator
+// result and must not trigger the physical-direction probe.
 TEST(FieldPropagatorRungeKuttaNavigation, DoesNotProbePhysicalDirectionWhenStartIsNotOnBoundary)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
@@ -475,6 +503,9 @@ TEST(FieldPropagatorRungeKuttaNavigation, DoesNotProbePhysicalDirectionWhenStart
   EXPECT_EQ(ScriptedNavigator::stepCalls, 1);
 }
 
+// The special classifier is restricted to the tiny ambiguity band. A chord hit
+// just outside 10*kBoundaryPush is already a finite boundary crossing and should
+// be accepted without any physical-direction probe.
 TEST(FieldPropagatorRungeKuttaNavigation, DoesNotProbePhysicalDirectionOutsideTinyBoundaryBand)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
@@ -507,6 +538,9 @@ TEST(FieldPropagatorRungeKuttaNavigation, DoesNotProbePhysicalDirectionOutsideTi
   EXPECT_EQ(ScriptedNavigator::stepCalls, 1);
 }
 
+// Immediate physical return/backscatter: both the chord and physical direction
+// find the previous volume at push scale. This remains a zero-length relocation
+// so the navigator can re-establish the boundary state without fabricated motion.
 TEST(FieldPropagatorRungeKuttaNavigation, AcceptsImmediatePhysicalReturnCrossing)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
@@ -539,6 +573,9 @@ TEST(FieldPropagatorRungeKuttaNavigation, AcceptsImmediatePhysicalReturnCrossing
   EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
 }
 
+// Review regression: the chord clips the tolerance surface at zero, but the
+// physical direction exits at a real finite distance inside the ambiguity band.
+// The finite direction crossing must win over the chord's zero-distance result.
 TEST(FieldPropagatorRungeKuttaNavigation, UsesFiniteDirectionCrossingWhenChordHitIsPushScale)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
@@ -573,6 +610,44 @@ TEST(FieldPropagatorRungeKuttaNavigation, UsesFiniteDirectionCrossingWhenChordHi
   EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
 }
 
+// Short integrated chord: the physical-direction probe must not be allowed to
+// accept a crossing farther away than the endpoint produced by the current RK
+// advance, even if that crossing is still inside the ambiguity band.
+TEST(FieldPropagatorRungeKuttaNavigation, DoesNotAcceptDirectionCrossingBeyondIntegratedChord)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, TinyBentChordPropagatorDriver, double, ScriptedNavigator>;
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{0.0, 0.0, 1.0};
+  const vecgeom::NavigationState currentState = MakeState(kDaughterNavIndex, true);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  ScriptedNavigator::Reset({
+      {0.0, kParentNavIndex, true},
+      {5.0e-8, kParentNavIndex, true},
+  });
+
+  const double moved =
+      Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 4.0, 1.0, position, direction, currentState,
+                                           nextState, hitSurfaceIndex, propagated, safetyCache, 1, itersDone, 0, false);
+
+  EXPECT_DOUBLE_EQ(moved, 0.0);
+  EXPECT_FALSE(propagated);
+  EXPECT_EQ(nextState.GetNavIndex(), currentState.GetNavIndex());
+  EXPECT_FALSE(nextState.IsOnBoundary());
+  EXPECT_DOUBLE_EQ(ScriptedNavigator::requestedSteps[0], TinyBentChordPropagatorDriver::kAcceptedStep);
+  EXPECT_DOUBLE_EQ(ScriptedNavigator::requestedSteps[1], TinyBentChordPropagatorDriver::kAcceptedStep);
+  EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
+}
+
+// Finite tiny crossing: when the boundary is inside the ambiguity band but
+// farther than the push distance, preserve the navigator distance instead of
+// rounding it to zero or to the full ambiguity limit.
 TEST(FieldPropagatorRungeKuttaNavigation, KeepsFiniteTinyDirectionCrossingAtNavigatorDistance)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
@@ -605,6 +680,9 @@ TEST(FieldPropagatorRungeKuttaNavigation, KeepsFiniteTinyDirectionCrossingAtNavi
   EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
 }
 
+// Persistent same-state ambiguity: if both chord and physical direction remain
+// in the same volume at push scale, this is not a backscatter/return crossing.
+// Leave it unresolved so the reduced-step retry path handles it.
 TEST(FieldPropagatorRungeKuttaNavigation, KeepsPersistentTinySameStateSeparateFromBackscatter)
 {
   using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
