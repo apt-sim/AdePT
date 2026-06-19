@@ -325,7 +325,6 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     currentTrack.propagated = true;
     currentTrack.hitsurfID  = -1;
     double geometryStepLength;
-    bool zero_first_step = false;
     SafetyCache geometrySafetyCache(currentTrack.safetyCache);
 
     if (gMagneticField) {
@@ -336,11 +335,7 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
               currentTrack.pos, currentTrack.dir, currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID,
               currentTrack.propagated, geometrySafetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
-              max_iterations, iterDone, slot, zero_first_step);
-      // In case of zero step detected by the field propagator this could be due to back scattering, or wrong relocation
-      // in the previous step.
-      // - In case of BS we should just restore the last exited one for the nextState. For now we cannot detect BS.
-      // if (zero_first_step) nextState.SetNavIndex(navState.GetLastExitedState());
+              max_iterations, iterDone, slot);
 
     } else {
 #ifdef ADEPT_USE_SURF
