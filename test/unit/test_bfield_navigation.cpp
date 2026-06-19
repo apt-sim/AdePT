@@ -610,6 +610,41 @@ TEST(FieldPropagatorRungeKuttaNavigation, UsesFiniteDirectionCrossingWhenChordHi
   EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
 }
 
+// Position consistency regression: when a finite crossing is accepted from the
+// physical-direction probe, the stored position must lie on that physical ray,
+// not on the different RK chord ray that produced the original push-scale hit.
+TEST(FieldPropagatorRungeKuttaNavigation, PlacesDirectionResolvedFiniteCrossingOnPhysicalRay)
+{
+  using Propagator = fieldPropagatorRungeKutta<DummyField, BentChordPropagatorDriver, double, ScriptedNavigator>;
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{0.0, 0.0, 1.0};
+  const vecgeom::NavigationState currentState = MakeState(kDaughterNavIndex, true);
+  const vecgeom::NavigationState parentState  = MakeState(kParentNavIndex, true);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  ScriptedNavigator::Reset({
+      {0.0, kParentNavIndex, true},
+      {5.0e-8, kParentNavIndex, true},
+  });
+
+  const double moved = Propagator::ComputeStepAndNextVolume(DummyField{}, 10.0, 1.0, 1, 4.0, 1.0, position, direction,
+                                                            currentState, nextState, hitSurfaceIndex, propagated,
+                                                            safetyCache, 10, itersDone, 0, false);
+
+  EXPECT_DOUBLE_EQ(moved, 5.0e-8);
+  EXPECT_TRUE(propagated);
+  EXPECT_TRUE(nextState.HasSamePathAsOther(parentState));
+  EXPECT_TRUE(nextState.IsOnBoundary());
+  ExpectVectorNear(position, vecgeom::Vector3D<double>{0.0, 0.0, 5.0e-8}, 0.0);
+  EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
+}
+
 // Short integrated chord: the physical-direction probe must not be allowed to
 // accept a crossing farther away than the endpoint produced by the current RK
 // advance, even if that crossing is still inside the ambiguity band.

@@ -308,19 +308,22 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
         // The boundary is inside the ambiguity band, but it is still farther than
         // the navigator push. If the chord itself only clipped the tolerance
         // surface at push scale, preserve the physical-direction crossing that
-        // resolved the ambiguity instead.
-        if (move <= Navigator_t::kBoundaryPush) {
+        // resolved the ambiguity instead and keep the position on that same ray.
+        const bool useDirectionProbePath = move <= Navigator_t::kBoundaryPush;
+        if (useDirectionProbePath) {
           directionState.CopyTo(&next_state);
 #ifdef ADEPT_USE_SURF
           hitsurf_index = directionHitsurfIndex;
 #endif
           move = directionMove;
+          position += move * direction;
+        } else {
+          double fraction = vecCore::Max(move / chordLen, 0.);
+          position += move * chordDir;
+          direction   = direction * (1.0 - fraction) + endDirection * fraction;
+          direction   = direction.Unit();
+          momentumVec = momentumMag * direction;
         }
-        double fraction = vecCore::Max(move / chordLen, 0.);
-        position += move * chordDir;
-        direction   = direction * (1.0 - fraction) + endDirection * fraction;
-        direction   = direction.Unit();
-        momentumVec = momentumMag * direction;
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
           printf("| finite tiny boundary crossing %g hitting ", move);
