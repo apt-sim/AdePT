@@ -48,11 +48,6 @@ endfunction()
 configure_file(${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml ${PROJECT_BINARY_DIR}/cms2018_sd.gdml)
 
 #----------------------------------------------------------------------------#
-# Detailed tests
-#----------------------------------------------------------------------------#
-add_subdirectory(testField)
-
-#----------------------------------------------------------------------------#
 # Basic Unit Tests
 #----------------------------------------------------------------------------#
 set(ADEPT_HEADER_ONLY_UNIT_TESTS

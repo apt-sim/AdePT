@@ -24,7 +24,10 @@
 #define __host__
 
 #include <AdePT/transport/support/PhysicalConstants.h>
+#include <AdePT/transport/magneticfield/ConstBzFieldStepper.h>
 #include <AdePT/transport/magneticfield/ConstFieldHelixStepper.h>
+#include <AdePT/transport/magneticfield/fieldConstants.h>
+#include <AdePT/transport/magneticfield/fieldPropagatorRungeKutta.h>
 #include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
 #include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
 #include <AdePT/transport/magneticfield/RkIntegrationDriver.h>
@@ -64,6 +67,8 @@ vecgeom::Vector3D<T> MomentumDerivative(const T dydx[kNvar])
 // progress shows up directly as an x-position error.
 
 struct DummyField {};
+struct UnusedRkDriver {};
+struct UnusedNavigator {};
 
 struct LinearEquation {
   static void EvaluateDerivatives(const DummyField &, const double[], int, double dydx[kNvar])
@@ -318,6 +323,62 @@ TEST(MagneticFieldEquation, ZeroFieldKeepsMomentumConstant)
   EXPECT_DOUBLE_EQ(dydx[3], 0.0);
   EXPECT_DOUBLE_EQ(dydx[4], 0.0);
   EXPECT_DOUBLE_EQ(dydx[5], 0.0);
+}
+
+// The constant-Bz stepper is a specialized analytic integrator for uniform
+// fields along z. It should agree with the general constant-field helix stepper
+// for the same field while keeping the simpler fast path available.
+TEST(ConstBzFieldStepper, MatchesGeneralHelixStepperForZField)
+{
+  using copcore::units::MeV;
+  using copcore::units::tesla;
+
+  const float bz = float(1.25 * tesla);
+  const ConstBzFieldStepper zStepper(bz);
+  const ConstFieldHelixStepper generalStepper(vecgeom::Vector3D<double>{0.0, 0.0, double(bz)});
+  const vecgeom::Vector3D<double> startPosition{0.25, -0.5, 1.0};
+  const double momentum = 350.0 * MeV;
+  const double step     = 75.0;
+
+  for (const int charge : {-1, 1}) {
+    for (const vecgeom::Vector3D<double> startDirection :
+         {vecgeom::Vector3D<double>{0.9, 0.1, 0.4}.Unit(), vecgeom::Vector3D<double>{-0.2, 0.8, 0.3}.Unit()}) {
+      SCOPED_TRACE(testing::Message() << "charge=" << charge << " direction={" << startDirection[0] << ", "
+                                      << startDirection[1] << ", " << startDirection[2] << "}");
+
+      vecgeom::Vector3D<double> zPosition;
+      vecgeom::Vector3D<double> zDirection;
+      vecgeom::Vector3D<double> generalPosition;
+      vecgeom::Vector3D<double> generalDirection;
+
+      zStepper.DoStep(startPosition, startDirection, charge, momentum, step, zPosition, zDirection);
+      generalStepper.DoStep(startPosition, startDirection, charge, momentum, step, generalPosition, generalDirection);
+
+      ExpectVectorNear(zPosition, generalPosition, 1.0e-12);
+      ExpectVectorNear(zDirection, generalDirection, 1.0e-14);
+    }
+  }
+}
+
+// ComputeSafeLength limits each RK chord so the curved path stays within the
+// allowed sagitta error. Only momentum transverse to the magnetic field should
+// contribute to curvature; parallel momentum should not shorten the chord.
+TEST(FieldPropagatorRungeKutta, ComputesChordSafeLengthFromTransverseMomentum)
+{
+  using Propagator = fieldPropagatorRungeKutta<UniformMagneticField, UnusedRkDriver, double, UnusedNavigator>;
+
+  vecgeom::Vector3D<double> momentum{300.0, 400.0, 1200.0};
+  vecgeom::Vector3D<double> field{0.0, 0.0, 1.5};
+  const int charge = -1;
+
+  const double safeLength = Propagator::ComputeSafeLength(momentum, field, charge);
+
+  const double bmag2                                 = field.Mag2();
+  const vecgeom::Vector3D<double> transverseMomentum = momentum - (momentum.Dot(field) / bmag2) * field;
+  const double invCurvature       = std::abs(transverseMomentum.Mag() / (fieldConstants::kB2C * charge * field.Mag()));
+  const double expectedSafeLength = std::sqrt(2.0 * fieldConstants::deltaChord * invCurvature);
+
+  EXPECT_NEAR(safeLength, expectedSafeLength, 1.0e-14 * expectedSafeLength);
 }
 
 // RK driver tests. The first two are targeted regression tests for rejected
