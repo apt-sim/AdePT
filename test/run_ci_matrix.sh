@@ -439,7 +439,7 @@ run_bfield_unit_tests() {
 
   log "Running surface B-field unit tests in ${build_dir}"
   run_ctest --test-dir "${build_dir}" --output-on-failure \
-    -R '^(UniformMagneticField|MagneticFieldEquation|RkIntegrationDriver|SafetyCache|FieldPropagatorRungeKuttaNavigation)\.' -j1
+    -R '^(UniformMagneticField|MagneticFieldEquation|ConstBzFieldStepper|FieldPropagatorRungeKutta|RkIntegrationDriver|SafetyCache|FieldPropagatorRungeKuttaNavigation)\.' -j1
 }
 
 run_ci_subset_tests() {
