@@ -20,6 +20,7 @@
 #include <cassert>
 #include <chrono>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 namespace adept::transport::detail {
@@ -29,7 +30,7 @@ void InitWDTOnDevice(const adeptint::WDTHostPacked &, adeptint::WDTDeviceBuffers
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters);
 std::thread LaunchGPUWorker(int, int, int, adept::transport::TrackBuffer &, adept::transport::GPUstate &,
                             std::vector<std::atomic<adept::transport::EventState>> &, std::condition_variable &, int,
-                            int, bool, bool, unsigned short, const double, bool);
+                            int, TransportKernelOptions, unsigned short, const double, bool);
 std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> InitializeGPU(
     int trackCapacity, int stepCapacity, int numThreads, adept::transport::TrackBuffer &trackBuffer,
     double CPUCapacityFactor, double CPUCopyFraction, std::string &generalBfieldFile,
@@ -90,6 +91,14 @@ unsigned int ValidateNumThreads(unsigned int numThreads)
   return numThreads;
 }
 
+TransportKernelOptions NormalizeKernelOptions(TransportKernelOptions options)
+{
+  if (options.maxChargedLooperCount == 0) {
+    options.maxChargedLooperCount = std::numeric_limits<unsigned short>::max();
+  }
+  return options;
+}
+
 } // namespace
 
 AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
@@ -100,9 +109,9 @@ AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
       fDebugLevel{configuration.debugLevel}, fCUDAStackLimit{configuration.cudaStackLimit},
       fCUDAHeapLimit{configuration.cudaHeapLimit}, fLastNParticlesOnCPU{configuration.lastNParticlesOnCPU},
       fMaxWDTIter{configuration.maxWDTIter}, fAdePTG4HepEmState(std::move(adeptG4HepEmState)), fEventStates(fNThread),
-      fReturnAllSteps{configuration.returnAllSteps}, fReturnFirstAndLastStep{configuration.returnFirstAndLastStep},
-      fBfieldFile{configuration.bfieldFile}, fCPUCapacityFactor{configuration.cpuCapacityFactor},
-      fCPUCopyFraction{configuration.cpuCopyFraction}, fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
+      fKernelOptions{NormalizeKernelOptions(configuration.kernelOptions)}, fBfieldFile{configuration.bfieldFile},
+      fCPUCapacityFactor{configuration.cpuCapacityFactor}, fCPUCopyFraction{configuration.cpuCopyFraction},
+      fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
 {
   for (auto &eventState : fEventStates) {
     std::atomic_init(&eventState, EventState::DeviceFlushed);
@@ -231,10 +240,9 @@ void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::W
   fGPUstate =
       adept::transport::detail::InitializeGPU(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, fCPUCapacityFactor,
                                               fCPUCopyFraction, fBfieldFile, uniformFieldValues);
-  fGPUWorker = adept::transport::detail::LaunchGPUWorker(fTrackCapacity, fStepCapacity, fNThread, *fBuffer, *fGPUstate,
-                                                         fEventStates, fCV_G4Workers, fAdePTSeed, fDebugLevel,
-                                                         fReturnAllSteps, fReturnFirstAndLastStep, fLastNParticlesOnCPU,
-                                                         fStepBufferSafetyFactor, fHasWDTRegions);
+  fGPUWorker = adept::transport::detail::LaunchGPUWorker(
+      fTrackCapacity, fStepCapacity, fNThread, *fBuffer, *fGPUstate, fEventStates, fCV_G4Workers, fAdePTSeed,
+      fDebugLevel, fKernelOptions, fLastNParticlesOnCPU, fStepBufferSafetyFactor, fHasWDTRegions);
 }
 
 void AdePTTransport::InitBVH()

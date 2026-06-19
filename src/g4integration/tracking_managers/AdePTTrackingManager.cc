@@ -51,15 +51,16 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
   transportConfig.debugLevel     = configuration.GetVerbosity();
   transportConfig.cudaStackLimit = configuration.GetCUDAStackLimit();
   transportConfig.cudaHeapLimit  = configuration.GetCUDAHeapLimit();
-  transportConfig.lastNParticlesOnCPU = configuration.GetLastNParticlesOnCPU();
-  transportConfig.maxWDTIter          = configuration.GetMaxWDTIter();
-  transportConfig.returnAllSteps      = configuration.GetCallUserSteppingAction();
-  transportConfig.returnFirstAndLastStep =
+  transportConfig.lastNParticlesOnCPU          = configuration.GetLastNParticlesOnCPU();
+  transportConfig.maxWDTIter                   = configuration.GetMaxWDTIter();
+  transportConfig.kernelOptions.returnAllSteps = configuration.GetCallUserSteppingAction();
+  transportConfig.kernelOptions.returnLastStep =
       configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction();
-  transportConfig.bfieldFile             = configuration.GetCovfieBfieldFile();
-  transportConfig.cpuCapacityFactor      = configuration.GetCPUCapacityFactor();
-  transportConfig.cpuCopyFraction        = configuration.GetHitBufferFlushThreshold();
-  transportConfig.stepBufferSafetyFactor = configuration.GetHitBufferSafetyFactor();
+  transportConfig.kernelOptions.maxChargedLooperCount = configuration.GetMaxChargedLooperCount();
+  transportConfig.bfieldFile                          = configuration.GetCovfieBfieldFile();
+  transportConfig.cpuCapacityFactor                   = configuration.GetCPUCapacityFactor();
+  transportConfig.cpuCopyFraction                     = configuration.GetHitBufferFlushThreshold();
+  transportConfig.stepBufferSafetyFactor              = configuration.GetHitBufferSafetyFactor();
   return transportConfig;
 }
 

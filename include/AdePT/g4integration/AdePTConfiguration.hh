@@ -4,7 +4,9 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -36,6 +38,13 @@ public:
   void SetCUDAHeapLimit(int limit) { fCUDAHeapLimit = limit; }
   void SetLastNParticlesOnCPU(int Nparticles) { fLastNParticlesOnCPU = Nparticles; }
   void SetMaxWDTIter(int maxIter) { fMaxWDTIter = maxIter; }
+  void SetMaxChargedLooperCount(int maxCount)
+  {
+    if (maxCount < 0 || maxCount >= std::numeric_limits<unsigned short>::max()) {
+      throw std::out_of_range("MaxChargedLooperCount must be 0 or less than the unsigned short maximum");
+    }
+    fMaxChargedLooperCount = static_cast<unsigned short>(maxCount);
+  }
   void SetWDTKineticEnergyLimit(double ekin) { fWDTKineticEnergyLimit = ekin; }
   void SetSpeedOfLight(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
   void SetMultipleStepsInMSCWithTransportation(bool setMultipleSteps)
@@ -64,6 +73,7 @@ public:
 
   unsigned short GetLastNParticlesOnCPU() const { return fLastNParticlesOnCPU; }
   unsigned short GetMaxWDTIter() const { return fMaxWDTIter; }
+  unsigned short GetMaxChargedLooperCount() const { return fMaxChargedLooperCount; }
   double GetWDTKineticEnergyLimit() const { return fWDTKineticEnergyLimit; }
   float GetHitBufferFlushThreshold() const { return fHitBufferFlushThreshold; }
   float GetCPUCapacityFactor() const { return fCPUCapacityFactor; }
@@ -98,6 +108,7 @@ private:
   double fMillionsOfHitSlots{1};
   unsigned short fLastNParticlesOnCPU{0};
   unsigned short fMaxWDTIter{5};
+  unsigned short fMaxChargedLooperCount{500};
   double fWDTKineticEnergyLimit{0.2}; // 200 keV
 
   std::vector<std::string> fGPURegionNames{};

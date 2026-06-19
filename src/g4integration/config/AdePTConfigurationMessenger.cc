@@ -107,6 +107,13 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetFinishOnCpuCmd->SetGuidance("Set N, the number of last N particles per event that are finished on CPU. Default: "
                                   "0. This is an important parameter for handling loopers in a magnetic field");
 
+  fSetMaxChargedLooperCountCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/MaxChargedLooperCount", this);
+  fSetMaxChargedLooperCountCmd->SetGuidance(
+      "Set N, the maximum charged-particle looper count before killing an electron or positron. Default: 500. "
+      "Set to 0 to disable this charged-looper kill.");
+  fSetMaxChargedLooperCountCmd->SetParameterName("MaxChargedLooperCount", false);
+  fSetMaxChargedLooperCountCmd->SetRange("MaxChargedLooperCount>=0&&MaxChargedLooperCount<65535");
+
   fSetMaxWDTIterCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/MaxWDTIterations", this);
   fSetMaxWDTIterCmd->SetGuidance("Set N, the number of maximum Woodcock tracking iterations per step before giving the "
                                  "gamma back to the normal gamma kernel. Default: "
@@ -193,6 +200,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetAdePTSeed(fSetAdePTSeedCmd->GetNewIntValue(newValue));
   } else if (command == fSetFinishOnCpuCmd.get()) {
     fAdePTConfiguration->SetLastNParticlesOnCPU(fSetFinishOnCpuCmd->GetNewIntValue(newValue));
+  } else if (command == fSetMaxChargedLooperCountCmd.get()) {
+    fAdePTConfiguration->SetMaxChargedLooperCount(fSetMaxChargedLooperCountCmd->GetNewIntValue(newValue));
   } else if (command == fSetMaxWDTIterCmd.get()) {
     fAdePTConfiguration->SetMaxWDTIter(fSetMaxWDTIterCmd->GetNewIntValue(newValue));
   } else if (command == fSetWDTKineticEnergyLimitCmd.get()) {

@@ -53,10 +53,8 @@ private:
   std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
   std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
   bool fHasWDTRegions = false;
-  // Flags for the kernels to return the last or all steps, needed for PostUserTrackingAction or UserSteppingAction
-  bool fReturnAllSteps         = false;
-  bool fReturnFirstAndLastStep = false;
-  std::string fBfieldFile{""}; ///< Path to magnetic field file (in the covfie format)
+  TransportKernelOptions fKernelOptions{}; // Runtime options copied into transport kernels.
+  std::string fBfieldFile{""};             ///< Path to magnetic field file (in the covfie format)
   double fCPUCapacityFactor{
       2.5}; ///< Factor by which the host step buffer is larger than the device step buffer. Must be at least 2
   ///< Filling fraction of the host step buffer when the steps are copied out and not taken directly by the G4 workers

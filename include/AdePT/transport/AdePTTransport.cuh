@@ -5,6 +5,8 @@
 
 #include <AdePT/transport/support/Portability.hh>
 
+#include <AdePT/transport/config/TransportKernelOptions.hh>
+
 #include <AdePT/transport/state/DeviceGlobals.cuh>
 #include <AdePT/transport/state/EventState.hh>
 #include <AdePT/transport/state/GPUState.cuh>
@@ -774,7 +776,7 @@ void StepProcessingLoop(StepProcessingContext *const context, GPUstate &gpuState
 
 void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
-                   int adeptSeed, int debugLevel, bool returnAllSteps, bool returnLastStep,
+                   int adeptSeed, int debugLevel, TransportKernelOptions kernelOptions,
                    unsigned short lastNParticlesOnCPU, const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
 
@@ -1027,30 +1029,29 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 #ifdef ADEPT_USE_SPLIT_KERNELS
         ElectronHowFar<true, SelectedSteppingAction><<<blocks, threads, 0, electrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, gpuState.stats_dev,
-            steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
+            steppingActionParams, allowFinishOffEvent, kernelOptions);
         ElectronPropagation<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronSetupInteractions<true><<<blocks, threads, 0, electrons.stream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, particleManager, electronSplitQueues,
-            returnAllSteps, returnLastStep);
+            kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.setupEvent, electrons.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(electrons.auxiliaryStream, electrons.setupEvent, 0));
         ElectronRelocation<true><<<blocks, threads, 0, electrons.stream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::relocation], returnAllSteps, returnLastStep);
+            electrons.queues.splitQueues[ParticleQueues::relocation], kernelOptions);
         ElectronIonization<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::chargedIonization], returnAllSteps, returnLastStep);
+            electrons.queues.splitQueues[ParticleQueues::chargedIonization], kernelOptions);
         ElectronBremsstrahlung<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], returnAllSteps, returnLastStep);
+            electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.auxiliaryEvent, electrons.auxiliaryStream));
 #else
-        TransportElectrons<SelectedSteppingAction>
-            <<<blocks, threads, 0, electrons.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
-                                                       allowFinishOffEvent, returnAllSteps, returnLastStep);
+        TransportElectrons<SelectedSteppingAction><<<blocks, threads, 0, electrons.stream>>>(
+            particleManager, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, kernelOptions);
 #endif
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.event, electrons.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(gpuState.stream, electrons.event, 0));
@@ -1070,36 +1071,35 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 #ifdef ADEPT_USE_SPLIT_KERNELS
         ElectronHowFar<false, SelectedSteppingAction><<<blocks, threads, 0, positrons.stream>>>(
             particleManager, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, gpuState.stats_dev,
-            steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
+            steppingActionParams, allowFinishOffEvent, kernelOptions);
         ElectronPropagation<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronSetupInteractions<false><<<blocks, threads, 0, positrons.stream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, particleManager, positronSplitQueues,
-            returnAllSteps, returnLastStep);
+            kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.setupEvent, positrons.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(positrons.auxiliaryStream, positrons.setupEvent, 0));
         ElectronRelocation<false><<<blocks, threads, 0, positrons.stream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::relocation], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::relocation], kernelOptions);
         ElectronIonization<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::chargedIonization], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::chargedIonization], kernelOptions);
         ElectronBremsstrahlung<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], kernelOptions);
         PositronAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::positronAnnihilation], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::positronAnnihilation], kernelOptions);
         PositronStoppedAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation], returnAllSteps, returnLastStep);
+            positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation], kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.auxiliaryEvent, positrons.auxiliaryStream));
 #else
-        TransportPositrons<SelectedSteppingAction>
-            <<<blocks, threads, 0, positrons.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
-                                                       allowFinishOffEvent, returnAllSteps, returnLastStep);
+        TransportPositrons<SelectedSteppingAction><<<blocks, threads, 0, positrons.stream>>>(
+            particleManager, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, kernelOptions);
 #endif
 
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.event, positrons.stream));
@@ -1133,13 +1133,13 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             particlesInFlight[GPUQueueIndex::Gamma] + particlesInFlight[GPUQueueIndex::GammaWDT]);
         GammaHowFar<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager, gammas.queues.propagation, gpuState.stats_dev,
-            steppingActionParams, allowFinishOffEvent, returnAllSteps, returnLastStep);
+            steppingActionParams, allowFinishOffEvent, kernelOptions);
 #ifdef ADEPT_ENABLE_WDT
         if (hasWDTRegions) {
           GammaWoodcock<SelectedSteppingAction><<<wdtBlocks, wdtThreads, 0, gammas.auxiliaryStream>>>(
               gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
               gammaSplitQueues.queues[ParticleQueues::gammaWoodcock], gpuState.stats_dev, steppingActionParams,
-              allowFinishOffEvent, returnAllSteps, returnLastStep);
+              allowFinishOffEvent, kernelOptions);
           ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
         }
 #endif
@@ -1150,37 +1150,35 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         }
         GammaSetupInteractions<<<interactionBlocks, interactionThreads, 0, gammas.stream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, gammas.queues.propagation, particleManager, gammaSplitQueues,
-            returnAllSteps, returnLastStep);
+            kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.setupEvent, gammas.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(gammas.auxiliaryStream, gammas.setupEvent, 0));
         GammaRelocation<<<blocks, threads, 0, gammas.stream>>>(gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
                                                                gammas.queues.splitQueues[ParticleQueues::relocation],
-                                                               returnAllSteps, returnLastStep);
+                                                               kernelOptions);
         // Copying the number of interacting tracks back to host and using this information to adjust
         // the launch parameters of the interactions kernel is complicated and expensive due to a
         // required additional kernel launch and copy. Instead, launch the kernels with the same
         // parameters, the unneeded threads immediately return and become free again.
         GammaConversion<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaConversion], returnAllSteps, returnLastStep);
+            gammas.queues.splitQueues[ParticleQueues::gammaConversion], kernelOptions);
         GammaCompton<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaCompton], returnAllSteps, returnLastStep);
+            gammas.queues.splitQueues[ParticleQueues::gammaCompton], kernelOptions);
         GammaPhotoelectric<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric], returnAllSteps, returnLastStep);
+            gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric], kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
 #else
-        TransportGammas<SelectedSteppingAction>
-            <<<blocks, threads, 0, gammas.stream>>>(particleManager, gpuState.stats_dev, steppingActionParams,
-                                                    allowFinishOffEvent, returnAllSteps, returnLastStep);
+        TransportGammas<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(
+            particleManager, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, kernelOptions);
 
 #ifdef ADEPT_ENABLE_WDT
         if (hasWDTRegions) {
           const auto [wdtThreads, wdtBlocks] = computeThreadsAndBlocks(particlesInFlight[GPUQueueIndex::GammaWDT]);
           TransportGammasWoodcock<SelectedSteppingAction><<<wdtBlocks, wdtThreads, 0, gammas.auxiliaryStream>>>(
-              particleManager, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, returnAllSteps,
-              returnLastStep);
+              particleManager, gpuState.stats_dev, steppingActionParams, allowFinishOffEvent, kernelOptions);
           ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
         }
 #endif
@@ -1498,25 +1496,14 @@ void CloseGPUStepBatch(unsigned int threadId, GPUstate &gpuState, GPUStep *begin
 // separate init function that will compile here and be called from the .icc
 std::thread LaunchGPUWorker(int trackCapacity, int stepCapacity, int numThreads, TrackBuffer &trackBuffer,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
-                            std::condition_variable &cvG4Workers, int adeptSeed, int debugLevel, bool returnAllSteps,
-                            bool returnLastStep, unsigned short lastNParticlesOnCPU,
+                            std::condition_variable &cvG4Workers, int adeptSeed, int debugLevel,
+                            TransportKernelOptions kernelOptions, unsigned short lastNParticlesOnCPU,
                             const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
-  return std::thread{&TransportLoop,
-                     trackCapacity,
-                     stepCapacity,
-                     numThreads,
-                     std::ref(trackBuffer),
-                     std::ref(gpuState),
-                     std::ref(eventStates),
-                     std::ref(cvG4Workers),
-                     adeptSeed,
-                     debugLevel,
-                     returnAllSteps,
-                     returnLastStep,
-                     lastNParticlesOnCPU,
-                     stepBufferSafetyFactor,
-                     hasWDTRegions};
+  return std::thread{
+      &TransportLoop,     trackCapacity,         stepCapacity,           numThreads,   std::ref(trackBuffer),
+      std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers),  adeptSeed,    debugLevel,
+      kernelOptions,      lastNParticlesOnCPU,   stepBufferSafetyFactor, hasWDTRegions};
 }
 
 void FreeGPU(std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> &gpuState,

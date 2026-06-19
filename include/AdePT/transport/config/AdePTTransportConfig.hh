@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/transport/config/TransportKernelOptions.hh>
+
 #include <cstdint>
 #include <string>
 
@@ -17,8 +19,7 @@ struct AdePTTransportConfig {
   int cudaHeapLimit{0};
   unsigned short lastNParticlesOnCPU{0};
   unsigned short maxWDTIter{5};
-  bool returnAllSteps{false};
-  bool returnFirstAndLastStep{false};
+  adept::transport::TransportKernelOptions kernelOptions{};
   std::string bfieldFile{};
   double cpuCapacityFactor{2.5};
   double cpuCopyFraction{0.5};

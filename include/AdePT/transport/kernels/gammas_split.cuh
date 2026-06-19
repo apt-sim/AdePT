@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/config/TransportKernelOptions.hh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
 
 #include <AdePT/transport/support/PhysicalConstants.h>
@@ -38,11 +39,11 @@ namespace adept::transport {
 template <class SteppingActionT>
 __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                             adept::MParray *propagationQueue, Stats *InFlightStats, const StepActionParam params,
-                            AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                            const bool returnLastStep)
+                            AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   constexpr unsigned short maxSteps        = 10'000;
   constexpr unsigned short kStepsStuckKill = 25;
+  const bool returnLastStep                = options.returnLastStep;
   auto &slotManager                        = *particleManager.gammas.fSlotManager;
 
   const int activeSize = particleManager.gammas.ActiveSize();
@@ -239,8 +240,9 @@ __global__ void GammaPropagation(NeutralTrack *gammas, G4HepEmGammaTrack *hepEMT
 
 __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const adept::MParray *propagationQueue,
                                        ParticleManager particleManager, SplitQueues splitQueues,
-                                       const bool returnAllSteps, const bool returnLastStep)
+                                       const TransportKernelOptions options)
 {
+  (void)options;
   auto &slotManager   = *particleManager.gammas.fSlotManager;
   auto *wdtSetupQueue = splitQueues.queues[ParticleQueues::gammaWoodcock];
   int normalSize      = propagationQueue->size();
@@ -304,10 +306,12 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
 }
 
 __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                adept::MParray *relocatingQueue, const bool returnAllSteps, const bool returnLastStep)
+                                adept::MParray *relocatingQueue, const TransportKernelOptions options)
 {
-  auto &slotManager = *particleManager.gammas.fSlotManager;
-  int activeSize    = relocatingQueue->size();
+  auto &slotManager         = *particleManager.gammas.fSlotManager;
+  int activeSize            = relocatingQueue->size();
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot             = (*relocatingQueue)[i];
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
@@ -426,10 +430,12 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 }
 
 __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                adept::MParray *interactingQueue, const bool returnAllSteps, const bool returnLastStep)
+                                adept::MParray *interactingQueue, const TransportKernelOptions options)
 {
-  auto &slotManager = *particleManager.gammas.fSlotManager;
-  int activeSize    = interactingQueue->size();
+  auto &slotManager         = *particleManager.gammas.fSlotManager;
+  int activeSize            = interactingQueue->size();
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot             = (*interactingQueue)[i];
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
@@ -556,10 +562,12 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 }
 
 __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                             adept::MParray *interactingQueue, const bool returnAllSteps, const bool returnLastStep)
+                             adept::MParray *interactingQueue, const TransportKernelOptions options)
 {
-  auto &slotManager = *particleManager.gammas.fSlotManager;
-  int activeSize    = interactingQueue->size();
+  auto &slotManager         = *particleManager.gammas.fSlotManager;
+  int activeSize            = interactingQueue->size();
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot             = (*interactingQueue)[i];
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
@@ -684,11 +692,12 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
 }
 
 __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *interactingQueue, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   adept::MParray *interactingQueue, const TransportKernelOptions options)
 {
-  auto &slotManager = *particleManager.gammas.fSlotManager;
-  int activeSize    = interactingQueue->size();
+  auto &slotManager         = *particleManager.gammas.fSlotManager;
+  int activeSize            = interactingQueue->size();
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot             = (*interactingQueue)[i];
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);

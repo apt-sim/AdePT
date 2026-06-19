@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/config/TransportKernelOptions.hh>
 
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
@@ -37,7 +38,7 @@ template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     GammaWoodcock(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
                   adept::MParray *setupInteractionQueue, Stats *InFlightStats, const StepActionParam params,
-                  AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps, const bool returnLastStep)
+                  AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   // Implementation of the gamma transport using Woodcock tracking. The implementation is taken from
   // Mihaly Novak's G4HepEm (https://github.com/mnovak42/g4hepem), see G4HepEmWoodcockHelper.hh/cc and
@@ -46,6 +47,7 @@ __global__ void __launch_bounds__(256, 1)
 
   constexpr unsigned short kStepsStuckKill = 25;
   constexpr unsigned short maxSteps        = 10'000;
+  const bool returnLastStep                = options.returnLastStep;
   auto &slotManager                        = *particleManager.gammasWDT.fSlotManager;
   const int activeSize                     = particleManager.gammasWDT.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
