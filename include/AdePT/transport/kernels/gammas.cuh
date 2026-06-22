@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/config/TransportKernelOptions.hh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
 #ifdef ADEPT_ENABLE_WDT
 #include <AdePT/transport/kernels/gammasWDT.cuh>
@@ -38,9 +39,11 @@ namespace adept::transport {
 template <class SteppingActionT>
 __global__ void __launch_bounds__(256, 1)
     TransportGammas(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
-                    AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps, const bool returnLastStep)
+                    AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   constexpr unsigned short maxSteps = 10'000;
+  const bool returnAllSteps         = options.returnAllSteps;
+  const bool returnLastStep         = options.returnLastStep;
   auto &slotManager                 = *particleManager.gammas.fSlotManager;
   const int activeSize              = particleManager.gammas.ActiveSize();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {

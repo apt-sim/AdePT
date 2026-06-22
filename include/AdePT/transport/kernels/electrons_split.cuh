@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/config/TransportKernelOptions.hh>
 
 // Classes for Runge-Kutta integration
 #include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
@@ -52,14 +53,14 @@ namespace adept::transport {
 template <bool IsElectron, class SteppingActionT>
 __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronTrack *hepEMTracks,
                                adept::MParray *propagationQueue, Stats *InFlightStats, const StepActionParam params,
-                               AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                               const bool returnLastStep)
+                               AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   constexpr unsigned short maxSteps        = 10'000;
   constexpr int Charge                     = IsElectron ? -1 : 1;
   constexpr double restMass                = copcore::units::kElectronMassC2;
   constexpr int Nvar                       = 6;
   constexpr unsigned short kStepsStuckKill = 25;
+  const bool returnLastStep                = options.returnLastStep;
 
 #ifdef ADEPT_USE_EXT_BFIELD
   using Field_t = GeneralMagneticField;
@@ -123,7 +124,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
       double energyDeposit = 0.;
 
       // check for loopers
-      if (currentTrack.looperCounter > 500) {
+      if (currentTrack.looperCounter > options.maxChargedLooperCount) {
         // Kill loopers that are not advancing in free space or are scraping at a boundary
         if (printErrors)
           printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
@@ -459,10 +460,13 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
 template <bool IsElectron>
 __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, const adept::MParray *propagationQueue,
                                           ParticleManager particleManager, SplitQueues splitQueues,
-                                          const bool returnAllSteps, const bool returnLastStep)
+                                          const TransportKernelOptions options)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
+
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
 
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
@@ -603,13 +607,14 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
 
 template <bool IsElectron>
 __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *relocatingQueue, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   adept::MParray *relocatingQueue, const TransportKernelOptions options)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
 
-  SlotManager &slotManager = *electronsOrPositrons.fSlotManager;
-  int activeSize           = relocatingQueue->size();
+  SlotManager &slotManager  = *electronsOrPositrons.fSlotManager;
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
+  int activeSize            = relocatingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot             = (*relocatingQueue)[i];
     ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
@@ -761,11 +766,12 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Charg
 
 template <bool IsElectron>
 __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *interactingQueue, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   adept::MParray *interactingQueue, const TransportKernelOptions options)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
+  const bool returnAllSteps  = options.returnAllSteps;
+  const bool returnLastStep  = options.returnLastStep;
   int activeSize             = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
@@ -888,11 +894,12 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 
 template <bool IsElectron>
 __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                       adept::MParray *interactingQueue, const bool returnAllSteps,
-                                       const bool returnLastStep)
+                                       adept::MParray *interactingQueue, const TransportKernelOptions options)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
+  const bool returnAllSteps  = options.returnAllSteps;
+  const bool returnLastStep  = options.returnLastStep;
   int activeSize             = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     // const int slot           = (*active)[i];
@@ -1028,11 +1035,12 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
 }
 
 __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                     adept::MParray *interactingQueue, const bool returnAllSteps,
-                                     const bool returnLastStep)
+                                     adept::MParray *interactingQueue, const TransportKernelOptions options)
 {
-  SlotManager &slotManager = *particleManager.positrons.fSlotManager;
-  int activeSize           = interactingQueue->size();
+  SlotManager &slotManager  = *particleManager.positrons.fSlotManager;
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
+  int activeSize            = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot = (*interactingQueue)[i];
 
@@ -1167,11 +1175,12 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
 }
 
 __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                            adept::MParray *interactingQueue, const bool returnAllSteps,
-                                            const bool returnLastStep)
+                                            adept::MParray *interactingQueue, const TransportKernelOptions options)
 {
-  SlotManager &slotManager = *particleManager.positrons.fSlotManager;
-  int activeSize           = interactingQueue->size();
+  SlotManager &slotManager  = *particleManager.positrons.fSlotManager;
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
+  int activeSize            = interactingQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot = (*interactingQueue)[i];
 

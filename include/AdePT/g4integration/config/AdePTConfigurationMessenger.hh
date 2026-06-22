@@ -39,6 +39,7 @@ private:
   std::unique_ptr<G4UIcmdWithAnInteger> fSetAdePTSeedCmd;
   std::unique_ptr<G4UIcmdWithAnInteger> fSetFinishOnCpuCmd;
   std::unique_ptr<G4UIcmdWithAnInteger> fSetMaxWDTIterCmd;
+  std::unique_ptr<G4UIcmdWithAnInteger> fSetMaxChargedLooperCountCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetWDTKineticEnergyLimitCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetTrackInAllRegionsCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetCallUserSteppingActionCmd;

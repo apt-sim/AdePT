@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/config/TransportKernelOptions.hh>
 
 // Classes for Runge-Kutta integration
 #include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
@@ -57,13 +58,15 @@ template <bool IsElectron, class SteppingActionT>
 static __device__ __forceinline__ void TransportElectrons(ParticleManager &particleManager, Stats *InFlightStats,
                                                           const StepActionParam params,
                                                           AllowFinishOffEventArray allowFinishOffEvent,
-                                                          const bool returnAllSteps, const bool returnLastStep)
+                                                          const TransportKernelOptions options)
 {
   constexpr unsigned short maxSteps = 10'000;
   constexpr int Charge              = IsElectron ? -1 : 1;
   constexpr double restMass         = copcore::units::kElectronMassC2;
   constexpr int Nvar                = 6;
   constexpr int max_iterations      = 10;
+  const bool returnAllSteps         = options.returnAllSteps;
+  const bool returnLastStep         = options.returnLastStep;
 
 #ifdef ADEPT_USE_EXT_BFIELD
   using Field_t = GeneralMagneticField;
@@ -791,7 +794,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     }
 
     if (trackSurvives) {
-      if (++currentTrack.looperCounter > 500) {
+      if (++currentTrack.looperCounter > options.maxChargedLooperCount) {
         // Kill loopers that are not advancing in free space or are scraping at a boundary
         if (printErrors)
           printf("Killing looper due to lack of advance or scraping at a boundary: E=%E event=%d track=%lu loop=%d "
@@ -866,19 +869,17 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 // Instantiate kernels for electrons and positrons.
 template <class SteppingActionT>
 __global__ void TransportElectrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
-                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   TransportElectrons</*IsElectron*/ true, SteppingActionT>(particleManager, InFlightStats, params, allowFinishOffEvent,
-                                                           returnAllSteps, returnLastStep);
+                                                           options);
 }
 template <class SteppingActionT>
 __global__ void TransportPositrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
-                                   AllowFinishOffEventArray allowFinishOffEvent, const bool returnAllSteps,
-                                   const bool returnLastStep)
+                                   AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   TransportElectrons</*IsElectron*/ false, SteppingActionT>(particleManager, InFlightStats, params, allowFinishOffEvent,
-                                                            returnAllSteps, returnLastStep);
+                                                            options);
 }
 
 } // namespace adept::transport
