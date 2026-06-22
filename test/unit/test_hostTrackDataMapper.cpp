@@ -49,6 +49,44 @@ static int test_beginEvent_clear_and_reserve()
   return 0;
 }
 
+static int test_default_beginEvent_uses_small_capacity()
+{
+  HostTrackDataMapper m;
+  m.beginEvent(1);
+
+  CHECK(m.hostDataCapacity() >= HostTrackDataMapper::kDefaultExpectedTracks);
+  CHECK(m.hostDataCapacity() <= HostTrackDataMapper::kDefaultMaxRetainedTrackCapacity);
+  CHECK(m.gpuToIndexRetainedCapacity() >= HostTrackDataMapper::kDefaultExpectedTracks);
+  CHECK(m.gpuToIndexRetainedCapacity() <= HostTrackDataMapper::kDefaultMaxRetainedTrackCapacity);
+  CHECK(m.g4idToGpuIdRetainedCapacity() >= HostTrackDataMapper::kDefaultExpectedTracks);
+  CHECK(m.g4idToGpuIdRetainedCapacity() <= HostTrackDataMapper::kDefaultMaxRetainedTrackCapacity);
+
+  return 0;
+}
+
+static int test_large_event_capacity_is_released()
+{
+  HostTrackDataMapper m;
+  constexpr size_t largeEventTracks = HostTrackDataMapper::kDefaultMaxRetainedTrackCapacity + 1;
+
+  m.beginEvent(1, largeEventTracks);
+  CHECK(m.hostDataCapacity() >= largeEventTracks);
+  CHECK(m.gpuToIndexRetainedCapacity() >= largeEventTracks);
+  CHECK(m.g4idToGpuIdRetainedCapacity() >= largeEventTracks);
+
+  m.beginEvent(2);
+  CHECK(m.hostDataCapacity() <= HostTrackDataMapper::kDefaultMaxRetainedTrackCapacity);
+  CHECK(m.gpuToIndexRetainedCapacity() <= HostTrackDataMapper::kDefaultMaxRetainedTrackCapacity);
+  CHECK(m.g4idToGpuIdRetainedCapacity() <= HostTrackDataMapper::kDefaultMaxRetainedTrackCapacity);
+
+  auto &d = m.create(/*gpuId*/ 7u, /*useNewId=*/false);
+  CHECK(d.gpuId == 7u);
+  CHECK(d.g4id == 7);
+  CHECK(m.contains(7u));
+
+  return 0;
+}
+
 static int test_create_and_lookup()
 {
   HostTrackDataMapper m;
@@ -186,6 +224,8 @@ static int test_contains_and_getGPUId_contract()
 int main()
 {
   if (int r = test_beginEvent_clear_and_reserve()) return r;
+  if (int r = test_default_beginEvent_uses_small_capacity()) return r;
+  if (int r = test_large_event_capacity_is_released()) return r;
   if (int r = test_create_and_lookup()) return r;
   if (int r = test_removeTrack_swap_erase()) return r;
   if (int r = test_retire_reactivate_preserve_reverse()) return r;

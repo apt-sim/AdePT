@@ -49,6 +49,9 @@ struct HostTrackData {
 // such as the pointer to the creator process, the G4 primary particle, and the G4VUserTrackInformation
 class HostTrackDataMapper {
 public:
+  static constexpr size_t kDefaultExpectedTracks           = 30'000;
+  static constexpr size_t kDefaultMaxRetainedTrackCapacity = 4 * kDefaultExpectedTracks;
+
   ~HostTrackDataMapper()
   {
     // Clear all memory upon destruction
@@ -60,8 +63,9 @@ public:
   }
 
   // Using a hash map to find the correct index for a given GPU id and then a vector for all the CPU-only data
-  /// Call once at the start of each event, so we can clear and reserve
-  void beginEvent(int eventID, size_t expectedTracks = 1'000'000)
+  /// Call once at the start of each event, so we can clear and reserve.
+  /// Keeps normal-event storage around, but releases rare large-event allocations.
+  void beginEvent(int eventID, size_t expectedTracks = kDefaultExpectedTracks)
   {
     if (eventID != currentEventID) {
       currentEventID = eventID;
@@ -72,19 +76,24 @@ public:
       // std::cout << " CLEARING HostTrackDataMapper size of gpuToIndex " << gpuToIndex.size() << " size of g4idToGPUid
       // " << g4idToGpuId.size() << " size of hostDataVec " << hostDataVec.size() << std::endl;
 
-      gpuToIndex.clear();
       gpuToIndex.max_load_factor(0.5f);
-      gpuToIndex.reserve(expectedTracks);
+      clearAndReserve(gpuToIndex, expectedTracks);
 
-      g4idToGpuId.clear();
       g4idToGpuId.max_load_factor(0.25f);
-      g4idToGpuId.reserve(expectedTracks);
+      clearAndReserve(g4idToGpuId, expectedTracks);
 
       hostDataVec.clear();
+      if (hostDataVec.capacity() > maxRetainedCapacity(expectedTracks)) {
+        std::vector<HostTrackData>().swap(hostDataVec);
+      }
       hostDataVec.reserve(expectedTracks);
       currentGpuReturnG4ID = std::numeric_limits<int>::max();
     }
   }
+
+  size_t hostDataCapacity() const noexcept { return hostDataVec.capacity(); }
+  size_t gpuToIndexRetainedCapacity() const noexcept { return retainedCapacity(gpuToIndex); }
+  size_t g4idToGpuIdRetainedCapacity() const noexcept { return retainedCapacity(g4idToGpuId); }
 
   /// HOT PATH: 1 hash + bucket probe, returns a reference into the table
 
@@ -124,7 +133,7 @@ public:
     auto [it, inserted] = gpuToIndex.try_emplace(gpuId, static_cast<int>(hostDataVec.size()));
     if (!inserted) return hostDataVec[it->second];
 
-    // We reserved in beginEvent(), so emplace_back() should not reallocate.
+    // beginEvent() pre-reserves the normal event size; rare large events may grow here.
     hostDataVec.emplace_back();
     HostTrackData &d = hostDataVec.back();
     d.gpuId          = gpuId;
@@ -187,6 +196,27 @@ public:
 
 private:
   using GpuToIndexMap = std::unordered_map<uint64_t, int>;
+
+  static size_t maxRetainedCapacity(size_t expectedTracks) noexcept
+  {
+    return std::max(expectedTracks, kDefaultExpectedTracks) * 4;
+  }
+
+  template <typename Map>
+  static size_t retainedCapacity(Map const &map) noexcept
+  {
+    return static_cast<size_t>(map.bucket_count() * map.max_load_factor());
+  }
+
+  template <typename Map>
+  static void clearAndReserve(Map &map, size_t expectedTracks)
+  {
+    map.clear();
+    if (retainedCapacity(map) > maxRetainedCapacity(expectedTracks)) {
+      map.rehash(0);
+    }
+    map.reserve(expectedTracks);
+  }
 
   void eraseHostTrackData(GpuToIndexMap::iterator it, bool keepReverseMap, bool deleteUserTrackInfo)
   {
