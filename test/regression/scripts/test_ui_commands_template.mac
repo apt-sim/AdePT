@@ -106,7 +106,7 @@
 
 /adept/MaxChargedLooperCount 500
 # Set N, the maximum charged-particle looper count before killing an electron or positron.
-# Default: 500. Set to 0 to disable this charged-looper kill. Maximum active value: 65534.
+# Default: 500. Set to 0 to disable this charged-looper kill. Maximum active value: 64535.
 
 /adept/MaxWDTIterations 5
 # Set N, the number of maximum Woodcock tracking iterations per step before giving the gamma back to the normal gamma kernel.

@@ -93,8 +93,13 @@ unsigned int ValidateNumThreads(unsigned int numThreads)
 
 TransportKernelOptions NormalizeKernelOptions(TransportKernelOptions options)
 {
+  constexpr unsigned short maxActiveChargedLooperCount = std::numeric_limits<unsigned short>::max() - 1000;
   if (options.maxChargedLooperCount == 0) {
     options.maxChargedLooperCount = std::numeric_limits<unsigned short>::max();
+    return options;
+  }
+  if (options.maxChargedLooperCount > maxActiveChargedLooperCount) {
+    throw std::invalid_argument("maxChargedLooperCount must be 0 or at most 64535");
   }
   return options;
 }

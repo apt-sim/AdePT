@@ -40,8 +40,9 @@ public:
   void SetMaxWDTIter(int maxIter) { fMaxWDTIter = maxIter; }
   void SetMaxChargedLooperCount(int maxCount)
   {
-    if (maxCount < 0 || maxCount >= std::numeric_limits<unsigned short>::max()) {
-      throw std::out_of_range("MaxChargedLooperCount must be 0 or less than the unsigned short maximum");
+    constexpr int maxActiveChargedLooperCount = std::numeric_limits<unsigned short>::max() - 1000;
+    if (maxCount < 0 || maxCount > maxActiveChargedLooperCount) {
+      throw std::out_of_range("MaxChargedLooperCount must be between 0 and 64535");
     }
     fMaxChargedLooperCount = static_cast<unsigned short>(maxCount);
   }

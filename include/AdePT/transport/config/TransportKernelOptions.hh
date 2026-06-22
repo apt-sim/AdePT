@@ -10,7 +10,8 @@ struct TransportKernelOptions {
   bool returnAllSteps{false};
   bool returnLastStep{false};
   /// Maximum charged-particle looper count before killing the track.
-  /// The transport service normalizes 0 to the maximum unsigned short value to disable this kill.
+  /// The transport service normalizes 0 to the maximum unsigned short value to disable this kill;
+  /// active limits are capped below the overflow range.
   unsigned short maxChargedLooperCount{500};
 };
 

@@ -112,7 +112,7 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "Set N, the maximum charged-particle looper count before killing an electron or positron. Default: 500. "
       "Set to 0 to disable this charged-looper kill.");
   fSetMaxChargedLooperCountCmd->SetParameterName("MaxChargedLooperCount", false);
-  fSetMaxChargedLooperCountCmd->SetRange("MaxChargedLooperCount>=0&&MaxChargedLooperCount<65535");
+  fSetMaxChargedLooperCountCmd->SetRange("MaxChargedLooperCount>=0&&MaxChargedLooperCount<=64535");
 
   fSetMaxWDTIterCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/MaxWDTIterations", this);
   fSetMaxWDTIterCmd->SetGuidance("Set N, the number of maximum Woodcock tracking iterations per step before giving the "
