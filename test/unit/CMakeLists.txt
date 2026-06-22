@@ -73,6 +73,9 @@ set(ADEPT_TRANSPORT_UTILITIES
 )
 
 set(ADEPT_G4_INTEGRATION_UNIT_TESTS
+)
+
+set(ADEPT_G4_INTEGRATION_GTESTS
   test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
 )
 
@@ -90,6 +93,7 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 build_header_only_tests(${ADEPT_HEADER_ONLY_UNIT_TESTS})
 build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS} ${ADEPT_TRANSPORT_UTILITIES})
 build_gtest_tests(AdePT::Transport ${ADEPT_TRANSPORT_GTESTS})
+build_gtest_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_GTESTS})
 build_linked_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UNIT_TESTS})
 
 if(ADEPT_USE_EXT_BFIELD)
@@ -117,7 +121,6 @@ set(ADEPT_UNIT_TEST_NAMES
   test_queue
   test_track_block
   test_hostCircularBuffer
-  test_hostTrackDataMapper
 )
 if(ADEPT_USE_EXT_BFIELD)
   list(APPEND ADEPT_UNIT_TEST_NAMES
