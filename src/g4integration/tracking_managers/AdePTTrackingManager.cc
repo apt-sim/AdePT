@@ -405,7 +405,7 @@ void AdePTTrackingManager::FlushEvent()
   auto deferredSteps                = fGeant4Integration.TakeDeferredSteps();
   const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
   const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
-  const bool callUserActions        = CallUserActions(*fAdePTConfiguration);
+  const bool useHostData = fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
 
   std::sort(deferredSteps.steps.begin(), deferredSteps.steps.end(),
             [&deferredSteps](const AdePTGeant4Integration::DeferredStep &lhs,
@@ -417,9 +417,9 @@ void AdePTTrackingManager::FlushEvent()
     std::span<const GPUStep> gpuSteps(deferredSteps.gpuSteps.data() + deferredStep.firstGPUStep,
                                       deferredStep.numGPUSteps);
     if (deferredStep.type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
-      fGeant4Integration.ReturnDeferredTrack(gpuSteps, callUserActions);
+      fGeant4Integration.ReturnDeferredTrack(gpuSteps, useHostData);
     } else {
-      fGeant4Integration.ProcessGPUStep(gpuSteps, callUserSteppingAction, callUserTrackingAction);
+      fGeant4Integration.ProcessGPUStep(gpuSteps, callUserSteppingAction, callUserTrackingAction, useHostData);
     }
   }
   fAdeptTransport->MarkHostFlushed(threadId);
@@ -429,6 +429,7 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
 {
   const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
   const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
+  const bool useHostData = fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
 
   // Transport owns the step-batch lifetime and calls this lambda once
   // for each currently available returned batch. This lambda provides the
@@ -472,7 +473,7 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
                                                  : AdePTGeant4Integration::DeferredStepType::ReplayStep);
       } else {
         fGeant4Integration.ProcessGPUStep(std::span<const GPUStep>(&*it, blockSize), callUserSteppingAction,
-                                          callUserTrackingAction);
+                                          callUserTrackingAction, useHostData);
       }
       it += blockSize;
     }
@@ -486,6 +487,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   const bool trackInAllRegions       = fAdePTConfiguration->GetTrackInAllRegions();
   const bool callUserActions         = CallUserActions(*fAdePTConfiguration);
+  const bool useHostData = fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
 
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 
@@ -541,10 +543,10 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       HostTrackData dummy; // default constructed dummy if no advanced information is available
       bool entryExists = trackMapper.getGPUId(aTrack->GetTrackID(), gpuTrackID);
       HostTrackData &hostTrackData =
-          callUserActions ? trackMapper.activateForGPU(gpuTrackID, aTrack->GetTrackID(), entryExists) : dummy;
+          useHostData ? trackMapper.activateForGPU(gpuTrackID, aTrack->GetTrackID(), entryExists) : dummy;
 
       // fill hostTracKData if being used:
-      if (callUserActions) {
+      if (useHostData) {
         // set pointers and G4 parent id
         hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
         hostTrackData.creatorProcess = const_cast<G4VProcess *>(aTrack->GetCreatorProcess());
@@ -575,13 +577,15 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
         // if there has been no step, call PreUserTrackingAction and try to attach UserInformation
         if (aTrack->GetCurrentStepNumber() == 0) {
-          auto *userTrackingAction = eventManager->GetUserTrackingAction();
-          if (userTrackingAction) {
+          if (callUserActions) {
+            auto *userTrackingAction = eventManager->GetUserTrackingAction();
+            if (userTrackingAction) {
 
-            // this assumes that the UserTrackInformation is attached to the track in the PreUserTrackingAction
-            userTrackingAction->PreUserTrackingAction(aTrack);
-            hostTrackData.userTrackInfo = aTrack->GetUserInformation();
+              // this assumes that the UserTrackInformation is attached to the track in the PreUserTrackingAction
+              userTrackingAction->PreUserTrackingAction(aTrack);
+            }
           }
+          hostTrackData.userTrackInfo = aTrack->GetUserInformation();
         } else {
           // not the initializing step, just attach user information in case it is there
           hostTrackData.userTrackInfo = aTrack->GetUserInformation();
@@ -614,7 +618,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // directly, but it has proven to be very expensive to create new G4TouchableHandle objects for each track in the
       // HostTrackData. Instead, it was much cheaper to just store the vecgeom::NavState and create the
       // G4TouchableHandle only when the track is returned from the GPU
-      if (callUserActions) {
+      if (useHostData) {
         if (aTrack->GetParentID() == 0 && aTrack->GetCurrentStepNumber() == 0) {
           // For the first step of primary tracks, the origin touchable handle is not set,
           // so we need to use the track's current position
@@ -640,11 +644,11 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       aTrack->SetTrackStatus(fStopAndKill);
 
       // After the track has been offloaded to the GPU, it can be deleted on the CPU.
-      // However, the HostTrackData is now owning and therefore responsible for deleting the TrackUserInfo data
+      // If host data is used, HostTrackData now owns the TrackUserInfo data.
       // To avoid deletion of the TrackUserInfo data when the track is deleted, the pointer must be reset.
       // Then, the underlying data is either deleted via hostTrackData.removeTrack in case the track is finished on GPU,
-      // or the ownership is transferred back to G4, when the track is given back to the CPU
-      aTrack->SetUserInformation(nullptr);
+      // or the ownership is transferred back to G4, when the track is given back to the CPU.
+      if (useHostData) aTrack->SetUserInformation(nullptr);
 
     } else { // If the particle is not in a GPU region, track it on CPU
              // Track the particle step by step until it dies or enters a GPU region in the (specialized)
