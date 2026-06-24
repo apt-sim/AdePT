@@ -42,9 +42,9 @@ $field_setup
 ## Set secondary production threshold, init. the run and set primary properties
 ## -----------------------------------------------------------------------------
 /run/setCut 0.7 mm
-/run/initialize
 $call_user_stepping_action
 $call_user_tracking_action
+/run/initialize
 
 ## User-defined Event verbosity: 1 = total edep, 2 = energy deposit per placed sensitive volume
 /eventAction/verbose 1
