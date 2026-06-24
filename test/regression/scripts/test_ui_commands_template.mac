@@ -70,7 +70,7 @@
 
 ### ------------
 ### UserActions:
-/adept/callUserActions true
+/adept/CallUserActions true
 # If true, both UserTrackingAction and UserSteppingAction are called for returned GPU steps. This does not
 # change which GPU steps are returned; combine it with /adept/returnFirstAndLastStep and/or /adept/returnAllSteps
 # to make the required steps available on the host.

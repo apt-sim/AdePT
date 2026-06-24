@@ -79,7 +79,7 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "Remove a region in which transport will be done on GPU (so it will be done on the CPU)");
 
   // ADEPT_DOCS_SECTION: User Actions
-  fSetCallUserActionsCmd = std::make_unique<G4UIcmdWithABool>("/adept/callUserActions", this);
+  fSetCallUserActionsCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserActions", this);
   fSetCallUserActionsCmd->SetGuidance(
       "If true, both UserTrackingAction and UserSteppingAction are called for returned GPU steps. This does not "
       "change which GPU steps are returned; combine it with /adept/returnFirstAndLastStep and/or "
@@ -100,12 +100,12 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetReturnFirstAndLastStepCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnFirstAndLastStep", this);
   fSetReturnFirstAndLastStepCmd->SetGuidance(
       "If true, the first and last GPU steps of each track are returned to the host. This only controls GPU step "
-      "returning; use /adept/callUserActions or the individual action commands to invoke user actions on them.");
+      "returning; use /adept/CallUserActions or the individual action commands to invoke user actions on them.");
 
   fSetReturnAllStepsCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnAllSteps", this);
   fSetReturnAllStepsCmd->SetGuidance(
       "If true, every GPU step is returned to the host. This only controls GPU step returning; use "
-      "/adept/callUserActions or the individual action commands to invoke user actions on them.");
+      "/adept/CallUserActions or the individual action commands to invoke user actions on them.");
 
   // ADEPT_DOCS_SECTION: Special Settings
   fSetSpeedOfLightCmd = std::make_unique<G4UIcmdWithABool>("/adept/SpeedOfLight", this);
