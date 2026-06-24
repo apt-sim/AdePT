@@ -112,9 +112,10 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport()
   return transport;
 }
 
-bool CanReturnTrackDirectly(const GPUStep &step, unsigned int blockSize, bool callUserSteppingAction)
+bool CanReturnTrackDirectly(const GPUStep &step, unsigned int blockSize, bool callUserSteppingAction,
+                            bool returnAllSteps)
 {
-  if (callUserSteppingAction) return false;
+  if (callUserSteppingAction || returnAllSteps) return false;
   if (step.fParticleType != ParticleType::Gamma) return false;
   if (step.fStepLimProcessId != kAdePTOutOfGPURegionProcess && step.fStepLimProcessId != kAdePTFinishOnCPUProcess) {
     return false;
@@ -405,7 +406,8 @@ void AdePTTrackingManager::FlushEvent()
   auto deferredSteps                = fGeant4Integration.TakeDeferredSteps();
   const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
   const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
-  const bool useHostData = fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
+  const bool returnAllSteps         = fAdePTConfiguration->GetReturnAllSteps();
+  const bool useHostData            = fAdePTConfiguration->GetReturnFirstAndLastStep() || returnAllSteps;
 
   std::sort(deferredSteps.steps.begin(), deferredSteps.steps.end(),
             [&deferredSteps](const AdePTGeant4Integration::DeferredStep &lhs,
@@ -429,7 +431,8 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
 {
   const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
   const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
-  const bool useHostData = fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
+  const bool returnAllSteps         = fAdePTConfiguration->GetReturnAllSteps();
+  const bool useHostData            = fAdePTConfiguration->GetReturnFirstAndLastStep() || returnAllSteps;
 
   // Transport owns the step-batch lifetime and calls this lambda once
   // for each currently available returned batch. This lambda provides the
@@ -466,7 +469,7 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
            it->fStepLimProcessId == 3) ||
           it->fStepLimProcessId == kAdePTOutOfGPURegionProcess || it->fStepLimProcessId == kAdePTFinishOnCPUProcess;
       if (isDeferredStep) {
-        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, callUserSteppingAction);
+        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, callUserSteppingAction, returnAllSteps);
         fGeant4Integration.QueueDeferredStep(std::span<const GPUStep>(&*it, blockSize),
                                              returnTrackDirectly
                                                  ? AdePTGeant4Integration::DeferredStepType::ReturnTrack
