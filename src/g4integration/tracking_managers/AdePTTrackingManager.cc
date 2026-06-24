@@ -53,9 +53,10 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
   transportConfig.cudaHeapLimit  = configuration.GetCUDAHeapLimit();
   transportConfig.lastNParticlesOnCPU          = configuration.GetLastNParticlesOnCPU();
   transportConfig.maxWDTIter                   = configuration.GetMaxWDTIter();
-  transportConfig.kernelOptions.returnAllSteps = configuration.GetCallUserSteppingAction();
+  transportConfig.kernelOptions.returnAllSteps = configuration.GetReturnAllSteps();
+  // Returning every GPU step also requires the synthetic first-step records for GPU-born secondaries.
   transportConfig.kernelOptions.returnLastStep =
-      configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction();
+      configuration.GetReturnFirstAndLastStep() || configuration.GetReturnAllSteps();
   transportConfig.kernelOptions.maxChargedLooperCount = configuration.GetMaxChargedLooperCount();
   transportConfig.bfieldFile                          = configuration.GetCovfieBfieldFile();
   transportConfig.cpuCapacityFactor                   = configuration.GetCPUCapacityFactor();
@@ -64,14 +65,19 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
   return transportConfig;
 }
 
-bool ReturnAllSteps(const AdePTConfiguration &configuration)
+bool CallUserSteppingAction(const AdePTConfiguration &configuration)
 {
   return configuration.GetCallUserSteppingAction();
 }
 
-bool ReturnFirstAndLastStep(const AdePTConfiguration &configuration)
+bool CallUserTrackingAction(const AdePTConfiguration &configuration)
 {
-  return configuration.GetCallUserTrackingAction() || configuration.GetCallUserSteppingAction();
+  return configuration.GetCallUserTrackingAction();
+}
+
+bool CallUserActions(const AdePTConfiguration &configuration)
+{
+  return CallUserSteppingAction(configuration) || CallUserTrackingAction(configuration);
 }
 
 std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
@@ -397,8 +403,9 @@ void AdePTTrackingManager::FlushEvent()
   ProcessReturnedGPUSteps(threadId, eventId);
 
   auto deferredSteps                = fGeant4Integration.TakeDeferredSteps();
-  const bool returnAllSteps         = ReturnAllSteps(*fAdePTConfiguration);
-  const bool returnFirstAndLastStep = ReturnFirstAndLastStep(*fAdePTConfiguration);
+  const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
+  const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
+  const bool callUserActions        = CallUserActions(*fAdePTConfiguration);
 
   std::sort(deferredSteps.steps.begin(), deferredSteps.steps.end(),
             [&deferredSteps](const AdePTGeant4Integration::DeferredStep &lhs,
@@ -410,9 +417,9 @@ void AdePTTrackingManager::FlushEvent()
     std::span<const GPUStep> gpuSteps(deferredSteps.gpuSteps.data() + deferredStep.firstGPUStep,
                                       deferredStep.numGPUSteps);
     if (deferredStep.type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
-      fGeant4Integration.ReturnDeferredTrack(gpuSteps, returnAllSteps || returnFirstAndLastStep);
+      fGeant4Integration.ReturnDeferredTrack(gpuSteps, callUserActions);
     } else {
-      fGeant4Integration.ProcessGPUStep(gpuSteps, returnAllSteps, returnFirstAndLastStep);
+      fGeant4Integration.ProcessGPUStep(gpuSteps, callUserSteppingAction, callUserTrackingAction);
     }
   }
   fAdeptTransport->MarkHostFlushed(threadId);
@@ -420,8 +427,8 @@ void AdePTTrackingManager::FlushEvent()
 
 void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
 {
-  const bool returnAllSteps         = ReturnAllSteps(*fAdePTConfiguration);
-  const bool returnFirstAndLastStep = ReturnFirstAndLastStep(*fAdePTConfiguration);
+  const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
+  const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
 
   // Transport owns the step-batch lifetime and calls this lambda once
   // for each currently available returned batch. This lambda provides the
@@ -458,14 +465,14 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
            it->fStepLimProcessId == 3) ||
           it->fStepLimProcessId == kAdePTOutOfGPURegionProcess || it->fStepLimProcessId == kAdePTFinishOnCPUProcess;
       if (isDeferredStep) {
-        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, returnAllSteps);
+        const bool returnTrackDirectly = CanReturnTrackDirectly(*it, blockSize, callUserSteppingAction);
         fGeant4Integration.QueueDeferredStep(std::span<const GPUStep>(&*it, blockSize),
                                              returnTrackDirectly
                                                  ? AdePTGeant4Integration::DeferredStepType::ReturnTrack
                                                  : AdePTGeant4Integration::DeferredStepType::ReplayStep);
       } else {
-        fGeant4Integration.ProcessGPUStep(std::span<const GPUStep>(&*it, blockSize), returnAllSteps,
-                                          returnFirstAndLastStep);
+        fGeant4Integration.ProcessGPUStep(std::span<const GPUStep>(&*it, blockSize), callUserSteppingAction,
+                                          callUserTrackingAction);
       }
       it += blockSize;
     }
@@ -478,7 +485,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   const bool trackInAllRegions       = fAdePTConfiguration->GetTrackInAllRegions();
-  const bool callUserActions         = ReturnFirstAndLastStep(*fAdePTConfiguration);
+  const bool callUserActions         = CallUserActions(*fAdePTConfiguration);
 
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 

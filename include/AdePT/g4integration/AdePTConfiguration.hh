@@ -20,8 +20,11 @@ public:
   ~AdePTConfiguration();
   void SetNumThreads(int numThreads) { fNumThreads = numThreads; }
   void SetTrackInAllRegions(bool trackInAllRegions) { fTrackInAllRegions = trackInAllRegions; }
+  void SetCallUserActions(bool callUserActions) { fCallUserActions = callUserActions; }
   void SetCallUserSteppingAction(bool callUserSteppingAction) { fCallUserSteppingAction = callUserSteppingAction; }
   void SetCallUserTrackingAction(bool callUserTrackingAction) { fCallUserTrackingAction = callUserTrackingAction; }
+  void SetReturnAllSteps(bool returnAllSteps) { fReturnAllSteps = returnAllSteps; }
+  void SetReturnFirstAndLastStep(bool returnFirstAndLastStep) { fReturnFirstAndLastStep = returnFirstAndLastStep; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void RemoveGPURegionName(std::string name) { fCPURegionNames.push_back(name); }
   void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
@@ -61,8 +64,11 @@ public:
   void SetCovfieBfieldFile(std::string filename) { fCovfieBfieldFile = filename; }
 
   bool GetTrackInAllRegions() const { return fTrackInAllRegions; }
-  bool GetCallUserSteppingAction() const { return fCallUserSteppingAction; }
-  bool GetCallUserTrackingAction() const { return fCallUserTrackingAction; }
+  bool GetCallUserActions() const { return fCallUserActions; }
+  bool GetCallUserSteppingAction() const { return fCallUserActions || fCallUserSteppingAction; }
+  bool GetCallUserTrackingAction() const { return fCallUserActions || fCallUserTrackingAction; }
+  bool GetReturnAllSteps() const { return fReturnAllSteps; }
+  bool GetReturnFirstAndLastStep() const { return fReturnFirstAndLastStep; }
   bool GetSpeedOfLight() const { return fSpeedOfLight; }
   bool GetMultipleStepsInMSCWithTransportation() const { return fSetMultipleStepsInMSCWithTransportation; }
   bool GetEnergyLossFluctuation() const { return fSetEnergyLossFluctuation; }
@@ -92,8 +98,11 @@ public:
 
 private:
   bool fTrackInAllRegions{false};
+  bool fCallUserActions{false};
   bool fCallUserSteppingAction{false};
   bool fCallUserTrackingAction{false};
+  bool fReturnAllSteps{false};
+  bool fReturnFirstAndLastStep{false};
   bool fSpeedOfLight{false};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};

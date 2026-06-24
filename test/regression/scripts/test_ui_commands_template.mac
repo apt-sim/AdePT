@@ -70,15 +70,23 @@
 
 ### ------------
 ### UserActions:
+/adept/callUserActions true
+# If true, both UserTrackingAction and UserSteppingAction are called for returned GPU steps. This does not
+# change which GPU steps are returned; combine it with /adept/returnFirstAndLastStep and/or /adept/returnAllSteps
+# to make the required steps available on the host.
+
 /adept/CallUserSteppingAction true
-# If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that
-# means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the
-# secondary before the primary has finished its track.
-# NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance
+# If true, the UserSteppingAction is called for returned GPU steps. This does not change which GPU steps are returned.
 
 /adept/CallUserTrackingAction true
-# If true, the PostUserTrackingAction is called for on every track. NOTE: This
-# means that the last step of every track is recorded on GPU and send back to CPU
+# If true, the UserTrackingAction is called for returned GPU track starts and ends. This does not change which GPU steps
+# are returned.
+
+/adept/returnFirstAndLastStep true
+# If true, the first and last GPU steps of each track are returned to the host.
+
+/adept/returnAllSteps true
+# If true, every GPU step is returned to the host.
 
 
 

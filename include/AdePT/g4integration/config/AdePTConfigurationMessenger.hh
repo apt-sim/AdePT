@@ -42,8 +42,11 @@ private:
   std::unique_ptr<G4UIcmdWithAnInteger> fSetMaxChargedLooperCountCmd;
   std::unique_ptr<G4UIcmdWithADouble> fSetWDTKineticEnergyLimitCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetTrackInAllRegionsCmd;
+  std::unique_ptr<G4UIcmdWithABool> fSetCallUserActionsCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetCallUserSteppingActionCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetCallUserTrackingActionCmd;
+  std::unique_ptr<G4UIcmdWithABool> fSetReturnAllStepsCmd;
+  std::unique_ptr<G4UIcmdWithABool> fSetReturnFirstAndLastStepCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetSpeedOfLightCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetMultipleStepsInMSCWithTransportationCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetEnergyLossFluctuationCmd;
