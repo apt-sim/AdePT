@@ -58,7 +58,7 @@ public:
 
   /// @brief Reconstructs GPU steps on host and calls the user-defined sensitive detector code
   void ProcessGPUStep(std::span<const GPUStep> gpuSteps, bool const callUserSteppingAction = false,
-                      bool const callUserTrackingaction = false);
+                      bool const callUserTrackingAction = false, bool const useHostData = false);
 
   /// @brief Return a deferred parent track to Geant4 without rebuilding the visible G4 step.
   /// @details
@@ -66,7 +66,7 @@ public:
   /// no secondaries, and zero deposited energy. In that case there is no GPU
   /// step to process on the host, so only the parent G4Track is rebuilt from the
   /// post-step state and pushed back to the Geant4 stack.
-  void ReturnDeferredTrack(std::span<const GPUStep> gpuSteps, bool const callUserActions = false);
+  void ReturnDeferredTrack(std::span<const GPUStep> gpuSteps, bool const useHostData = false);
 
   /// @brief Returns the Z value of the user-defined uniform magnetic field
   /// @details This function can only be called when the user-defined field is a G4UniformMagField

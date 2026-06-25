@@ -234,7 +234,7 @@ AdePTGeant4Integration::DeferredStepStore AdePTGeant4Integration::TakeDeferredSt
   return deferred;
 }
 
-void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSteps, bool const callUserActions)
+void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSteps, bool const useHostData)
 {
   assert(gpuSteps.size() == 1);
 
@@ -244,7 +244,7 @@ void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSte
          parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
   assert(parentStep.fTotalEnergyDeposit == 0.);
   HostTrackData dummy;
-  HostTrackData &parentTData = callUserActions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
+  HostTrackData &parentTData = useHostData ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
 
   auto *returnedParentTrack = MakeReturnedTrackFromStep(
       parentStep, parentTData, /*setStopButAlive=*/parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
@@ -357,7 +357,7 @@ G4Track *AdePTGeant4Integration::ConstructSecondaryTrackInPlace(GPUStep const *s
 }
 
 void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, bool const callUserSteppingAction,
-                                            bool const callUserTrackingAction)
+                                            bool const callUserTrackingAction, bool const useHostData)
 {
 
   if (!fStepReconstructionObjects) {
@@ -405,9 +405,9 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     postStepStatus = G4StepStatus::fWorldBoundary;
   }
 
-  // For all steps, the HostTrackData Mapper must already exist:
+  // When host data is used, the HostTrackData Mapper entry must already exist:
   // - for particles created on CPU, it was created in the AdePTTrackingManager when offloading to GPU,
-  // - for particles createdon GPU, it was created in InitSecondaryHostTrackDataFromParent below
+  // - for particles created on GPU, it was created in InitSecondaryHostTrackDataFromParent below
 
   const bool isGammaNuclearStep = parentStep.fParticleType == ParticleType::Gamma && parentStep.fStepLimProcessId == 3;
   const bool isLeptonNuclearStep =
@@ -423,11 +423,10 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
 
   HostTrackData dummy; // default constructed dummy if no advanced information is available
 
-  // if the userActions are used, advanced track information is available
-  const bool actions = (callUserTrackingAction || callUserSteppingAction);
+  const bool callUserActions = (callUserTrackingAction || callUserSteppingAction);
 
-  // Bind a reference *without* touching the mapper unless actions==true
-  HostTrackData &parentTData = actions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
+  // The caller guarantees the mapper entry exists when useHostData is true.
+  HostTrackData &parentTData = useHostData ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
 
   // Fill the G4Step, fill the G4Track, and intertwine them
   switch (parentStep.fParticleType) {
@@ -500,7 +499,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       throw std::runtime_error("Specialized HepEmTrackingManager no longer valid in integration!");
     }
 
-    HostTrackData &parentTDataAfterSecondaries = actions ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
+    HostTrackData &parentTDataAfterSecondaries = useHostData ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
 
     G4VProcess *nuclearProcess = nullptr;
     int particleID             = 2;
@@ -531,7 +530,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       nuclearReactionTrack->SetProperTime(parentStep.fProperTime);
       nuclearReactionTrack->SetWeight(parentStep.fTrackWeight);
       G4TouchableHandle postTouchable;
-      if (actions) {
+      if (useHostData) {
         nuclearReactionTrack->SetTrackID(parentTDataAfterSecondaries.g4id);
         nuclearReactionTrack->SetParentID(parentTDataAfterSecondaries.g4parentid);
         nuclearReactionTrack->SetCreatorProcess(parentTDataAfterSecondaries.creatorProcess);
@@ -638,7 +637,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
   // step has been fully processed. Hadronic secondaries created by the host-side
   // nuclear process stay on the CPU and will receive their normal Geant4
   // tracking callbacks later.
-  if (callUserTrackingAction || callUserSteppingAction) {
+  if (callUserActions) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) {

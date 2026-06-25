@@ -62,11 +62,11 @@ def generate_macro(template_path, output_path, args):
         "$call_user_stepping_action",
         # Emit the command only when explicitly requested so templates can keep
         # the callback lines optional.
-        "/adept/CallUserSteppingAction true" if str(args.call_user_stepping_action) == "True" else "",
+        "/adept/CallUserSteppingAction true\n/adept/returnAllSteps true" if str(args.call_user_stepping_action) == "True" else "",
     )
     macro_content = macro_content.replace(
         "$call_user_tracking_action",
-        "/adept/CallUserTrackingAction true" if str(args.call_user_tracking_action) == "True" else "",
+        "/adept/CallUserTrackingAction true\n/adept/returnFirstAndLastStep true" if str(args.call_user_tracking_action) == "True" else "",
     )
 
     if str(args.gun_type) == "hepmc":

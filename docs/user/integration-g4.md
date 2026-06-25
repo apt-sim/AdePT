@@ -90,7 +90,8 @@ fAdePTConfiguration = new AdePTConfiguration();
 // Optional AdePT-side defaults. If these are set in ConstructProcess(), they override the usual /adept/* macro commands, since those are normally processed before /run/initialize. This might be useful to avoid having to call many UI commands for a fixed setup.
 fAdePTConfiguration->SetCUDAStackLimit(8192);
 fAdePTConfiguration->SetTrackInAllRegions(true);
-fAdePTConfiguration->SetCallUserTrackingAction(true);
+fAdePTConfiguration->SetCallUserActions(true);
+fAdePTConfiguration->SetReturnFirstAndLastStep(true);
 
 // Required: In ConstructProcess(), after registering the EM processes for the custom
 // EM constructor, create an AdePTTrackingManager:

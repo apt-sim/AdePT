@@ -79,17 +79,38 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "Remove a region in which transport will be done on GPU (so it will be done on the CPU)");
 
   // ADEPT_DOCS_SECTION: User Actions
+  fSetCallUserActionsCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserActions", this);
+  fSetCallUserActionsCmd->SetGuidance(
+      "If true, both UserTrackingAction and UserSteppingAction are called for returned GPU steps. This does not "
+      "change which GPU steps are returned; combine it with /adept/returnFirstAndLastStep and/or "
+      "/adept/returnAllSteps to make the required steps available on the host.");
+  fSetCallUserActionsCmd->AvailableForStates(G4State_PreInit);
+
   fSetCallUserSteppingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserSteppingAction", this);
   fSetCallUserSteppingActionCmd->SetGuidance(
-      "If true, the UserSteppingAction is called for on every step. WARNING: The steps are currently not sorted, that "
-      "means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on the "
-      "secondary before the primary has finished its track."
-      " NOTE: This means that every single step is recorded on GPU and send back to CPU, which can impact performance");
+      "If true, the UserSteppingAction is called for returned GPU steps. WARNING: The steps are currently not sorted, "
+      "that means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on "
+      "the secondary before the primary has finished its track. This does not change which GPU steps are returned; "
+      "use /adept/returnAllSteps to return every GPU step.");
+  fSetCallUserSteppingActionCmd->AvailableForStates(G4State_PreInit);
 
   fSetCallUserTrackingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserTrackingAction", this);
   fSetCallUserTrackingActionCmd->SetGuidance(
-      "If true, the PostUserTrackingAction is called for on every track. NOTE: This "
-      "means that the last step of every track is recorded on GPU and send back to CPU");
+      "If true, the UserTrackingAction is called for returned GPU track starts and ends. This does not change which "
+      "GPU steps are returned; use /adept/returnFirstAndLastStep to return the first and last GPU steps.");
+  fSetCallUserTrackingActionCmd->AvailableForStates(G4State_PreInit);
+
+  fSetReturnFirstAndLastStepCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnFirstAndLastStep", this);
+  fSetReturnFirstAndLastStepCmd->SetGuidance(
+      "If true, the first and last GPU steps of each track are returned to the host. This only controls GPU step "
+      "returning; use /adept/CallUserActions or the individual action commands to invoke user actions on them.");
+  fSetReturnFirstAndLastStepCmd->AvailableForStates(G4State_PreInit);
+
+  fSetReturnAllStepsCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnAllSteps", this);
+  fSetReturnAllStepsCmd->SetGuidance(
+      "If true, every GPU step is returned to the host. This only controls GPU step returning; use "
+      "/adept/CallUserActions or the individual action commands to invoke user actions on them.");
+  fSetReturnAllStepsCmd->AvailableForStates(G4State_PreInit);
 
   // ADEPT_DOCS_SECTION: Special Settings
   fSetSpeedOfLightCmd = std::make_unique<G4UIcmdWithABool>("/adept/SpeedOfLight", this);
@@ -154,10 +175,16 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
 
   if (command == fSetTrackInAllRegionsCmd.get()) {
     fAdePTConfiguration->SetTrackInAllRegions(fSetTrackInAllRegionsCmd->GetNewBoolValue(newValue));
+  } else if (command == fSetCallUserActionsCmd.get()) {
+    fAdePTConfiguration->SetCallUserActions(fSetCallUserActionsCmd->GetNewBoolValue(newValue));
   } else if (command == fSetCallUserSteppingActionCmd.get()) {
     fAdePTConfiguration->SetCallUserSteppingAction(fSetCallUserSteppingActionCmd->GetNewBoolValue(newValue));
   } else if (command == fSetCallUserTrackingActionCmd.get()) {
     fAdePTConfiguration->SetCallUserTrackingAction(fSetCallUserTrackingActionCmd->GetNewBoolValue(newValue));
+  } else if (command == fSetReturnFirstAndLastStepCmd.get()) {
+    fAdePTConfiguration->SetReturnFirstAndLastStep(fSetReturnFirstAndLastStepCmd->GetNewBoolValue(newValue));
+  } else if (command == fSetReturnAllStepsCmd.get()) {
+    fAdePTConfiguration->SetReturnAllSteps(fSetReturnAllStepsCmd->GetNewBoolValue(newValue));
   } else if (command == fSetSpeedOfLightCmd.get()) {
     fAdePTConfiguration->SetSpeedOfLight(fSetSpeedOfLightCmd->GetNewBoolValue(newValue));
   } else if (command == fSetMultipleStepsInMSCWithTransportationCmd.get()) {
