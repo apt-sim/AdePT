@@ -6,7 +6,6 @@
 #include "G4VUserTrackInformation.hh"
 #include "G4VProcess.hh"
 
-#include <AdePT/transport/tracks/ParticleTypes.hh>
 #include <VecGeom/navigation/NavigationState.h>
 
 #include <unordered_map>
@@ -30,7 +29,6 @@ struct HostTrackData {
   G4ThreeVector vertexPosition;
   G4ThreeVector vertexMomentumDirection;
   G4double vertexKineticEnergy = 0.0;
-  ParticleType particleType{ParticleType::Electron};
 #ifdef ADEPT_USE_ORIGINNAVSTATE
   vecgeom::NavigationState originNavState;
 #endif

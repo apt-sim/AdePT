@@ -5,8 +5,8 @@
 
 /// @brief Strongly-typed enum for the three EM particle species tracked by AdePT.
 ///
-/// Used in GPUStep, SecondaryInitData, HostTrackData, and anywhere a step or track
-/// needs to carry its particle species as data.
+/// Used in GPUStep, SecondaryInitData, and anywhere a step or track needs to
+/// carry its particle species as data.
 ///
 /// Note: The numeric values (0, 1, 2) intentionally match `GPUQueueIndex`
 /// (`transport/queues/ParticleQueues.cuh`), which is used as an array index for
