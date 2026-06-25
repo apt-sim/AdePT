@@ -572,15 +572,6 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
           hostTrackData.logicalVolumeAtVertex   = const_cast<G4LogicalVolume *>(aTrack->GetLogicalVolumeAtVertex());
         }
 
-        // set the particle type
-        if (pdg == 11) {
-          hostTrackData.particleType = ParticleType::Electron;
-        } else if (pdg == -11) {
-          hostTrackData.particleType = ParticleType::Positron;
-        } else if (pdg == 22) {
-          hostTrackData.particleType = ParticleType::Gamma;
-        }
-
         // if there has been no step, call PreUserTrackingAction and try to attach UserInformation
         if (aTrack->GetCurrentStepNumber() == 0) {
           if (callUserActions) {

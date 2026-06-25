@@ -444,7 +444,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     std::abort();
   }
 
-  FillG4Step(&parentStep, fStepReconstructionObjects->fG4Step, parentTData,
+  FillG4Step(&parentStep, fStepReconstructionObjects->fG4Step,
              *fStepReconstructionObjects->fPreG4TouchableHistoryHandle,
              *fStepReconstructionObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus,
              callUserTrackingAction, callUserSteppingAction);
@@ -773,8 +773,7 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUStep const 
   }
 #endif
 
-  secTData.particleType = secStep->fParticleType;
-  secTData.g4parentid   = g4ParentID;
+  secTData.g4parentid = g4ParentID;
 
 #ifdef ADEPT_USE_ORIGINNAVSTATE
   secTData.originNavState = secStep->fPostStepPoint.fNavigationState;
@@ -790,7 +789,7 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUStep const 
   // For the initializing step, the step defining process ID is the creator process
   const int stepId = secStep->fStepLimProcessId;
   assert(stepId >= 0);
-  const ParticleType ptype = secTData.particleType;
+  const ParticleType ptype = secStep->fParticleType;
   if (ptype == ParticleType::Electron || ptype == ParticleType::Positron) {
     secTData.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[stepId];
   } else if (ptype == ParticleType::Gamma) {
@@ -851,7 +850,7 @@ void AdePTGeant4Integration::FillG4Track(GPUStep const *aGPUStep, G4Track *aTrac
   // aTrack->SetAuxiliaryTrackInformation(0, nullptr);                                        // Missing data
 }
 
-void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step, const HostTrackData &hostTData,
+void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step,
                                         G4TouchableHandle &aPreG4TouchableHandle,
                                         G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus,
                                         G4StepStatus aPostStepStatus, bool callUserTrackingAction,
@@ -881,7 +880,7 @@ void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step
   if (aGPUStep->fStepCounter != 0) {
     // not an initial step, therefore setting the step defining process:
     const int stepId         = aGPUStep->fStepLimProcessId;
-    const ParticleType ptype = hostTData.particleType;
+    const ParticleType ptype = aGPUStep->fParticleType;
 
     if (ptype == ParticleType::Electron || ptype == ParticleType::Positron) {
       if (stepId == kAdePTTransportationProcess || stepId == kAdePTOutOfGPURegionProcess ||

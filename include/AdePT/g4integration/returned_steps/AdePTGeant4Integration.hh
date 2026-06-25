@@ -107,10 +107,9 @@ private:
   void FillG4Track(GPUStep const *aGPUStep, G4Track *aG4Track, const HostTrackData &hostTData,
                    G4TouchableHandle &aPreG4TouchableHandle, G4TouchableHandle &aPostG4TouchableHandle) const;
 
-  void FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step, const HostTrackData &hostTData,
-                  G4TouchableHandle &aPreG4TouchableHandle, G4TouchableHandle &aPostG4TouchableHandle,
-                  G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus, bool callUserTrackingAction,
-                  bool callUserSteppingAction) const;
+  void FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step, G4TouchableHandle &aPreG4TouchableHandle,
+                  G4TouchableHandle &aPostG4TouchableHandle, G4StepStatus aPreStepStatus, G4StepStatus aPostStepStatus,
+                  bool callUserTrackingAction, bool callUserSteppingAction) const;
 
   /// @brief Create a heap-owned track that can be pushed onto the Geant4 stack.
   /// @details
