@@ -406,9 +406,7 @@ void AdePTTrackingManager::FlushEvent()
   const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
   const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
   const bool returnAllSteps         = fAdePTConfiguration->GetReturnAllSteps();
-  const bool useHostData            = fAdePTConfiguration->GetReturnFirstAndLastStep() || returnAllSteps;
-  const bool doUserSteppingAction   = callUserSteppingAction && useHostData;
-  const bool doUserTrackingAction   = callUserTrackingAction && useHostData;
+  const bool globalHostData         = fAdePTConfiguration->GetReturnFirstAndLastStep() || returnAllSteps;
 
   std::sort(deferredSteps.steps.begin(), deferredSteps.steps.end(),
             [&deferredSteps](const AdePTGeant4Integration::DeferredStep &lhs,
@@ -419,6 +417,9 @@ void AdePTTrackingManager::FlushEvent()
   for (const auto &deferredStep : deferredSteps.steps) {
     std::span<const GPUStep> gpuSteps(deferredSteps.gpuSteps.data() + deferredStep.firstGPUStep,
                                       deferredStep.numGPUSteps);
+    const bool useHostData          = globalHostData || gpuSteps.front().fHasHostData;
+    const bool doUserSteppingAction = callUserSteppingAction && useHostData;
+    const bool doUserTrackingAction = callUserTrackingAction && useHostData;
     if (deferredStep.type == AdePTGeant4Integration::DeferredStepType::ReturnTrack) {
       fGeant4Integration.ReturnDeferredTrack(gpuSteps, useHostData);
     } else {
@@ -433,9 +434,7 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
   const bool callUserSteppingAction = CallUserSteppingAction(*fAdePTConfiguration);
   const bool callUserTrackingAction = CallUserTrackingAction(*fAdePTConfiguration);
   const bool returnAllSteps         = fAdePTConfiguration->GetReturnAllSteps();
-  const bool useHostData            = fAdePTConfiguration->GetReturnFirstAndLastStep() || returnAllSteps;
-  const bool doUserSteppingAction   = callUserSteppingAction && useHostData;
-  const bool doUserTrackingAction   = callUserTrackingAction && useHostData;
+  const bool globalHostData         = fAdePTConfiguration->GetReturnFirstAndLastStep() || returnAllSteps;
 
   // Transport owns the step-batch lifetime and calls this lambda once
   // for each currently available returned batch. This lambda provides the
@@ -465,7 +464,10 @@ void AdePTTrackingManager::ProcessReturnedGPUSteps(int threadId, int eventId)
                   << static_cast<short>(it->fParticleType) << " stepLimit / creator process " << it->fStepLimProcessId
                   << "\033[0m" << std::endl;
       }
-      auto blockSize = 1 + it->fNumSecondaries;
+      auto blockSize                  = 1 + it->fNumSecondaries;
+      const bool useHostData          = globalHostData || it->fHasHostData;
+      const bool doUserSteppingAction = callUserSteppingAction && useHostData;
+      const bool doUserTrackingAction = callUserTrackingAction && useHostData;
       const bool isDeferredStep =
           ((it->fParticleType == ParticleType::Gamma || it->fParticleType == ParticleType::Electron ||
             it->fParticleType == ParticleType::Positron) &&
@@ -493,7 +495,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
   const bool trackInAllRegions       = fAdePTConfiguration->GetTrackInAllRegions();
   const bool callUserActions         = CallUserActions(*fAdePTConfiguration);
-  const bool useHostData = fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
+  const bool globalHostData =
+      fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
 
   const auto eventID = eventManager->GetConstCurrentEvent()->GetEventID();
 
@@ -547,6 +550,10 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // new one is created in case it either never existed or was retired after the track left the GPU region
       uint64_t gpuTrackID;
       HostTrackData dummy; // default constructed dummy if no advanced information is available
+      bool useHostData = globalHostData;
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
+      useHostData = useHostData || (aTrack->GetUserInformation() != nullptr);
+#endif
       bool entryExists = trackMapper.getGPUId(aTrack->GetTrackID(), gpuTrackID);
       HostTrackData &hostTrackData =
           useHostData ? trackMapper.activateForGPU(gpuTrackID, aTrack->GetTrackID(), entryExists) : dummy;
@@ -633,7 +640,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 globalTime, localTime, properTime, weight, stepNumber, threadId, eventID,
-                                std::move(converted));
+                                std::move(converted), useHostData);
 
       fTrackCounter++; // increment the track counter for AdePT
 

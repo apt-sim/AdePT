@@ -31,8 +31,10 @@
 #include <G4HepEmGammaInteractionPhotoelectric.icc>
 #endif
 
-using StepActionParam = adept::SteppingAction::Params;
-using VolAuxData      = adeptint::VolAuxData;
+using StepActionParam        = adept::SteppingAction::Params;
+using SelectedSteppingAction = adept::SteppingAction::Action;
+using adept::SteppingAction::SetSecondaryHostData;
+using VolAuxData = adeptint::VolAuxData;
 
 namespace adept::transport {
 
@@ -135,9 +137,10 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                                               currentTrack.preStepGlobalTime, // preStep global time
                                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                               false,                                       // parent continues on CPU
-                                              currentTrack.stepCounter,                    // stepcounter
-                                              nullptr, // pointer to secondary init data
-                                              0);      // number of secondaries
+                                              currentTrack.hasHostData,
+                                              currentTrack.stepCounter, // stepcounter
+                                              nullptr,                  // pointer to secondary init data
+                                              0);                       // number of secondaries
           continue;
         }
       } else {
@@ -145,7 +148,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
         slotManager.MarkSlotForFreeing(slot);
 
         // In case the last steps are recorded, record it now, as this track is killed
-        if (returnLastStep) {
+        if (returnLastStep || currentTrack.hasHostData) {
           adept_step_recording::RecordGPUStep(currentTrack.trackId,           // Track ID
                                               currentTrack.parentId,          // parent Track ID
                                               static_cast<short>(10),         // step limiting process ID
@@ -166,7 +169,8 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
                                               currentTrack.properTime,        // proper time
                                               currentTrack.preStepGlobalTime, // preStep global time
                                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                              true,                     // whether this was the last step
+                                              true, // whether this was the last step
+                                              currentTrack.hasHostData,
                                               currentTrack.stepCounter, // stepcounter
                                               nullptr,                  // pointer to secondary init data
                                               0);                       // number of secondaries
@@ -296,7 +300,8 @@ __global__ void GammaSetupInteractions(G4HepEmGammaTrack *hepEMTracks, const ade
                                             currentTrack.properTime,        // proper time
                                             currentTrack.preStepGlobalTime, // preStep global time
                                             currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                            true,                     // gamma nuclear kills the parent
+                                            true, // gamma nuclear kills the parent
+                                            currentTrack.hasHostData,
                                             currentTrack.stepCounter, // stepcounter
                                             nullptr,                  // pointer to secondary init data
                                             0);                       // number of secondaries
@@ -376,7 +381,8 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
                                             currentTrack.properTime,        // proper time
                                             currentTrack.preStepGlobalTime, // preStep global time
                                             currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                            false,                    // whether this is the last step of the track
+                                            false, // whether this is the last step of the track
+                                            currentTrack.hasHostData,
                                             currentTrack.stepCounter, // stepcounter
                                             nullptr,                  // pointer to secondary init data
                                             0);                       // number of secondaries
@@ -398,7 +404,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
       slotManager.MarkSlotForFreeing(slot);
 
       // particle has left the world, record hit if last or all steps are returned
-      if (returnAllSteps || returnLastStep)
+      if (returnAllSteps || returnLastStep || currentTrack.hasHostData)
         adept_step_recording::RecordGPUStep(
             currentTrack.trackId,                        // Track ID
             currentTrack.parentId,                       // parent Track ID
@@ -421,6 +427,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
             currentTrack.preStepGlobalTime,              // preStep global time
             currentTrack.eventId, currentTrack.threadId, // event and thread ID
             true, // whether this is the last step of the track: true, as particle has left the world
+            currentTrack.hasHostData,
             currentTrack.stepCounter, // stepcounter
             nullptr,                  // pointer to secondary init data
             0);                       // number of secondaries
@@ -502,10 +509,14 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
           vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
 
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(0),
-                                         ParticleType::Electron};
+      SetSecondaryHostData<SelectedSteppingAction>(electron, currentTrack, copcore::units::kElectronMassC2,
+                                                   returnLastStep);
+
+      // Return the initializing step when HostTrackData is needed for this secondary.
+      if (electron.hasHostData) {
+        secondaryData[nSecondaries++] = {electron.trackId,       electron.dir,
+                                         electron.eKin,          /*creator process*/ short(0),
+                                         ParticleType::Electron, electron.hasHostData};
       }
     }
 
@@ -518,10 +529,14 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
           vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
 
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {positron.trackId, positron.dir, positron.eKin, /*creator process*/ short(0),
-                                         ParticleType::Positron};
+      SetSecondaryHostData<SelectedSteppingAction>(positron, currentTrack, copcore::units::kElectronMassC2,
+                                                   returnLastStep);
+
+      // Return the initializing step when HostTrackData is needed for this secondary.
+      if (positron.hasHostData) {
+        secondaryData[nSecondaries++] = {positron.trackId,       positron.dir,
+                                         positron.eKin,          /*creator process*/ short(0),
+                                         ParticleType::Positron, positron.hasHostData};
       }
     }
 
@@ -531,7 +546,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     assert(nSecondaries <= 2);
 
     // If there is some edep from cutting particles, record the step
-    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep || currentTrack.hasHostData) {
       adept_step_recording::RecordGPUStep(
           currentTrack.trackId,                        // Track ID
           currentTrack.parentId,                       // parent Track ID
@@ -554,6 +569,7 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
           currentTrack.preStepGlobalTime,              // preStep global time
           currentTrack.eventId, currentTrack.threadId, // event and thread ID
           true, // whether this is the last step of the track: always true as gammas undergoing conversion are killed
+          currentTrack.hasHostData,
           currentTrack.stepCounter, // stepcounter
           secondaryData,            // pointer to secondary init data
           nSecondaries);            // number of secondaries
@@ -631,10 +647,14 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
           currentTrack.navState, currentTrack, currentTrack.globalTime);
       electron.dir.Normalize();
 
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(1),
-                                         ParticleType::Electron};
+      SetSecondaryHostData<SelectedSteppingAction>(electron, currentTrack, copcore::units::kElectronMassC2,
+                                                   returnLastStep);
+
+      // Return the initializing step when HostTrackData is needed for this secondary.
+      if (electron.hasHostData) {
+        secondaryData[nSecondaries++] = {electron.trackId,       electron.dir,
+                                         electron.eKin,          /*creator process*/ short(1),
+                                         ParticleType::Electron, electron.hasHostData};
       }
 
     } else {
@@ -662,7 +682,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
     // If there is some edep from cutting particles, record the step
     // Note: step must be returned even if track dies or secondaries are generated
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
-        (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
+        ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId,           // Track ID
                                           currentTrack.parentId,          // parent Track ID
                                           static_cast<short>(1),          // step defining process ID
@@ -683,7 +703,8 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
                                           currentTrack.properTime,        // proper time
                                           currentTrack.preStepGlobalTime, // preStep global time
                                           currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                          !trackSurvives,           // whether this is the last step of the track
+                                          !trackSurvives, // whether this is the last step of the track
+                                          currentTrack.hasHostData,
                                           currentTrack.stepCounter, // stepcounter
                                           secondaryData,            // pointer to secondary init data
                                           nSecondaries);            // number of secondaries
@@ -747,10 +768,14 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
           vecgeom::Vector3D<double>{dirPhotoElec[0], dirPhotoElec[1], dirPhotoElec[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
 
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {electron.trackId, electron.dir, electron.eKin, /*creator process*/ short(2),
-                                         ParticleType::Electron};
+      SetSecondaryHostData<SelectedSteppingAction>(electron, currentTrack, copcore::units::kElectronMassC2,
+                                                   returnLastStep);
+
+      // Return the initializing step when HostTrackData is needed for this secondary.
+      if (electron.hasHostData) {
+        secondaryData[nSecondaries++] = {electron.trackId,       electron.dir,
+                                         electron.eKin,          /*creator process*/ short(2),
+                                         ParticleType::Electron, electron.hasHostData};
       }
 
     } else {
@@ -765,7 +790,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
     assert(nSecondaries <= 1);
 
     // If there is some edep from cutting particles, record the step
-    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+    if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep || currentTrack.hasHostData) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId,       // Track ID
                                           currentTrack.parentId,      // parent Track ID
                                           static_cast<short>(2),      // step defining process ID
@@ -788,6 +813,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
                                           currentTrack.eventId, currentTrack.threadId, // event and thread ID
                                           true, // whether this is the last step of the track: always true as gammas
                                                 // undergoing the PhotoElectric effect are killed
+                                          currentTrack.hasHostData,
                                           currentTrack.stepCounter, // stepcounter
                                           secondaryData,            // pointer to secondary init data
                                           nSecondaries);            // number of secondaries

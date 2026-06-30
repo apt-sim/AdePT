@@ -38,7 +38,8 @@
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 
 using StepActionParam = adept::SteppingAction::Params;
-using VolAuxData      = adeptint::VolAuxData;
+using adept::SteppingAction::SetSecondaryHostData;
+using VolAuxData = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
 __device__ double GetVelocity(double eKin)
@@ -155,9 +156,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                           preStepGlobalTime, // global time at preStepPoint
                                           currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                           false,                                       // parent continues on CPU
-                                          currentTrack.stepCounter,                    // stepcounter
-                                          nullptr,                                     // pointer to secondary init data
-                                          0);                                          // number of secondaries
+                                          currentTrack.hasHostData,
+                                          currentTrack.stepCounter, // stepcounter
+                                          nullptr,                  // pointer to secondary init data
+                                          0);                       // number of secondaries
       continue;
     }
 
@@ -572,10 +574,17 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
 
-            // if tracking or stepping action is called, return initial step
-            if (returnLastStep) {
-              secondaryData[nSecondaries++] = {secondary.trackId, secondary.dir, secondary.eKin,
-                                               /*creator process*/ short(winnerProcessIndex), ParticleType::Electron};
+            SetSecondaryHostData<SteppingActionT>(secondary, currentTrack, copcore::units::kElectronMassC2,
+                                                  returnLastStep);
+
+            // Return the initializing step when HostTrackData is needed for this secondary.
+            if (secondary.hasHostData) {
+              secondaryData[nSecondaries++] = {secondary.trackId,
+                                               secondary.dir,
+                                               secondary.eKin,
+                                               /*creator process*/ short(winnerProcessIndex),
+                                               ParticleType::Electron,
+                                               secondary.hasHostData};
             }
           }
 
@@ -636,10 +645,16 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                   newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                   navState, currentTrack, globalTime, gammaWeight);
 
-              // if tracking or stepping action is called, return initial step
-              if (returnLastStep) {
-                secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin,
-                                                 /*creator process*/ short(winnerProcessIndex), ParticleType::Gamma};
+              SetSecondaryHostData<SteppingActionT>(gamma, currentTrack, 0., returnLastStep);
+
+              // Return the initializing step when HostTrackData is needed for this secondary.
+              if (gamma.hasHostData) {
+                secondaryData[nSecondaries++] = {gamma.trackId,
+                                                 gamma.dir,
+                                                 gamma.eKin,
+                                                 /*creator process*/ short(winnerProcessIndex),
+                                                 ParticleType::Gamma,
+                                                 gamma.hasHostData};
               }
 #if ADEPT_DEBUG_TRACK > 0
             } else {
@@ -701,10 +716,15 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                   newRNG, theGamma1Ekin, pos,
                   vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]}, navState, currentTrack,
                   globalTime, gamma1Weight);
-              // if tracking or stepping action is called, return initial step
-              if (returnLastStep) {
-                secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin,
-                                                 /*creator process*/ short(winnerProcessIndex), ParticleType::Gamma};
+              SetSecondaryHostData<SteppingActionT>(gamma1, currentTrack, 0., returnLastStep);
+              // Return the initializing step when HostTrackData is needed for this secondary.
+              if (gamma1.hasHostData) {
+                secondaryData[nSecondaries++] = {gamma1.trackId,
+                                                 gamma1.dir,
+                                                 gamma1.eKin,
+                                                 /*creator process*/ short(winnerProcessIndex),
+                                                 ParticleType::Gamma,
+                                                 gamma1.hasHostData};
               }
             }
           }
@@ -728,10 +748,15 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                   currentTrack.rngState, theGamma2Ekin, pos,
                   vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]}, navState, currentTrack,
                   globalTime, gamma2Weight);
-              // if tracking or stepping action is called, return initial step
-              if (returnLastStep) {
-                secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin,
-                                                 /*creator process*/ short(winnerProcessIndex), ParticleType::Gamma};
+              SetSecondaryHostData<SteppingActionT>(gamma2, currentTrack, 0., returnLastStep);
+              // Return the initializing step when HostTrackData is needed for this secondary.
+              if (gamma2.hasHostData) {
+                secondaryData[nSecondaries++] = {gamma2.trackId,
+                                                 gamma2.dir,
+                                                 gamma2.eKin,
+                                                 /*creator process*/ short(winnerProcessIndex),
+                                                 ParticleType::Gamma,
+                                                 gamma2.hasHostData};
               }
             }
           }
@@ -782,12 +807,23 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           auto &gamma2 = gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, pos,
                                                     -gamma1.dir, navState, currentTrack, globalTime);
 
-          // if tracking or stepping action is called, return initial step
-          if (returnLastStep) {
-            secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin,
-                                             /*creator process: annihilation*/ short(2), ParticleType::Gamma};
-            secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin,
-                                             /*creator process: annihilation*/ short(2), ParticleType::Gamma};
+          SetSecondaryHostData<SteppingActionT>(gamma1, currentTrack, 0., returnLastStep);
+          SetSecondaryHostData<SteppingActionT>(gamma2, currentTrack, 0., returnLastStep);
+
+          // Return the initializing step when HostTrackData is needed for these secondaries.
+          if (gamma1.hasHostData) {
+            secondaryData[nSecondaries++] = {gamma1.trackId,
+                                             gamma1.dir,
+                                             gamma1.eKin,
+                                             /*creator process: annihilation*/ short(2),
+                                             ParticleType::Gamma,
+                                             gamma1.hasHostData};
+            secondaryData[nSecondaries++] = {gamma2.trackId,
+                                             gamma2.dir,
+                                             gamma2.eKin,
+                                             /*creator process: annihilation*/ short(2),
+                                             ParticleType::Gamma,
+                                             gamma2.hasHostData};
           }
         }
       }
@@ -839,7 +875,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
-        (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
+        ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId, currentTrack.parentId, returnedProcessId,
                                           IsElectron ? ParticleType::Electron : ParticleType::Positron,
                                           elTrack.GetPStepLength(), // Step length
@@ -859,9 +895,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                           preStepGlobalTime,        // global time at preStepPoint
                                           currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                           !trackSurvives && !continuesOnCPU,           // whether this was the last step
-                                          currentTrack.stepCounter,                    // stepcounter
-                                          secondaryData,                               // pointer to secondary init data
-                                          nSecondaries);                               // number of secondaries
+                                          currentTrack.hasHostData,
+                                          currentTrack.stepCounter, // stepcounter
+                                          secondaryData,            // pointer to secondary init data
+                                          nSecondaries);            // number of secondaries
     }
   }
 }

@@ -186,7 +186,7 @@ __device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const adepti
   speciesTM.InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
                       static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
                       trackInfo.direction, trackInfo.navState, trackInfo.eventId, trackInfo.trackId, trackInfo.parentId,
-                      trackInfo.threadId, trackInfo.stepCounter);
+                      trackInfo.threadId, trackInfo.stepCounter, trackInfo.hasHostData);
   toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
 }
 
