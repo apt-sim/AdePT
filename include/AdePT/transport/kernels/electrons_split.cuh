@@ -679,6 +679,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     }
 
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnsToCPU ||
+        (cross_boundary && currentTrack.hasHostData) ||
         (!trackSurvives && (returnLastStep || currentTrack.hasHostData)))
       adept_step_recording::RecordGPUStep(currentTrack.trackId,  // Track ID
                                           currentTrack.parentId, // parent Track ID

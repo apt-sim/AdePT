@@ -709,6 +709,7 @@ __global__ void __launch_bounds__(256, 1)
 
     // If there is some edep from cutting particles or if it is the last step, record the step
     if ((edep > 0 && nextauxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU || winnerProcessIndex == 3 ||
+        (currentTrack.hasHostData && isWDTReachedBoundary) ||
         ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId,  // Track ID
                                           currentTrack.parentId, // parent Track ID

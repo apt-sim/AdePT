@@ -348,6 +348,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
     navState.SetBoundaryState(nextState.IsOnBoundary());
+    const bool hostBoundaryStep = currentTrack.hasHostData && nextState.IsOnBoundary();
     if (nextState.IsOnBoundary()) {
       currentTrack.SetSafety(pos, 0.);
     } else {
@@ -874,7 +875,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     assert(nSecondaries <= 3);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU || hostBoundaryStep ||
         ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId, currentTrack.parentId, returnedProcessId,
                                           IsElectron ? ParticleType::Electron : ParticleType::Positron,

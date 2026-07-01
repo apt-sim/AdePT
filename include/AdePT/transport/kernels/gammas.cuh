@@ -201,6 +201,7 @@ __global__ void __launch_bounds__(256, 1)
     // correct information (navState = nextState only if relocated
     // in case of a boundary; see below)
     navState.SetBoundaryState(nextState.IsOnBoundary());
+    const bool hostBoundaryStep = currentTrack.hasHostData && nextState.IsOnBoundary();
 
     // Propagate information from geometrical step to G4HepEm.
     theTrack->SetGStepLength(geometryStepLength);
@@ -510,7 +511,7 @@ __global__ void __launch_bounds__(256, 1)
 
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU || winnerProcessIndex == 3 ||
-        ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
+        hostBoundaryStep || ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId,  // Track ID
                                           currentTrack.parentId, // parent Track ID
                                           stepDefinedProcessId,  // step-defining process id

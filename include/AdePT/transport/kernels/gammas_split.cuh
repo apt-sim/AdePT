@@ -360,7 +360,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
         stepProcessId = kAdePTOutOfGPURegionProcess;
       }
 
-      if (returnAllSteps || returnsToCPU)
+      if (returnAllSteps || returnsToCPU || currentTrack.hasHostData)
         adept_step_recording::RecordGPUStep(currentTrack.trackId,           // Track ID
                                             currentTrack.parentId,          // parent Track ID
                                             stepProcessId,                  // step defining process ID
