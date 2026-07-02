@@ -552,13 +552,17 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       HostTrackData dummy; // default constructed dummy if no advanced information is available
       bool useHostData = globalHostData;
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
+      // In ATLAS, the G4VUserTrackInfo is already attached when tracks are given to AdePT:
+      // primaries by AthenaStackingAction, and secondaries during the SteppingAction of their parents,
+      // in the step where the secondary was created. Thus, whether the hostTrackData is needed (to store the
+      // G4VUserTrackInfo) is determined by whether the UserTrackInfo is already attached.
       useHostData = useHostData || (aTrack->GetUserInformation() != nullptr);
 #endif
       bool entryExists = trackMapper.getGPUId(aTrack->GetTrackID(), gpuTrackID);
       HostTrackData &hostTrackData =
           useHostData ? trackMapper.activateForGPU(gpuTrackID, aTrack->GetTrackID(), entryExists) : dummy;
 
-      // fill hostTracKData if being used:
+      // Fill HostTrackData if being used.
       if (useHostData) {
         // set pointers and G4 parent id
         hostTrackData.primary        = aTrack->GetDynamicParticle()->GetPrimaryParticle();
@@ -579,19 +583,20 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
           hostTrackData.logicalVolumeAtVertex   = const_cast<G4LogicalVolume *>(aTrack->GetLogicalVolumeAtVertex());
         }
 
-        // if there has been no step, call PreUserTrackingAction and try to attach UserInformation
+        // For an initializing step, call PreUserTrackingAction
         if (aTrack->GetCurrentStepNumber() == 0) {
           if (callUserActions) {
             auto *userTrackingAction = eventManager->GetUserTrackingAction();
             if (userTrackingAction) {
 
-              // this assumes that the UserTrackInformation is attached to the track in the PreUserTrackingAction
+              // PreUserTrackingAction may attach or replace the user information; store the final pointer below.
+              // Already-attached information is preserved if the action leaves it unchanged.
               userTrackingAction->PreUserTrackingAction(aTrack);
             }
           }
           hostTrackData.userTrackInfo = aTrack->GetUserInformation();
         } else {
-          // not the initializing step, just attach user information in case it is there
+          // For non-initializing steps, just preserve user information if it is present.
           hostTrackData.userTrackInfo = aTrack->GetUserInformation();
         }
       }

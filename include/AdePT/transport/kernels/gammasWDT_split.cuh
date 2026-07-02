@@ -496,6 +496,11 @@ __global__ void __launch_bounds__(256, 1)
             printf("| After WDT check: leftWDTRegion %d \n", leftWDTRegion);
           }
 #endif
+
+          // Note: in the ATLAS MC truth setup, all volume-crossing steps are returned for particles that are stored in
+          // the MC truth. While it is done in the other kernels, it is deliberately skipped for the crossings between
+          // WDT root volumes, as those crossings are irrelevant for the ATLAS MC truth.
+
         } else {
 
 #if ADEPT_DEBUG_TRACK > 0
