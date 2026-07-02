@@ -12,16 +12,14 @@
 namespace adept_step_recording {
 
 /// @brief Record a GPU step
-__device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId, ParticleType aParticleType,
-                              double aStepLength, double aTotalEnergyDeposit, float aTrackWeight,
-                              vecgeom::NavigationState const &aPreState, vecgeom::Vector3D<double> const &aPrePosition,
-                              vecgeom::Vector3D<double> const &aPreMomentumDirection, double aPreEKin,
-                              vecgeom::NavigationState const &aPostState,
-                              vecgeom::Vector3D<double> const &aPostPosition,
-                              vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin,
-                              double aGlobalTime, float aLocalTime, float aProperTime, double aPreGlobalTime,
-                              unsigned int eventID, short threadID, bool isLastStep, unsigned short stepCounter,
-                              SecondaryInitData const *secondaryData, unsigned int nSecondaries)
+__device__ void RecordGPUStep(
+    uint64_t aTrackID, uint64_t aParentID, short stepLimProcessId, ParticleType aParticleType, double aStepLength,
+    double aTotalEnergyDeposit, float aTrackWeight, vecgeom::NavigationState const &aPreState,
+    vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
+    double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
+    vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, float aLocalTime,
+    float aProperTime, double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep, bool hasHostData,
+    unsigned short stepCounter, SecondaryInitData const *secondaryData, unsigned int nSecondaries)
 {
 
   // defensive check
@@ -39,7 +37,7 @@ __device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepL
   FillGPUStep(parentStep, aTrackID, aParentID, stepLimProcessId, aParticleType, aStepLength, aTotalEnergyDeposit,
               aTrackWeight, aPreState, aPrePosition, aPreMomentumDirection, aPreEKin, aPostState, aPostPosition,
               aPostMomentumDirection, aPostEKin, aGlobalTime, aLocalTime, aProperTime, aPreGlobalTime, eventID,
-              threadID, isLastStep, stepCounter, nSecondaries);
+              threadID, isLastStep, hasHostData, stepCounter, nSecondaries);
 
   // Fill the steps for the secondaries
   for (unsigned int i = 0; i < nSecondaries; ++i) {
@@ -51,7 +49,7 @@ __device__ void RecordGPUStep(uint64_t aTrackID, uint64_t aParentID, short stepL
                 secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin,
                 aGlobalTime,
                 /*localTime*/ 0.f, /*properTime*/ 0.f, aGlobalTime, eventID, threadID, /*isLastStep*/ false,
-                /*stepCounter*/ 0, /*nSecondaries*/ 0);
+                secondaryData[i].hasHostData, /*stepCounter*/ 0, /*nSecondaries*/ 0);
   }
 }
 

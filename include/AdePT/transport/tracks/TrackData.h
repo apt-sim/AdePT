@@ -28,14 +28,16 @@ struct TrackData {
   unsigned short stepCounter{0};
   unsigned int eventId{0};
   short threadId{-1};
+  bool hasHostData{false};
 
   TrackData() = default;
   TrackData(int pdg_id, uint64_t trackId, uint64_t parentId, double ene, double x, double y, double z, double dirx,
             double diry, double dirz, double gTime, double lTime, double pTime, float weight,
-            unsigned short stepCounter, vecgeom::NavigationState &&state, unsigned int eventId = 0, short threadId = -1)
+            unsigned short stepCounter, vecgeom::NavigationState &&state, unsigned int eventId = 0, short threadId = -1,
+            bool hasHostData = false)
       : navState{std::move(state)}, position{x, y, z}, direction{dirx, diry, dirz}, eKin{ene}, globalTime{gTime},
         localTime{lTime}, properTime{pTime}, weight{weight}, pdg{pdg_id}, trackId{trackId}, parentId{parentId},
-        stepCounter{stepCounter}, eventId{eventId}, threadId{threadId}
+        stepCounter{stepCounter}, eventId{eventId}, threadId{threadId}, hasHostData{hasHostData}
   {
   }
 };
