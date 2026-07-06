@@ -78,7 +78,8 @@ public:
   /// @brief Adds a track to the buffer
   void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
-                unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state);
+                unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state,
+                bool hasHostData = false);
   int GetDebugLevel() const { return fDebugLevel; }
   /// @brief Handle the currently available returned GPU-step batches for one thread and event.
   /// @details

@@ -5,6 +5,7 @@
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/random/Ranluxpp.h>
 #include <AdePT/transport/support/SystemOfUnits.h>
+#include <AdePT/transport/tracks/Track.cuh>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
@@ -58,6 +59,11 @@ struct NoAction {
                                                                                   RanluxppDouble &)
   {
     return {true, parentWeight};
+  }
+
+  __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)
+  {
+    return false;
   }
 };
 
@@ -132,6 +138,11 @@ struct CMSAction {
   {
     return {true, parentWeight};
   }
+
+  __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)
+  {
+    return false;
+  }
 };
 
 // ---------- LHCb ----------
@@ -178,6 +189,11 @@ struct LHCbAction {
   {
     return {true, parentWeight};
   }
+
+  __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)
+  {
+    return false;
+  }
 };
 
 // ---------- ATLAS ----------
@@ -197,6 +213,15 @@ struct ATLASAction {
   static constexpr double kPhotonRussianRouletteThreshold = 0.5 * copcore::units::MeV;
   static constexpr float kPhotonRussianRouletteWeight     = 10.0f;
   static constexpr float kOneOverPhotonRouletteWeight     = 1.0f / kPhotonRussianRouletteWeight;
+  static constexpr double kTruthMinPt                     = 300. * copcore::units::MeV;
+
+  __device__ __forceinline__ static bool NeedsHostTrackData(double eKin, vecgeom::Vector3D<double> const &direction,
+                                                            double mass)
+  {
+    const double p2    = mass > 0. ? eKin * (eKin + 2. * mass) : eKin * eKin;
+    const double dirT2 = direction.x() * direction.x() + direction.y() * direction.y();
+    return p2 * dirT2 > kTruthMinPt * kTruthMinPt;
+  }
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
                                                         double const &, adeptint::VolAuxData const &,
@@ -249,7 +274,20 @@ struct ATLASAction {
   {
     return {true, parentWeight};
   }
+
+  __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)
+  {
+    return false;
+  }
 };
 #endif
+
+template <class ActionT>
+__device__ __forceinline__ void SetSecondaryHostData(TrackBase &child, TrackBase const &parent, double childMass,
+                                                     bool returnLastStep)
+{
+  child.hasHostData =
+      returnLastStep || (parent.hasHostData && ActionT::NeedsHostTrackData(child.eKin, child.dir, childMass));
+}
 
 } // namespace adept::SteppingAction

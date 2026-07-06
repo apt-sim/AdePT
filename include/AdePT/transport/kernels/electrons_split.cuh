@@ -36,8 +36,10 @@
 #include <G4HepEmPositronInteractionAnnihilation.icc>
 #include <G4HepEmElectronEnergyLossFluctuation.icc>
 
-using StepActionParam = adept::SteppingAction::Params;
-using VolAuxData      = adeptint::VolAuxData;
+using StepActionParam        = adept::SteppingAction::Params;
+using SelectedSteppingAction = adept::SteppingAction::Action;
+using adept::SteppingAction::SetSecondaryHostData;
+using VolAuxData = adeptint::VolAuxData;
 
 // Compute velocity based on the kinetic energy of the particle
 __device__ double GetVelocity(double eKin)
@@ -180,9 +182,10 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                                               currentTrack.preStepGlobalTime,      // preStep global time
                                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                               false,                                       // parent continues on CPU
-                                              currentTrack.stepCounter,                    // stepcounter
-                                              nullptr, // pointer to secondary init data
-                                              0);      // number of secondaries
+                                              currentTrack.hasHostData,
+                                              currentTrack.stepCounter, // stepcounter
+                                              nullptr,                  // pointer to secondary init data
+                                              0);                       // number of secondaries
           continue;
         }
       } else {
@@ -190,7 +193,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
         slotManager.MarkSlotForFreeing(slot);
 
         // In case the last steps are recorded, record it now, as this track is killed
-        if (returnLastStep) {
+        if (returnLastStep || currentTrack.hasHostData) {
           adept_step_recording::RecordGPUStep(currentTrack.trackId,   // Track ID
                                               currentTrack.parentId,  // parent Track ID
                                               static_cast<short>(10), // step limiting process ID
@@ -213,9 +216,10 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                                               currentTrack.eventId,           // eventID
                                               currentTrack.threadId,          // threadID
                                               true,                           // whether this was the last step
-                                              currentTrack.stepCounter,       // stepcounter
-                                              nullptr,                        // pointer to secondary init data
-                                              0);                             // number of secondaries
+                                              currentTrack.hasHostData,
+                                              currentTrack.stepCounter, // stepcounter
+                                              nullptr,                  // pointer to secondary init data
+                                              0);                       // number of secondaries
         }
         continue; // track is killed, can stop here
       }
@@ -574,7 +578,7 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
       // Only non-interacting, non-relocating tracks score here
       // Score the edep for particles that didn't reach the interaction
       if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU ||
-          (returnLastStep && (!trackSurvives || continuesOnCPU))) {
+          ((returnLastStep || currentTrack.hasHostData) && (!trackSurvives || continuesOnCPU))) {
         adept_step_recording::RecordGPUStep(currentTrack.trackId,                   // Track ID
                                             currentTrack.parentId,                  // parent Track ID
                                             static_cast<short>(winnerProcessIndex), // step defining process
@@ -597,9 +601,10 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
                                             currentTrack.preStepGlobalTime,      // preStep global time
                                             currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                             !trackSurvives && !continuesOnCPU, // whether this was the last step
-                                            currentTrack.stepCounter,          // stepcounter
-                                            nullptr,                           // pointer to secondary init data
-                                            0);                                // number of secondaries
+                                            currentTrack.hasHostData,
+                                            currentTrack.stepCounter, // stepcounter
+                                            nullptr,                  // pointer to secondary init data
+                                            0);                       // number of secondaries
       }
     }
   }
@@ -674,7 +679,8 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     }
 
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnsToCPU ||
-        (!trackSurvives && returnLastStep))
+        (cross_boundary && currentTrack.hasHostData) ||
+        (!trackSurvives && (returnLastStep || currentTrack.hasHostData)))
       adept_step_recording::RecordGPUStep(currentTrack.trackId,  // Track ID
                                           currentTrack.parentId, // parent Track ID
                                           stepProcessId,         // step limiting process ID
@@ -696,9 +702,10 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                           currentTrack.preStepGlobalTime, // preStep global time
                                           currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                           isLastStep,                                  // whether this was the last step
-                                          currentTrack.stepCounter,                    // stepcounter
-                                          nullptr,                                     // pointer to secondary init data
-                                          0);                                          // number of secondaries
+                                          currentTrack.hasHostData,
+                                          currentTrack.stepCounter, // stepcounter
+                                          nullptr,                  // pointer to secondary init data
+                                          0);                       // number of secondaries
 
     if (cross_boundary) {
       // Check if the next volume belongs to the GPU region and push it to the appropriate queue
@@ -754,12 +761,17 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Charg
         gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, currentTrack.pos,
                                    -gamma1.dir, currentTrack.navState, currentTrack, currentTrack.globalTime);
 
-    // if tracking or stepping action is called, return initial step
-    if (returnLastStep) {
-      secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
-                                       ParticleType::Gamma};
-      secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
-                                       ParticleType::Gamma};
+    SetSecondaryHostData<SelectedSteppingAction>(gamma1, currentTrack, 0., returnLastStep);
+    SetSecondaryHostData<SelectedSteppingAction>(gamma2, currentTrack, 0., returnLastStep);
+
+    // Return the initializing step when HostTrackData is needed for these secondaries.
+    if (gamma1.hasHostData) {
+      secondaryData[nSecondaries++] = {gamma1.trackId,      gamma1.dir,
+                                       gamma1.eKin,         /*creator process*/ short(2),
+                                       ParticleType::Gamma, gamma1.hasHostData};
+      secondaryData[nSecondaries++] = {gamma2.trackId,      gamma2.dir,
+                                       gamma2.eKin,         /*creator process*/ short(2),
+                                       ParticleType::Gamma, gamma2.hasHostData};
     }
   }
 }
@@ -834,10 +846,14 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
           vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
 
-      // if tracking or stepping action is called, return initial step
-      if (returnLastStep) {
-        secondaryData[nSecondaries++] = {secondary.trackId, secondary.dir, secondary.eKin, /*creator process*/ short(0),
-                                         ParticleType::Electron};
+      SetSecondaryHostData<SelectedSteppingAction>(secondary, currentTrack, copcore::units::kElectronMassC2,
+                                                   returnLastStep);
+
+      // Return the initializing step when HostTrackData is needed for this secondary.
+      if (secondary.hasHostData) {
+        secondaryData[nSecondaries++] = {secondary.trackId,      secondary.dir,
+                                         secondary.eKin,         /*creator process*/ short(0),
+                                         ParticleType::Electron, secondary.hasHostData};
       }
     }
 
@@ -863,7 +879,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     // Note: step must be returned if track dies or secondaries have been generated
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
-        (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
+        ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId,  // Track ID
                                           currentTrack.parentId, // parent Track ID
                                           static_cast<short>(0), // step limiting process ID
@@ -885,9 +901,10 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                           currentTrack.preStepGlobalTime, // preStep global time
                                           currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                           !trackSurvives,                              // whether this was the last step
-                                          currentTrack.stepCounter,                    // stepcounter
-                                          secondaryData,                               // pointer to secondary init data
-                                          nSecondaries);                               // number of secondaries
+                                          currentTrack.hasHostData,
+                                          currentTrack.stepCounter, // stepcounter
+                                          secondaryData,            // pointer to secondary init data
+                                          nSecondaries);            // number of secondaries
     }
   }
 }
@@ -974,10 +991,12 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
             gammaPartManager.NextTrack(newRNG, deltaEkin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime, gammaWeight);
-        // if tracking or stepping action is called, return initial step
-        if (returnLastStep) {
-          secondaryData[nSecondaries++] = {gamma.trackId, gamma.dir, gamma.eKin, /*creator process*/ short(1),
-                                           ParticleType::Gamma};
+        SetSecondaryHostData<SelectedSteppingAction>(gamma, currentTrack, 0., returnLastStep);
+        // Return the initializing step when HostTrackData is needed for this secondary.
+        if (gamma.hasHostData) {
+          secondaryData[nSecondaries++] = {gamma.trackId,       gamma.dir,
+                                           gamma.eKin,          /*creator process*/ short(1),
+                                           ParticleType::Gamma, gamma.hasHostData};
         }
       }
     }
@@ -1005,7 +1024,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
     // Note: step must be returned if track dies or secondaries were generated
     if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps ||
-        (returnLastStep && (nSecondaries > 0 || !trackSurvives))) {
+        ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
       adept_step_recording::RecordGPUStep(currentTrack.trackId,  // Track ID
                                           currentTrack.parentId, // parent Track ID
                                           static_cast<short>(1), // step limiting process ID
@@ -1027,9 +1046,10 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
                                           currentTrack.preStepGlobalTime, // preStep global time
                                           currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                           !trackSurvives,                              // whether this was the last step
-                                          currentTrack.stepCounter,                    // stepcounter
-                                          secondaryData,                               // pointer to secondary init data
-                                          nSecondaries);                               // number of secondaries
+                                          currentTrack.hasHostData,
+                                          currentTrack.stepCounter, // stepcounter
+                                          secondaryData,            // pointer to secondary init data
+                                          nSecondaries);            // number of secondaries
     }
   }
 }
@@ -1103,10 +1123,12 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
             gammaPartManager.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime, gamma1Weight);
-        // if tracking or stepping action is called, return initial step
-        if (returnLastStep) {
-          secondaryData[nSecondaries++] = {gamma1.trackId, gamma1.dir, gamma1.eKin, /*creator process*/ short(2),
-                                           ParticleType::Gamma};
+        SetSecondaryHostData<SelectedSteppingAction>(gamma1, currentTrack, 0., returnLastStep);
+        // Return the initializing step when HostTrackData is needed for this secondary.
+        if (gamma1.hasHostData) {
+          secondaryData[nSecondaries++] = {gamma1.trackId,      gamma1.dir,
+                                           gamma1.eKin,         /*creator process*/ short(2),
+                                           ParticleType::Gamma, gamma1.hasHostData};
         }
       }
     }
@@ -1130,10 +1152,12 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
             gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
                                        currentTrack.navState, currentTrack, currentTrack.globalTime, gamma2Weight);
-        // if tracking or stepping action is called, return initial step
-        if (returnLastStep) {
-          secondaryData[nSecondaries++] = {gamma2.trackId, gamma2.dir, gamma2.eKin, /*creator process*/ short(2),
-                                           ParticleType::Gamma};
+        SetSecondaryHostData<SelectedSteppingAction>(gamma2, currentTrack, 0., returnLastStep);
+        // Return the initializing step when HostTrackData is needed for this secondary.
+        if (gamma2.hasHostData) {
+          secondaryData[nSecondaries++] = {gamma2.trackId,      gamma2.dir,
+                                           gamma2.eKin,         /*creator process*/ short(2),
+                                           ParticleType::Gamma, gamma2.hasHostData};
         }
       }
     }
@@ -1144,7 +1168,8 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
     assert(nSecondaries <= 2);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep ||
+        currentTrack.hasHostData) {
       adept_step_recording::RecordGPUStep(
           currentTrack.trackId,                        // Track ID
           currentTrack.parentId,                       // parent Track ID
@@ -1166,7 +1191,8 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
           currentTrack.properTime,                     // proper time
           currentTrack.preStepGlobalTime,              // preStep global time
           currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-          true,                     // whether this was the last step: always true for annihilating positrons
+          true, // whether this was the last step: always true for annihilating positrons
+          currentTrack.hasHostData,
           currentTrack.stepCounter, // stepcounter
           secondaryData,            // pointer to secondary init data
           nSecondaries);            // number of secondaries
@@ -1218,7 +1244,8 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     assert(nSecondaries <= 2);
 
     // Record the step. Edep includes the continuous energy loss and edep from secondaries which were cut
-    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep) {
+    if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep ||
+        currentTrack.hasHostData) {
       adept_step_recording::RecordGPUStep(
           currentTrack.trackId,                        // Track ID
           currentTrack.parentId,                       // parent Track ID
@@ -1240,7 +1267,8 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
           currentTrack.properTime,                     // proper time
           currentTrack.preStepGlobalTime,              // preStep global time
           currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-          true,                     // whether this was the last step: always true for annihilating positrons
+          true, // whether this was the last step: always true for annihilating positrons
+          currentTrack.hasHostData,
           currentTrack.stepCounter, // stepcounter
           secondaryData,            // pointer to secondary init data
           nSecondaries);            // number of secondaries

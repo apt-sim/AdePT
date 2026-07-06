@@ -638,19 +638,17 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
   // nuclear process stay on the CPU and will receive their normal Geant4
   // tracking callbacks later.
   if (callUserActions) {
-    auto *evtMgr             = G4EventManager::GetEventManager();
-    auto *userTrackingAction = evtMgr->GetUserTrackingAction();
-    if (userTrackingAction) {
-      std::span<const GPUStep> secondaries = gpuSteps.subspan(1);
-      for (size_t i = 0; i < secondaries.size(); ++i) {
-        auto *secondary = (*fStepReconstructionObjects->fSecondaryVector)[i];
-        if (secondary == nullptr) continue;
+    auto *evtMgr                         = G4EventManager::GetEventManager();
+    auto *userTrackingAction             = callUserTrackingAction ? evtMgr->GetUserTrackingAction() : nullptr;
+    std::span<const GPUStep> secondaries = gpuSteps.subspan(1);
+    for (size_t i = 0; i < secondaries.size(); ++i) {
+      auto *secondary = (*fStepReconstructionObjects->fSecondaryVector)[i];
+      if (secondary == nullptr) continue;
 
-        userTrackingAction->PreUserTrackingAction(secondary);
-        auto &secTData = fHostTrackDataMapper->get(secondaries[i].fTrackID);
-        if (secTData.userTrackInfo == nullptr && secondary->GetUserInformation() != nullptr) {
-          secTData.userTrackInfo = secondary->GetUserInformation();
-        }
+      if (userTrackingAction) userTrackingAction->PreUserTrackingAction(secondary);
+      auto &secTData = fHostTrackDataMapper->get(secondaries[i].fTrackID);
+      if (secTData.userTrackInfo == nullptr && secondary->GetUserInformation() != nullptr) {
+        secTData.userTrackInfo = secondary->GetUserInformation();
       }
     }
   }

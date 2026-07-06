@@ -156,9 +156,10 @@ __global__ void __launch_bounds__(256, 1)
                                               currentTrack.preStepGlobalTime, // preStep global time
                                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                               false,                                       // parent continues on CPU
-                                              currentTrack.stepCounter,                    // stepcounter
-                                              nullptr, // pointer to secondary init data
-                                              0);      // number of secondaries
+                                              currentTrack.hasHostData,
+                                              currentTrack.stepCounter, // stepcounter
+                                              nullptr,                  // pointer to secondary init data
+                                              0);                       // number of secondaries
           continue;
         }
       } else {
@@ -166,7 +167,7 @@ __global__ void __launch_bounds__(256, 1)
         slotManager.MarkSlotForFreeing(slot);
 
         // In case the last steps are recorded, record it now, as this track is killed
-        if (returnLastStep) {
+        if (returnLastStep || currentTrack.hasHostData) {
           adept_step_recording::RecordGPUStep(currentTrack.trackId,              // Track ID
                                               currentTrack.parentId,             // parent Track ID
                                               static_cast<short>(10),            // step limiting process ID
@@ -187,7 +188,8 @@ __global__ void __launch_bounds__(256, 1)
                                               currentTrack.properTime,           // proper time
                                               currentTrack.preStepGlobalTime,    // preStep global time
                                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
-                                              true,                     // whether this was the last step
+                                              true, // whether this was the last step
+                                              currentTrack.hasHostData,
                                               currentTrack.stepCounter, // stepcounter
                                               nullptr,                  // pointer to secondary init data
                                               0);                       // number of secondaries
@@ -494,6 +496,11 @@ __global__ void __launch_bounds__(256, 1)
             printf("| After WDT check: leftWDTRegion %d \n", leftWDTRegion);
           }
 #endif
+
+          // Do not record boundary crossing steps in Woodcock tracking: WDT intentionally collapses
+          // pre-step state to the post-step point, and the ATLAS MCTruth recording envelopes are not these WDT root
+          // volumes. CPU handoff is recorded below.
+
         } else {
 
 #if ADEPT_DEBUG_TRACK > 0
@@ -522,9 +529,10 @@ __global__ void __launch_bounds__(256, 1)
                                               currentTrack.preStepGlobalTime,    // preStep global time
                                               currentTrack.eventId, currentTrack.threadId, // eventID and threadID
                                               false,                                       // parent continues on CPU
-                                              currentTrack.stepCounter,                    // stepcounter
-                                              nullptr, // pointer to secondary init data
-                                              0);      // number of secondaries
+                                              currentTrack.hasHostData,
+                                              currentTrack.stepCounter, // stepcounter
+                                              nullptr,                  // pointer to secondary init data
+                                              0);                       // number of secondaries
           continue;
         }
       } // else particle has left the world

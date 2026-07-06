@@ -133,7 +133,7 @@ AdePTTransport::~AdePTTransport()
 void AdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z,
                               double dirx, double diry, double dirz, double globalTime, double localTime,
                               double properTime, float weight, unsigned short stepCounter, int threadId,
-                              unsigned int eventId, vecgeom::NavigationState &&state)
+                              unsigned int eventId, vecgeom::NavigationState &&state, bool hasHostData)
 {
   if (pdg != 11 && pdg != -11 && pdg != 22) {
     std::cerr << __FILE__ << ":" << __LINE__ << ": Only supporting EM tracks. Got pdgID=" << pdg << "\n";
@@ -148,7 +148,8 @@ void AdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, doub
                             globalTime,  localTime,
                             properTime,  weight,
                             stepCounter, std::move(state),
-                            eventId,     static_cast<short>(threadId)};
+                            eventId,     static_cast<short>(threadId),
+                            hasHostData};
 
   {
     auto trackHandle  = fBuffer->createToDeviceSlot();

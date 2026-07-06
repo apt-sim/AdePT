@@ -36,6 +36,7 @@ struct GPUStep {
   short threadId{-1};
   unsigned short fStepCounter{0};
   bool fLastStepOfTrack{false};
+  bool fHasHostData{false};
   ParticleType fParticleType{ParticleType::Electron};
   unsigned char fNumSecondaries{0};
 
@@ -95,6 +96,7 @@ struct SecondaryInitData {
   double eKin;
   short creatorProcessId{-1};
   ParticleType particleType{ParticleType::Electron};
+  bool hasHostData{false};
 };
 
 /// @brief Utility function to copy a 3D vector, used for filling the Step Points
@@ -113,7 +115,7 @@ __device__ __forceinline__ void FillGPUStep(
     vecgeom::Vector3D<double> const &aPrePosition, vecgeom::Vector3D<double> const &aPreMomentumDirection,
     double aPreEKin, vecgeom::NavigationState const &aPostState, vecgeom::Vector3D<double> const &aPostPosition,
     vecgeom::Vector3D<double> const &aPostMomentumDirection, double aPostEKin, double aGlobalTime, float aLocalTime,
-    float aProperTime, double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep,
+    float aProperTime, double aPreGlobalTime, unsigned int eventID, short threadID, bool isLastStep, bool hasHostData,
     unsigned short stepCounter, unsigned char aNumSecondaries)
 {
   aGPUStep.fEventId = eventID;
@@ -121,6 +123,7 @@ __device__ __forceinline__ void FillGPUStep(
 
   aGPUStep.fStepCounter     = stepCounter;
   aGPUStep.fLastStepOfTrack = isLastStep;
+  aGPUStep.fHasHostData     = hasHostData;
   // Fill the required data
   aGPUStep.fTrackID            = aTrackID;
   aGPUStep.fParentID           = aParentID;
