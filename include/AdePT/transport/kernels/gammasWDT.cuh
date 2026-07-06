@@ -407,7 +407,7 @@ __global__ void __launch_bounds__(256, 1)
     const int nextlvolID          = nextState.GetLogicalId();
     VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
 
-    int winnerProcessIndex;
+    int winnerProcessIndex = -1;
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[3];
     unsigned int nSecondaries = 0;

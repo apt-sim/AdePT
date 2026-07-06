@@ -212,7 +212,7 @@ __global__ void __launch_bounds__(256, 1)
     globalTime += deltaTime;
     localTime += deltaTime;
 
-    int winnerProcessIndex;
+    int winnerProcessIndex = -1;
     // data structure for possible secondaries that are generated
     SecondaryInitData secondaryData[3];
     unsigned int nSecondaries = 0;
