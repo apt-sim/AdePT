@@ -15,8 +15,10 @@
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
 
+#include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/volumes/LogicalVolume.h>
+#include <VecGeom/volumes/UnplacedBox.h>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
@@ -129,4 +131,97 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
   for (auto const &root : wdtRaw.roots) {
     EXPECT_EQ(root.hepemIMC, 0);
   }
+}
+
+TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
+{
+  GeometryCleanup cleanup;
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  vecgeom::GeoManager::Instance().Clear();
+
+  auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+  ASSERT_NE(material, nullptr);
+
+  auto *worldSolid = new G4Box("preserved_replica_world_solid", 150.0 * mm, 10.0 * mm, 10.0 * mm);
+  auto *worldLV    = new G4LogicalVolume(worldSolid, material, "preserved_replica_world_lv");
+  auto *worldPV =
+      new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "preserved_replica_world", nullptr, false, 0, false);
+
+  auto *sliceSolid = new G4Box("preserved_slice_solid", 50.0 * mm, 10.0 * mm, 10.0 * mm);
+  auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "preserved_slice_lv");
+  new G4PVReplica("preserved_slice", sliceLV, worldLV, kXAxis, 3, 100.0 * mm);
+
+  auto *couple = new G4MaterialCutsCouple(material, new G4ProductionCuts);
+  couple->SetIndex(0);
+  couple->SetUseFlag(true);
+  worldLV->SetMaterialCutsCouple(couple);
+  sliceLV->SetMaterialCutsCouple(couple);
+
+  G4Region worldRegion("geometry_bridge_preserved_world_region");
+  worldRegion.AddRootLogicalVolume(worldLV);
+  worldRegion.RegisterMaterialCouplePair(material, couple);
+
+  G4Region wdtRegion("geometry_bridge_preserved_wdt_region");
+  wdtRegion.AddRootLogicalVolume(sliceLV);
+  wdtRegion.RegisterMaterialCouplePair(material, couple);
+  ASSERT_EQ(wdtRegion.FindCouple(material), couple);
+
+  auto *transport = G4TransportationManager::GetTransportationManager();
+  transport->SetWorldForTracking(worldPV);
+  G4GeometryManager::GetInstance()->CloseGeometry(true);
+
+  auto *vgWorldSolid = new vecgeom::UnplacedBox(150.0, 10.0, 10.0);
+  auto *vgWorldLV    = new vecgeom::LogicalVolume("preserved_replica_world_lv", vgWorldSolid);
+  auto *vgSliceSolid = new vecgeom::UnplacedBox(50.0, 10.0, 10.0);
+  auto *vgSliceLV    = new vecgeom::LogicalVolume("preserved_slice_lv", vgSliceSolid);
+
+  vecgeom::Transformation3D identity;
+  vgWorldLV->PlaceDaughter("preserved_slice", vgSliceLV, &identity);
+  auto *vgWorldPV = vgWorldLV->Place("preserved_replica_world", &identity);
+  vecgeom::GeoManager::Instance().SetWorldAndClose(vgWorldPV);
+
+  auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+  ASSERT_NE(vgWorld, nullptr);
+
+  auto const &vgDaughters = vgWorld->GetLogicalVolume()->GetDaughters();
+  ASSERT_EQ(vgDaughters.size(), 1u);
+
+  int g4ToHepEm[]                   = {0};
+  G4HepEmMCCData hepEmMatCutData[]  = {G4HepEmMCCData{}};
+  hepEmMatCutData[0].fG4MatCutIndex = 0;
+  hepEmMatCutData[0].fG4RegionIndex = wdtRegion.GetInstanceID();
+
+  G4HepEmMatCutData matCutData;
+  matCutData.fNumG4MatCuts            = 1;
+  matCutData.fNumMatCutData           = 1;
+  matCutData.fG4MCIndexToHepEmMCIndex = g4ToHepEm;
+  matCutData.fMatCutData              = hepEmMatCutData;
+
+  G4HepEmData hepEmData;
+  hepEmData.fTheMatCutData = &matCutData;
+
+  EXPECT_NO_THROW(AdePTGeometryBridge::CheckGeometry(&hepEmData));
+
+  G4HepEmTrackingManagerSpecialized hepEmTM;
+  hepEmTM.fWDTHelper = new G4HepEmWoodcockHelper;
+  std::vector<std::string> wdtRegionNames{wdtRegion.GetName()};
+  ASSERT_TRUE(hepEmTM.fWDTHelper->Initialize(wdtRegionNames, &matCutData, worldPV));
+
+  std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
+  std::vector<std::string> gpuRegionNames;
+  std::vector<std::string> deadRegionNames;
+  adeptint::WDTHostRaw wdtRaw;
+
+  EXPECT_NO_THROW(AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, true, &gpuRegionNames,
+                                                      deadRegionNames, wdtRaw));
+
+  const auto regionRoots = wdtRaw.regionToRootIndices.find(wdtRegion.GetInstanceID());
+  ASSERT_NE(regionRoots, wdtRaw.regionToRootIndices.end());
+
+  // This mimics the preserved representation: one VecGeom daughter corresponds
+  // to the single Geant4 replica node, whose multiplicity is greater than one.
+  // CheckGeometry and InitVolAuxData must not require flattened copy placements.
+  EXPECT_EQ(regionRoots->second.size(), 1u);
+  EXPECT_EQ(wdtRaw.roots.size(), 1u);
+  EXPECT_EQ(wdtRaw.roots.front().hepemIMC, 0);
 }

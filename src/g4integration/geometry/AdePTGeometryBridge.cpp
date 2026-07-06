@@ -35,18 +35,14 @@ std::vector<G4LogicalVolume const *> AdePTGeometryBridge::fGlobalVecGeomLvToG4Ma
 
 namespace {
 
-std::size_t GetExpandedDaughterCount(G4LogicalVolume const *g4_lvol)
+std::size_t GetMultiplicity(G4VPhysicalVolume const *daughter)
 {
-  std::size_t result = 0;
-  for (std::size_t daughterId = 0; daughterId < g4_lvol->GetNoDaughters(); ++daughterId) {
-    auto const *daughter = g4_lvol->GetDaughter(daughterId);
-    if (daughter->GetMultiplicity() < 1) {
-      throw std::runtime_error("Fatal: geometry traversal: physical volume " + std::string(daughter->GetName()) +
-                               " has invalid multiplicity");
-    }
-    result += static_cast<std::size_t>(daughter->GetMultiplicity());
+  const auto multiplicity = daughter->GetMultiplicity();
+  if (multiplicity < 1) {
+    throw std::runtime_error("Fatal: geometry traversal: physical volume " + std::string(daughter->GetName()) +
+                             " has invalid multiplicity");
   }
-  return result;
+  return static_cast<std::size_t>(multiplicity);
 }
 
 template <typename Visitor>
@@ -57,10 +53,13 @@ void VisitExpandedDaughters(G4LogicalVolume const *g4_lvol, vecgeom::LogicalVolu
 
   for (std::size_t g4Id = 0; g4Id < g4_lvol->GetNoDaughters(); ++g4Id) {
     auto const *g4Daughter      = g4_lvol->GetDaughter(g4Id);
-    const auto multiplicity     = static_cast<std::size_t>(g4Daughter->GetMultiplicity());
+    const auto multiplicity     = GetMultiplicity(g4Daughter);
     const auto nextVecGeomIndex = vgId + multiplicity;
     if (nextVecGeomIndex > vgDaughters.size()) {
-      throw std::runtime_error("Fatal: geometry traversal: Geant4 daughter multiplicity exceeds VecGeom daughters");
+      throw std::runtime_error("Fatal: geometry traversal: Geant4 daughter multiplicity exceeds VecGeom daughters in " +
+                               std::string(g4_lvol->GetName()) + " for daughter " + std::string(g4Daughter->GetName()) +
+                               " (multiplicity " + std::to_string(multiplicity) + ", VecGeom daughters " +
+                               std::to_string(vgDaughters.size()) + ")");
     }
 
     for (; vgId < nextVecGeomIndex; ++vgId) {
@@ -74,22 +73,33 @@ void VisitExpandedDaughters(G4LogicalVolume const *g4_lvol, vecgeom::LogicalVolu
 }
 
 template <typename Visitor>
-void VisitDaughtersMatchingVecGeomRepresentation(G4LogicalVolume const *g4_lvol, vecgeom::LogicalVolume const *vg_lvol,
-                                                 Visitor visit)
+void VisitDaughtersMatchingVecGeomRepresentationWithMode(G4LogicalVolume const *g4_lvol,
+                                                         vecgeom::LogicalVolume const *vg_lvol, Visitor visit)
 {
   auto const &vgDaughters = vg_lvol->GetDaughters();
-  if (vgDaughters.size() == GetExpandedDaughterCount(g4_lvol)) {
-    VisitExpandedDaughters(g4_lvol, vg_lvol, visit);
+  if (vgDaughters.size() == g4_lvol->GetNoDaughters()) {
+    for (std::size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
+      auto const *g4Daughter = g4_lvol->GetDaughter(id);
+      (void)GetMultiplicity(g4Daughter);
+      visit(g4Daughter, vgDaughters[id], false);
+    }
     return;
   }
 
-  if (vgDaughters.size() != g4_lvol->GetNoDaughters()) {
-    throw std::runtime_error("Fatal: geometry traversal: Geant4 and VecGeom daughter counts do not match");
-  }
+  VisitExpandedDaughters(g4_lvol, vg_lvol,
+                         [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter) {
+                           visit(g4Daughter, vgDaughter, true);
+                         });
+}
 
-  for (std::size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-    visit(g4_lvol->GetDaughter(id), vgDaughters[id]);
-  }
+template <typename Visitor>
+void VisitDaughtersMatchingVecGeomRepresentation(G4LogicalVolume const *g4_lvol, vecgeom::LogicalVolume const *vg_lvol,
+                                                 Visitor visit)
+{
+  VisitDaughtersMatchingVecGeomRepresentationWithMode(
+      g4_lvol, vg_lvol, [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter, bool) {
+        visit(g4Daughter, vgDaughter);
+      });
 }
 
 } // namespace
@@ -181,33 +191,25 @@ struct VisitContext {
 
 /// @brief Recursively compare the Geant4 and VecGeom geometry trees.
 void VisitGeometryForChecks(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol,
-                            const VisitContext &context)
+                            bool expandedPlacement, const VisitContext &context)
 {
   const auto g4_lvol = g4_pvol->GetLogicalVolume();
   const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
-  // Geant4 parameterised/replica volumes are represented with direct placements in VecGeom.
-  // To accurately compare the number of daughters, sum multiplicity on the Geant4 side.
-  const auto nd_converted = GetExpandedDaughterCount(g4_lvol);
-
-  const auto daughters = vg_lvol->GetDaughters();
-  if (nd_converted != daughters.size()) {
-    throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
-  }
-
   // Check whether transformations are matching.
-  // As above, with parameterized/replica volumes we need to compare the transforms between
-  // the VecGeom direct placement and that for the parameterised/replicated volume given the
-  // same copy number as that of the VecGeom physical volume.
+  // Parameterized/replica daughters can be flattened into direct VecGeom placements
+  // or preserved as replica nodes, depending on the geometry import path.
   // NOTE:
   // 1. This needs a const_cast because the current Geant4 API computes the transform by
   //    mutating the physical volume.
   // 2. This does modify the physical volume, but navigation will reset things afterwards.
-  if (G4VPVParameterisation *param = g4_pvol->GetParameterisation()) {
-    param->ComputeTransformation(vg_pvol->GetCopyNo(), const_cast<G4VPhysicalVolume *>(g4_pvol));
-  } else if (auto *replica = dynamic_cast<G4PVReplica *>(const_cast<G4VPhysicalVolume *>(g4_pvol))) {
-    G4ReplicaNavigation nav;
-    nav.ComputeTransformation(vg_pvol->GetCopyNo(), replica);
+  if (expandedPlacement) {
+    if (G4VPVParameterisation *param = g4_pvol->GetParameterisation()) {
+      param->ComputeTransformation(vg_pvol->GetCopyNo(), const_cast<G4VPhysicalVolume *>(g4_pvol));
+    } else if (auto *replica = dynamic_cast<G4PVReplica *>(const_cast<G4VPhysicalVolume *>(g4_pvol))) {
+      G4ReplicaNavigation nav;
+      nav.ComputeTransformation(vg_pvol->GetCopyNo(), replica);
+    }
   }
 
   const auto g4trans            = g4_pvol->GetTranslation();
@@ -254,10 +256,11 @@ void VisitGeometryForChecks(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVo
   }
 
   // Now do the daughters.
-  VisitExpandedDaughters(g4_lvol, vg_lvol,
-                         [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter) {
-                           VisitGeometryForChecks(g4Daughter, vgDaughter, context);
-                         });
+  VisitDaughtersMatchingVecGeomRepresentationWithMode(
+      g4_lvol, vg_lvol,
+      [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter, bool isExpandedPlacement) {
+        VisitGeometryForChecks(g4Daughter, vgDaughter, isExpandedPlacement, context);
+      });
 }
 } // namespace
 
@@ -272,7 +275,7 @@ void AdePTGeometryBridge::CheckGeometry(G4HepEmData const *hepEmData)
 
   std::cout << "Visiting geometry ...\n";
   const VisitContext context{g4tohepmcindex, nvolumes, hepEmData};
-  VisitGeometryForChecks(g4world, vecgeomWorld, context);
+  VisitGeometryForChecks(g4world, vecgeomWorld, false, context);
   std::cout << "Visiting geometry done\n";
 }
 
@@ -392,10 +395,10 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
 #endif
 
     // Now do the daughters.
-    VisitExpandedDaughters(g4_lvol, vg_lvol,
-                           [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter) {
-                             visitGeometry(g4Daughter, vgDaughter, currentNavState);
-                           });
+    VisitDaughtersMatchingVecGeomRepresentation(
+        g4_lvol, vg_lvol, [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter) {
+          visitGeometry(g4Daughter, vgDaughter, currentNavState);
+        });
 
     // Pop the navigation state before returning.
     currentNavState.Pop();

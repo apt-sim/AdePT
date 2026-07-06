@@ -79,6 +79,13 @@ set(ADEPT_G4_INTEGRATION_GTESTS
   test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
   test_geometry_bridge.cpp     # Unit test for AdePTGeometryBridge replica traversal
 )
+if(Geant4_gdml_FOUND AND VECGEOM_GDML_SUPPORT)
+  list(APPEND ADEPT_G4_INTEGRATION_GTESTS
+    test_geometry_bridge_cms.cpp # Unit test comparing CMS GDML VGDML and G4VG placement trees
+  )
+else()
+  message(STATUS "Disabling test_geometry_bridge_cms (needs Geant4 and VecGeom GDML support)")
+endif()
 
 if(ADEPT_USE_EXT_BFIELD)
   list(APPEND ADEPT_TRANSPORT_UNIT_TESTS
@@ -95,6 +102,12 @@ build_header_only_tests(${ADEPT_HEADER_ONLY_UNIT_TESTS})
 build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS} ${ADEPT_TRANSPORT_UTILITIES})
 build_gtest_tests(AdePT::Transport ${ADEPT_TRANSPORT_GTESTS})
 build_gtest_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_GTESTS})
+if(TARGET test_geometry_bridge_cms)
+  target_compile_definitions(test_geometry_bridge_cms
+    PRIVATE
+      ADEPT_CMS2018_GDML="${PROJECT_BINARY_DIR}/cms2018_sd.gdml"
+  )
+endif()
 build_linked_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UNIT_TESTS})
 
 if(ADEPT_USE_EXT_BFIELD)
