@@ -497,9 +497,9 @@ __global__ void __launch_bounds__(256, 1)
           }
 #endif
 
-          // Note: in the ATLAS MC truth setup, all volume-crossing steps are returned for particles that are stored in
-          // the MC truth. While it is done in the other kernels, it is deliberately skipped for the crossings between
-          // WDT root volumes, as those crossings are irrelevant for the ATLAS MC truth.
+          // Do not record boundary crossing steps in Woodcock tracking: WDT intentionally collapses
+          // pre-step state to the post-step point, and the ATLAS MCTruth recording envelopes are not these WDT root
+          // volumes. CPU handoff is recorded below.
 
         } else {
 

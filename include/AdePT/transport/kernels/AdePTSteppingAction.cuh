@@ -5,6 +5,7 @@
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/random/Ranluxpp.h>
 #include <AdePT/transport/support/SystemOfUnits.h>
+#include <AdePT/transport/tracks/Track.cuh>
 
 #include <G4HepEmData.hh>
 #include <G4HepEmMatCutData.hh>
@@ -281,8 +282,8 @@ struct ATLASAction {
 };
 #endif
 
-template <class ActionT, class ChildT, class ParentT>
-__device__ __forceinline__ void SetSecondaryHostData(ChildT &child, ParentT const &parent, double childMass,
+template <class ActionT>
+__device__ __forceinline__ void SetSecondaryHostData(TrackBase &child, TrackBase const &parent, double childMass,
                                                      bool returnLastStep)
 {
   child.hasHostData =
