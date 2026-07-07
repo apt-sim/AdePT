@@ -73,6 +73,9 @@ VecGeomTreeStats CollectVecGeomTreeStats()
 
 } // namespace
 
+// CMS GDML import parity: the G4VG and VGDML paths can use different
+// internal logical-volume registration, but they must produce the same placed
+// volume tree shape so traversal sees the same geometry hierarchy.
 TEST(AdePTGeometryBridge, CMS2018G4VGAndVGDMLHaveSamePlacementTree)
 {
   GeometryCleanup cleanup;

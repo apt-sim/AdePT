@@ -468,3 +468,13 @@ G4VPhysicalVolume const *AdePTGeometryBridge::GetG4PhysicalVolume(vecgeom::VPlac
   }
   return g4Volume;
 }
+
+AdePTGeometryBridge::G4PhysicalVolumeInstance AdePTGeometryBridge::GetG4PhysicalVolumeInstance(
+    vecgeom::VPlacedVolume const *placedVolume)
+{
+  auto *g4Volume    = GetG4PhysicalVolume(placedVolume);
+  const auto type   = g4Volume->VolumeType();
+  const auto copyNo = type == kNormal ? g4Volume->GetCopyNo() : placedVolume->GetCopyNo();
+
+  return G4PhysicalVolumeInstance{g4Volume, type, copyNo};
+}

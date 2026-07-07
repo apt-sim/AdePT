@@ -1,10 +1,15 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#include <G4Event.hh>
 #include <G4EventManager.hh>
+#include <G4NavigationHistory.hh>
+#include <G4TouchableHistory.hh>
+#include <G4Track.hh>
 #include <G4VTrackingManager.hh>
 #include <globals.hh>
 
+#include <span>
 #include <string>
 #include <vector>
 
@@ -13,10 +18,17 @@
 #undef private
 
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
+#include <AdePT/g4integration/returned_steps/HostTrackDataMapper.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
+#include <AdePT/transport/steps/GPUStep.hh>
+
+#define private public
+#include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
+#undef private
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>
+#include <VecGeom/navigation/NavigationState.h>
 #include <VecGeom/volumes/LogicalVolume.h>
 #include <VecGeom/volumes/UnplacedBox.h>
 
@@ -50,6 +62,9 @@ struct GeometryCleanup {
 
 } // namespace
 
+// Flattened replica traversal: G4VG expands one Geant4 replica daughter into
+// multiple concrete VecGeom placements. InitVolAuxData must visit each copy so
+// WDT root collection does not silently keep only replica copy 0.
 TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
 {
   GeometryCleanup cleanup;
@@ -133,6 +148,80 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
   }
 }
 
+// Returned-touchable reconstruction for flattened replicas: multiple VecGeom
+// placements map back to one mutable Geant4 replica physical volume. Reusing a
+// G4NavigationHistory level must compare and stamp the replica copy identity.
+TEST(AdePTGeometryBridge, ReconstructedTouchableKeepsReplicaCopyNumber)
+{
+  GeometryCleanup cleanup;
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  vecgeom::GeoManager::Instance().Clear();
+
+  auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+  ASSERT_NE(material, nullptr);
+
+  auto *worldSolid = new G4Box("touchable_replica_world_solid", 150.0 * mm, 10.0 * mm, 10.0 * mm);
+  auto *worldLV    = new G4LogicalVolume(worldSolid, material, "touchable_replica_world_lv");
+  auto *worldPV =
+      new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "touchable_replica_world", nullptr, false, 0, false);
+
+  auto *sliceSolid = new G4Box("touchable_slice_solid", 50.0 * mm, 10.0 * mm, 10.0 * mm);
+  auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "touchable_slice_lv");
+  new G4PVReplica("touchable_slice", sliceLV, worldLV, kXAxis, 3, 100.0 * mm);
+
+  auto *transport = G4TransportationManager::GetTransportationManager();
+  transport->SetWorldForTracking(worldPV);
+  G4GeometryManager::GetInstance()->CloseGeometry(true);
+
+  AdePTGeometryBridge::CreateVecGeomWorld(worldPV);
+  auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+  ASSERT_NE(vgWorld, nullptr);
+
+  auto const &vgDaughters = vgWorld->GetLogicalVolume()->GetDaughters();
+  ASSERT_EQ(vgDaughters.size(), 3u);
+  ASSERT_EQ(vgDaughters[0]->GetCopyNo(), 0);
+  ASSERT_EQ(vgDaughters[2]->GetCopyNo(), 2);
+  ASSERT_EQ(AdePTGeometryBridge::GetG4PhysicalVolume(vgDaughters[0]),
+            AdePTGeometryBridge::GetG4PhysicalVolume(vgDaughters[2]));
+
+  const auto makeNavState = [&](std::size_t replicaCopy) {
+    vecgeom::NavigationState state;
+    state.Push(vgWorld);
+    state.Push(vgDaughters[replicaCopy]);
+    state.SetBoundaryState(false);
+    return state;
+  };
+
+  AdePTGeant4Integration integration;
+  G4NavigationHistory history;
+
+  integration.FillG4NavigationHistory(makeNavState(0), history);
+  ASSERT_EQ(history.GetDepth(), 1u);
+  EXPECT_EQ(history.GetVolumeType(1), kReplica);
+  EXPECT_EQ(history.GetReplicaNo(1), 0);
+
+  G4TouchableHistory touchableCopy0(history);
+  auto *replicaVolume = touchableCopy0.GetVolume(0);
+  const auto copy0    = touchableCopy0.GetCopyNumber(0);
+  EXPECT_EQ(copy0, 0);
+  EXPECT_EQ(replicaVolume->GetCopyNo(), 0);
+
+  integration.FillG4NavigationHistory(makeNavState(2), history);
+  ASSERT_EQ(history.GetDepth(), 1u);
+  EXPECT_EQ(history.GetVolume(1), replicaVolume);
+  EXPECT_EQ(history.GetVolumeType(1), kReplica);
+  EXPECT_EQ(history.GetReplicaNo(1), 2);
+
+  G4TouchableHistory touchableCopy2(history);
+  EXPECT_EQ(touchableCopy2.GetVolume(0), replicaVolume);
+  EXPECT_EQ(touchableCopy2.GetCopyNumber(0), 2);
+  EXPECT_EQ(replicaVolume->GetCopyNo(), 2);
+  EXPECT_NE(copy0, touchableCopy2.GetCopyNumber(0));
+}
+
+// Preserved replica traversal: VGDML can keep one VecGeom daughter for one
+// Geant4 replica node with multiplicity greater than one. CheckGeometry and
+// InitVolAuxData must accept this non-flattened representation as matching.
 TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
 {
   GeometryCleanup cleanup;
