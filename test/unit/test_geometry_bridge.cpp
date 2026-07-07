@@ -42,10 +42,13 @@
 #include <G4LogicalVolume.hh>
 #include <G4MaterialCutsCouple.hh>
 #include <G4NistManager.hh>
+#include <G4PVParameterised.hh>
 #include <G4PVPlacement.hh>
 #include <G4PVReplica.hh>
+#include <G4VPVParameterisation.hh>
 #include <G4ProductionCuts.hh>
 #include <G4Region.hh>
+#include <G4ReplicaNavigation.hh>
 #include <G4SystemOfUnits.hh>
 #include <G4TransportationManager.hh>
 
@@ -60,6 +63,44 @@ struct GeometryCleanup {
     vecgeom::GeoManager::Instance().Clear();
   }
 };
+
+class SingleCopyOffsetParameterisation : public G4VPVParameterisation {
+public:
+  explicit SingleCopyOffsetParameterisation(G4ThreeVector translation) : fTranslation(translation) {}
+
+  void ComputeTransformation(const G4int copyNo, G4VPhysicalVolume *physicalVolume) const override
+  {
+    physicalVolume->SetTranslation(fTranslation);
+    physicalVolume->SetRotation(nullptr);
+    physicalVolume->SetCopyNo(copyNo);
+  }
+
+private:
+  G4ThreeVector fTranslation;
+};
+
+struct SingleMatCutHepEmData {
+  int g4ToHepEm[1]                  = {0};
+  G4HepEmMCCData hepEmMatCutData[1] = {G4HepEmMCCData{}};
+  G4HepEmMatCutData matCutData{};
+  G4HepEmData hepEmData{};
+
+  SingleMatCutHepEmData()
+  {
+    hepEmMatCutData[0].fG4MatCutIndex   = 0;
+    matCutData.fNumG4MatCuts            = 1;
+    matCutData.fNumMatCutData           = 1;
+    matCutData.fG4MCIndexToHepEmMCIndex = g4ToHepEm;
+    matCutData.fMatCutData              = hepEmMatCutData;
+    hepEmData.fTheMatCutData            = &matCutData;
+  }
+};
+
+vecgeom::Transformation3D MakeVecGeomRotation(G4RotationMatrix const &rotation)
+{
+  return vecgeom::Transformation3D(0.0, 0.0, 0.0, rotation(0, 0), rotation(1, 0), rotation(2, 0), rotation(0, 1),
+                                   rotation(1, 1), rotation(2, 1), rotation(0, 2), rotation(1, 2), rotation(2, 2));
+}
 
 } // namespace
 
@@ -147,6 +188,123 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
   for (auto const &root : wdtRaw.roots) {
     EXPECT_EQ(root.hepemIMC, 0);
   }
+}
+
+// Single-copy parameterised traversal: GetMultiplicity() is one, but the
+// copy-0 transform still comes from the Geant4 parameterisation. CheckGeometry
+// must compute that transform instead of comparing the mutable prototype state.
+TEST(AdePTGeometryBridge, CheckGeometryUsesCopyTransformForSingleCopyParameterisation)
+{
+  GeometryCleanup cleanup;
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  vecgeom::GeoManager::Instance().Clear();
+
+  auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+  ASSERT_NE(material, nullptr);
+
+  auto *worldSolid = new G4Box("single_param_world_solid", 100.0 * mm, 20.0 * mm, 20.0 * mm);
+  auto *worldLV    = new G4LogicalVolume(worldSolid, material, "single_param_world_lv");
+  auto *worldPV = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "single_param_world", nullptr, false, 0, false);
+
+  auto *sliceSolid = new G4Box("single_param_slice_solid", 5.0 * mm, 5.0 * mm, 5.0 * mm);
+  auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "single_param_slice_lv");
+  const G4ThreeVector copyTranslation(35.0 * mm, 0.0, 0.0);
+  auto *parameterisation = new SingleCopyOffsetParameterisation(copyTranslation);
+  auto *parameterisedPV =
+      new G4PVParameterised("single_param_slice", sliceLV, worldLV, kXAxis, 1, parameterisation, false);
+
+  auto *couple = new G4MaterialCutsCouple(material, new G4ProductionCuts);
+  couple->SetIndex(0);
+  couple->SetUseFlag(true);
+  worldLV->SetMaterialCutsCouple(couple);
+  sliceLV->SetMaterialCutsCouple(couple);
+
+  auto *transport = G4TransportationManager::GetTransportationManager();
+  transport->SetWorldForTracking(worldPV);
+
+  auto *vgWorldSolid = new vecgeom::UnplacedBox(100.0, 20.0, 20.0);
+  auto *vgWorldLV    = new vecgeom::LogicalVolume("single_param_world_lv", vgWorldSolid);
+  auto *vgSliceSolid = new vecgeom::UnplacedBox(5.0, 5.0, 5.0);
+  auto *vgSliceLV    = new vecgeom::LogicalVolume("single_param_slice_lv", vgSliceSolid);
+
+  vecgeom::Transformation3D childTransform(35.0, 0.0, 0.0);
+  auto const *vgSlicePV = vgWorldLV->PlaceDaughter("single_param_slice", vgSliceLV, &childTransform);
+  const_cast<vecgeom::VPlacedVolume *>(vgSlicePV)->SetCopyNo(0);
+  vecgeom::Transformation3D identity;
+  auto *vgWorldPV = vgWorldLV->Place("single_param_world", &identity);
+  vecgeom::GeoManager::Instance().SetWorldAndClose(vgWorldPV);
+
+  auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+  ASSERT_NE(vgWorld, nullptr);
+  ASSERT_EQ(vgWorld->GetLogicalVolume()->GetDaughters().size(), 1u);
+  EXPECT_EQ(parameterisedPV->VolumeType(), kParameterised);
+  EXPECT_EQ(parameterisedPV->GetMultiplicity(), 1);
+  EXPECT_NE(parameterisedPV->GetTranslation(), copyTranslation);
+
+  SingleMatCutHepEmData hepEm;
+  EXPECT_NO_THROW(AdePTGeometryBridge::CheckGeometry(&hepEm.hepEmData));
+  EXPECT_EQ(parameterisedPV->GetCopyNo(), 0);
+  EXPECT_EQ(parameterisedPV->GetTranslation(), copyTranslation);
+}
+
+// Single-copy replica traversal: a kPhi replica can have one copy and still
+// require G4ReplicaNavigation to stamp a non-identity copy-0 rotation. The
+// traversal flag must follow the Geant4 volume type, not only multiplicity > 1.
+TEST(AdePTGeometryBridge, CheckGeometryUsesCopyTransformForSingleCopyReplica)
+{
+  GeometryCleanup cleanup;
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  vecgeom::GeoManager::Instance().Clear();
+
+  auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+  ASSERT_NE(material, nullptr);
+
+  auto *worldSolid = new G4Box("single_replica_world_solid", 100.0 * mm, 20.0 * mm, 20.0 * mm);
+  auto *worldLV    = new G4LogicalVolume(worldSolid, material, "single_replica_world_lv");
+  auto *worldPV =
+      new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "single_replica_world", nullptr, false, 0, false);
+
+  auto *sliceSolid = new G4Box("single_replica_slice_solid", 5.0 * mm, 5.0 * mm, 5.0 * mm);
+  auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "single_replica_slice_lv");
+  auto *replicaPV  = new G4PVReplica("single_replica_slice", sliceLV, worldLV, kPhi, 1, 0.5, 0.25);
+
+  auto *couple = new G4MaterialCutsCouple(material, new G4ProductionCuts);
+  couple->SetIndex(0);
+  couple->SetUseFlag(true);
+  worldLV->SetMaterialCutsCouple(couple);
+  sliceLV->SetMaterialCutsCouple(couple);
+
+  auto *transport = G4TransportationManager::GetTransportationManager();
+  transport->SetWorldForTracking(worldPV);
+
+  G4ReplicaNavigation replicaNavigation;
+  replicaNavigation.ComputeTransformation(0, replicaPV);
+  ASSERT_NE(replicaPV->GetRotation(), nullptr);
+  const G4RotationMatrix copyRotation = *replicaPV->GetRotation();
+  *replicaPV->GetRotation()           = G4RotationMatrix{};
+  ASSERT_GT(std::abs(copyRotation(0, 1) - (*replicaPV->GetRotation())(0, 1)), 1.e-12);
+
+  auto *vgWorldSolid = new vecgeom::UnplacedBox(100.0, 20.0, 20.0);
+  auto *vgWorldLV    = new vecgeom::LogicalVolume("single_replica_world_lv", vgWorldSolid);
+  auto *vgSliceSolid = new vecgeom::UnplacedBox(5.0, 5.0, 5.0);
+  auto *vgSliceLV    = new vecgeom::LogicalVolume("single_replica_slice_lv", vgSliceSolid);
+
+  auto childTransform   = MakeVecGeomRotation(copyRotation);
+  auto const *vgSlicePV = vgWorldLV->PlaceDaughter("single_replica_slice", vgSliceLV, &childTransform);
+  const_cast<vecgeom::VPlacedVolume *>(vgSlicePV)->SetCopyNo(0);
+  vecgeom::Transformation3D identity;
+  auto *vgWorldPV = vgWorldLV->Place("single_replica_world", &identity);
+  vecgeom::GeoManager::Instance().SetWorldAndClose(vgWorldPV);
+
+  auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+  ASSERT_NE(vgWorld, nullptr);
+  ASSERT_EQ(vgWorld->GetLogicalVolume()->GetDaughters().size(), 1u);
+  EXPECT_EQ(replicaPV->VolumeType(), kReplica);
+  EXPECT_EQ(replicaPV->GetMultiplicity(), 1);
+
+  SingleMatCutHepEmData hepEm;
+  EXPECT_NO_THROW(AdePTGeometryBridge::CheckGeometry(&hepEm.hepEmData));
+  EXPECT_NEAR((*replicaPV->GetRotation())(0, 1), copyRotation(0, 1), 1.e-12);
 }
 
 // Returned-touchable reconstruction for flattened replicas: multiple VecGeom
