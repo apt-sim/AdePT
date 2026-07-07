@@ -50,36 +50,44 @@ std::size_t GetMultiplicity(G4VPhysicalVolume const *daughter)
 template <typename Visitor>
 void VisitDaughters(G4LogicalVolume const *g4_lvol, vecgeom::LogicalVolume const *vg_lvol, Visitor visit)
 {
-  auto const &vgDaughters = vg_lvol->GetDaughters();
+  auto const &vgDaughters    = vg_lvol->GetDaughters();
+  const auto g4DaughterCount = static_cast<std::size_t>(g4_lvol->GetNoDaughters());
 
-  if (vgDaughters.size() == g4_lvol->GetNoDaughters()) {
-    for (std::size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-      auto const *g4Daughter = g4_lvol->GetDaughter(id);
-      (void)GetMultiplicity(g4Daughter);
-      visit(g4Daughter, vgDaughters[id], false);
+  std::vector<std::size_t> multiplicities;
+  multiplicities.reserve(g4DaughterCount);
+
+  std::size_t expandedDaughterCount = 0;
+  bool hasExpandedDaughter          = false;
+  for (std::size_t id = 0; id < g4DaughterCount; ++id) {
+    const auto multiplicity = GetMultiplicity(g4_lvol->GetDaughter(id));
+    multiplicities.push_back(multiplicity);
+    expandedDaughterCount += multiplicity;
+    hasExpandedDaughter |= multiplicity > 1;
+  }
+
+  if (!hasExpandedDaughter && vgDaughters.size() == g4DaughterCount) {
+    for (std::size_t id = 0; id < g4DaughterCount; ++id) {
+      visit(g4_lvol->GetDaughter(id), vgDaughters[id], false);
     }
     return;
   }
 
-  std::size_t vgId = 0;
-  for (std::size_t g4Id = 0; g4Id < g4_lvol->GetNoDaughters(); ++g4Id) {
-    auto const *g4Daughter      = g4_lvol->GetDaughter(g4Id);
-    const auto multiplicity     = GetMultiplicity(g4Daughter);
-    const auto nextVecGeomIndex = vgId + multiplicity;
-    if (nextVecGeomIndex > vgDaughters.size()) {
-      throw std::runtime_error("Fatal: geometry traversal: Geant4 daughter multiplicity exceeds VecGeom daughters in " +
-                               std::string(g4_lvol->GetName()) + " for daughter " + std::string(g4Daughter->GetName()) +
-                               " (multiplicity " + std::to_string(multiplicity) + ", VecGeom daughters " +
-                               std::to_string(vgDaughters.size()) + ")");
-    }
-
-    for (; vgId < nextVecGeomIndex; ++vgId) {
-      visit(g4Daughter, vgDaughters[vgId], true);
-    }
+  if (vgDaughters.size() != expandedDaughterCount) {
+    throw std::runtime_error("Fatal: geometry traversal: VecGeom daughters do not match Geant4 multiplicities in " +
+                             std::string(g4_lvol->GetName()) + " (Geant4 daughters " + std::to_string(g4DaughterCount) +
+                             ", expanded multiplicity " + std::to_string(expandedDaughterCount) +
+                             ", VecGeom daughters " + std::to_string(vgDaughters.size()) + ")");
   }
 
-  if (vgId != vgDaughters.size()) {
-    throw std::runtime_error("Fatal: geometry traversal: VecGeom has unmatched daughters");
+  std::size_t vgId = 0;
+  for (std::size_t g4Id = 0; g4Id < g4DaughterCount; ++g4Id) {
+    auto const *g4Daughter      = g4_lvol->GetDaughter(g4Id);
+    const auto multiplicity     = multiplicities[g4Id];
+    const auto nextVecGeomIndex = vgId + multiplicity;
+
+    for (; vgId < nextVecGeomIndex; ++vgId) {
+      visit(g4Daughter, vgDaughters[vgId], multiplicity > 1);
+    }
   }
 }
 
@@ -181,8 +189,9 @@ void VisitGeometryForChecks(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVo
   const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
   // Check whether transformations are matching.
-  // Parameterized/replica daughters can be flattened into direct VecGeom placements
-  // or preserved as replica nodes, depending on the geometry import path.
+  // Parameterized/replica daughters are flattened into direct VecGeom placements
+  // by the supported import paths. Recompute the Geant4 transform for the
+  // concrete VecGeom copy before comparing placements.
   // NOTE:
   // 1. This needs a const_cast because the current Geant4 API computes the transform by
   //    mutating the physical volume.
@@ -469,12 +478,12 @@ G4VPhysicalVolume const *AdePTGeometryBridge::GetG4PhysicalVolume(vecgeom::VPlac
   return g4Volume;
 }
 
-AdePTGeometryBridge::G4PhysicalVolumeInstance AdePTGeometryBridge::GetG4PhysicalVolumeInstance(
+AdePTGeometryBridge::MappedVolumeInstance AdePTGeometryBridge::GetMappedVolumeInstance(
     vecgeom::VPlacedVolume const *placedVolume)
 {
   auto *g4Volume    = GetG4PhysicalVolume(placedVolume);
   const auto type   = g4Volume->VolumeType();
   const auto copyNo = type == kNormal ? g4Volume->GetCopyNo() : placedVolume->GetCopyNo();
 
-  return G4PhysicalVolumeInstance{g4Volume, type, copyNo};
+  return MappedVolumeInstance{g4Volume, type, copyNo};
 }

@@ -10,6 +10,7 @@
 #include <globals.hh>
 
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -219,10 +220,10 @@ TEST(AdePTGeometryBridge, ReconstructedTouchableKeepsReplicaCopyNumber)
   EXPECT_NE(copy0, touchableCopy2.GetCopyNumber(0));
 }
 
-// Preserved replica traversal: VGDML can keep one VecGeom daughter for one
-// Geant4 replica node with multiplicity greater than one. CheckGeometry and
-// InitVolAuxData must accept this non-flattened representation as matching.
-TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
+// Non-equivalent unexpanded replica guard: a single ordinary VecGeom
+// placement for a multi-copy G4PVReplica is not a valid preserved replica
+// representation. Traversal must reject it instead of visiting copy 0 only.
+TEST(AdePTGeometryBridge, RejectsUnexpandedReplicaWithoutVecGeomCopies)
 {
   GeometryCleanup cleanup;
   G4GeometryManager::GetInstance()->OpenGeometry();
@@ -231,14 +232,14 @@ TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
   auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
   ASSERT_NE(material, nullptr);
 
-  auto *worldSolid = new G4Box("preserved_replica_world_solid", 150.0 * mm, 10.0 * mm, 10.0 * mm);
-  auto *worldLV    = new G4LogicalVolume(worldSolid, material, "preserved_replica_world_lv");
+  auto *worldSolid = new G4Box("unexpanded_replica_world_solid", 150.0 * mm, 10.0 * mm, 10.0 * mm);
+  auto *worldLV    = new G4LogicalVolume(worldSolid, material, "unexpanded_replica_world_lv");
   auto *worldPV =
-      new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "preserved_replica_world", nullptr, false, 0, false);
+      new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "unexpanded_replica_world", nullptr, false, 0, false);
 
-  auto *sliceSolid = new G4Box("preserved_slice_solid", 50.0 * mm, 10.0 * mm, 10.0 * mm);
-  auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "preserved_slice_lv");
-  new G4PVReplica("preserved_slice", sliceLV, worldLV, kXAxis, 3, 100.0 * mm);
+  auto *sliceSolid = new G4Box("unexpanded_slice_solid", 50.0 * mm, 10.0 * mm, 10.0 * mm);
+  auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "unexpanded_slice_lv");
+  new G4PVReplica("unexpanded_slice", sliceLV, worldLV, kXAxis, 3, 100.0 * mm);
 
   auto *couple = new G4MaterialCutsCouple(material, new G4ProductionCuts);
   couple->SetIndex(0);
@@ -246,11 +247,11 @@ TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
   worldLV->SetMaterialCutsCouple(couple);
   sliceLV->SetMaterialCutsCouple(couple);
 
-  G4Region worldRegion("geometry_bridge_preserved_world_region");
+  G4Region worldRegion("geometry_bridge_unexpanded_world_region");
   worldRegion.AddRootLogicalVolume(worldLV);
   worldRegion.RegisterMaterialCouplePair(material, couple);
 
-  G4Region wdtRegion("geometry_bridge_preserved_wdt_region");
+  G4Region wdtRegion("geometry_bridge_unexpanded_wdt_region");
   wdtRegion.AddRootLogicalVolume(sliceLV);
   wdtRegion.RegisterMaterialCouplePair(material, couple);
   ASSERT_EQ(wdtRegion.FindCouple(material), couple);
@@ -260,13 +261,13 @@ TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
   G4GeometryManager::GetInstance()->CloseGeometry(true);
 
   auto *vgWorldSolid = new vecgeom::UnplacedBox(150.0, 10.0, 10.0);
-  auto *vgWorldLV    = new vecgeom::LogicalVolume("preserved_replica_world_lv", vgWorldSolid);
+  auto *vgWorldLV    = new vecgeom::LogicalVolume("unexpanded_replica_world_lv", vgWorldSolid);
   auto *vgSliceSolid = new vecgeom::UnplacedBox(50.0, 10.0, 10.0);
-  auto *vgSliceLV    = new vecgeom::LogicalVolume("preserved_slice_lv", vgSliceSolid);
+  auto *vgSliceLV    = new vecgeom::LogicalVolume("unexpanded_slice_lv", vgSliceSolid);
 
   vecgeom::Transformation3D identity;
-  vgWorldLV->PlaceDaughter("preserved_slice", vgSliceLV, &identity);
-  auto *vgWorldPV = vgWorldLV->Place("preserved_replica_world", &identity);
+  vgWorldLV->PlaceDaughter("unexpanded_slice", vgSliceLV, &identity);
+  auto *vgWorldPV = vgWorldLV->Place("unexpanded_replica_world", &identity);
   vecgeom::GeoManager::Instance().SetWorldAndClose(vgWorldPV);
 
   auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
@@ -289,7 +290,7 @@ TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
   G4HepEmData hepEmData;
   hepEmData.fTheMatCutData = &matCutData;
 
-  EXPECT_NO_THROW(AdePTGeometryBridge::CheckGeometry(&hepEmData));
+  EXPECT_THROW(AdePTGeometryBridge::CheckGeometry(&hepEmData), std::runtime_error);
 
   G4HepEmTrackingManagerSpecialized hepEmTM;
   hepEmTM.fWDTHelper = new G4HepEmWoodcockHelper;
@@ -301,16 +302,7 @@ TEST(AdePTGeometryBridge, PreservedReplicaRepresentationPassesCheckAndAuxInit)
   std::vector<std::string> deadRegionNames;
   adeptint::WDTHostRaw wdtRaw;
 
-  EXPECT_NO_THROW(AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, true, &gpuRegionNames,
-                                                      deadRegionNames, wdtRaw));
-
-  const auto regionRoots = wdtRaw.regionToRootIndices.find(wdtRegion.GetInstanceID());
-  ASSERT_NE(regionRoots, wdtRaw.regionToRootIndices.end());
-
-  // This mimics the preserved representation: one VecGeom daughter corresponds
-  // to the single Geant4 replica node, whose multiplicity is greater than one.
-  // CheckGeometry and InitVolAuxData must not require flattened copy placements.
-  EXPECT_EQ(regionRoots->second.size(), 1u);
-  EXPECT_EQ(wdtRaw.roots.size(), 1u);
-  EXPECT_EQ(wdtRaw.roots.front().hepemIMC, 0);
+  EXPECT_THROW(AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, true, &gpuRegionNames,
+                                                   deadRegionNames, wdtRaw),
+               std::runtime_error);
 }

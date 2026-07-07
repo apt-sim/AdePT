@@ -165,12 +165,12 @@ namespace {
 
 constexpr double kG4HandoffPush = 100. * vecgeom::kTolerance;
 
-G4VPhysicalVolume *MutableG4Volume(AdePTGeometryBridge::G4PhysicalVolumeInstance const &instance)
+G4VPhysicalVolume *MutableG4Volume(AdePTGeometryBridge::MappedVolumeInstance const &instance)
 {
-  return const_cast<G4VPhysicalVolume *>(instance.volume);
+  return const_cast<G4VPhysicalVolume *>(instance.g4Volume);
 }
 
-void StampG4VolumeInstance(AdePTGeometryBridge::G4PhysicalVolumeInstance const &instance)
+void StampG4VolumeInstance(AdePTGeometryBridge::MappedVolumeInstance const &instance)
 {
   switch (instance.type) {
   case kReplica: {
@@ -196,9 +196,9 @@ void StampG4VolumeInstance(AdePTGeometryBridge::G4PhysicalVolumeInstance const &
 }
 
 bool MatchesHistoryLevel(G4NavigationHistory const &history, G4int level,
-                         AdePTGeometryBridge::G4PhysicalVolumeInstance const &instance)
+                         AdePTGeometryBridge::MappedVolumeInstance const &instance)
 {
-  if (history.GetVolume(level) != instance.volume) return false;
+  if (history.GetVolume(level) != instance.g4Volume) return false;
   if (level == 0) return true;
 
   return history.GetVolumeType(level) == instance.type && history.GetReplicaNo(level) == instance.copyNo;
@@ -736,8 +736,8 @@ void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationSt
     // can share one Geant4 physical-volume pointer, so the volume type and copy number are
     // part of the instance identity.
     assert(aNavState.At(aLevel));
-    const auto newInstance = AdePTGeometryBridge::GetG4PhysicalVolumeInstance(aNavState.At(aLevel));
-    assert(newInstance.volume != nullptr);
+    const auto newInstance = AdePTGeometryBridge::GetMappedVolumeInstance(aNavState.At(aLevel));
+    assert(newInstance.g4Volume != nullptr);
 
     if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
       // If they match we do not need to update the history at this level. Still stamp

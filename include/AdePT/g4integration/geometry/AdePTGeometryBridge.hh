@@ -50,22 +50,22 @@ public:
   /// @return Packed, dense WDT data ready to be handed to the transport for device upload.
   static adeptint::WDTHostPacked PackWDT(adeptint::WDTHostRaw const &wdtRaw);
 
-  /// @brief Concrete Geant4 volume instance represented by a VecGeom placed volume.
-  struct G4PhysicalVolumeInstance {
-    G4VPhysicalVolume const *volume = nullptr;
-    EVolume type                    = kNormal;
-    int copyNo                      = -1;
+  /// @brief Geant4 placement information represented by a VecGeom placed volume.
+  struct MappedVolumeInstance {
+    G4VPhysicalVolume const *g4Volume = nullptr;
+    EVolume type                      = kNormal;
+    int copyNo                        = -1;
   };
 
   /// @brief Returns the Geant4 placed volume matching a VecGeom placed volume.
   /// @throws std::runtime_error if the VecGeom placed volume is not present in the global lookup table.
   static G4VPhysicalVolume const *GetG4PhysicalVolume(vecgeom::VPlacedVolume const *placedVolume);
 
-  /// @brief Returns the Geant4 physical-volume instance represented by a VecGeom placed volume.
+  /// @brief Returns the Geant4 placement information represented by a VecGeom placed volume.
   /// @details Replica and parameterised Geant4 physical volumes are shared by multiple concrete VecGeom placements.
   /// For those volumes, the VecGeom placement copy number identifies the concrete Geant4 instance.
   /// @throws std::runtime_error if the VecGeom placed volume is not present in the global lookup table.
-  static G4PhysicalVolumeInstance GetG4PhysicalVolumeInstance(vecgeom::VPlacedVolume const *placedVolume);
+  static MappedVolumeInstance GetMappedVolumeInstance(vecgeom::VPlacedVolume const *placedVolume);
 
 private:
   /// @brief Builds the lookup tables from VecGeom placed/logical volume ids to Geant4 volumes.
