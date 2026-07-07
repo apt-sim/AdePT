@@ -8,6 +8,7 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 #include <VecGeom/navigation/NavigationState.h>
+#include <VecGeom/volumes/LogicalVolume.h>
 
 #include <G4HepEmData.hh>
 #include <G4Exception.hh>
@@ -27,9 +28,73 @@
 #include <cmath>
 #include <functional>
 #include <stdexcept>
+#include <string>
 
 std::vector<G4VPhysicalVolume const *> AdePTGeometryBridge::fGlobalVecGeomPvToG4Map;
 std::vector<G4LogicalVolume const *> AdePTGeometryBridge::fGlobalVecGeomLvToG4Map;
+
+namespace {
+
+std::size_t GetMultiplicity(G4VPhysicalVolume const *daughter)
+{
+  const auto multiplicity = daughter->GetMultiplicity();
+  if (multiplicity < 1) {
+    throw std::runtime_error("Fatal: geometry traversal: physical volume " + std::string(daughter->GetName()) +
+                             " has invalid multiplicity");
+  }
+  return static_cast<std::size_t>(multiplicity);
+}
+
+bool HasCopySpecificPlacement(G4VPhysicalVolume const *daughter)
+{
+  const auto type = daughter->VolumeType();
+  return type == kReplica || type == kParameterised;
+}
+
+struct DaughterInfo {
+  G4VPhysicalVolume const *volume = nullptr;
+  std::size_t multiplicity        = 0;
+  bool copySpecificPlacement      = false;
+};
+
+// The visitor receives copySpecificPlacement=true when the Geant4 daughter is a
+// replica or parameterised volume whose concrete copy transform/copy number is
+// represented by the matched VecGeom placement.
+template <typename Visitor>
+void VisitDaughters(G4LogicalVolume const *g4_lvol, vecgeom::LogicalVolume const *vg_lvol, Visitor visit)
+{
+  auto const &vgDaughters    = vg_lvol->GetDaughters();
+  const auto g4DaughterCount = static_cast<std::size_t>(g4_lvol->GetNoDaughters());
+
+  std::vector<DaughterInfo> daughters;
+  daughters.reserve(g4DaughterCount);
+
+  std::size_t expandedDaughterCount = 0;
+  for (std::size_t id = 0; id < g4DaughterCount; ++id) {
+    auto const *g4Daughter  = g4_lvol->GetDaughter(id);
+    const auto multiplicity = GetMultiplicity(g4Daughter);
+    daughters.push_back(DaughterInfo{g4Daughter, multiplicity, HasCopySpecificPlacement(g4Daughter)});
+    expandedDaughterCount += multiplicity;
+  }
+
+  if (vgDaughters.size() != expandedDaughterCount) {
+    throw std::runtime_error("Fatal: geometry traversal: VecGeom daughters do not match Geant4 multiplicities in " +
+                             std::string(g4_lvol->GetName()) + " (Geant4 daughters " + std::to_string(g4DaughterCount) +
+                             ", expanded multiplicity " + std::to_string(expandedDaughterCount) +
+                             ", VecGeom daughters " + std::to_string(vgDaughters.size()) + ")");
+  }
+
+  std::size_t vgId = 0;
+  for (auto const &daughter : daughters) {
+    const auto nextVecGeomIndex = vgId + daughter.multiplicity;
+
+    for (; vgId < nextVecGeomIndex; ++vgId) {
+      visit(daughter.volume, vgDaughters[vgId], daughter.copySpecificPlacement);
+    }
+  }
+}
+
+} // namespace
 
 void AdePTGeometryBridge::MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> &vecgeomPvToG4Map,
                                          std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map)
@@ -38,7 +103,7 @@ void AdePTGeometryBridge::MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> 
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
 
-  // Recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes.
+  // Recursive geometry visitor lambda matching Geant4 volumes to VecGeom placements.
   using VisitFn         = std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *)>;
   VisitFn visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol) {
     const auto g4_lvol = g4_pvol->GetLogicalVolume();
@@ -52,10 +117,13 @@ void AdePTGeometryBridge::MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> 
     vecgeomLvToG4Map.resize(std::max<std::size_t>(vecgeomLvToG4Map.size(), vg_lvol->id() + 1), nullptr);
     vecgeomLvToG4Map[vg_lvol->id()] = g4_lvol;
 
-    // Now do the daughters.
-    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-      visitGeometry(g4_lvol->GetDaughter(id), vg_lvol->GetDaughters()[id]);
-    }
+    // Now do the daughters. Supported VecGeom import paths represent
+    // replica/parameterised daughters as concrete copy placements, so traversal
+    // validates against the expanded Geant4 multiplicity count.
+    VisitDaughters(g4_lvol, vg_lvol,
+                   [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter, bool) {
+                     visitGeometry(g4Daughter, vgDaughter);
+                   });
   };
 
   visitGeometry(g4world, vecgeomWorld);
@@ -118,37 +186,26 @@ struct VisitContext {
 
 /// @brief Recursively compare the Geant4 and VecGeom geometry trees.
 void VisitGeometryForChecks(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol,
-                            const VisitContext &context)
+                            bool copySpecificPlacement, const VisitContext &context)
 {
   const auto g4_lvol = g4_pvol->GetLogicalVolume();
   const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
-  // Geant4 parameterised/replica volumes are represented with direct placements in VecGeom.
-  // To accurately compare the number of daughters, sum multiplicity on the Geant4 side.
-  const size_t nd     = g4_lvol->GetNoDaughters();
-  size_t nd_converted = 0;
-  for (size_t daughter_id = 0; daughter_id < nd; ++daughter_id) {
-    nd_converted += g4_lvol->GetDaughter(daughter_id)->GetMultiplicity();
-  }
-
-  const auto daughters = vg_lvol->GetDaughters();
-  if (nd_converted != daughters.size()) {
-    throw std::runtime_error("Fatal: CheckGeometry: Mismatch in number of daughters");
-  }
-
   // Check whether transformations are matching.
-  // As above, with parameterized/replica volumes we need to compare the transforms between
-  // the VecGeom direct placement and that for the parameterised/replicated volume given the
-  // same copy number as that of the VecGeom physical volume.
+  // Parameterized/replica daughters are flattened into direct VecGeom placements
+  // by the supported import paths. Recompute the Geant4 transform for the
+  // concrete VecGeom copy before comparing placements.
   // NOTE:
   // 1. This needs a const_cast because the current Geant4 API computes the transform by
   //    mutating the physical volume.
   // 2. This does modify the physical volume, but navigation will reset things afterwards.
-  if (G4VPVParameterisation *param = g4_pvol->GetParameterisation()) {
-    param->ComputeTransformation(vg_pvol->GetCopyNo(), const_cast<G4VPhysicalVolume *>(g4_pvol));
-  } else if (auto *replica = dynamic_cast<G4PVReplica *>(const_cast<G4VPhysicalVolume *>(g4_pvol))) {
-    G4ReplicaNavigation nav;
-    nav.ComputeTransformation(vg_pvol->GetCopyNo(), replica);
+  if (copySpecificPlacement) {
+    if (G4VPVParameterisation *param = g4_pvol->GetParameterisation()) {
+      param->ComputeTransformation(vg_pvol->GetCopyNo(), const_cast<G4VPhysicalVolume *>(g4_pvol));
+    } else if (auto *replica = dynamic_cast<G4PVReplica *>(const_cast<G4VPhysicalVolume *>(g4_pvol))) {
+      G4ReplicaNavigation nav;
+      nav.ComputeTransformation(vg_pvol->GetCopyNo(), replica);
+    }
   }
 
   const auto g4trans            = g4_pvol->GetTranslation();
@@ -195,9 +252,11 @@ void VisitGeometryForChecks(G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVo
   }
 
   // Now do the daughters.
-  for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-    VisitGeometryForChecks(g4_lvol->GetDaughter(id), vg_lvol->GetDaughters()[id], context);
-  }
+  VisitDaughters(
+      g4_lvol, vg_lvol,
+      [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter, bool copySpecificPlacement) {
+        VisitGeometryForChecks(g4Daughter, vgDaughter, copySpecificPlacement, context);
+      });
 }
 } // namespace
 
@@ -212,7 +271,7 @@ void AdePTGeometryBridge::CheckGeometry(G4HepEmData const *hepEmData)
 
   std::cout << "Visiting geometry ...\n";
   const VisitContext context{g4tohepmcindex, nvolumes, hepEmData};
-  VisitGeometryForChecks(g4world, vecgeomWorld, context);
+  VisitGeometryForChecks(g4world, vecgeomWorld, false, context);
   std::cout << "Visiting geometry done\n";
 }
 
@@ -258,7 +317,7 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   std::vector<bool> atlasPhotonRRInitialized(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount(), false);
 #endif
 
-  // Recursive geometry visitor lambda matching one by one Geant4 and VecGeom logical volumes.
+  // Recursive geometry visitor lambda matching Geant4 volumes to VecGeom placements.
   using VisitFn =
       std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *, vecgeom::NavigationState)>;
   VisitFn visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol,
@@ -332,9 +391,10 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
 #endif
 
     // Now do the daughters.
-    for (size_t id = 0; id < g4_lvol->GetNoDaughters(); ++id) {
-      visitGeometry(g4_lvol->GetDaughter(id), vg_lvol->GetDaughters()[id], currentNavState);
-    }
+    VisitDaughters(g4_lvol, vg_lvol,
+                   [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter, bool) {
+                     visitGeometry(g4Daughter, vgDaughter, currentNavState);
+                   });
 
     // Pop the navigation state before returning.
     currentNavState.Pop();
@@ -419,4 +479,14 @@ G4VPhysicalVolume const *AdePTGeometryBridge::GetG4PhysicalVolume(vecgeom::VPlac
         "AdePTGeometryBridge::GetG4PhysicalVolume: VecGeom placed volume not found in Geant4 mapping");
   }
   return g4Volume;
+}
+
+AdePTGeometryBridge::MappedVolumeInstance AdePTGeometryBridge::GetMappedVolumeInstance(
+    vecgeom::VPlacedVolume const *placedVolume)
+{
+  auto *g4Volume    = GetG4PhysicalVolume(placedVolume);
+  const auto type   = g4Volume->VolumeType();
+  const auto copyNo = type == kNormal ? g4Volume->GetCopyNo() : placedVolume->GetCopyNo();
+
+  return MappedVolumeInstance{g4Volume, type, copyNo};
 }

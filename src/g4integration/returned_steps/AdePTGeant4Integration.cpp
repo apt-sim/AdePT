@@ -14,6 +14,8 @@
 #include <G4FieldManager.hh>
 #include <G4TouchableHandle.hh>
 #include <G4StepStatus.hh>
+#include <G4ReplicaNavigation.hh>
+#include <G4VPVParameterisation.hh>
 
 #include <G4HepEmNoProcess.hh>
 #include <G4HepEmConfig.hh>
@@ -162,6 +164,45 @@ void Deleter::operator()(StepReconstructionObjects *ptr)
 namespace {
 
 constexpr double kG4HandoffPush = 100. * vecgeom::kTolerance;
+
+G4VPhysicalVolume *MutableG4Volume(AdePTGeometryBridge::MappedVolumeInstance const &instance)
+{
+  return const_cast<G4VPhysicalVolume *>(instance.g4Volume);
+}
+
+void StampG4VolumeInstance(AdePTGeometryBridge::MappedVolumeInstance const &instance)
+{
+  switch (instance.type) {
+  case kReplica: {
+    G4ReplicaNavigation nav;
+    auto *volume = MutableG4Volume(instance);
+    nav.ComputeTransformation(instance.copyNo, volume);
+    volume->SetCopyNo(instance.copyNo);
+    break;
+  }
+  case kParameterised: {
+    auto *volume           = MutableG4Volume(instance);
+    auto *parameterisation = volume->GetParameterisation();
+    if (parameterisation == nullptr) {
+      throw std::runtime_error("Parameterized Geant4 volume has no parameterisation");
+    }
+    parameterisation->ComputeTransformation(instance.copyNo, volume);
+    volume->SetCopyNo(instance.copyNo);
+    break;
+  }
+  default:
+    break;
+  }
+}
+
+bool MatchesHistoryLevel(G4NavigationHistory const &history, G4int level,
+                         AdePTGeometryBridge::MappedVolumeInstance const &instance)
+{
+  if (history.GetVolume(level) != instance.g4Volume) return false;
+  if (level == 0) return true;
+
+  return history.GetVolumeType(level) == instance.type && history.GetReplicaNo(level) == instance.copyNo;
+}
 
 G4ParticleDefinition *GetParticleDefinition(ParticleType particleType)
 {
@@ -688,41 +729,45 @@ void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationSt
   auto aVecGeomLevel = aNavState.GetLevel();
 
   unsigned int aLevel{0};
-  G4VPhysicalVolume const *pvol{nullptr};
-  G4VPhysicalVolume *pnewvol{nullptr};
 
   for (aLevel = 0; aLevel <= aVecGeomLevel; aLevel++) {
     // While we are in levels shallower than the history depth, it may be that we already
-    // have the correct volume in the history
+    // have the correct volume instance in the history. Replica and parameterised placements
+    // can share one Geant4 physical-volume pointer, so the volume type and copy number are
+    // part of the instance identity.
     assert(aNavState.At(aLevel));
-    pnewvol = const_cast<G4VPhysicalVolume *>(AdePTGeometryBridge::GetG4PhysicalVolume(aNavState.At(aLevel)));
-    assert(pnewvol != nullptr);
-    if (!pnewvol) throw std::runtime_error("VecGeom volume not found in G4 mapping!");
+    const auto newInstance = AdePTGeometryBridge::GetMappedVolumeInstance(aNavState.At(aLevel));
+    assert(newInstance.g4Volume != nullptr);
 
     if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
-      pvol = aG4NavigationHistory.GetVolume(aLevel);
-      // If they match we do not need to update the history at this level
-      if (pvol == pnewvol) continue;
-      // Once we find two non-matching volumes, we need to update the touchable history from this level on
+      // If they match we do not need to update the history at this level. Still stamp
+      // mutable Geant4 replica/parameterised volumes for code that queries the PV directly.
+      if (MatchesHistoryLevel(aG4NavigationHistory, aLevel, newInstance)) {
+        if (aLevel) StampG4VolumeInstance(newInstance);
+        continue;
+      }
+      // Once we find two non-matching volume instances, we need to update the touchable history from this level on
       if (aLevel) {
         // If we are not in the top level
         aG4NavigationHistory.BackLevel(aG4HistoryDepth - aLevel + 1);
         // Update the current level
-        aG4NavigationHistory.NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
+        StampG4VolumeInstance(newInstance);
+        aG4NavigationHistory.NewLevel(MutableG4Volume(newInstance), newInstance.type, newInstance.copyNo);
       } else {
         // Update the top level
         aG4NavigationHistory.BackLevel(aG4HistoryDepth);
-        aG4NavigationHistory.SetFirstEntry(pnewvol);
+        aG4NavigationHistory.SetFirstEntry(MutableG4Volume(newInstance));
       }
       // Now we are overwriting the history, so set the depth to the current depth
       aG4HistoryDepth = aLevel;
     } else {
       // If the navigation state is deeper than the current history we need to add the new levels
       if (aLevel) {
-        aG4NavigationHistory.NewLevel(pnewvol, kNormal, pnewvol->GetCopyNo());
+        StampG4VolumeInstance(newInstance);
+        aG4NavigationHistory.NewLevel(MutableG4Volume(newInstance), newInstance.type, newInstance.copyNo);
         aG4HistoryDepth++;
       } else {
-        aG4NavigationHistory.SetFirstEntry(pnewvol);
+        aG4NavigationHistory.SetFirstEntry(MutableG4Volume(newInstance));
       }
     }
   }
