@@ -25,6 +25,10 @@ TrackingAction::TrackingAction() : G4UserTrackingAction() {}
 
 void TrackingAction::PreUserTrackingAction(const G4Track *track)
 {
+  // G4HepEm currently calls the PreUserTrackingAction for tracks resumed from the GPU,
+  // this guard prevents the call for non-initializing steps
+  if (track->GetCurrentStepNumber() > 0) return;
+
   auto *run               = CurrentRun();
   auto *truthHistogrammer = run != nullptr ? run->GetTruthHistogrammer() : nullptr;
   auto *mutableTrack      = const_cast<G4Track *>(track);
