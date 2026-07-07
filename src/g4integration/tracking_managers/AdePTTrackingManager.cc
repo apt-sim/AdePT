@@ -556,7 +556,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       // primaries by AthenaStackingAction, and secondaries during the SteppingAction of their parents,
       // in the step where the secondary was created. Thus, whether the hostTrackData is needed (to store the
       // G4VUserTrackInfo) is determined by whether the UserTrackInfo is already attached.
-      useHostData = useHostData || (aTrack->GetUserInformation() != nullptr);
+      // Tracks reconstructed without HostTrackData can carry the dummy G4 track id 0.
+      useHostData = useHostData || (aTrack->GetTrackID() > 0 && aTrack->GetUserInformation() != nullptr);
 #endif
       bool entryExists = trackMapper.getGPUId(aTrack->GetTrackID(), gpuTrackID);
       HostTrackData &hostTrackData =
