@@ -23,6 +23,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <stdexcept>
+#include <string>
 
 #ifdef ENABLE_POWER_METER
 #include <power_meter.hh>
@@ -78,6 +80,24 @@ bool CallUserTrackingAction(const AdePTConfiguration &configuration)
 bool CallUserActions(const AdePTConfiguration &configuration)
 {
   return CallUserSteppingAction(configuration) || CallUserTrackingAction(configuration);
+}
+
+bool IsCopySpecificVolume(EVolume type)
+{
+  return type == kReplica || type == kParameterised;
+}
+
+bool MatchesG4HistoryLevel(vecgeom::VPlacedVolume const *vecgeomDaughter, G4VPhysicalVolume const *g4Volume,
+                           EVolume g4VolumeType, G4int g4CopyNo)
+{
+  const auto instance = AdePTGeometryBridge::GetMappedVolumeInstance(vecgeomDaughter);
+  if (instance.g4Volume != g4Volume) return false;
+
+  if (IsCopySpecificVolume(instance.type) || IsCopySpecificVolume(g4VolumeType)) {
+    return instance.type == g4VolumeType && instance.copyNo == g4CopyNo;
+  }
+
+  return true;
 }
 
 std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
@@ -682,22 +702,17 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(
   auto current_volume = vecgeom::GeoManager::Instance().GetWorld();
   aNavState.Push(current_volume);
 
-  bool found_volume;
   // we pushed already the world, so we can start at level 1
   for (unsigned int level = 1; level <= aG4HistoryDepth; ++level) {
 
-    found_volume = false;
+    // Get current G4 volume and its copy identity in the Geant4 navigation history.
+    const G4VPhysicalVolume *g4Volume = aG4NavigationHistory.GetVolume(level);
+    const auto g4VolumeType           = aG4NavigationHistory.GetVolumeType(level);
+    const auto g4CopyNo               = aG4NavigationHistory.GetReplicaNo(level);
 
-    // Get current G4 volume and parent volume.
-    const G4VPhysicalVolume *g4Volume_parent = aG4NavigationHistory.GetVolume(level - 1);
-    const G4VPhysicalVolume *g4Volume        = aG4NavigationHistory.GetVolume(level);
-
-    // The index of the VecGeom volume on this level (that we need to push the NavState to)
-    // is the same as the G4 volume. The index of the G4 volume is found by matching it against
-    // the daughters of the parent volume, since the G4 volume itself has no index.
-    for (size_t id = 0; id < g4Volume_parent->GetLogicalVolume()->GetNoDaughters(); ++id) {
-      if (g4Volume == g4Volume_parent->GetLogicalVolume()->GetDaughter(id)) {
-        auto daughter = current_volume->GetLogicalVolume()->GetDaughters()[id];
+    bool found_volume = false;
+    for (auto const *daughter : current_volume->GetLogicalVolume()->GetDaughters()) {
+      if (MatchesG4HistoryLevel(daughter, g4Volume, g4VolumeType, g4CopyNo)) {
         aNavState.Push(daughter);
         current_volume = daughter;
         found_volume   = true;
@@ -707,8 +722,8 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(
 
     if (!found_volume) {
       throw std::runtime_error("Fatal: G4 To VecGeom Geometry matching failed: G4 Volume name " +
-                               std::string(g4Volume->GetLogicalVolume()->GetName()) +
-                               " was not found in VecGeom Parent volume " +
+                               std::string(g4Volume->GetLogicalVolume()->GetName()) + " with copy number " +
+                               std::to_string(g4CopyNo) + " was not found in VecGeom Parent volume " +
                                std::string(current_volume->GetLogicalVolume()->GetName()));
     }
   }

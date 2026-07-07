@@ -9,6 +9,9 @@
 #include <G4VTrackingManager.hh>
 #include <globals.hh>
 
+#include <array>
+#include <memory>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -25,6 +28,10 @@
 
 #define private public
 #include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
+#undef private
+
+#define private public
+#include <AdePT/g4integration/AdePTTrackingManager.hh>
 #undef private
 
 #include <VecGeom/base/Transformation3D.h>
@@ -100,6 +107,27 @@ vecgeom::Transformation3D MakeVecGeomRotation(G4RotationMatrix const &rotation)
 {
   return vecgeom::Transformation3D(0.0, 0.0, 0.0, rotation(0, 0), rotation(1, 0), rotation(2, 0), rotation(0, 1),
                                    rotation(1, 1), rotation(2, 1), rotation(0, 2), rotation(1, 2), rotation(2, 2));
+}
+
+void Require(bool condition, std::string const &message)
+{
+  if (!condition) throw std::runtime_error(message);
+}
+
+struct HandoffNavStateSummary {
+  int copyNo = -1;
+  std::array<double, 3> translation{};
+};
+
+HandoffNavStateSummary SummarizeTopPlacement(vecgeom::NavigationState const &state)
+{
+  Require(state.GetLevel() == 1, "converted handoff state does not have exactly one daughter level");
+  auto const *top = state.Top();
+  Require(top != nullptr, "converted handoff state has no top placement");
+
+  auto const *transform = top->GetTransformation();
+  return HandoffNavStateSummary{top->GetCopyNo(),
+                                {{transform->Translation(0), transform->Translation(1), transform->Translation(2)}}};
 }
 
 } // namespace
@@ -187,6 +215,100 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
   EXPECT_EQ(wdtRaw.roots.size(), 3u);
   for (auto const &root : wdtRaw.roots) {
     EXPECT_EQ(root.hepemIMC, 0);
+  }
+}
+
+// G4-to-VecGeom handoff for flattened replicas: a Geant4 history in replica
+// copy 2 must choose the same VecGeom slice as an equivalent explicit-placement
+// geometry. Matching only by Geant4 daughter index incorrectly selected copy 0.
+TEST(AdePTGeometryBridge, G4HandoffReplicaCopyMatchesEquivalentExplicitPlacement)
+{
+  constexpr int selectedCopy = 2;
+
+  auto convertReplicaCopy = [](int copyNo) {
+    GeometryCleanup cleanup;
+    G4GeometryManager::GetInstance()->OpenGeometry();
+    vecgeom::GeoManager::Instance().Clear();
+
+    auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+    Require(material != nullptr, "G4_AIR material was not available");
+
+    auto *worldSolid = new G4Box("handoff_replica_world_solid", 150.0 * mm, 10.0 * mm, 10.0 * mm);
+    auto *worldLV    = new G4LogicalVolume(worldSolid, material, "handoff_replica_world_lv");
+    auto *worldPV =
+        new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "handoff_replica_world", nullptr, false, 0, false);
+
+    auto *sliceSolid = new G4Box("handoff_replica_slice_solid", 50.0 * mm, 10.0 * mm, 10.0 * mm);
+    auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "handoff_replica_slice_lv");
+    auto *replicaPV  = new G4PVReplica("handoff_replica_slice", sliceLV, worldLV, kXAxis, 3, 100.0 * mm);
+
+    auto *transport = G4TransportationManager::GetTransportationManager();
+    transport->SetWorldForTracking(worldPV);
+    G4GeometryManager::GetInstance()->CloseGeometry(true);
+
+    AdePTGeometryBridge::CreateVecGeomWorld(worldPV);
+    auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+    Require(vgWorld != nullptr, "VecGeom replica world was not created");
+    Require(vgWorld->GetLogicalVolume()->GetDaughters().size() == 3, "replica conversion did not produce 3 copies");
+
+    G4ReplicaNavigation replicaNavigation;
+    replicaNavigation.ComputeTransformation(copyNo, replicaPV);
+    replicaPV->SetCopyNo(copyNo);
+
+    G4NavigationHistory history;
+    history.SetFirstEntry(worldPV);
+    history.NewLevel(replicaPV, kReplica, copyNo);
+
+    AdePTTrackingManager trackingManager(nullptr);
+    return SummarizeTopPlacement(trackingManager.GetVecGeomFromG4State(history));
+  };
+
+  auto convertExplicitCopy = [](int copyNo) {
+    GeometryCleanup cleanup;
+    G4GeometryManager::GetInstance()->OpenGeometry();
+    vecgeom::GeoManager::Instance().Clear();
+
+    auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+    Require(material != nullptr, "G4_AIR material was not available");
+
+    auto *worldSolid = new G4Box("handoff_explicit_world_solid", 150.0 * mm, 10.0 * mm, 10.0 * mm);
+    auto *worldLV    = new G4LogicalVolume(worldSolid, material, "handoff_explicit_world_lv");
+    auto *worldPV =
+        new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "handoff_explicit_world", nullptr, false, 0, false);
+
+    auto *sliceSolid = new G4Box("handoff_explicit_slice_solid", 50.0 * mm, 10.0 * mm, 10.0 * mm);
+    auto *sliceLV    = new G4LogicalVolume(sliceSolid, material, "handoff_explicit_slice_lv");
+    std::array<G4VPhysicalVolume *, 3> slicePVs{};
+    for (int id = 0; id < 3; ++id) {
+      const G4double x = -100.0 * mm + id * 100.0 * mm;
+      slicePVs[id] = new G4PVPlacement(nullptr, G4ThreeVector(x, 0.0, 0.0), sliceLV, "handoff_explicit_slice", worldLV,
+                                       false, id, false);
+    }
+
+    auto *transport = G4TransportationManager::GetTransportationManager();
+    transport->SetWorldForTracking(worldPV);
+    G4GeometryManager::GetInstance()->CloseGeometry(true);
+
+    AdePTGeometryBridge::CreateVecGeomWorld(worldPV);
+    auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+    Require(vgWorld != nullptr, "VecGeom explicit world was not created");
+    Require(vgWorld->GetLogicalVolume()->GetDaughters().size() == 3,
+            "explicit placement conversion did not produce 3 copies");
+
+    G4NavigationHistory history;
+    history.SetFirstEntry(worldPV);
+    history.NewLevel(slicePVs[copyNo], kNormal, slicePVs[copyNo]->GetCopyNo());
+
+    AdePTTrackingManager trackingManager(nullptr);
+    return SummarizeTopPlacement(trackingManager.GetVecGeomFromG4State(history));
+  };
+
+  const auto replicaSummary  = convertReplicaCopy(selectedCopy);
+  const auto explicitSummary = convertExplicitCopy(selectedCopy);
+
+  EXPECT_EQ(replicaSummary.copyNo, explicitSummary.copyNo);
+  for (std::size_t i = 0; i < replicaSummary.translation.size(); ++i) {
+    EXPECT_NEAR(replicaSummary.translation[i], explicitSummary.translation[i], 1.e-9);
   }
 }
 
