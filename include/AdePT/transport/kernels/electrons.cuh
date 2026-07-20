@@ -78,8 +78,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
   using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
   using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
 
-  auto &magneticField = *gMagneticField;
-
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
 
@@ -239,7 +237,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       // SEVERIN: to be checked if we can use float
       vecgeom::Vector3D<double> momentumVec = momentumMag * dir;
       vecgeom::Vector3D<rk_integration_t> B0fieldVec =
-          magneticField.Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
+          gMagneticField->Evaluate(pos[0], pos[1], pos[2]); // Field value at starting point
       safeLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t,
                                     AdePTNavigator>::ComputeSafeLength /*<Real_t>*/ (momentumVec, B0fieldVec, Charge);
@@ -308,7 +306,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       int iterDone = -1;
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
-              magneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
+              *gMagneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
               nextState, hitsurf_index, propagated, geometrySafetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot, verbose);
