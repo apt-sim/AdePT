@@ -408,7 +408,7 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
       const double *mscDisplacement = mscData->GetDisplacement();
       vecgeom::Vector3D<double> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
       const double dLength2            = displacement.Length2();
-      constexpr double kGeomMinLength  = 5 * copcore::units::nm;          // 0.05 [nm]
+      constexpr double kGeomMinLength  = 0.05 * copcore::units::nm;       // 0.05 [nm]
       constexpr double kGeomMinLength2 = kGeomMinLength * kGeomMinLength; // (0.05 [nm])^2
       if (dLength2 > kGeomMinLength2) {
         const double dispR = std::sqrt(dLength2);
