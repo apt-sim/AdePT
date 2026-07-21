@@ -73,8 +73,6 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
   using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
   using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
 
-  auto &magneticField = *gMagneticField;
-
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
 
@@ -262,7 +260,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 
       // SEVERIN: to be checked if we can use float
       vecgeom::Vector3D<double> momentumVec          = momentumMag * currentTrack.dir;
-      vecgeom::Vector3D<rk_integration_t> B0fieldVec = magneticField.Evaluate(
+      vecgeom::Vector3D<rk_integration_t> B0fieldVec = gMagneticField->Evaluate(
           currentTrack.pos[0], currentTrack.pos[1], currentTrack.pos[2]); // Field value at starting point
       currentTrack.safeLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t,
@@ -310,8 +308,6 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
   using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
   using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
 
-  auto &magneticField = *gMagneticField;
-
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const int slot             = (*propagationQueue)[i];
@@ -336,7 +332,7 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
       int iterDone = -1;
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
-              magneticField, currentTrack.eKin, restMass, Charge, theTrack->GetGStepLength(), currentTrack.safeLength,
+              *gMagneticField, currentTrack.eKin, restMass, Charge, theTrack->GetGStepLength(), currentTrack.safeLength,
               currentTrack.pos, currentTrack.dir, currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID,
               currentTrack.propagated, geometrySafetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
