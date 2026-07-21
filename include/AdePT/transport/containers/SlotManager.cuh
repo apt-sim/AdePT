@@ -89,7 +89,7 @@ __host__ __device__ void SlotManager::Clear()
   for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x; i < fSlotListSize; i += blockDim.x * gridDim.x) {
     fSlotList[i] = i;
   }
-  if (threadIdx.x == 0) {
+  if (blockIdx.x == 0 && threadIdx.x == 0) {
     fSlotCounter = 0;
     fFreeCounter = 0;
   }
