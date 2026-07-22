@@ -74,6 +74,7 @@ separate_arguments(extra_cmake_args UNIX_COMMAND "$ENV{ExtraCMakeOptions}")
 # Fixed set of CMake options----------------------------------------------------
 set(config_options -DCMAKE_INSTALL_PREFIX=${CTEST_INSTALL_PREFIX}
                    -DCMAKE_CUDA_ARCHITECTURES=$ENV{CUDA_CAPABILITY}
+                   -DCMAKE_BUILD_TYPE=$ENV{BUILDTYPE}
                    ${extra_cmake_args})
 
 # Print summary information-----------------------------------------------------
