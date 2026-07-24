@@ -25,6 +25,32 @@ ITERATION_ORDER = (
 
 PARTICLE_ORDER = ("electron", "positron", "gamma")
 
+PARTICLE_TITLES = {
+    "electron": "Electrons",
+    "positron": "Positrons",
+    "gamma": "Gammas",
+}
+
+CHARGED_PHASE_ORDER = ("HowFar", "Propagation", "MSC", "Relocation", "Interactions")
+GAMMA_PHASE_ORDER = ("HowFar", "Propagation", "Relocation", "GammaWoodcock", "Interactions")
+
+PHASE_LABELS = {
+    "GammaWoodcock": "Woodcock",
+}
+
+# Keep comparable phases visually identical across particle species. MSC and
+# Woodcock share a color because each is specific to one side of that comparison.
+PHASE_COLORS = {
+    "HowFar": "#e3a018",
+    "Propagation": "#4c78a8",
+    "MSC": "#b279a2",
+    "GammaWoodcock": "#b279a2",
+    "Relocation": "#72b7b2",
+    "Interactions": "#9ca3af",
+}
+
+MIN_WEDGE_LABEL_PERCENT = 8.0
+
 
 def ns_to_ms(value):
     return value / 1.0e6
@@ -354,24 +380,51 @@ def write_summary(output_prefix, title, bucket_ns, species_detail_ns, limiter_co
     return txt_path
 
 
-def draw_pie(ax, title, values):
+def draw_pie(ax, title, values, phase_order):
     values = {key: value for key, value in values.items() if value > 0}
     if not values:
         ax.text(0.5, 0.5, "no matching kernels", ha="center", va="center")
-        ax.set_title(title)
+        ax.set_title(title, fontsize=18, fontweight="bold", pad=20, linespacing=1.35)
         ax.axis("off")
         return
-    items = sorted(values.items(), key=lambda item: item[1], reverse=True)
+
+    items = [(phase, values[phase]) for phase in phase_order if phase in values]
+    items.extend(
+        sorted(
+            ((phase, value) for phase, value in values.items() if phase not in phase_order),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+    )
     labels = [key for key, _ in items]
     sizes = [value for _, value in items]
     total = sum(sizes)
-    wedges, _texts, _autotexts = ax.pie(sizes, autopct="%1.1f%%", startangle=90, pctdistance=0.72,
-                                        textprops={"fontsize": 8})
-    legend_labels = [f"{label}: {ns_to_ms(value):.1f} ms ({pct(value, total):.1f}%)"
+    wedges, _texts, autotexts = ax.pie(
+        sizes,
+        autopct=lambda value: f"{value:.1f}%" if value >= MIN_WEDGE_LABEL_PERCENT else "",
+        startangle=90,
+        pctdistance=0.72,
+        colors=[PHASE_COLORS.get(label, "#9ca3af") for label in labels],
+        textprops={"fontsize": 13, "fontweight": "bold"},
+    )
+    for wedge, autotext in zip(wedges, autotexts):
+        red, green, blue, _alpha = wedge.get_facecolor()
+        luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+        autotext.set_color("black" if luminance > 0.58 else "white")
+    legend_labels = [f"{PHASE_LABELS.get(label, label)}: {pct(value, total):.1f}%"
                      for label, value in zip(labels, sizes)]
-    ax.legend(wedges, legend_labels, loc="lower center", bbox_to_anchor=(0.5, -0.36),
-              fontsize=7, frameon=False)
-    ax.set_title(title)
+    ax.legend(
+        wedges,
+        legend_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.06),
+        fontsize=15,
+        frameon=False,
+        handlelength=1.4,
+        handletextpad=0.6,
+        labelspacing=0.65,
+    )
+    ax.set_title(title, fontsize=18, fontweight="bold", pad=20, linespacing=1.35)
 
 
 def draw_summary_plot(output_png, title, bucket_ns, species_detail_ns, limiter_counts, limiter_kernel_ns,
@@ -428,21 +481,21 @@ def draw_summary_plot(output_png, title, bucket_ns, species_detail_ns, limiter_c
     fig.savefig(output_png, dpi=180)
 
 
-def draw_species_plot(output_png, title, bucket_ns, species_detail_ns):
+def draw_species_plot(output_png, _title, bucket_ns, species_detail_ns):
     total_kernel_ns = sum(bucket_ns.values())
-    transport_ns = sum(sum(values.values()) for values in species_detail_ns.values())
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 7))
-    fig.suptitle(f"{title} - Transport Kernel Time Per Species", fontsize=16)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 8.5))
     for ax, particle in zip(axes, PARTICLE_ORDER):
         particle_total = sum(species_detail_ns[particle].values())
+        phase_order = GAMMA_PHASE_ORDER if particle == "gamma" else CHARGED_PHASE_ORDER
         draw_pie(
             ax,
-            f"{particle.capitalize()}\n{pct(particle_total, total_kernel_ns):.1f}% all kernels, {pct(particle_total, transport_ns):.1f}% transport",
+            f"{PARTICLE_TITLES[particle]}\n{pct(particle_total, total_kernel_ns):.1f}% of all kernels",
             species_detail_ns[particle],
+            phase_order,
         )
-    fig.tight_layout(rect=(0, 0.12, 1, 0.92))
-    fig.savefig(output_png, dpi=180)
+    fig.tight_layout(pad=3.0, rect=(0.01, 0.20, 0.99, 0.93))
+    fig.savefig(output_png, dpi=180, bbox_inches="tight", pad_inches=0.25)
 
 
 def main():
