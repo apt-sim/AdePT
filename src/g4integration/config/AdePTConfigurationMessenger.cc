@@ -84,7 +84,7 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "If true, both UserTrackingAction and UserSteppingAction are called for returned GPU steps. This does not "
       "change which GPU steps are returned; combine it with /adept/returnFirstAndLastStep and/or "
       "/adept/returnAllSteps to make the required steps available on the host.");
-  fSetCallUserActionsCmd->AvailableForStates(G4State_PreInit);
+  fSetCallUserActionsCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetCallUserSteppingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserSteppingAction", this);
   fSetCallUserSteppingActionCmd->SetGuidance(
@@ -92,25 +92,25 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "that means it is not guaranteed that the UserSteppingAction is called in order, i.e., it could get called on "
       "the secondary before the primary has finished its track. This does not change which GPU steps are returned; "
       "use /adept/returnAllSteps to return every GPU step.");
-  fSetCallUserSteppingActionCmd->AvailableForStates(G4State_PreInit);
+  fSetCallUserSteppingActionCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetCallUserTrackingActionCmd = std::make_unique<G4UIcmdWithABool>("/adept/CallUserTrackingAction", this);
   fSetCallUserTrackingActionCmd->SetGuidance(
       "If true, the UserTrackingAction is called for returned GPU track starts and ends. This does not change which "
       "GPU steps are returned; use /adept/returnFirstAndLastStep to return the first and last GPU steps.");
-  fSetCallUserTrackingActionCmd->AvailableForStates(G4State_PreInit);
+  fSetCallUserTrackingActionCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetReturnFirstAndLastStepCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnFirstAndLastStep", this);
   fSetReturnFirstAndLastStepCmd->SetGuidance(
       "If true, the first and last GPU steps of each track are returned to the host. This only controls GPU step "
       "returning; use /adept/CallUserActions or the individual action commands to invoke user actions on them.");
-  fSetReturnFirstAndLastStepCmd->AvailableForStates(G4State_PreInit);
+  fSetReturnFirstAndLastStepCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetReturnAllStepsCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnAllSteps", this);
   fSetReturnAllStepsCmd->SetGuidance(
       "If true, every GPU step is returned to the host. This only controls GPU step returning; use "
       "/adept/CallUserActions or the individual action commands to invoke user actions on them.");
-  fSetReturnAllStepsCmd->AvailableForStates(G4State_PreInit);
+  fSetReturnAllStepsCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   // ADEPT_DOCS_SECTION: Special Settings
   fSetSpeedOfLightCmd = std::make_unique<G4UIcmdWithABool>("/adept/SpeedOfLight", this);
