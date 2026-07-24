@@ -191,7 +191,11 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
       auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(), fAdePTConfiguration->GetTrackInAllRegions(),
       fAdePTConfiguration->GetGPURegionNames(), fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
-  auto transportConfig              = MakeAdePTTransportConfig(*fAdePTConfiguration);
+  // The GPU worker receives the return-step kernel options by value. Freeze the
+  // corresponding UI settings before taking that snapshot so later UI
+  // commands cannot make the host configuration disagree with the worker.
+  fAdePTConfiguration->LockReturnStepOptions();
+  auto transportConfig = MakeAdePTTransportConfig(*fAdePTConfiguration);
 
   // Move the fully prepared host-side package into the shared transport. The
   // first worker creates the transport here; later workers only retrieve the

@@ -23,8 +23,22 @@ public:
   void SetCallUserActions(bool callUserActions) { fCallUserActions = callUserActions; }
   void SetCallUserSteppingAction(bool callUserSteppingAction) { fCallUserSteppingAction = callUserSteppingAction; }
   void SetCallUserTrackingAction(bool callUserTrackingAction) { fCallUserTrackingAction = callUserTrackingAction; }
-  void SetReturnAllSteps(bool returnAllSteps) { fReturnAllSteps = returnAllSteps; }
-  void SetReturnFirstAndLastStep(bool returnFirstAndLastStep) { fReturnFirstAndLastStep = returnFirstAndLastStep; }
+  bool SetReturnAllSteps(bool returnAllSteps)
+  {
+    if (sReturnStepOptionsLocked) return fReturnAllSteps == returnAllSteps;
+    fReturnAllSteps = returnAllSteps;
+    return true;
+  }
+  bool SetReturnFirstAndLastStep(bool returnFirstAndLastStep)
+  {
+    if (sReturnStepOptionsLocked) {
+      return fReturnFirstAndLastStep == returnFirstAndLastStep;
+    }
+    fReturnFirstAndLastStep = returnFirstAndLastStep;
+    return true;
+  }
+  void LockReturnStepOptions() { sReturnStepOptionsLocked = true; }
+  bool ReturnStepOptionsAreLocked() const { return sReturnStepOptionsLocked; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void RemoveGPURegionName(std::string name) { fCPURegionNames.push_back(name); }
   void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
@@ -103,6 +117,10 @@ private:
   bool fCallUserTrackingAction{false};
   bool fReturnAllSteps{false};
   bool fReturnFirstAndLastStep{false};
+  // AdePTTransport is shared by all Geant4 workers, so the point at which its
+  // return-step options are captured is shared as well. Geant4 applies UI
+  // commands outside worker initialization/event processing.
+  inline static bool sReturnStepOptionsLocked{false};
   bool fSpeedOfLight{false};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};
