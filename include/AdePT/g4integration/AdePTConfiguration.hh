@@ -23,8 +23,22 @@ public:
   void SetCallUserActions(bool callUserActions) { fCallUserActions = callUserActions; }
   void SetCallUserSteppingAction(bool callUserSteppingAction) { fCallUserSteppingAction = callUserSteppingAction; }
   void SetCallUserTrackingAction(bool callUserTrackingAction) { fCallUserTrackingAction = callUserTrackingAction; }
-  void SetReturnAllSteps(bool returnAllSteps) { fReturnAllSteps = returnAllSteps; }
-  void SetReturnFirstAndLastStep(bool returnFirstAndLastStep) { fReturnFirstAndLastStep = returnFirstAndLastStep; }
+  bool SetReturnAllSteps(bool returnAllSteps)
+  {
+    if (fReturnStepOptionsLocked) return fReturnAllSteps == returnAllSteps;
+    fReturnAllSteps = returnAllSteps;
+    return true;
+  }
+  bool SetReturnFirstAndLastStep(bool returnFirstAndLastStep)
+  {
+    if (fReturnStepOptionsLocked) {
+      return fReturnFirstAndLastStep == returnFirstAndLastStep;
+    }
+    fReturnFirstAndLastStep = returnFirstAndLastStep;
+    return true;
+  }
+  void LockReturnStepOptions() { fReturnStepOptionsLocked = true; }
+  bool ReturnStepOptionsAreLocked() const { return fReturnStepOptionsLocked; }
   void AddGPURegionName(std::string name) { fGPURegionNames.push_back(name); }
   void RemoveGPURegionName(std::string name) { fCPURegionNames.push_back(name); }
   void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
@@ -103,6 +117,7 @@ private:
   bool fCallUserTrackingAction{false};
   bool fReturnAllSteps{false};
   bool fReturnFirstAndLastStep{false};
+  bool fReturnStepOptionsLocked{false};
   bool fSpeedOfLight{false};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};

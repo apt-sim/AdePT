@@ -14,6 +14,18 @@
 #include "G4UIcmdWithABool.hh"
 #include "G4UIcmdWithADouble.hh"
 #include "G4Tokenizer.hh"
+#include "G4Exception.hh"
+
+namespace {
+void ReportLockedReturnStepOption(const G4String &commandPath)
+{
+  G4ExceptionDescription description;
+  description << commandPath
+              << " cannot be changed after AdePT transport initialization because the GPU worker has already "
+                 "captured this option. Configure it before the first run.";
+  G4Exception("AdePTConfigurationMessenger::SetNewValue", "AdePTConfig001", JustWarning, description);
+}
+} // namespace
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -101,12 +113,14 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetCallUserTrackingActionCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetReturnFirstAndLastStepCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnFirstAndLastStep", this);
+  fSetReturnFirstAndLastStepCmd->SetToBeBroadcasted(false);
   fSetReturnFirstAndLastStepCmd->SetGuidance(
       "If true, the first and last GPU steps of each track are returned to the host. This only controls GPU step "
       "returning; use /adept/CallUserActions or the individual action commands to invoke user actions on them.");
   fSetReturnFirstAndLastStepCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetReturnAllStepsCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnAllSteps", this);
+  fSetReturnAllStepsCmd->SetToBeBroadcasted(false);
   fSetReturnAllStepsCmd->SetGuidance(
       "If true, every GPU step is returned to the host. This only controls GPU step returning; use "
       "/adept/CallUserActions or the individual action commands to invoke user actions on them.");
@@ -182,9 +196,13 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
   } else if (command == fSetCallUserTrackingActionCmd.get()) {
     fAdePTConfiguration->SetCallUserTrackingAction(fSetCallUserTrackingActionCmd->GetNewBoolValue(newValue));
   } else if (command == fSetReturnFirstAndLastStepCmd.get()) {
-    fAdePTConfiguration->SetReturnFirstAndLastStep(fSetReturnFirstAndLastStepCmd->GetNewBoolValue(newValue));
+    if (!fAdePTConfiguration->SetReturnFirstAndLastStep(fSetReturnFirstAndLastStepCmd->GetNewBoolValue(newValue))) {
+      ReportLockedReturnStepOption(command->GetCommandPath());
+    }
   } else if (command == fSetReturnAllStepsCmd.get()) {
-    fAdePTConfiguration->SetReturnAllSteps(fSetReturnAllStepsCmd->GetNewBoolValue(newValue));
+    if (!fAdePTConfiguration->SetReturnAllSteps(fSetReturnAllStepsCmd->GetNewBoolValue(newValue))) {
+      ReportLockedReturnStepOption(command->GetCommandPath());
+    }
   } else if (command == fSetSpeedOfLightCmd.get()) {
     fAdePTConfiguration->SetSpeedOfLight(fSetSpeedOfLightCmd->GetNewBoolValue(newValue));
   } else if (command == fSetMultipleStepsInMSCWithTransportationCmd.get()) {
