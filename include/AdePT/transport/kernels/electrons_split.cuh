@@ -245,9 +245,9 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
         // Recompute safety and update it in the track.
         // Use maximum accuracy only if safety is smaller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, physicalStepLength);
+        currentTrack.SetSafety(currentTrack.pos, safety);
       }
     }
-    currentTrack.SetSafety(currentTrack.pos, safety);
     theTrack->SetSafety(safety);
     currentTrack.restrictedPhysicalStepLength = false;
 
@@ -368,7 +368,9 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     if (currentTrack.nextState.IsOnBoundary()) {
       currentTrack.SetSafety(currentTrack.pos, 0.);
     } else {
-      currentTrack.SetSafety(currentTrack.pos, geometrySafetyCache.SafetyAt(currentTrack.pos));
+      // Store the safety cache back in the track after B field integration
+      // It already includes both safety and safety origin
+      currentTrack.safetyCache = geometrySafetyCache;
     }
 
     // Propagate information from geometrical step to MSC.

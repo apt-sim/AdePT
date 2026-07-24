@@ -218,12 +218,12 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         // Recompute safety and update it in the track.
         // Use maximum accuracy only if safety is smaller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
+        currentTrack.SetSafety(pos, safety);
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| new safety %g ", safety);
 #endif
       }
     }
-    currentTrack.SetSafety(pos, safety);
     theTrack->SetSafety(safety);
     bool restrictedPhysicalStepLength = false;
 
@@ -350,7 +350,9 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     if (nextState.IsOnBoundary()) {
       currentTrack.SetSafety(pos, 0.);
     } else {
-      currentTrack.SetSafety(pos, geometrySafetyCache.SafetyAt(pos));
+      // Store the safety cache back in the track after B field integration
+      // It already includes both safety and safety origin
+      currentTrack.safetyCache = geometrySafetyCache;
     }
 
     // Propagate information from geometrical step to MSC.
