@@ -192,7 +192,7 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
       fAdePTConfiguration->GetGPURegionNames(), fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
   // The GPU worker receives the return-step kernel options by value. Freeze the
-  // corresponding UI settings before taking that snapshot so later Idle-state
+  // corresponding UI settings before taking that snapshot so later UI
   // commands cannot make the host configuration disagree with the worker.
   fAdePTConfiguration->LockReturnStepOptions();
   auto transportConfig = MakeAdePTTransportConfig(*fAdePTConfiguration);

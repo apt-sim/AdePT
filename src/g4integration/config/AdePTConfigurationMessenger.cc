@@ -17,13 +17,13 @@
 #include "G4Exception.hh"
 
 namespace {
-void ReportLockedReturnStepOption(const G4String &commandPath)
+void ReportLockedReturnStepOption(G4UIcommand *command)
 {
   G4ExceptionDescription description;
-  description << commandPath
+  description << command->GetCommandPath()
               << " cannot be changed after AdePT transport initialization because the GPU worker has already "
                  "captured this option. Configure it before the first run.";
-  G4Exception("AdePTConfigurationMessenger::SetNewValue", "AdePTConfig001", JustWarning, description);
+  command->CommandFailed(description);
 }
 } // namespace
 
@@ -113,18 +113,14 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetCallUserTrackingActionCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetReturnFirstAndLastStepCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnFirstAndLastStep", this);
-  fSetReturnFirstAndLastStepCmd->SetToBeBroadcasted(false);
   fSetReturnFirstAndLastStepCmd->SetGuidance(
       "If true, the first and last GPU steps of each track are returned to the host. This only controls GPU step "
       "returning; use /adept/CallUserActions or the individual action commands to invoke user actions on them.");
-  fSetReturnFirstAndLastStepCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSetReturnAllStepsCmd = std::make_unique<G4UIcmdWithABool>("/adept/returnAllSteps", this);
-  fSetReturnAllStepsCmd->SetToBeBroadcasted(false);
   fSetReturnAllStepsCmd->SetGuidance(
       "If true, every GPU step is returned to the host. This only controls GPU step returning; use "
       "/adept/CallUserActions or the individual action commands to invoke user actions on them.");
-  fSetReturnAllStepsCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   // ADEPT_DOCS_SECTION: Special Settings
   fSetSpeedOfLightCmd = std::make_unique<G4UIcmdWithABool>("/adept/SpeedOfLight", this);
@@ -197,11 +193,11 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetCallUserTrackingAction(fSetCallUserTrackingActionCmd->GetNewBoolValue(newValue));
   } else if (command == fSetReturnFirstAndLastStepCmd.get()) {
     if (!fAdePTConfiguration->SetReturnFirstAndLastStep(fSetReturnFirstAndLastStepCmd->GetNewBoolValue(newValue))) {
-      ReportLockedReturnStepOption(command->GetCommandPath());
+      ReportLockedReturnStepOption(command);
     }
   } else if (command == fSetReturnAllStepsCmd.get()) {
     if (!fAdePTConfiguration->SetReturnAllSteps(fSetReturnAllStepsCmd->GetNewBoolValue(newValue))) {
-      ReportLockedReturnStepOption(command->GetCommandPath());
+      ReportLockedReturnStepOption(command);
     }
   } else if (command == fSetSpeedOfLightCmd.get()) {
     fAdePTConfiguration->SetSpeedOfLight(fSetSpeedOfLightCmd->GetNewBoolValue(newValue));
