@@ -218,12 +218,12 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         // Recompute safety and update it in the track.
         // Use maximum accuracy only if safety is smaller than physicalStepLength
         safety = AdePTNavigator::ComputeSafety(pos, navState, physicalStepLength);
+        currentTrack.SetSafety(pos, safety);
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) printf("| new safety %g ", safety);
 #endif
       }
     }
-    currentTrack.SetSafety(pos, safety);
     theTrack->SetSafety(safety);
     bool restrictedPhysicalStepLength = false;
 
@@ -300,14 +300,13 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     bool propagated    = true;
     long hitsurf_index = -1;
     double geometryStepLength;
-    SafetyCache geometrySafetyCache(currentTrack.safetyCache);
 
     if (gMagneticField) {
       int iterDone = -1;
       geometryStepLength =
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
               *gMagneticField, eKin, restMass, Charge, geometricalStepLengthFromPhysics, safeLength, pos, dir, navState,
-              nextState, hitsurf_index, propagated, geometrySafetyCache,
+              nextState, hitsurf_index, propagated, currentTrack.safetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot, verbose);
     } else {
@@ -349,8 +348,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     const bool hostBoundaryStep = currentTrack.hasHostData && nextState.IsOnBoundary();
     if (nextState.IsOnBoundary()) {
       currentTrack.SetSafety(pos, 0.);
-    } else {
-      currentTrack.SetSafety(pos, geometrySafetyCache.SafetyAt(pos));
     }
 
     // Propagate information from geometrical step to MSC.
