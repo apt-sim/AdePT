@@ -326,7 +326,6 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     currentTrack.propagated = true;
     currentTrack.hitsurfID  = -1;
     double geometryStepLength;
-    SafetyCache geometrySafetyCache(currentTrack.safetyCache);
 
     if (gMagneticField) {
       int iterDone = -1;
@@ -334,7 +333,7 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
           fieldPropagatorRungeKutta<Field_t, RkDriver_t, rk_integration_t, AdePTNavigator>::ComputeStepAndNextVolume(
               *gMagneticField, currentTrack.eKin, restMass, Charge, theTrack->GetGStepLength(), currentTrack.safeLength,
               currentTrack.pos, currentTrack.dir, currentTrack.navState, currentTrack.nextState, currentTrack.hitsurfID,
-              currentTrack.propagated, geometrySafetyCache,
+              currentTrack.propagated, currentTrack.safetyCache,
               // activeSize < 100 ? max_iterations : max_iters_tail ), // Was
               max_iterations, iterDone, slot);
 
@@ -367,10 +366,6 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
     currentTrack.navState.SetBoundaryState(currentTrack.nextState.IsOnBoundary());
     if (currentTrack.nextState.IsOnBoundary()) {
       currentTrack.SetSafety(currentTrack.pos, 0.);
-    } else {
-      // Store the safety cache back in the track after B field integration
-      // It already includes both safety and safety origin
-      currentTrack.safetyCache = geometrySafetyCache;
     }
 
     // Propagate information from geometrical step to MSC.
