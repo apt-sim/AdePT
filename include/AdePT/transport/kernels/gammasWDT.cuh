@@ -657,8 +657,9 @@ __global__ void __launch_bounds__(256, 1)
         } else {
           // If the secondary electron is cut, deposit all the energy of the gamma in this volume
           edep = eKin;
-          eKin = 0;
         }
+        // Photoelectric absorption always kills the parent gamma.
+        eKin = 0.;
         break;
       }
       case 3: {
