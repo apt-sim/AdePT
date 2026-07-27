@@ -84,13 +84,7 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
       // ---- Begin of SteppingAction:
       // Kill various tracks based on looper criteria, or via an experiment-specific SteppingAction
 
-      // Unlike the monolithic kernels, the SteppingAction in the split kernels is done at the beginning of the step, as
-      // this is one central place to do it This is similar but not the same as killing them at the end of the
-      // monolithic kernels, as the NavState and the preStepPoints are already updated. Doing the stepping action before
-      // updating the variables has the disadvantage that the NavigationState would need to be updated by the
-      // NextNavState at the beginning of each step, which means that the NextNavState would have to be initialized as
-      // well. Given the fact, that the killed tracks should not play a relevant role in the user code, this was not a
-      // priority
+      // Evaluate the SteppingAction at the beginning to prevent redundant steps
       bool trackSurvives   = true;
       double energyDeposit = 0.;
 

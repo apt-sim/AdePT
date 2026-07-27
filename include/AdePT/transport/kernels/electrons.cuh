@@ -90,8 +90,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = navState.GetLogicalId();
     VolAuxData const &auxData = gVolAuxData[lvolID];
-    // Experiment stepping actions use the post-step volume, which is the auxData unless a boundary is crossed.
-    VolAuxData const *postStepAuxData = &auxData;
 
     bool trackSurvives                       = false;
     constexpr double kPushStuck              = 100 * vecgeom::kTolerance;
@@ -125,6 +123,25 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     }
     printErrors = !gTrackDebug.active || verbose;
 #endif
+
+    // Evaluate the SteppingAction at the beginning to prevent redundant steps
+    {
+      bool survivesAction = true;
+      double actionEdep   = 0.;
+      SteppingActionT::ElectronAction(survivesAction, eKin, actionEdep, pos, globalTime, auxData, &g4HepEmData, params);
+
+      if (!survivesAction) {
+        slotManager.MarkSlotForFreeing(slot);
+
+        if ((actionEdep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep ||
+            currentTrack.hasHostData) {
+          adept_step_recording::RecordZeroLengthGPUStep(currentTrack,
+                                                        IsElectron ? ParticleType::Electron : ParticleType::Positron,
+                                                        kAdePTTransportationProcess, preStepEnergy, eKin, actionEdep);
+        }
+        continue;
+      }
+    }
 
     // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
     // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
@@ -468,8 +485,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           // Check if the next volume belongs to the GPU region and push it to the appropriate queue
           const int nextlvolID          = nextState.GetLogicalId();
           VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
-          // after relocation: set volAuxData for SteppingAction to next volume
-          postStepAuxData = &nextauxData;
           // track has left GPU region
           if (nextauxData.fGPUregionId < 0) {
 
@@ -846,10 +861,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         // annihilation at rest
         energyDeposit += IsElectron ? eKin : eKin + 2 * copcore::units::kElectronMassC2;
         eKin = 0.;
-      } else {
-        // call experiment-specific SteppingAction:
-        SteppingActionT::ElectronAction(trackSurvives, eKin, energyDeposit, pos, globalTime, *postStepAuxData,
-                                        &g4HepEmData, params);
       }
     }
 

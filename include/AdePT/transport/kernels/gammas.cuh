@@ -55,8 +55,6 @@ __global__ void __launch_bounds__(256, 1)
     auto navState             = currentTrack.navState;
     int lvolID                = navState.GetLogicalId();
     VolAuxData const &auxData = gVolAuxData[lvolID];
-    // Experiment stepping actions use the post-step volume, which is the auxData unless a boundary is crossed.
-    VolAuxData const *postStepAuxData = &auxData;
 
     bool trackSurvives                       = false;
     bool enterWDTRegion                      = false;
@@ -89,6 +87,22 @@ __global__ void __launch_bounds__(256, 1)
       printErrors = !gTrackDebug.active || verbose;
     }
 #endif
+
+    // Evaluate the SteppingAction at the beginning to prevent redundant steps
+    {
+      bool survivesAction = true;
+      SteppingActionT::GammaAction(survivesAction, eKin, edep, pos, globalTime, auxData, &g4HepEmData, params);
+
+      if (!survivesAction) {
+        slotManager.MarkSlotForFreeing(slot);
+
+        if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep || currentTrack.hasHostData) {
+          adept_step_recording::RecordZeroLengthGPUStep(currentTrack, ParticleType::Gamma, kAdePTTransportationProcess,
+                                                        preStepEnergy, eKin, edep);
+        }
+        continue;
+      }
+    }
 
     // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
     // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
@@ -240,9 +254,7 @@ __global__ void __launch_bounds__(256, 1)
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
         const int nextlvolID          = nextState.GetLogicalId();
         VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
-        // after relocation: set volAuxData for SteppingAction to next volume
-        postStepAuxData     = &nextauxData;
-        const auto regionId = nextauxData.fGPUregionId;
+        const auto regionId           = nextauxData.fGPUregionId;
 
         // next region is a GPU region
         if (regionId >= 0) {
@@ -484,10 +496,6 @@ __global__ void __launch_bounds__(256, 1)
         trackSurvives = false;
         edep += eKin;
         eKin = 0.;
-      } else {
-        // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, *postStepAuxData, &g4HepEmData,
-                                     params);
       }
     }
 

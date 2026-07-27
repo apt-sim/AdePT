@@ -86,6 +86,31 @@ __global__ void __launch_bounds__(256, 1)
     double localTime                   = currentTrack.localTime;
     double properTime                  = currentTrack.properTime;
 
+    // Find the current volume before applying experiment-specific cuts.
+    auto navState             = currentTrack.navState;
+    const int lvolID          = navState.GetLogicalId();
+    const VolAuxData &auxData = gVolAuxData[lvolID];
+
+    // Evaluate the SteppingAction at the beginning to prevent redundant steps
+    // This is especially important in the Woodcock tracking as otherwise particles below the cut
+    // can propagate a significant distance and even cross volume boundaries
+    {
+      bool trackSurvives         = true;
+      double edep                = 0.;
+      const double preStepEnergy = eKin;
+      SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, auxData, &g4HepEmData, params);
+
+      if (!trackSurvives) {
+        slotManager.MarkSlotForFreeing(slot);
+
+        if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || returnLastStep || currentTrack.hasHostData) {
+          adept_step_recording::RecordZeroLengthGPUStep(currentTrack, ParticleType::Gamma, kAdePTTransportationProcess,
+                                                        preStepEnergy, eKin, edep);
+        }
+        continue;
+      }
+    }
+
     // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
     // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
     // their child steps, which would cause missing links in the HostTrackData
@@ -140,11 +165,6 @@ __global__ void __launch_bounds__(256, 1)
 
     // Each gamma that is tracked via Woodcock tracking, must be in one of the root logical volumes of the Woodcock
     // region First, the root logical volume must be identified, to find the DistanceToOut
-
-    // find region index for current volume
-    auto navState             = currentTrack.navState;
-    const int lvolID          = navState.GetLogicalId();
-    const VolAuxData &auxData = gVolAuxData[lvolID];
 
     // get region ID and Woodcock tracking data for this region
     int regionId = auxData.fGPUregionId;
@@ -678,9 +698,6 @@ __global__ void __launch_bounds__(256, 1)
         trackSurvives = false;
         edep += eKin;
         eKin = 0.;
-      } else {
-        // call experiment-specific SteppingAction:
-        SteppingActionT::GammaAction(trackSurvives, eKin, edep, pos, globalTime, nextauxData, &g4HepEmData, params);
       }
     }
 

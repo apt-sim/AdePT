@@ -69,4 +69,31 @@ __device__ void RecordGPUStep(TrackBase const &track, short stepLimProcessId, Pa
   }
 }
 
+/// @brief Record a terminal zero-length step at the track's current point.
+__device__ __forceinline__ void RecordZeroLengthGPUStep(TrackBase const &track, ParticleType particleType,
+                                                        short processId, double preEKin, double postEKin,
+                                                        double energyDeposit)
+{
+  RecordGPUStep(track,            // Owning track and its metadata
+                processId,        // Step-defining process ID
+                particleType,     // Particle type
+                0.,               // Step length
+                energyDeposit,    // Total energy deposit
+                track.navState,   // Pre-step navigation state
+                track.pos,        // Pre-step position
+                track.dir,        // Pre-step momentum direction
+                preEKin,          // Pre-step kinetic energy
+                track.navState,   // Post-step navigation state
+                track.pos,        // Post-step position
+                track.dir,        // Post-step momentum direction
+                postEKin,         // Post-step kinetic energy
+                track.globalTime, // Post-step global time
+                track.localTime,  // Post-step local time
+                track.properTime, // Post-step proper time
+                track.globalTime, // Pre-step global time
+                true,             // Whether this is the track's last step
+                nullptr,          // Secondary initialization data
+                0);               // Number of secondaries
+}
+
 } // namespace adept_step_recording
