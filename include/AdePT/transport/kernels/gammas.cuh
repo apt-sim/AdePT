@@ -97,31 +97,26 @@ __global__ void __launch_bounds__(256, 1)
         InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
       slotManager.MarkSlotForFreeing(slot);
 
-      adept_step_recording::RecordGPUStep(currentTrack.trackId,     // Track ID
-                                          currentTrack.parentId,    // parent Track ID
-                                          kAdePTFinishOnCPUProcess, // step-defining process id
+      adept_step_recording::RecordGPUStep(currentTrack,             // Owning track and its metadata
+                                          kAdePTFinishOnCPUProcess, // Step-defining process ID
                                           ParticleType::Gamma,      // Particle type
                                           0.,                       // Step length
-                                          0.,                       // Total Edep
-                                          currentTrack.weight,      // Track weight
-                                          navState,                 // Pre-step point navstate
-                                          preStepPos,               // Pre-step point position
-                                          preStepDir,               // Pre-step point momentum direction
-                                          preStepEnergy,            // Pre-step point kinetic energy
-                                          navState,                 // Post-step point navstate
-                                          pos,                      // Post-step point position
-                                          dir,                      // Post-step point momentum direction
-                                          eKin,                     // Post-step point kinetic energy
-                                          globalTime,               // global time
-                                          localTime,                // local time
-                                          properTime,               // proper time
-                                          preStepGlobalTime,        // global time at preStepPoint
-                                          currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                          false,                                       // parent continues on CPU
-                                          currentTrack.hasHostData,
-                                          currentTrack.stepCounter, // stepcounter
-                                          nullptr,                  // pointer to secondary init data
-                                          0);                       // number of secondaries
+                                          0.,                       // Total energy deposit
+                                          navState,                 // Pre-step navigation state
+                                          preStepPos,               // Pre-step position
+                                          preStepDir,               // Pre-step momentum direction
+                                          preStepEnergy,            // Pre-step kinetic energy
+                                          navState,                 // Post-step navigation state
+                                          pos,                      // Post-step position
+                                          dir,                      // Post-step momentum direction
+                                          eKin,                     // Post-step kinetic energy
+                                          globalTime,               // Post-step global time
+                                          localTime,                // Post-step local time
+                                          properTime,               // Post-step proper time
+                                          preStepGlobalTime,        // Pre-step global time
+                                          false,                    // Whether this is the track's last step
+                                          nullptr,                  // Secondary initialization data
+                                          0);                       // Number of secondaries
       continue;
     }
 
@@ -512,32 +507,26 @@ __global__ void __launch_bounds__(256, 1)
     // If there is some edep from cutting particles, record the step
     if ((edep > 0 && auxData.fSensIndex >= 0) || returnAllSteps || continuesOnCPU || winnerProcessIndex == 3 ||
         hostBoundaryStep || ((returnLastStep || currentTrack.hasHostData) && (nSecondaries > 0 || !trackSurvives))) {
-      adept_step_recording::RecordGPUStep(currentTrack.trackId,  // Track ID
-                                          currentTrack.parentId, // parent Track ID
-                                          stepDefinedProcessId,  // step-defining process id
-                                          ParticleType::Gamma,   // Particle type
-                                          geometryStepLength,    // Step length
-                                          edep,                  // Total Edep
-                                          currentTrack.weight,   // Track weight
-                                          navState,              // Pre-step point navstate
-                                          preStepPos,            // Pre-step point position
-                                          preStepDir,            // Pre-step point momentum direction
-                                          preStepEnergy,         // Pre-step point kinetic energy
-                                          nextState,             // Post-step point navstate
-                                          pos,                   // Post-step point position
-                                          dir,                   // Post-step point momentum direction
-                                          eKin,                  // Post-step point kinetic energy
-                                          globalTime,            // global time
-                                          localTime,             // local time
-                                          properTime,            // proper time
-                                          preStepGlobalTime,     // global time at preStepPoint
-                                          currentTrack.eventId, currentTrack.threadId, // event and thread ID
-                                          !trackSurvives &&
-                                              !continuesOnCPU, // whether this is the last step of the track
-                                          currentTrack.hasHostData,
-                                          currentTrack.stepCounter, // stepcounter
-                                          secondaryData,            // pointer to secondary init data
-                                          nSecondaries);            // number of secondaries
+      adept_step_recording::RecordGPUStep(currentTrack,                      // Owning track and its metadata
+                                          stepDefinedProcessId,              // Step-defining process ID
+                                          ParticleType::Gamma,               // Particle type
+                                          geometryStepLength,                // Step length
+                                          edep,                              // Total energy deposit
+                                          navState,                          // Pre-step navigation state
+                                          preStepPos,                        // Pre-step position
+                                          preStepDir,                        // Pre-step momentum direction
+                                          preStepEnergy,                     // Pre-step kinetic energy
+                                          nextState,                         // Post-step navigation state
+                                          pos,                               // Post-step position
+                                          dir,                               // Post-step momentum direction
+                                          eKin,                              // Post-step kinetic energy
+                                          globalTime,                        // Post-step global time
+                                          localTime,                         // Post-step local time
+                                          properTime,                        // Post-step proper time
+                                          preStepGlobalTime,                 // Pre-step global time
+                                          !trackSurvives && !continuesOnCPU, // Whether this is the track's last step
+                                          secondaryData,                     // Secondary initialization data
+                                          nSecondaries);                     // Number of secondaries
     }
   } // end for loop over tracks
 }
