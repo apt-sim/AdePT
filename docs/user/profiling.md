@@ -47,15 +47,38 @@ The iteration range is half-open: `[start, stop)`. For example,
 iterations 50 through 149. Invalid or negative values are ignored and treated as
 the default `0`.
 
-Run `nsys` with the CUDA profiler API capture range:
+For a full transport capture, leave the stop value at zero:
+
+```console
+export ADEPT_NSYS_CAPTURE_STOP_AFTER_ITERATIONS=0
+```
+
+Run `nsys` with the CUDA profiler API capture range. Disable Nsight's CUDA-event
+tracing for long, multithreaded AdePT captures:
 
 ```console
 nsys profile --capture-range=cudaProfilerApi --capture-range-end=stop \
-  --trace=cuda,nvtx --sample=none --cpuctxsw=none \
+  --trace=cuda,nvtx --cuda-event-trace=false --cuda-flush-interval=10000 \
+  --sample=none --cpuctxsw=none \
   --stats=true --export=sqlite --force-overwrite=true \
   --output adept_transport_profile \
   <application command>
 ```
+
+`--cuda-event-trace=false` only prevents Nsight Systems from collecting CUDA
+event activity. Without this option, large AdePT runs in Athena
+have been observed to stall inside `cudaEventRecord`. Nsight Systems 2025.5.2 has been validated for this workflow. Before a long run, check that the selected profiler supports
+the option:
+
+```console
+nsys --version
+nsys profile --help | grep -- --cuda-event-trace
+```
+
+Do not silently omit the option if an older profiler rejects it; select a newer
+Nsight Systems installation or use a bounded iteration range instead.
+`--cuda-flush-interval=10000` periodically writes buffered CUDA trace data
+during a long capture.
 
 Open the report with:
 
