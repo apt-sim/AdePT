@@ -331,7 +331,7 @@ G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track, G
   clone->SetOriginTouchableHandle(track.GetOriginTouchableHandle());
 #endif
   clone->SetUserInformation(track.GetUserInformation());
-  clone->SetTrackStatus(track.GetTrackStatus());
+  clone->SetTrackStatus(G4TrackStatus::fAlive);
   return clone;
 }
 
