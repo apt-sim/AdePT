@@ -914,8 +914,8 @@ void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step
   aG4Step->SetTotalEnergyDeposit(aGPUStep->fTotalEnergyDeposit); // Real data
   // aG4Step->SetNonIonizingEnergyDeposit(0);                      // Missing data
   // aG4Step->SetControlFlag(G4SteppingControl::NormalCondition);  // Missing data
-  if (aGPUStep->fStepCounter == 1) aG4Step->SetFirstStepFlag(); // Real data
-  if (aGPUStep->fLastStepOfTrack) aG4Step->SetLastStepFlag();   // Real data
+  // G4Step's first/last flags describe volume transitions, not the track lifecycle.
+  // GPUStep does not preserve that state, so do not derive it from the track's step counter or terminal state.
   // aG4Step->SetPointerToVectorOfAuxiliaryPoints(nullptr);        // Missing data
 
   // G4Track

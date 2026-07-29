@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-TEST(ReturnedStepReset, ClearsOnlyConditionallyAssignedState)
+TEST(ReturnedStepReset, ClearsOnlyNuclearReplayState)
 {
   auto *dynamic = new G4DynamicParticle(G4Gamma::Definition(), G4ThreeVector(0., 0., 1.), 12.);
   G4Track track(dynamic, 7., G4ThreeVector(1., 2., 3.));
@@ -24,8 +24,6 @@ TEST(ReturnedStepReset, ClearsOnlyConditionallyAssignedState)
   step.SetTrack(&track);
   step.SetStepLength(6.);
   step.SetControlFlag(AvoidHitInvocation);
-  step.SetFirstStepFlag();
-  step.SetLastStepFlag();
   step.GetPreStepPoint()->SetVelocity(8.);
   step.GetPostStepPoint()->SetVelocity(9.);
 
@@ -33,8 +31,6 @@ TEST(ReturnedStepReset, ClearsOnlyConditionallyAssignedState)
 
   EXPECT_EQ(track.GetTrackStatus(), fAlive);
   EXPECT_DOUBLE_EQ(track.GetVelocity(), 0.);
-  EXPECT_FALSE(step.IsFirstStepInVolume());
-  EXPECT_FALSE(step.IsLastStepInVolume());
   EXPECT_DOUBLE_EQ(step.GetPostStepPoint()->GetVelocity(), 0.);
 
   EXPECT_TRUE(track.UseGivenVelocity());
