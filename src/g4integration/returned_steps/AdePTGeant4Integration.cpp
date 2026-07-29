@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
+#include <AdePT/g4integration/returned_steps/ReturnedStepReset.hh>
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
 
 #include <VecGeom/navigation/NavigationState.h>
@@ -484,6 +485,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     std::cerr << "Error: unknown particle type " << static_cast<int>(parentStep.fParticleType) << "\n";
     std::abort();
   }
+
+  adept::g4integration::detail::ResetForStep(*fStepReconstructionObjects->fG4Step);
 
   FillG4Step(&parentStep, fStepReconstructionObjects->fG4Step,
              *fStepReconstructionObjects->fPreG4TouchableHistoryHandle,
