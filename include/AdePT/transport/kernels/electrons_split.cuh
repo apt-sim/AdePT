@@ -812,6 +812,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
           newRNG, deltaEkin, currentTrack.pos,
           vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
           currentTrack, currentTrack.globalTime);
+      secondary.safetyCache = currentTrack.safetyCache;
 
       SetSecondaryHostData<SelectedSteppingAction>(secondary, currentTrack, copcore::units::kElectronMassC2,
                                                    returnLastStep);

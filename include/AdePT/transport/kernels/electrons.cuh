@@ -579,6 +579,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             ChargedTrack &secondary = particleManager.electrons.NextTrack(
                 newRNG, deltaEkin, pos, vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
                 navState, currentTrack, globalTime);
+            secondary.safetyCache = currentTrack.safetyCache;
 
             SetSecondaryHostData<SteppingActionT>(secondary, currentTrack, copcore::units::kElectronMassC2,
                                                   returnLastStep);
