@@ -470,8 +470,13 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
   const bool isFinishOnCPUStep    = parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess;
   const bool isNuclearStep        = isGammaNuclearStep || isLeptonNuclearStep;
   const bool isDeferredStep       = isNuclearStep || isOutOfGPURegionStep || isFinishOnCPUStep;
-  bool returnParentTrackToG4      = false;
-  G4Track *returnedParentTrack    = nullptr;
+  // Deferred steps must not create GPU secondaries: the return to CPU happens
+  // before interactions or at boundaries, and nuclear secondaries are created
+  // later by PerformNuclear on the host.
+  assert(!isDeferredStep || parentStep.fNumSecondaries == 0);
+
+  bool returnParentTrackToG4   = false;
+  G4Track *returnedParentTrack = nullptr;
   G4TrackVector hadronicSecondaries;
 
   HostTrackData dummy; // default constructed dummy if no advanced information is available
@@ -552,8 +557,6 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       throw std::runtime_error("Specialized HepEmTrackingManager no longer valid in integration!");
     }
 
-    HostTrackData &parentTDataAfterSecondaries = useHostData ? fHostTrackDataMapper->get(parentStep.fTrackID) : dummy;
-
     G4VProcess *nuclearProcess = nullptr;
     int particleID             = 2;
     if (isGammaNuclearStep) {
@@ -584,19 +587,18 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       nuclearReactionTrack->SetWeight(parentStep.fTrackWeight);
       G4TouchableHandle postTouchable;
       if (useHostData) {
-        nuclearReactionTrack->SetTrackID(parentTDataAfterSecondaries.g4id);
-        nuclearReactionTrack->SetParentID(parentTDataAfterSecondaries.g4parentid);
-        nuclearReactionTrack->SetCreatorProcess(parentTDataAfterSecondaries.creatorProcess);
-        nuclearReactionTrack->SetUserInformation(parentTDataAfterSecondaries.userTrackInfo);
-        nuclearReactionTrack->SetVertexPosition(parentTDataAfterSecondaries.vertexPosition);
-        nuclearReactionTrack->SetVertexMomentumDirection(parentTDataAfterSecondaries.vertexMomentumDirection);
-        nuclearReactionTrack->SetVertexKineticEnergy(parentTDataAfterSecondaries.vertexKineticEnergy);
-        nuclearReactionTrack->SetLogicalVolumeAtVertex(parentTDataAfterSecondaries.logicalVolumeAtVertex);
+        nuclearReactionTrack->SetTrackID(parentTData.g4id);
+        nuclearReactionTrack->SetParentID(parentTData.g4parentid);
+        nuclearReactionTrack->SetCreatorProcess(parentTData.creatorProcess);
+        nuclearReactionTrack->SetUserInformation(parentTData.userTrackInfo);
+        nuclearReactionTrack->SetVertexPosition(parentTData.vertexPosition);
+        nuclearReactionTrack->SetVertexMomentumDirection(parentTData.vertexMomentumDirection);
+        nuclearReactionTrack->SetVertexKineticEnergy(parentTData.vertexKineticEnergy);
+        nuclearReactionTrack->SetLogicalVolumeAtVertex(parentTData.logicalVolumeAtVertex);
         const_cast<G4DynamicParticle *>(nuclearReactionTrack->GetDynamicParticle())
-            ->SetPrimaryParticle(parentTDataAfterSecondaries.primary);
+            ->SetPrimaryParticle(parentTData.primary);
 #ifdef ADEPT_USE_ORIGINNAVSTATE
-        nuclearReactionTrack->SetOriginTouchableHandle(
-            MakeTouchableFromNavState(parentTDataAfterSecondaries.originNavState));
+        nuclearReactionTrack->SetOriginTouchableHandle(MakeTouchableFromNavState(parentTData.originNavState));
 #endif
       }
       if (const auto postVolume = (*fStepReconstructionObjects->fPostG4TouchableHistoryHandle)->GetVolume();

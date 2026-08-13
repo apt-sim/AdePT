@@ -369,6 +369,12 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
     // Apply continuous effects.
     bool stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
+    if (stopped) {
+      // If the particle is stopped from continuous energy loss, the returned process id must be updated
+      // Matching G4HepEm: ionization defines a stopped electron
+      // step, while at-rest annihilation defines a stopped positron step.
+      returnedProcessId = IsElectron ? -1 : 2;
+    }
 
     // Collect the direction change and displacement by MSC.
     const double *direction = theTrack->GetDirection();

@@ -139,8 +139,8 @@ bool CanReturnTrackDirectly(const GPUStep &step, unsigned int blockSize, bool do
   if (step.fStepLimProcessId != kAdePTOutOfGPURegionProcess && step.fStepLimProcessId != kAdePTFinishOnCPUProcess) {
     return false;
   }
-  // kAdePTFinishOnCPUProcess is set after a real interaction can happen. Thus,
-  // an extra guard is needed to check for steps that have to call the SD code
+  // Direct return of tracks bypasses Geant4 step reconstruction and therefore requires a
+  // secondary-free, zero-deposit GPUStep.
   if (blockSize != 1) return false;
   if (step.fTotalEnergyDeposit != 0.) return false;
   return true;

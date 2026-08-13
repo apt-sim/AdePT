@@ -503,6 +503,11 @@ __global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, con
         winnerProcessIndex = kAdePTTransportationProcess;
       }
     } else {
+      // If the particle is stopped from continuous energy loss, the winner process must be updated
+      // Matching G4HepEm: ionization defines a stopped electron
+      // step, while at-rest annihilation defines a stopped positron step.
+      winnerProcessIndex = IsElectron ? -1 : 2;
+
       // Stopped positrons annihilate, stopped electrons score and die
       if (IsElectron) {
         reached_interaction = false;
