@@ -50,7 +50,10 @@ public:
   /// @return Packed, dense WDT data ready to be handed to the transport for device upload.
   static adeptint::WDTHostPacked PackWDT(adeptint::WDTHostRaw const &wdtRaw);
 
-  /// @brief Geant4 placement information represented by a VecGeom placed volume.
+  /// @brief Cached Geant4 placement information represented by a VecGeom placed volume.
+  /// @details One mapped instance is precomputed for every VecGeom placed-volume ID when
+  /// the geometry bridge is initialized. This keeps touchable reconstruction from
+  /// repeatedly querying mutable Geant4 physical volumes for their type and copy number.
   struct MappedVolumeInstance {
     G4VPhysicalVolume const *g4Volume = nullptr;
     EVolume type                      = kNormal;
@@ -67,11 +70,17 @@ public:
   /// @throws std::runtime_error if the VecGeom placed volume is not present in the global lookup table.
   static MappedVolumeInstance GetMappedVolumeInstance(vecgeom::VPlacedVolume const *placedVolume);
 
+  /// @brief Looks up a cached Geant4 volume instance by VecGeom placed volume.
+  /// @details This returns a reference to avoid copying mapped instances in
+  /// navigation-history reconstruction hot paths.
+  /// @throws std::runtime_error if the VecGeom placed volume is not present in the global lookup table.
+  static MappedVolumeInstance const &LookupMappedVolumeInstance(vecgeom::VPlacedVolume const *placedVolume);
+
 private:
   /// @brief Builds the lookup tables from VecGeom placed/logical volume ids to Geant4 volumes.
-  static void MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> &vecgeomPvToG4Map,
+  static void MapVecGeomToG4(std::vector<MappedVolumeInstance> &vecgeomPvToG4Map,
                              std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map);
 
-  static std::vector<G4VPhysicalVolume const *> fGlobalVecGeomPvToG4Map;
+  static std::vector<MappedVolumeInstance> fGlobalVecGeomPvToG4Map;
   static std::vector<G4LogicalVolume const *> fGlobalVecGeomLvToG4Map;
 };

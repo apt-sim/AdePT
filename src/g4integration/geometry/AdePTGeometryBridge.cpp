@@ -30,7 +30,7 @@
 #include <stdexcept>
 #include <string>
 
-std::vector<G4VPhysicalVolume const *> AdePTGeometryBridge::fGlobalVecGeomPvToG4Map;
+std::vector<AdePTGeometryBridge::MappedVolumeInstance> AdePTGeometryBridge::fGlobalVecGeomPvToG4Map;
 std::vector<G4LogicalVolume const *> AdePTGeometryBridge::fGlobalVecGeomLvToG4Map;
 
 namespace {
@@ -49,6 +49,14 @@ bool HasCopySpecificPlacement(G4VPhysicalVolume const *daughter)
 {
   const auto type = daughter->VolumeType();
   return type == kReplica || type == kParameterised;
+}
+
+AdePTGeometryBridge::MappedVolumeInstance MakeMappedVolumeInstance(G4VPhysicalVolume const *g4Volume,
+                                                                   vecgeom::VPlacedVolume const *placedVolume)
+{
+  const auto type   = g4Volume->VolumeType();
+  const auto copyNo = type == kNormal ? g4Volume->GetCopyNo() : placedVolume->GetCopyNo();
+  return {g4Volume, type, copyNo};
 }
 
 struct DaughterInfo {
@@ -96,7 +104,7 @@ void VisitDaughters(G4LogicalVolume const *g4_lvol, vecgeom::LogicalVolume const
 
 } // namespace
 
-void AdePTGeometryBridge::MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> &vecgeomPvToG4Map,
+void AdePTGeometryBridge::MapVecGeomToG4(std::vector<MappedVolumeInstance> &vecgeomPvToG4Map,
                                          std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map)
 {
   const G4VPhysicalVolume *g4world =
@@ -109,9 +117,9 @@ void AdePTGeometryBridge::MapVecGeomToG4(std::vector<G4VPhysicalVolume const *> 
     const auto g4_lvol = g4_pvol->GetLogicalVolume();
     const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
-    // Initialize mapping of VecGeom placed-volume ids to Geant4 physical volumes.
-    vecgeomPvToG4Map.resize(std::max<std::size_t>(vecgeomPvToG4Map.size(), vg_pvol->id() + 1), nullptr);
-    vecgeomPvToG4Map[vg_pvol->id()] = g4_pvol;
+    // Initialize cached Geant4 volume instances indexed by VecGeom placed-volume id.
+    vecgeomPvToG4Map.resize(std::max<std::size_t>(vecgeomPvToG4Map.size(), vg_pvol->id() + 1));
+    vecgeomPvToG4Map[vg_pvol->id()] = MakeMappedVolumeInstance(g4_pvol, vg_pvol);
 
     // Initialize mapping of VecGeom logical-volume ids to Geant4 logical volumes.
     vecgeomLvToG4Map.resize(std::max<std::size_t>(vecgeomLvToG4Map.size(), vg_lvol->id() + 1), nullptr);
@@ -167,8 +175,22 @@ void AdePTGeometryBridge::CreateVecGeomWorld(G4VPhysicalVolume const *physvol)
   auto conversion            = g4vg::convert(physvol, options);
   vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
 
-  // Get the mapping of VecGeom volume ids to Geant4 physical volumes from G4VG.
-  fGlobalVecGeomPvToG4Map = conversion.physical_volumes;
+  // Build the immutable VecGeom placed-volume to Geant4 instance map.
+  // Replica and parameterised PVs are mutable shared objects, so their concrete
+  // copy identity must come from the corresponding VecGeom placement.
+  fGlobalVecGeomPvToG4Map.clear();
+  fGlobalVecGeomPvToG4Map.resize(conversion.physical_volumes.size());
+  for (std::size_t id = 0; id < conversion.physical_volumes.size(); ++id) {
+    auto const *g4Volume = conversion.physical_volumes[id];
+    if (g4Volume == nullptr) continue;
+
+    auto const *placedVolume = vecgeom::GeoManager::Instance().FindPlacedVolume(static_cast<int>(id));
+    if (placedVolume == nullptr) {
+      throw std::runtime_error("AdePTGeometryBridge::CreateVecGeomWorld: G4VG mapping contains an unknown VecGeom "
+                               "placed-volume id");
+    }
+    fGlobalVecGeomPvToG4Map[id] = MakeMappedVolumeInstance(g4Volume, placedVolume);
+  }
   fGlobalVecGeomLvToG4Map = conversion.logical_volumes;
 
   // EXPECT: we finish with a non-null VecGeom host geometry.
@@ -465,28 +487,30 @@ adeptint::WDTHostPacked AdePTGeometryBridge::PackWDT(adeptint::WDTHostRaw const 
 /// @brief Resolve the Geant4 placed volume associated with a VecGeom placed volume.
 G4VPhysicalVolume const *AdePTGeometryBridge::GetG4PhysicalVolume(vecgeom::VPlacedVolume const *placedVolume)
 {
-  if (placedVolume == nullptr) {
-    throw std::runtime_error("AdePTGeometryBridge::GetG4PhysicalVolume: Input VecGeom placed volume is nullptr");
-  }
-  if (placedVolume->id() >= fGlobalVecGeomPvToG4Map.size()) {
-    throw std::runtime_error(
-        "AdePTGeometryBridge::GetG4PhysicalVolume: VecGeom placed volume id is outside the lookup table");
-  }
-
-  auto *g4Volume = fGlobalVecGeomPvToG4Map[placedVolume->id()];
-  if (g4Volume == nullptr) {
-    throw std::runtime_error(
-        "AdePTGeometryBridge::GetG4PhysicalVolume: VecGeom placed volume not found in Geant4 mapping");
-  }
-  return g4Volume;
+  return LookupMappedVolumeInstance(placedVolume).g4Volume;
 }
 
 AdePTGeometryBridge::MappedVolumeInstance AdePTGeometryBridge::GetMappedVolumeInstance(
     vecgeom::VPlacedVolume const *placedVolume)
 {
-  auto *g4Volume    = GetG4PhysicalVolume(placedVolume);
-  const auto type   = g4Volume->VolumeType();
-  const auto copyNo = type == kNormal ? g4Volume->GetCopyNo() : placedVolume->GetCopyNo();
+  return LookupMappedVolumeInstance(placedVolume);
+}
 
-  return MappedVolumeInstance{g4Volume, type, copyNo};
+AdePTGeometryBridge::MappedVolumeInstance const &AdePTGeometryBridge::LookupMappedVolumeInstance(
+    vecgeom::VPlacedVolume const *placedVolume)
+{
+  if (placedVolume == nullptr) {
+    throw std::runtime_error("AdePTGeometryBridge::LookupMappedVolumeInstance: Input VecGeom placed volume is nullptr");
+  }
+  if (placedVolume->id() >= fGlobalVecGeomPvToG4Map.size()) {
+    throw std::runtime_error(
+        "AdePTGeometryBridge::LookupMappedVolumeInstance: VecGeom placed volume id is outside the lookup table");
+  }
+
+  auto const &instance = fGlobalVecGeomPvToG4Map[placedVolume->id()];
+  if (instance.g4Volume == nullptr) {
+    throw std::runtime_error(
+        "AdePTGeometryBridge::LookupMappedVolumeInstance: VecGeom placed volume not found in Geant4 mapping");
+  }
+  return instance;
 }

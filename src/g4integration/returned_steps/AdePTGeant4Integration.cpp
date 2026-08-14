@@ -26,8 +26,11 @@
 #include "G4Positron.hh"
 #include "G4Gamma.hh"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <new>
+#include <span>
 #include <type_traits>
 
 namespace AdePTGeant4Integration_detail {
@@ -204,6 +207,57 @@ bool MatchesHistoryLevel(G4NavigationHistory const &history, G4int level,
   if (level == 0) return true;
 
   return history.GetVolumeType(level) == instance.type && history.GetReplicaNo(level) == instance.copyNo;
+}
+
+void UpdateG4NavigationHistory(std::span<AdePTGeometryBridge::MappedVolumeInstance const *const> mappedPath,
+                               G4NavigationHistory &g4NavigationHistory)
+{
+  // Get the current depth of the history (corresponding to the previous reconstructed touchable)
+  auto g4HistoryDepth = g4NavigationHistory.GetDepth();
+
+  std::size_t level = 0;
+  for (; level < mappedPath.size(); ++level) {
+    auto const &newInstance = *mappedPath[level];
+    assert(newInstance.g4Volume != nullptr);
+
+    // While we are in levels shallower than the history depth, it may be that we already
+    // have the correct volume instance in the history. Replica and parameterised placements
+    // can share one Geant4 physical-volume pointer, so the volume type and copy number are
+    // part of the instance identity.
+    if (g4HistoryDepth && level <= g4HistoryDepth) {
+      // If they match we do not need to update the history at this level. Still stamp
+      // mutable Geant4 replica/parameterised volumes for code that queries the PV directly.
+      if (MatchesHistoryLevel(g4NavigationHistory, static_cast<G4int>(level), newInstance)) {
+        if (level) StampG4VolumeInstance(newInstance);
+        continue;
+      }
+
+      // Once we find two non-matching volume instances, update the history from this level on.
+      if (level) {
+        g4NavigationHistory.BackLevel(static_cast<G4int>(g4HistoryDepth - level + 1));
+        StampG4VolumeInstance(newInstance);
+        g4NavigationHistory.NewLevel(MutableG4Volume(newInstance), newInstance.type, newInstance.copyNo);
+      } else {
+        g4NavigationHistory.BackLevel(static_cast<G4int>(g4HistoryDepth));
+        g4NavigationHistory.SetFirstEntry(MutableG4Volume(newInstance));
+      }
+      g4HistoryDepth = level;
+    } else {
+      // If the navigation state is deeper than the current history, add its new levels.
+      if (level) {
+        StampG4VolumeInstance(newInstance);
+        g4NavigationHistory.NewLevel(MutableG4Volume(newInstance), newInstance.type, newInstance.copyNo);
+        ++g4HistoryDepth;
+      } else {
+        g4NavigationHistory.SetFirstEntry(MutableG4Volume(newInstance));
+      }
+    }
+  }
+
+  // Remove extra levels when the new state is shallower than the previous history.
+  if (g4HistoryDepth >= level) {
+    g4NavigationHistory.BackLevel(static_cast<G4int>(g4HistoryDepth - level + 1));
+  }
 }
 
 G4ParticleDefinition *GetParticleDefinition(ParticleType particleType)
@@ -430,14 +484,18 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
   // Reconstruct G4NavigationHistory and G4Step, then call the SD code for the returned step
   vecgeom::NavigationState const &preNavState = parentStep.fPreStepPoint.fNavigationState;
   // Reconstruct Pre-Step point G4NavigationHistory
-  FillG4NavigationHistory(preNavState, fStepReconstructionObjects->fPreG4NavigationHistory);
+  vecgeom::NavigationState const &postNavState = parentStep.fPostStepPoint.fNavigationState;
+  if (!postNavState.IsOutside()) {
+    FillG4NavigationHistories(preNavState, postNavState, fStepReconstructionObjects->fPreG4NavigationHistory,
+                              fStepReconstructionObjects->fPostG4NavigationHistory);
+  } else {
+    FillG4NavigationHistory(preNavState, fStepReconstructionObjects->fPreG4NavigationHistory);
+  }
   (*fStepReconstructionObjects->fPreG4TouchableHistoryHandle)
       ->UpdateYourself(fStepReconstructionObjects->fPreG4NavigationHistory.GetTopVolume(),
                        &fStepReconstructionObjects->fPreG4NavigationHistory);
   // Reconstruct Post-Step point G4NavigationHistory
-  vecgeom::NavigationState const &postNavState = parentStep.fPostStepPoint.fNavigationState;
   if (!postNavState.IsOutside()) {
-    FillG4NavigationHistory(postNavState, fStepReconstructionObjects->fPostG4NavigationHistory);
     (*fStepReconstructionObjects->fPostG4TouchableHistoryHandle)
         ->UpdateYourself(fStepReconstructionObjects->fPostG4NavigationHistory.GetTopVolume(),
                          &fStepReconstructionObjects->fPostG4NavigationHistory);
@@ -737,56 +795,62 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
 void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
                                                      G4NavigationHistory &aG4NavigationHistory) const
 {
-  // Get the current depth of the history (corresponding to the previous reconstructed touchable)
-  auto aG4HistoryDepth = aG4NavigationHistory.GetDepth();
-  // Get the depth of the navigation state we want to reconstruct
-  auto aVecGeomLevel = aNavState.GetLevel();
+  constexpr std::size_t kMaxPathSize = 256;
+  std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> mappedPath;
+  const auto pathSize = static_cast<std::size_t>(aNavState.GetLevel()) + 1;
+  assert(pathSize <= mappedPath.size());
 
-  unsigned int aLevel{0};
-
-  for (aLevel = 0; aLevel <= aVecGeomLevel; aLevel++) {
-    // While we are in levels shallower than the history depth, it may be that we already
-    // have the correct volume instance in the history. Replica and parameterised placements
-    // can share one Geant4 physical-volume pointer, so the volume type and copy number are
-    // part of the instance identity.
-    assert(aNavState.At(aLevel));
-    const auto newInstance = AdePTGeometryBridge::GetMappedVolumeInstance(aNavState.At(aLevel));
-    assert(newInstance.g4Volume != nullptr);
-
-    if (aG4HistoryDepth && (aLevel <= aG4HistoryDepth)) {
-      // If they match we do not need to update the history at this level. Still stamp
-      // mutable Geant4 replica/parameterised volumes for code that queries the PV directly.
-      if (MatchesHistoryLevel(aG4NavigationHistory, aLevel, newInstance)) {
-        if (aLevel) StampG4VolumeInstance(newInstance);
-        continue;
-      }
-      // Once we find two non-matching volume instances, we need to update the touchable history from this level on
-      if (aLevel) {
-        // If we are not in the top level
-        aG4NavigationHistory.BackLevel(aG4HistoryDepth - aLevel + 1);
-        // Update the current level
-        StampG4VolumeInstance(newInstance);
-        aG4NavigationHistory.NewLevel(MutableG4Volume(newInstance), newInstance.type, newInstance.copyNo);
-      } else {
-        // Update the top level
-        aG4NavigationHistory.BackLevel(aG4HistoryDepth);
-        aG4NavigationHistory.SetFirstEntry(MutableG4Volume(newInstance));
-      }
-      // Now we are overwriting the history, so set the depth to the current depth
-      aG4HistoryDepth = aLevel;
-    } else {
-      // If the navigation state is deeper than the current history we need to add the new levels
-      if (aLevel) {
-        StampG4VolumeInstance(newInstance);
-        aG4NavigationHistory.NewLevel(MutableG4Volume(newInstance), newInstance.type, newInstance.copyNo);
-        aG4HistoryDepth++;
-      } else {
-        aG4NavigationHistory.SetFirstEntry(MutableG4Volume(newInstance));
-      }
-    }
+  for (std::size_t level = 0; level < pathSize; ++level) {
+    auto const *placedVolume = aNavState.At(static_cast<int>(level));
+    assert(placedVolume != nullptr);
+    mappedPath[level] = &AdePTGeometryBridge::LookupMappedVolumeInstance(placedVolume);
   }
-  // Once finished, remove the extra levels if the current state is shallower than the previous history
-  if (aG4HistoryDepth >= aLevel) aG4NavigationHistory.BackLevel(aG4HistoryDepth - aLevel + 1);
+
+  UpdateG4NavigationHistory(std::span(mappedPath.data(), pathSize), aG4NavigationHistory);
+}
+
+void AdePTGeant4Integration::FillG4NavigationHistories(const vecgeom::NavigationState &preNavState,
+                                                       const vecgeom::NavigationState &postNavState,
+                                                       G4NavigationHistory &preG4NavigationHistory,
+                                                       G4NavigationHistory &postG4NavigationHistory) const
+{
+  constexpr std::size_t kMaxPathSize = 256;
+  std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> preMappedPath;
+  std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> postMappedPath;
+
+  const auto prePathSize  = static_cast<std::size_t>(preNavState.GetLevel()) + 1;
+  const auto postPathSize = static_cast<std::size_t>(postNavState.GetLevel()) + 1;
+  assert(prePathSize <= preMappedPath.size());
+  assert(postPathSize <= postMappedPath.size());
+
+  const auto shorterPathSize = std::min(prePathSize, postPathSize);
+  std::size_t commonPathSize = 0;
+  for (; commonPathSize < shorterPathSize; ++commonPathSize) {
+    auto const *prePlacedVolume  = preNavState.At(static_cast<int>(commonPathSize));
+    auto const *postPlacedVolume = postNavState.At(static_cast<int>(commonPathSize));
+    assert(prePlacedVolume != nullptr);
+    assert(postPlacedVolume != nullptr);
+    if (prePlacedVolume != postPlacedVolume) break;
+
+    auto const *instance           = &AdePTGeometryBridge::LookupMappedVolumeInstance(prePlacedVolume);
+    preMappedPath[commonPathSize]  = instance;
+    postMappedPath[commonPathSize] = instance;
+  }
+
+  for (std::size_t level = commonPathSize; level < prePathSize; ++level) {
+    auto const *placedVolume = preNavState.At(static_cast<int>(level));
+    assert(placedVolume != nullptr);
+    preMappedPath[level] = &AdePTGeometryBridge::LookupMappedVolumeInstance(placedVolume);
+  }
+  for (std::size_t level = commonPathSize; level < postPathSize; ++level) {
+    auto const *placedVolume = postNavState.At(static_cast<int>(level));
+    assert(placedVolume != nullptr);
+    postMappedPath[level] = &AdePTGeometryBridge::LookupMappedVolumeInstance(placedVolume);
+  }
+
+  // Keep pre-then-post mutation order identical to the original pair of calls.
+  UpdateG4NavigationHistory(std::span(preMappedPath.data(), prePathSize), preG4NavigationHistory);
+  UpdateG4NavigationHistory(std::span(postMappedPath.data(), postPathSize), postG4NavigationHistory);
 }
 
 G4TouchableHandle AdePTGeant4Integration::MakeTouchableFromNavState(vecgeom::NavigationState const &navState) const
@@ -794,15 +858,15 @@ G4TouchableHandle AdePTGeant4Integration::MakeTouchableFromNavState(vecgeom::Nav
   // Reconstruct the origin touchable history from a VecGeom NavigationState
   // - We can't update the track's navigation history in place as it is a const member
   // - For the same reason, we need to fill a navigation history and then create a touchable history from it
-  auto navigationHistory = std::make_unique<G4NavigationHistory>();
-  FillG4NavigationHistory(navState, *navigationHistory);
+  G4NavigationHistory navigationHistory;
+  FillG4NavigationHistory(navState, navigationHistory);
 
   // G4TouchableHistory constructor does a shallow copy of the navigation history
   // There is no way to transfer ownership of this pointer to the G4TouchableHistory, as the other available method,
   // UpdateYourself() does a shallow copy as well.
-  // The only way to avoid a memory leak is to do the shallow copy and then allow our instance to be deleted, which will
-  // call G4NavigationHistoryPool::DeRegister()
-  auto touchableHistory = std::make_unique<G4TouchableHistory>(*navigationHistory);
+  // The temporary history itself does not need pool-managed lifetime. Keeping it
+  // on the stack avoids one G4NavigationHistory pool allocation per touchable.
+  auto touchableHistory = std::make_unique<G4TouchableHistory>(navigationHistory);
 
   // Give ownership of the touchable history to a newly created touchable handle, which will now manage its lifetime
   return G4TouchableHandle(touchableHistory.release());

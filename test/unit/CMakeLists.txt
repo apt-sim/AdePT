@@ -80,6 +80,13 @@ set(ADEPT_G4_INTEGRATION_GTESTS
   test_geometry_bridge.cpp     # Unit test for AdePTGeometryBridge replica traversal
   test_return_step_options.cpp # Unit test for freezing GPU return-step options
 )
+
+set(ADEPT_G4_INTEGRATION_UTILITIES)
+if(Geant4_gdml_FOUND)
+  list(APPEND ADEPT_G4_INTEGRATION_UTILITIES
+    benchmark_navigation_history.cpp # Full-GDML reconstruction equivalence/performance benchmark
+  )
+endif()
 if(Geant4_gdml_FOUND AND VECGEOM_GDML_SUPPORT)
   list(APPEND ADEPT_G4_INTEGRATION_GTESTS
     test_geometry_bridge_cms.cpp # Unit test comparing CMS GDML VGDML and G4VG placement trees
@@ -103,6 +110,7 @@ build_header_only_tests(${ADEPT_HEADER_ONLY_UNIT_TESTS})
 build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS} ${ADEPT_TRANSPORT_UTILITIES})
 build_gtest_tests(AdePT::Transport ${ADEPT_TRANSPORT_GTESTS})
 build_gtest_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_GTESTS})
+build_linked_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UTILITIES})
 if(TARGET test_geometry_bridge_cms)
   target_compile_definitions(test_geometry_bridge_cms
     PRIVATE

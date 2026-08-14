@@ -473,10 +473,21 @@ TEST(AdePTGeometryBridge, ReconstructedTouchableKeepsReplicaCopyNumber)
     return state;
   };
 
+  const auto navState0  = makeNavState(0);
+  const auto navState2  = makeNavState(2);
+  auto const &instance0 = AdePTGeometryBridge::LookupMappedVolumeInstance(vgDaughters[0]);
+  auto const &instance2 = AdePTGeometryBridge::LookupMappedVolumeInstance(vgDaughters[2]);
+  EXPECT_EQ(instance0.g4Volume, instance2.g4Volume);
+  EXPECT_EQ(instance0.type, kReplica);
+  EXPECT_EQ(instance2.type, kReplica);
+  EXPECT_EQ(instance0.copyNo, 0);
+  EXPECT_EQ(instance2.copyNo, 2);
+  EXPECT_EQ(&instance0, &AdePTGeometryBridge::LookupMappedVolumeInstance(vgDaughters[0]));
+
   AdePTGeant4Integration integration;
   G4NavigationHistory history;
 
-  integration.FillG4NavigationHistory(makeNavState(0), history);
+  integration.FillG4NavigationHistory(navState0, history);
   ASSERT_EQ(history.GetDepth(), 1u);
   EXPECT_EQ(history.GetVolumeType(1), kReplica);
   EXPECT_EQ(history.GetReplicaNo(1), 0);
@@ -487,7 +498,7 @@ TEST(AdePTGeometryBridge, ReconstructedTouchableKeepsReplicaCopyNumber)
   EXPECT_EQ(copy0, 0);
   EXPECT_EQ(replicaVolume->GetCopyNo(), 0);
 
-  integration.FillG4NavigationHistory(makeNavState(2), history);
+  integration.FillG4NavigationHistory(navState2, history);
   ASSERT_EQ(history.GetDepth(), 1u);
   EXPECT_EQ(history.GetVolume(1), replicaVolume);
   EXPECT_EQ(history.GetVolumeType(1), kReplica);
@@ -498,6 +509,38 @@ TEST(AdePTGeometryBridge, ReconstructedTouchableKeepsReplicaCopyNumber)
   EXPECT_EQ(touchableCopy2.GetCopyNumber(0), 2);
   EXPECT_EQ(replicaVolume->GetCopyNo(), 2);
   EXPECT_NE(copy0, touchableCopy2.GetCopyNumber(0));
+
+  // The paired path must produce exactly the same histories as two independent
+  // calls while looking up the shared world prefix only once.
+  G4NavigationHistory referencePre;
+  G4NavigationHistory referencePost;
+  integration.FillG4NavigationHistory(navState0, referencePre);
+  integration.FillG4NavigationHistory(navState2, referencePost);
+
+  G4NavigationHistory pairedPre;
+  G4NavigationHistory pairedPost;
+  integration.FillG4NavigationHistories(navState0, navState2, pairedPre, pairedPost);
+
+  const auto expectSameHistory = [](G4NavigationHistory const &actual, G4NavigationHistory const &expected) {
+    ASSERT_EQ(actual.GetDepth(), expected.GetDepth());
+    for (std::size_t level = 0; level <= actual.GetDepth(); ++level) {
+      EXPECT_EQ(actual.GetVolume(static_cast<G4int>(level)), expected.GetVolume(static_cast<G4int>(level)));
+      EXPECT_EQ(actual.GetVolumeType(static_cast<G4int>(level)), expected.GetVolumeType(static_cast<G4int>(level)));
+      EXPECT_EQ(actual.GetReplicaNo(static_cast<G4int>(level)), expected.GetReplicaNo(static_cast<G4int>(level)));
+      EXPECT_EQ(actual.GetTransform(static_cast<G4int>(level)).NetTranslation(),
+                expected.GetTransform(static_cast<G4int>(level)).NetTranslation());
+      EXPECT_EQ(actual.GetTransform(static_cast<G4int>(level)).NetRotation(),
+                expected.GetTransform(static_cast<G4int>(level)).NetRotation());
+    }
+  };
+  expectSameHistory(pairedPre, referencePre);
+  expectSameHistory(pairedPost, referencePost);
+
+  const auto touchable = integration.MakeTouchableFromNavState(navState2);
+  ASSERT_NE(touchable(), nullptr);
+  EXPECT_EQ(touchable->GetHistoryDepth(), 1);
+  EXPECT_EQ(touchable->GetVolume(), replicaVolume);
+  EXPECT_EQ(touchable->GetCopyNumber(), 2);
 }
 
 // Non-equivalent unexpanded replica guard: a single ordinary VecGeom

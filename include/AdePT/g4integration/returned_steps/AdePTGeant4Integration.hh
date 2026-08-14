@@ -96,6 +96,15 @@ private:
   void FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
                                G4NavigationHistory &aG4NavigationHistory) const;
 
+  /// @brief Reconstruct the pre- and post-step histories while sharing work for their common path prefix.
+  /// @details Each VecGeom placed volume in the common prefix is mapped once. Replica and
+  /// parameterised placements are still stamped in pre-then-post order to preserve the
+  /// observable Geant4 physical-volume state of the original two-call implementation.
+  void FillG4NavigationHistories(const vecgeom::NavigationState &preNavState,
+                                 const vecgeom::NavigationState &postNavState,
+                                 G4NavigationHistory &preG4NavigationHistory,
+                                 G4NavigationHistory &postG4NavigationHistory) const;
+
   G4TouchableHandle MakeTouchableFromNavState(vecgeom::NavigationState const &navState) const;
 
   /// @brief Construct the temporary secondary track that is attached to the secondary vector of the parent step
