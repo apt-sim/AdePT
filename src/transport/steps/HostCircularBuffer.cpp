@@ -73,7 +73,8 @@ std::size_t HostCircularBuffer::GetFreeContiguousSlots(std::size_t transferSize)
 
   if (fSegments.empty()) {
     // If empty, reset the write offset to the beginning of the buffer.
-    fWriteOffset = 0;
+    fWriteOffset         = 0;
+    fFreeContiguousSpace = fCapacity;
     return fCapacity; // Everything is free
   }
 

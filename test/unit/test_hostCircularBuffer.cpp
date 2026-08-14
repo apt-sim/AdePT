@@ -82,13 +82,19 @@ static int test_fill_fraction_preserves_existing_pending_transfer_semantics()
   return 0;
 }
 
-static int test_failed_request_does_not_underflow_free_space()
+static int test_failed_request_resets_after_empty_retry()
 {
   adept::transport::HostCircularBuffer buffer(10);
 
   CHECK(buffer.AddSegment(0, 8));
   CHECK(buffer.GetFreeContiguousSlots(3) == 0);
   CHECK(near(buffer.GetFillFractionAfterLastRequest(), 1.0));
+
+  buffer.RemoveSegment(0);
+  CHECK(buffer.GetFreeContiguousSlots(3) == 10);
+  CHECK(buffer.AddSegment(0, 3));
+  CHECK(buffer.GetWriteOffset() == 3);
+  CHECK(near(buffer.GetFillFractionAfterLastRequest(), 0.0));
 
   return 0;
 }
@@ -252,7 +258,7 @@ int main()
   if (int result = test_segment_add_remove_and_full_buffer()) return result;
   if (int result = test_removing_missing_segment_is_a_noop()) return result;
   if (int result = test_fill_fraction_preserves_existing_pending_transfer_semantics()) return result;
-  if (int result = test_failed_request_does_not_underflow_free_space()) return result;
+  if (int result = test_failed_request_resets_after_empty_retry()) return result;
   if (int result = test_wraparound_after_front_segment_is_removed()) return result;
   if (int result = test_tail_space_is_reused_after_tail_segment_is_removed()) return result;
   if (int result = test_middle_hole_is_not_reused_from_end_write_position()) return result;
