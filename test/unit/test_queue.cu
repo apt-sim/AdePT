@@ -124,6 +124,60 @@ TEST(BoundedQueueTest, PreservesOrderAcrossWraparoundAndClear)
   EXPECT_EQ(73, value);
 }
 
+TEST(BoundedQueueTest, CopiesPopulatedQueueWithoutChangingCapacity)
+{
+  QueuePtr source{Queue::MakeInstance(8)};
+  ASSERT_NE(nullptr, source);
+
+  for (int value = 0; value < 6; ++value)
+    ASSERT_TRUE(source->enqueue(value));
+
+  for (int expected = 0; expected < 2; ++expected) {
+    int value = -1;
+    ASSERT_TRUE(source->dequeue(value));
+    ASSERT_EQ(expected, value);
+  }
+
+  for (int value = 6; value < 10; ++value)
+    ASSERT_TRUE(source->enqueue(value));
+
+  QueuePtr copy{Queue::MakeCopy(*source)};
+  ASSERT_NE(nullptr, copy);
+  ASSERT_EQ(8, copy->size());
+
+  for (int expected = 2; expected < 10; ++expected) {
+    int value = -1;
+    ASSERT_TRUE(copy->dequeue(value));
+    EXPECT_EQ(expected, value);
+  }
+
+  int value = -1;
+  EXPECT_FALSE(copy->dequeue(value));
+  EXPECT_EQ(8, source->size());
+}
+
+TEST(BoundedQueueTest, RejectsCapacityChangesForPopulatedCopies)
+{
+  QueuePtr source{Queue::MakeInstance(8)};
+  ASSERT_NE(nullptr, source);
+
+  for (int value = 0; value < 6; ++value)
+    ASSERT_TRUE(source->enqueue(value));
+
+  EXPECT_EQ(nullptr, Queue::MakeCopy(4, *source));
+
+  auto storage = std::make_unique<char[]>(Queue::SizeOfInstance(4));
+  EXPECT_EQ(nullptr, Queue::MakeCopyAt(4, *source, storage.get()));
+  EXPECT_EQ(nullptr, Queue::MakeCopy(16, *source));
+
+  ASSERT_EQ(6, source->size());
+  for (int expected = 0; expected < 6; ++expected) {
+    int value = -1;
+    ASSERT_TRUE(source->dequeue(value));
+    EXPECT_EQ(expected, value);
+  }
+}
+
 TEST(BoundedQueueTest, ConcurrentDeviceProducersAndConsumers)
 {
   constexpr unsigned int numValues = 1u << 14;

@@ -60,7 +60,9 @@ private:
   {
     char *address = (char *)this + Base_t::SizeOfAlignAware(new_size) - BlockData<Type>::SizeOfExtra(new_size);
     fHoles        = (Queue_t *)address;
-    Queue_t::MakeCopyAt(new_size, *other.fHoles, address);
+    // A BlockData copy starts undistributed. Source hole indices may not be
+    // valid for the destination capacity, so always construct a fresh queue.
+    Queue_t::MakeInstanceAt(new_size, address);
   }
 
   __forceinline__ __host__ __device__ ~BlockData() {}

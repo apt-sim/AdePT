@@ -138,6 +138,37 @@ TEST(BlockDataTest, CopyPreservesStoredValuesAndStartsUndistributed)
   Block::ReleaseInstance(copy);
 }
 
+TEST(BlockDataTest, ShrinkingCopyDiscardsSourceHolesAndStartsUndistributed)
+{
+  BlockPtr source{Block::MakeInstance(8)};
+  ASSERT_NE(nullptr, source);
+
+  for (int index = 0; index < source->Capacity(); ++index) {
+    auto *track = source->NextElement();
+    ASSERT_NE(nullptr, track);
+    track->index = index;
+  }
+  source->ReleaseElement(7);
+  ASSERT_EQ(1, source->GetNholes());
+
+  auto storage = std::make_unique<char[]>(Block::SizeOfInstance(4));
+  Block *copy  = Block::MakeCopyAt(4, *source, storage.get());
+  ASSERT_NE(nullptr, copy);
+  EXPECT_EQ(4, copy->Capacity());
+  EXPECT_EQ(0, copy->GetNused());
+  EXPECT_EQ(0, copy->GetNholes());
+
+  for (int index = 0; index < copy->Capacity(); ++index) {
+    auto *track = copy->NextElement();
+    ASSERT_EQ(&(*copy)[index], track);
+    EXPECT_EQ(index, track->index);
+  }
+
+  EXPECT_EQ(nullptr, copy->NextElement());
+  EXPECT_TRUE(copy->IsFull());
+  Block::ReleaseInstance(copy);
+}
+
 TEST(BlockDataTest, ConcurrentDeviceAllocationReleaseAndReuse)
 {
   constexpr unsigned int capacity       = 1u << 16;
