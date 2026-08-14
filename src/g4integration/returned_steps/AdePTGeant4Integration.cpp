@@ -795,6 +795,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
 void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
                                                      G4NavigationHistory &aG4NavigationHistory) const
 {
+  // VecGeom represents the zero-based navigation level as an unsigned char. With the world at
+  // level zero, a valid navigation state therefore contains at most 256 path entries.
   constexpr std::size_t kMaxPathSize = 256;
   std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> mappedPath;
   const auto pathSize = static_cast<std::size_t>(aNavState.GetLevel()) + 1;
@@ -814,6 +816,8 @@ void AdePTGeant4Integration::FillG4NavigationHistories(const vecgeom::Navigation
                                                        G4NavigationHistory &preG4NavigationHistory,
                                                        G4NavigationHistory &postG4NavigationHistory) const
 {
+  // VecGeom represents the zero-based navigation level as an unsigned char. With the world at
+  // level zero, a valid navigation state therefore contains at most 256 path entries.
   constexpr std::size_t kMaxPathSize = 256;
   std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> preMappedPath;
   std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> postMappedPath;
