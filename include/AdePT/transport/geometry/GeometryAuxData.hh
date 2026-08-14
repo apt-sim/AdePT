@@ -19,11 +19,11 @@ struct VolAuxData {
 #endif
 };
 
-/// @brief Structure holding the arrays of auxiliary volume data on host and device.
+/// @brief Non-owning process-wide view of the auxiliary volume data on host and device.
 struct VolAuxArray {
   int fNumVolumes{0};
-  VolAuxData *fAuxData{nullptr};     ///< array of auxiliary volume data on host
-  VolAuxData *fAuxData_dev{nullptr}; ///< array of auxiliary volume data on device
+  VolAuxData *fAuxData{nullptr};     ///< transport-owned array of auxiliary volume data on host
+  VolAuxData *fAuxData_dev{nullptr}; ///< transport-owned allocation of auxiliary volume data on device
 
   static VolAuxArray &GetInstance()
   {

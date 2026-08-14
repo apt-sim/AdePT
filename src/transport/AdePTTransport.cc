@@ -107,13 +107,15 @@ TransportKernelOptions NormalizeKernelOptions(TransportKernelOptions options)
 } // namespace
 
 AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
-                               std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState, adeptint::VolAuxData *auxData,
+                               std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
+                               std::unique_ptr<adeptint::VolAuxData[]> auxData,
                                const adeptint::WDTHostPacked &wdtPacked, const std::vector<float> &uniformFieldValues)
     : fAdePTSeed{configuration.adeptSeed}, fNThread{ValidateNumThreads(configuration.numThreads)},
       fTrackCapacity{configuration.trackCapacity}, fStepCapacity{configuration.stepCapacity},
       fDebugLevel{configuration.debugLevel}, fCUDAStackLimit{configuration.cudaStackLimit},
       fCUDAHeapLimit{configuration.cudaHeapLimit}, fLastNParticlesOnCPU{configuration.lastNParticlesOnCPU},
-      fMaxWDTIter{configuration.maxWDTIter}, fAdePTG4HepEmState(std::move(adeptG4HepEmState)), fEventStates(fNThread),
+      fMaxWDTIter{configuration.maxWDTIter}, fAdePTG4HepEmState(std::move(adeptG4HepEmState)),
+      fVolAuxData(std::move(auxData)), fEventStates(fNThread),
       fKernelOptions{NormalizeKernelOptions(configuration.kernelOptions)}, fBfieldFile{configuration.bfieldFile},
       fCPUCapacityFactor{configuration.cpuCapacityFactor}, fCPUCopyFraction{configuration.cpuCopyFraction},
       fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor}
@@ -122,7 +124,7 @@ AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
     std::atomic_init(&eventState, EventState::DeviceFlushed);
   }
 
-  Initialize(auxData, wdtPacked, uniformFieldValues);
+  Initialize(fVolAuxData.get(), wdtPacked, uniformFieldValues);
 }
 
 AdePTTransport::~AdePTTransport()

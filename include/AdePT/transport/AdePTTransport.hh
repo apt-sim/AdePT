@@ -46,12 +46,13 @@ private:
   std::unique_ptr<GPUstate, GPUstateDeleter> fGPUstate{nullptr}; ///< CUDA state placeholder
   std::unique_ptr<TrackBuffer> fBuffer{nullptr}; ///< Buffers for transferring tracks between host and device
   std::unique_ptr<AdePTG4HepEmState>
-      fAdePTG4HepEmState;               ///< Transport-owned wrapper around `G4HepEmData` and copied `G4HepEmParameters`
-  adeptint::WDTDeviceBuffers fWDTDev{}; ///< device buffers for Woodcock tracking data
-  std::thread fGPUWorker;               ///< Thread to manage GPU
-  std::condition_variable fCV_G4Workers;             ///< Communicate with G4 workers
-  std::mutex fMutex_G4Workers;                       ///< Mutex associated to the condition variable
-  std::vector<std::atomic<EventState>> fEventStates; ///< State machine for each G4 worker
+      fAdePTG4HepEmState; ///< Transport-owned wrapper around `G4HepEmData` and copied `G4HepEmParameters`
+  std::unique_ptr<adeptint::VolAuxData[]> fVolAuxData; ///< Transport-owned auxiliary volume data on the host
+  adeptint::WDTDeviceBuffers fWDTDev{};                ///< device buffers for Woodcock tracking data
+  std::thread fGPUWorker;                              ///< Thread to manage GPU
+  std::condition_variable fCV_G4Workers;               ///< Communicate with G4 workers
+  std::mutex fMutex_G4Workers;                         ///< Mutex associated to the condition variable
+  std::vector<std::atomic<EventState>> fEventStates;   ///< State machine for each G4 worker
   bool fHasWDTRegions = false;
   TransportKernelOptions fKernelOptions{}; // Runtime options copied into transport kernels.
   std::string fBfieldFile{""};             ///< Path to magnetic field file (in the covfie format)
@@ -70,7 +71,7 @@ private:
 
 public:
   AdePTTransport(const AdePTTransportConfig &configuration, std::unique_ptr<AdePTG4HepEmState> adeptG4HepEmState,
-                 adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+                 std::unique_ptr<adeptint::VolAuxData[]> auxData, const adeptint::WDTHostPacked &wdtPacked,
                  const std::vector<float> &uniformFieldValues);
   AdePTTransport(const AdePTTransport &other) = delete;
   ~AdePTTransport();

@@ -102,7 +102,7 @@ bool MatchesG4HistoryLevel(vecgeom::VPlacedVolume const *vecgeomDaughter, G4VPhy
 
 std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
     const AdePTTransportConfig &transportConfig, std::unique_ptr<adept::transport::AdePTG4HepEmState> adeptG4HepEmState,
-    adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
+    std::unique_ptr<adeptint::VolAuxData[]> auxData, const adeptint::WDTHostPacked &wdtPacked,
     const std::vector<float> &uniformFieldValues)
 {
   auto &transport = SharedAdePTTransportStorage();
@@ -115,8 +115,8 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport(
   // Create the shared AdePT transport engine on the first worker thread. At
   // this point all required host-side inputs have already been prepared, so the
   // transport constructor can perform the one-time device initialization.
-  auto created = std::make_shared<AdePTTransport>(transportConfig, std::move(adeptG4HepEmState), auxData, wdtPacked,
-                                                  uniformFieldValues);
+  auto created = std::make_shared<AdePTTransport>(transportConfig, std::move(adeptG4HepEmState), std::move(auxData),
+                                                  wdtPacked, uniformFieldValues);
   transport    = created;
   return created;
 }
@@ -185,11 +185,12 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   AdePTGeometryBridge::CheckGeometry(adeptG4HepEmState->GetData());
 
   // Initialize auxiliary per-LV data and collect the raw WDT metadata on the Geant4 side.
-  auto *auxData = new adeptint::VolAuxData[vecgeom::GeoManager::Instance().GetRegisteredVolumesCount()];
+  auto auxData = std::make_unique<adeptint::VolAuxData[]>(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   adeptint::WDTHostRaw wdtRaw;
-  AdePTGeometryBridge::InitVolAuxData(
-      auxData, adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(), fAdePTConfiguration->GetTrackInAllRegions(),
-      fAdePTConfiguration->GetGPURegionNames(), fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
+  AdePTGeometryBridge::InitVolAuxData(auxData.get(), adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
+                                      fAdePTConfiguration->GetTrackInAllRegions(),
+                                      fAdePTConfiguration->GetGPURegionNames(),
+                                      fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
   // The GPU worker receives the return-step kernel options by value. Freeze the
   // corresponding UI settings before taking that snapshot so later UI
@@ -200,8 +201,8 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   // Move the fully prepared host-side package into the shared transport. The
   // first worker creates the transport here; later workers only retrieve the
   // already-created shared instance.
-  fAdeptTransport =
-      GetSharedAdePTTransport(transportConfig, std::move(adeptG4HepEmState), auxData, wdtPacked, uniformFieldValues);
+  fAdeptTransport = GetSharedAdePTTransport(transportConfig, std::move(adeptG4HepEmState), std::move(auxData),
+                                            wdtPacked, uniformFieldValues);
 }
 
 void AdePTTrackingManager::InitializeAdePT()

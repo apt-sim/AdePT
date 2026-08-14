@@ -1512,9 +1512,13 @@ void FreeGPU(std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUst
   gpuState->runTransport = false;
   gpuWorker.join();
 
-  adeptint::VolAuxData *volAux = nullptr;
-  ADEPT_DEVICE_API_CALL(MemcpyFromSymbol(&volAux, adept::transport::gVolAuxData, sizeof(adeptint::VolAuxData *)));
-  ADEPT_DEVICE_API_CALL(Free(volAux));
+  auto &volAuxArray                = adeptint::VolAuxArray::GetInstance();
+  adeptint::VolAuxData *nullVolAux = nullptr;
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(adept::transport::gVolAuxData, &nullVolAux, sizeof(adeptint::VolAuxData *)));
+  if (volAuxArray.fAuxData_dev) ADEPT_DEVICE_API_CALL(Free(volAuxArray.fAuxData_dev));
+  volAuxArray.fNumVolumes  = 0;
+  volAuxArray.fAuxData     = nullptr;
+  volAuxArray.fAuxData_dev = nullptr;
 
   // Free WDT device buffers and clear its constant view
   FreeWDTOnDevice(wdtDev);
