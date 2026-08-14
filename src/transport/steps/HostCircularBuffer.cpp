@@ -51,15 +51,20 @@ void HostCircularBuffer::RemoveSegment(std::size_t segmentBegin)
   auto it = std::find_if(fSegments.begin(), fSegments.end(),
                          [segmentBegin](const Segment &seg) { return seg.begin == segmentBegin; });
 
+  if (it == fSegments.end()) {
 #ifdef DEBUG
-  if (it == fSegments.end())
     std::cout << BOLD_RED << " Trying to remove segment that doesn't exist !! segment : " << segmentBegin << RESET
               << std::endl;
-  if (!checkForOverlaps()) std::cout << BOLD_RED << " Overlaps after removesegment! " << RESET << std::endl;
 #endif
+    return;
+  }
 
   // delete it from the list
   fSegments.erase(it);
+
+#ifdef DEBUG
+  if (!checkForOverlaps()) std::cout << BOLD_RED << " Overlaps after removesegment! " << RESET << std::endl;
+#endif
 }
 
 std::size_t HostCircularBuffer::GetFreeContiguousSlots(std::size_t transferSize)
@@ -92,7 +97,8 @@ std::size_t HostCircularBuffer::GetFreeContiguousSlots(std::size_t transferSize)
   // Free space for a wraparound
   std::size_t wrapAroundSpace = (fSegments.front().begin > 0) ? fSegments.front().begin : 0;
 
-  fFreeContiguousSpace = forwardSpace + wrapAroundSpace - transferSize;
+  const std::size_t totalFreeSpace = forwardSpace + wrapAroundSpace;
+  fFreeContiguousSpace             = totalFreeSpace >= transferSize ? totalFreeSpace - transferSize : 0;
 
   if (forwardSpace >= transferSize) {
     return forwardSpace; // Enough space in the current region

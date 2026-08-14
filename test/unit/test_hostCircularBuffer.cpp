@@ -54,6 +54,19 @@ static int test_segment_add_remove_and_full_buffer()
   return 0;
 }
 
+static int test_removing_missing_segment_is_a_noop()
+{
+  adept::transport::HostCircularBuffer buffer(10);
+
+  CHECK(buffer.AddSegment(0, 4));
+  buffer.RemoveSegment(7);
+
+  CHECK(buffer.GetFreeContiguousSlots(6) == 6);
+  CHECK(buffer.GetWriteOffset() == 4);
+
+  return 0;
+}
+
 static int test_fill_fraction_preserves_existing_pending_transfer_semantics()
 {
   adept::transport::HostCircularBuffer buffer(10);
@@ -65,6 +78,17 @@ static int test_fill_fraction_preserves_existing_pending_transfer_semantics()
   // contiguous-space bookkeeping after a transfer-size query. It is not simply occupiedSlots / capacity.
   CHECK(buffer.GetFreeContiguousSlots(3) == 6);
   CHECK(near(buffer.GetFillFractionAfterLastRequest(), 0.7));
+
+  return 0;
+}
+
+static int test_failed_request_does_not_underflow_free_space()
+{
+  adept::transport::HostCircularBuffer buffer(10);
+
+  CHECK(buffer.AddSegment(0, 8));
+  CHECK(buffer.GetFreeContiguousSlots(3) == 0);
+  CHECK(near(buffer.GetFillFractionAfterLastRequest(), 1.0));
 
   return 0;
 }
@@ -226,7 +250,9 @@ int main()
 {
   if (int result = test_empty_buffer_allows_exact_fit()) return result;
   if (int result = test_segment_add_remove_and_full_buffer()) return result;
+  if (int result = test_removing_missing_segment_is_a_noop()) return result;
   if (int result = test_fill_fraction_preserves_existing_pending_transfer_semantics()) return result;
+  if (int result = test_failed_request_does_not_underflow_free_space()) return result;
   if (int result = test_wraparound_after_front_segment_is_removed()) return result;
   if (int result = test_tail_space_is_reused_after_tail_segment_is_removed()) return result;
   if (int result = test_middle_hole_is_not_reused_from_end_write_position()) return result;
