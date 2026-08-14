@@ -34,6 +34,18 @@ function(build_gtest_tests LINK_TARGET)
   endforeach()
 endfunction()
 
+function(build_header_only_gtest_tests)
+  foreach(TEST IN LISTS ARGN)
+    get_filename_component(TARGET_NAME ${TEST} NAME_WE)
+    add_executable(${TARGET_NAME} ${TEST})
+    target_include_directories(${TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_link_libraries(${TARGET_NAME} PRIVATE GTest::gtest_main)
+    gtest_discover_tests(${TARGET_NAME}
+      DISCOVERY_MODE PRE_TEST
+      PROPERTIES LABELS "unit")
+  endforeach()
+endfunction()
+
 function(add_to_test)
   foreach(TEST IN LISTS ARGN)
     get_filename_component(TARGET_NAME ${TEST} NAME_WE)
@@ -52,10 +64,15 @@ configure_file(${PROJECT_SOURCE_DIR}/examples/data/cms2018_sd.gdml ${PROJECT_BIN
 #----------------------------------------------------------------------------#
 set(ADEPT_HEADER_ONLY_UNIT_TESTS
   test_header_only_include.cpp  # Include smoke test for header-only AdePT utilities
-  test_atomic.cu               # Unit test for atomic ops
   test_ranluxpp.cu             # Unit test for RANLUX++
-  test_queue.cu                # Unit test for mpmc_bounded_queue
-  test_track_block.cu          # Unit test for BlockData
+)
+
+set(ADEPT_HEADER_ONLY_GTESTS
+  test_atomic.cu               # Unit tests for host/device atomic operations
+  test_mparray.cu              # Unit tests for the multi-producer array
+  test_queue.cu                # Unit tests for mpmc_bounded_queue
+  test_slot_manager.cu         # Unit tests for SlotManager ownership and device behavior
+  test_track_block.cu          # Unit tests for BlockData
 )
 
 set(ADEPT_TRANSPORT_UNIT_TESTS
@@ -100,6 +117,7 @@ endif()
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 
 build_header_only_tests(${ADEPT_HEADER_ONLY_UNIT_TESTS})
+build_header_only_gtest_tests(${ADEPT_HEADER_ONLY_GTESTS})
 build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS} ${ADEPT_TRANSPORT_UTILITIES})
 build_gtest_tests(AdePT::Transport ${ADEPT_TRANSPORT_GTESTS})
 build_gtest_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_GTESTS})
@@ -131,10 +149,7 @@ add_to_test(${ADEPT_UNIT_TESTS})
 
 set(ADEPT_UNIT_TEST_NAMES
   test_header_only_include
-  test_atomic
   test_ranluxpp
-  test_queue
-  test_track_block
   test_hostCircularBuffer
 )
 if(ADEPT_USE_EXT_BFIELD)

@@ -156,7 +156,8 @@ public:
   __forceinline__ __host__ __device__ VariableSizeObj(size_t new_size, const VariableSizeObj &other)
       : fSelfAlloc(false), fN(new_size)
   {
-    if (other.fN) memcpy(GetValues(), other.GetValues(), (other.fN) * sizeof(V));
+    const Index_t numToCopy = fN < other.fN ? fN : other.fN;
+    if (numToCopy) memcpy(GetValues(), other.GetValues(), numToCopy * sizeof(V));
   }
 
   __forceinline__ __host__ __device__ V *GetValues() { return &fRealArray[0]; }
@@ -280,14 +281,16 @@ public:
   __host__ __device__ static void ReleaseInstance(Cont *obj)
   {
     // Releases the space allocated for the object
+    const bool selfAlloc = obj->GetVariableData().fSelfAlloc;
     obj->~Cont();
-    if (obj->GetVariableData().fSelfAlloc) delete[] (char *)obj;
+    if (selfAlloc) delete[] (char *)obj;
   }
 
   // Equivalent of sizeof function (not taking into account padding for alignment)
   __host__ __device__ static constexpr size_t SizeOf(size_t nvalues)
   {
-    return (sizeof(Cont) + Cont::SizeOfExtra(nvalues) + sizeof(V) * (nvalues - 1));
+    const size_t additionalValues = nvalues > 0 ? nvalues - 1 : 0;
+    return sizeof(Cont) + Cont::SizeOfExtra(nvalues) + sizeof(V) * additionalValues;
   }
 
   // Size of the allocated derived type data members that are also variable size

@@ -125,10 +125,10 @@ public:
   }
 
   /** @brief Number of elements currently distributed */
-  __host__ __device__ __forceinline__ int GetNused() { return fNused.load(); }
+  __host__ __device__ __forceinline__ int GetNused() const { return fNused.load(); }
 
   /** @brief Number of holes in the block */
-  __host__ __device__ __forceinline__ int GetNholes() { return fHoles->size(); }
+  __host__ __device__ __forceinline__ int GetNholes() const { return fHoles->size(); }
 
   /** @brief Check if container is fully distributed */
   __host__ __device__ __forceinline__ bool IsFull() const { return (GetNused() == fCapacity); }

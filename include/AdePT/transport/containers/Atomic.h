@@ -40,7 +40,11 @@ struct AtomicBase_t {
   __host__ __device__ AtomicBase_t(AtomicBase_t const &other) { store(other.load()); }
 
   /** @brief Assignment */
-  __host__ __device__ AtomicBase_t &operator=(AtomicBase_t const &other) { store(other.load()); }
+  __host__ __device__ AtomicBase_t &operator=(AtomicBase_t const &other)
+  {
+    store(other.load());
+    return *this;
+  }
 
   /** @brief Emplace the data at a given address */
   __host__ __device__ static AtomicBase_t *MakeInstanceAt(void *addr)

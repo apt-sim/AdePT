@@ -4,6 +4,13 @@
 
 #include "AdePT/transport/support/Global.h"
 
+#include <cassert>
+#include <cstddef>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <utility>
+
 // A data structure to manage slots in the track storage.
 // It manages two lists:
 // - A list of free slots, which can be requested using NextSlot()
@@ -51,19 +58,26 @@ public:
 
   SlotManager(const SlotManager &)            = delete;
   SlotManager &operator=(const SlotManager &) = delete;
-  SlotManager(SlotManager &&other) : SlotManager{0, 0} { *this = std::move(other); }
-  SlotManager &operator=(SlotManager &&other)
+  __host__ SlotManager(SlotManager &&other) noexcept
+      : fSlotListSize{std::exchange(other.fSlotListSize, 0)}, fFreeListSize{std::exchange(other.fFreeListSize, 0)},
+        fSlotList{std::exchange(other.fSlotList, nullptr)}, fToFreeList{std::exchange(other.fToFreeList, nullptr)},
+        fSlotCounter{std::exchange(other.fSlotCounter, 0)}, fFreeCounter{std::exchange(other.fFreeCounter, 0)}
   {
-    fSlotListSize = other.fSlotListSize;
-    fFreeListSize = other.fFreeListSize;
-    fSlotList     = other.fSlotList;
-    fToFreeList   = other.fToFreeList;
-    fSlotCounter  = other.fSlotCounter;
-    fFreeCounter  = other.fFreeCounter;
+  }
 
-    // Only one slot manager can own the device memory
-    other.fSlotList = nullptr;
+  __host__ SlotManager &operator=(SlotManager &&other) noexcept
+  {
+    if (this == &other) return *this;
 
+    // Keep the currently owned allocation in a temporary so that it is
+    // released after ownership has been transferred from other.
+    SlotManager previouslyOwned{std::move(*this)};
+    fSlotListSize = std::exchange(other.fSlotListSize, 0);
+    fFreeListSize = std::exchange(other.fFreeListSize, 0);
+    fSlotList     = std::exchange(other.fSlotList, nullptr);
+    fToFreeList   = std::exchange(other.fToFreeList, nullptr);
+    fSlotCounter  = std::exchange(other.fSlotCounter, 0);
+    fFreeCounter  = std::exchange(other.fFreeCounter, 0);
     return *this;
   }
 
@@ -74,7 +88,7 @@ public:
   __device__ void MarkSlotForFreeing(unsigned int toBeFreed);
 
   __device__ value_type OccupiedSlots() const { return fSlotCounter - fFreeCounter; }
-  __device__ float FillLevel() const { return float(fSlotCounter) / fSlotListSize; }
+  __device__ float FillLevel() const { return fSlotListSize == 0 ? 0.0f : float(fSlotCounter) / fSlotListSize; }
 
   __device__ void FreeMarkedSlotsStage1();
   __device__ void FreeMarkedSlotsStage2();

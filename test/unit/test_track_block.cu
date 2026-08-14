@@ -3,164 +3,170 @@
 
 /**
  * @file test_track_block.cu
- * @brief Unit test for the BlockData concurrent container.
+ * @brief Unit tests for the BlockData concurrent container.
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */
 
-#include <iostream>
-#include <cassert>
 #include <AdePT/transport/containers/BlockData.h>
-
 #include <AdePT/transport/support/Portability.hh>
 
-struct MyTrack {
+#include <gtest/gtest.h>
+
+#include <memory>
+#include <stdexcept>
+
+namespace {
+
+struct TestTrack {
   int index{0};
-  double pos[3]{0};
-  double dir[3]{0};
-  bool flag1;
-  bool flag2;
+  double position[3]{0};
+  double direction[3]{0};
+  bool flag1{false};
+  bool flag2{false};
 };
 
-// Kernel function to process the next free track in a block
-__global__ void testTrackBlock(adept::BlockData<MyTrack> *block)
-{
-  auto track = block->NextElement();
-  if (!track) return;
-  int id       = blockIdx.x * blockDim.x + threadIdx.x;
-  track->index = id;
-}
+using Block = adept::BlockData<TestTrack>;
 
-// Kernel function to process the next free track in a block
-__global__ void releaseTrack(adept::BlockData<MyTrack> *block)
-{
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
-  block->ReleaseElement(id);
-}
+struct BlockDeleter {
+  void operator()(Block *block) const { Block::ReleaseInstance(block); }
+};
 
-///______________________________________________________________________________________
-int main(void)
-{
-  using Block_t         = adept::BlockData<MyTrack>;
-  const char *result[2] = {"FAILED", "OK"};
-  // Track capacity of the block
-  constexpr int capacity = 1 << 20;
+using BlockPtr = std::unique_ptr<Block, BlockDeleter>;
 
-  // Define the kernels granularity: 10K blocks of 32 treads each
-  constexpr dim3 nblocks(10000), nthreads(32);
-
-  // Allocate a block of tracks with capacity larger than the total number of spawned threads
-  // Note that if we want to allocate several consecutive block in a buffer, we have to use
-  // Block_t::SizeOfAlignAware rather than SizeOfInstance to get the space needed per block
-
-  bool testOK  = true;
-  bool success = true;
-
-  // Test simple allocation/de-allocation on host
-  std::cout << "   host allocation MakeInstance ... ";
-  auto h_block = Block_t::MakeInstance(1024);
-  testOK &= h_block != nullptr;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
-
-  // Test using the slots on the block (more than existing)
-  std::cout << "   host NextElement             ... ";
-  testOK           = true;
-  size_t checksum1 = 0;
-  for (auto i = 0; i < 2048; ++i) {
-    auto track = h_block->NextElement();
-    if (i >= 1024) testOK &= track == nullptr;
-    // Assign current index to the current track
-    if (track) {
-      track->index = i;
-      checksum1 += i;
+class ManagedBlock {
+public:
+  explicit ManagedBlock(int capacity)
+  {
+    const auto result = ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&fStorage, Block::SizeOfInstance(capacity));
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
+      throw std::runtime_error{ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result)};
     }
+    fBlock = Block::MakeInstanceAt(capacity, fStorage);
   }
-  testOK = h_block->GetNused() == 1024;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
 
-  // Create another block into adopted memory on host
-  testOK          = true;
-  char *buff_host = new char[Block_t::SizeOfInstance(2048)];
-  std::cout << "   host MakeCopyAt              ... ";
-  // Test copying a block into another
-  auto h_block2    = Block_t::MakeCopyAt(*h_block, buff_host);
-  size_t checksum2 = 0;
-  for (auto i = 0; i < 1024; ++i) {
-    auto track = h_block2->NextElement();
-    assert(track);
-    checksum2 += track->index;
+  ~ManagedBlock()
+  {
+    if (fBlock) Block::ReleaseInstance(fBlock);
+    if (fStorage) ADEPT_DEVICE_API_SYMBOL(Free)(fStorage);
   }
-  testOK = checksum1 == checksum2;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
 
-  // Release some elements end validate
-  testOK = true;
-  std::cout << "   host ReleaseElement          ... ";
-  for (auto i = 0; i < 10; ++i)
-    h_block2->ReleaseElement(i);
-  testOK &= h_block2->GetNused() == (1024 - 10);
-  testOK &= h_block2->GetNholes() == 10;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
+  Block *get() const { return fBlock; }
 
-  // Release allocated blocks
-  Block_t::ReleaseInstance(h_block);  // mandatory, frees memory for blocks allocated with MakeInstance
-  Block_t::ReleaseInstance(h_block2); // will not do anything since block adopted memory
-  delete[] buff_host;                 // Only this will actually free the memory
+private:
+  char *fStorage{nullptr};
+  Block *fBlock{nullptr};
+};
 
-  // Create a large block on the device
-  testOK = true;
-  std::cout << "   host MakeInstanceAt          ... ";
-  size_t blocksize = Block_t::SizeOfInstance(capacity);
-  char *buffer     = nullptr;
-  ADEPT_DEVICE_API_CALL(MallocManaged(&buffer, blocksize));
-  auto block = Block_t::MakeInstanceAt(capacity, buffer);
-  testOK &= block != nullptr;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
+__global__ void AcquireTracks(Block *block, unsigned int numAttempts)
+{
+  const unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id >= numAttempts) return;
 
-  std::cout << "   device NextElement           ... ";
-  testOK = true;
-  // Allow memory to reach the device
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  // Launch a kernel processing tracks
-  testTrackBlock<<<nblocks, nthreads>>>(block); ///< note that we are passing a host block type allocated on device
-                                                ///< memory - works because the layout is the same
-  // Allow all warps to finish
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  // The number of used tracks should be equal to the number of spawned threads
-  testOK &= block->GetNused() == nblocks.x * nthreads.x;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
-
-  // Compute the sum of assigned track indices, which has to match the sum from 0 to nthreads-1
-  // (the execution order is arbitrary, but all thread indices must be distributed)
-  unsigned long long counter1 = 0, counter2 = 0;
-  testOK = true;
-  std::cout << "   device concurrency checksum  ... ";
-  for (auto i = 0; i < nblocks.x * nthreads.x; ++i) {
-    counter1 += i;
-    counter2 += (*block)[i].index;
-  }
-  testOK &= counter1 == counter2;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
-
-  // Now release 32K tracks
-  testOK = true;
-  std::cout << "   device ReleaseElement        ... ";
-  releaseTrack<<<1000, 32>>>(block);
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  testOK &= block->GetNused() == nblocks.x * nthreads.x - 32000;
-  testOK &= block->GetNholes() == 32000;
-  // Now allocate in the holes
-  testTrackBlock<<<10, 32>>>(block);
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  testOK &= block->GetNholes() == (32000 - 320);
-  std::cout << result[testOK] << "\n";
-  ADEPT_DEVICE_API_CALL(Free(buffer));
-  if (!success) return 1;
-  return 0;
+  auto *track = block->NextElement();
+  if (track) track->index = static_cast<int>(id);
 }
+
+__global__ void ReleaseTracks(Block *block, unsigned int numToRelease)
+{
+  const unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < numToRelease) block->ReleaseElement(static_cast<int>(id));
+}
+
+TEST(BlockDataTest, AllocatesUpToCapacityAndReusesReleasedElementsOnHost)
+{
+  constexpr int capacity = 1024;
+  BlockPtr block{Block::MakeInstance(capacity)};
+  ASSERT_NE(nullptr, block);
+  EXPECT_EQ(capacity, block->Capacity());
+  EXPECT_EQ(0, block->GetNused());
+  EXPECT_EQ(0, block->GetNholes());
+
+  for (int index = 0; index < capacity; ++index) {
+    auto *track = block->NextElement();
+    ASSERT_NE(nullptr, track);
+    track->index = index;
+  }
+
+  EXPECT_TRUE(block->IsFull());
+  EXPECT_EQ(nullptr, block->NextElement());
+  EXPECT_EQ(capacity, block->GetNused());
+
+  for (int index = 0; index < 16; ++index)
+    block->ReleaseElement(index);
+
+  EXPECT_EQ(capacity - 16, block->GetNused());
+  EXPECT_EQ(16, block->GetNholes());
+
+  for (int index = 0; index < 16; ++index) {
+    auto *track = block->NextElement();
+    ASSERT_NE(nullptr, track);
+    track->index = capacity + index;
+  }
+
+  EXPECT_TRUE(block->IsFull());
+  EXPECT_EQ(0, block->GetNholes());
+}
+
+TEST(BlockDataTest, CopyPreservesStoredValuesAndStartsUndistributed)
+{
+  constexpr int capacity = 1024;
+  BlockPtr source{Block::MakeInstance(capacity)};
+  ASSERT_NE(nullptr, source);
+
+  unsigned long long expectedChecksum = 0;
+  for (int index = 0; index < capacity; ++index) {
+    auto *track = source->NextElement();
+    ASSERT_NE(nullptr, track);
+    track->index = index;
+    expectedChecksum += index;
+  }
+
+  auto storage = std::make_unique<char[]>(Block::SizeOfInstance(capacity));
+  Block *copy  = Block::MakeCopyAt(*source, storage.get());
+  ASSERT_NE(nullptr, copy);
+  EXPECT_EQ(0, copy->GetNused());
+  EXPECT_EQ(0, copy->GetNholes());
+
+  unsigned long long actualChecksum = 0;
+  for (int index = 0; index < capacity; ++index) {
+    auto *track = copy->NextElement();
+    ASSERT_NE(nullptr, track);
+    actualChecksum += track->index;
+  }
+
+  EXPECT_EQ(expectedChecksum, actualChecksum);
+  Block::ReleaseInstance(copy);
+}
+
+TEST(BlockDataTest, ConcurrentDeviceAllocationReleaseAndReuse)
+{
+  constexpr unsigned int capacity       = 1u << 16;
+  constexpr unsigned int initialTracks  = 1u << 14;
+  constexpr unsigned int releasedTracks = 1u << 11;
+  constexpr unsigned int refillTracks   = 1u << 10;
+  constexpr dim3 threads{128};
+
+  ManagedBlock block{capacity};
+
+  AcquireTracks<<<initialTracks / threads.x, threads>>>(block.get(), initialTracks);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)());
+  ASSERT_EQ(initialTracks, static_cast<unsigned int>(block.get()->GetNused()));
+
+  unsigned long long actualChecksum = 0;
+  for (unsigned int index = 0; index < initialTracks; ++index)
+    actualChecksum += (*block.get())[index].index;
+  const auto expectedChecksum = static_cast<unsigned long long>(initialTracks) * (initialTracks - 1) / 2;
+  EXPECT_EQ(expectedChecksum, actualChecksum);
+
+  ReleaseTracks<<<releasedTracks / threads.x, threads>>>(block.get(), releasedTracks);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)());
+  EXPECT_EQ(initialTracks - releasedTracks, static_cast<unsigned int>(block.get()->GetNused()));
+  EXPECT_EQ(releasedTracks, static_cast<unsigned int>(block.get()->GetNholes()));
+
+  AcquireTracks<<<refillTracks / threads.x, threads>>>(block.get(), refillTracks);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)());
+  EXPECT_EQ(initialTracks - releasedTracks + refillTracks, static_cast<unsigned int>(block.get()->GetNused()));
+  EXPECT_EQ(releasedTracks - refillTracks, static_cast<unsigned int>(block.get()->GetNholes()));
+}
+
+} // namespace

@@ -3,80 +3,156 @@
 
 /**
  * @file test_queue.cu
- * @brief Unit test for queue operations.
+ * @brief Unit tests for the CUDA-aware bounded multi-producer/multi-consumer queue.
  * @author Andrei Gheata (andrei.gheata@cern.ch)
  */
 
-#include <iostream>
-#include <cassert>
 #include <AdePT/transport/containers/mpmc_bounded_queue.h>
-
 #include <AdePT/transport/support/Portability.hh>
 
-// Kernel function to perform atomic addition
-__global__ void pushData(adept::mpmc_bounded_queue<int> *queue)
+#include <gtest/gtest.h>
+
+#include <memory>
+#include <stdexcept>
+
+namespace {
+
+using Queue = adept::mpmc_bounded_queue<int>;
+
+struct QueueDeleter {
+  void operator()(Queue *queue) const { Queue::ReleaseInstance(queue); }
+};
+
+using QueuePtr = std::unique_ptr<Queue, QueueDeleter>;
+
+class ManagedQueue {
+public:
+  explicit ManagedQueue(int capacity)
+  {
+    const auto result = ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&fStorage, Queue::SizeOfInstance(capacity));
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
+      throw std::runtime_error{ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result)};
+    }
+    fQueue = Queue::MakeInstanceAt(capacity, fStorage);
+  }
+
+  ~ManagedQueue()
+  {
+    if (fQueue) Queue::ReleaseInstance(fQueue);
+    if (fStorage) ADEPT_DEVICE_API_SYMBOL(Free)(fStorage);
+  }
+
+  Queue *get() const { return fQueue; }
+
+private:
+  char *fStorage{nullptr};
+  Queue *fQueue{nullptr};
+};
+
+__global__ void PushValues(Queue *queue, unsigned int numValues, unsigned int *failures)
 {
-  // Push the thread index in the queue
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
-  queue->enqueue(id);
+  const unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < numValues && !queue->enqueue(static_cast<int>(id))) atomicAdd(failures, 1u);
 }
 
-// Kernel function to dequeue a value and add it atomically
-__global__ void popAndAdd(adept::mpmc_bounded_queue<int> *queue, adept::Atomic_t<unsigned long long> *sum)
+__global__ void PopAndSum(Queue *queue, unsigned int numValues, unsigned long long *sum, unsigned int *failures)
 {
-  // Push the thread index in the queue
-  int id = 0;
-  if (!queue->dequeue(id)) id = 0;
-  sum->fetch_add(id);
+  const unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id >= numValues) return;
+
+  int value = 0;
+  if (queue->dequeue(value)) {
+    atomicAdd(sum, static_cast<unsigned long long>(value));
+  } else {
+    atomicAdd(failures, 1u);
+  }
 }
 
-///______________________________________________________________________________________
-int main(void)
+TEST(BoundedQueueTest, ReportsFullAndEmptyOnHost)
 {
-  using Queue_t      = adept::mpmc_bounded_queue<int>;
-  using AtomicLong_t = adept::Atomic_t<unsigned long long>;
+  QueuePtr queue{Queue::MakeInstance(8)};
+  ASSERT_NE(nullptr, queue);
+  EXPECT_EQ(0, queue->size());
 
-  const char *result[2] = {"FAILED", "OK"};
-  bool success          = true;
-  // Define the kernels granularity: 10K blocks of 32 treads each
-  dim3 nblocks(1000), nthreads(32);
+  for (int value = 0; value < 8; ++value) {
+    EXPECT_TRUE(queue->enqueue(value));
+  }
+  EXPECT_EQ(8, queue->size());
+  EXPECT_FALSE(queue->enqueue(8));
 
-  int capacity      = 1 << 15; // 32768 - accommodates values pushed by all threads
-  size_t buffersize = Queue_t::SizeOfInstance(capacity);
-  char *buffer      = nullptr;
-  ADEPT_DEVICE_API_CALL(MallocManaged(&buffer, buffersize));
-  auto queue = Queue_t::MakeInstanceAt(capacity, buffer);
+  for (int expected = 0; expected < 8; ++expected) {
+    int value = -1;
+    ASSERT_TRUE(queue->dequeue(value));
+    EXPECT_EQ(expected, value);
+  }
 
-  char *buffer_atomic = nullptr;
-  ADEPT_DEVICE_API_CALL(MallocManaged(&buffer_atomic, sizeof(AtomicLong_t)));
-  auto sum = new (buffer_atomic) AtomicLong_t;
-
-  bool testOK = true;
-  std::cout << "   test_queue ... ";
-  // Allow memory to reach the device
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  // Launch a kernel queueing thread id's
-  pushData<<<nblocks, nthreads>>>(queue);
-  // Allow all warps in the stream to finish
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  // Make sure all threads managed to queue their id
-  testOK &= queue->size() == nblocks.x * nthreads.x;
-  // Launch a kernel top collect queued data
-  popAndAdd<<<nblocks, nthreads>>>(queue, sum);
-  // Wait work to finish and memory to reach the host
-  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
-  // Check if all data was dequeued
-  testOK &= queue->size() == 0;
-  // Check if the sum of all dequeued id's matches the sum of thread indices
-  unsigned long long sumref = 0;
-  for (auto i = 0; i < nblocks.x * nthreads.x; ++i)
-    sumref += i;
-  testOK &= sum->load() == sumref;
-  std::cout << result[testOK] << "\n";
-  success &= testOK;
-
-  ADEPT_DEVICE_API_CALL(Free(buffer));
-  ADEPT_DEVICE_API_CALL(Free(buffer_atomic));
-  if (!success) return 1;
-  return 0;
+  int value = -1;
+  EXPECT_FALSE(queue->dequeue(value));
+  EXPECT_EQ(0, queue->size());
 }
+
+TEST(BoundedQueueTest, PreservesOrderAcrossWraparoundAndClear)
+{
+  QueuePtr queue{Queue::MakeInstance(8)};
+  ASSERT_NE(nullptr, queue);
+
+  for (int value = 0; value < 8; ++value)
+    ASSERT_TRUE(queue->enqueue(value));
+
+  for (int expected = 0; expected < 4; ++expected) {
+    int value = -1;
+    ASSERT_TRUE(queue->dequeue(value));
+    EXPECT_EQ(expected, value);
+  }
+
+  for (int value = 8; value < 12; ++value)
+    ASSERT_TRUE(queue->enqueue(value));
+
+  for (int expected = 4; expected < 12; ++expected) {
+    int value = -1;
+    ASSERT_TRUE(queue->dequeue(value));
+    EXPECT_EQ(expected, value);
+  }
+
+  ASSERT_TRUE(queue->enqueue(42));
+  queue->clear();
+  EXPECT_EQ(0, queue->size());
+  int value = -1;
+  EXPECT_FALSE(queue->dequeue(value));
+  EXPECT_TRUE(queue->enqueue(73));
+  ASSERT_TRUE(queue->dequeue(value));
+  EXPECT_EQ(73, value);
+}
+
+TEST(BoundedQueueTest, ConcurrentDeviceProducersAndConsumers)
+{
+  constexpr unsigned int numValues = 1u << 14;
+  constexpr dim3 threads{128};
+  constexpr dim3 blocks{numValues / threads.x};
+
+  ManagedQueue queue{numValues};
+  unsigned int *failures  = nullptr;
+  unsigned long long *sum = nullptr;
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&failures, sizeof(*failures)));
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&sum, sizeof(*sum)));
+  *failures = 0;
+  *sum      = 0;
+
+  PushValues<<<blocks, threads>>>(queue.get(), numValues, failures);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)());
+  EXPECT_EQ(0u, *failures);
+  EXPECT_EQ(numValues, static_cast<unsigned int>(queue.get()->size()));
+
+  PopAndSum<<<blocks, threads>>>(queue.get(), numValues, sum, failures);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)());
+
+  const auto expectedSum = static_cast<unsigned long long>(numValues) * (numValues - 1) / 2;
+  EXPECT_EQ(0u, *failures);
+  EXPECT_EQ(expectedSum, *sum);
+  EXPECT_EQ(0, queue.get()->size());
+
+  EXPECT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(Free)(sum));
+  EXPECT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(Free)(failures));
+}
+
+} // namespace

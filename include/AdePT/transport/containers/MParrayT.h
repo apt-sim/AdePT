@@ -70,6 +70,9 @@ public:
   /** @brief Maximum number of elements */
   __host__ __device__ __forceinline__ size_t size() const { return fNused.load(); }
 
+  /** @brief Whether the array contains no elements */
+  __host__ __device__ __forceinline__ bool empty() const { return size() == 0; }
+
   /** @brief Maximum number of elements */
   __host__ __device__ __forceinline__ constexpr size_t max_size() const { return fCapacity; }
 
@@ -101,9 +104,20 @@ public:
 
   __host__ __device__ __forceinline__ const_iterator end() const { return const_iterator(&fData[fNused.load()]); }
 
-  __host__ __device__ __forceinline__ const_reference front() const { return *begin(); }
+  /** @brief Access the first element */
+  __host__ __device__ __forceinline__ const_reference front() const
+  {
+    if (empty()) COPCORE_EXCEPTION("MParrayT::front called on an empty array");
+    return *begin();
+  }
 
-  __host__ __device__ __forceinline__ const_reference back() const { return fCapacity ? *(end() - 1) : *end(); }
+  /** @brief Access the last element */
+  __host__ __device__ __forceinline__ const_reference back() const
+  {
+    const size_t numUsed = size();
+    if (numUsed == 0) COPCORE_EXCEPTION("MParrayT::back called on an empty array");
+    return fData[numUsed - 1];
+  }
 
   __host__ __device__ __forceinline__ const_pointer data() const { return &fData[0]; }
 
