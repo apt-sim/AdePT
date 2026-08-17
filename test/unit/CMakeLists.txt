@@ -73,6 +73,7 @@ set(ADEPT_HEADER_ONLY_GTESTS
   test_queue.cu                # Unit tests for mpmc_bounded_queue
   test_slot_manager.cu         # Unit tests for SlotManager ownership and device behavior
   test_track_block.cu          # Unit tests for BlockData
+  test_variable_size_obj_allocator.cu # Unit tests for CPU/CUDA variable-size allocators
 )
 
 set(ADEPT_TRANSPORT_UNIT_TESTS
@@ -121,6 +122,7 @@ build_header_only_gtest_tests(${ADEPT_HEADER_ONLY_GTESTS})
 # Exercise container factory validation with debug assertions disabled in every build type.
 target_compile_definitions(test_queue PRIVATE NDEBUG)
 target_compile_definitions(test_track_block PRIVATE NDEBUG)
+target_compile_definitions(test_variable_size_obj_allocator PRIVATE NDEBUG)
 build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS} ${ADEPT_TRANSPORT_UTILITIES})
 build_gtest_tests(AdePT::Transport ${ADEPT_TRANSPORT_GTESTS})
 build_gtest_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_GTESTS})

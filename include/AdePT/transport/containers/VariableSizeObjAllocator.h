@@ -13,8 +13,9 @@
  */
 
 #include <cstddef>
-#include <stdexcept>
 #include <iostream>
+#include <new>
+#include <stdexcept>
 
 #include <AdePT/transport/support/Global.h>
 
@@ -53,13 +54,28 @@ public:
 
     value_type *result   = nullptr;
     std::size_t obj_size = T::SizeOfAlignAware(fCapacity);
-    ADEPT_DEVICE_API_CALL(MallocManaged(&result, n * obj_size));
-    char *buff = (char *)result;
+    std::size_t numConstructed{0};
 
-    // allocate all objects at their aligned positions in the buffer
-    for (auto i = 0; i < n; ++i) {
-      T::MakeInstanceAt(fCapacity, buff, params...);
-      buff += obj_size;
+    try {
+      ADEPT_DEVICE_API_CALL(MallocManaged(&result, n * obj_size));
+      char *buff = (char *)result;
+
+      // Allocate all objects at their aligned positions in the buffer.
+      for (; numConstructed < n; ++numConstructed) {
+        if (!T::MakeInstanceAt(fCapacity, buff, params...)) {
+          throw std::runtime_error{"VariableSizeObjAllocator: object construction was rejected"};
+        }
+        buff += obj_size;
+      }
+    } catch (...) {
+      while (numConstructed > 0) {
+        --numConstructed;
+        char *object = reinterpret_cast<char *>(result) + numConstructed * obj_size;
+        T::ReleaseInstance(reinterpret_cast<T *>(object));
+      }
+      if (result) (void)ADEPT_DEVICE_API_SYMBOL(Free)(result);
+      (void)ADEPT_DEVICE_API_SYMBOL(SetDevice)(old_device);
+      throw;
     }
 
     SetDevice(old_device);
@@ -129,12 +145,27 @@ public:
     value_type *result   = nullptr;
     std::size_t obj_size = T::SizeOfAlignAware(fCapacity);
     result               = (value_type *)malloc(n * obj_size);
-    char *buff           = (char *)result;
+    if (!result && n > 0) throw std::bad_alloc{};
 
-    // allocate all objects at their aligned positions in the buffer
-    for (std::size_t i = 0; i < n; ++i) {
-      T::MakeInstanceAt(fCapacity, buff, params...);
-      buff += obj_size;
+    std::size_t numConstructed{0};
+    try {
+      char *buff = (char *)result;
+
+      // Allocate all objects at their aligned positions in the buffer.
+      for (; numConstructed < n; ++numConstructed) {
+        if (!T::MakeInstanceAt(fCapacity, buff, params...)) {
+          throw std::runtime_error{"VariableSizeObjAllocator: object construction was rejected"};
+        }
+        buff += obj_size;
+      }
+    } catch (...) {
+      while (numConstructed > 0) {
+        --numConstructed;
+        char *object = reinterpret_cast<char *>(result) + numConstructed * obj_size;
+        T::ReleaseInstance(reinterpret_cast<T *>(object));
+      }
+      free(result);
+      throw;
     }
 
     return result;
