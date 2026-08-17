@@ -91,6 +91,20 @@ TEST(BoundedQueueTest, ReportsFullAndEmptyOnHost)
   EXPECT_EQ(0, queue->size());
 }
 
+TEST(BoundedQueueTest, RejectsInvalidCapacitiesWithAssertionsDisabled)
+{
+  for (const int capacity : {0, 1, 3, 6}) {
+    Queue *allocated = Queue::MakeInstance(capacity);
+    EXPECT_EQ(nullptr, allocated) << "capacity " << capacity;
+    if (allocated) Queue::ReleaseInstance(allocated);
+
+    auto storage  = std::make_unique<char[]>(Queue::SizeOfInstance(capacity));
+    Queue *placed = Queue::MakeInstanceAt(capacity, storage.get());
+    EXPECT_EQ(nullptr, placed) << "capacity " << capacity;
+    if (placed) Queue::ReleaseInstance(placed);
+  }
+}
+
 TEST(BoundedQueueTest, PreservesOrderAcrossWraparoundAndClear)
 {
   QueuePtr queue{Queue::MakeInstance(8)};

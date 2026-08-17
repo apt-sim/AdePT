@@ -192,6 +192,9 @@ protected:
   VariableSizeObjectInterface()  = default;
   ~VariableSizeObjectInterface() = default;
 
+  /** @brief Default size validation hook. Derived containers may hide this to reject unsupported sizes. */
+  __host__ __device__ static constexpr bool IsValidSize(size_t /*nvalues*/) { return true; }
+
 public:
   // The static maker to be used to create an instance of the variable size object.
 
@@ -200,6 +203,7 @@ public:
   {
     // Make an instance of the class which allocates the node array. To be
     // released using ReleaseInstance.
+    if (!Cont::IsValidSize(nvalues)) return nullptr;
     size_t needed = SizeOf(nvalues);
     char *ptr     = new char[needed];
     if (!ptr) return 0;
@@ -215,6 +219,7 @@ public:
     // Make an instance of the class which allocates the node array. To be
     // released using ReleaseInstance. If addr is non-zero, the user promised that
     // addr contains at least that many bytes:  size_t needed = SizeOf(nvalues);
+    if (!Cont::IsValidSize(nvalues)) return nullptr;
     if (!addr) {
       return MakeInstance(nvalues, params...);
     } else {
@@ -230,7 +235,9 @@ public:
   {
     // Make a copy of the variable size array and its container.
 
-    size_t needed = SizeOf(other.GetVariableData().fN);
+    const size_t nvalues = other.GetVariableData().fN;
+    if (!Cont::IsValidSize(nvalues)) return nullptr;
+    size_t needed = SizeOf(nvalues);
     char *ptr     = new char[needed];
     if (!ptr) return 0;
     Cont *copy                         = new (ptr) Cont(other);
@@ -243,6 +250,7 @@ public:
     // Make a copy of a the variable size array and its container with
     // a new_size of the content.
 
+    if (!Cont::IsValidSize(new_size)) return nullptr;
     size_t needed = SizeOf(new_size);
     char *ptr     = new char[needed];
     if (!ptr) return 0;
@@ -255,6 +263,7 @@ public:
   __host__ __device__ static Cont *MakeCopyAt(const Cont &other, void *addr)
   {
     // Make a copy of a the variable size array and its container at the location (if indicated)
+    if (!Cont::IsValidSize(other.GetVariableData().fN)) return nullptr;
     if (addr) {
       Cont *copy                         = new (addr) Cont(other);
       copy->GetVariableData().fSelfAlloc = false;
@@ -268,6 +277,7 @@ public:
   __host__ __device__ static Cont *MakeCopyAt(size_t new_size, const Cont &other, void *addr)
   {
     // Make a copy of a the variable size array and its container at the location (if indicated)
+    if (!Cont::IsValidSize(new_size)) return nullptr;
     if (addr) {
       Cont *copy                         = new (addr) Cont(new_size, other);
       copy->GetVariableData().fSelfAlloc = false;

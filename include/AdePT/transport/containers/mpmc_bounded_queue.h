@@ -10,13 +10,21 @@
 
 #pragma once
 
-#include <stdint.h>
 #include <cassert>
+#include <climits>
+#include <stdint.h>
 #include <AdePT/transport/containers/Atomic.h>
 #include <AdePT/transport/containers/VariableSizeObj.h>
 
 namespace adept {
 namespace internal {
+
+/** @brief Whether a capacity can be represented by the bounded queue implementation. */
+__host__ __device__ constexpr bool IsValidBoundedQueueCapacity(size_t capacity)
+{
+  return capacity >= 2 && capacity <= static_cast<size_t>(INT_MAX) && (capacity & (capacity - 1)) == 0;
+}
+
 /** @brief Internal data structure to handle the data sequence */
 template <typename Type>
 struct Cell_t {
@@ -54,6 +62,12 @@ private:
 
   __host__ __device__ __forceinline__ const ArrayData_t &GetVariableData() const { return fBuffer; }
 
+  /** @brief Reject capacities that cannot satisfy the queue indexing invariants. */
+  __host__ __device__ static constexpr bool IsValidSize(size_t nvalues)
+  {
+    return internal::IsValidBoundedQueueCapacity(nvalues);
+  }
+
   // constructors and assignment operators are private
   // states have to be constructed using MakeInstance() function
 
@@ -65,8 +79,9 @@ private:
   __host__ __device__ __forceinline__ mpmc_bounded_queue(int nvalues)
       : fCapacity(nvalues), fMask(nvalues - 1), fBuffer(nvalues)
   {
-    // The queue size must be a power of 2 (for fast access)
-    assert((nvalues >= 2) && ((nvalues & (nvalues - 1)) == 0) && "buffer size has to be a power of 2");
+    // The factory performs always-on validation. Keep this assertion as a
+    // constructor-level debug check of the invariant.
+    assert(IsValidSize(nvalues) && "buffer size has to be a power of 2 and at least 2");
     for (int i = 0; i < nvalues; ++i)
       fBuffer[i].fSequence.store(i);
   }

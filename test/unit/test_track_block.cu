@@ -107,6 +107,20 @@ TEST(BlockDataTest, AllocatesUpToCapacityAndReusesReleasedElementsOnHost)
   EXPECT_EQ(0, block->GetNholes());
 }
 
+TEST(BlockDataTest, RejectsCapacitiesInvalidForNestedQueueWithAssertionsDisabled)
+{
+  for (const int capacity : {0, 1, 3, 6}) {
+    Block *allocated = Block::MakeInstance(capacity);
+    EXPECT_EQ(nullptr, allocated) << "capacity " << capacity;
+    if (allocated) Block::ReleaseInstance(allocated);
+
+    auto storage  = std::make_unique<char[]>(Block::SizeOfInstance(capacity));
+    Block *placed = Block::MakeInstanceAt(capacity, storage.get());
+    EXPECT_EQ(nullptr, placed) << "capacity " << capacity;
+    if (placed) Block::ReleaseInstance(placed);
+  }
+}
+
 TEST(BlockDataTest, CopyPreservesStoredValuesAndStartsUndistributed)
 {
   constexpr int capacity = 1024;

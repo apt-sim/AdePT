@@ -44,13 +44,18 @@ private:
 
   __host__ __device__ __forceinline__ const ArrayData_t &GetVariableData() const { return fData; }
 
+  /** @brief BlockData capacities must also be valid for the nested hole queue. */
+  __host__ __device__ static constexpr bool IsValidSize(size_t nvalues)
+  {
+    return internal::IsValidBoundedQueueCapacity(nvalues);
+  }
+
   // constructors and assignment operators are private
   // states have to be constructed using MakeInstance() function
   __host__ __device__ __forceinline__ BlockData(size_t nvalues) : fCapacity(nvalues), fData(nvalues)
   {
     char *address = (char *)this + Base_t::SizeOfAlignAware(nvalues) - BlockData<Type>::SizeOfExtra(nvalues);
-    fHoles        = (Queue_t *)address;
-    Queue_t::MakeInstanceAt(nvalues, address);
+    fHoles        = Queue_t::MakeInstanceAt(nvalues, address);
   }
 
   __host__ __device__ __forceinline__ BlockData(BlockData const &other) : BlockData(other.fCapacity, other) {}
@@ -59,10 +64,9 @@ private:
       : Base_t(other), fCapacity(new_size), fData(new_size, other.fData)
   {
     char *address = (char *)this + Base_t::SizeOfAlignAware(new_size) - BlockData<Type>::SizeOfExtra(new_size);
-    fHoles        = (Queue_t *)address;
     // A BlockData copy starts undistributed. Source hole indices may not be
     // valid for the destination capacity, so always construct a fresh queue.
-    Queue_t::MakeInstanceAt(new_size, address);
+    fHoles = Queue_t::MakeInstanceAt(new_size, address);
   }
 
   __forceinline__ __host__ __device__ ~BlockData() {}
