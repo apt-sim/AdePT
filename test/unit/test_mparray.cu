@@ -73,6 +73,13 @@ TEST(MParrayTest, ZeroCapacityHasValidStorageAndEmptyAccessFails)
   EXPECT_THROW(array->back(), std::runtime_error);
 }
 
+TEST(MParrayTest, EmptyNonzeroCapacityBackFails)
+{
+  ArrayPtr array{Array::MakeInstance(4)};
+  ASSERT_NE(nullptr, array);
+  EXPECT_THROW(array->back(), std::runtime_error);
+}
+
 TEST(MParrayTest, PushesToCapacityAndCanBeClearedAndReused)
 {
   ArrayPtr array{Array::MakeInstance(4)};
