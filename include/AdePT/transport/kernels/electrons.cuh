@@ -326,8 +326,15 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
                                                                     navState, nextState, hitsurf_index);
 #else
-      geometryStepLength =
-          AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
+      if (options.enableApproximateSafetyNavigationSkip && !navState.IsOnBoundary() &&
+          geometricalStepLengthFromPhysics < safety) {
+        geometryStepLength = geometricalStepLengthFromPhysics;
+        navState.CopyTo(&nextState);
+        nextState.SetBoundaryState(false);
+      } else {
+        geometryStepLength =
+            AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics, navState, nextState);
+      }
 #endif
       pos += geometryStepLength * dir;
     }

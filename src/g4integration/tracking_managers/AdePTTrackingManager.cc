@@ -60,6 +60,8 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
   transportConfig.kernelOptions.returnLastStep =
       configuration.GetReturnFirstAndLastStep() || configuration.GetReturnAllSteps();
   transportConfig.kernelOptions.maxChargedLooperCount = configuration.GetMaxChargedLooperCount();
+  transportConfig.kernelOptions.enableApproximateSafetyNavigationSkip =
+      configuration.GetEnableApproximateSafetyNavigationSkip();
   transportConfig.bfieldFile                          = configuration.GetCovfieBfieldFile();
   transportConfig.cpuCapacityFactor                   = configuration.GetCPUCapacityFactor();
   transportConfig.cpuCopyFraction                     = configuration.GetHitBufferFlushThreshold();

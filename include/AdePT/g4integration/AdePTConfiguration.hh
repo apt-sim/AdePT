@@ -70,6 +70,7 @@ public:
     fSetMultipleStepsInMSCWithTransportation = setMultipleSteps;
   }
   void SetEnergyLossFluctuation(bool setELossFluct) { fSetEnergyLossFluctuation = setELossFluct; }
+  void SetEnableApproximateSafetyNavigationSkip(bool enable) { fEnableApproximateSafetyNavigationSkip = enable; }
 
   // We temporarily load VecGeom geometry from GDML
   void SetVecGeomGDML(std::string filename) { fVecGeomGDML = filename; }
@@ -86,6 +87,7 @@ public:
   bool GetSpeedOfLight() const { return fSpeedOfLight; }
   bool GetMultipleStepsInMSCWithTransportation() const { return fSetMultipleStepsInMSCWithTransportation; }
   bool GetEnergyLossFluctuation() const { return fSetEnergyLossFluctuation; }
+  bool GetEnableApproximateSafetyNavigationSkip() const { return fEnableApproximateSafetyNavigationSkip; }
   int GetNumThreads() const { return fNumThreads; };
   int GetVerbosity() const { return fVerbosity; };
   int GetCUDAStackLimit() const { return fCUDAStackLimit; }
@@ -124,6 +126,7 @@ private:
   bool fSpeedOfLight{false};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};
+  bool fEnableApproximateSafetyNavigationSkip{false};
   int fNumThreads{-1};
   int fVerbosity{0};
   int fCUDAStackLimit{0};

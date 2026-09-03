@@ -50,6 +50,7 @@ private:
   std::unique_ptr<G4UIcmdWithABool> fSetSpeedOfLightCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetMultipleStepsInMSCWithTransportationCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetEnergyLossFluctuationCmd;
+  std::unique_ptr<G4UIcmdWithABool> fSetEnableApproximateSafetyNavigationSkipCmd;
   std::unique_ptr<G4UIcmdWithAString> fAddRegionCmd;
   std::unique_ptr<G4UIcmdWithAString> fRemoveRegionCmd;
   std::unique_ptr<G4UIcmdWithAString> fAddWDTRegionCmd;
