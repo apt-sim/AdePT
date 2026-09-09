@@ -535,7 +535,6 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
 
   bool returnParentTrackToG4   = false;
   G4Track *returnedParentTrack = nullptr;
-  G4TrackVector hadronicSecondaries;
 
   HostTrackData dummy; // default constructed dummy if no advanced information is available
 
@@ -684,9 +683,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       }
 
       if (auto *newSecondaries = nuclearStep->GetfSecondary(); newSecondaries != nullptr) {
-        hadronicSecondaries.reserve(newSecondaries->size());
         for (auto *secondary : *newSecondaries) {
-          hadronicSecondaries.push_back(secondary);
           fStepReconstructionObjects->fSecondaryVector->push_back(secondary);
         }
       }
@@ -767,8 +764,13 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
   }
 
   if (isDeferredStep) {
-    if (!hadronicSecondaries.empty()) {
-      G4EventManager::GetEventManager()->StackTracks(&hadronicSecondaries);
+    // For nuclear steps, only secondaries created on the host exist.
+    // The fSecondaryVector must be pushed after the user actions, as those
+    // can kill tracks with Russian Roulette and change their weights.
+    // This way, the final secondaries can be propagated exactly
+    // as they are in the regular Geant4 stepping.
+    if (isNuclearStep && !fStepReconstructionObjects->fSecondaryVector->empty()) {
+      G4EventManager::GetEventManager()->StackTracks(fStepReconstructionObjects->fSecondaryVector);
     }
 
     if (returnParentTrackToG4) {
