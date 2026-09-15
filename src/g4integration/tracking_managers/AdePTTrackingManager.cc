@@ -77,11 +77,6 @@ bool CallUserTrackingAction(const AdePTConfiguration &configuration)
   return configuration.GetCallUserTrackingAction();
 }
 
-bool CallUserActions(const AdePTConfiguration &configuration)
-{
-  return CallUserSteppingAction(configuration) || CallUserTrackingAction(configuration);
-}
-
 bool IsCopySpecificVolume(EVolume type)
 {
   return type == kReplica || type == kParameterised;
@@ -506,7 +501,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
   G4EventManager *eventManager       = G4EventManager::GetEventManager();
   G4TrackingManager *trackManager    = eventManager->GetTrackingManager();
   G4SteppingManager *steppingManager = trackManager->GetSteppingManager();
-  const bool callUserActions         = CallUserActions(*fAdePTConfiguration);
+  const bool callUserTrackingAction  = CallUserTrackingAction(*fAdePTConfiguration);
   const bool globalHostData =
       fAdePTConfiguration->GetReturnFirstAndLastStep() || fAdePTConfiguration->GetReturnAllSteps();
 
@@ -598,7 +593,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
 
         // For an initializing step, call PreUserTrackingAction
         if (aTrack->GetCurrentStepNumber() == 0) {
-          if (callUserActions) {
+          if (callUserTrackingAction) {
             auto *userTrackingAction = eventManager->GetUserTrackingAction();
             if (userTrackingAction) {
 
