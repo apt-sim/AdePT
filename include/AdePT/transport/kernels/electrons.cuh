@@ -326,8 +326,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
       geometryStepLength = AdePTNavigator::ComputeStepAndNextVolume(pos, dir, geometricalStepLengthFromPhysics,
                                                                     navState, nextState, hitsurf_index);
 #else
-      if (options.enableApproximateSafetyNavigationSkip && !navState.IsOnBoundary() &&
-          geometricalStepLengthFromPhysics < safety) {
+      if (!navState.IsOnBoundary() && geometricalStepLengthFromPhysics < safety) {
         geometryStepLength = geometricalStepLengthFromPhysics;
         navState.CopyTo(&nextState);
         nextState.SetBoundaryState(false);

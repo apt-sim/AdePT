@@ -145,12 +145,6 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
   fSetMaxChargedLooperCountCmd->SetParameterName("MaxChargedLooperCount", false);
   fSetMaxChargedLooperCountCmd->SetRange("MaxChargedLooperCount>=0&&MaxChargedLooperCount<=64535");
 
-  fSetEnableApproximateSafetyNavigationSkipCmd =
-      std::make_unique<G4UIcmdWithABool>("/adept/enableApproximateSafetyNavigationSkip", this);
-  fSetEnableApproximateSafetyNavigationSkipCmd->SetGuidance(
-      "If true, electrons and positrons transported without magnetic field skip the geometry query for steps "
-      "that are shorter than the cached safety. Default: false.");
-
   fSetMaxWDTIterCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/MaxWDTIterations", this);
   fSetMaxWDTIterCmd->SetGuidance("Set N, the number of maximum Woodcock tracking iterations per step before giving the "
                                  "gamma back to the normal gamma kernel. Default: "
@@ -249,9 +243,6 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     fAdePTConfiguration->SetLastNParticlesOnCPU(fSetFinishOnCpuCmd->GetNewIntValue(newValue));
   } else if (command == fSetMaxChargedLooperCountCmd.get()) {
     fAdePTConfiguration->SetMaxChargedLooperCount(fSetMaxChargedLooperCountCmd->GetNewIntValue(newValue));
-  } else if (command == fSetEnableApproximateSafetyNavigationSkipCmd.get()) {
-    fAdePTConfiguration->SetEnableApproximateSafetyNavigationSkip(
-        fSetEnableApproximateSafetyNavigationSkipCmd->GetNewBoolValue(newValue));
   } else if (command == fSetMaxWDTIterCmd.get()) {
     fAdePTConfiguration->SetMaxWDTIter(fSetMaxWDTIterCmd->GetNewIntValue(newValue));
   } else if (command == fSetWDTKineticEnergyLimitCmd.get()) {
