@@ -33,7 +33,7 @@
 
 #include <AdePT/transport/tracks/TrackDebug.cuh>
 
-#include <AdePT/transport/navigation/BVHNavigator.h>
+#include <AdePT/transport/navigation/AdePTNavigator.h>
 
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
 using SelectedSteppingAction = adept::SteppingAction::Action;
@@ -173,7 +173,7 @@ __device__ inline uint64_t GenerateSeedFromTrackInfo(const adeptint::TrackData &
   return fnv1a_hash64(input, 12);
 }
 
-template <typename SpeciesManagerT>
+template <bool InitializeSafety = false, typename SpeciesManagerT>
 __device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const adeptint::TrackData &trackInfo,
                                         short queueIndex, adept::MParrayT<QueueIndexPair> *toBeEnqueued,
                                         uint64_t initialSeed)
@@ -183,10 +183,18 @@ __device__ inline void InitTrackToQueue(SpeciesManagerT &speciesTM, const adepti
   // Scramble the initial seed with track data so a particle returning from the
   // device and being injected again does not collide with its old RNG stream.
   auto seed = GenerateSeedFromTrackInfo(trackInfo, initialSeed);
-  speciesTM.InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
-                      static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
-                      trackInfo.direction, trackInfo.navState, trackInfo.eventId, trackInfo.trackId, trackInfo.parentId,
-                      trackInfo.threadId, trackInfo.stepCounter, trackInfo.hasHostData);
+  auto &track =
+      speciesTM.InitTrack(slot, seed, trackInfo.eKin, trackInfo.globalTime, static_cast<float>(trackInfo.localTime),
+                          static_cast<float>(trackInfo.properTime), trackInfo.weight, trackInfo.position,
+                          trackInfo.direction, trackInfo.navState, trackInfo.eventId, trackInfo.trackId,
+                          trackInfo.parentId, trackInfo.threadId, trackInfo.stepCounter, trackInfo.hasHostData);
+  if constexpr (InitializeSafety) {
+    double safety = 0.;
+    if (!track.navState.IsOnBoundary()) {
+      safety = AdePTNavigator::ComputeSafety(track.pos, track.navState);
+    }
+    track.SetSafety(track.pos, safety);
+  }
   toBeEnqueued->push_back(QueueIndexPair{slot, queueIndex});
 }
 
@@ -200,10 +208,10 @@ __global__ void InitTracks(adeptint::TrackData *trackinfo, int ntracks, Particle
 
     switch (trackInfo.pdg) {
     case 11:
-      InitTrackToQueue(particleManager.electrons, trackInfo, GPUQueueIndex::Electron, toBeEnqueued, initialSeed);
+      InitTrackToQueue<true>(particleManager.electrons, trackInfo, GPUQueueIndex::Electron, toBeEnqueued, initialSeed);
       break;
     case -11:
-      InitTrackToQueue(particleManager.positrons, trackInfo, GPUQueueIndex::Positron, toBeEnqueued, initialSeed);
+      InitTrackToQueue<true>(particleManager.positrons, trackInfo, GPUQueueIndex::Positron, toBeEnqueued, initialSeed);
       break;
     case 22:
       // check for Woodcock tracking
