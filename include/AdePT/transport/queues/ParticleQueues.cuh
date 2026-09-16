@@ -43,6 +43,9 @@ struct ParticleQueues {
   adept::MParray *initiallyActive;
 #ifdef ADEPT_USE_SPLIT_KERNELS
   adept::MParray *propagation;
+  // Filled by charged-particle MSC for tracks that do not require relocation.
+  // This queue is allocated only for electrons and positrons.
+  adept::MParray *setupInteractions;
   adept::MParray *splitQueues[numSplitQueues];
 #endif
 

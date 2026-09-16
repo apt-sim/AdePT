@@ -367,7 +367,8 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
 }
 
 template <bool IsElectron>
-__global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active)
+__global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEMTracks, const adept::MParray *active,
+                            adept::MParray *setupQueue, adept::MParray *relocatingQueue)
 {
   constexpr double restMass = copcore::units::kElectronMassC2;
 
@@ -376,23 +377,76 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
     const int slot = (*active)[i];
 
     ChargedTrack &currentTrack = electrons[slot];
-    // the MCC vector is indexed by the logical volume id
-    const int lvolID = currentTrack.navState.GetLogicalId();
 
     // Retrieve HepEM track
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
     G4HepEmTrack *theTrack        = elTrack.GetTrack();
 
-    G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
     G4HepEmRandomEngine rnge(&currentTrack.rngState);
 
     // Apply continuous effects.
     currentTrack.stopped = G4HepEmElectronManager::PerformContinuous(&g4HepEmData, &g4HepEmPars, &elTrack, &rnge);
 
-    // Collect the direction change and displacement by MSC.
+    // Collect the direction change by MSC.
     const double *direction = theTrack->GetDirection();
     currentTrack.dir.Set(direction[0], direction[1], direction[2]);
+
+    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
+    currentTrack.eKin = theTrack->GetEKin();
+    theTrack->SetEKin(currentTrack.eKin);
+
+    // Update the flight times of the particle
+    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
+    // the velocity depends on the remaining energy
+    double deltaTime = elTrack.GetPStepLength() / GetVelocity(currentTrack.eKin);
+    currentTrack.globalTime += deltaTime;
+    currentTrack.localTime += deltaTime;
+    currentTrack.properTime += deltaTime * (restMass / (restMass + currentTrack.eKin));
+
+    // Push particles to the appropriate queue for the next kernel, either
+    // ElectronRelocation or ElectronSetupInteractions.
+    // Particles on boundary need to be relocated, all others undergo the setup for interactions,
+    // which includes the displacement of the particle by MSC.
+    if (currentTrack.nextState.IsOnBoundary() && !currentTrack.stopped) {
+      relocatingQueue->push_back(slot);
+    } else {
+      setupQueue->push_back(slot);
+    }
+  }
+}
+
+/***
+ * @brief Applies MSC displacement and adds tracks to interaction queues depending on their state
+ */
+template <bool IsElectron>
+__global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, const adept::MParray *setupQueue,
+                                          ParticleManager particleManager, SplitQueues splitQueues,
+                                          const TransportKernelOptions options)
+{
+  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
+  SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
+
+  const bool returnAllSteps = options.returnAllSteps;
+  const bool returnLastStep = options.returnLastStep;
+
+  int activeSize = setupQueue->size();
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
+    const int slot             = (*setupQueue)[i];
+    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
+
+    // Retrieve HepEM track
+    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
+    G4HepEmTrack *theTrack        = elTrack.GetTrack();
+
+    // the MCC vector is indexed by the logical volume id
+    const int lvolID = currentTrack.navState.GetLogicalId();
+
+    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
+
+    bool trackSurvives = true;
+
     if (!currentTrack.nextState.IsOnBoundary()) {
+      G4HepEmMSCTrackData *mscData  = elTrack.GetMSCTrackData();
       const double *mscDisplacement = mscData->GetDisplacement();
       vecgeom::Vector3D<double> displacement(mscDisplacement[0], mscDisplacement[1], mscDisplacement[2]);
       const double dLength2            = displacement.Length2();
@@ -411,7 +465,7 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
           currentTrack.pos += displacement;
         } else {
           // Recompute safety.
-          // Use maximum accuracy only if safety is smaller than physicalStepLength
+          // Use maximum accuracy only if safety is smaller than the displacement.
           safety = AdePTNavigator::ComputeSafety(currentTrack.pos, currentTrack.navState, dispR);
           currentTrack.SetSafety(currentTrack.pos, safety);
           reducedSafety = sFact * safety;
@@ -428,61 +482,9 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
       }
     }
 
-    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    currentTrack.eKin = theTrack->GetEKin();
-    theTrack->SetEKin(currentTrack.eKin);
-
-    // Update the flight times of the particle
-    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
-    // the velocity depends on the remaining energy
-    double deltaTime = elTrack.GetPStepLength() / GetVelocity(currentTrack.eKin);
-    currentTrack.globalTime += deltaTime;
-    currentTrack.localTime += deltaTime;
-    currentTrack.properTime += deltaTime * (restMass / (restMass + currentTrack.eKin));
-  }
-}
-
-/***
- * @brief Adds tracks to interaction and relocation queues depending on their state
- */
-template <bool IsElectron>
-__global__ void ElectronSetupInteractions(G4HepEmElectronTrack *hepEMTracks, const adept::MParray *propagationQueue,
-                                          ParticleManager particleManager, SplitQueues splitQueues,
-                                          const TransportKernelOptions options)
-{
-  auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
-  SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
-
-  const bool returnAllSteps = options.returnAllSteps;
-  const bool returnLastStep = options.returnLastStep;
-
-  int activeSize = propagationQueue->size();
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
-    const int slot             = (*propagationQueue)[i];
-    ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
-    // the MCC vector is indexed by the logical volume id
-    const int lvolID = currentTrack.navState.GetLogicalId();
-
-    VolAuxData const &auxData = adept::transport::gVolAuxData[lvolID];
-
-    bool trackSurvives = true;
-
-    // Retrieve HepEM track
-    G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
-    G4HepEmTrack *theTrack        = elTrack.GetTrack();
-
-    G4HepEmMSCTrackData *mscData = elTrack.GetMSCTrackData();
-
     double energyDeposit = theTrack->GetEnergyDeposit();
 
     bool reached_interaction = true;
-
-    // Set Non-stopped, on-boundary tracks for relocation
-    if (currentTrack.nextState.IsOnBoundary() && !currentTrack.stopped) {
-      // Add particle to relocation queue
-      splitQueues.queues[ParticleQueues::relocation]->push_back(slot);
-      continue;
-    }
 
     auto winnerProcessIndex = theTrack->GetWinnerProcessIndex();
 

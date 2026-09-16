@@ -125,6 +125,9 @@ __global__ void InitParticleQueues(ParticleQueues queues, size_t CapacityTranspo
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.nextActive);
 #ifdef ADEPT_USE_SPLIT_KERNELS
   adept::MParray::MakeInstanceAt(CapacityTransport, queues.propagation);
+  if (queues.setupInteractions) {
+    adept::MParray::MakeInstanceAt(CapacityTransport, queues.setupInteractions);
+  }
   for (int i = 0; i < ParticleQueues::numSplitQueues; i++) {
     adept::MParray::MakeInstanceAt(CapacityTransport, queues.splitQueues[i]);
   }
@@ -254,6 +257,9 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
       all.queues[i].initiallyActive->clear();
 #ifdef ADEPT_USE_SPLIT_KERNELS
       all.queues[i].propagation->clear();
+      if (all.queues[i].setupInteractions) {
+        all.queues[i].setupInteractions->clear();
+      }
       for (int j = 0; j < ParticleQueues::numSplitQueues; j++) {
         all.queues[i].splitQueues[j]->clear();
       }
@@ -394,6 +400,9 @@ __global__ void ClearAllQueues(AllParticleQueues all)
     if (i == GPUQueueIndex::GammaWDT) return;
 #ifdef ADEPT_USE_SPLIT_KERNELS
     all.queues[i].propagation->clear();
+    if (all.queues[i].setupInteractions) {
+      all.queues[i].setupInteractions->clear();
+    }
     for (int j = 0; j < ParticleQueues::numSplitQueues; j++) {
       all.queues[i].splitQueues[j]->clear();
     }
@@ -664,7 +673,12 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     particleType.queues.nextActive = static_cast<adept::MParray *>(gpuPtr);
 #ifdef ADEPT_USE_SPLIT_KERNELS
     gpuMalloc(gpuPtr, sizeOfQueueStorage);
-    particleType.queues.propagation = static_cast<adept::MParray *>(gpuPtr);
+    particleType.queues.propagation       = static_cast<adept::MParray *>(gpuPtr);
+    particleType.queues.setupInteractions = nullptr;
+    if (particleIndex != GPUQueueIndex::Gamma) {
+      gpuMalloc(gpuPtr, sizeOfQueueStorage);
+      particleType.queues.setupInteractions = static_cast<adept::MParray *>(gpuPtr);
+    }
     for (int j = 0; j < ParticleQueues::numSplitQueues; j++) {
       gpuMalloc(gpuPtr, sizeOfQueueStorage);
       particleType.queues.splitQueues[j] = static_cast<adept::MParray *>(gpuPtr);
@@ -898,21 +912,24 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
       };
       const AllParticleQueues allParticleQueues = {{electrons.queues, positrons.queues, gammas.queues, woodcockQueues}};
 #ifdef ADEPT_USE_SPLIT_KERNELS
-      const SplitQueues gammaSplitQueues    = {{gammas.queues.splitQueues[ParticleQueues::gammaConversion],
-                                                gammas.queues.splitQueues[ParticleQueues::gammaCompton],
-                                                gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric],
-                                                gammas.queues.splitQueues[ParticleQueues::gammaWoodcock],
-                                                gammas.queues.splitQueues[ParticleQueues::relocation]}};
+      const SplitQueues gammaSplitQueues = {{gammas.queues.splitQueues[ParticleQueues::gammaConversion],
+                                             gammas.queues.splitQueues[ParticleQueues::gammaCompton],
+                                             gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric],
+                                             gammas.queues.splitQueues[ParticleQueues::gammaWoodcock],
+                                             gammas.queues.splitQueues[ParticleQueues::relocation]}};
+      // Slots left as nullptr are never indexed: ElectronSetupInteractions only dereferences
+      // queues[winnerProcessIndex] for winnerProcessIndex in [0, 2] (3 is filtered out as it
+      // continues on the host) plus positronStoppedAnnihilation. The relocation slot is unused
+      // for charged particles, whose relocation queue is filled by ElectronMSC and passed to
+      // ElectronRelocation directly.
       const SplitQueues electronSplitQueues = {{electrons.queues.splitQueues[ParticleQueues::chargedIonization],
                                                 electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung],
-                                                nullptr, nullptr,
-                                                electrons.queues.splitQueues[ParticleQueues::relocation]}};
+                                                nullptr, nullptr, nullptr}};
       const SplitQueues positronSplitQueues = {
           {positrons.queues.splitQueues[ParticleQueues::chargedIonization],
            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung],
            positrons.queues.splitQueues[ParticleQueues::positronAnnihilation],
-           positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation],
-           positrons.queues.splitQueues[ParticleQueues::relocation]}};
+           positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation], nullptr}};
 #endif
       const TracksAndSlots tracksAndSlots = {electrons.tracks,
                                              positrons.tracks,
@@ -1033,15 +1050,16 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ElectronPropagation<true><<<blocks, threads, 0, electrons.stream>>>(
             electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
         ElectronMSC<true><<<blocks, threads, 0, electrons.stream>>>(
-            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation);
-        ElectronSetupInteractions<true><<<blocks, threads, 0, electrons.stream>>>(
-            gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation, particleManager, electronSplitQueues,
-            kernelOptions);
+            electrons.tracks, gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.propagation,
+            electrons.queues.setupInteractions, electrons.queues.splitQueues[ParticleQueues::relocation]);
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.setupEvent, electrons.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(electrons.auxiliaryStream, electrons.setupEvent, 0));
         ElectronRelocation<true><<<blocks, threads, 0, electrons.stream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
             electrons.queues.splitQueues[ParticleQueues::relocation], kernelOptions);
+        ElectronSetupInteractions<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.electronsHepEm, electrons.queues.setupInteractions, particleManager,
+            electronSplitQueues, kernelOptions);
         ElectronIonization<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
             electrons.queues.splitQueues[ParticleQueues::chargedIonization], kernelOptions);
@@ -1075,15 +1093,16 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         ElectronPropagation<false><<<blocks, threads, 0, positrons.stream>>>(
             positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
         ElectronMSC<false><<<blocks, threads, 0, positrons.stream>>>(
-            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation);
-        ElectronSetupInteractions<false><<<blocks, threads, 0, positrons.stream>>>(
-            gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation, particleManager, positronSplitQueues,
-            kernelOptions);
+            positrons.tracks, gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.propagation,
+            positrons.queues.setupInteractions, positrons.queues.splitQueues[ParticleQueues::relocation]);
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.setupEvent, positrons.stream));
         ADEPT_DEVICE_API_CALL(StreamWaitEvent(positrons.auxiliaryStream, positrons.setupEvent, 0));
         ElectronRelocation<false><<<blocks, threads, 0, positrons.stream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
             positrons.queues.splitQueues[ParticleQueues::relocation], kernelOptions);
+        ElectronSetupInteractions<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
+            gpuState.hepEmBuffers_d.positronsHepEm, positrons.queues.setupInteractions, particleManager,
+            positronSplitQueues, kernelOptions);
         ElectronIonization<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
             positrons.queues.splitQueues[ParticleQueues::chargedIonization], kernelOptions);
