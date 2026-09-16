@@ -327,9 +327,16 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
                                                                     theTrack->GetGStepLength(), currentTrack.navState,
                                                                     currentTrack.nextState, currentTrack.hitsurfID);
 #else
-      geometryStepLength =
-          AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
-                                                   currentTrack.navState, currentTrack.nextState);
+      if (!currentTrack.navState.IsOnBoundary() &&
+          theTrack->GetGStepLength() < currentTrack.GetSafety(currentTrack.pos)) {
+        geometryStepLength = theTrack->GetGStepLength();
+        currentTrack.navState.CopyTo(&currentTrack.nextState);
+        currentTrack.nextState.SetBoundaryState(false);
+      } else {
+        geometryStepLength =
+            AdePTNavigator::ComputeStepAndNextVolume(currentTrack.pos, currentTrack.dir, theTrack->GetGStepLength(),
+                                                     currentTrack.navState, currentTrack.nextState);
+      }
 #endif
       currentTrack.pos += geometryStepLength * currentTrack.dir;
     }
