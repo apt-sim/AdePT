@@ -756,8 +756,10 @@ void StepProcessingLoop(StepProcessingContext *const context, GPUstate &gpuState
                         std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                         int debugLevel)
 {
+  // The lock is only released inside cv.wait(). Since keepRunning is cleared under the same mutex, the shutdown
+  // notification cannot be sent between checking keepRunning and starting to wait.
+  std::unique_lock lock(context->mutex);
   while (context->keepRunning) {
-    std::unique_lock lock(context->mutex);
     context->cv.wait(lock);
 
     AdvanceEventStates(EventState::SwappingStepBuffers, EventState::FlushingSteps, eventStates);
@@ -1471,7 +1473,10 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
   profiler.Stop();
 #endif
 
-  stepProcessing->keepRunning = false;
+  {
+    std::scoped_lock lock{stepProcessing->mutex};
+    stepProcessing->keepRunning = false;
+  }
   stepProcessing->cv.notify_one();
   stepProcessingThread.join();
 }
