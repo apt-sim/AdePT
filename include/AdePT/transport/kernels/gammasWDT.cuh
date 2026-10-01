@@ -545,6 +545,7 @@ __global__ void __launch_bounds__(256, 1)
             secondaryData[nSecondaries++] = {electron.trackId,
                                              electron.dir,
                                              electron.eKin,
+                                             electron.weight,
                                              /*creator process*/ short(winnerProcessIndex),
                                              ParticleType::Electron,
                                              electron.hasHostData};
@@ -568,6 +569,7 @@ __global__ void __launch_bounds__(256, 1)
             secondaryData[nSecondaries++] = {positron.trackId,
                                              positron.dir,
                                              positron.eKin,
+                                             positron.weight,
                                              /*creator process*/ short(winnerProcessIndex),
                                              ParticleType::Positron,
                                              positron.hasHostData};
@@ -612,6 +614,7 @@ __global__ void __launch_bounds__(256, 1)
             secondaryData[nSecondaries++] = {electron.trackId,
                                              electron.dir,
                                              electron.eKin,
+                                             electron.weight,
                                              /*creator process*/ short(winnerProcessIndex),
                                              ParticleType::Electron,
                                              electron.hasHostData};
@@ -665,6 +668,7 @@ __global__ void __launch_bounds__(256, 1)
             secondaryData[nSecondaries++] = {electron.trackId,
                                              electron.dir,
                                              electron.eKin,
+                                             electron.weight,
                                              /*creator process*/ short(winnerProcessIndex),
                                              ParticleType::Electron,
                                              electron.hasHostData};
