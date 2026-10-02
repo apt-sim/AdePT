@@ -94,6 +94,7 @@ struct SecondaryInitData {
   uint64_t trackId;
   vecgeom::Vector3D<double> dir;
   double eKin;
+  float weight; ///< weight of the secondary itself, which differs from the parent weight after Russian roulette
   short creatorProcessId{-1};
   ParticleType particleType{ParticleType::Electron};
   bool hasHostData{false};

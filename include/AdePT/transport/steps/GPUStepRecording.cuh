@@ -61,9 +61,9 @@ __device__ void RecordGPUStep(TrackBase const &track, short stepLimProcessId, Pa
     GPUStep &secondaryStep = adept::transport::gDeviceStepBuffer.GetSlot(threadId, slotStartIndex + 1u + i);
     FillGPUStep(secondaryStep, secondaryData[i].trackId, trackId, secondaryData[i].creatorProcessId,
                 secondaryData[i].particleType,
-                /*steplength*/ 0., /*energydeposit*/ 0., trackWeight, aPostState, aPostPosition, secondaryData[i].dir,
-                secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir, secondaryData[i].eKin,
-                aGlobalTime,
+                /*steplength*/ 0., /*energydeposit*/ 0., secondaryData[i].weight, aPostState, aPostPosition,
+                secondaryData[i].dir, secondaryData[i].eKin, aPostState, aPostPosition, secondaryData[i].dir,
+                secondaryData[i].eKin, aGlobalTime,
                 /*localTime*/ 0.f, /*properTime*/ 0.f, aGlobalTime, eventId, threadId, /*isLastStep*/ false,
                 secondaryData[i].hasHostData, /*stepCounter*/ 0, /*nSecondaries*/ 0);
   }

@@ -601,6 +601,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
               secondaryData[nSecondaries++] = {secondary.trackId,
                                                secondary.dir,
                                                secondary.eKin,
+                                               secondary.weight,
                                                /*creator process*/ short(winnerProcessIndex),
                                                ParticleType::Electron,
                                                secondary.hasHostData};
@@ -671,6 +672,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                 secondaryData[nSecondaries++] = {gamma.trackId,
                                                  gamma.dir,
                                                  gamma.eKin,
+                                                 gamma.weight,
                                                  /*creator process*/ short(winnerProcessIndex),
                                                  ParticleType::Gamma,
                                                  gamma.hasHostData};
@@ -741,6 +743,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                 secondaryData[nSecondaries++] = {gamma1.trackId,
                                                  gamma1.dir,
                                                  gamma1.eKin,
+                                                 gamma1.weight,
                                                  /*creator process*/ short(winnerProcessIndex),
                                                  ParticleType::Gamma,
                                                  gamma1.hasHostData};
@@ -773,6 +776,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                 secondaryData[nSecondaries++] = {gamma2.trackId,
                                                  gamma2.dir,
                                                  gamma2.eKin,
+                                                 gamma2.weight,
                                                  /*creator process*/ short(winnerProcessIndex),
                                                  ParticleType::Gamma,
                                                  gamma2.hasHostData};
@@ -834,12 +838,14 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
             secondaryData[nSecondaries++] = {gamma1.trackId,
                                              gamma1.dir,
                                              gamma1.eKin,
+                                             gamma1.weight,
                                              /*creator process: annihilation*/ short(2),
                                              ParticleType::Gamma,
                                              gamma1.hasHostData};
             secondaryData[nSecondaries++] = {gamma2.trackId,
                                              gamma2.dir,
                                              gamma2.eKin,
+                                             gamma2.weight,
                                              /*creator process: annihilation*/ short(2),
                                              ParticleType::Gamma,
                                              gamma2.hasHostData};

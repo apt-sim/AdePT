@@ -745,12 +745,12 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Charg
 
     // Return the initializing step when HostTrackData is needed for these secondaries.
     if (gamma1.hasHostData) {
-      secondaryData[nSecondaries++] = {gamma1.trackId,      gamma1.dir,
-                                       gamma1.eKin,         /*creator process*/ short(2),
-                                       ParticleType::Gamma, gamma1.hasHostData};
-      secondaryData[nSecondaries++] = {gamma2.trackId,      gamma2.dir,
-                                       gamma2.eKin,         /*creator process*/ short(2),
-                                       ParticleType::Gamma, gamma2.hasHostData};
+      secondaryData[nSecondaries++] = {
+          gamma1.trackId,      gamma1.dir,        gamma1.eKin, gamma1.weight, /*creator process*/ short(2),
+          ParticleType::Gamma, gamma1.hasHostData};
+      secondaryData[nSecondaries++] = {
+          gamma2.trackId,      gamma2.dir,        gamma2.eKin, gamma2.weight, /*creator process*/ short(2),
+          ParticleType::Gamma, gamma2.hasHostData};
     }
   }
 }
@@ -831,9 +831,13 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 
       // Return the initializing step when HostTrackData is needed for this secondary.
       if (secondary.hasHostData) {
-        secondaryData[nSecondaries++] = {secondary.trackId,      secondary.dir,
-                                         secondary.eKin,         /*creator process*/ short(0),
-                                         ParticleType::Electron, secondary.hasHostData};
+        secondaryData[nSecondaries++] = {secondary.trackId,
+                                         secondary.dir,
+                                         secondary.eKin,
+                                         secondary.weight,
+                                         /*creator process*/ short(0),
+                                         ParticleType::Electron,
+                                         secondary.hasHostData};
       }
     }
 
@@ -969,9 +973,9 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
         SetSecondaryHostData<SelectedSteppingAction>(gamma, currentTrack, 0., returnLastStep);
         // Return the initializing step when HostTrackData is needed for this secondary.
         if (gamma.hasHostData) {
-          secondaryData[nSecondaries++] = {gamma.trackId,       gamma.dir,
-                                           gamma.eKin,          /*creator process*/ short(1),
-                                           ParticleType::Gamma, gamma.hasHostData};
+          secondaryData[nSecondaries++] = {
+              gamma.trackId,       gamma.dir,        gamma.eKin, gamma.weight, /*creator process*/ short(1),
+              ParticleType::Gamma, gamma.hasHostData};
         }
       }
     }
@@ -1096,9 +1100,9 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
         SetSecondaryHostData<SelectedSteppingAction>(gamma1, currentTrack, 0., returnLastStep);
         // Return the initializing step when HostTrackData is needed for this secondary.
         if (gamma1.hasHostData) {
-          secondaryData[nSecondaries++] = {gamma1.trackId,      gamma1.dir,
-                                           gamma1.eKin,         /*creator process*/ short(2),
-                                           ParticleType::Gamma, gamma1.hasHostData};
+          secondaryData[nSecondaries++] = {
+              gamma1.trackId,      gamma1.dir,        gamma1.eKin, gamma1.weight, /*creator process*/ short(2),
+              ParticleType::Gamma, gamma1.hasHostData};
         }
       }
     }
@@ -1125,9 +1129,9 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
         SetSecondaryHostData<SelectedSteppingAction>(gamma2, currentTrack, 0., returnLastStep);
         // Return the initializing step when HostTrackData is needed for this secondary.
         if (gamma2.hasHostData) {
-          secondaryData[nSecondaries++] = {gamma2.trackId,      gamma2.dir,
-                                           gamma2.eKin,         /*creator process*/ short(2),
-                                           ParticleType::Gamma, gamma2.hasHostData};
+          secondaryData[nSecondaries++] = {
+              gamma2.trackId,      gamma2.dir,        gamma2.eKin, gamma2.weight, /*creator process*/ short(2),
+              ParticleType::Gamma, gamma2.hasHostData};
         }
       }
     }

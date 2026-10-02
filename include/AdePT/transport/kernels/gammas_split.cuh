@@ -482,9 +482,9 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
       // Return the initializing step when HostTrackData is needed for this secondary.
       if (electron.hasHostData) {
-        secondaryData[nSecondaries++] = {electron.trackId,       electron.dir,
-                                         electron.eKin,          /*creator process*/ short(0),
-                                         ParticleType::Electron, electron.hasHostData};
+        secondaryData[nSecondaries++] = {
+            electron.trackId,       electron.dir,        electron.eKin, electron.weight, /*creator process*/ short(0),
+            ParticleType::Electron, electron.hasHostData};
       }
     }
 
@@ -502,9 +502,9 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 
       // Return the initializing step when HostTrackData is needed for this secondary.
       if (positron.hasHostData) {
-        secondaryData[nSecondaries++] = {positron.trackId,       positron.dir,
-                                         positron.eKin,          /*creator process*/ short(0),
-                                         ParticleType::Positron, positron.hasHostData};
+        secondaryData[nSecondaries++] = {
+            positron.trackId,       positron.dir,        positron.eKin, positron.weight, /*creator process*/ short(0),
+            ParticleType::Positron, positron.hasHostData};
       }
     }
 
@@ -614,9 +614,9 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
 
       // Return the initializing step when HostTrackData is needed for this secondary.
       if (electron.hasHostData) {
-        secondaryData[nSecondaries++] = {electron.trackId,       electron.dir,
-                                         electron.eKin,          /*creator process*/ short(1),
-                                         ParticleType::Electron, electron.hasHostData};
+        secondaryData[nSecondaries++] = {
+            electron.trackId,       electron.dir,        electron.eKin, electron.weight, /*creator process*/ short(1),
+            ParticleType::Electron, electron.hasHostData};
       }
 
     } else {
@@ -730,9 +730,9 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
 
       // Return the initializing step when HostTrackData is needed for this secondary.
       if (electron.hasHostData) {
-        secondaryData[nSecondaries++] = {electron.trackId,       electron.dir,
-                                         electron.eKin,          /*creator process*/ short(2),
-                                         ParticleType::Electron, electron.hasHostData};
+        secondaryData[nSecondaries++] = {
+            electron.trackId,       electron.dir,        electron.eKin, electron.weight, /*creator process*/ short(2),
+            ParticleType::Electron, electron.hasHostData};
       }
 
     } else {
