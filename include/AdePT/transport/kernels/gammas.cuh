@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/geometry_validation/GeometryValidationHooks.cuh>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
 #ifdef ADEPT_ENABLE_WDT
@@ -242,6 +243,7 @@ __global__ void __launch_bounds__(256, 1)
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
+        ADEPT_VALIDATE_CROSSING(navState, nextState, pos, dir);
 #endif
 
 #if ADEPT_DEBUG_TRACK > 0

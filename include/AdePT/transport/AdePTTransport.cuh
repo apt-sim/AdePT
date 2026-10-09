@@ -55,6 +55,12 @@ using SelectedSteppingAction = adept::SteppingAction::Action;
 #include <G4HepEmElectronInit.hh>
 #include <G4HepEmGammaInit.hh>
 
+#include <AdePT/transport/geometry_validation/CrossingValidation.cuh>
+#include <VecGeom/management/GeoManager.h>
+
+#include <fstream>
+#include <map>
+#include <tuple>
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
@@ -1556,6 +1562,8 @@ __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 
+__constant__ __device__ CrossingValidationData *gCrossingValidation = nullptr;
+
 __constant__ __device__ adeptint::WDTDeviceView gWDTData;
 
 #ifdef ADEPT_USE_EXT_BFIELD
@@ -1572,6 +1580,103 @@ void InitVolAuxArray(adeptint::VolAuxArray &array)
   ADEPT_DEVICE_API_CALL(Memcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes,
                                ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
+}
+
+/// Allocate the crossing validation data on the device and enable the check in the transport kernels.
+CrossingValidationData *InitCrossingValidation(unsigned int recordCapacity)
+{
+#ifdef ADEPT_USE_SURF
+  (void)recordCapacity;
+  std::cout << "CrossingValidation: not available with the surface model" << std::endl;
+  return nullptr;
+#else
+  CrossingValidationData host;
+  host.recordCapacity = recordCapacity;
+  ADEPT_DEVICE_API_CALL(Malloc(&host.records, sizeof(CrossingRecord) * std::max(recordCapacity, 1u)));
+  CrossingValidationData *device = nullptr;
+  ADEPT_DEVICE_API_CALL(Malloc(&device, sizeof(CrossingValidationData)));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(device, &host, sizeof(CrossingValidationData), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gCrossingValidation, &device, sizeof(CrossingValidationData *)));
+  return device;
+#endif
+}
+
+/// Disable the crossing validation, print its report, write the off-band records and release the device data.
+void ReportCrossingValidation(CrossingValidationData *device, std::string const &recordsFile, std::ostream &out)
+{
+  if (device == nullptr) return;
+  CrossingValidationData *null = nullptr;
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gCrossingValidation, &null, sizeof(CrossingValidationData *)));
+  CrossingValidationData host;
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(&host, device, sizeof(CrossingValidationData), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  std::vector<CrossingRecord> records(std::min(host.nRecords, host.recordCapacity));
+  if (!records.empty())
+    ADEPT_DEVICE_API_CALL(Memcpy(records.data(), host.records, sizeof(CrossingRecord) * records.size(),
+                                 ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(Free(host.records));
+  ADEPT_DEVICE_API_CALL(Free(device));
+
+  const char *bins[kCrossingDepthBins] = {"0",      "(0,0.5]",  "(0.5,1]",   "(1,2]",
+                                          "(2,10]", "(10,100]", "(100,1e4]", ">1e4"};
+  out << "CrossingValidation: " << host.crossings << " boundary crossings relocated on the GPU (" << host.leavingGPU
+      << " into a volume outside the GPU regions)\n"
+      << "CrossingValidation   off-band landings (beyond +-kTolerance): " << host.offBand << " (" << host.offBandLeft
+      << " inside a volume being left, " << host.offBandEntered << " outside a volume being entered, "
+      << host.offSurface << " farther than kTolerance from every crossed surface; " << host.offBandOverlap
+      << " proven to come from an overlap)\n"
+      << "CrossingValidation   wrong-side depth [kTolerance]:";
+  for (int i = 0; i < kCrossingDepthBins; ++i)
+    out << " " << bins[i] << ": " << host.depthHistogram[i];
+  out << "\nCrossingValidation   final direction vs normal at the crossed surface: " << host.bounceBack
+      << " bounce-backs, " << host.tangent << " tangent, " << host.noNormal << " without a valid normal\n";
+  auto label = [](int id) {
+    auto const *volume = vecgeom::GeoManager::Instance().FindPlacedVolume(id);
+    return volume ? volume->GetLabel() : std::string("unknown");
+  };
+  // Overlaps proven by the recorded landings, per volume pair: number of landings and deepest evidence.
+  std::map<std::tuple<int, int, int>, std::pair<long, double>> overlaps;
+  for (auto const &r : records) {
+    if (r.overlapType == 0) continue;
+    auto &entry = overlaps[{r.overlapType, r.overlapVolumeA, r.overlapVolumeB}];
+    entry.first += 1;
+    entry.second = std::max(entry.second, r.overlapDepth);
+  }
+  for (auto const &[key, value] : overlaps) {
+    auto const &[type, a, b] = key;
+    out << "CrossingValidation   proven " << (type == 1 ? "overlap: " : "extrusion: ") << label(a)
+        << (type == 1 ? " and " : " out of ") << label(b) << " (" << value.first << " landings, evidence up to "
+        << value.second / vecgeom::kTolerance << " kTolerance; witness offsets in the records file)\n";
+  }
+  if (recordsFile.empty() || records.empty()) {
+    out << std::flush;
+    return;
+  }
+  std::ofstream csv(recordsFile);
+  if (!csv) {
+    out << "CrossingValidation   cannot write " << recordsFile << std::endl;
+    return;
+  }
+  csv << "kind,depth_ktol,offending_volume,lx,ly,lz,ldx,ldy,ldz,outward_n_dot_d,from_volume,to_volume,x,y,z,dx,dy,dz,"
+         "overlap,overlap_volume_a,overlap_volume_b,overlap_depth_ktol,overlap_witness_ktol\n"
+      << std::setprecision(17);
+  const char *kinds[4] = {"", "inside-left", "outside-entered", "off-surface"};
+  for (auto const &r : records) {
+    csv << kinds[r.kind] << "," << r.depth / vecgeom::kTolerance << "," << label(r.offendingVolume) << ","
+        << r.localPoint[0] << "," << r.localPoint[1] << "," << r.localPoint[2] << "," << r.localDirection[0] << ","
+        << r.localDirection[1] << "," << r.localDirection[2] << "," << r.outwardNDotD << "," << label(r.fromVolume)
+        << "," << label(r.toVolume) << "," << r.point[0] << "," << r.point[1] << "," << r.point[2] << ","
+        << r.direction[0] << "," << r.direction[1] << "," << r.direction[2] << ","
+        << (r.overlapType == 1   ? "overlap"
+            : r.overlapType == 2 ? "extrusion"
+                                 : "none")
+        << "," << (r.overlapType ? label(r.overlapVolumeA) : "") << ","
+        << (r.overlapType ? label(r.overlapVolumeB) : "") << "," << r.overlapDepth / vecgeom::kTolerance << ","
+        << r.overlapWitness / vecgeom::kTolerance << "\n";
+  }
+  out << "CrossingValidation   " << records.size() << " off-band landings written to " << recordsFile
+      << (host.nRecords > records.size() ? " (record capacity reached)" : "") << std::endl;
 }
 
 /// Initialise the track buffers used to communicate between host and device.

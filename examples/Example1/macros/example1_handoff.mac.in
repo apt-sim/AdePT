@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+#
+## =============================================================================
+## Geometry validation of the GPU -> Geant4 handoff and of the GPU boundary crossings
+## =============================================================================
+## Only the listed regions are transported on the GPU.
+## - /adept/validateHandoff: every track leaving them is returned to Geant4, which relocates it from the path reached
+##   on the GPU. The validator repeats that relocation and checks that the step end point lies within Geant4's
+##   tolerance band of the crossed surfaces and that Geant4 finds the expected path, unless the normal at the exit
+##   point shows the final direction going back through the crossed surface, or another volume starts on that
+##   surface. The test passes when the job prints "HandoffValidation: PASSED".
+## - /adept/validateCrossings: every boundary crossing on the GPU is checked against the +-kTolerance band of the
+##   crossed surfaces, with a depth histogram, bounce-back counts (final direction vs normal) and the off-band
+##   landings written for replay. This is a measurement (CrossingValidation lines), it does not decide the test.
+##
+/run/numberOfThreads 1
+/control/verbose 0
+/run/verbose 0
+/process/verbose 0
+/tracking/verbose 0
+/event/verbose 0
+
+/detector/filename @HANDOFF_GDML@
+/adept/setVerbosity 0
+/adept/setMillionsOfTrackSlots 1
+/adept/setMillionsOfHitSlots 1
+/adept/setCUDAStackLimit @HANDOFF_CUDA_STACK@
+
+## GPU regions: names of G4Regions defined by the geometry (GDML "Region" auxiliary information)
+/adept/setTrackInAllRegions false
+@HANDOFF_GPU_REGIONS@
+/adept/validateHandoff true
+/adept/validateCrossings true
+/adept/crossingRecordsFile @HANDOFF_RECORDS@
+
+## A field makes the charged tracks leave the GPU regions at all angles, including grazing ones
+/detector/setField 0 0 3.8 tesla
+/run/setCut 0.7 mm
+/run/initialize
+
+/eventAction/verbose 0
+
+/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 200
+/gun/position 0 0 0
+/gun/randomizeGun true
+/gun/addParticle e- weight 1 energy 10 GeV
+/gun/minPhi 0 deg
+/gun/maxPhi 360 deg
+/gun/minTheta 10 deg
+/gun/maxTheta 170 deg
+
+/run/beamOn 2

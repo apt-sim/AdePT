@@ -24,4 +24,7 @@ struct AdePTTransportConfig {
   double cpuCapacityFactor{2.5};
   double cpuCopyFraction{0.5};
   double stepBufferSafetyFactor{1.5};
+  bool validateCrossings{false};              ///< Check the landing of every GPU boundary crossing
+  unsigned int crossingRecordCapacity{10000}; ///< Maximum number of off-band landings recorded
+  std::string crossingRecordsFile{};          ///< CSV file for the off-band landings (empty: none)
 };

@@ -38,6 +38,7 @@ user/integration-g4
 user/runtime-parameters
 user/examples
 user/profiling
+user/geometry-validation
 ```
 
 ```{toctree}

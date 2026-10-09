@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/geometry_validation/GeometryValidationHooks.cuh>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 
 // Classes for Runge-Kutta integration
@@ -461,6 +462,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
+        ADEPT_VALIDATE_CROSSING(navState, nextState, pos, dir);
 #endif
 
 #if ADEPT_DEBUG_TRACK > 0
