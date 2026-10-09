@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/geometry_validation/GeometryValidationHooks.cuh>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 
 // Classes for Runge-Kutta integration
@@ -643,6 +644,7 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                            currentTrack.nextState);
 #else
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
+      ADEPT_VALIDATE_CROSSING(currentTrack.navState, currentTrack.nextState, currentTrack.pos, currentTrack.dir);
 #endif
     } else {
       // Particle left the world, don't enqueue it and release the slot

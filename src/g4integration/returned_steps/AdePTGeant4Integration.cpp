@@ -403,8 +403,12 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parent
   // daughter again. If that happens, AdePT offloads the track back to the GPU without any real progress and the track
   // can bounce. This tiny handoff-only push moves the point just far enough along the outgoing direction for CPU
   // tracking to resume on the CPU side of the boundary.
-  if (parentStep.fStepLimProcessId == kAdePTOutOfGPURegionProcess &&
-      parentStep.fPostStepPoint.fNavigationState.IsOnBoundary()) {
+  const bool leftGPURegions = parentStep.fStepLimProcessId == kAdePTOutOfGPURegionProcess &&
+                              parentStep.fPostStepPoint.fNavigationState.IsOnBoundary();
+
+  // End point found on the GPU, before the push (geometry validation).
+  [[maybe_unused]] const G4ThreeVector boundaryPoint = position;
+  if (leftGPURegions) {
     position += kG4HandoffPush * direction;
   }
 
@@ -428,6 +432,12 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parent
     auto touchable = MakeTouchableFromNavState(parentStep.fPostStepPoint.fNavigationState);
     track->SetTouchableHandle(touchable);
     track->SetNextTouchableHandle(touchable);
+#ifdef ADEPT_GEOMETRY_VALIDATION
+    if (fHandoffValidator && leftGPURegions) {
+      fHandoffValidator->Check(MakeTouchableFromNavState(parentStep.fPreStepPoint.fNavigationState), touchable,
+                               boundaryPoint, position, direction);
+    }
+#endif
   }
 #ifdef ADEPT_USE_ORIGINNAVSTATE
   if (hostTData.g4id != 0) {

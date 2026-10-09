@@ -65,6 +65,7 @@ option(ADEPT_ENABLE_NSYS_PROFILING "Compile CUDA profiler API hooks for transpor
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
 option(ADEPT_ENABLE_POWER_METER "Compile the code for consumption measurement" OFF)
+option(ADEPT_GEOMETRY_VALIDATION "Compile the geometry validation of the region handoff and GPU boundary crossings (/adept/validateHandoff, /adept/validateCrossings)" OFF)
 option(ADEPT_BUILD_TESTING "Build unit and regression tests" OFF)
 option(ADEPT_BUILD_EXAMPLES "Build examples" OFF)
 
@@ -311,6 +312,10 @@ endif()
 if (ADEPT_USE_SPLIT_KERNELS)
   add_compile_definitions(ADEPT_USE_SPLIT_KERNELS)
   message(STATUS "${Green}AdePT will run with split kernels${ColorReset}")
+endif()
+if (ADEPT_GEOMETRY_VALIDATION)
+  add_compile_definitions(ADEPT_GEOMETRY_VALIDATION)
+  message(STATUS "${Green}AdePT will be built with the geometry validation${ColorReset}")
 endif()
 if (ADEPT_ENABLE_NSYS_PROFILING)
   add_compile_definitions(ADEPT_ENABLE_NSYS_PROFILING)
@@ -565,6 +570,7 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/g4integration/physics_constructors/G4EmStandardPhysics_AdePT.cc
   src/g4integration/physics_constructors/G4EmStandardPhysics_HepEm.cc
   src/g4integration/returned_steps/AdePTGeant4Integration.cpp
+  src/g4integration/returned_steps/HandoffValidator.cpp
   src/g4integration/tracking_managers/AdePTTrackingManager.cc
   src/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.cc
 )
@@ -632,6 +638,7 @@ set(ADEPT_PUBLIC_CONFIG_DEFINITIONS
   $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
   $<$<BOOL:${ADEPT_ENABLE_NSYS_PROFILING}>:ADEPT_ENABLE_NSYS_PROFILING>
   $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
+  $<$<BOOL:${ADEPT_GEOMETRY_VALIDATION}>:ADEPT_GEOMETRY_VALIDATION>
   $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
 )
 target_compile_definitions(Transport
