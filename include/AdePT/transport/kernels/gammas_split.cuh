@@ -6,6 +6,7 @@
 #include <AdePT/AdePTBuildFlags.hh>
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/geometry_validation/GeometryValidationHooks.cuh>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
 
@@ -314,6 +315,7 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
                                            currentTrack.nextState);
 #else
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
+      ADEPT_VALIDATE_CROSSING(currentTrack.navState, currentTrack.nextState, currentTrack.pos, currentTrack.dir);
 #endif
 
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();

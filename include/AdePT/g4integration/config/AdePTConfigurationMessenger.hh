@@ -48,6 +48,10 @@ private:
   std::unique_ptr<G4UIcmdWithABool> fSetReturnAllStepsCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetReturnFirstAndLastStepCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetSpeedOfLightCmd;
+  std::unique_ptr<G4UIcmdWithABool> fValidateHandoffCmd;
+  std::unique_ptr<G4UIcmdWithABool> fValidateCrossingsCmd;
+  std::unique_ptr<G4UIcmdWithAString> fCrossingRecordsFileCmd;
+  std::unique_ptr<G4UIcmdWithAnInteger> fCrossingRecordCapacityCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetMultipleStepsInMSCWithTransportationCmd;
   std::unique_ptr<G4UIcmdWithABool> fSetEnergyLossFluctuationCmd;
   std::unique_ptr<G4UIcmdWithAString> fAddRegionCmd;

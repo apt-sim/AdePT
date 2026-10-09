@@ -11,6 +11,7 @@
 #include <AdePT/transport/steps/GPUStep.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
 #include <AdePT/g4integration/returned_steps/HostTrackDataMapper.hh>
+#include <AdePT/g4integration/returned_steps/HandoffValidator.hh>
 
 #include <G4EventManager.hh>
 #include <G4Event.hh>
@@ -91,6 +92,12 @@ public:
     fHepEmTrackingManager = hepEmTrackingManager;
   }
 
+  /// @brief Check every track returned because it left the GPU regions (see HandoffValidator).
+  void EnableHandoffValidation() { fHandoffValidator = std::make_unique<HandoffValidator>(); }
+
+  /// @brief The handoff validator, or nullptr when validation is off.
+  HandoffValidator const *GetHandoffValidator() const { return fHandoffValidator.get(); }
+
 private:
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
   void FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
@@ -150,4 +157,7 @@ private:
 
   std::vector<GPUStep> fDeferredGPUSteps;
   std::vector<DeferredStep> fDeferredSteps;
+
+  // Optional check of tracks leaving the GPU regions (/adept/validateHandoff)
+  std::unique_ptr<HandoffValidator> fHandoffValidator;
 };

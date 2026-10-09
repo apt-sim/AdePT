@@ -149,6 +149,39 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
                                  "gamma back to the normal gamma kernel. Default: "
                                  "5. This can be used to optimize the performance in highly granular geometries");
 
+  // ADEPT_DOCS_SECTION: Geometry Validation
+  fValidateHandoffCmd = std::make_unique<G4UIcmdWithABool>("/adept/validateHandoff", this);
+  fValidateHandoffCmd->SetGuidance(
+      "If true, every track leaving the GPU regions is relocated by Geant4 as when it resumes CPU tracking, and the "
+      "outcome is checked against the GPU navigation: the step end point must lie within Geant4's tolerance band of "
+      "the crossed surfaces, and Geant4 must find the path reached on the GPU unless the final direction points back "
+      "through a crossed surface or another volume starts on the same surface. Counters and the verdict "
+      "(HandoffValidation: PASSED/FAILED) are printed at the end of the job. For validation only: it costs a Geant4 "
+      "relocation per returned track.");
+
+  fValidateCrossingsCmd = std::make_unique<G4UIcmdWithABool>("/adept/validateCrossings", this);
+  fValidateCrossingsCmd->SetGuidance(
+      "If true, the GPU transport checks every boundary crossing after relocating into the next volume: the step end "
+      "point must lie within +-kTolerance of the crossed surfaces (not inside a volume being left, nor outside a "
+      "volume "
+      "being entered, beyond it), and the final direction is compared with the normal of the crossed surface to count "
+      "bounce-backs. Off-band landings are recorded for replay (/adept/crossingRecordsFile). Counters and a depth "
+      "histogram are printed at the end of the job (CrossingValidation lines). Solid navigation only; for validation "
+      "and studies of the tolerance conventions, it costs several solid queries per crossing.");
+  fValidateCrossingsCmd->AvailableForStates(G4State_PreInit);
+
+  fCrossingRecordsFileCmd = std::make_unique<G4UIcmdWithAString>("/adept/crossingRecordsFile", this);
+  fCrossingRecordsFileCmd->SetGuidance(
+      "CSV file for the off-band landings found by /adept/validateCrossings: point and direction in the frame of the "
+      "offending volume (for a replay on its solid) and in the global frame, depth, normal . direction, volumes.");
+  fCrossingRecordsFileCmd->AvailableForStates(G4State_PreInit);
+
+  fCrossingRecordCapacityCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/crossingRecordCapacity", this);
+  fCrossingRecordCapacityCmd->SetGuidance("Maximum number of off-band landings recorded. Default: 10000");
+  fCrossingRecordCapacityCmd->SetParameterName("CrossingRecordCapacity", false);
+  fCrossingRecordCapacityCmd->SetRange("CrossingRecordCapacity>=0");
+  fCrossingRecordCapacityCmd->AvailableForStates(G4State_PreInit);
+
   // ADEPT_DOCS_SECTION: Special settings for G4EmStandard_AdePT physics constructor
   fAddWDTRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/addWDTRegion", this);
   fAddWDTRegionCmd->SetGuidance("Add a region in which the gamma transport is done via Woodcock tracking. "
@@ -200,6 +233,24 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     if (!fAdePTConfiguration->SetReturnAllSteps(fSetReturnAllStepsCmd->GetNewBoolValue(newValue))) {
       ReportLockedTransportInitializationOption(command);
     }
+  } else if (command == fValidateCrossingsCmd.get()) {
+#ifdef ADEPT_GEOMETRY_VALIDATION
+    fAdePTConfiguration->SetValidateCrossings(fValidateCrossingsCmd->GetNewBoolValue(newValue));
+#else
+    G4cout << "AdePT: " << command->GetCommandPath() << " ignored, AdePT was built without ADEPT_GEOMETRY_VALIDATION"
+           << G4endl;
+#endif
+  } else if (command == fCrossingRecordsFileCmd.get()) {
+    fAdePTConfiguration->SetCrossingRecordsFile(newValue);
+  } else if (command == fCrossingRecordCapacityCmd.get()) {
+    fAdePTConfiguration->SetCrossingRecordCapacity(fCrossingRecordCapacityCmd->GetNewIntValue(newValue));
+  } else if (command == fValidateHandoffCmd.get()) {
+#ifdef ADEPT_GEOMETRY_VALIDATION
+    fAdePTConfiguration->SetValidateHandoff(fValidateHandoffCmd->GetNewBoolValue(newValue));
+#else
+    G4cout << "AdePT: " << command->GetCommandPath() << " ignored, AdePT was built without ADEPT_GEOMETRY_VALIDATION"
+           << G4endl;
+#endif
   } else if (command == fSetSpeedOfLightCmd.get()) {
     fAdePTConfiguration->SetSpeedOfLight(fSetSpeedOfLightCmd->GetNewBoolValue(newValue));
   } else if (command == fSetMultipleStepsInMSCWithTransportationCmd.get()) {

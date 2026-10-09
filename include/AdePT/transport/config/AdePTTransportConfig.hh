@@ -26,4 +26,7 @@ struct AdePTTransportConfig {
   double cpuCopyFraction{0.5};
   double stepBufferSafetyFactor{1.5};
   adept::SteppingActionParamsT steppingActionParams{}; ///< parameters of the stepping action selected at build time
+  bool validateCrossings{false};              ///< Check the landing of every GPU boundary crossing
+  unsigned int crossingRecordCapacity{10000}; ///< Maximum number of off-band landings recorded
+  std::string crossingRecordsFile{};          ///< CSV file for the off-band landings (empty: none)
 };

@@ -121,6 +121,24 @@
 # Default: 5. This can be used to optimize the performance in highly granular geometries
 
 ### ------------
+### Geometry validation (compiled with -DADEPT_GEOMETRY_VALIDATION=ON, otherwise the commands print a notice):
+
+/adept/validateHandoff true
+# If true, every track leaving the GPU regions is relocated by Geant4 as when it resumes CPU tracking, and the outcome
+# is checked against the GPU navigation. Counters and the verdict (HandoffValidation: PASSED/FAILED) are printed at the
+# end of the job.
+
+/adept/validateCrossings true
+# If true, the GPU transport checks every boundary crossing after relocating into the next volume against the
+# +-kTolerance band of the crossed surfaces and counts bounce-backs. Solid navigation only.
+
+/adept/crossingRecordsFile crossing_records.csv
+# CSV file for the off-band landings found by /adept/validateCrossings.
+
+/adept/crossingRecordCapacity 0
+# Maximum number of off-band landings recorded. Default: 10000 (0: no records, no file).
+
+### ------------
 ### Special settings for G4EmStandard_AdePT physics constructor ###
 
 /adept/addWDTRegion Layer1

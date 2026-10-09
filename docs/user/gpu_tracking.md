@@ -49,7 +49,11 @@ parameterized shower and tracks only few particles in that region, it can be fas
 that detector part on CPU, since that parameterized shower is not implemented on GPU yet.
 
 The runtime controls for region-based offloading are documented in
-{ref}`runtime-parameters-specify-the-regions-where-the-gpu-is-used`.
+{ref}`runtime-parameters-specify-the-regions-where-the-gpu-is-used`. Tracks
+leaving the GPU regions are returned to Geant4, which relocates them from the
+path reached on the GPU; the geometry validation of this handoff, and of the
+boundary crossings made on the GPU, is described in
+[Geometry validation](geometry-validation.md).
 
 ```{figure} images/track_offloading_scheme.png
 :name: fig-track-offloading
