@@ -32,7 +32,7 @@
 @HANDOFF_GPU_REGIONS@
 /adept/validateHandoff true
 /adept/validateCrossings true
-/adept/crossingRecordsFile @HANDOFF_RECORDS@
+/adept/geometryValidationOutput @HANDOFF_OUTPUT@
 
 ## A field makes the charged tracks leave the GPU regions at all angles, including grazing ones
 /detector/setField 0 0 3.8 tesla

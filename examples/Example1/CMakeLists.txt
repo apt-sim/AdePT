@@ -80,7 +80,7 @@ if(ADEPT_GEOMETRY_VALIDATION)
   function(add_example1_handoff_test name gdml regions)
     set(HANDOFF_GDML ${gdml})
     set(HANDOFF_CUDA_STACK ${ADEPT_HANDOFF_VALIDATION_CUDA_STACK})
-    set(HANDOFF_RECORDS ${PROJECT_BINARY_DIR}/example1_${name}_crossings.csv)
+    set(HANDOFF_OUTPUT ${PROJECT_BINARY_DIR}/example1_${name})
     set(HANDOFF_GPU_REGIONS "")
     foreach(region IN LISTS regions)
       string(APPEND HANDOFF_GPU_REGIONS "/adept/addGPURegion ${region}\n")
@@ -92,6 +92,10 @@ if(ADEPT_GEOMETRY_VALIDATION)
   endfunction()
 
   add_example1_handoff_test(handoff ${GDML} "EcalRegion")
+
+  # Replay of the geometry validation records (driven by replay_geometry_validation.py)
+  add_executable(geometryValidationReplay geometryValidationReplay.cpp)
+  cuda_rdc_target_link_libraries(geometryValidationReplay PRIVATE AdePT::G4Integration)
 
   # External geometries defining their own regions, e.g.
   #   -DADEPT_HANDOFF_VALIDATION_GEOMETRIES="/path/cmsD110.gdml=EcalRegion,HcalRegion;/path/other.gdml=SomeRegion"

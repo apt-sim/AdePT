@@ -71,6 +71,7 @@ __global__ void __launch_bounds__(256, 1)
     vecgeom::Vector3D<double> preStepPos(pos);
     auto dir = currentTrack.dir;
     vecgeom::Vector3D<double> preStepDir(dir);
+    ADEPT_VALIDATE_STATE(currentTrack, 0, navState, preStepPos, preStepDir, pos, dir, 6, -1., -1., -1.);
     double globalTime        = currentTrack.globalTime;
     double preStepGlobalTime = currentTrack.globalTime;
     double localTime         = currentTrack.localTime;
@@ -216,6 +217,9 @@ __global__ void __launch_bounds__(256, 1)
     // Propagate information from geometrical step to G4HepEm.
     theTrack->SetGStepLength(geometryStepLength);
     theTrack->SetOnBoundary(nextState.IsOnBoundary());
+    if (!nextState.IsOnBoundary())
+      ADEPT_VALIDATE_STATE(currentTrack, 0, nextState, preStepPos, preStepDir, pos, dir, 5,
+                           geometricalStepLengthFromPhysics, geometryStepLength, -1.);
 
     // Update the flight times of the particle
     double deltaTime = theTrack->GetGStepLength() / copcore::units::kCLight;
@@ -243,7 +247,7 @@ __global__ void __launch_bounds__(256, 1)
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
-        ADEPT_VALIDATE_CROSSING(navState, nextState, pos, dir);
+        ADEPT_VALIDATE_CROSSING(currentTrack, 0, navState, nextState, preStepPos, preStepDir, pos, dir);
 #endif
 
 #if ADEPT_DEBUG_TRACK > 0

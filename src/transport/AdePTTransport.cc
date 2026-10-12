@@ -120,8 +120,8 @@ AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
       fCPUCapacityFactor{configuration.cpuCapacityFactor}, fCPUCopyFraction{configuration.cpuCopyFraction},
       fStepBufferSafetyFactor{configuration.stepBufferSafetyFactor},
       fValidateCrossings{configuration.validateCrossings},
-      fCrossingRecordCapacity{configuration.crossingRecordCapacity},
-      fCrossingRecordsFile{configuration.crossingRecordsFile}
+      fValidationRecordCapacity{configuration.validationRecordCapacity},
+      fValidationOutput{configuration.validationOutput}
 {
   for (auto &eventState : fEventStates) {
     std::atomic_init(&eventState, EventState::DeviceFlushed);
@@ -133,14 +133,8 @@ AdePTTransport::AdePTTransport(const AdePTTransportConfig &configuration,
 AdePTTransport::~AdePTTransport()
 {
   adept::transport::detail::FreeGPU(std::ref(fGPUstate), fGPUWorker, fWDTDev);
-}
-
-void AdePTTransport::ReportCrossingValidation(std::ostream &out)
-{
-  std::call_once(fCrossingReportOnce, [&] {
-    adept::transport::ReportCrossingValidation(fCrossingValidation, fCrossingRecordsFile, out);
-    fCrossingValidation = nullptr;
-  });
+  // The shared transport is destroyed with its last user, after the GPU worker is joined: all events are complete.
+  adept::transport::ReportCrossingValidation(fCrossingValidation, fValidationOutput, std::cout);
 }
 
 void AdePTTransport::AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z,
@@ -234,7 +228,7 @@ void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::W
   volAuxArray.fAuxData    = auxData;
   adept::transport::InitVolAuxArray(volAuxArray);
 #ifdef ADEPT_GEOMETRY_VALIDATION
-  if (fValidateCrossings) fCrossingValidation = adept::transport::InitCrossingValidation(fCrossingRecordCapacity);
+  if (fValidateCrossings) fCrossingValidation = adept::transport::InitCrossingValidation(fValidationRecordCapacity);
 #endif
 
 #ifdef ADEPT_ENABLE_WDT

@@ -435,7 +435,7 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parent
 #ifdef ADEPT_GEOMETRY_VALIDATION
     if (fHandoffValidator && leftGPURegions) {
       fHandoffValidator->Check(MakeTouchableFromNavState(parentStep.fPreStepPoint.fNavigationState), touchable,
-                               boundaryPoint, position, direction);
+                               boundaryPoint, position, direction, GetEventID(), parentStep.fTrackID);
     }
 #endif
   }

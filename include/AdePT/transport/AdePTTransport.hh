@@ -33,7 +33,7 @@ struct TrackBuffer;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
 CrossingValidationData *InitCrossingValidation(unsigned int recordCapacity);
-void ReportCrossingValidation(CrossingValidationData *device, std::string const &recordsFile, std::ostream &out);
+void ReportCrossingValidation(CrossingValidationData *device, std::string const &prefix, std::ostream &out);
 
 class AdePTTransport {
 public:
@@ -68,10 +68,9 @@ private:
   ///< Needed to stall the GPU, in case the nPartInFlight * fStepBufferSafetyFactor > available StepSlots
   double fStepBufferSafetyFactor{1.5};
   bool fValidateCrossings{false};                       ///< Check the landing of every GPU boundary crossing
-  unsigned int fCrossingRecordCapacity{0};              ///< Maximum number of off-band landings recorded
-  std::string fCrossingRecordsFile{};                   ///< CSV file for the off-band landings
+  unsigned int fValidationRecordCapacity{0};            ///< Maximum number of replayable crossing records
+  std::string fValidationOutput{};                      ///< Prefix of the geometry validation files
   CrossingValidationData *fCrossingValidation{nullptr}; ///< Device data of the crossing validation
-  std::once_flag fCrossingReportOnce;
 
   void Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                   const std::vector<float> &uniformFieldValues);
@@ -92,8 +91,6 @@ public:
                 unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state,
                 bool hasHostData = false);
   int GetDebugLevel() const { return fDebugLevel; }
-  /// @brief Print the crossing validation report and write its records (once per job; no-op if disabled).
-  void ReportCrossingValidation(std::ostream &out);
   /// @brief Handle the currently available returned GPU-step batches for one thread and event.
   /// @details
   /// Transport retains ownership of the step-buffer lifetime. For each available

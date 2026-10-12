@@ -61,6 +61,8 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
     currentTrack.preStepGlobalTime = currentTrack.globalTime;
     currentTrack.preStepPos        = currentTrack.pos;
     currentTrack.preStepDir        = currentTrack.dir;
+    ADEPT_VALIDATE_STATE(currentTrack, 0, currentTrack.navState, currentTrack.preStepPos, currentTrack.preStepDir,
+                         currentTrack.pos, currentTrack.dir, 6, -1., -1., -1.);
     // the MCC vector is indexed by the logical volume id
 
     currentTrack.stepCounter++;
@@ -210,6 +212,9 @@ __global__ void GammaPropagation(NeutralTrack *gammas, G4HepEmGammaTrack *hepEMT
       currentTrack.zeroStepCounter = 0;
 
     currentTrack.pos += geometryStepLength * currentTrack.dir;
+    if (!currentTrack.nextState.IsOnBoundary())
+      ADEPT_VALIDATE_STATE(currentTrack, 0, currentTrack.nextState, currentTrack.preStepPos, currentTrack.preStepDir,
+                           currentTrack.pos, currentTrack.dir, 5, theTrack->GetGStepLength(), geometryStepLength, -1.);
 
     // Set boundary state in navState so the next step and secondaries get the
     // correct information (navState = nextState only if relocated
@@ -329,7 +334,8 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
                                            currentTrack.nextState);
 #else
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
-      ADEPT_VALIDATE_CROSSING(currentTrack.navState, currentTrack.nextState, currentTrack.pos, currentTrack.dir);
+      ADEPT_VALIDATE_CROSSING(currentTrack, 0, currentTrack.navState, currentTrack.nextState, currentTrack.preStepPos,
+                              currentTrack.preStepDir, currentTrack.pos, currentTrack.dir);
 #endif
 
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();

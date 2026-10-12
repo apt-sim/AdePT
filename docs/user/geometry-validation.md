@@ -53,8 +53,12 @@ relocation Geant4 does when tracking resumes, and the outcome is classified:
   a geometric reason: the normal at the exit point shows the direction going back
   through the crossed surface (for example a deflection applied at the boundary;
   native Geant4 would take a zero step to the same place), or another volume
-  starts on the same surface in the direction of motion. Anything else is
-  *unexplained* (overlaps, differences between the Geant4 and VecGeom solids).
+  starts on the same surface in the direction of motion. Geant4 may also confirm
+  the GPU path at the end point itself while the short push that AdePT applies
+  along the direction before returning the track moved it across a further
+  surface (for example a tangent polygonal face a few `kTolerance` away); this is
+  counted as *crossed by the handoff push*. Anything else is *unexplained*
+  (overlaps, differences between the Geant4 and VecGeom solids).
 
 ```{figure} images/geometry_validation_handoff.png
 :name: fig-validation-handoff
@@ -77,8 +81,6 @@ cases.
 
 ```console
 /adept/validateCrossings true
-/adept/crossingRecordsFile crossings.csv
-/adept/crossingRecordCapacity 10000
 ```
 
 Every boundary crossing made by the GPU transport is checked right after the
@@ -99,21 +101,32 @@ with the solid navigation only (not with `ADEPT_USE_SURF`).
 Landing classes against the +-`kTolerance` band, and bounce-backs.
 ```
 
-Off-band landings are written to the records file, one line each, with the point
-and direction in the frame of the offending volume (to replay the query on its
-solid) and in the global frame, the depth in `kTolerance` units, the normal
-component of the direction, the volumes left and reached, and the overlap proof.
-The `CrossingValidation` report is a measurement: it does not pass or fail.
+Steps ended by the stuck-track push of the transport (a track making zero steps
+is moved by 100 `kTolerance`) are counted separately, and the in-band crossings
+made during a zero-step loop, before the push, are counted and recorded: they show
+the states the loop alternates between. The `CrossingValidation`
+report is a measurement: it does not pass or fail.
+
+Between crossings, the position is also checked against the volume of the
+navigation state, at the start of every step and at the end of every step that
+crossed no boundary. A point more than 100 `kTolerance` outside that volume, or as
+deep inside one of its daughters, is a state mismatch: the track left or entered a
+volume without a relocation, for instance because a solid missed a crossing, and
+is relocated later by a zero-length step far from any surface. Mismatches are
+counted and recorded with the physics and geometry step lengths, the pre-step
+safety and the multiple-scattering displacement, which tell the navigation, the
+safety and the displacement apart as causes.
 
 (validation-overlap-proofs)=
 ## Overlap proofs
 
 Both checks try to prove that an error comes from the geometry: the end point, or
-a witness point up to 100 `kTolerance` further along the final direction, is
+a witness point up to 100 `kTolerance` before or after it along the final
+direction, is
 strictly inside two volumes of different branches of the hierarchy (an overlap),
 or strictly inside a volume and strictly outside one of its ancestors (an
 extrusion). Proven overlaps are listed per volume pair in the reports and in the
-records file.
+output files (see {ref}`validation-output`).
 
 ```{figure} images/geometry_validation_overlaps.png
 :name: fig-validation-overlaps
@@ -123,6 +136,58 @@ records file.
 
 Overlap and extrusion proofs used by both checks.
 ```
+
+(validation-output)=
+## Output files, plots and replays
+
+```console
+/adept/geometryValidationOutput <prefix>
+/adept/geometryValidationRecordCapacity 10000
+```
+
+At the end of the job the checks write `<prefix>_crossings.json` and
+`<prefix>_handoff.json`: the counters, the histograms (the wrong-side landing
+depth in logarithmic `kTolerance` bins, the normal component of the bounce-back
+directions) and a replayable record for each off-band landing, each crossing of
+a zero-step loop, each state mismatch and each handoff not confirmed by Geant4 at
+the first attempt.
+Records hold the navigation states before and after the crossing (daughter
+indices from the world, with the volume labels as a check) or the Geant4 paths,
+the pre-step and final points and
+directions, the event and track, the stuck-track and magnetic-field flags and the
+overlap proof. They are sorted by event and track, so the files do not depend on
+the thread scheduling; at most the record capacity is kept per check, the
+counters are always complete.
+
+In multi-threaded jobs the GPU crossings are counted by the transport shared by
+all workers and written when the transport is destroyed, after its last user; the
+handoff checks run in each worker thread and are merged when the last worker
+ends.
+
+The histograms are drawn, as for the integration test truth histograms, with
+
+```console
+test/regression/scripts/python_scripts/plot_geometry_validation.py --prefix <prefix> --output-dir plots
+```
+
+which writes a ROOT file and one PNG per histogram. Records are replayed on the
+CPU, loading the same GDML file as example1, with
+
+```console
+test/regression/scripts/python_scripts/replay_geometry_validation.py \
+  --replay BuildProducts/bin/geometryValidationReplay --gdml <file.gdml> \
+  --prefix <prefix> [--kind inside-left] [--category unexplained] [--volume <label>] [--index i ...]
+```
+
+For a GPU crossing the replay classifies the end point with every crossed solid
+(Inside, safeties, distances along the final direction, normal), recomputes the
+step from the pre-step point for straight steps and the relocation with the final
+direction. A step that started on a boundary is also classified at the start
+point moved by the navigator boundary push, with the solids of the volumes
+entered, which shows a solid answering wrongly within its surface band. For a
+handoff the replay repeats the Geant4 relocation at the boundary and handed
+points. `geometryValidationReplay` is built with example1 when
+`ADEPT_GEOMETRY_VALIDATION=ON`.
 
 ## Example 1 tests
 
