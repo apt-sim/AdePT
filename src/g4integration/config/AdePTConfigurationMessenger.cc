@@ -165,22 +165,26 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "point must lie within +-kTolerance of the crossed surfaces (not inside a volume being left, nor outside a "
       "volume "
       "being entered, beyond it), and the final direction is compared with the normal of the crossed surface to count "
-      "bounce-backs. Off-band landings are recorded for replay (/adept/crossingRecordsFile). Counters and a depth "
+      "bounce-backs. Off-band landings are recorded for replay (/adept/geometryValidationOutput). Counters and a depth "
       "histogram are printed at the end of the job (CrossingValidation lines). Solid navigation only; for validation "
       "and studies of the tolerance conventions, it costs several solid queries per crossing.");
   fValidateCrossingsCmd->AvailableForStates(G4State_PreInit);
 
-  fCrossingRecordsFileCmd = std::make_unique<G4UIcmdWithAString>("/adept/crossingRecordsFile", this);
-  fCrossingRecordsFileCmd->SetGuidance(
-      "CSV file for the off-band landings found by /adept/validateCrossings: point and direction in the frame of the "
-      "offending volume (for a replay on its solid) and in the global frame, depth, normal . direction, volumes.");
-  fCrossingRecordsFileCmd->AvailableForStates(G4State_PreInit);
+  fGeometryValidationOutputCmd = std::make_unique<G4UIcmdWithAString>("/adept/geometryValidationOutput", this);
+  fGeometryValidationOutputCmd->SetGuidance(
+      "Prefix of the geometry validation output files, written at the end of the job: <prefix>_crossings.json "
+      "(/adept/validateCrossings) and <prefix>_handoff.json (/adept/validateHandoff), with the counters, histograms "
+      "and the replayable records of the off-band landings and of the handoffs not confirmed by Geant4. Plot them "
+      "with plot_geometry_validation.py, replay records with geometryValidationReplay. Default: no files.");
+  fGeometryValidationOutputCmd->AvailableForStates(G4State_PreInit);
 
-  fCrossingRecordCapacityCmd = std::make_unique<G4UIcmdWithAnInteger>("/adept/crossingRecordCapacity", this);
-  fCrossingRecordCapacityCmd->SetGuidance("Maximum number of off-band landings recorded. Default: 10000");
-  fCrossingRecordCapacityCmd->SetParameterName("CrossingRecordCapacity", false);
-  fCrossingRecordCapacityCmd->SetRange("CrossingRecordCapacity>=0");
-  fCrossingRecordCapacityCmd->AvailableForStates(G4State_PreInit);
+  fValidationRecordCapacityCmd =
+      std::make_unique<G4UIcmdWithAnInteger>("/adept/geometryValidationRecordCapacity", this);
+  fValidationRecordCapacityCmd->SetGuidance(
+      "Maximum number of replayable records kept by each geometry validation check. Default: 10000");
+  fValidationRecordCapacityCmd->SetParameterName("ValidationRecordCapacity", false);
+  fValidationRecordCapacityCmd->SetRange("ValidationRecordCapacity>=0");
+  fValidationRecordCapacityCmd->AvailableForStates(G4State_PreInit);
 
   // ADEPT_DOCS_SECTION: Special settings for G4EmStandard_AdePT physics constructor
   fAddWDTRegionCmd = std::make_unique<G4UIcmdWithAString>("/adept/addWDTRegion", this);
@@ -240,10 +244,10 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     G4cout << "AdePT: " << command->GetCommandPath() << " ignored, AdePT was built without ADEPT_GEOMETRY_VALIDATION"
            << G4endl;
 #endif
-  } else if (command == fCrossingRecordsFileCmd.get()) {
-    fAdePTConfiguration->SetCrossingRecordsFile(newValue);
-  } else if (command == fCrossingRecordCapacityCmd.get()) {
-    fAdePTConfiguration->SetCrossingRecordCapacity(fCrossingRecordCapacityCmd->GetNewIntValue(newValue));
+  } else if (command == fGeometryValidationOutputCmd.get()) {
+    fAdePTConfiguration->SetGeometryValidationOutput(newValue);
+  } else if (command == fValidationRecordCapacityCmd.get()) {
+    fAdePTConfiguration->SetValidationRecordCapacity(fValidationRecordCapacityCmd->GetNewIntValue(newValue));
   } else if (command == fValidateHandoffCmd.get()) {
 #ifdef ADEPT_GEOMETRY_VALIDATION
     fAdePTConfiguration->SetValidateHandoff(fValidateHandoffCmd->GetNewBoolValue(newValue));

@@ -93,7 +93,10 @@ public:
   }
 
   /// @brief Check every track returned because it left the GPU regions (see HandoffValidator).
-  void EnableHandoffValidation() { fHandoffValidator = std::make_unique<HandoffValidator>(); }
+  void EnableHandoffValidation(std::string const &outputPrefix, unsigned int recordCapacity)
+  {
+    fHandoffValidator = std::make_unique<HandoffValidator>(outputPrefix, recordCapacity);
+  }
 
   /// @brief The handoff validator, or nullptr when validation is off.
   HandoffValidator const *GetHandoffValidator() const { return fHandoffValidator.get(); }

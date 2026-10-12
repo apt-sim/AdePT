@@ -64,8 +64,8 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
       configuration.GetReturnFirstAndLastStep() || configuration.GetReturnAllSteps();
   transportConfig.kernelOptions.maxChargedLooperCount = configuration.GetMaxChargedLooperCount();
   transportConfig.validateCrossings                   = configuration.GetValidateCrossings();
-  transportConfig.crossingRecordCapacity              = configuration.GetCrossingRecordCapacity();
-  transportConfig.crossingRecordsFile                 = configuration.GetCrossingRecordsFile();
+  transportConfig.validationRecordCapacity            = configuration.GetValidationRecordCapacity();
+  transportConfig.validationOutput                    = configuration.GetGeometryValidationOutput();
   transportConfig.bfieldFile                          = configuration.GetCovfieBfieldFile();
   transportConfig.cpuCapacityFactor                   = configuration.GetCPUCapacityFactor();
   transportConfig.cpuCopyFraction                     = configuration.GetHitBufferFlushThreshold();
@@ -168,8 +168,6 @@ AdePTTrackingManager::~AdePTTrackingManager()
 {
   if (auto const *validator = fGeant4Integration.GetHandoffValidator())
     validator->Report(std::cout, G4Threading::G4GetThreadId());
-  // The first worker to finish reports the shared GPU crossing validation.
-  if (fAdeptTransport) fAdeptTransport->ReportCrossingValidation(std::cout);
 
 #ifdef ADEPT_ENABLE_POWER_METER
   // NOTE: Prior to Geant4 11.3 the destructor for the specialized tracking managers was not
@@ -362,7 +360,8 @@ void AdePTTrackingManager::InitializeAdePT()
     if (fAdePTConfiguration->GetTrackInAllRegions())
       std::cout << "HandoffValidation: not active, all regions are tracked on the GPU (no track leaves them)\n";
     else
-      fGeant4Integration.EnableHandoffValidation();
+      fGeant4Integration.EnableHandoffValidation(fAdePTConfiguration->GetGeometryValidationOutput(),
+                                                 fAdePTConfiguration->GetValidationRecordCapacity());
   }
 #endif
 

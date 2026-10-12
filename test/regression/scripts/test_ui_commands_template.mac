@@ -132,11 +132,12 @@
 # If true, the GPU transport checks every boundary crossing after relocating into the next volume against the
 # +-kTolerance band of the crossed surfaces and counts bounce-backs. Solid navigation only.
 
-/adept/crossingRecordsFile crossing_records.csv
-# CSV file for the off-band landings found by /adept/validateCrossings.
+/adept/geometryValidationOutput geometry_validation
+# Prefix of the output files written at the end of the job: <prefix>_crossings.json and <prefix>_handoff.json, with
+# counters, histograms and replayable records. Default: no files.
 
-/adept/crossingRecordCapacity 0
-# Maximum number of off-band landings recorded. Default: 10000 (0: no records, no file).
+/adept/geometryValidationRecordCapacity 0
+# Maximum number of replayable records kept by each check. Default: 10000.
 
 ### ------------
 ### Special settings for G4EmStandard_AdePT physics constructor ###
