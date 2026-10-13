@@ -54,8 +54,8 @@ struct CrossingRecord {
   double displacement;
 };
 
-/// Depth outside the state volume beyond which a state mismatch (kinds 5, 6) is recorded.
-constexpr double kStateMismatchDepth = 100. * 1.e-9;
+/// Depth outside the state volume beyond which a state mismatch (kinds 5, 6) is recorded: the kTolerance surface band.
+constexpr double kStateMismatchDepth = 1.e-9;
 
 /// Zero-step count above which the transport pushes a stuck track by kPushStuck (as in the transport kernels).
 constexpr unsigned short kCrossingStuckPushSteps = 5;
