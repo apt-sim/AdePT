@@ -1668,7 +1668,7 @@ void ReportCrossingValidation(CrossingValidationData *device, std::string const 
       << host.offSurface << " farther than kTolerance from every crossed surface; " << host.offBandOverlap
       << " proven to come from an overlap, " << host.offBandStuckPush << " after a stuck-track push)\n"
       << "CrossingValidation   zero-step loops: " << host.zeroStepLoop << " in-band crossings made without moving\n"
-      << "CrossingValidation   state mismatches (point > 100 kTolerance outside its state volume or inside a "
+      << "CrossingValidation   state mismatches (point > kTolerance outside its state volume or inside a "
          "daughter): "
       << host.stateMismatchEnd << " at the end of a step without relocation, " << host.stateMismatchStart
       << " at the start of a step\n"

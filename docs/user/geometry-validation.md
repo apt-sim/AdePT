@@ -109,7 +109,7 @@ report is a measurement: it does not pass or fail.
 
 Between crossings, the position is also checked against the volume of the
 navigation state, at the start of every step and at the end of every step that
-crossed no boundary. A point more than 100 `kTolerance` outside that volume, or as
+crossed no boundary. A point more than `kTolerance` outside that volume, or as
 deep inside one of its daughters, is a state mismatch: the track left or entered a
 volume without a relocation, for instance because a solid missed a crossing, and
 is relocated later by a zero-length step far from any surface. Mismatches are
