@@ -170,14 +170,19 @@ The histograms are drawn, as for the integration test truth histograms, with
 test/regression/scripts/python_scripts/plot_geometry_validation.py --prefix <prefix> --output-dir plots
 ```
 
-which writes a ROOT file and one PNG per histogram. Records are replayed on the
-CPU, loading the same GDML file as example1, with
+which writes a ROOT file and one PNG per histogram. Records are summarized, and
+replayed on the CPU loading the same GDML file as example1, with
 
 ```console
+test/regression/scripts/python_scripts/replay_geometry_validation.py --prefix <prefix> --summary
 test/regression/scripts/python_scripts/replay_geometry_validation.py \
   --replay BuildProducts/bin/geometryValidationReplay --gdml <file.gdml> \
-  --prefix <prefix> [--kind inside-left] [--category unexplained] [--volume <label>] [--index i ...]
+  --prefix <prefix> [--kind inside-left] [--category unexplained] [--volume <label>] [--index i ...] \
+  [--limit n] [--boolean-threshold n]
 ```
+
+`--boolean-threshold` must repeat the VecGeom Boolean optimization threshold of
+the run, if it set one: the replay must build the same Boolean solids.
 
 For a GPU crossing the replay classifies the end point with every crossed solid
 (Inside, safeties, distances along the final direction, normal), recomputes the
@@ -187,7 +192,188 @@ point moved by the navigator boundary push, with the solids of the volumes
 entered, which shows a solid answering wrongly within its surface band. For a
 handoff the replay repeats the Geant4 relocation at the boundary and handed
 points. `geometryValidationReplay` is built with example1 when
-`ADEPT_GEOMETRY_VALIDATION=ON`.
+`ADEPT_GEOMETRY_VALIDATION=ON`. How to use the summary and the replay to find the
+cause of an error is described in {ref}`validation-debugging`.
+
+(validation-debugging)=
+## Debugging with the records
+
+The checks find the errors; the records and the replay explain them. Debugging
+takes four steps: triage the records, replay a few of each group, read the replay
+to decide what answered wrongly, and turn the record into a reproducer.
+
+### Triage
+
+Run the job with `/adept/geometryValidationOutput <prefix>`, then summarize the
+records without replaying them:
+
+```console
+replay_geometry_validation.py --prefix <prefix> --summary [--kind <kind>] [--volume <label>]
+```
+
+The first line repeats the counters of the report. Each following line is a group
+of records with the same kind and the same volumes left and entered, largest
+first, for example
+
+```text
+crossings 184555210: off-band 0 (...), zero-step loops 359, state mismatches 0 at step end / 0 at step start; records kept 359 of 359
+     272 zero-step-loop       barrel_1 -> aluSideA_1: 262 tracks, at most 2 per track, max depth 0.000455 kTolerance, charged 4, stuck push 0, overlap 0; indices 0 1 2 3 4
+       4 zero-step-loop       SM3rd_2 -> EMOD_4: 4 tracks, at most 1 per track, max depth 0.000107 kTolerance, charged 0, stuck push 0, overlap 0; indices 20 22 34 35
+```
+
+with the number of tracks, the largest number of records of one track, the
+largest depth, how many records are of charged tracks, came after a stuck-track
+push or carry an overlap proof, and the first record indices, to pass to
+`--index`. A group is usually one cause: replaying one or two of its records is
+enough. Handoff records are grouped by category and by the Geant4 volumes exited
+and expected.
+
+What a group means before any replay:
+
+- An off-band group with an overlap proof is a geometry error: the overlap or the
+  extrusion is listed in the report and in the output file.
+- An off-band group whose tracks all come from a stuck-track push is a consequence
+  of the push (it moves the track by 100 `kTolerance` without navigation); the
+  cause is the zero-step loop that preceded the push.
+- A zero-step-loop group with at most one or two records per track and no
+  stuck-track push is a track crossing coincident surfaces: a volume touching
+  another one, or a daughter touching its mother, entered with a zero step after
+  leaving the first one. A real loop shows many records per track and ends with a
+  stuck-track push.
+- Any other off-band landing and every state mismatch are worth a replay.
+
+### Replay
+
+```console
+replay_geometry_validation.py --replay BuildProducts/bin/geometryValidationReplay \
+  --gdml <file.gdml> --prefix <prefix> --index 0 [--boolean-threshold n]
+```
+
+The replay runs the VecGeom solids and the BVH navigator on the CPU, with the
+VecGeom build example1 was linked with. For each crossing record it prints:
+
+- a header `C <index>: <volume left> -> <volume entered>, step <length> mm`, with
+  `stuck-track push` and `magnetic field` when they apply;
+- the classification of the end point with the final direction, by each solid of
+  the volumes left (`left`), entered (`entered`) and of the deepest common
+  ancestor (`common`): `Inside`, `SafetyToIn`, `SafetyToOut`, `DistanceToIn`,
+  `DistanceToOut` in `kTolerance` units (`-1e+09` is the -1 of a wrong-side
+  start, `inf` no crossing) and `n.d`, the outward normal of the solid at the
+  point dotted with the direction (`(invalid)` when the point is not on its
+  surface);
+- the same classification of the pre-step point with the pre-step direction
+  (`pre`, `pre/cmn`) and, for a step that started on a boundary, of that point
+  moved by the navigator boundary push, by the volume left (`pushed`) and by the
+  volumes entered (`pushed>`). This block also prints the parameters of the solid
+  entered and the local point and direction in that solid with 17 digits;
+- `recomputed step`: the straight step recomputed from the pre-step point, the
+  distance of its end point from the recorded one in `kTolerance` units, and the
+  next volume. Curved steps in a field are not recomputed;
+- `exit climb / entry before relocation` and `relocation with the final
+  direction`: the state the navigator reaches at the end point, and whether it is
+  the recorded one.
+
+Handoff records print the Geant4 relocation at the boundary point and at the
+handed point, with `G4 Inside`, `DistanceToIn`, `DistanceToOut` and `n.d` of
+every volume involved.
+
+The depth of a record is measured with the safeties of the solids, so it carries
+their precision: for very large solids (radii of kilometers) this is a fraction
+of `kTolerance`.
+
+### Reading the replay
+
+| What the replay shows | Cause |
+| --- | --- |
+| The recomputed step reproduces the recorded end point, and a solid left or entered classifies it beyond its band (`Inside outside` for the volume entered, `Inside inside` deeper than `kTolerance` for the volume left) | The distance of that solid lands outside its own surface band: a solid error. Make a reproducer (below). |
+| `pushed>`: the volume entered classifies the pushed pre-step point as outside, or gives a `DistanceToIn` beyond the band, although the step entered it | The solid answers wrongly from a point within its surface band. |
+| The recomputed end point differs from the recorded one by more than `kTolerance` (straight steps) | The GPU and the CPU disagree: a difference of the device code, of the navigation state, or of the Boolean threshold given to the replay. |
+| `relocation ... DIFFERENT from the recorded state`, with an overlap proof | A geometry overlap or extrusion. |
+| `relocation ... DIFFERENT from the recorded state` after a zero step, no overlap proof | Coincident surfaces: the relocation goes one level further, into a volume touching the one entered. |
+| Zero-step loop: the volume entered is `Inside surface` with a `DistanceToOut` well beyond `kTolerance`, and the relocation is the recorded state | A legitimate zero-length crossing between touching volumes, not an error. |
+| State mismatch with a displacement larger than the pre-step safety | The multiple-scattering displacement left the safety sphere: the safety (of the volume or of a daughter) was too large, or the displacement was not limited by it. |
+| State mismatch with a displacement within the pre-step safety | The straight step missed a boundary: replay the step (`state-mismatch-end` records keep the geometry step) to find the solid whose distance missed it. |
+| State mismatch at a step start | The previous step or its relocation left the track in the wrong state: replay the records of the same track before it. |
+
+### From a record to a reproducer
+
+The replay prints the parameters of the solid involved (or find them in the GDML
+file with the logical volume name) and the point and direction in its local frame
+with 17 digits. These are enough to reproduce the error in a VecGeom unit test:
+build the solid, call the distance or the classification shown wrong by the
+replay, and compare with a reference computed in higher precision (`long double`)
+from the same local point. The test fails before the fix of the solid; after the
+fix, rebuild example1 with the fixed VecGeom, replay the same records (the
+`recomputed step` line shows the new end point) and rerun the job to see the
+group disappear.
+
+### Worked example: a far mirror in LHCb
+
+The LHCb 2024 geometry, all regions on the GPU, push-free stepping, gave in the
+`CrossingValidation` report
+
+```text
+CrossingValidation   off-band landings (beyond +-kTolerance): 1 (0 inside a volume being left, 0 outside a volume being entered, 1 farther than kTolerance from every crossed surface; 0 proven to come from an overlap, 0 after a stuck-track push)
+```
+
+The summary shows one group, without overlap or stuck-track push:
+
+```text
+       1 off-surface          pvRich1Mirror2Seg12 -> pvRich1Mirror2Q2Master: 1 tracks, at most 1 per track, max depth 1.4 kTolerance, charged 0, stuck push 0, overlap 0; indices 0
+```
+
+The replay of record 0 gives
+
+```text
+C 0: pvRich1Mirror2Seg12 -> pvRich1Mirror2Q2Master, step 0.856381 mm
+  end point, final direction (distances in kTolerance):
+    left     level  6 pvRich1Mirror2Seg12      Inside outside SafetyToIn  1.4 SafetyToOut -1e+09 DistanceToIn inf DistanceToOut -1e+09 n.d (invalid) 0.9689
+    common   level  5 pvRich1Mirror2Q2Master   Inside inside  ...
+  pre-step point pushed by the navigator boundary push (10 kTolerance):
+    local point (2654100.825030609, -158.23057569505181, -5.0193571025656656) direction (-0.96891571455553982, -0.16480283140934263, -0.18450573120310274)
+  recomputed step 0.856380718 mm, end point 0 kTolerance from the recorded one, next pvRich1Mirror2Q2Master (boundary)
+  relocation with the final direction: pvRich1Mirror2Q2Master (same as the recorded state)
+```
+
+The CPU reproduces the step exactly and the relocation is right, but the mirror
+segment, a spherical shell of 2.654 km radius cut to a 0.44 m patch, classifies the
+end of its own `DistanceToOut` 1.4 `kTolerance` outside its inner sphere (radius
+2654100 mm), which the track was leaving through. The cause is
+in the solid: in the frame of the sphere the local coordinates are of the order of
+the radius, and the residual |p|²-R² used by the sphere loses about ε·R, 0.6
+`kTolerance` at this radius. A unit test with the segment parameters, the local
+point above and a `long double` reference reproduces the landing error (the
+reference puts the recorded end point 1.16 `kTolerance` inside the inner sphere);
+the segment parameters are the precision test of the sphere far-section fix in
+VecGeom. With example1 rebuilt on the fixed VecGeom, the replay of the same record
+recomputes a different end point, 0.46 `kTolerance` from the recorded one, and the
+next job reports no off-band landing.
+
+### Worked example: zero-length crossings that are not errors
+
+The same campaign reported zero-step loops in other geometries, for instance one
+in CMS D110:
+
+```text
+       1 zero-step-loop       HGCalEE -> HGCalEEAbsorberLead27: 1 tracks, at most 1 per track, max depth 0.000153 kTolerance, charged 1, stuck push 0, overlap 0; indices 0
+```
+
+```text
+C 0: HGCalEE -> HGCalEEAbsorberLead27, step 0 mm
+  end point, final direction (distances in kTolerance):
+    entered  level  9 HGCalEEAbsorberLead27    Inside surface SafetyToIn 0.000153 SafetyToOut 0.000153 DistanceToIn 0.00296 DistanceToOut 9.59e+10 n.d -0.05184
+  recomputed step 0 mm, end point 0 kTolerance from the recorded one, next HGCalEEAbsorberLead27 (boundary)
+  relocation with the final direction: HGCalEEAbsorberLead27 (same as the recorded state)
+```
+
+The track starts on the surface of the lead absorber, still in its mother
+`HGCalEE`, and enters the absorber with a zero step: the absorber
+classifies the point on its surface, the direction enters it (`n.d` negative) and
+it is 96 mm thick along the track. The CPU agrees with the GPU at every stage: the
+volumes touch, nothing is wrong. In ALICE, the 272 records `barrel_1 ->
+aluSideA_1` show the same pattern with a second zero step: the relocation with the
+final direction lands in the daughter `aluSideAVac_1`, which touches the surface of
+its mother there.
 
 ## Example 1 tests
 
