@@ -55,6 +55,15 @@ using SelectedSteppingAction = adept::SteppingAction::Action;
 #include <G4HepEmElectronInit.hh>
 #include <G4HepEmGammaInit.hh>
 
+#include <AdePT/transport/geometry_validation/CrossingValidation.cuh>
+#include <AdePT/transport/geometry_validation/ValidationJson.hh>
+#include <VecGeom/management/GeoManager.h>
+
+#include <algorithm>
+#include <cmath>
+#include <fstream>
+#include <map>
+#include <tuple>
 #include <iostream>
 #include <iomanip>
 #include <stdio.h>
@@ -1556,6 +1565,8 @@ __constant__ __device__ struct G4HepEmData g4HepEmData;
 
 __constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
 
+__constant__ __device__ CrossingValidationData *gCrossingValidation = nullptr;
+
 __constant__ __device__ adeptint::WDTDeviceView gWDTData;
 
 #ifdef ADEPT_USE_EXT_BFIELD
@@ -1572,6 +1583,192 @@ void InitVolAuxArray(adeptint::VolAuxArray &array)
   ADEPT_DEVICE_API_CALL(Memcpy(array.fAuxData_dev, array.fAuxData, sizeof(VolAuxData) * array.fNumVolumes,
                                ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
   ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gVolAuxData, &array.fAuxData_dev, sizeof(VolAuxData *)));
+}
+
+/// Allocate the crossing validation data on the device and enable the check in the transport kernels.
+CrossingValidationData *InitCrossingValidation(unsigned int recordCapacity)
+{
+#ifdef ADEPT_USE_SURF
+  (void)recordCapacity;
+  std::cout << "CrossingValidation: not available with the surface model" << std::endl;
+  return nullptr;
+#else
+  CrossingValidationData host;
+  host.recordCapacity = recordCapacity;
+  ADEPT_DEVICE_API_CALL(Malloc(&host.records, sizeof(CrossingRecord) * std::max(recordCapacity, 1u)));
+  CrossingValidationData *device = nullptr;
+  ADEPT_DEVICE_API_CALL(Malloc(&device, sizeof(CrossingValidationData)));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(device, &host, sizeof(CrossingValidationData), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gCrossingValidation, &device, sizeof(CrossingValidationData *)));
+  return device;
+#endif
+}
+
+/// Daughter-index path of a navigation state from the world, and the labels along it (for replays).
+std::string CrossingPathJson(vecgeom::NavigationState const &state)
+{
+  using namespace adept::validation_json;
+  std::string indices = "[", labels = "[";
+  for (int level = 0; level <= state.GetLevel(); ++level) {
+    auto const *volume = state.At(level);
+    int index          = 0;
+    if (level > 0) {
+      auto const &daughters = state.At(level - 1)->GetLogicalVolume()->GetDaughters();
+      index                 = -1;
+      for (std::size_t d = 0; d < daughters.size(); ++d)
+        if (daughters[d] == volume) index = static_cast<int>(d);
+    }
+    indices += (level ? "," : "") + std::to_string(index);
+    labels += (level ? "," : "") + Str(volume ? volume->GetLabel() : std::string("none"));
+  }
+  return "{\"daughter_indices\":" + indices + "],\"labels\":" + labels + "]}";
+}
+
+/// Disable the crossing validation, print its report, write `<prefix>_crossings.json` and release the device data.
+void ReportCrossingValidation(CrossingValidationData *device, std::string const &prefix, std::ostream &out)
+{
+  using namespace adept::validation_json;
+  if (device == nullptr) return;
+  CrossingValidationData *null = nullptr;
+  ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gCrossingValidation, &null, sizeof(CrossingValidationData *)));
+  CrossingValidationData host;
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(&host, device, sizeof(CrossingValidationData), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  std::vector<CrossingRecord> records(std::min(host.nRecords, host.recordCapacity));
+  if (!records.empty())
+    ADEPT_DEVICE_API_CALL(Memcpy(records.data(), host.records, sizeof(CrossingRecord) * records.size(),
+                                 ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(Free(host.records));
+  ADEPT_DEVICE_API_CALL(Free(device));
+  // Records arrive in device scheduling order: sort them for reproducible files.
+  std::sort(records.begin(), records.end(), [](CrossingRecord const &a, CrossingRecord const &b) {
+    return std::tie(a.eventId, a.trackId, a.stepCounter) < std::tie(b.eventId, b.trackId, b.stepCounter);
+  });
+
+  auto label = [](int id) {
+    auto const *volume = vecgeom::GeoManager::Instance().FindPlacedVolume(id);
+    return volume ? volume->GetLabel() : std::string("unknown");
+  };
+  // Overlaps proven by the recorded landings, per volume pair: number of landings and deepest evidence.
+  std::map<std::tuple<int, int, int>, std::pair<long, double>> overlaps;
+  for (auto const &r : records) {
+    if (r.overlapType == 0) continue;
+    auto &entry = overlaps[{r.overlapType, r.overlapVolumeA, r.overlapVolumeB}];
+    entry.first += 1;
+    entry.second = std::max(entry.second, r.overlapDepth);
+  }
+
+  const char *bins[kCrossingDepthBins] = {"0",      "(0,0.5]",  "(0.5,1]",   "(1,2]",
+                                          "(2,10]", "(10,100]", "(100,1e4]", ">1e4"};
+  out << "CrossingValidation: " << host.crossings << " boundary crossings relocated on the GPU (" << host.leavingGPU
+      << " into a volume outside the GPU regions)\n"
+      << "CrossingValidation   off-band landings (beyond +-kTolerance): " << host.offBand << " (" << host.offBandLeft
+      << " inside a volume being left, " << host.offBandEntered << " outside a volume being entered, "
+      << host.offSurface << " farther than kTolerance from every crossed surface; " << host.offBandOverlap
+      << " proven to come from an overlap, " << host.offBandStuckPush << " after a stuck-track push)\n"
+      << "CrossingValidation   zero-step loops: " << host.zeroStepLoop << " in-band crossings made without moving\n"
+      << "CrossingValidation   state mismatches (point > kTolerance outside its state volume or inside a "
+         "daughter): "
+      << host.stateMismatchEnd << " at the end of a step without relocation, " << host.stateMismatchStart
+      << " at the start of a step\n"
+      << "CrossingValidation   wrong-side depth [kTolerance]:";
+  for (int i = 0; i < kCrossingDepthBins; ++i)
+    out << " " << bins[i] << ": " << host.depthHistogram[i];
+  out << "\nCrossingValidation   final direction vs normal at the crossed surface: " << host.bounceBack
+      << " bounce-backs, " << host.tangent << " tangent, " << host.noNormal << " without a valid normal\n";
+  for (auto const &[key, value] : overlaps) {
+    auto const &[type, a, b] = key;
+    out << "CrossingValidation   proven " << (type == 1 ? "overlap: " : "extrusion: ") << label(a)
+        << (type == 1 ? " and " : " out of ") << label(b) << " (" << value.first << " landings, evidence up to "
+        << value.second / vecgeom::kTolerance << " kTolerance)\n";
+  }
+  if (prefix.empty()) {
+    out << std::flush;
+    return;
+  }
+
+  const std::string fileName = prefix + "_crossings.json";
+  std::ofstream json(fileName);
+  if (!json) {
+    out << "CrossingValidation   cannot write " << fileName << std::endl;
+    return;
+  }
+  auto counts = [](unsigned long long const *values, int n) {
+    return Array(values, n, [](unsigned long long v) { return std::to_string(v); });
+  };
+  std::vector<double> logEdges{0.};
+  for (int i = 0; i <= kCrossingLogBins - 2; ++i)
+    logEdges.push_back(std::pow(10., kCrossingLogMinDecade + double(i) / kCrossingLogBinsPerDecade));
+  const char *kinds[7] = {"",
+                          "inside-left",
+                          "outside-entered",
+                          "off-surface",
+                          "zero-step-loop",
+                          "state-mismatch-end",
+                          "state-mismatch-start"};
+  json << "{\n\"format\": \"adept-geometry-validation-crossings-1\",\n\"kTolerance\": " << Num(vecgeom::kTolerance)
+       << ",\n\"crossings\": " << host.crossings << ",\n\"leaving_gpu\": " << host.leavingGPU
+       << ",\n\"off_band\": {\"total\": " << host.offBand << ", \"inside_left\": " << host.offBandLeft
+       << ", \"outside_entered\": " << host.offBandEntered << ", \"off_surface\": " << host.offSurface
+       << ", \"proven_overlap\": " << host.offBandOverlap << ", \"stuck_push\": " << host.offBandStuckPush << "}"
+       << ",\n\"zero_step_loop\": " << host.zeroStepLoop << ",\n\"state_mismatch_end\": " << host.stateMismatchEnd
+       << ",\n\"state_mismatch_start\": " << host.stateMismatchStart << ",\n\"bounce_back\": " << host.bounceBack
+       << ",\n\"tangent\": " << host.tangent << ",\n\"no_normal\": " << host.noNormal
+       << ",\n\"depth_histogram\": {\"labels\": "
+       << Array(bins, kCrossingDepthBins, [](const char *b) { return Str(b); })
+       << ", \"counts\": " << counts(host.depthHistogram, kCrossingDepthBins) << "}"
+       << ",\n\"depth_log_histogram\": {\"low_edges_ktol\": "
+       << Array(logEdges, logEdges.size(), [](double v) { return Num(v); })
+       << ", \"counts\": " << counts(host.depthLogHistogram, kCrossingLogBins)
+       << ", \"note\": \"bin 0: depth 0 and below the first edge; last bin: overflow\"}"
+       << ",\n\"bounce_histogram\": {\"n_dot_d_low_edges\": [";
+  for (int i = 0; i < kBounceBins; ++i)
+    json << (i ? "," : "") << Num(-double(kBounceBins - i) / kBounceBins);
+  std::vector<unsigned long long> bounce(host.bounceHistogram, host.bounceHistogram + kBounceBins);
+  std::reverse(bounce.begin(), bounce.end()); // stored by -n.d, written by increasing n.d
+  json << "], \"counts\": " << counts(bounce.data(), kBounceBins) << "}" << ",\n\"proven_overlaps\": [";
+  bool first = true;
+  for (auto const &[key, value] : overlaps) {
+    auto const &[type, a, b] = key;
+    json << (first ? "\n  " : ",\n  ") << "{\"type\": " << Str(type == 1 ? "overlap" : "extrusion")
+         << ", \"volume_a\": " << Str(label(a)) << ", \"volume_b\": " << Str(label(b))
+         << ", \"landings\": " << value.first << ", \"depth_ktol\": " << Num(value.second / vecgeom::kTolerance) << "}";
+    first = false;
+  }
+  json << "],\n\"records_seen\": " << host.nRecords << ",\n\"records\": [";
+  for (std::size_t i = 0; i < records.size(); ++i) {
+    auto const &r             = records[i];
+    auto const &offendingPath = r.offendingInFrom ? r.from : r.to;
+    json << (i ? ",\n  " : "\n  ") << "{\"kind\": " << Str(kinds[r.kind])
+         << ", \"depth_ktol\": " << Num(r.depth / vecgeom::kTolerance)
+         << ", \"offending\": {\"in\": " << Str(r.offendingInFrom ? "from" : "to")
+         << ", \"level\": " << r.offendingLevel << ", \"label\": "
+         << Str(offendingPath.At(r.offendingLevel) ? offendingPath.At(r.offendingLevel)->GetLabel() : "none")
+         << ", \"local_point\": " << Array3(r.localPoint) << ", \"local_direction\": " << Array3(r.localDirection)
+         << "}, \"from_on_boundary\": " << (r.from.IsOnBoundary() ? "true" : "false")
+         << ", \"from\": " << CrossingPathJson(r.from) << ", \"to\": " << CrossingPathJson(r.to)
+         << ", \"pre_point\": " << Array3(r.prePoint) << ", \"pre_direction\": " << Array3(r.preDirection)
+         << ", \"point\": " << Array3(r.point) << ", \"direction\": " << Array3(r.direction)
+         << ", \"outward_n_dot_d\": " << Num(r.outwardNDotD) << ", \"event\": " << r.eventId
+         << ", \"track\": " << r.trackId << ", \"step\": " << r.stepCounter << ", \"zero_steps\": " << r.zeroStepCounter
+         << ", \"stuck_push\": " << (r.zeroStepCounter > kCrossingStuckPushSteps ? "true" : "false")
+         << ", \"charge\": " << r.charge << ", \"magnetic_field\": " << (r.magneticField ? "true" : "false")
+         << ", \"physics_step\": " << Num(r.physicsStep) << ", \"geometry_step\": " << Num(r.geometryStep)
+         << ", \"pre_safety\": " << Num(r.preSafety) << ", \"displacement\": " << Num(r.displacement)
+         << ", \"overlap\": ";
+    if (r.overlapType == 0)
+      json << "null";
+    else
+      json << "{\"type\": " << Str(r.overlapType == 1 ? "overlap" : "extrusion")
+           << ", \"volume_a\": " << Str(label(r.overlapVolumeA)) << ", \"volume_b\": " << Str(label(r.overlapVolumeB))
+           << ", \"depth_ktol\": " << Num(r.overlapDepth / vecgeom::kTolerance)
+           << ", \"witness_ktol\": " << Num(r.overlapWitness / vecgeom::kTolerance) << "}";
+    json << "}";
+  }
+  json << "\n]\n}\n";
+  out << "CrossingValidation   written " << fileName << " (" << records.size() << " replayable records"
+      << (host.nRecords > records.size() ? ", record capacity reached" : "") << ")" << std::endl;
 }
 
 /// Initialise the track buffers used to communicate between host and device.

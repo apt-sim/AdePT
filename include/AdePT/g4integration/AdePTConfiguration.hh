@@ -89,6 +89,10 @@ public:
   }
   void SetWDTKineticEnergyLimit(double ekin) { fWDTKineticEnergyLimit = ekin; }
   void SetSpeedOfLight(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
+  void SetValidateHandoff(bool validate) { fValidateHandoff = validate; }
+  void SetValidateCrossings(bool validate) { fValidateCrossings = validate; }
+  void SetGeometryValidationOutput(std::string prefix) { fGeometryValidationOutput = prefix; }
+  void SetValidationRecordCapacity(int capacity) { fValidationRecordCapacity = static_cast<unsigned int>(capacity); }
   void SetMultipleStepsInMSCWithTransportation(bool setMultipleSteps)
   {
     fSetMultipleStepsInMSCWithTransportation = setMultipleSteps;
@@ -108,6 +112,10 @@ public:
   bool GetReturnAllSteps() const { return fReturnAllSteps; }
   bool GetReturnFirstAndLastStep() const { return fReturnFirstAndLastStep; }
   bool GetSpeedOfLight() const { return fSpeedOfLight; }
+  bool GetValidateHandoff() const { return fValidateHandoff; }
+  bool GetValidateCrossings() const { return fValidateCrossings; }
+  std::string GetGeometryValidationOutput() const { return fGeometryValidationOutput; }
+  unsigned int GetValidationRecordCapacity() const { return fValidationRecordCapacity; }
   bool GetMultipleStepsInMSCWithTransportation() const { return fSetMultipleStepsInMSCWithTransportation; }
   bool GetEnergyLossFluctuation() const { return fSetEnergyLossFluctuation; }
   int GetNumThreads() const { return fNumThreads; };
@@ -144,6 +152,10 @@ private:
   // These settings cannot change after the first worker initializes AdePT.
   inline static bool sTransportInitializationOptionsLocked{false};
   bool fSpeedOfLight{false};
+  bool fValidateHandoff{false};
+  bool fValidateCrossings{false};
+  std::string fGeometryValidationOutput{};
+  unsigned int fValidationRecordCapacity{10000};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};
   int fNumThreads{-1};

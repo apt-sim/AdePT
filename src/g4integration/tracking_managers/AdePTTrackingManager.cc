@@ -60,6 +60,9 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
   transportConfig.kernelOptions.returnLastStep =
       configuration.GetReturnFirstAndLastStep() || configuration.GetReturnAllSteps();
   transportConfig.kernelOptions.maxChargedLooperCount = configuration.GetMaxChargedLooperCount();
+  transportConfig.validateCrossings                   = configuration.GetValidateCrossings();
+  transportConfig.validationRecordCapacity            = configuration.GetValidationRecordCapacity();
+  transportConfig.validationOutput                    = configuration.GetGeometryValidationOutput();
   transportConfig.bfieldFile                          = configuration.GetCovfieBfieldFile();
   transportConfig.cpuCapacityFactor                   = configuration.GetCPUCapacityFactor();
   transportConfig.cpuCopyFraction                     = configuration.GetHitBufferFlushThreshold();
@@ -156,6 +159,9 @@ AdePTTrackingManager::AdePTTrackingManager(AdePTConfiguration *config, int verbo
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
+  if (auto const *validator = fGeant4Integration.GetHandoffValidator())
+    validator->Report(std::cout, G4Threading::G4GetThreadId());
+
 #ifdef ENABLE_POWER_METER
   // NOTE: Prior to Geant4 11.3 the destructor for the specialized tracking managers was not
   // called. In this case the loop will not be stopped and we will get an error at the end of
@@ -324,6 +330,16 @@ void AdePTTrackingManager::InitializeAdePT()
   fHepEmTrackingManager->ResetFinishEventOnCPUSize(fNumThreads);
 
   fSpeedOfLight = fAdePTConfiguration->GetSpeedOfLight();
+
+#ifdef ADEPT_GEOMETRY_VALIDATION
+  if (fAdePTConfiguration->GetValidateHandoff()) {
+    if (fAdePTConfiguration->GetTrackInAllRegions())
+      std::cout << "HandoffValidation: not active, all regions are tracked on the GPU (no track leaves them)\n";
+    else
+      fGeant4Integration.EnableHandoffValidation(fAdePTConfiguration->GetGeometryValidationOutput(),
+                                                 fAdePTConfiguration->GetValidationRecordCapacity());
+  }
+#endif
 
   fAdePTInitialized = true;
 

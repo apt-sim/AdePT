@@ -27,7 +27,10 @@ cd adept-build
 
 `example1` is the main standalone Geant4 application with AdePT integration.
 Generated macros in the build tree include `example1.mac` and
-`example1_ttbar.mac`.
+`example1_ttbar.mac`. With `-DADEPT_GEOMETRY_VALIDATION=ON`, the
+`example1_handoff.mac` macro (only `EcalRegion` on the GPU, with the geometry
+validation of the handoff and of the boundary crossings) is generated and run by the `example1-handoff` test,
+see [Geometry validation](geometry-validation.md).
 
 ## Integration Test Macros
 

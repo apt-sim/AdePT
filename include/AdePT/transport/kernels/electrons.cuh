@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/geometry_validation/GeometryValidationHooks.cuh>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 
 // Classes for Runge-Kutta integration
@@ -101,6 +102,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     vecgeom::Vector3D<double> preStepPos(pos);
     auto dir = currentTrack.dir;
     vecgeom::Vector3D<double> preStepDir(dir);
+    ADEPT_VALIDATE_STATE(currentTrack, Charge, navState, preStepPos, preStepDir, pos, dir, 6, -1., -1., -1.);
     double globalTime        = currentTrack.globalTime;
     double preStepGlobalTime = currentTrack.globalTime;
     double localTime         = currentTrack.localTime;
@@ -433,6 +435,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                theTrack->GetEKin(), theTrack->GetEnergyDeposit(), safety);
       }
 #endif
+      ADEPT_VALIDATE_STATE(currentTrack, Charge, nextState, preStepPos, preStepDir, pos, dir, 5,
+                           geometricalStepLengthFromPhysics, geometryStepLength, theTrack->GetSafety());
     }
 
     // Update the flight times of the particle
@@ -461,6 +465,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         AdePTNavigator::RelocateToNextVolume(pos, dir, hitsurf_index, nextState);
 #else
         AdePTNavigator::RelocateToNextVolume(pos, dir, nextState);
+        ADEPT_VALIDATE_CROSSING(currentTrack, Charge, navState, nextState, preStepPos, preStepDir, pos, dir);
 #endif
 
 #if ADEPT_DEBUG_TRACK > 0

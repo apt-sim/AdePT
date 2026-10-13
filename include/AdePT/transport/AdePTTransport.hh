@@ -14,6 +14,7 @@
 #include <AdePT/transport/state/EventState.hh>
 #include <AdePT/transport/steps/GPUStep.hh>
 #include <AdePT/transport/woodcock/WoodcockData.hh>
+#include <AdePT/transport/geometry_validation/CrossingValidation.hh>
 
 #include <VecGeom/base/Config.h>
 #include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
@@ -22,6 +23,8 @@
 #include <mutex>
 #include <memory>
 #include <span>
+#include <ostream>
+#include <string>
 #include <thread>
 #include <unordered_map>
 #include <optional>
@@ -29,6 +32,8 @@ namespace adept::transport {
 struct TrackBuffer;
 
 void InitVolAuxArray(adeptint::VolAuxArray &array);
+CrossingValidationData *InitCrossingValidation(unsigned int recordCapacity);
+void ReportCrossingValidation(CrossingValidationData *device, std::string const &prefix, std::ostream &out);
 
 class AdePTTransport {
 public:
@@ -62,6 +67,10 @@ private:
   double fCPUCopyFraction{0.5};
   ///< Needed to stall the GPU, in case the nPartInFlight * fStepBufferSafetyFactor > available StepSlots
   double fStepBufferSafetyFactor{1.5};
+  bool fValidateCrossings{false};                       ///< Check the landing of every GPU boundary crossing
+  unsigned int fValidationRecordCapacity{0};            ///< Maximum number of replayable crossing records
+  std::string fValidationOutput{};                      ///< Prefix of the geometry validation files
+  CrossingValidationData *fCrossingValidation{nullptr}; ///< Device data of the crossing validation
 
   void Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                   const std::vector<float> &uniformFieldValues);

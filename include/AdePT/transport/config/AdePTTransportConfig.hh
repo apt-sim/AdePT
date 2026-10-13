@@ -24,4 +24,7 @@ struct AdePTTransportConfig {
   double cpuCapacityFactor{2.5};
   double cpuCopyFraction{0.5};
   double stepBufferSafetyFactor{1.5};
+  bool validateCrossings{false};                ///< Check the landing of every GPU boundary crossing
+  unsigned int validationRecordCapacity{10000}; ///< Maximum number of replayable records per validation check
+  std::string validationOutput{};               ///< Prefix of the geometry validation files (empty: no files)
 };

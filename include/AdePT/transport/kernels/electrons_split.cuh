@@ -4,6 +4,7 @@
 #pragma once
 
 #include <AdePT/transport/navigation/AdePTNavigator.h>
+#include <AdePT/transport/geometry_validation/GeometryValidationHooks.cuh>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 
 // Classes for Runge-Kutta integration
@@ -90,6 +91,8 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
     currentTrack.preStepPos        = currentTrack.pos;
     currentTrack.preStepDir        = currentTrack.dir;
     currentTrack.stepCounter++;
+    ADEPT_VALIDATE_STATE(currentTrack, IsElectron ? -1 : 1, currentTrack.navState, currentTrack.preStepPos,
+                         currentTrack.preStepDir, currentTrack.pos, currentTrack.dir, 6, -1., -1., -1.);
     bool printErrors = false;
 
     G4HepEmElectronTrack &elTrack = hepEMTracks[slot];
@@ -426,6 +429,9 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
           // 3. Very small safety: do nothing.
         }
       }
+      ADEPT_VALIDATE_STATE(currentTrack, IsElectron ? -1 : 1, currentTrack.nextState, currentTrack.preStepPos,
+                           currentTrack.preStepDir, currentTrack.pos, currentTrack.dir, 5, elTrack.GetPStepLength(),
+                           theTrack->GetGStepLength(), theTrack->GetSafety());
     }
 
     // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
@@ -643,6 +649,8 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
                                            currentTrack.nextState);
 #else
       AdePTNavigator::RelocateToNextVolume(currentTrack.pos, currentTrack.dir, currentTrack.nextState);
+      ADEPT_VALIDATE_CROSSING(currentTrack, IsElectron ? -1 : 1, currentTrack.navState, currentTrack.nextState,
+                              currentTrack.preStepPos, currentTrack.preStepDir, currentTrack.pos, currentTrack.dir);
 #endif
     } else {
       // Particle left the world, don't enqueue it and release the slot
