@@ -428,17 +428,17 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
       }
     }
 
-    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
-    currentTrack.eKin = theTrack->GetEKin();
-    theTrack->SetEKin(currentTrack.eKin);
-
     // Update the flight times of the particle
-    // By calculating the velocity here, we assume that all the energy deposit is done at the PreStepPoint, and
-    // the velocity depends on the remaining energy
+    // Like Geant4, the initial velocity of the particle is used to calculate the time, before eKin is updated after the
+    // energy loss
     double deltaTime = elTrack.GetPStepLength() / GetVelocity(currentTrack.eKin);
     currentTrack.globalTime += deltaTime;
     currentTrack.localTime += deltaTime;
     currentTrack.properTime += deltaTime * (restMass / (restMass + currentTrack.eKin));
+
+    // Collect the charged step length (might be changed by MSC). Collect the changes in energy and deposit.
+    currentTrack.eKin = theTrack->GetEKin();
+    theTrack->SetEKin(currentTrack.eKin);
   }
 }
 
