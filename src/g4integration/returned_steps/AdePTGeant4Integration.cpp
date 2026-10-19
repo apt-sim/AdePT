@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <memory>
 #include <new>
 #include <span>
 #include <type_traits>
@@ -665,7 +666,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
         nuclearReactionTrack->SetNextTouchableHandle(postTouchable);
       }
 
-      auto *nuclearStep = new G4Step();
+      auto nuclearStepOwner = std::make_unique<G4Step>();
+      auto *nuclearStep     = nuclearStepOwner.get();
       nuclearStep->NewSecondaryVector();
       nuclearStep->InitializeStep(nuclearReactionTrack);
       nuclearStep->SetTrack(nuclearReactionTrack);
@@ -694,12 +696,12 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
                                         isLeptonNuclearStep);
 
       if (isLeptonNuclearStep) {
-        // lepton nuclear: track survives and must be handed back to G4
+        // lepton nuclear: track survives and must be handed back to G4, without the scratch step deleted below
+        nuclearReactionTrack->SetStep(nullptr);
         returnedParentTrack = nuclearReactionTrack;
       } else {
         // gamma nuclear: track stops with the interaction, thus delete UserTrackData and track
         nuclearReactionTrack->SetUserInformation(nullptr);
-        delete nuclearStep;
         delete nuclearReactionTrack;
       }
     } else {
