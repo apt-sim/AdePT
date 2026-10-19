@@ -14,6 +14,7 @@
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/support/AdePTPrecision.hh>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
+#include <AdePT/transport/kernels/PerformStoppedAnnihilation.cuh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
 #include <AdePT/transport/queues/ParticleManager.cuh>
 #include <AdePT/transport/state/DeviceGlobals.cuh>
@@ -702,61 +703,6 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   }
 }
 
-__device__ __forceinline__ void PerformStoppedAnnihilation(
-    const int slot, ChargedTrack &currentTrack, ParticleManager &particleManager, double &energyDeposit,
-    const bool ApplyCuts, const double theGammaCut, SecondaryInitData *secondaryData, unsigned int &nSecondaries,
-    VolAuxData const &auxData, const adept::SteppingAction::Params &params, const bool returnLastStep = false)
-{
-  currentTrack.eKin = 0;
-  // Annihilate the stopped positron into two gammas heading to opposite
-  // directions (isotropic).
-
-  // Apply cuts
-  if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
-    // Deposit the energy here and don't initialize any secondaries
-    energyDeposit += 2 * copcore::units::kElectronMassC2;
-  } else {
-
-    const double cost = 2 * currentTrack.Uniform() - 1;
-    const double sint = sqrt(1 - cost * cost);
-    const double phi  = k2Pi * currentTrack.Uniform();
-    double sinPhi, cosPhi;
-    sincos(phi, &sinPhi, &cosPhi);
-
-    // as the other branched newRNG may have already been used by interactions before, we need to advance and create a
-    // new one
-    currentTrack.rngState.Advance();
-    RanluxppDouble newRNG(currentTrack.rngState.Branch());
-
-    const bool useWDT      = ShouldUseWDT(currentTrack.navState, double{copcore::units::kElectronMassC2});
-    auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-    const vecgeom::Vector3D<double> gamma1Dir{sint * cosPhi, sint * sinPhi, cost};
-
-    // The gammas are created one by one, as the stepping action may reject either of them; a rejected gamma
-    // is dropped without depositing its energy (see SecondaryDecision)
-    for (int iGamma = 0; iGamma < 2; ++iGamma) {
-      const auto decision =
-          SelectedSteppingAction::ClassifySecondary(currentTrack, ParticleType::Gamma, copcore::units::kElectronMassC2,
-                                                    currentTrack.pos, currentTrack.globalTime, auxData, params);
-      if (!decision) continue;
-
-      // The second gamma reuses the RNG state of the dying track.
-      auto &gamma = gammaPartManager.NextTrack(iGamma == 0 ? newRNG : currentTrack.rngState,
-                                               double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                               iGamma == 0 ? gamma1Dir : -gamma1Dir, currentTrack.navState,
-                                               currentTrack, currentTrack.globalTime, decision.weight);
-      SetSecondaryHostData<SelectedSteppingAction>(gamma, currentTrack, 0., returnLastStep);
-
-      // Return the initializing step when HostTrackData is needed for this secondary.
-      if (gamma.hasHostData) {
-        secondaryData[nSecondaries++] = {
-            gamma.trackId,       gamma.dir,        gamma.eKin, gamma.weight, /*creator process*/ short(2),
-            ParticleType::Gamma, gamma.hasHostData};
-      }
-    }
-  }
-}
-
 template <bool IsElectron>
 __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
                                    adept::MParray *interactingQueue, const adept::SteppingAction::Params params,
@@ -856,8 +802,11 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
         energyDeposit += currentTrack.eKin;
       }
       if (!IsElectron) {
-        PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                                   secondaryData, nSecondaries, auxData, params, returnLastStep);
+        currentTrack.eKin = 0;
+        PerformStoppedAnnihilation<SelectedSteppingAction>(currentTrack, particleManager, energyDeposit, ApplyCuts,
+                                                           theGammaCut, currentTrack.pos, currentTrack.navState,
+                                                           currentTrack.globalTime, secondaryData, nSecondaries,
+                                                           auxData, params, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -992,8 +941,11 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
         energyDeposit += currentTrack.eKin;
       }
       if (!IsElectron) {
-        PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                                   secondaryData, nSecondaries, auxData, params, returnLastStep);
+        currentTrack.eKin = 0;
+        PerformStoppedAnnihilation<SelectedSteppingAction>(currentTrack, particleManager, energyDeposit, ApplyCuts,
+                                                           theGammaCut, currentTrack.pos, currentTrack.navState,
+                                                           currentTrack.globalTime, secondaryData, nSecondaries,
+                                                           auxData, params, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -1203,8 +1155,10 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     SecondaryInitData secondaryData[2];
     unsigned int nSecondaries = 0;
 
-    PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                               secondaryData, nSecondaries, auxData, params, returnLastStep);
+    currentTrack.eKin = 0;
+    PerformStoppedAnnihilation<SelectedSteppingAction>(
+        currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut, currentTrack.pos, currentTrack.navState,
+        currentTrack.globalTime, secondaryData, nSecondaries, auxData, params, returnLastStep);
     slotManager.MarkSlotForFreeing(slot);
 
     assert(nSecondaries <= 2);
