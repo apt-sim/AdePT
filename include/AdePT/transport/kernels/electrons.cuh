@@ -15,6 +15,7 @@
 #include <AdePT/transport/tracks/TrackDebug.cuh>
 #include <AdePT/transport/support/AdePTPrecision.hh>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
+#include <AdePT/transport/kernels/PerformStoppedAnnihilation.cuh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
 #include <AdePT/transport/queues/ParticleManager.cuh>
 #include <AdePT/transport/state/DeviceGlobals.cuh>
@@ -790,54 +791,11 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     if (stopped) {
       eKin = 0;
       if (!IsElectron) {
-        // Annihilate the stopped positron into two gammas heading to opposite
-        // directions (isotropic).
-
-        // Apply cuts
-        if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
-          // Deposit the energy here and don't initialize any secondaries
-          energyDeposit += 2 * copcore::units::kElectronMassC2;
-        } else {
-
-          const double cost = 2 * currentTrack.Uniform() - 1;
-          const double sint = sqrt(1 - cost * cost);
-          const double phi  = k2Pi * currentTrack.Uniform();
-          double sinPhi, cosPhi;
-          sincos(phi, &sinPhi, &cosPhi);
-
-          // as the branched newRNG may have already been used by interactions before, we need to create a new one
-          RanluxppDouble newRNG2(currentTrack.rngState.Branch());
-
-          const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});
-          auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-
-          const vecgeom::Vector3D<double> gamma1Dir{sint * cosPhi, sint * sinPhi, cost};
-
-          // The gammas are created one by one, as the stepping action may reject either of them; a rejected gamma
-          // is dropped without depositing its energy (see SecondaryDecision)
-          for (int iGamma = 0; iGamma < 2; ++iGamma) {
-            const auto decision = SteppingActionT::ClassifySecondary(
-                currentTrack, ParticleType::Gamma, copcore::units::kElectronMassC2, pos, globalTime, auxData, params);
-            if (!decision) continue;
-
-            // The second gamma reuses the RNG state of the dying track.
-            auto &gamma = gammaPartManager.NextTrack(
-                iGamma == 0 ? newRNG2 : currentTrack.rngState, double{copcore::units::kElectronMassC2}, pos,
-                iGamma == 0 ? gamma1Dir : -gamma1Dir, navState, currentTrack, globalTime, decision.weight);
-            SetSecondaryHostData<SteppingActionT>(gamma, currentTrack, 0., returnLastStep);
-
-            // Return the initializing step when HostTrackData is needed for this secondary.
-            if (gamma.hasHostData) {
-              secondaryData[nSecondaries++] = {gamma.trackId,
-                                               gamma.dir,
-                                               gamma.eKin,
-                                               gamma.weight,
-                                               /*creator process: annihilation*/ short(2),
-                                               ParticleType::Gamma,
-                                               gamma.hasHostData};
-            }
-          }
-        }
+        // Annihilate the stopped positron into two gammas heading to opposite directions (isotropic). The
+        // monolithic kernel passes its step-local state and branches the first gamma's RNG without advancing.
+        PerformStoppedAnnihilation<SteppingActionT, /*AdvanceRNGBeforeBranch=*/false>(
+            currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut, pos, navState, globalTime,
+            secondaryData, nSecondaries, auxData, params, returnLastStep);
       }
     }
 
