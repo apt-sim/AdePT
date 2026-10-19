@@ -19,11 +19,9 @@ namespace adept::transport {
 /// adept::SteppingAction::SecondaryDecision). This is correct for gammas that are cut due to Russian Roulette but would
 /// be incorrect for most other cuts. However, this is currently mimicking the behavior of the stepping action in the
 /// LHC experiments.
-/// @tparam AdvanceRNGBeforeBranch Before branching the first gamma's RNG state, the split kernels advance the parent
-/// state while the monolithic kernel only branches it; both are kept to preserve the established RNG sequences.
 /// @param pos,navState,globalTime kinematics at the annihilation point: the monolithic kernel passes its step-local
 /// state, the split kernels pass the track members
-template <class SteppingActionT, bool AdvanceRNGBeforeBranch>
+template <class SteppingActionT>
 __device__ __forceinline__ void PerformStoppedAnnihilation(
     ChargedTrack &currentTrack, ParticleManager &particleManager, double &energyDeposit, const bool ApplyCuts,
     const double theGammaCut, vecgeom::Vector3D<double> const &pos, vecgeom::NavigationState const &navState,
@@ -43,10 +41,8 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(
   double sinPhi, cosPhi;
   sincos(phi, &sinPhi, &cosPhi);
 
-  // As the RNG state branched for the interaction may have already been used, a fresh one is branched here
-  if constexpr (AdvanceRNGBeforeBranch) {
-    currentTrack.rngState.Advance();
-  }
+  // The RNG state branched for the interaction may already have been used for its secondary, so a fresh state is
+  // branched for the first gamma.
   RanluxppDouble newRNG(currentTrack.rngState.Branch());
 
   const bool useWDT      = ShouldUseWDT(navState, double{copcore::units::kElectronMassC2});

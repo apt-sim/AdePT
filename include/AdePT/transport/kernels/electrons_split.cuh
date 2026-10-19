@@ -802,12 +802,11 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
         energyDeposit += currentTrack.eKin;
       }
       if (!IsElectron) {
-        // The split kernels pass the track members and advance the RNG state before branching the first gamma's RNG
         currentTrack.eKin = 0;
-        PerformStoppedAnnihilation<SelectedSteppingAction, /*AdvanceRNGBeforeBranch=*/true>(
-            currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut, currentTrack.pos,
-            currentTrack.navState, currentTrack.globalTime, secondaryData, nSecondaries, auxData, params,
-            returnLastStep);
+        PerformStoppedAnnihilation<SelectedSteppingAction>(currentTrack, particleManager, energyDeposit, ApplyCuts,
+                                                           theGammaCut, currentTrack.pos, currentTrack.navState,
+                                                           currentTrack.globalTime, secondaryData, nSecondaries,
+                                                           auxData, params, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -942,12 +941,11 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
         energyDeposit += currentTrack.eKin;
       }
       if (!IsElectron) {
-        // The split kernels pass the track members and advance the RNG state before branching the first gamma's RNG
         currentTrack.eKin = 0;
-        PerformStoppedAnnihilation<SelectedSteppingAction, /*AdvanceRNGBeforeBranch=*/true>(
-            currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut, currentTrack.pos,
-            currentTrack.navState, currentTrack.globalTime, secondaryData, nSecondaries, auxData, params,
-            returnLastStep);
+        PerformStoppedAnnihilation<SelectedSteppingAction>(currentTrack, particleManager, energyDeposit, ApplyCuts,
+                                                           theGammaCut, currentTrack.pos, currentTrack.navState,
+                                                           currentTrack.globalTime, secondaryData, nSecondaries,
+                                                           auxData, params, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -1157,9 +1155,8 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     SecondaryInitData secondaryData[2];
     unsigned int nSecondaries = 0;
 
-    // The split kernels pass the track members and advance the RNG state before branching the first gamma's RNG
     currentTrack.eKin = 0;
-    PerformStoppedAnnihilation<SelectedSteppingAction, /*AdvanceRNGBeforeBranch=*/true>(
+    PerformStoppedAnnihilation<SelectedSteppingAction>(
         currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut, currentTrack.pos, currentTrack.navState,
         currentTrack.globalTime, secondaryData, nSecondaries, auxData, params, returnLastStep);
     slotManager.MarkSlotForFreeing(slot);

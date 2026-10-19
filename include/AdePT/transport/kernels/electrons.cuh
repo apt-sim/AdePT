@@ -791,11 +791,11 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     if (stopped) {
       eKin = 0;
       if (!IsElectron) {
-        // Annihilate the stopped positron into two gammas heading to opposite directions (isotropic). The
-        // monolithic kernel passes its step-local state and branches the first gamma's RNG without advancing.
-        PerformStoppedAnnihilation<SteppingActionT, /*AdvanceRNGBeforeBranch=*/false>(
-            currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut, pos, navState, globalTime,
-            secondaryData, nSecondaries, auxData, params, returnLastStep);
+        // Annihilate the stopped positron into two gammas heading to opposite directions (isotropic),
+        // passing the step-local state of the monolithic kernel
+        PerformStoppedAnnihilation<SteppingActionT>(currentTrack, particleManager, energyDeposit, ApplyCuts,
+                                                    theGammaCut, pos, navState, globalTime, secondaryData, nSecondaries,
+                                                    auxData, params, returnLastStep);
       }
     }
 
