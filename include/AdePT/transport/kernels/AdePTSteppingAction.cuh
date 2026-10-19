@@ -5,6 +5,7 @@
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/random/Ranluxpp.h>
 #include <AdePT/transport/support/SystemOfUnits.h>
+#include <AdePT/transport/tracks/ParticleTypes.hh>
 #include <AdePT/transport/tracks/Track.cuh>
 
 #include <G4HepEmData.hh>
@@ -17,9 +18,15 @@
 
 namespace adept::SteppingAction {
 
-struct GammaRouletteResult {
-  bool create{true};  ///< whether the gamma secondary should be created
-  float weight{1.0f}; ///< weight assigned to the newborn gamma when created
+/// @brief Decision of the stepping action on a secondary that is about to be created.
+/// @details Evaluated before the secondary track is created. In contrast to a secondary below the production cut,
+/// a rejected secondary is dropped WITHOUT depositing its energy: this mirrors the experiments' track filters
+/// (e.g. the CMSSW stacking filter), which discard filtered secondaries without a local energy deposit.
+struct SecondaryDecision {
+  bool create{true};  ///< whether the secondary is created
+  float weight{1.0f}; ///< weight of the secondary when created
+
+  __host__ __device__ constexpr explicit operator bool() const { return create; }
 };
 
 ///< @brief helper function to kill a track and deposit its energy
@@ -39,7 +46,6 @@ __device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &ede
 struct NoAction {
   // empty placeholder struct
   struct Params {};
-  static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
                                                         double const &, adeptint::VolAuxData const &,
@@ -53,12 +59,11 @@ struct NoAction {
   {
   }
 
-  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
-                                                                                  double const &,
-                                                                                  adeptint::VolAuxData const &,
-                                                                                  RanluxppDouble &)
+  __device__ __forceinline__ static SecondaryDecision ClassifySecondary(TrackBase &parentTrack, ParticleType, double,
+                                                                        vecgeom::Vector3D<double> const &, double,
+                                                                        adeptint::VolAuxData const &, Params const &)
   {
-    return {true, parentWeight};
+    return {true, parentTrack.weight};
   }
 
   __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)
@@ -76,7 +81,6 @@ struct CMSAction {
     double ecut    = 2.0 * copcore::units::MeV;                         //  kinetic E for the vacuum cut
     double density = 1e-15 * (copcore::units::g / copcore::units::cm3); // density for the vacuum cut
   };
-  static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static bool IsDeadRegion(adeptint::VolAuxData const &auxData)
   {
@@ -131,12 +135,11 @@ struct CMSAction {
     AllParticleCheck(alive, eKin, edep, pos, globalTime, auxData, params);
   }
 
-  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
-                                                                                  double const &,
-                                                                                  adeptint::VolAuxData const &,
-                                                                                  RanluxppDouble &)
+  __device__ __forceinline__ static SecondaryDecision ClassifySecondary(TrackBase &parentTrack, ParticleType, double,
+                                                                        vecgeom::Vector3D<double> const &, double,
+                                                                        adeptint::VolAuxData const &, Params const &)
   {
-    return {true, parentWeight};
+    return {true, parentTrack.weight};
   }
 
   __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)
@@ -156,7 +159,6 @@ struct LHCbAction {
     // default parameters for energy tracking cut
     double ecut = 1.0 * copcore::units::MeV;
   };
-  static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
                                                         vecgeom::Vector3D<double> const &pos,
@@ -182,12 +184,11 @@ struct LHCbAction {
     ElectronAction(alive, eKin, edep, pos, /*globalTime*/ 0.0, auxData, g4HepEmData, params);
   }
 
-  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
-                                                                                  double const &,
-                                                                                  adeptint::VolAuxData const &,
-                                                                                  RanluxppDouble &)
+  __device__ __forceinline__ static SecondaryDecision ClassifySecondary(TrackBase &parentTrack, ParticleType, double,
+                                                                        vecgeom::Vector3D<double> const &, double,
+                                                                        adeptint::VolAuxData const &, Params const &)
   {
-    return {true, parentWeight};
+    return {true, parentTrack.weight};
   }
 
   __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)
@@ -208,7 +209,6 @@ struct LHCbAction {
 // hook for these values.
 struct ATLASAction {
   struct Params {};
-  static constexpr bool kGammaRussianRoulette = true;
 
   static constexpr double kPhotonRussianRouletteThreshold = 0.5 * copcore::units::MeV;
   static constexpr float kPhotonRussianRouletteWeight     = 10.0f;
@@ -235,15 +235,17 @@ struct ATLASAction {
   {
   }
 
-  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(
-      float const &parentWeight, double const &gammaEkin, adeptint::VolAuxData const &originAuxData,
-      RanluxppDouble &rngState)
+  __device__ __forceinline__ static SecondaryDecision ClassifySecondary(TrackBase &parentTrack, ParticleType type,
+                                                                        double eKin, vecgeom::Vector3D<double> const &,
+                                                                        double,
+                                                                        adeptint::VolAuxData const &originAuxData,
+                                                                        Params const &)
   {
-    if (!originAuxData.fAtlasPhotonRussianRoulette) return {true, parentWeight};
-    if (parentWeight != 1.0f) return {true, parentWeight};
-    if (gammaEkin >= kPhotonRussianRouletteThreshold) return {true, parentWeight};
+    if (type != ParticleType::Gamma || !originAuxData.fAtlasPhotonRussianRoulette) return {true, parentTrack.weight};
+    if (parentTrack.weight != 1.0f) return {true, parentTrack.weight};
+    if (eKin >= kPhotonRussianRouletteThreshold) return {true, parentTrack.weight};
 
-    if (rngState.Rndm() > kOneOverPhotonRouletteWeight) return {false, parentWeight};
+    if (parentTrack.rngState.Rndm() > kOneOverPhotonRouletteWeight) return {false, parentTrack.weight};
 
     return {true, kPhotonRussianRouletteWeight};
   }
@@ -253,7 +255,6 @@ struct ATLASAction {
 // without pulling in any ATLAS-only aux-data fields or runtime logic.
 struct ATLASAction {
   struct Params {};
-  static constexpr bool kGammaRussianRoulette = false;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
                                                         double const &, adeptint::VolAuxData const &,
@@ -267,12 +268,11 @@ struct ATLASAction {
   {
   }
 
-  __device__ __forceinline__ static GammaRouletteResult ApplyGammaRussianRoulette(float const &parentWeight,
-                                                                                  double const &,
-                                                                                  adeptint::VolAuxData const &,
-                                                                                  RanluxppDouble &)
+  __device__ __forceinline__ static SecondaryDecision ClassifySecondary(TrackBase &parentTrack, ParticleType, double,
+                                                                        vecgeom::Vector3D<double> const &, double,
+                                                                        adeptint::VolAuxData const &, Params const &)
   {
-    return {true, parentWeight};
+    return {true, parentTrack.weight};
   }
 
   __device__ __forceinline__ static bool NeedsHostTrackData(double, vecgeom::Vector3D<double> const &, double)

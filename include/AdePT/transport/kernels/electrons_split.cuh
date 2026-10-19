@@ -702,11 +702,10 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
   }
 }
 
-__device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, ChargedTrack &currentTrack,
-                                                           ParticleManager &particleManager, double &energyDeposit,
-                                                           const bool ApplyCuts, const double theGammaCut,
-                                                           SecondaryInitData *secondaryData, unsigned int &nSecondaries,
-                                                           const bool returnLastStep = false)
+__device__ __forceinline__ void PerformStoppedAnnihilation(
+    const int slot, ChargedTrack &currentTrack, ParticleManager &particleManager, double &energyDeposit,
+    const bool ApplyCuts, const double theGammaCut, SecondaryInitData *secondaryData, unsigned int &nSecondaries,
+    VolAuxData const &auxData, const adept::SteppingAction::Params &params, const bool returnLastStep = false)
 {
   currentTrack.eKin = 0;
   // Annihilate the stopped positron into two gammas heading to opposite
@@ -731,33 +730,37 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(const int slot, Charg
 
     const bool useWDT      = ShouldUseWDT(currentTrack.navState, double{copcore::units::kElectronMassC2});
     auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
-    auto &gamma1 = gammaPartManager.NextTrack(newRNG, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                              vecgeom::Vector3D<double>{sint * cosPhi, sint * sinPhi, cost},
-                                              currentTrack.navState, currentTrack, currentTrack.globalTime);
+    const vecgeom::Vector3D<double> gamma1Dir{sint * cosPhi, sint * sinPhi, cost};
 
-    // Reuse the RNG state of the dying track.
-    auto &gamma2 =
-        gammaPartManager.NextTrack(currentTrack.rngState, double{copcore::units::kElectronMassC2}, currentTrack.pos,
-                                   -gamma1.dir, currentTrack.navState, currentTrack, currentTrack.globalTime);
+    // The gammas are created one by one, as the stepping action may reject either of them; a rejected gamma
+    // is dropped without depositing its energy (see SecondaryDecision)
+    for (int iGamma = 0; iGamma < 2; ++iGamma) {
+      const auto decision =
+          SelectedSteppingAction::ClassifySecondary(currentTrack, ParticleType::Gamma, copcore::units::kElectronMassC2,
+                                                    currentTrack.pos, currentTrack.globalTime, auxData, params);
+      if (!decision) continue;
 
-    SetSecondaryHostData<SelectedSteppingAction>(gamma1, currentTrack, 0., returnLastStep);
-    SetSecondaryHostData<SelectedSteppingAction>(gamma2, currentTrack, 0., returnLastStep);
+      // The second gamma reuses the RNG state of the dying track.
+      auto &gamma = gammaPartManager.NextTrack(iGamma == 0 ? newRNG : currentTrack.rngState,
+                                               double{copcore::units::kElectronMassC2}, currentTrack.pos,
+                                               iGamma == 0 ? gamma1Dir : -gamma1Dir, currentTrack.navState,
+                                               currentTrack, currentTrack.globalTime, decision.weight);
+      SetSecondaryHostData<SelectedSteppingAction>(gamma, currentTrack, 0., returnLastStep);
 
-    // Return the initializing step when HostTrackData is needed for these secondaries.
-    if (gamma1.hasHostData) {
-      secondaryData[nSecondaries++] = {
-          gamma1.trackId,      gamma1.dir,        gamma1.eKin, gamma1.weight, /*creator process*/ short(2),
-          ParticleType::Gamma, gamma1.hasHostData};
-      secondaryData[nSecondaries++] = {
-          gamma2.trackId,      gamma2.dir,        gamma2.eKin, gamma2.weight, /*creator process*/ short(2),
-          ParticleType::Gamma, gamma2.hasHostData};
+      // Return the initializing step when HostTrackData is needed for this secondary.
+      if (gamma.hasHostData) {
+        secondaryData[nSecondaries++] = {
+            gamma.trackId,       gamma.dir,        gamma.eKin, gamma.weight, /*creator process*/ short(2),
+            ParticleType::Gamma, gamma.hasHostData};
+      }
     }
   }
 }
 
 template <bool IsElectron>
 __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *interactingQueue, const TransportKernelOptions options)
+                                   adept::MParray *interactingQueue, const adept::SteppingAction::Params params,
+                                   const TransportKernelOptions options)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
@@ -819,7 +822,10 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       // Deposit the energy here and kill the secondary
       energyDeposit += deltaEkin;
 
-    } else {
+      // Unlike for the cut above, a secondary rejected by the stepping action is dropped without depositing
+      // its energy (see SecondaryDecision)
+    } else if (SelectedSteppingAction::ClassifySecondary(currentTrack, ParticleType::Electron, deltaEkin,
+                                                         currentTrack.pos, currentTrack.globalTime, auxData, params)) {
       auto &secondary = particleManager.electrons.NextTrack(
           newRNG, deltaEkin, currentTrack.pos,
           vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]}, currentTrack.navState,
@@ -851,7 +857,7 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       }
       if (!IsElectron) {
         PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                                   secondaryData, nSecondaries, returnLastStep);
+                                   secondaryData, nSecondaries, auxData, params, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -890,7 +896,8 @@ __global__ void ElectronIonization(G4HepEmElectronTrack *hepEMTracks, ParticleMa
 
 template <bool IsElectron>
 __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                       adept::MParray *interactingQueue, const TransportKernelOptions options)
+                                       adept::MParray *interactingQueue, const adept::SteppingAction::Params params,
+                                       const TransportKernelOptions options)
 {
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
@@ -955,21 +962,17 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       energyDeposit += deltaEkin;
 
     } else {
-      bool createGamma  = true;
-      float gammaWeight = currentTrack.weight;
-      if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
-        const auto gammaRouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
-            currentTrack.weight, deltaEkin, auxData, currentTrack.rngState);
-        createGamma = gammaRouletteResult.create;
-        gammaWeight = gammaRouletteResult.weight;
-      }
-      if (createGamma) {
+      // Unlike for the cut above, a secondary rejected by the stepping action is dropped without depositing
+      // its energy (see SecondaryDecision)
+      const auto decision = SelectedSteppingAction::ClassifySecondary(
+          currentTrack, ParticleType::Gamma, deltaEkin, currentTrack.pos, currentTrack.globalTime, auxData, params);
+      if (decision) {
         const bool useWDT      = ShouldUseWDT(currentTrack.navState, deltaEkin);
         auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
         auto &gamma =
             gammaPartManager.NextTrack(newRNG, deltaEkin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{dirSecondary[0], dirSecondary[1], dirSecondary[2]},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime, gammaWeight);
+                                       currentTrack.navState, currentTrack, currentTrack.globalTime, decision.weight);
         SetSecondaryHostData<SelectedSteppingAction>(gamma, currentTrack, 0., returnLastStep);
         // Return the initializing step when HostTrackData is needed for this secondary.
         if (gamma.hasHostData) {
@@ -990,7 +993,7 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
       }
       if (!IsElectron) {
         PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                                   secondaryData, nSecondaries, returnLastStep);
+                                   secondaryData, nSecondaries, auxData, params, returnLastStep);
       }
       slotManager.MarkSlotForFreeing(slot);
     } else {
@@ -1029,7 +1032,8 @@ __global__ void ElectronBremsstrahlung(G4HepEmElectronTrack *hepEMTracks, Partic
 }
 
 __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                     adept::MParray *interactingQueue, const TransportKernelOptions options)
+                                     adept::MParray *interactingQueue, const adept::SteppingAction::Params params,
+                                     const TransportKernelOptions options)
 {
   SlotManager &slotManager  = *particleManager.positrons.fSlotManager;
   const bool returnAllSteps = options.returnAllSteps;
@@ -1082,21 +1086,17 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       energyDeposit += theGamma1Ekin;
 
     } else {
-      bool createGamma1  = true;
-      float gamma1Weight = currentTrack.weight;
-      if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
-        const auto gamma1RouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
-            currentTrack.weight, theGamma1Ekin, auxData, currentTrack.rngState);
-        createGamma1 = gamma1RouletteResult.create;
-        gamma1Weight = gamma1RouletteResult.weight;
-      }
-      if (createGamma1) {
+      // Unlike for the cut above, a secondary rejected by the stepping action is dropped without depositing
+      // its energy (see SecondaryDecision)
+      const auto decision1 = SelectedSteppingAction::ClassifySecondary(
+          currentTrack, ParticleType::Gamma, theGamma1Ekin, currentTrack.pos, currentTrack.globalTime, auxData, params);
+      if (decision1) {
         const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma1Ekin);
         auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
         auto &gamma1 =
             gammaPartManager.NextTrack(newRNG, theGamma1Ekin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{theGamma1Dir[0], theGamma1Dir[1], theGamma1Dir[2]},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime, gamma1Weight);
+                                       currentTrack.navState, currentTrack, currentTrack.globalTime, decision1.weight);
         SetSecondaryHostData<SelectedSteppingAction>(gamma1, currentTrack, 0., returnLastStep);
         // Return the initializing step when HostTrackData is needed for this secondary.
         if (gamma1.hasHostData) {
@@ -1111,21 +1111,17 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
       energyDeposit += theGamma2Ekin;
 
     } else {
-      bool createGamma2  = true;
-      float gamma2Weight = currentTrack.weight;
-      if constexpr (adept::SteppingAction::Action::kGammaRussianRoulette) {
-        const auto gamma2RouletteResult = adept::SteppingAction::Action::ApplyGammaRussianRoulette(
-            currentTrack.weight, theGamma2Ekin, auxData, currentTrack.rngState);
-        createGamma2 = gamma2RouletteResult.create;
-        gamma2Weight = gamma2RouletteResult.weight;
-      }
-      if (createGamma2) {
+      // Unlike for the cut above, a secondary rejected by the stepping action is dropped without depositing
+      // its energy (see SecondaryDecision)
+      const auto decision2 = SelectedSteppingAction::ClassifySecondary(
+          currentTrack, ParticleType::Gamma, theGamma2Ekin, currentTrack.pos, currentTrack.globalTime, auxData, params);
+      if (decision2) {
         const bool useWDT      = ShouldUseWDT(currentTrack.navState, theGamma2Ekin);
         auto &gammaPartManager = useWDT ? particleManager.gammasWDT : particleManager.gammas;
         auto &gamma2 =
             gammaPartManager.NextTrack(currentTrack.rngState, theGamma2Ekin, currentTrack.pos,
                                        vecgeom::Vector3D<double>{theGamma2Dir[0], theGamma2Dir[1], theGamma2Dir[2]},
-                                       currentTrack.navState, currentTrack, currentTrack.globalTime, gamma2Weight);
+                                       currentTrack.navState, currentTrack, currentTrack.globalTime, decision2.weight);
         SetSecondaryHostData<SelectedSteppingAction>(gamma2, currentTrack, 0., returnLastStep);
         // Return the initializing step when HostTrackData is needed for this secondary.
         if (gamma2.hasHostData) {
@@ -1169,7 +1165,9 @@ __global__ void PositronAnnihilation(G4HepEmElectronTrack *hepEMTracks, Particle
 }
 
 __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, ParticleManager particleManager,
-                                            adept::MParray *interactingQueue, const TransportKernelOptions options)
+                                            adept::MParray *interactingQueue,
+                                            const adept::SteppingAction::Params params,
+                                            const TransportKernelOptions options)
 {
   SlotManager &slotManager  = *particleManager.positrons.fSlotManager;
   const bool returnAllSteps = options.returnAllSteps;
@@ -1206,7 +1204,7 @@ __global__ void PositronStoppedAnnihilation(G4HepEmElectronTrack *hepEMTracks, P
     unsigned int nSecondaries = 0;
 
     PerformStoppedAnnihilation(slot, currentTrack, particleManager, energyDeposit, ApplyCuts, theGammaCut,
-                               secondaryData, nSecondaries, returnLastStep);
+                               secondaryData, nSecondaries, auxData, params, returnLastStep);
     slotManager.MarkSlotForFreeing(slot);
 
     assert(nSecondaries <= 2);

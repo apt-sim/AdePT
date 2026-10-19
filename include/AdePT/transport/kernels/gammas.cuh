@@ -327,7 +327,10 @@ __global__ void __launch_bounds__(256, 1)
         if (ApplyCuts && elKinEnergy < theElCut) {
           // Deposit the energy here and kill the secondary
           edep = elKinEnergy;
-        } else {
+          // Unlike for the cut above, a secondary rejected by the stepping action is dropped without
+          // depositing its energy (see SecondaryDecision)
+        } else if (SteppingActionT::ClassifySecondary(currentTrack, ParticleType::Electron, elKinEnergy, pos,
+                                                      globalTime, auxData, params)) {
           auto &electron = particleManager.electrons.NextTrack(
               newRNG, elKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, navState,
@@ -351,7 +354,10 @@ __global__ void __launch_bounds__(256, 1)
         if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
           // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
           edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
-        } else {
+          // Unlike for the cut above, a secondary rejected by the stepping action is dropped without
+          // depositing its energy (see SecondaryDecision)
+        } else if (SteppingActionT::ClassifySecondary(currentTrack, ParticleType::Positron, posKinEnergy, pos,
+                                                      globalTime, auxData, params)) {
           auto &positron = particleManager.positrons.NextTrack(
               currentTrack.rngState, posKinEnergy, pos,
               vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, navState,
@@ -395,7 +401,11 @@ __global__ void __launch_bounds__(256, 1)
         const double energyEl = eKin - newEnergyGamma;
 
         // Check the cuts and deposit energy in this volume if needed
-        if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
+        // Create the secondary unless it is below the cut (the energy is then deposited here) or rejected by
+        // the stepping action (then it is dropped without deposit, see SecondaryDecision)
+        const bool electronAboveCut = ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold;
+        if (electronAboveCut && SteppingActionT::ClassifySecondary(currentTrack, ParticleType::Electron, energyEl, pos,
+                                                                   globalTime, auxData, params)) {
           // Create a secondary electron and sample/compute directions.
           auto &electron = particleManager.electrons.NextTrack(
               newRNG, energyEl, pos, eKin * dir - newEnergyGamma * newDirGamma, navState, currentTrack, globalTime);
@@ -415,7 +425,7 @@ __global__ void __launch_bounds__(256, 1)
                                              ParticleType::Electron,
                                              electron.hasHostData};
           }
-        } else {
+        } else if (!electronAboveCut) {
           edep = energyEl;
         }
 
@@ -445,7 +455,11 @@ __global__ void __launch_bounds__(256, 1)
 
         edep                    = bindingEnergy;
         const double photoElecE = eKin - edep;
-        if (ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
+        // Create the secondary unless it is below the cut (the energy is then deposited here) or rejected by
+        // the stepping action (then it is dropped without deposit, see SecondaryDecision)
+        const bool photoElecAboveCut = ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold;
+        if (photoElecAboveCut && SteppingActionT::ClassifySecondary(currentTrack, ParticleType::Electron, photoElecE,
+                                                                    pos, globalTime, auxData, params)) {
 
           double dirGamma[] = {dir.x(), dir.y(), dir.z()};
           double dirPhotoElec[3];
@@ -469,7 +483,7 @@ __global__ void __launch_bounds__(256, 1)
                                              ParticleType::Electron,
                                              electron.hasHostData};
           }
-        } else {
+        } else if (!photoElecAboveCut) {
           // If the secondary electron is cut, deposit all the energy of the gamma in this volume
           edep = eKin;
         }
