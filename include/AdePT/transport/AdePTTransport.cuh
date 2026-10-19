@@ -1046,10 +1046,10 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             electrons.queues.splitQueues[ParticleQueues::relocation], kernelOptions);
         ElectronIonization<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::chargedIonization], kernelOptions);
+            electrons.queues.splitQueues[ParticleQueues::chargedIonization], steppingActionParams, kernelOptions);
         ElectronBremsstrahlung<true><<<blocks, threads, 0, electrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.electronsHepEm, particleManager,
-            electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], kernelOptions);
+            electrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], steppingActionParams, kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(electrons.auxiliaryEvent, electrons.auxiliaryStream));
 #else
         TransportElectrons<SelectedSteppingAction><<<blocks, threads, 0, electrons.stream>>>(
@@ -1088,16 +1088,17 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             positrons.queues.splitQueues[ParticleQueues::relocation], kernelOptions);
         ElectronIonization<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::chargedIonization], kernelOptions);
+            positrons.queues.splitQueues[ParticleQueues::chargedIonization], steppingActionParams, kernelOptions);
         ElectronBremsstrahlung<false><<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], kernelOptions);
+            positrons.queues.splitQueues[ParticleQueues::chargedBremsstrahlung], steppingActionParams, kernelOptions);
         PositronAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::positronAnnihilation], kernelOptions);
+            positrons.queues.splitQueues[ParticleQueues::positronAnnihilation], steppingActionParams, kernelOptions);
         PositronStoppedAnnihilation<<<blocks, threads, 0, positrons.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.positronsHepEm, particleManager,
-            positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation], kernelOptions);
+            positrons.queues.splitQueues[ParticleQueues::positronStoppedAnnihilation], steppingActionParams,
+            kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(positrons.auxiliaryEvent, positrons.auxiliaryStream));
 #else
         TransportPositrons<SelectedSteppingAction><<<blocks, threads, 0, positrons.stream>>>(
@@ -1164,13 +1165,13 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
         // parameters, the unneeded threads immediately return and become free again.
         GammaConversion<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaConversion], kernelOptions);
+            gammas.queues.splitQueues[ParticleQueues::gammaConversion], steppingActionParams, kernelOptions);
         GammaCompton<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaCompton], kernelOptions);
+            gammas.queues.splitQueues[ParticleQueues::gammaCompton], steppingActionParams, kernelOptions);
         GammaPhotoelectric<<<interactionBlocks, interactionThreads, 0, gammas.auxiliaryStream>>>(
             gpuState.hepEmBuffers_d.gammasHepEm, particleManager,
-            gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric], kernelOptions);
+            gammas.queues.splitQueues[ParticleQueues::gammaPhotoelectric], steppingActionParams, kernelOptions);
         ADEPT_DEVICE_API_CALL(EventRecord(gammas.auxiliaryEvent, gammas.auxiliaryStream));
 #else
         TransportGammas<SelectedSteppingAction><<<blocks, threads, 0, gammas.stream>>>(

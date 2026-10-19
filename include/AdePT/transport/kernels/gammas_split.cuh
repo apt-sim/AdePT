@@ -405,7 +405,8 @@ __global__ void GammaRelocation(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 }
 
 __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                adept::MParray *interactingQueue, const TransportKernelOptions options)
+                                adept::MParray *interactingQueue, const adept::SteppingAction::Params params,
+                                const TransportKernelOptions options)
 {
   auto &slotManager         = *particleManager.gammas.fSlotManager;
   int activeSize            = interactingQueue->size();
@@ -471,7 +472,10 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     if (ApplyCuts && elKinEnergy < theElCut) {
       // Deposit the energy here and kill the secondary
       edep = elKinEnergy;
-    } else {
+      // Unlike for the cut above, a secondary rejected by the stepping action is dropped without depositing
+      // its energy (see SecondaryDecision)
+    } else if (SelectedSteppingAction::ClassifySecondary(currentTrack, ParticleType::Electron, elKinEnergy,
+                                                         currentTrack.pos, currentTrack.globalTime, auxData, params)) {
       auto &electron = particleManager.electrons.NextTrack(
           newRNG, elKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<double>{dirSecondaryEl[0], dirSecondaryEl[1], dirSecondaryEl[2]}, currentTrack.navState,
@@ -491,7 +495,10 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
     if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
       // Deposit: posKinEnergy + 2 * copcore::units::kElectronMassC2 and kill the secondary
       edep += posKinEnergy + 2 * copcore::units::kElectronMassC2;
-    } else {
+      // Unlike for the cut above, a secondary rejected by the stepping action is dropped without depositing
+      // its energy (see SecondaryDecision)
+    } else if (SelectedSteppingAction::ClassifySecondary(currentTrack, ParticleType::Positron, posKinEnergy,
+                                                         currentTrack.pos, currentTrack.globalTime, auxData, params)) {
       auto &positron = particleManager.positrons.NextTrack(
           currentTrack.rngState, posKinEnergy, currentTrack.pos,
           vecgeom::Vector3D<double>{dirSecondaryPos[0], dirSecondaryPos[1], dirSecondaryPos[2]}, currentTrack.navState,
@@ -540,7 +547,8 @@ __global__ void GammaConversion(G4HepEmGammaTrack *hepEMTracks, ParticleManager 
 }
 
 __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                             adept::MParray *interactingQueue, const TransportKernelOptions options)
+                             adept::MParray *interactingQueue, const adept::SteppingAction::Params params,
+                             const TransportKernelOptions options)
 {
   auto &slotManager         = *particleManager.gammas.fSlotManager;
   int activeSize            = interactingQueue->size();
@@ -602,7 +610,12 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
     unsigned int nSecondaries = 0;
 
     // Check the cuts and deposit energy in this volume if needed
-    if (ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold) {
+    // Create the secondary unless it is below the cut (the energy is then deposited here) or rejected by
+    // the stepping action (then it is dropped without deposit, see SecondaryDecision)
+    const bool electronAboveCut = ApplyCuts ? energyEl > theElCut : energyEl > LowEnergyThreshold;
+    if (electronAboveCut &&
+        SelectedSteppingAction::ClassifySecondary(currentTrack, ParticleType::Electron, energyEl, currentTrack.pos,
+                                                  currentTrack.globalTime, auxData, params)) {
       // Create a secondary electron and sample/compute directions.
       auto &electron = particleManager.electrons.NextTrack(
           newRNG, energyEl, currentTrack.pos, currentTrack.eKin * currentTrack.dir - newEnergyGamma * newDirGamma,
@@ -619,7 +632,7 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
             ParticleType::Electron, electron.hasHostData};
       }
 
-    } else {
+    } else if (!electronAboveCut) {
       edep = energyEl;
     }
 
@@ -670,7 +683,8 @@ __global__ void GammaCompton(G4HepEmGammaTrack *hepEMTracks, ParticleManager par
 }
 
 __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManager particleManager,
-                                   adept::MParray *interactingQueue, const TransportKernelOptions options)
+                                   adept::MParray *interactingQueue, const adept::SteppingAction::Params params,
+                                   const TransportKernelOptions options)
 {
   auto &slotManager         = *particleManager.gammas.fSlotManager;
   int activeSize            = interactingQueue->size();
@@ -713,7 +727,12 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
     SecondaryInitData secondaryData[1];
     unsigned int nSecondaries = 0;
 
-    if (ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold) {
+    // Create the secondary unless it is below the cut (the energy is then deposited here) or rejected by
+    // the stepping action (then it is dropped without deposit, see SecondaryDecision)
+    const bool photoElecAboveCut = ApplyCuts ? photoElecE > theElCut : photoElecE > theLowEnergyThreshold;
+    if (photoElecAboveCut &&
+        SelectedSteppingAction::ClassifySecondary(currentTrack, ParticleType::Electron, photoElecE, currentTrack.pos,
+                                                  currentTrack.globalTime, auxData, params)) {
 
       double dirGamma[] = {currentTrack.dir.x(), currentTrack.dir.y(), currentTrack.dir.z()};
       double dirPhotoElec[3];
@@ -735,7 +754,7 @@ __global__ void GammaPhotoelectric(G4HepEmGammaTrack *hepEMTracks, ParticleManag
             ParticleType::Electron, electron.hasHostData};
       }
 
-    } else {
+    } else if (!photoElecAboveCut) {
       // If the secondary electron is cut, deposit all the energy of the gamma in this volume
       edep = currentTrack.eKin;
     }
