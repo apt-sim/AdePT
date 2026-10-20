@@ -26,7 +26,8 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(
     ChargedTrack &currentTrack, ParticleManager &particleManager, double &energyDeposit, const bool ApplyCuts,
     const double theGammaCut, vecgeom::Vector3D<double> const &pos, vecgeom::NavigationState const &navState,
     const double globalTime, SecondaryInitData *secondaryData, unsigned int &nSecondaries,
-    adeptint::VolAuxData const &auxData, typename SteppingActionT::Params const &params, const bool returnLastStep)
+    adeptint::VolAuxData const &auxData, typename SteppingActionT::Params const &params, const bool returnLastStep,
+    [[maybe_unused]] const bool verbose = false)
 {
   // Apply cuts
   if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut)) {
@@ -54,7 +55,12 @@ __device__ __forceinline__ void PerformStoppedAnnihilation(
   for (int iGamma = 0; iGamma < 2; ++iGamma) {
     const auto decision = SteppingActionT::ClassifySecondary(
         currentTrack, ParticleType::Gamma, copcore::units::kElectronMassC2, pos, globalTime, auxData, params);
-    if (!decision) continue;
+    if (!decision) {
+#if ADEPT_DEBUG_TRACK > 0
+      if (verbose) printf("| annihilation gamma killed by the stepping action \n");
+#endif
+      continue;
+    }
 
     // The second gamma reuses the RNG state of the dying track.
     auto &gamma = gammaPartManager.NextTrack(

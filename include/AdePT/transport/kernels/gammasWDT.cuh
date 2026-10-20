@@ -553,6 +553,10 @@ __global__ void __launch_bounds__(256, 1)
                                              ParticleType::Electron,
                                              electron.hasHostData};
           }
+#if ADEPT_DEBUG_TRACK > 0
+        } else {
+          if (verbose) printf("| electron secondary killed by the stepping action \n");
+#endif
         }
 
         if (ApplyCuts && (copcore::units::kElectronMassC2 < theGammaCut && posKinEnergy < thePosCut)) {
@@ -580,6 +584,10 @@ __global__ void __launch_bounds__(256, 1)
                                              ParticleType::Positron,
                                              positron.hasHostData};
           }
+#if ADEPT_DEBUG_TRACK > 0
+        } else {
+          if (verbose) printf("| positron secondary killed by the stepping action \n");
+#endif
         }
         eKin = 0.;
         break;
@@ -631,6 +639,10 @@ __global__ void __launch_bounds__(256, 1)
           }
         } else if (!electronAboveCut) {
           edep = energyEl;
+#if ADEPT_DEBUG_TRACK > 0
+        } else {
+          if (verbose) printf("| electron secondary killed by the stepping action \n");
+#endif
         }
 
         // Check the new gamma energy and deposit if below threshold.
@@ -690,6 +702,10 @@ __global__ void __launch_bounds__(256, 1)
         } else if (!photoElecAboveCut) {
           // If the secondary electron is cut, deposit all the energy of the gamma in this volume
           edep = eKin;
+#if ADEPT_DEBUG_TRACK > 0
+        } else {
+          if (verbose) printf("| electron secondary killed by the stepping action \n");
+#endif
         }
         // Photoelectric absorption always kills the parent gamma.
         eKin = 0.;

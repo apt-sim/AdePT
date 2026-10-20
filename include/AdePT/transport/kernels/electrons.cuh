@@ -610,6 +610,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                                ParticleType::Electron,
                                                secondary.hasHostData};
             }
+#if ADEPT_DEBUG_TRACK > 0
+          } else {
+            if (verbose) printf("| electron secondary killed by the stepping action \n");
+#endif
           }
 
           eKin -= deltaEkin;
@@ -679,7 +683,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
               }
 #if ADEPT_DEBUG_TRACK > 0
             } else {
-              if (verbose) printf("| gamma killed by the stepping action \n");
+              if (verbose) printf("| gamma secondary killed by the stepping action \n");
 #endif
             }
           }
@@ -742,6 +746,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                                  ParticleType::Gamma,
                                                  gamma1.hasHostData};
               }
+#if ADEPT_DEBUG_TRACK > 0
+            } else {
+              if (verbose) printf("| gamma secondary killed by the stepping action \n");
+#endif
             }
           }
           if (ApplyCuts && (theGamma2Ekin < theGammaCut)) {
@@ -771,6 +779,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
                                                  ParticleType::Gamma,
                                                  gamma2.hasHostData};
               }
+#if ADEPT_DEBUG_TRACK > 0
+            } else {
+              if (verbose) printf("| gamma secondary killed by the stepping action \n");
+#endif
             }
           }
           break;
@@ -795,7 +807,7 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         // passing the step-local state of the monolithic kernel
         PerformStoppedAnnihilation<SteppingActionT>(currentTrack, particleManager, energyDeposit, ApplyCuts,
                                                     theGammaCut, pos, navState, globalTime, secondaryData, nSecondaries,
-                                                    auxData, params, returnLastStep);
+                                                    auxData, params, returnLastStep, verbose);
       }
     }
 
