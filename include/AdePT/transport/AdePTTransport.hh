@@ -62,6 +62,7 @@ private:
   double fCPUCopyFraction{0.5};
   ///< Needed to stall the GPU, in case the nPartInFlight * fStepBufferSafetyFactor > available StepSlots
   double fStepBufferSafetyFactor{1.5};
+  adept::SteppingActionParamsT fSteppingActionParams{}; ///< parameters of the stepping action selected at build time
 
   void Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                   const std::vector<float> &uniformFieldValues);

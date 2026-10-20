@@ -6,6 +6,7 @@
 
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/random/Ranluxpp.h>
+#include <AdePT/transport/config/SteppingActionParams.hh>
 #include <AdePT/transport/support/SystemOfUnits.h>
 #include <AdePT/transport/tracks/ParticleTypes.hh>
 #include <AdePT/transport/tracks/Track.cuh>
@@ -46,8 +47,7 @@ __device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &ede
 // ---------- No-op (NONE) ----------
 // default: no AdePT-specific SteppingAction
 struct NoAction {
-  // empty placeholder struct
-  struct Params {};
+  using Params = EmptySteppingActionParams;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
                                                         double const &, adeptint::VolAuxData const &,
@@ -77,12 +77,7 @@ struct NoAction {
 // ---------- CMS ----------
 // Custom SteppingAction for CMS
 struct CMSAction {
-  struct Params {
-    double tmax    = 2000.0 * copcore::units::nanosecond;               // time cut
-    double zmax    = 50.0 * copcore::units::meter;                      // longitudinal envelope
-    double ecut    = 2.0 * copcore::units::MeV;                         //  kinetic E for the vacuum cut
-    double density = 1e-15 * (copcore::units::g / copcore::units::cm3); // density for the vacuum cut
-  };
+  using Params = CMSSteppingActionParams;
 
   __device__ __forceinline__ static bool IsDeadRegion(adeptint::VolAuxData const &auxData)
   {
@@ -153,14 +148,7 @@ struct CMSAction {
 // ---------- LHCb ----------
 // Custom SteppingAction for LHCb
 struct LHCbAction {
-  struct Params {
-    // default parameters for world cut
-    double xmin{-10000 * copcore::units::millimeter}, xmax{10000 * copcore::units::millimeter},
-        ymin{-10000 * copcore::units::millimeter}, ymax{10000 * copcore::units::millimeter},
-        zmin{-5000 * copcore::units::millimeter}, zmax{25000 * copcore::units::millimeter};
-    // default parameters for energy tracking cut
-    double ecut = 1.0 * copcore::units::MeV;
-  };
+  using Params = LHCbSteppingActionParams;
 
   __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
                                                         vecgeom::Vector3D<double> const &pos,
@@ -210,7 +198,7 @@ struct LHCbAction {
 // match the Athena defaults until AdePT has an experiment-facing configuration
 // hook for these values.
 struct ATLASAction {
-  struct Params {};
+  using Params = EmptySteppingActionParams;
 
   static constexpr double kPhotonRussianRouletteThreshold = 0.5 * copcore::units::MeV;
   static constexpr float kPhotonRussianRouletteWeight     = 10.0f;
@@ -256,7 +244,7 @@ struct ATLASAction {
 // Stub used in non-ATLAS builds so the selector can still name ATLASAction
 // without pulling in any ATLAS-only aux-data fields or runtime logic.
 struct ATLASAction {
-  struct Params {};
+  using Params = EmptySteppingActionParams;
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
                                                         double const &, adeptint::VolAuxData const &,

@@ -781,7 +781,8 @@ void StepProcessingLoop(StepProcessingContext *const context, GPUstate &gpuState
 void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuffer &trackBuffer, GPUstate &gpuState,
                    std::vector<std::atomic<EventState>> &eventStates, std::condition_variable &cvG4Workers,
                    int adeptSeed, int debugLevel, TransportKernelOptions kernelOptions,
-                   unsigned short lastNParticlesOnCPU, const double stepBufferSafetyFactor, bool hasWDTRegions)
+                   adept::SteppingActionParamsT steppingActionParams, unsigned short lastNParticlesOnCPU,
+                   const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
 
   using InjectState                             = GPUstate::InjectState;
@@ -812,9 +813,6 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
     ADEPT_DEVICE_API_CALL(EventRecord(cudaEvent, streamToWaitFor));
     ADEPT_DEVICE_API_CALL(StreamWaitEvent(waitingStream, cudaEvent));
   };
-
-  // default constructed stepping action parameters (different for CMS or LHCb)
-  adept::SteppingAction::Params steppingActionParams;
 
   std::unique_ptr<StepProcessingContext> stepProcessing{new StepProcessingContext{stepTransferStream}};
   std::thread stepProcessingThread{&StepProcessingLoop,   (StepProcessingContext *)stepProcessing.get(),
@@ -1505,13 +1503,24 @@ void CloseGPUStepBatch(unsigned int threadId, GPUstate &gpuState, GPUStep *begin
 std::thread LaunchGPUWorker(int trackCapacity, int stepCapacity, int numThreads, TrackBuffer &trackBuffer,
                             GPUstate &gpuState, std::vector<std::atomic<EventState>> &eventStates,
                             std::condition_variable &cvG4Workers, int adeptSeed, int debugLevel,
-                            TransportKernelOptions kernelOptions, unsigned short lastNParticlesOnCPU,
-                            const double stepBufferSafetyFactor, bool hasWDTRegions)
+                            TransportKernelOptions kernelOptions, adept::SteppingActionParamsT steppingActionParams,
+                            unsigned short lastNParticlesOnCPU, const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
-  return std::thread{
-      &TransportLoop,     trackCapacity,         stepCapacity,           numThreads,   std::ref(trackBuffer),
-      std::ref(gpuState), std::ref(eventStates), std::ref(cvG4Workers),  adeptSeed,    debugLevel,
-      kernelOptions,      lastNParticlesOnCPU,   stepBufferSafetyFactor, hasWDTRegions};
+  return std::thread{&TransportLoop,
+                     trackCapacity,
+                     stepCapacity,
+                     numThreads,
+                     std::ref(trackBuffer),
+                     std::ref(gpuState),
+                     std::ref(eventStates),
+                     std::ref(cvG4Workers),
+                     adeptSeed,
+                     debugLevel,
+                     kernelOptions,
+                     steppingActionParams,
+                     lastNParticlesOnCPU,
+                     stepBufferSafetyFactor,
+                     hasWDTRegions};
 }
 
 void FreeGPU(std::unique_ptr<adept::transport::GPUstate, adept::transport::GPUstateDeleter> &gpuState,

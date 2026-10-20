@@ -6,6 +6,10 @@
 #include <AdePT/AdePTBuildFlags.hh>
 #include "AdePTSteppingAction.cuh"
 
+#include <AdePT/transport/config/SteppingActionParams.hh>
+
+#include <type_traits>
+
 #ifndef ADEPT_STEPACTION_TYPE
 #error "ADEPT_STEPACTION_TYPE is not defined (0=NONE, 1=CMS, 2=LHCb, 3=ATLAS)"
 #endif
@@ -22,5 +26,7 @@ using Action = NoAction;
 #endif
 
 using Params = typename Action::Params;
+static_assert(std::is_same_v<Params, adept::SteppingActionParamsT>,
+              "the host-visible SteppingActionParamsT must select the parameters of the selected stepping action");
 
 } // namespace adept::SteppingAction
