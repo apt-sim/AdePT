@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2023 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#include <AdePT/AdePTBuildFlags.hh>
 #include <AdePT/g4integration/AdePTTrackingManager.hh>
 #include <AdePT/transport/config/AdePTTransportConfig.hh>
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
@@ -26,7 +27,7 @@
 #include <stdexcept>
 #include <string>
 
-#ifdef ENABLE_POWER_METER
+#ifdef ADEPT_ENABLE_POWER_METER
 #include <power_meter.hh>
 #endif
 
@@ -156,7 +157,7 @@ AdePTTrackingManager::AdePTTrackingManager(AdePTConfiguration *config, int verbo
 
 AdePTTrackingManager::~AdePTTrackingManager()
 {
-#ifdef ENABLE_POWER_METER
+#ifdef ADEPT_ENABLE_POWER_METER
   // NOTE: Prior to Geant4 11.3 the destructor for the specialized tracking managers was not
   // called. In this case the loop will not be stopped and we will get an error at the end of
   // the run. This should not cause a memory leak however as terminate will be called on the thread
@@ -327,7 +328,7 @@ void AdePTTrackingManager::InitializeAdePT()
 
   fAdePTInitialized = true;
 
-#ifdef ENABLE_POWER_METER
+#ifdef ADEPT_ENABLE_POWER_METER
   // Start measuring power consumption from here
   static std::once_flag onceFlagPower;
   std::call_once(onceFlagPower, [&]() {

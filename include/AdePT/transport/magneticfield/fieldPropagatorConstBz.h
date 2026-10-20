@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <VecGeom/base/Vector3D.h>
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/tracks/SafetyCache.cuh>

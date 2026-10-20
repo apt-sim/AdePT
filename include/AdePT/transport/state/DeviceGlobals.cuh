@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/magneticfield/GeneralMagneticField.cuh>
 #include <AdePT/transport/magneticfield/UniformMagneticField.cuh>

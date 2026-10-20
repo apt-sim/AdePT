@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/containers/MParrayT.h>
 #include <AdePT/transport/containers/SlotManager.cuh>
 #include <AdePT/transport/magneticfield/GeneralMagneticField.cuh>

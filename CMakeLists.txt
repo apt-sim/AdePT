@@ -60,7 +60,6 @@ option(ADEPT_ENABLE_WDT "Enable Woodcock tracking" ON)
 option(ADEPT_MIXED_PRECISION "Use B-field integration and surface model in mixed precision" OFF)
 option(ADEPT_USE_SPLIT_KERNELS "Run split version of the transport kernels" OFF)
 option(ADEPT_USE_EXT_BFIELD "Use external B field from file via the covfie library" OFF)
-option(ADEPT_DEBUG_SINGLE_THREAD "Run transport kernels in single thread mode" OFF)
 option(ADEPT_ENABLE_NSYS_PROFILING "Compile CUDA profiler API hooks for transport-loop nsys captures" OFF)
 set(ADEPT_DEBUG_TRACK 0 CACHE STRING "Debug tracking level (0=off, >0=on with levels)")
 option(ADEPT_ENFORCE_STRICT_FLAGS "Enforce strict compiler flags, as also used in CMSSW" OFF)
@@ -316,11 +315,6 @@ if (ADEPT_ENABLE_NSYS_PROFILING)
   add_compile_definitions(ADEPT_ENABLE_NSYS_PROFILING)
   message(STATUS "${Green}AdePT will compile nsys CUDA profiler hooks${ColorReset}")
 endif()
-# Debugging in single-thread mode
-if (ADEPT_DEBUG_SINGLE_THREAD)
-  add_compile_definitions("$<$<CONFIG:Debug>:ADEPT_DEBUG_SINGLE_THREAD>")
-  message(STATUS "${Magenta}Transport is running in single-thread mode${ColorReset}")
-endif()
 # Check for RK integration precision
 if (ADEPT_MIXED_PRECISION)
   message(STATUS "${Green}Using single precision in RK integration${ColorReset}")
@@ -502,7 +496,6 @@ if(ADEPT_ENABLE_POWER_METER)
   find_package(Power_meter QUIET)
   if(Power_meter_FOUND)
     message(STATUS "Power_meter found ${Power_meter_INCLUDE_DIR}")
-    add_compile_definitions(ENABLE_POWER_METER)
   else()
     # Fetch it locally
     include(FetchContent)
@@ -521,7 +514,6 @@ if(ADEPT_ENABLE_POWER_METER)
       message(FATAL_ERROR "Fetching Power_meter failed!")
     endif()
 
-    add_compile_definitions(ENABLE_POWER_METER)
   endif()
 endif()
 
@@ -573,6 +565,7 @@ add_library(Core INTERFACE)
 target_include_directories(Core
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 add_library(AdePT::Core ALIAS Core)
@@ -589,6 +582,7 @@ endif()
 cuda_rdc_target_include_directories(Transport
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
 )
 
@@ -621,23 +615,87 @@ if(TARGET Transport_objects)
   )
 endif()
 
-# Export config macros to consumers (Athena, etc.)
+# Public build options seen by the installed headers. Most are boolean: when ON the macro is defined, when OFF
+# it is not defined at all, and the headers test it with #ifdef. ADEPT_STEPACTION_TYPE (the selected stepping
+# action, 0-3) and ADEPT_DEBUG_TRACK (the debug-track level) instead always carry a value, which the on/off
+# scheme cannot express, so the generated header checks them with a value comparison and they are substituted
+# into the @...@ placeholders of cmake/AdePTBuildFlags.hh.in directly.
+# This one list drives both the exported compile definitions and the generated AdePT/AdePTBuildFlags.hh, so a
+# new option cannot end up in only one of them; a configure-time check below additionally fails if an installed
+# header tests an unregistered ADEPT_ macro.
+set(ADEPT_PUBLIC_BOOL_OPTIONS
+  ADEPT_USE_SURF
+  ADEPT_ENABLE_WDT
+  ADEPT_MIXED_PRECISION
+  ADEPT_USE_SPLIT_KERNELS
+  ADEPT_USE_EXT_BFIELD
+  ADEPT_ENABLE_NSYS_PROFILING
+  ADEPT_ENABLE_POWER_METER
+)
 set(ADEPT_PUBLIC_CONFIG_DEFINITIONS
   ADEPT_STEPACTION_TYPE=${_ADEPT_STEPACTION_TYPE}
-  $<$<BOOL:${ADEPT_USE_SURF}>:ADEPT_USE_SURF>
-  $<$<BOOL:${ADEPT_ENABLE_WDT}>:ADEPT_ENABLE_WDT>
-  $<$<BOOL:${ADEPT_MIXED_PRECISION}>:ADEPT_MIXED_PRECISION>
-  $<$<BOOL:${ADEPT_USE_SPLIT_KERNELS}>:ADEPT_USE_SPLIT_KERNELS>
-  $<$<AND:$<BOOL:${ADEPT_DEBUG_SINGLE_THREAD}>,$<CONFIG:Debug>>:ADEPT_DEBUG_SINGLE_THREAD>
-  $<$<BOOL:${ADEPT_USE_EXT_BFIELD}>:ADEPT_USE_EXT_BFIELD>
-  $<$<BOOL:${ADEPT_ENABLE_NSYS_PROFILING}>:ADEPT_ENABLE_NSYS_PROFILING>
-  $<$<BOOL:${ADEPT_ENABLE_POWER_METER}>:ADEPT_ENABLE_POWER_METER>
   $<$<BOOL:${ADEPT_DEBUG_TRACK}>:ADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>
 )
+# Values for the placeholders of cmake/AdePTBuildFlags.hh.in
+set(ADEPT_STEPACTION_TYPE_VALUE ${_ADEPT_STEPACTION_TYPE})
+if(ADEPT_DEBUG_TRACK)
+  set(ADEPT_DEBUG_TRACK_VALUE ${ADEPT_DEBUG_TRACK})
+else()
+  set(ADEPT_DEBUG_TRACK_VALUE 0)
+endif()
+# For every boolean option, export the compile definition and generate the matching block of the header:
+# an installation built WITH the option defines the macro (a consumer defining it as well is consistent and
+# harmless), while for an installation built WITHOUT it a consumer-defined macro becomes a compile error,
+# because that consumer would otherwise see different header content, and even different struct layouts,
+# than the installed library was built with.
+set(ADEPT_OPTIONAL_FLAG_BLOCKS "")
+foreach(_flag IN LISTS ADEPT_PUBLIC_BOOL_OPTIONS)
+  list(APPEND ADEPT_PUBLIC_CONFIG_DEFINITIONS $<$<BOOL:${${_flag}}>:${_flag}>)
+  if(${_flag})
+    string(APPEND ADEPT_OPTIONAL_FLAG_BLOCKS "\n#ifndef ${_flag}\n#define ${_flag} 1\n#endif\n")
+  else()
+    string(APPEND ADEPT_OPTIONAL_FLAG_BLOCKS
+      "\n#ifdef ${_flag}\n#error \"${_flag} is defined, but this AdePT installation was built without it\"\n#endif\n")
+  endif()
+endforeach()
 target_compile_definitions(Transport
   PUBLIC
     ${ADEPT_PUBLIC_CONFIG_DEFINITIONS}
 )
+
+# Record the build options in a generated, installed header: the installed headers then describe the library
+# they were built with, and consumers need no compile definitions (the definitions above are kept for consumers
+# whose own sources test the macros before including any AdePT header). An option passed anyway must agree with
+# the installation; a mismatch is a compile error in the generated header.
+configure_file(cmake/AdePTBuildFlags.hh.in "${PROJECT_BINARY_DIR}/include/AdePT/AdePTBuildFlags.hh" @ONLY)
+install(FILES "${PROJECT_BINARY_DIR}/include/AdePT/AdePTBuildFlags.hh"
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/AdePT)
+
+# No installed header may test an ADEPT_ macro that is not registered above: new public build options must be
+# added to ADEPT_PUBLIC_BOOL_OPTIONS (or handled explicitly), so they cannot be overlooked here. The scan
+# covers the ADEPT_ prefix, so new options must use it.
+set(_adept_known_flag_macros ${ADEPT_PUBLIC_BOOL_OPTIONS} ADEPT_STEPACTION_TYPE ADEPT_DEBUG_TRACK
+    # defined by the headers themselves (compiler-context helpers and include guards):
+    ADEPT_DEBUG ADEPT_DEVICE_COMPILE ADEPT_DEVICE_SOURCE ADEPT_DEVICE_DEBUG ADEPT_G4HEPEM_GAMMA_ICC_INCLUDED
+    # experimental leftover in HostTrackDataMapper.hh: no build system defines it and the experiments do not
+    # use it; it is pending removal rather than promotion to a build option:
+    ADEPT_USE_ORIGINNAVSTATE)
+file(GLOB_RECURSE _adept_public_headers
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hh"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.cuh"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.icc")
+foreach(_header IN LISTS _adept_public_headers)
+  file(STRINGS "${_header}" _adept_pp_lines REGEX "^[ \t]*#[ \t]*(el)?if")
+  foreach(_line IN LISTS _adept_pp_lines)
+    string(REGEX MATCHALL "ADEPT_[A-Z0-9_]+" _adept_macros "${_line}")
+    foreach(_macro IN LISTS _adept_macros)
+      if(NOT _macro IN_LIST _adept_known_flag_macros)
+        message(FATAL_ERROR "Installed header ${_header} tests the unregistered macro ${_macro}. "
+          "Register it in ADEPT_PUBLIC_BOOL_OPTIONS (or handle it explicitly) next to AdePTBuildFlags.hh.")
+      endif()
+    endforeach()
+  endforeach()
+endforeach()
 
 # Use descriptive install names while keeping short CMake target names.
 set_target_properties(Transport PROPERTIES OUTPUT_NAME adept_transport)

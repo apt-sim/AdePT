@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 namespace adeptint {
 
 /// @brief Auxiliary logical volume data. This stores in the same structure the material-cuts couple index,

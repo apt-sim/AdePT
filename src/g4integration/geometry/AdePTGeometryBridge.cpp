@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#include <AdePT/AdePTBuildFlags.hh>
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
 
 #include <VecGeom/management/GeoManager.h>

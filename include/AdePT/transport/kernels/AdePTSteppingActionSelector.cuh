@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
+
+#include <AdePT/AdePTBuildFlags.hh>
 #include "AdePTSteppingAction.cuh"
 
 #ifndef ADEPT_STEPACTION_TYPE

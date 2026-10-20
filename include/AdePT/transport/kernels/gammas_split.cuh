@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/navigation/AdePTNavigator.h>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>

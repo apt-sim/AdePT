@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2022 CERN
 // SPDX-License-Identifier: Apache-2.0
 
+#include <AdePT/AdePTBuildFlags.hh>
 #include <AdePT/transport/AdePTTransport.hh>
 #include <AdePT/transport/queues/TrackBuffer.hh>
 

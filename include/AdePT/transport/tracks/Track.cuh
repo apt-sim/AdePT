@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/tracks/TrackData.h>
 #include <AdePT/transport/tracks/SafetyCache.cuh>
 #include <AdePT/transport/support/SystemOfUnits.h>
