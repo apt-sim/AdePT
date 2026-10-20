@@ -65,6 +65,10 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
   transportConfig.cpuCapacityFactor                   = configuration.GetCPUCapacityFactor();
   transportConfig.cpuCopyFraction                     = configuration.GetHitBufferFlushThreshold();
   transportConfig.stepBufferSafetyFactor              = configuration.GetHitBufferSafetyFactor();
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+  // In CMS builds the selected parameter type is CMSSteppingActionParams, see SteppingActionParams.hh.
+  transportConfig.steppingActionParams = configuration.GetCMSSteppingActionConfig().params;
+#endif
   return transportConfig;
 }
 
@@ -183,7 +187,7 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   auto auxData = std::make_unique<adeptint::VolAuxData[]>(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   adeptint::WDTHostRaw wdtRaw;
   AdePTGeometryBridge::InitVolAuxData(auxData.get(), adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
-                                      fGPURegions, fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
+                                      fGPURegions, fAdePTConfiguration->GetCMSSteppingActionConfig(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
   auto transportConfig              = MakeAdePTTransportConfig(*fAdePTConfiguration);
 

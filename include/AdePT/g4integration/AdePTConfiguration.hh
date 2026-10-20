@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/g4integration/CMSSteppingActionConfig.hh>
+
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -66,7 +68,9 @@ public:
     return true;
   }
   void AddWDTRegionName(std::string name) { fWDTRegionNames.push_back(name); }
-  void AddDeadRegionName(std::string name) { fDeadRegionNames.push_back(name); }
+  void AddDeadRegionName(std::string name) { fCMSSteppingActionConfig.deadRegions.push_back(name); }
+  /// @brief Replace the configuration of the CMS stepping action, including dead regions added with AddDeadRegionName.
+  void SetCMSSteppingActionConfig(CMSSteppingActionConfig config) { fCMSSteppingActionConfig = std::move(config); }
   void SetVerbosity(int verbosity) { fVerbosity = verbosity; };
   void SetMillionsOfTrackSlots(double millionSlots) { fMillionsOfTrackSlots = millionSlots; }
   void SetMillionsOfHitSlots(double millionSlots) { fMillionsOfHitSlots = millionSlots; }
@@ -128,7 +132,7 @@ public:
   const std::vector<std::string> *GetGPURegionNames() const { return &fGPURegionNames; }
   const std::vector<std::string> *GetCPURegionNames() const { return &fCPURegionNames; }
   const std::vector<std::string> &GetWDTRegionNames() const { return fWDTRegionNames; }
-  const std::vector<std::string> &GetDeadRegionNames() const { return fDeadRegionNames; }
+  const CMSSteppingActionConfig &GetCMSSteppingActionConfig() const { return fCMSSteppingActionConfig; }
 
   // Temporary
   std::string GetVecGeomGDML() const { return fVecGeomGDML; }
@@ -164,7 +168,7 @@ private:
   std::vector<std::string> fGPURegionNames{};
   std::vector<std::string> fCPURegionNames{};
   std::vector<std::string> fWDTRegionNames{};
-  std::vector<std::string> fDeadRegionNames{};
+  CMSSteppingActionConfig fCMSSteppingActionConfig{};
 
   std::string fVecGeomGDML{""};
   std::string fCovfieBfieldFile{""};

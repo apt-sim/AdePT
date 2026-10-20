@@ -199,10 +199,10 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
 
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   std::set<G4Region const *> gpuRegions{&worldRegion, &wdtRegion};
-  std::vector<std::string> deadRegionNames;
+  CMSSteppingActionConfig cmsConfig;
   adeptint::WDTHostRaw wdtRaw;
 
-  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, deadRegionNames, wdtRaw);
+  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, cmsConfig, wdtRaw);
 
   const auto regionRoots = wdtRaw.regionToRootIndices.find(wdtRegion.GetInstanceID());
   ASSERT_NE(regionRoots, wdtRaw.regionToRootIndices.end());
@@ -261,12 +261,11 @@ TEST(AdePTGeometryBridge, UsesResolvedGPURegionSet)
   SingleMatCutHepEmData hepEmData;
   G4HepEmTrackingManagerSpecialized hepEmTM;
   std::set<G4Region const *> gpuRegions{&worldRegion};
-  std::vector<std::string> deadRegionNames;
+  CMSSteppingActionConfig cmsConfig;
   adeptint::WDTHostRaw wdtRaw;
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
 
-  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData.hepEmData, &hepEmTM, gpuRegions, deadRegionNames,
-                                      wdtRaw);
+  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData.hepEmData, &hepEmTM, gpuRegions, cmsConfig, wdtRaw);
 
   EXPECT_EQ(volAuxData[vgWorld->GetLogicalVolume()->id()].fGPUregionId, worldRegion.GetInstanceID());
   EXPECT_EQ(volAuxData[vgCPUVolume->GetLogicalVolume()->id()].fGPUregionId, -1);
@@ -676,10 +675,10 @@ TEST(AdePTGeometryBridge, RejectsUnexpandedReplicaWithoutVecGeomCopies)
 
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   std::set<G4Region const *> gpuRegions;
-  std::vector<std::string> deadRegionNames;
+  CMSSteppingActionConfig cmsConfig;
   adeptint::WDTHostRaw wdtRaw;
 
   EXPECT_THROW(
-      AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, deadRegionNames, wdtRaw),
+      AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, cmsConfig, wdtRaw),
       std::runtime_error);
 }

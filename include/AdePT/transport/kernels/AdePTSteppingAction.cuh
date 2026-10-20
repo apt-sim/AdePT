@@ -38,7 +38,7 @@ __device__ __forceinline__ void KillTrack(bool &alive, double &eKin, double &ede
   if (!alive) return;
   // NOTE: currently, positrons are killed directly. If done correctly,
   // the energy of 2 * m_e would be additionally deposited to account for the annihilation at rest.
-  // This is omitted here to match what CMS and LHCb are doing.
+  // This is omitted here to match what LHCb is doing.
   alive = false;
   edep += eKin;
   eKin = 0.0;
@@ -75,10 +75,12 @@ struct NoAction {
 };
 
 // ---------- CMS ----------
-// Custom SteppingAction for CMS
+// Custom SteppingAction for CMS (Phase 2). It mirrors the CMSSW Phase2SteppingAction, which kills tracks after a
+// step. The cuts are configured by CMSSW, see CMSSteppingActionConfig.
 struct CMSAction {
   using Params = CMSSteppingActionParams;
 
+  // The volume flags below only exist in VolAuxData for CMS builds
   __device__ __forceinline__ static bool IsDeadRegion(adeptint::VolAuxData const &auxData)
   {
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
@@ -88,48 +90,51 @@ struct CMSAction {
 #endif
   }
 
-  __device__ __forceinline__ static void AllParticleCheck(bool &alive, double &eKin, double &edep,
+  /// @brief Kill a track like Phase2SteppingAction, which does not deposit the remaining energy.
+  __device__ __forceinline__ static void Kill(bool &alive, double &eKin)
+  {
+    alive = false;
+    eKin  = 0.;
+  }
+
+  /// @brief Kills of Phase2SteppingAction that apply to all particles.
+  /// @return whether the track is in the central region, where CMSSW applies its other cuts as well
+  __device__ __forceinline__ static bool AllParticleCheck(bool &alive, double &eKin,
                                                           vecgeom::Vector3D<double> const &pos,
                                                           double const &globalTime, adeptint::VolAuxData const &auxData,
                                                           Params const &params)
   {
-    // Configured CMSSW dead regions from AdePTConfiguration.
-    if (IsDeadRegion(auxData)) {
-      KillTrack(alive, eKin, edep);
-      return;
+    if (fabs(pos.z()) >= params.maxZCentral) {
+      // Very forward region: only the forward time cut applies
+      if (globalTime > params.maxTrackTimeForward) Kill(alive, eKin);
+      return false;
     }
-
-    // Out-of-time and out-of-z cut
-    if (globalTime > params.tmax && fabs(pos.z()) >= params.zmax) {
-      KillTrack(alive, eKin, edep);
-      return;
-    }
+    if (IsDeadRegion(auxData) || globalTime > params.maxTrackTime) Kill(alive, eKin);
+    return true;
   }
 
-  __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double &edep,
+  __device__ __forceinline__ static void ElectronAction(bool &alive, double &eKin, double & /*edep*/,
                                                         vecgeom::Vector3D<double> const &pos, double const &globalTime,
                                                         adeptint::VolAuxData const &auxData,
                                                         G4HepEmData const *g4HepEmData, Params const &params)
   {
     if (!alive) return;
-    AllParticleCheck(alive, eKin, edep, pos, globalTime, auxData, params);
-    if (!alive) return;
+    const bool central = AllParticleCheck(alive, eKin, pos, globalTime, auxData, params);
+    if (!alive || !central) return;
 
     // e-/e+ in vacuum cut
     const int hmi        = g4HepEmData->fTheMatCutData->fMatCutData[auxData.fMCIndex].fHepEmMatIndex;
     const double density = g4HepEmData->fTheMaterialData->fMaterialData[hmi].fDensity; // g/cm^3
-    if (eKin < params.ecut && density < params.density) {
-      KillTrack(alive, eKin, edep);
-    }
+    if (eKin < params.criticalEnergyForVacuum && density <= params.criticalDensity) Kill(alive, eKin);
   }
 
-  __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double &edep,
+  __device__ __forceinline__ static void GammaAction(bool &alive, double &eKin, double & /*edep*/,
                                                      vecgeom::Vector3D<double> const &pos, double const &globalTime,
                                                      adeptint::VolAuxData const &auxData,
                                                      G4HepEmData const * /*g4HepEmData*/, Params const &params)
   {
     if (!alive) return;
-    AllParticleCheck(alive, eKin, edep, pos, globalTime, auxData, params);
+    AllParticleCheck(alive, eKin, pos, globalTime, auxData, params);
   }
 
   __device__ __forceinline__ static SecondaryDecision ClassifySecondary(TrackBase &parentTrack, ParticleType, double,

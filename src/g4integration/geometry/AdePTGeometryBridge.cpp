@@ -302,7 +302,7 @@ void AdePTGeometryBridge::CheckGeometry(G4HepEmData const *hepEmData)
 void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                                          G4HepEmTrackingManagerSpecialized *hepEmTM,
                                          std::set<G4Region const *> const &gpuRegions,
-                                         std::vector<std::string> const &deadRegionNames, adeptint::WDTHostRaw &wdtRaw)
+                                         CMSSteppingActionConfig const &cmsConfig, adeptint::WDTHostRaw &wdtRaw)
 {
   // Note: the hepEmTM must be passed explicitly here, since this is now a stateless
   // global bridge helper and therefore cannot reach any per-thread integration members.
@@ -314,18 +314,21 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   const int *g4tohepmcindex                  = hepEmData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
-  // CMS stepping action: resolve configured dead-region names once on the host.
+  // CMS stepping action: resolve the region names of the configuration once on the host.
   std::vector<G4Region const *> deadRegions{};
-  for (const std::string &regionName : deadRegionNames) {
+  for (const std::string &regionName : cmsConfig.deadRegions) {
     G4Region const *region = G4RegionStore::GetInstance()->GetRegion(regionName, false);
     if (!region) {
       G4Exception("AdePTGeometryBridge", "Invalid parameter", FatalErrorInArgument,
-                  ("Region given to AdePTConfiguration::AddDeadRegionName: " + regionName + " not found\n").c_str());
+                  ("Dead region of the CMS stepping action configuration: " + regionName + " not found\n").c_str());
     }
     deadRegions.push_back(region);
   }
+  auto contains = [](std::vector<G4Region const *> const &regions, G4Region const *region) {
+    return std::find(regions.begin(), regions.end(), region) != regions.end();
+  };
 #else
-  (void)deadRegionNames;
+  (void)cmsConfig;
 #endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
@@ -375,15 +378,8 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     }
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
-    // CMS stepping action: flag volumes whose region kills tracks on GPU.
-    bool isDeadRegion = false;
-    for (G4Region const *deadRegion : deadRegions) {
-      if (g4_lvol->GetRegion() == deadRegion) {
-        isDeadRegion = true;
-        break;
-      }
-    }
-    volAuxData[vg_lvol->id()].fCMSDeadRegion = isDeadRegion;
+    // CMS stepping action: per-volume part of the configuration.
+    volAuxData[vg_lvol->id()].fCMSDeadRegion = contains(deadRegions, g4_lvol->GetRegion());
 #endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)

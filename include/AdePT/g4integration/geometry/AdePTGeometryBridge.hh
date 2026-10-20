@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <AdePT/g4integration/CMSSteppingActionConfig.hh>
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/woodcock/WoodcockData.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
@@ -43,9 +44,10 @@ public:
 
   /// @brief Fills the auxiliary per-volume data needed by AdePT.
   /// @param gpuRegions Regions handled by AdePT.
+  /// @param cmsConfig Configuration of the CMS stepping action, only used in CMS builds.
   static void InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                              G4HepEmTrackingManagerSpecialized *hepEmTM, std::set<G4Region const *> const &gpuRegions,
-                             std::vector<std::string> const &deadRegionNames, adeptint::WDTHostRaw &wdtRaw);
+                             CMSSteppingActionConfig const &cmsConfig, adeptint::WDTHostRaw &wdtRaw);
 
   /// @brief Pack the Woodcock tracking data from the sparse host-side map into arrays that can be copied to the GPU.
   /// @param wdtRaw Raw WDT data collected during geometry traversal.
