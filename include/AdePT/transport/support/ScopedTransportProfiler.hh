@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #if defined(ADEPT_ENABLE_NSYS_PROFILING) || defined(__DOXYGEN__)
 
 #include <cerrno>

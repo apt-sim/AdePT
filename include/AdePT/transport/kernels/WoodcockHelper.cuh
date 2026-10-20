@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/state/DeviceGlobals.cuh>
 #include <AdePT/transport/woodcock/WoodcockData.hh>
 

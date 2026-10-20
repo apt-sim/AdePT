@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include "G4VTrackingManager.hh"
 #include "G4RegionStore.hh"
 
@@ -98,7 +100,7 @@ private:
   int fCurrentEventID{0};
   bool fAdePTInitialized{false};
   bool fSpeedOfLight{false};
-#ifdef ENABLE_POWER_METER
+#ifdef ADEPT_ENABLE_POWER_METER
   bool fPowerMeterRunning{false};
 #endif
 };

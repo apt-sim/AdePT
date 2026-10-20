@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/containers/MParray.h>
 #include <AdePT/transport/tracks/ParticleTypes.hh>
 

@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <VecGeom/base/Vector3D.h>
 
 #include "fieldConstants.h" // For kB2C factor with units

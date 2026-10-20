@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #ifdef ADEPT_MIXED_PRECISION
 using rk_integration_t = float;
 #else

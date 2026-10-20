@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/geometry/GeometryAuxData.hh>
 #include <AdePT/transport/random/Ranluxpp.h>
 #include <AdePT/transport/support/SystemOfUnits.h>

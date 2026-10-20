@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <AdePT/AdePTBuildFlags.hh>
+
 #include <AdePT/transport/navigation/BVHNavigator.h>
 #ifdef ADEPT_USE_SURF
 #include <AdePT/transport/navigation/SurfNavigator.h>
