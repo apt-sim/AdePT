@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <AdePT/transport/config/SteppingActionParams.hh>
 #include <AdePT/transport/config/TransportKernelOptions.hh>
 
 #include <cstdint>
@@ -24,4 +25,5 @@ struct AdePTTransportConfig {
   double cpuCapacityFactor{2.5};
   double cpuCopyFraction{0.5};
   double stepBufferSafetyFactor{1.5};
+  adept::SteppingActionParamsT steppingActionParams{}; ///< parameters of the stepping action selected at build time
 };
