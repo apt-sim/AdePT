@@ -21,4 +21,8 @@ struct CMSSteppingActionParams {
   /// energy are created in low-density regions [CriticalEnergyForVacuum]
   double criticalEnergyForVacuum{2.0 * copcore::units::MeV};
   double criticalDensity{1e-15 * (copcore::units::g / copcore::units::cm3)}; ///< [CriticalDensity]
+  /// No gammas below this energy are created [GammaThreshold, if KillGamma]
+  double gammaEnergyCut{0.};
+  /// Gamma Russian roulette is only applied below this energy [RusRoGammaEnergyLimit]
+  double gammaRussianRouletteEnergyLimit{0.};
 };

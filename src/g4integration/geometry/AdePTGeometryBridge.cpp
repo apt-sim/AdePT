@@ -324,9 +324,26 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     }
     deadRegions.push_back(region);
   }
-  auto contains = [](std::vector<G4Region const *> const &regions, G4Region const *region) {
+  auto findRegions = [](std::vector<std::string> const &regionNames) {
+    std::vector<G4Region const *> regions;
+    for (const std::string &regionName : regionNames) {
+      if (G4Region const *region = G4RegionStore::GetInstance()->GetRegion(regionName, false))
+        regions.push_back(region);
+    }
+    return regions;
+  };
+  const auto lowDensityRegions         = findRegions(cmsConfig.lowDensityRegions);
+  const auto rouletteRestrictedRegions = findRegions(cmsConfig.gammaRussianRouletteRestrictedRegions);
+  auto contains                        = [](std::vector<G4Region const *> const &regions, G4Region const *region) {
     return std::find(regions.begin(), regions.end(), region) != regions.end();
   };
+  for (auto const &[regionName, probability] : cmsConfig.gammaRussianRoulette) {
+    // GPU track weights are floats: survivors must keep a weight above one, or CMSSW plays Russian roulette again
+    if (probability < 1. && static_cast<float>(1. / probability) <= 1.f) {
+      throw std::runtime_error("Gamma Russian roulette survival probability of region " + regionName +
+                               " too close to one");
+    }
+  }
 #else
   (void)cmsConfig;
 #endif
@@ -379,7 +396,13 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
     // CMS stepping action: per-volume part of the configuration.
-    volAuxData[vg_lvol->id()].fCMSDeadRegion = contains(deadRegions, g4_lvol->GetRegion());
+    auto &cmsAuxData                              = volAuxData[vg_lvol->id()];
+    cmsAuxData.fCMSDeadRegion                     = contains(deadRegions, g4_lvol->GetRegion());
+    cmsAuxData.fCMSLowDensityRegion               = contains(lowDensityRegions, g4_lvol->GetRegion());
+    cmsAuxData.fCMSGammaRussianRouletteRestricted = contains(rouletteRestrictedRegions, g4_lvol->GetRegion());
+    for (auto const &[regionName, probability] : cmsConfig.gammaRussianRoulette) {
+      if (g4_lvol->GetRegion()->GetName() == regionName) cmsAuxData.fCMSGammaRussianRouletteProbability = probability;
+    }
 #endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)

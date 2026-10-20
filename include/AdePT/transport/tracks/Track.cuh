@@ -51,6 +51,9 @@ struct TrackBase {
   unsigned short looperCounter{0};
   unsigned short zeroStepCounter{0};
   bool hasHostData{false};
+  /// Whether the stepping action may apply gamma Russian roulette to gammas created by this track. Set on the host
+  /// for each injected track (CMSSteppingActionConfig::gammaRussianRouletteApplicability) and inherited by secondaries.
+  bool gammaRussianRouletteApplicable{true};
 
 #ifdef ADEPT_USE_SPLIT_KERNELS
   bool hepEmTrackExists{false};
@@ -69,10 +72,12 @@ struct TrackBase {
   __device__ TrackBase(uint64_t rngSeed, double eKin, double globalTime, float localTime, float properTime,
                        float weight, double const position[3], double const direction[3],
                        const vecgeom::NavigationState &newNavState, unsigned int eventId, uint64_t trackId,
-                       uint64_t parentId, short threadId, unsigned short stepCounter, bool hasHostData = false)
+                       uint64_t parentId, short threadId, unsigned short stepCounter, bool hasHostData = false,
+                       bool gammaRussianRouletteApplicable = true)
       : rngState{rngSeed}, eKin{eKin}, globalTime{globalTime}, trackId{trackId}, parentId{parentId},
         navState{newNavState}, weight{weight}, localTime{localTime}, properTime{properTime}, eventId{eventId},
-        threadId{threadId}, stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}, hasHostData{hasHostData}
+        threadId{threadId}, stepCounter{stepCounter}, looperCounter{0}, zeroStepCounter{0}, hasHostData{hasHostData},
+        gammaRussianRouletteApplicable{gammaRussianRouletteApplicable}
   {
     pos = {position[0], position[1], position[2]};
     dir = {direction[0], direction[1], direction[2]};
@@ -95,7 +100,8 @@ struct TrackBase {
       : rngState{rng_state}, eKin{eKin}, globalTime{globalTime}, pos{parentPos}, dir{newDirection},
         trackId{rngState.IntRndm64()}, parentId{parentTrack.trackId}, navState{newNavState}, weight{childWeight},
         eventId{parentTrack.eventId}, threadId{parentTrack.threadId}, stepCounter{0}, looperCounter{0},
-        zeroStepCounter{0}, hasHostData{parentTrack.hasHostData}
+        zeroStepCounter{0}, hasHostData{parentTrack.hasHostData},
+        gammaRussianRouletteApplicable{parentTrack.gammaRussianRouletteApplicable}
   {
   }
 

@@ -78,10 +78,12 @@ public:
   ~AdePTTransport();
 
   /// @brief Adds a track to the buffer
+  /// @param gammaRussianRouletteApplicable whether the stepping action may apply gamma Russian roulette to gammas
+  /// created by this track and its descendants
   void AddTrack(int pdg, uint64_t trackId, uint64_t parentId, double energy, double x, double y, double z, double dirx,
                 double diry, double dirz, double globalTime, double localTime, double properTime, float weight,
                 unsigned short stepCounter, int threadId, unsigned int eventId, vecgeom::NavigationState &&state,
-                bool hasHostData = false);
+                bool hasHostData = false, bool gammaRussianRouletteApplicable = true);
   int GetDebugLevel() const { return fDebugLevel; }
   /// @brief Handle the currently available returned GPU-step batches for one thread and event.
   /// @details

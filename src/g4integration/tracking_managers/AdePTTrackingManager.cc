@@ -625,6 +625,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double properTime       = aTrack->GetProperTime();
       G4double weight           = aTrack->GetWeight();
       unsigned short stepNumber = static_cast<unsigned short>(aTrack->GetCurrentStepNumber());
+      const auto applicability  = fAdePTConfiguration->GetCMSSteppingActionConfig().gammaRussianRouletteApplicability;
+      const bool gammaRussianRouletteApplicable = applicability == nullptr || applicability(*aTrack);
 
       if (fCurrentEventID != eventID) {
         // Do this to reproducibly seed the AdePT random numbers:
@@ -658,7 +660,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 globalTime, localTime, properTime, weight, stepNumber, threadId, eventID,
-                                std::move(converted), useHostData);
+                                std::move(converted), useHostData, gammaRussianRouletteApplicable);
 
       fTrackCounter++; // increment the track counter for AdePT
 

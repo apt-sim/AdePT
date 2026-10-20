@@ -14,7 +14,11 @@ struct VolAuxData {
   int fMCIndex{0};      ///< material-cut couple index in G4HepEm
   int fGPUregionId{-1}; ///< GPU region index, corresponds to G4Region.instanceID if tracked on GPU, -1 otherwise
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
-  bool fCMSDeadRegion{false}; ///< CMS-only flag: tracks entering this volume are killed by the stepping action
+  bool fCMSDeadRegion{false};       ///< CMS-only flag: tracks entering this volume are killed by the stepping action
+  bool fCMSLowDensityRegion{false}; ///< CMS-only flag: no low-energy secondaries are created in this volume
+  /// CMS-only flag: gamma Russian roulette only applies to tracks accepted by the host predicate (CMSSW ECAL rule)
+  bool fCMSGammaRussianRouletteRestricted{false};
+  double fCMSGammaRussianRouletteProbability{1.}; ///< CMS-only: survival probability of gammas born in this volume
 #endif
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
   bool fAtlasPhotonRussianRoulette{false}; ///< ATLAS-only flag: apply photon Russian Roulette to gammas born here
