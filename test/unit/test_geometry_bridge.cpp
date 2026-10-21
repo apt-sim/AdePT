@@ -199,10 +199,10 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
 
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   std::set<G4Region const *> gpuRegions{&worldRegion, &wdtRegion};
-  std::vector<std::string> deadRegionNames;
+  CMSSteppingActionConfig cmsConfig;
   adeptint::WDTHostRaw wdtRaw;
 
-  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, deadRegionNames, wdtRaw);
+  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, cmsConfig, wdtRaw);
 
   const auto regionRoots = wdtRaw.regionToRootIndices.find(wdtRegion.GetInstanceID());
   ASSERT_NE(regionRoots, wdtRaw.regionToRootIndices.end());
@@ -261,16 +261,114 @@ TEST(AdePTGeometryBridge, UsesResolvedGPURegionSet)
   SingleMatCutHepEmData hepEmData;
   G4HepEmTrackingManagerSpecialized hepEmTM;
   std::set<G4Region const *> gpuRegions{&worldRegion};
-  std::vector<std::string> deadRegionNames;
+  CMSSteppingActionConfig cmsConfig;
   adeptint::WDTHostRaw wdtRaw;
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
 
-  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData.hepEmData, &hepEmTM, gpuRegions, deadRegionNames,
-                                      wdtRaw);
+  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData.hepEmData, &hepEmTM, gpuRegions, cmsConfig, wdtRaw);
 
   EXPECT_EQ(volAuxData[vgWorld->GetLogicalVolume()->id()].fGPUregionId, worldRegion.GetInstanceID());
   EXPECT_EQ(volAuxData[vgCPUVolume->GetLogicalVolume()->id()].fGPUregionId, -1);
 }
+
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+namespace {
+// Minimal two-volume geometry for the CMS stepping action configuration tests. The returned pair holds the VecGeom
+// logical-volume ids of the world and the inner volume.
+std::pair<int, int> BuildCMSConfigGeometry(G4Region &worldRegion, G4Region &innerRegion, const char *prefix)
+{
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  vecgeom::GeoManager::Instance().Clear();
+
+  auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+  Require(material != nullptr, "G4_AIR material was not available");
+
+  const std::string p{prefix};
+  auto *worldSolid = new G4Box(p + "_world_solid", 10.0 * mm, 10.0 * mm, 10.0 * mm);
+  auto *worldLV    = new G4LogicalVolume(worldSolid, material, p + "_world_lv");
+  auto *worldPV    = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, p + "_world", nullptr, false, 0, false);
+
+  auto *innerSolid = new G4Box(p + "_inner_solid", 1.0 * mm, 1.0 * mm, 1.0 * mm);
+  auto *innerLV    = new G4LogicalVolume(innerSolid, material, p + "_inner_lv");
+  new G4PVPlacement(nullptr, G4ThreeVector(), innerLV, p + "_inner", worldLV, false, 0, false);
+
+  auto *couple = new G4MaterialCutsCouple(material, new G4ProductionCuts);
+  couple->SetIndex(0);
+  couple->SetUseFlag(true);
+  worldLV->SetMaterialCutsCouple(couple);
+  innerLV->SetMaterialCutsCouple(couple);
+
+  worldRegion.AddRootLogicalVolume(worldLV);
+  worldRegion.RegisterMaterialCouplePair(material, couple);
+  innerRegion.AddRootLogicalVolume(innerLV);
+  innerRegion.RegisterMaterialCouplePair(material, couple);
+
+  auto *transport = G4TransportationManager::GetTransportationManager();
+  transport->SetWorldForTracking(worldPV);
+  G4GeometryManager::GetInstance()->CloseGeometry(true);
+
+  AdePTGeometryBridge::CreateVecGeomWorld(worldPV);
+  auto const *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+  Require(vgWorld != nullptr, "VecGeom world was not created");
+  auto const *vgInner = vgWorld->GetLogicalVolume()->GetDaughters()[0];
+  return {vgWorld->GetLogicalVolume()->id(), vgInner->GetLogicalVolume()->id()};
+}
+} // namespace
+
+// CMS stepping action: the configuration's region names are resolved into the per-volume flags and the gamma Russian
+// roulette survival probability. Regions missing from the geometry are ignored, except for the dead regions.
+TEST(AdePTGeometryBridge, FillsCMSSteppingActionVolAuxData)
+{
+  GeometryCleanup cleanup;
+  G4Region worldRegion("cms_aux_world_region");
+  G4Region innerRegion("cms_aux_inner_region");
+  const auto [worldId, innerId] = BuildCMSConfigGeometry(worldRegion, innerRegion, "cms_aux");
+
+  SingleMatCutHepEmData hepEmData;
+  G4HepEmTrackingManagerSpecialized hepEmTM;
+  std::set<G4Region const *> gpuRegions{&worldRegion};
+  adeptint::WDTHostRaw wdtRaw;
+  std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
+
+  CMSSteppingActionConfig cmsConfig;
+  cmsConfig.lowDensityRegions                     = {"cms_aux_inner_region", "cms_aux_missing_region"};
+  cmsConfig.gammaRussianRoulette                  = {{"cms_aux_world_region", 0.3}, {"cms_aux_missing_region", 0.5}};
+  cmsConfig.gammaRussianRouletteRestrictedRegions = {"cms_aux_world_region"};
+
+  AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData.hepEmData, &hepEmTM, gpuRegions, cmsConfig, wdtRaw);
+
+  EXPECT_FALSE(volAuxData[worldId].fCMSDeadRegion);
+  EXPECT_FALSE(volAuxData[worldId].fCMSLowDensityRegion);
+  EXPECT_TRUE(volAuxData[worldId].fCMSGammaRussianRouletteRestricted);
+  EXPECT_DOUBLE_EQ(volAuxData[worldId].fCMSGammaRussianRouletteProbability, 0.3);
+  EXPECT_TRUE(volAuxData[innerId].fCMSLowDensityRegion);
+  EXPECT_FALSE(volAuxData[innerId].fCMSGammaRussianRouletteRestricted);
+  EXPECT_DOUBLE_EQ(volAuxData[innerId].fCMSGammaRussianRouletteProbability, 1.0);
+}
+
+// A survival probability so close to one that the reweighted float weight would not stay above one must be rejected,
+// as CMSSW would otherwise play Russian roulette again with the replayed secondary.
+TEST(AdePTGeometryBridge, RejectsCMSGammaRouletteProbabilityTooCloseToOne)
+{
+  GeometryCleanup cleanup;
+  G4Region worldRegion("cms_rr_world_region");
+  G4Region innerRegion("cms_rr_inner_region");
+  BuildCMSConfigGeometry(worldRegion, innerRegion, "cms_rr");
+
+  SingleMatCutHepEmData hepEmData;
+  G4HepEmTrackingManagerSpecialized hepEmTM;
+  std::set<G4Region const *> gpuRegions{&worldRegion};
+  adeptint::WDTHostRaw wdtRaw;
+  std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
+
+  CMSSteppingActionConfig cmsConfig;
+  cmsConfig.gammaRussianRoulette = {{"cms_rr_world_region", 1.0 - 1e-9}};
+
+  EXPECT_THROW(AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData.hepEmData, &hepEmTM, gpuRegions,
+                                                   cmsConfig, wdtRaw),
+               std::runtime_error);
+}
+#endif // CMS stepping action
 
 // G4-to-VecGeom handoff for flattened replicas: a Geant4 history in replica
 // copy 2 must choose the same VecGeom slice as an equivalent explicit-placement
@@ -676,10 +774,10 @@ TEST(AdePTGeometryBridge, RejectsUnexpandedReplicaWithoutVecGeomCopies)
 
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   std::set<G4Region const *> gpuRegions;
-  std::vector<std::string> deadRegionNames;
+  CMSSteppingActionConfig cmsConfig;
   adeptint::WDTHostRaw wdtRaw;
 
   EXPECT_THROW(
-      AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, deadRegionNames, wdtRaw),
+      AdePTGeometryBridge::InitVolAuxData(volAuxData.data(), &hepEmData, &hepEmTM, gpuRegions, cmsConfig, wdtRaw),
       std::runtime_error);
 }

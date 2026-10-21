@@ -732,14 +732,29 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     aSensitiveDetector->Hit(fStepReconstructionObjects->fG4Step);
   }
 
+  bool killedByUserSteppingAction = false;
   if (callUserSteppingAction) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userSteppingAction = evtMgr->GetUserSteppingAction();
-    if (userSteppingAction) userSteppingAction->UserSteppingAction(fStepReconstructionObjects->fG4Step);
+    if (userSteppingAction) {
+      const auto parentStatus = fStepReconstructionObjects->fG4Step->GetTrack()->GetTrackStatus();
+      userSteppingAction->UserSteppingAction(fStepReconstructionObjects->fG4Step);
+      killedByUserSteppingAction = parentStatus != fStopAndKill &&
+                                   fStepReconstructionObjects->fG4Step->GetTrack()->GetTrackStatus() == fStopAndKill;
+    }
+  }
+
+  // As in Geant4, a track that the user stepping action kills ends in this step, also if it is handed over to the CPU
+  const bool killedOnHandOver = returnParentTrackToG4 && killedByUserSteppingAction;
+  if (killedOnHandOver) {
+    returnedParentTrack->SetUserInformation(nullptr); // owned by the HostTrackData, which is removed below
+    delete returnedParentTrack;
+    returnedParentTrack   = nullptr;
+    returnParentTrackToG4 = false;
   }
 
   // call UserTrackingAction if required
-  if (parentStep.fLastStepOfTrack && !returnParentTrackToG4 && (callUserTrackingAction)) {
+  if ((parentStep.fLastStepOfTrack || killedOnHandOver) && !returnParentTrackToG4 && (callUserTrackingAction)) {
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userTrackingAction = evtMgr->GetUserTrackingAction();
     if (userTrackingAction) userTrackingAction->PostUserTrackingAction(fStepReconstructionObjects->fG4Step->GetTrack());

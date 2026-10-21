@@ -65,6 +65,10 @@ AdePTTransportConfig MakeAdePTTransportConfig(const AdePTConfiguration &configur
   transportConfig.cpuCapacityFactor                   = configuration.GetCPUCapacityFactor();
   transportConfig.cpuCopyFraction                     = configuration.GetHitBufferFlushThreshold();
   transportConfig.stepBufferSafetyFactor              = configuration.GetHitBufferSafetyFactor();
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+  // In CMS builds the selected parameter type is CMSSteppingActionParams, see SteppingActionParams.hh.
+  transportConfig.steppingActionParams = configuration.GetCMSSteppingActionConfig().params;
+#endif
   return transportConfig;
 }
 
@@ -183,7 +187,7 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
   auto auxData = std::make_unique<adeptint::VolAuxData[]>(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   adeptint::WDTHostRaw wdtRaw;
   AdePTGeometryBridge::InitVolAuxData(auxData.get(), adeptG4HepEmState->GetData(), fHepEmTrackingManager.get(),
-                                      fGPURegions, fAdePTConfiguration->GetDeadRegionNames(), wdtRaw);
+                                      fGPURegions, fAdePTConfiguration->GetCMSSteppingActionConfig(), wdtRaw);
   adeptint::WDTHostPacked wdtPacked = AdePTGeometryBridge::PackWDT(wdtRaw);
   auto transportConfig              = MakeAdePTTransportConfig(*fAdePTConfiguration);
 
@@ -621,6 +625,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       G4double properTime       = aTrack->GetProperTime();
       G4double weight           = aTrack->GetWeight();
       unsigned short stepNumber = static_cast<unsigned short>(aTrack->GetCurrentStepNumber());
+      const auto applicability  = fAdePTConfiguration->GetCMSSteppingActionConfig().gammaRussianRouletteApplicability;
+      const bool gammaRussianRouletteApplicable = applicability == nullptr || applicability(*aTrack);
 
       if (fCurrentEventID != eventID) {
         // Do this to reproducibly seed the AdePT random numbers:
@@ -654,7 +660,7 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       fAdeptTransport->AddTrack(pdg, gpuTrackID, gpuParentID, energy, particlePosition[0], particlePosition[1],
                                 particlePosition[2], particleDirection[0], particleDirection[1], particleDirection[2],
                                 globalTime, localTime, properTime, weight, stepNumber, threadId, eventID,
-                                std::move(converted), useHostData);
+                                std::move(converted), useHostData, gammaRussianRouletteApplicable);
 
       fTrackCounter++; // increment the track counter for AdePT
 

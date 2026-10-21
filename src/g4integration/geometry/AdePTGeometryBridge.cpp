@@ -302,7 +302,7 @@ void AdePTGeometryBridge::CheckGeometry(G4HepEmData const *hepEmData)
 void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4HepEmData const *hepEmData,
                                          G4HepEmTrackingManagerSpecialized *hepEmTM,
                                          std::set<G4Region const *> const &gpuRegions,
-                                         std::vector<std::string> const &deadRegionNames, adeptint::WDTHostRaw &wdtRaw)
+                                         CMSSteppingActionConfig const &cmsConfig, adeptint::WDTHostRaw &wdtRaw)
 {
   // Note: the hepEmTM must be passed explicitly here, since this is now a stateless
   // global bridge helper and therefore cannot reach any per-thread integration members.
@@ -314,18 +314,38 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   const int *g4tohepmcindex                  = hepEmData->fTheMatCutData->fG4MCIndexToHepEmMCIndex;
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
-  // CMS stepping action: resolve configured dead-region names once on the host.
+  // CMS stepping action: resolve the region names of the configuration once on the host.
   std::vector<G4Region const *> deadRegions{};
-  for (const std::string &regionName : deadRegionNames) {
+  for (const std::string &regionName : cmsConfig.deadRegions) {
     G4Region const *region = G4RegionStore::GetInstance()->GetRegion(regionName, false);
     if (!region) {
       G4Exception("AdePTGeometryBridge", "Invalid parameter", FatalErrorInArgument,
-                  ("Region given to AdePTConfiguration::AddDeadRegionName: " + regionName + " not found\n").c_str());
+                  ("Dead region of the CMS stepping action configuration: " + regionName + " not found\n").c_str());
     }
     deadRegions.push_back(region);
   }
+  auto findRegions = [](std::vector<std::string> const &regionNames) {
+    std::vector<G4Region const *> regions;
+    for (const std::string &regionName : regionNames) {
+      if (G4Region const *region = G4RegionStore::GetInstance()->GetRegion(regionName, false))
+        regions.push_back(region);
+    }
+    return regions;
+  };
+  const auto lowDensityRegions         = findRegions(cmsConfig.lowDensityRegions);
+  const auto rouletteRestrictedRegions = findRegions(cmsConfig.gammaRussianRouletteRestrictedRegions);
+  auto contains                        = [](std::vector<G4Region const *> const &regions, G4Region const *region) {
+    return std::find(regions.begin(), regions.end(), region) != regions.end();
+  };
+  for (auto const &[regionName, probability] : cmsConfig.gammaRussianRoulette) {
+    // GPU track weights are floats: survivors must keep a weight above one, or CMSSW plays Russian roulette again
+    if (probability < 1. && static_cast<float>(1. / probability) <= 1.f) {
+      throw std::runtime_error("Gamma Russian roulette survival probability of region " + regionName +
+                               " too close to one");
+    }
+  }
 #else
-  (void)deadRegionNames;
+  (void)cmsConfig;
 #endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
@@ -375,15 +395,14 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     }
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
-    // CMS stepping action: flag volumes whose region kills tracks on GPU.
-    bool isDeadRegion = false;
-    for (G4Region const *deadRegion : deadRegions) {
-      if (g4_lvol->GetRegion() == deadRegion) {
-        isDeadRegion = true;
-        break;
-      }
+    // CMS stepping action: per-volume part of the configuration.
+    auto &cmsAuxData                              = volAuxData[vg_lvol->id()];
+    cmsAuxData.fCMSDeadRegion                     = contains(deadRegions, g4_lvol->GetRegion());
+    cmsAuxData.fCMSLowDensityRegion               = contains(lowDensityRegions, g4_lvol->GetRegion());
+    cmsAuxData.fCMSGammaRussianRouletteRestricted = contains(rouletteRestrictedRegions, g4_lvol->GetRegion());
+    for (auto const &[regionName, probability] : cmsConfig.gammaRussianRoulette) {
+      if (g4_lvol->GetRegion()->GetName() == regionName) cmsAuxData.fCMSGammaRussianRouletteProbability = probability;
     }
-    volAuxData[vg_lvol->id()].fCMSDeadRegion = isDeadRegion;
 #endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
