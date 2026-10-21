@@ -29,9 +29,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cassert>
 #include <memory>
 #include <new>
 #include <span>
+#include <stdexcept>
+#include <string>
 #include <type_traits>
 
 namespace AdePTGeant4Integration_detail {
@@ -737,10 +740,40 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     auto *evtMgr             = G4EventManager::GetEventManager();
     auto *userSteppingAction = evtMgr->GetUserSteppingAction();
     if (userSteppingAction) {
+#ifndef NDEBUG
+      // Debug-only consistency check, compiled out in release builds: the GPU-born secondaries are already
+      // transported on the GPU. The user stepping action may update their metadata, e.g. their user information,
+      // but must not remove, replace, reorder, kill or reweight them: the stepping action on the GPU has to take
+      // those decisions before the secondaries are created (ClassifySecondary). Note that a stepping action that
+      // deletes a removed secondary corrupts the replay storage before this check.
+      auto const &secondaries            = *fStepReconstructionObjects->fSecondaryVector;
+      const unsigned int nGPUSecondaries = parentStep.fNumSecondaries;
+      assert(nGPUSecondaries <=
+             static_cast<unsigned int>(AdePTGeant4Integration_detail::StepReconstructionObjects::kMaxSecondaries));
+      std::array<G4Track const *, AdePTGeant4Integration_detail::StepReconstructionObjects::kMaxSecondaries>
+          gpuSecondaries{};
+      std::copy_n(secondaries.begin(), nGPUSecondaries, gpuSecondaries.begin());
+#endif
+
       const auto parentStatus = fStepReconstructionObjects->fG4Step->GetTrack()->GetTrackStatus();
       userSteppingAction->UserSteppingAction(fStepReconstructionObjects->fG4Step);
       killedByUserSteppingAction = parentStatus != fStopAndKill &&
                                    fStepReconstructionObjects->fG4Step->GetTrack()->GetTrackStatus() == fStopAndKill;
+
+#ifndef NDEBUG
+      bool unchanged = nGPUSecondaries == 0 || secondaries.size() == nGPUSecondaries;
+      for (unsigned int i = 0; unchanged && i < nGPUSecondaries; ++i) {
+        unchanged = secondaries[i] == gpuSecondaries[i] && secondaries[i]->GetTrackStatus() == fAlive &&
+                    secondaries[i]->GetWeight() == gpuSteps[1 + i].fTrackWeight;
+      }
+      if (!unchanged) {
+        throw std::runtime_error("AdePT: the user stepping action removed, replaced, killed or reweighted a GPU-born "
+                                 "secondary of GPU track " +
+                                 std::to_string(parentStep.fTrackID) +
+                                 ", which is already transported on the GPU. The stepping action on the GPU must "
+                                 "reject such secondaries before creating them (ClassifySecondary).");
+      }
+#endif
     }
   }
 

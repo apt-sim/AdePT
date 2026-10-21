@@ -131,7 +131,7 @@ tracks. This has two key consequences:
 | --- | --- | --- | --- |
 | Access to tracking state | Use `G4Step`/`G4Track` data directly when possible. | Do not rely on `G4SteppingManager` or `G4TrackingManager` internals | With custom tracking and parallel execution, manager internals are not reliable integration points, as they are not used by the `G4VTrackingManager`-implementations |
 | Per-track state in user code | Store per-track state on the track (e.g. `G4VUserTrackInformation`). | Do not cache mutable per-track state in shared user-action or SD members. | Steps from different tracks can be interleaved, so caches can be invalidated. |
-| Track killing | Implement track-killing decisions on GPU. | Do not attempt to kill tracks from CPU stepping action or sensitive detector code. | CPU receives reconstructed step snapshots, not active GPU tracks. |
+| Track killing | Implement track-killing decisions on GPU. | Do not attempt to kill tracks from CPU stepping action or sensitive detector code. Do not remove, replace, kill or reweight the GPU-born secondaries of a step; debug builds of AdePT throw an exception if the user stepping action does. | CPU receives reconstructed step snapshots, not active GPU tracks. |
 | Classification logic | Implement immediate classification in GPU stepping logic. | Do not rely on `StackingAction` for GPU classification. | GPU transport processes secondaries immediately; there is no GPU `StackingAction` stage. |
 
 Note: `G4Trajectory` is currently stored in `G4TrackingManager`, so it is not
