@@ -247,10 +247,13 @@ void AdePTTrackingManager::InitializeAdePT()
 {
   auto tid = G4Threading::G4GetThreadId();
 
-  // Master thread cannot initialize AdePT as the number of G4 worker threads may not yet be known in applications.
+  // Master thread must not initialize AdePT as the number of G4 worker threads may not yet be known in applications.
+  // Also sensitive detectors are attached per worker thread and may be missed on the master.
   // In sequential mode, the tid is -2 in most builds, but some sequential Geant4 builds return MASTER_ID (-1).
-  // Use GetMasterRunManager() to distinguish an actual MT master thread from sequential mode.
-  if (tid == G4Threading::MASTER_ID && G4MTRunManager::GetMasterRunManager() != nullptr) return;
+  // G4MTRunManager::GetMasterRunManager() cannot be used to detect an MT master: applications like CMSSW
+  // drive a G4MTRunManagerKernel directly without ever creating a G4MTRunManager. IsMultithreadedApplication()
+  // is set by the G4MTRunManagerKernel constructor and therefore covers both cases.
+  if (tid == G4Threading::MASTER_ID && G4Threading::IsMultithreadedApplication()) return;
 
   // a condition variable and a mutex is used for the initialization:
   // The first G4 worker that reaches the initialization, needs to initialize AdePT.
