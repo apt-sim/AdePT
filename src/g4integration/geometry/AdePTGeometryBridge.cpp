@@ -432,6 +432,21 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   vecgeom::NavigationState rootNavState;
   visitGeometry(g4world, vecgeomWorld, rootNavState);
 
+  // Defensive check for attached SD code: GetSensitiveDetector() is thread local.
+  // If the GPU geometry is initialized on a thread without SD code attached, issue a warning.
+  {
+    const std::size_t nLVs = vecgeom::GeoManager::Instance().GetRegisteredVolumesCount();
+    std::size_t nSensitive = 0;
+    for (std::size_t i = 0; i < nLVs; ++i) {
+      if (volAuxData[i].fSensIndex >= 0) ++nSensitive;
+    }
+    if (nSensitive == 0) {
+      G4Exception("AdePTGeometryBridge::InitVolAuxData", "NoSensitiveVolumes", JustWarning,
+                  "No logical volume is marked sensitive: AdePT was likely initialized on a thread without attached "
+                  "sensitive detectors; GPU energy deposits will not be scored.");
+    }
+  }
+
   auto findRegionName = [](int rid) -> std::string {
     for (auto *r : *G4RegionStore::GetInstance()) {
       if (r && r->GetInstanceID() == rid) return r->GetName();
