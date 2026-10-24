@@ -402,6 +402,8 @@ block()
     }
     ]] AdePT_HAS_G4VTRACKINGMANAGER)
 
+  # Include transitive dependencies such as external CLHEP when checking G4Track.hh.
+  set(CMAKE_REQUIRED_LIBRARIES ${_adept_geant4_libraries})
   # Check whether G4Track can increment the current step number by nSteps
   check_cxx_source_compiles([[
     #include "G4Track.hh"
