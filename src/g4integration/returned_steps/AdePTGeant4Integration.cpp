@@ -593,7 +593,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
       HostTrackData &secTData = fHostTrackDataMapper->create(secStep.fTrackID);
 
       // 2. Initialize from parent
-      InitSecondaryHostTrackDataFromParent(&secStep, secTData, parentID,
+      InitSecondaryHostTrackDataFromParent(&secStep, secTData, parentID, parentStep.fParticleType,
                                            *fStepReconstructionObjects->fPreG4TouchableHistoryHandle);
 
       // 3. Construct G4Track in place
@@ -933,7 +933,8 @@ G4TouchableHandle AdePTGeant4Integration::MakeTouchableFromNavState(vecgeom::Nav
 }
 
 void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUStep const *secStep, HostTrackData &secTData,
-                                                                  int g4ParentID, G4TouchableHandle &preTouchable) const
+                                                                  int g4ParentID, ParticleType parentType,
+                                                                  G4TouchableHandle &preTouchable) const
 {
 #ifdef DEBUG
   if (secStep->fStepCounter != 0) {
@@ -967,13 +968,13 @@ void AdePTGeant4Integration::InitSecondaryHostTrackDataFromParent(GPUStep const 
                     secStep->fPostStepPoint.fMomentumDirection.z());
   secTData.vertexKineticEnergy = secStep->fPostStepPoint.fEKin;
 
-  // For the initializing step, the step defining process ID is the creator process
+  // For an initializing step, fStepLimProcessId stores the creator-process index, which points
+  // to the correct process in the parent particle type process vector.
   const int stepId = secStep->fStepLimProcessId;
   assert(stepId >= 0);
-  const ParticleType ptype = secStep->fParticleType;
-  if (ptype == ParticleType::Electron || ptype == ParticleType::Positron) {
+  if (parentType == ParticleType::Electron || parentType == ParticleType::Positron) {
     secTData.creatorProcess = fHepEmTrackingManager->GetElectronNoProcessVector()[stepId];
-  } else if (ptype == ParticleType::Gamma) {
+  } else if (parentType == ParticleType::Gamma) {
     secTData.creatorProcess = fHepEmTrackingManager->GetGammaNoProcessVector()[stepId];
   }
 }
