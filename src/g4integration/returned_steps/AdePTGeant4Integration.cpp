@@ -289,13 +289,14 @@ G4double VelocityFromKineticEnergy(const G4ParticleDefinition &particle, G4doubl
   return CLHEP::c_light * std::sqrt(kineticEnergy * (kineticEnergy + 2. * mass)) / (kineticEnergy + mass);
 }
 
-void IncrementCurrentStepNumber(G4Track &track, G4int nSteps)
+void SetCurrentStepNumber(G4Track &track, G4int stepNumber)
 {
-  if (nSteps < 1) nSteps = 1;
+  const G4int delta = stepNumber - track.GetCurrentStepNumber();
 #ifdef ADEPT_HAS_G4TRACK_NSTEP_INCREMENT
-  track.IncrementCurrentStepNumber(nSteps);
+  track.IncrementCurrentStepNumber(delta);
 #else
-  for (G4int i = 0; i < nSteps; ++i) {
+  // Without the counted overload, this helper is used only for newly constructed tracks.
+  for (G4int i = 0; i < delta; ++i) {
     track.IncrementCurrentStepNumber();
   }
 #endif
@@ -370,7 +371,7 @@ G4Track *AdePTGeant4Integration::MakeTrackForCPUStacking(const G4Track &track, G
   dynamic->SetPrimaryParticle(track.GetDynamicParticle()->GetPrimaryParticle());
 
   auto *clone = new G4Track(dynamic, track.GetGlobalTime(), track.GetPosition());
-  IncrementCurrentStepNumber(*clone, nSteps);
+  SetCurrentStepNumber(*clone, std::max(1, nSteps));
   clone->SetTrackID(track.GetTrackID());
   clone->SetParentID(track.GetParentID());
   clone->SetLocalTime(track.GetLocalTime());
@@ -417,7 +418,7 @@ G4Track *AdePTGeant4Integration::MakeReturnedTrackFromStep(GPUStep const &parent
   dynamic->SetPrimaryParticle(hostTData.primary);
 
   auto *track = new G4Track(dynamic, parentStep.fGlobalTime, position);
-  IncrementCurrentStepNumber(*track, static_cast<G4int>(parentStep.fStepCounter));
+  SetCurrentStepNumber(*track, std::max<G4int>(1, parentStep.fStepCounter));
   track->SetTrackID(hostTData.g4id);
   track->SetParentID(hostTData.g4parentid);
   track->SetLocalTime(parentStep.fLocalTime);
@@ -563,6 +564,9 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     std::abort();
   }
 
+#ifdef ADEPT_HAS_G4TRACK_NSTEP_INCREMENT
+  SetCurrentStepNumber(*fStepReconstructionObjects->fG4Step->GetTrack(), parentStep.fStepCounter);
+#endif
   FillG4Step(&parentStep, fStepReconstructionObjects->fG4Step,
              *fStepReconstructionObjects->fPreG4TouchableHistoryHandle,
              *fStepReconstructionObjects->fPostG4TouchableHistoryHandle, preStepStatus, postStepStatus,
@@ -642,7 +646,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
                                             direction, parentStep.fPostStepPoint.fEKin);
 
       auto *nuclearReactionTrack = new G4Track(dynamic, parentStep.fGlobalTime, position);
-      IncrementCurrentStepNumber(*nuclearReactionTrack, static_cast<G4int>(parentStep.fStepCounter));
+      SetCurrentStepNumber(*nuclearReactionTrack, std::max<G4int>(1, parentStep.fStepCounter));
       nuclearReactionTrack->SetLocalTime(parentStep.fLocalTime);
       nuclearReactionTrack->SetProperTime(parentStep.fProperTime);
       nuclearReactionTrack->SetWeight(parentStep.fTrackWeight);

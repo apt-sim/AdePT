@@ -96,6 +96,7 @@ set(ADEPT_G4_INTEGRATION_UNIT_TESTS
 set(ADEPT_G4_INTEGRATION_GTESTS
   test_hostTrackDataMapper.cpp # Unit test for hostTrackDataMapper
   test_geometry_bridge.cpp     # Unit test for AdePTGeometryBridge replica traversal
+  test_returned_step_number.cpp # Regression test for replayed parent step numbers
   test_return_step_options.cpp # Unit test for freezing GPU return-step options
 )
 
