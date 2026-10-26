@@ -111,7 +111,7 @@ private:
   G4Track *ConstructSecondaryTrackInPlace(GPUStep const *secStep) const;
 
   void InitSecondaryHostTrackDataFromParent(GPUStep const *secStep, HostTrackData &secTData, int g4ParentID,
-                                            G4TouchableHandle &preTouchable) const;
+                                            ParticleType parentType, G4TouchableHandle &preTouchable) const;
 
   void FillG4Track(GPUStep const *aGPUStep, G4Track *aG4Track, const HostTrackData &hostTData,
                    G4TouchableHandle &aPreG4TouchableHandle, G4TouchableHandle &aPostG4TouchableHandle) const;
