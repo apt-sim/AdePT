@@ -143,6 +143,15 @@ add_test(NAME test_remove_gpu_region
 )
 set_tests_properties(test_remove_gpu_region PROPERTIES LABELS "unit;region-routing")
 
+# Energetic tracks handed back by FinishLastNParticlesOnCPU must resume transport.
+add_test(NAME test_finish_on_cpu_energy
+  COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_finish_on_cpu_energy.sh
+  "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_BINARY_DIR}/test_finish_on_cpu_energy_tmp"
+  WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+set_tests_properties(test_finish_on_cpu_energy PROPERTIES LABELS "unit")
+
 # testEm3.gdml has a calorimeter region and a world region. Adding only
 # caloregion must give the same result as tracking everywhere except the world.
 add_test(NAME test_gpu_region_configuration_equivalence
