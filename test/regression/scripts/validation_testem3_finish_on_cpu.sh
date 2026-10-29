@@ -30,7 +30,9 @@ num_trackslots=${ADEPT_VALIDATION_FINISH_ON_CPU_NUM_TRACKSLOTS:-${ADEPT_VALIDATI
 num_hitslots=${ADEPT_VALIDATION_FINISH_ON_CPU_NUM_HITSLOTS:-${ADEPT_VALIDATION_NUM_HITSLOTS:-12}}
 cpu_capacity_factor=${ADEPT_VALIDATION_FINISH_ON_CPU_CPU_CAPACITY_FACTOR:-${ADEPT_VALIDATION_CPU_CAPACITY_FACTOR:-2.5}}
 gun_number=${ADEPT_VALIDATION_FINISH_ON_CPU_GUN_NUMBER:-200}
-finish_last_n_particles_on_cpu=${ADEPT_VALIDATION_FINISH_ON_CPU_N:-100}
+# Use a large threshold so lost CPU-returned tracks cannot hide in the
+# low-energy shower tail.
+finish_last_n_particles_on_cpu=${ADEPT_VALIDATION_FINISH_ON_CPU_N:-1000}
 nprimaries=$((num_events * gun_number))
 
 echo "Validation settings (finish_on_cpu): threads=${num_threads}, events=${num_events}, gun=${gun_number}, trackslots=${num_trackslots}, hitslots=${num_hitslots}, cpu_capacity_factor=${cpu_capacity_factor}, finish_last_n_particles_on_cpu=${finish_last_n_particles_on_cpu}"
@@ -49,10 +51,24 @@ echo "Validation settings (finish_on_cpu): threads=${num_threads}, events=${num_
     --track_in_all_regions True \
     --gun_type setDefault
 
-"${ADEPT_EXECUTABLE}" --allsensitive --accumulated_events \
+# Verbosity 2 emits the CPU-finish message checked below.
+sed -i 's|^/adept/setVerbosity 0$|/adept/setVerbosity 2|' \
+  "${CI_TMP_DIR}/validation_testem3_finish_on_cpu.mac"
+run_log="${CI_TMP_DIR}/validation_testem3_finish_on_cpu.log"
+
+if ! "${ADEPT_EXECUTABLE}" --allsensitive --accumulated_events \
                       -m "${CI_TMP_DIR}/validation_testem3_finish_on_cpu.mac" \
                       --output_dir "${CI_TMP_DIR}" \
-                      --output_file "adept_em3_finish_on_cpu_2.5e4_e-"
+                      --output_file "adept_em3_finish_on_cpu_2.5e4_e-" >"${run_log}" 2>&1; then
+  cat "${run_log}"
+  exit 1
+fi
+
+if ! grep -qF 'particles are finished on CPU for event ' "${run_log}"; then
+  echo "The validation run did not exercise finishing on the CPU."
+  cat "${run_log}"
+  exit 1
+fi
 
 "${CI_TEST_DIR}/python_scripts/check_validation.py" \
   --file1 "${CI_TMP_DIR}/adept_em3_finish_on_cpu_2.5e4_e-.csv" \
