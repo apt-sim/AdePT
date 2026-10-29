@@ -535,6 +535,8 @@ void AdePTTrackingManager::ProcessTrack(G4Track *aTrack)
       std::cout << "AdePTTrackingManager: particles are finished on CPU for event " << eventID << std::endl;
     }
   }
+  // Reset the status that was used to identify the FinishOnCPU being triggered before handing the track to G4HepEm.
+  if (aTrack->GetTrackStatus() == fStopButAlive) aTrack->SetTrackStatus(fAlive);
 
   // If this is the first step, set touchable and next touchable via SetInitialStep
   // All other tracks should have a current and next touchable being set

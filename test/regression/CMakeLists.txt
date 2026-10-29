@@ -89,8 +89,8 @@ add_test(NAME testEm3_validation
 )
 set_tests_properties(testEm3_validation PROPERTIES LABELS "validation")
 
-# Same validation as above, but exercise the tail-hand-off option that returns
-# the last N in-flight particles of an event to CPU transport.
+# Validate the shower profile after an early GPU-to-CPU handoff. The validation
+# label selects this longer test for nightly/full CI and PR drift differences.
 add_test(NAME testEm3_validation_finish_on_cpu
     COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/validation_testem3_finish_on_cpu.sh
     "$<TARGET_FILE:integrationTest>" "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}" "${SCRIPTS_DIR}" "${TEMP_DIR}"
@@ -142,6 +142,16 @@ add_test(NAME test_remove_gpu_region
   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 set_tests_properties(test_remove_gpu_region PROPERTIES LABELS "unit;region-routing")
+
+# Energetic tracks handed back by FinishLastNParticlesOnCPU must resume transport.
+# Keep this quick regression in the unit suite, which runs on every PR CI invocation.
+add_test(NAME test_finish_on_cpu_energy
+  COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_finish_on_cpu_energy.sh
+  "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_BINARY_DIR}/test_finish_on_cpu_energy_tmp"
+  WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+)
+set_tests_properties(test_finish_on_cpu_energy PROPERTIES LABELS "unit")
 
 # testEm3.gdml has a calorimeter region and a world region. Adding only
 # caloregion must give the same result as tracking everywhere except the world.
