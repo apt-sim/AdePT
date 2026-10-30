@@ -195,7 +195,7 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
   G4HepEmTrackingManagerSpecialized hepEmTM;
   hepEmTM.fWDTHelper = new G4HepEmWoodcockHelper;
   std::vector<std::string> wdtRegionNames{wdtRegion.GetName()};
-  ASSERT_TRUE(hepEmTM.fWDTHelper->Initialize(wdtRegionNames, &matCutData, worldPV));
+  ASSERT_TRUE(hepEmTM.fWDTHelper->Initialize(wdtRegionNames, &matCutData));
 
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   std::set<G4Region const *> gpuRegions{&worldRegion, &wdtRegion};
@@ -770,7 +770,7 @@ TEST(AdePTGeometryBridge, RejectsUnexpandedReplicaWithoutVecGeomCopies)
   G4HepEmTrackingManagerSpecialized hepEmTM;
   hepEmTM.fWDTHelper = new G4HepEmWoodcockHelper;
   std::vector<std::string> wdtRegionNames{wdtRegion.GetName()};
-  ASSERT_TRUE(hepEmTM.fWDTHelper->Initialize(wdtRegionNames, &matCutData, worldPV));
+  ASSERT_TRUE(hepEmTM.fWDTHelper->Initialize(wdtRegionNames, &matCutData));
 
   std::vector<adeptint::VolAuxData> volAuxData(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
   std::set<G4Region const *> gpuRegions;
