@@ -440,7 +440,8 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
     // Update the flight times of the particle
     // To conform with Geant4, we use the initial velocity of the particle, before eKin is updated after the energy loss
-    double deltaTime = elTrack.GetPStepLength() / GetVelocity(eKin);
+    // NOTE: Geant4 uses the geometrical step length although the true physical step length would be more appropriate
+    double deltaTime = geometryStepLength / GetVelocity(eKin);
     globalTime += deltaTime;
     localTime += deltaTime;
     properTime += deltaTime * (restMass / (restMass + eKin));

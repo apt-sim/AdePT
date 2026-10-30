@@ -395,9 +395,9 @@ __global__ void ElectronMSC(ChargedTrack *electrons, G4HepEmElectronTrack *hepEM
     currentTrack.dir.Set(direction[0], direction[1], direction[2]);
 
     // Update the flight times of the particle
-    // Like Geant4, the initial velocity of the particle is used to calculate the time, before eKin is updated after the
-    // energy loss
-    double deltaTime = elTrack.GetPStepLength() / GetVelocity(currentTrack.eKin);
+    // To conform with Geant4, we use the initial velocity of the particle, before eKin is updated after the energy loss
+    // NOTE: Geant4 uses the geometrical step length although the true physical step length would be more appropriate
+    double deltaTime = theTrack->GetGStepLength() / GetVelocity(currentTrack.eKin);
     currentTrack.globalTime += deltaTime;
     currentTrack.localTime += deltaTime;
     currentTrack.properTime += deltaTime * (restMass / (restMass + currentTrack.eKin));
