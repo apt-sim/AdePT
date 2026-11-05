@@ -10,6 +10,7 @@
 
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
+#include <AdePT/transport/tracks/TrackDebug.cuh>
 #include <AdePT/transport/queues/ParticleManager.cuh>
 #include <AdePT/transport/state/DeviceGlobals.cuh>
 #include <AdePT/transport/state/TransportStats.hh>
@@ -370,7 +371,7 @@ __global__ void __launch_bounds__(256, 1)
     if (verbose) {
       currentTrack.Print("\n Track hit interaction / relocation in WDT tracking \n");
       printf(" isWDTReachedBoundary=%u final after WDT:\n", isWDTReachedBoundary);
-      nextState.Print();
+      currentTrack.nextState.Print();
     }
 #endif
 
@@ -446,7 +447,7 @@ __global__ void __launch_bounds__(256, 1)
 #if ADEPT_DEBUG_TRACK > 0
         if (verbose) {
           printf("| CROSSED into ");
-          nextState.Print();
+          currentTrack.nextState.Print();
         }
 #endif
 
