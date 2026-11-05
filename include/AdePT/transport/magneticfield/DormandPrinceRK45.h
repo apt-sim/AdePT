@@ -13,6 +13,8 @@
 //  - It provides the next value of dy/ds in 'next_dydx'
 //  - It uses a large number of registers and/or stack locations - 7 derivatives + In + Out + Err
 
+#include <cassert>
+
 template <class Equation_t, class T_Field, unsigned int Nvar, typename Real_t>
 class DormandPrinceRK45 // : public VScalarIntegrationStepper
 {

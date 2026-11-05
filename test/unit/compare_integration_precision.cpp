@@ -3,6 +3,17 @@
 //
 // Author:  N. Misyats, 05 Aug 2025
 //
+// Diagnostic utility producing float-vs-double integration trajectories for
+// plot_integration_results.py. It writes three datasets:
+//  - points_double.txt:         raw double integration on absolute coordinates
+//  - points_float.txt:          raw float integration on absolute coordinates.
+//    NOTE: this is NOT the production mixed-precision scheme. Since the
+//    chord-start anchoring fix, production never integrates absolute
+//    coordinates in float; this dataset only characterizes the raw stepper.
+//  - points_float_anchored.txt: float integration of displacements from a
+//    double anchor through OffsetMagneticField, re-anchored after every
+//    accepted step. This mirrors the production mixed-precision path.
+// All references are the analytic helix evaluated in double precision.
 
 #define __device__
 #define __host__
@@ -10,12 +21,14 @@
 #include <VecGeom/base/Vector3D.h>
 #include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
 #include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
+#include <AdePT/transport/magneticfield/OffsetMagneticField.h>
 #include <AdePT/transport/magneticfield/PrintFieldVectors.h>
 #include <AdePT/transport/magneticfield/ConstFieldHelixStepper.h>
 #include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/magneticfield/RkIntegrationDriver.h>
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
@@ -79,12 +92,16 @@ void IntegrateForDistance(const UniformMagneticField &magField, const Real_t max
 
     done          = (totalDistanceDone >= maxDistance);
     stepSizeTryIn = vecCore::Max(minStepSize, stepSizeNextOut);
-    if (goodStep && !done) {
+    if (goodStep) {
+      // Adopt the accepted end point also for the final step: IntegrateStep already advanced
+      // totalDistanceDone, so recording the pre-step position here would pair the start of the
+      // last step with the arc length of its end. That mismatch is of the size of the last
+      // accepted step and used to dwarf the actual integration error in the comparison.
       for (unsigned int i = 0; i < Nvar; i++) {
         yCurrentIn[i]    = yNextOut[i];
         dydxCurrentIn[i] = dydxNextOut[i]; // Using FSAL property !
       }
-      stepSizeTryIn = vecCore::Min(stepSizeTryIn, maxDistance - totalDistanceDone);
+      if (!done) stepSizeTryIn = vecCore::Min(stepSizeTryIn, maxDistance - totalDistanceDone);
     }
 
     IntegrationPoint<Real_t> currentPoint;
@@ -99,6 +116,76 @@ void IntegrateForDistance(const UniformMagneticField &magField, const Real_t max
 
     ++numSteps;
 
+  } while (!done && numSteps < maxNumberOfSteps);
+}
+
+// Float integration in the production mixed-precision scheme: the RK state
+// carries a displacement from a double-precision anchor, the field is looked up
+// at anchor + displacement through OffsetMagneticField, and the anchor is moved
+// to the accepted end point after every step (in production: after every chord).
+// Distance bookkeeping is kept in double, as in fieldPropagatorRungeKutta.
+void IntegrateForDistanceAnchored(const UniformMagneticField &magField, const double maxDistance,
+                                  const IntegrationPoint<double> &initialState,
+                                  std::vector<IntegrationPoint<double>> &pointsOut, float minStepSize,
+                                  int maxNumberOfSteps)
+{
+  using AnchoredField = OffsetMagneticField<UniformMagneticField>;
+  using Equation_t    = MagneticFieldEquation<AnchoredField>;
+  using Stepper_t     = DormandPrinceRK45<Equation_t, AnchoredField, Nvar, float>;
+  using Driver_t      = RkIntegrationDriver<Stepper_t, float, int, Equation_t, AnchoredField>;
+
+  vec3<double> anchor      = initialState.position;
+  double totalDistanceDone = initialState.distance;
+
+  float yCurrentIn[Nvar] = {0.0f,
+                            0.0f,
+                            0.0f,
+                            float(initialState.momentum[0]),
+                            float(initialState.momentum[1]),
+                            float(initialState.momentum[2])};
+  float dydxCurrentIn[Nvar];
+  float yNextOut[Nvar];
+  float dydxNextOut[Nvar];
+  float stepSizeTryIn = minStepSize;
+  float stepSizeNextOut;
+
+  {
+    const AnchoredField anchoredField(magField, anchor);
+    Equation_t::EvaluateDerivatives(anchoredField, yCurrentIn, charge, dydxCurrentIn);
+  }
+
+  int numSteps = 0;
+  bool done    = false;
+  pointsOut.push_back(initialState);
+  do {
+    const AnchoredField anchoredField(magField, anchor);
+    float stepDistance = 0.0f; // per-step accumulator; the double total is kept below
+    bool goodStep      = Driver_t::IntegrateStep(yCurrentIn, dydxCurrentIn, charge, stepDistance, stepSizeTryIn,
+                                                 anchoredField, yNextOut, dydxNextOut, stepSizeNextOut);
+
+    stepSizeTryIn = vecCore::Max(minStepSize, stepSizeNextOut);
+    if (goodStep) {
+      totalDistanceDone += double(stepDistance);
+      // Move the anchor to the accepted end point. The FSAL derivative stays
+      // valid: same absolute position and momentum.
+      anchor += vec3<double>(yNextOut[0], yNextOut[1], yNextOut[2]);
+      yCurrentIn[0] = 0.0f;
+      yCurrentIn[1] = 0.0f;
+      yCurrentIn[2] = 0.0f;
+      for (unsigned int i = 3; i < Nvar; i++)
+        yCurrentIn[i] = yNextOut[i];
+      for (unsigned int i = 0; i < Nvar; i++)
+        dydxCurrentIn[i] = dydxNextOut[i];
+    }
+    done = (totalDistanceDone >= maxDistance);
+    if (!done) stepSizeTryIn = vecCore::Min(stepSizeTryIn, float(maxDistance - totalDistanceDone));
+
+    IntegrationPoint<double> currentPoint;
+    currentPoint.position = anchor;
+    currentPoint.momentum = vec3<double>(yCurrentIn[3], yCurrentIn[4], yCurrentIn[5]);
+    currentPoint.distance = totalDistanceDone;
+    pointsOut.push_back(currentPoint);
+    ++numSteps;
   } while (!done && numSteps < maxNumberOfSteps);
 }
 
@@ -122,6 +209,9 @@ vec3<Real_t> RandomUnitVec3()
 template <typename Real_t>
 void WritePointsToFile(std::ofstream &f, const std::vector<IntegrationPoint<Real_t>> &points, const std::string &label)
 {
+  // Write full precision: the default 6 significant digits round meter-scale
+  // coordinates to ~1e-3 mm and would hide the errors being studied.
+  f << std::setprecision(17);
   f << label << std::endl << points.size() << std::endl;
   for (auto &point : points) {
     f << point.position[0] << " " << point.position[1] << " " << point.position[2] << " " << point.momentum[0] << " "
@@ -134,7 +224,7 @@ int main(int argc, char **argv)
   // srand(0);
   srand(time({}));
 
-  constexpr int numRepeats = 10000;
+  const int numRepeats = (argc > 1) ? std::atoi(argv[1]) : 10000;
 
   double maxDistance   = 10000.0;
   double minStepSize   = 1e-4;
@@ -142,6 +232,7 @@ int main(int argc, char **argv)
 
   std::ofstream fileDouble("./points_double.txt");
   std::ofstream fileFloat("./points_float.txt");
+  std::ofstream fileFloatAnchored("./points_float_anchored.txt");
 
   for (int n = 0; n < numRepeats; ++n) {
     double magFieldMag                   = 0.1 + (4.0 - 0.1) * Random01<double>();
@@ -189,17 +280,27 @@ int main(int argc, char **argv)
     IntegrateForDistance(magFieldFloat, (float)maxDistance, initialStateFloat, pointsFloat, (float)minStepSize,
                          maxNumberOfSteps);
 
+    // Anchored float integration: the production mixed-precision scheme.
+    std::vector<IntegrationPoint<double>> pointsFloatAnchored;
+    IntegrateForDistanceAnchored(magFieldDouble, maxDistance, initialStateDouble, pointsFloatAnchored,
+                                 (float)minStepSize, maxNumberOfSteps);
+
     std::cout << "Integration steps double: " << pointsDouble.size() - 1 << std::endl;
     std::cout << "Integration steps float: " << pointsFloat.size() - 1 << std::endl;
+    std::cout << "Integration steps float anchored: " << pointsFloatAnchored.size() - 1 << std::endl;
     std::cout << "Final distance double: " << pointsDouble.back().distance << std::endl;
     std::cout << "Final distance float: " << pointsFloat.back().distance << std::endl;
 
-    // Evaluate analytical helix at the positions of both double and float integration
+    // Evaluate the analytical helix at the arc lengths reached by both integrations. The
+    // reference is always computed in double precision from the double initial state: a
+    // same-precision (float) reference would carry rounding errors of the same size as the
+    // integration errors under study, and the float runs must also be charged for their
+    // truncated initial state.
     std::vector<IntegrationPoint<double>> pointsHxDouble;
-    std::vector<IntegrationPoint<float>> pointsHxFloat;
+    std::vector<IntegrationPoint<double>> pointsHxFloat;
+    ConstFieldHelixStepper helixDouble(magFieldVecDouble);
     for (const IntegrationPoint<double> &pointDouble : pointsDouble) {
       IntegrationPoint<double> pointHxDouble;
-      ConstFieldHelixStepper helixDouble(magFieldVecDouble);
       helixDouble.DoStep(initialStateDouble.position, initialStateDouble.GetDirection(), charge,
                          initialStateDouble.GetMomentumMag(), pointDouble.distance, pointHxDouble.position,
                          pointHxDouble.momentum);
@@ -208,14 +309,24 @@ int main(int argc, char **argv)
       pointsHxDouble.push_back(pointHxDouble);
     }
     for (const IntegrationPoint<float> &pointFloat : pointsFloat) {
-      IntegrationPoint<float> pointHxFloat;
-      ConstFieldHelixStepper helixFloat(magFieldVecFloat);
-      helixFloat.DoStep(initialStateFloat.position, initialStateFloat.GetDirection(), charge,
-                        initialStateFloat.GetMomentumMag(), pointFloat.distance, pointHxFloat.position,
-                        pointHxFloat.momentum);
-      pointHxFloat.momentum *= initialStateFloat.GetMomentumMag();
-      pointHxFloat.distance = pointFloat.distance;
+      IntegrationPoint<double> pointHxFloat;
+      helixDouble.DoStep(initialStateDouble.position, initialStateDouble.GetDirection(), charge,
+                         initialStateDouble.GetMomentumMag(), (double)pointFloat.distance, pointHxFloat.position,
+                         pointHxFloat.momentum);
+      pointHxFloat.momentum *= initialStateDouble.GetMomentumMag();
+      pointHxFloat.distance = (double)pointFloat.distance;
       pointsHxFloat.push_back(pointHxFloat);
+    }
+
+    std::vector<IntegrationPoint<double>> pointsHxFloatAnchored;
+    for (const IntegrationPoint<double> &pointAnchored : pointsFloatAnchored) {
+      IntegrationPoint<double> pointHx;
+      helixDouble.DoStep(initialStateDouble.position, initialStateDouble.GetDirection(), charge,
+                         initialStateDouble.GetMomentumMag(), pointAnchored.distance, pointHx.position,
+                         pointHx.momentum);
+      pointHx.momentum *= initialStateDouble.GetMomentumMag();
+      pointHx.distance = pointAnchored.distance;
+      pointsHxFloatAnchored.push_back(pointHx);
     }
 
     std::stringstream refLabel, tstLabel;
@@ -223,7 +334,9 @@ int main(int argc, char **argv)
     tstLabel << "points_" << n << "_test";
     WritePointsToFile<double>(fileDouble, pointsHxDouble, refLabel.str());
     WritePointsToFile<double>(fileDouble, pointsDouble, tstLabel.str());
-    WritePointsToFile<float>(fileFloat, pointsHxFloat, refLabel.str());
+    WritePointsToFile<double>(fileFloat, pointsHxFloat, refLabel.str());
     WritePointsToFile<float>(fileFloat, pointsFloat, tstLabel.str());
+    WritePointsToFile<double>(fileFloatAnchored, pointsHxFloatAnchored, refLabel.str());
+    WritePointsToFile<double>(fileFloatAnchored, pointsFloatAnchored, tstLabel.str());
   }
 }

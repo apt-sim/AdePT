@@ -13,6 +13,11 @@
 #define __host__
 
 #include <AdePT/transport/support/PhysicalConstants.h>
+#include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
+#include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/transport/magneticfield/OffsetMagneticField.h>
+#include <AdePT/transport/magneticfield/RkIntegrationDriver.h>
+#include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
 #include <AdePT/transport/magneticfield/fieldPropagatorRungeKutta.h>
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavigationState.h>
@@ -178,6 +183,57 @@ struct BoundaryNavigator {
     ++stepCalls;
     nextState.SetBoundaryState(true);
     return 0.25 * step;
+  }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
+                                         const vecgeom::Vector3D<double> &direction, double step,
+                                         const vecgeom::NavigationState &currentState,
+                                         vecgeom::NavigationState &nextState, long &hitSurfaceIndex)
+  {
+    hitSurfaceIndex = 0;
+    return ComputeStepAndNextVolume(position, direction, step, currentState, nextState);
+  }
+};
+
+// Navigator stub with a configurable finite safety and an optional boundary at
+// a fixed distance on a chosen navigation call. Counts safety refreshes and
+// navigation calls so tests can assert how many chords were integrated.
+struct FiniteSafetyNavigator {
+  static constexpr double kBoundaryPush        = 1.0e-8;
+  inline static int safetyCalls                = 0;
+  inline static int stepCalls                  = 0;
+  inline static double safety                  = 0.0;
+  inline static double boundaryDistance        = -1.0; // < 0: never report a boundary
+  inline static int boundaryOnCall             = -1;   // 1-based navigation call that reports it
+  inline static unsigned long boundaryNavIndex = kDaughterNavIndex;
+
+  static void Reset(double safetyValue, double boundaryDist, int boundaryCall)
+  {
+    safetyCalls      = 0;
+    stepCalls        = 0;
+    safety           = safetyValue;
+    boundaryDistance = boundaryDist;
+    boundaryOnCall   = boundaryCall;
+  }
+
+  static double ComputeSafety(const vecgeom::Vector3D<double> &, const vecgeom::NavigationState &, double)
+  {
+    ++safetyCalls;
+    return safety;
+  }
+
+  static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &, const vecgeom::Vector3D<double> &,
+                                         double step, const vecgeom::NavigationState &currentState,
+                                         vecgeom::NavigationState &nextState)
+  {
+    ++stepCalls;
+    if (stepCalls == boundaryOnCall && boundaryDistance >= 0.0 && boundaryDistance < step) {
+      nextState = MakeState(boundaryNavIndex, true);
+      return boundaryDistance;
+    }
+    currentState.CopyTo(&nextState);
+    nextState.SetBoundaryState(false);
+    return step + 1.0; // no boundary before the proposed step
   }
 
   static double ComputeStepAndNextVolume(const vecgeom::Vector3D<double> &position,
@@ -713,6 +769,152 @@ TEST(FieldPropagatorRungeKuttaNavigation, KeepsFiniteTinyDirectionCrossingAtNavi
   EXPECT_TRUE(nextState.IsOnBoundary());
   EXPECT_LT(moved, 10.0 * ScriptedNavigator::kBoundaryPush);
   EXPECT_EQ(ScriptedNavigator::stepCalls, 2);
+}
+
+// End-to-end mixed-precision test with the real float RK driver: at large
+// coordinates (r ~ 5 m) a very short physics step must move the track by
+// exactly the length the propagator reports. Before this fix the float state
+// carried the absolute position, and such steps are smaller than float can
+// represent there: the propagator reported an advance but the position did
+// not follow, producing stuck tracks.
+TEST(FieldPropagatorRungeKuttaNavigation, MixedPrecisionMicronStepMovesTrackAtLargeRadius)
+{
+  using copcore::units::MeV;
+  using copcore::units::tesla;
+
+  using Field         = UniformMagneticField;
+  using AnchoredField = OffsetMagneticField<Field>;
+  using Equation      = MagneticFieldEquation<AnchoredField>;
+  using Stepper       = DormandPrinceRK45<Equation, AnchoredField, kNvar, float>;
+  using Driver        = RkIntegrationDriver<Stepper, float, int, Equation, AnchoredField>;
+  using Propagator    = fieldPropagatorRungeKutta<Field, Driver, float, ThrowingNavigator>;
+
+  const Field field(vecgeom::Vector3D<float>{0.0f, 0.0f, float(2.0 * tesla)});
+
+  // 1e-7 mm matches the anti-stuck push (100 * vecgeom::kTolerance) in the
+  // electron kernels, which was lost in float at this radius before the fix.
+  for (const double physicsStep : {1.0e-3, 1.0e-4, 1.0e-7}) {
+    SCOPED_TRACE(physicsStep);
+    const vecgeom::Vector3D<double> start{3000.0, 3000.0, 3000.0};
+    vecgeom::Vector3D<double> position = start;
+    vecgeom::Vector3D<double> direction{0.3, -0.9, 0.3086067};
+    direction = direction.Unit();
+
+    const vecgeom::NavigationState currentState = MakeState(kParentNavIndex, false);
+    vecgeom::NavigationState nextState;
+    long hitSurfaceIndex = -1;
+    bool propagated      = false;
+    int itersDone        = 0;
+    SafetyCache safetyCache;
+    safetyCache.Refresh(position, 1.0e3); // far from any boundary: navigation must not be consulted
+
+    const double moved = Propagator::ComputeStepAndNextVolume(
+        field, 100.0 * MeV, copcore::units::kElectronMassC2, -1, physicsStep, /*safeLength=*/10.0, position, direction,
+        currentState, nextState, hitSurfaceIndex, propagated, safetyCache, 10, itersDone, 0, false);
+
+    EXPECT_TRUE(propagated);
+    EXPECT_NEAR(moved, physicsStep, 1.0e-5 * physicsStep);
+    EXPECT_NEAR((position - start).Length(), moved, 1.0e-2 * physicsStep);
+  }
+}
+
+// Multi-chord mixed-precision propagation at detector-scale coordinates: the
+// physics step is split into several chords, so the anchor moves with the
+// track between Advance calls. The accumulated step must match the requested
+// physics step and the actual displacement.
+TEST(FieldPropagatorRungeKuttaNavigation, MixedPrecisionMultiChordAdvancesWithMovingAnchor)
+{
+  using copcore::units::MeV;
+  using copcore::units::tesla;
+
+  using Field         = UniformMagneticField;
+  using AnchoredField = OffsetMagneticField<Field>;
+  using Equation      = MagneticFieldEquation<AnchoredField>;
+  using Stepper       = DormandPrinceRK45<Equation, AnchoredField, kNvar, float>;
+  using Driver        = RkIntegrationDriver<Stepper, float, int, Equation, AnchoredField>;
+  using Propagator    = fieldPropagatorRungeKutta<Field, Driver, float, FiniteSafetyNavigator>;
+
+  const Field field(vecgeom::Vector3D<float>{0.0f, 0.0f, float(2.0 * tesla)});
+
+  const vecgeom::Vector3D<double> start{3000.0, 3000.0, 3000.0};
+  vecgeom::Vector3D<double> position = start;
+  vecgeom::Vector3D<double> direction{0.3, -0.9, 0.3086067};
+  direction = direction.Unit();
+
+  const vecgeom::NavigationState currentState = MakeState(kParentNavIndex, false);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0); // no cached safety: chords are limited by safeLength
+
+  // Safety refreshes return just above the chord length, so every chord after
+  // the first is validated against the refreshed safety and no boundary is hit.
+  FiniteSafetyNavigator::Reset(/*safetyValue=*/2.5, /*boundaryDist=*/-1.0, /*boundaryCall=*/-1);
+
+  const double physicsStep = 10.0;
+  const double moved       = Propagator::ComputeStepAndNextVolume(
+      field, 100.0 * MeV, copcore::units::kElectronMassC2, -1, physicsStep, /*safeLength=*/2.0, position, direction,
+      currentState, nextState, hitSurfaceIndex, propagated, safetyCache, 10, itersDone, 0, false);
+
+  EXPECT_TRUE(propagated);
+  EXPECT_NEAR(moved, physicsStep, 1.0e-4 * physicsStep);
+  // Several 2 mm chords were integrated, each starting from the advanced position.
+  EXPECT_GE(FiniteSafetyNavigator::safetyCalls, 3);
+  // With R ~ 167 mm the 10 mm arc stays close to its chord.
+  const double displacement = (position - start).Length();
+  EXPECT_LE(displacement, moved + 1.0e-6);
+  EXPECT_GE(displacement, 0.97 * moved);
+}
+
+// Mixed-precision boundary crossing on a later chord: the first chord advances
+// fully (moving the anchor), the second chord intersects a boundary partway.
+// The accepted step must be the first chord plus the navigator-reported
+// distance, with the end state flagged as on-boundary.
+TEST(FieldPropagatorRungeKuttaNavigation, MixedPrecisionChordBoundaryCrossingAtLargeRadius)
+{
+  using copcore::units::MeV;
+  using copcore::units::tesla;
+
+  using Field         = UniformMagneticField;
+  using AnchoredField = OffsetMagneticField<Field>;
+  using Equation      = MagneticFieldEquation<AnchoredField>;
+  using Stepper       = DormandPrinceRK45<Equation, AnchoredField, kNvar, float>;
+  using Driver        = RkIntegrationDriver<Stepper, float, int, Equation, AnchoredField>;
+  using Propagator    = fieldPropagatorRungeKutta<Field, Driver, float, FiniteSafetyNavigator>;
+
+  const Field field(vecgeom::Vector3D<float>{0.0f, 0.0f, float(2.0 * tesla)});
+
+  const vecgeom::Vector3D<double> start{3000.0, 3000.0, 3000.0};
+  vecgeom::Vector3D<double> position = start;
+  vecgeom::Vector3D<double> direction{0.3, -0.9, 0.3086067};
+  direction = direction.Unit();
+
+  const vecgeom::NavigationState currentState = MakeState(kParentNavIndex, false);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 0.0);
+
+  // Small refreshed safety forces navigation on every chord; the second
+  // navigation call reports a boundary 0.3 mm into the chord.
+  FiniteSafetyNavigator::Reset(/*safetyValue=*/0.5, /*boundaryDist=*/0.3, /*boundaryCall=*/2);
+
+  const double physicsStep = 6.0;
+  const double moved       = Propagator::ComputeStepAndNextVolume(
+      field, 100.0 * MeV, copcore::units::kElectronMassC2, -1, physicsStep, /*safeLength=*/2.0, position, direction,
+      currentState, nextState, hitSurfaceIndex, propagated, safetyCache, 10, itersDone, 0, false);
+
+  EXPECT_TRUE(propagated);
+  EXPECT_TRUE(nextState.IsOnBoundary());
+  EXPECT_EQ(FiniteSafetyNavigator::stepCalls, 2);
+  // First chord: full 2 mm arc; second chord: 0.3 mm to the boundary.
+  EXPECT_NEAR(moved, 2.3, 2.0e-3);
+  const double displacement = (position - start).Length();
+  EXPECT_NEAR(displacement, moved, 2.0e-3);
 }
 
 // Persistent same-state ambiguity: if both chord and physical direction remain

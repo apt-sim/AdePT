@@ -11,10 +11,13 @@
 
 #include "fieldConstants.h" // For kB2C factor with units
 
+#include <AdePT/transport/magneticfield/OffsetMagneticField.h>
 #include <AdePT/transport/magneticfield/RkIntegrationDriver.h>
 #include <AdePT/transport/tracks/SafetyCache.cuh>
 
 #include <VecGeom/navigation/NavigationState.h>
+
+#include <type_traits>
 
 /// @brief Runge-Kutta propagator in magnetic field
 /// @tparam Field_t Field type
@@ -99,7 +102,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
                              int index, bool verbose)
 {
   double stepDone = 0.0;         ///< step already done
-  Real_t remains  = physicsStep; ///< remainder of the step to be done
+  double remains  = physicsStep; ///< remainder of the step to be done
   constexpr bool inZeroFieldRegion =
       false; // This could be a per-region flag ... - better depend on template parameter?
   if (inZeroFieldRegion) {
@@ -116,21 +119,21 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   // Maximum integration trials
   constexpr int kMaxTrials = 30;
   // Limit for ignoring remainder depending on physics step
-  const Real_t tiniest_step = 1.0e-7 * physicsStep;
+  const double tiniest_step = 1.0e-7 * physicsStep;
 
   const double momentumMag              = sqrt(kinE * (kinE + 2.0 * mass));
   vecgeom::Vector3D<double> momentumVec = momentumMag * direction;
 
   // The allowed safe move is normally determined by the bending accuracy.
   // It can be enlarged by the geometric safety at the current position.
-  Real_t maxNextSafeMove = vecCore::Max(Real_t(safeLength), Real_t(safetyCache.SafetyAt(position)));
+  double maxNextSafeMove = vecCore::Max(safeLength, safetyCache.SafetyAt(position));
   int chordIters         = 0;   ///< number of iterations for this integration
   Real_t last_good_step  = 0.0; ///< to be reused for next cord iteration
   bool found_end         = false;
   bool continueIteration = false;
   bool fullChord         = false;
   // bool lastWasZero             = false; // Debug only ?  JA 2022.09.05
-  const Real_t inv_momentumMag = 1.0 / momentumMag;
+  const double inv_momentumMag = 1.0 / momentumMag;
 
   // Prepare next_state in case we skip navigation inside the safety sphere.
   current_state.CopyTo(&next_state);
@@ -148,9 +151,9 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
   //  Locate the intersection of the curved trajectory and the boundaries of the current
   //    volume (including daughters).
   do {
-    static constexpr Real_t ReduceFactor       = 0.1; ///< Factor to reduce the first step in case of crossing
+    static constexpr double ReduceFactor       = 0.1; ///< Factor to reduce the first step in case of crossing
     static constexpr int ReduceIters           = 6;   ///< Number of reduced step trials to move away from the boundary
-    static constexpr Real_t kBoundaryAmbiguity = Real_t(10.0) * Navigator_t::kBoundaryPush;
+    static constexpr double kBoundaryAmbiguity = 10.0 * Navigator_t::kBoundaryPush;
 
     // Position and momentum at the end of the current arc
     vecgeom::Vector3D<double> endPosition    = position;
@@ -158,15 +161,28 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
 
     // Reduce the cached safety to the current chord start before testing the
     // proposed chord. The position is updated only after the chord is accepted.
-    Real_t safetyAtChordStart = safetyCache.SafetyAt(position);
+    double safetyAtChordStart = safetyCache.SafetyAt(position);
 
     // Note: safeArc is not limited by geometry, so after pushing we need to validate that we have not crossed
-    const Real_t safeArc = vecCore::Min(remains, maxNextSafeMove);
+    const double safeArc = vecCore::Min(remains, maxNextSafeMove);
 
     Real_t dydx_end[Nvar]; // not reused at the moment, but could be used for FSAL between cord integrations
                            // Integrate the step.
-    const Real_t arcAdvanced = RkDriver_t::Advance(endPosition, endMomentumVec, charge, safeArc, magField, dydx_end,
-                                                   last_good_step, kMaxTrials, chordIters);
+    Real_t arcAdvanced;
+    if constexpr (std::is_same<Real_t, double>::value) {
+      arcAdvanced = RkDriver_t::Advance(endPosition, endMomentumVec, charge, Real_t(safeArc), magField, dydx_end,
+                                        last_good_step, kMaxTrials, chordIters);
+    } else {
+      // Mixed precision: integrate the distance moved since the chord start instead of the
+      // absolute position. Float cannot resolve small steps on top of meter-scale coordinates
+      // (at r = 1 m neighboring float values are ~1e-4 mm apart), so such steps would be lost.
+      // The wrapper adds the chord start back, in double, for every field lookup.
+      const OffsetMagneticField<Field_t> offsetField(magField, endPosition);
+      vecgeom::Vector3D<double> displacement(0., 0., 0.);
+      arcAdvanced = RkDriver_t::Advance(displacement, endMomentumVec, charge, Real_t(safeArc), offsetField, dydx_end,
+                                        last_good_step, kMaxTrials, chordIters);
+      endPosition += displacement;
+    }
 
     //----------------- Get chord
     vecgeom::Vector3D<double> chordDir = endPosition - position; // not yet normalized!
@@ -239,7 +255,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       if (verbose) printf("| full chord advance %g ", arcAdvanced);
 #endif
 
-      maxNextSafeMove   = vecCore::Max(arcAdvanced, Real_t(safetyCache.SafetyAt(position))); // Reset after success.
+      maxNextSafeMove   = vecCore::Max(double(arcAdvanced), safetyCache.SafetyAt(position)); // Reset after success.
       continueIteration = true;
     } else if (stepDone == 0 && current_state.IsOnBoundary() && next_state.IsOnBoundary() &&
                move <= kBoundaryAmbiguity) {
@@ -250,8 +266,7 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       // The probe is also bounded by this RK chord so any accepted
       // distance stays inside the integrated endpoint used for the
       // chord interpolation below.
-      const Real_t directionProbeLimit =
-          vecCore::Min(Real_t(chordLen), vecCore::Min(Real_t(remains), kBoundaryAmbiguity));
+      const double directionProbeLimit = vecCore::Min(chordLen, vecCore::Min(remains, kBoundaryAmbiguity));
 
       vecgeom::NavigationState directionState;
       current_state.CopyTo(&directionState);

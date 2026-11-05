@@ -11,6 +11,7 @@
 // Classes for Runge-Kutta integration
 #include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
 #include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
+#include <AdePT/transport/magneticfield/OffsetMagneticField.h>
 #include <AdePT/transport/magneticfield/fieldPropagatorRungeKutta.h>
 
 #include <AdePT/transport/support/PhysicalConstants.h>
@@ -72,9 +73,12 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
 #else
   using Field_t = UniformMagneticField;
 #endif
-  using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
+  // In mixed-precision builds the RK driver integrates the offset from the chord start and
+  // sees the field through OffsetMagneticField (see RkFieldType and fieldPropagatorRungeKutta).
+  using RkField_t  = RkFieldType<Field_t, rk_integration_t>;
+  using Equation_t = MagneticFieldEquation<RkField_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, RkField_t, Nvar, rk_integration_t>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, RkField_t>;
 
   auto &electronsOrPositrons = (IsElectron ? particleManager.electrons : particleManager.positrons);
   SlotManager &slotManager   = *electronsOrPositrons.fSlotManager;
@@ -291,9 +295,12 @@ __global__ void ElectronPropagation(ChargedTrack *electronsOrPositrons, G4HepEmE
 #else
   using Field_t = UniformMagneticField;
 #endif
-  using Equation_t = MagneticFieldEquation<Field_t>;
-  using Stepper_t  = DormandPrinceRK45<Equation_t, Field_t, Nvar, rk_integration_t>;
-  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, Field_t>;
+  // In mixed-precision builds the RK driver integrates the offset from the chord start and
+  // sees the field through OffsetMagneticField (see RkFieldType and fieldPropagatorRungeKutta).
+  using RkField_t  = RkFieldType<Field_t, rk_integration_t>;
+  using Equation_t = MagneticFieldEquation<RkField_t>;
+  using Stepper_t  = DormandPrinceRK45<Equation_t, RkField_t, Nvar, rk_integration_t>;
+  using RkDriver_t = RkIntegrationDriver<Stepper_t, rk_integration_t, int, Equation_t, RkField_t>;
 
   int activeSize = propagationQueue->size();
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
