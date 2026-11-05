@@ -163,6 +163,19 @@ add_test(NAME test_gpu_region_configuration_equivalence
 )
 set_tests_properties(test_gpu_region_configuration_equivalence PROPERTIES LABELS "unit;region-routing")
 
+if(ADEPT_ENABLE_WDT)
+  # The same material occurs in both the outer and inherited cut regions.
+  add_test(NAME test_nested_wdt_equivalence
+    COMMAND bash ${PROJECT_SOURCE_DIR}/test/regression/scripts/test_nested_wdt_equivalence.sh
+    "$<TARGET_FILE:integrationTest>" "${PROJECT_SOURCE_DIR}"
+    "${PROJECT_BINARY_DIR}/test_nested_wdt_equivalence_tmp"
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+  )
+  # Keep the nine-run physics comparison out of the fast PR unit/drift suites.
+  # Validation runs it nightly and when PR drift differs; allow for contended CI nodes.
+  set_tests_properties(test_nested_wdt_equivalence PROPERTIES LABELS "validation;woodcock" TIMEOUT 600)
+endif()
+
 set(PHYSICS_DRIFT_SCENARIOS
   default
   regions

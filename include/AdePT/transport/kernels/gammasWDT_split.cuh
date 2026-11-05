@@ -10,6 +10,7 @@
 
 #include <AdePT/transport/support/PhysicalConstants.h>
 #include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
+#include <AdePT/transport/kernels/WoodcockHelper.cuh>
 #include <AdePT/transport/tracks/TrackDebug.cuh>
 #include <AdePT/transport/queues/ParticleManager.cuh>
 #include <AdePT/transport/state/DeviceGlobals.cuh>
@@ -56,6 +57,16 @@ __global__ void __launch_bounds__(256, 1)
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const auto slot            = particleManager.gammasWDT.ActiveAt(i);
     NeutralTrack &currentTrack = particleManager.gammasWDT.TrackAt(slot);
+
+    const int wdtIdx  = GetWDTRegionIndex(currentTrack.navState);
+    const int rootIdx = FindWDTRoot(currentTrack.navState, gWDTData, wdtIdx);
+    if (rootIdx < 0) {
+      // Both gamma queues can hold the entire shared slot pool, so this transfer must fit.
+      if (!particleManager.gammas.EnqueueNext(slot)) {
+        COPCORE_EXCEPTION("WDT fallback could not enqueue gamma");
+      }
+      continue;
+    }
 
     // Setup of the advanced debug printouts
     bool printErrors = true;
@@ -175,44 +186,18 @@ __global__ void __launch_bounds__(256, 1)
     // SETUP OF WOODCOCK TRACKING
     //
 
-    // Each gamma that is tracked via Woodcock tracking, must be in one of the root logical volumes of the Woodcock
-    // region First, the root logical volume must be identified, to find the DistanceToOut
-
-    // get region ID and Woodcock tracking data for this region
-    int regionId = auxData.fGPUregionId;
-    assert(regionId >= 0);
+    // The candidate envelope was resolved from this track's actual navigation state.
     const adeptint::WDTDeviceView &view = gWDTData;
-    // get index in the Woodcock tracking data array for the region
-    int wdtIdx = view.regionToWDT[regionId];
-
-    // in WDT kernel, the region must be a WDT region (wdtIdx = -1 if not)
-    assert(wdtIdx >= 0);
-
-    // get woodcock region and access the root volumes of that region
-    const adeptint::WDTRegion reg  = view.regions[wdtIdx];
-    const adeptint::WDTRoot *roots = &view.roots[reg.offset];
-    // Store matching ID. Don't copy states directly to avoid multiple copies of navStates
-    int matchIdx = -1;
-    for (int i = 0; i < reg.count; ++i) {
-      const auto &rootVol = roots[i];
-      // if the current volume is the root volume or descending from the root volume of that WDT region
-      // then this is correct matching WDT root volume
-      if (currentTrack.navState.GetState() == rootVol.root.GetState() ||
-          currentTrack.navState.IsDescendent(rootVol.root.GetState())) {
-        matchIdx = i;
-        break;
-      }
-    }
-    assert(matchIdx >= 0);
-
-    // Now copy the final navigation state and save the G4HepEm material cut couple of root volume
-    const vecgeom::NavigationState rootState = roots[matchIdx].root;
-    const int rootHepemIMC                   = roots[matchIdx].hepemIMC;
+    const auto &root                    = view.roots[rootIdx];
+    const auto &rootState               = root.root;
+    const int rootHepemIMC              = root.hepemIMC;
 
 #if ADEPT_DEBUG_TRACK > 0
+    const auto &region = view.regions[wdtIdx];
+    const int regionId = auxData.fGPUregionId;
     if (verbose) {
-      printf("Initial WDT: region %d -> matched root #%d (hepemIMC=%d), lvolID=%d\n", regionId, matchIdx,
-             roots[matchIdx].hepemIMC, lvolID);
+      printf("Initial WDT: region %d -> matched root #%d (hepemIMC=%d), lvolID=%d\n", regionId, rootIdx - region.offset,
+             rootHepemIMC, lvolID);
     }
 #endif
 
@@ -308,8 +293,9 @@ __global__ void __launch_bounds__(256, 1)
       const VolAuxData &actualAuxData = gVolAuxData[actualLvolID];
       hepEmIMC                        = actualAuxData.fMCIndex;
 
-      // Check if the real material of the post-step point is the WDT one?
-      if (hepEmIMC != rootHepemIMC) {
+      // Production-cut subregions can give the same material different couple indices.
+      const auto *matCuts = g4HepEmData.fTheMatCutData->fMatCutData;
+      if (matCuts[hepEmIMC].fHepEmMatIndex != matCuts[rootHepemIMC].fHepEmMatIndex) {
         // Post step point is NOT in the WDT material: need to check if interacts.
         // Compute the total macroscopic cross section for that material.
         thePrimaryTrack->SetMCIndex(hepEmIMC);
@@ -334,7 +320,7 @@ __global__ void __launch_bounds__(256, 1)
         // sampling the type of the interaction. The g4 MC index is also set here.
 
         realStep = true;
-        thePrimaryTrack->SetMCIndex(rootHepemIMC);
+        thePrimaryTrack->SetMCIndex(hepEmIMC);
         thePrimaryTrack->SetMFP(wdtMFP, 0);
         // Reset the PE mxsec: set in `G4HepEmGammaManager::GetTotalMacXSec`
         // that might have been called for an other material above (without
@@ -452,15 +438,10 @@ __global__ void __launch_bounds__(256, 1)
 #endif
 
         //  Check if the next volume belongs to the GPU region and push it to the appropriate queue
-        regionId = nextauxData.fGPUregionId;
-        // regionId >= 0 is still on GPU, check for Woodcock tracking region
-        if (regionId >= 0) {
-          // index into view.regions. -1 if region is not a Woodcock tracking region
-          wdtIdx = view.regionToWDT[regionId];
-          if (wdtIdx < 0) {
-            // next region is not in WDT regions, so it left the WDT tracking
-            leftWDTRegion = true;
-          }
+        const int nextRegionId = nextauxData.fGPUregionId;
+        // The next WDT kernel verifies actual envelope containment for eligible regions.
+        if (nextRegionId >= 0) {
+          leftWDTRegion = GetWDTRegionIndex(view, nextRegionId) < 0;
 
 #if ADEPT_DEBUG_TRACK > 0
           if (verbose) {

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <map>
 #include <stdexcept>
 #include <string>
 
@@ -352,11 +353,20 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   std::vector<bool> atlasPhotonRRInitialized(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount(), false);
 #endif
 
+  // Keep candidates until all descendants have been checked for CPU-only regions.
+  struct WDTRootCandidate {
+    adeptint::WDTRoot root;
+    G4LogicalVolume const *logicalVolume;
+    std::set<int> regionIds;
+    G4Region const *cpuRegion = nullptr;
+  };
+  std::vector<WDTRootCandidate> wdtRootCandidates;
+
   // Recursive geometry visitor lambda matching Geant4 volumes to VecGeom placements.
   using VisitFn =
-      std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *, vecgeom::NavigationState)>;
+      std::function<void(G4VPhysicalVolume const *, vecgeom::VPlacedVolume const *, vecgeom::NavigationState, int)>;
   VisitFn visitGeometry = [&](G4VPhysicalVolume const *g4_pvol, vecgeom::VPlacedVolume const *vg_pvol,
-                              vecgeom::NavigationState currentNavState) {
+                              vecgeom::NavigationState currentNavState, int activeWDTRoot) {
     const auto g4_lvol = g4_pvol->GetLogicalVolume();
     const auto vg_lvol = vg_pvol->GetLogicalVolume();
 
@@ -369,22 +379,30 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     int hepemmcindex                   = g4tohepmcindex[g4mcindex];
     volAuxData[vg_lvol->id()].fMCIndex = hepemmcindex;
 
-    const int regionId = g4_lvol->GetRegion()->GetInstanceID();
-    // Check if the region is a Woodcock tracking region in G4HepEm.
-    if (hepEmTM->IsWDTRegion(regionId)) {
-      // Check if this logical volume is one of the declared WDT root LVs for this region.
-      const int rootIMC = hepEmTM->GetWDTCoupleHepEmIndex(regionId, g4_lvol->GetInstanceID());
-      if (rootIMC >= 0) {
-        // This placed volume belongs to a WDT root LV, so record a WDTRoot.
-        int idx = (int)wdtRaw.roots.size();
-        wdtRaw.roots.push_back(adeptint::WDTRoot{currentNavState, rootIMC});
-        wdtRaw.regionToRootIndices[regionId].push_back(idx);
-      }
+    const auto *region     = g4_lvol->GetRegion();
+    const int regionId     = region->GetInstanceID();
+    const bool isGPURegion = gpuRegions.find(region) != gpuRegions.end();
+    if (isGPURegion) {
+      volAuxData[vg_lvol->id()].fGPUregionId = regionId;
     }
 
-    // Check if the volume belongs to a GPU region.
-    if (gpuRegions.find(g4_lvol->GetRegion()) != gpuRegions.end()) {
-      volAuxData[vg_lvol->id()].fGPUregionId = g4_lvol->GetRegion()->GetInstanceID();
+    // Discover envelope roots through the existing G4HepEm metadata. Subregions
+    // inherit the active outer placement rather than introducing their own root.
+    if (activeWDTRoot < 0 && hepEmTM->IsWDTRegion(regionId)) {
+      const int rootIMC = hepEmTM->GetWDTCoupleHepEmIndex(regionId, g4_lvol->GetInstanceID());
+      if (rootIMC >= 0) {
+        activeWDTRoot = static_cast<int>(wdtRootCandidates.size());
+        wdtRootCandidates.push_back({adeptint::WDTRoot{currentNavState, rootIMC}, g4_lvol, {}});
+      }
+    }
+    if (activeWDTRoot >= 0) {
+      auto &candidate = wdtRootCandidates[activeWDTRoot];
+      if (isGPURegion) {
+        candidate.regionIds.insert(regionId);
+      } else if (!candidate.cpuRegion) {
+        // WDT skips internal boundaries, including the handoff to CPU tracking.
+        candidate.cpuRegion = region;
+      }
     }
 
     if (g4_lvol->GetSensitiveDetector() != nullptr) {
@@ -421,7 +439,7 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     // Now do the daughters.
     VisitDaughters(g4_lvol, vg_lvol,
                    [&](G4VPhysicalVolume const *g4Daughter, vecgeom::VPlacedVolume const *vgDaughter, bool) {
-                     visitGeometry(g4Daughter, vgDaughter, currentNavState);
+                     visitGeometry(g4Daughter, vgDaughter, currentNavState, activeWDTRoot);
                    });
 
     // Pop the navigation state before returning.
@@ -430,7 +448,28 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
 
   // Initialize the root navigation state.
   vecgeom::NavigationState rootNavState;
-  visitGeometry(g4world, vecgeomWorld, rootNavState);
+  visitGeometry(g4world, vecgeomWorld, rootNavState, -1);
+
+  for (auto const &candidate : wdtRootCandidates) {
+    if (candidate.cpuRegion) {
+      if (!candidate.regionIds.empty()) {
+        const std::string message =
+            "Woodcock envelope logical volume '" + std::string(candidate.logicalVolume->GetName()) +
+            "' spans GPU regions and CPU region '" + std::string(candidate.cpuRegion->GetName()) +
+            "'. Woodcock tracking skips the CPU/GPU handoff boundaries. Assign the entire envelope to CPU or GPU, "
+            "or disable Woodcock tracking for its outer region.";
+        G4Exception("AdePTGeometryBridge::InitVolAuxData", "WDTEnvelopeContainsCPURegion", FatalException,
+                    message.c_str());
+      }
+      // CPU-only envelopes are transported by G4HepEm and need no GPU WDT data.
+      continue;
+    }
+    const int rootIndex = static_cast<int>(wdtRaw.roots.size());
+    wdtRaw.roots.push_back(candidate.root);
+    for (int regionId : candidate.regionIds) {
+      wdtRaw.regionToRootIndices[regionId].push_back(rootIndex);
+    }
+  }
 
   // Defensive check for attached SD code: GetSensitiveDetector() is thread local.
   // If the GPU geometry is initialized on a thread without SD code attached, issue a warning.
@@ -491,15 +530,19 @@ adeptint::WDTHostPacked AdePTGeometryBridge::PackWDT(adeptint::WDTHostRaw const 
   packed.roots.reserve(wdtRaw.roots.size());
   packed.regions.reserve(wdtRaw.regionToRootIndices.size());
 
-  int runningOffset = 0;
+  // Production-cut subregions commonly inherit the same roots. Share their
+  // packed root span while retaining a region header for each region.
+  std::map<std::vector<int>, int> rootListOffsets;
   for (auto const &[regionId, rootIndices] : wdtRaw.regionToRootIndices) {
+    const auto [span, inserted]  = rootListOffsets.emplace(rootIndices, static_cast<int>(packed.roots.size()));
     packed.regionToWDT[regionId] = static_cast<int>(packed.regions.size());
-    packed.regions.push_back(adeptint::WDTRegion{runningOffset, static_cast<int>(rootIndices.size()), wdtRaw.ekinMin});
+    packed.regions.push_back(adeptint::WDTRegion{span->second, static_cast<int>(rootIndices.size()), wdtRaw.ekinMin});
 
-    for (int index : rootIndices) {
-      packed.roots.push_back(wdtRaw.roots[index]);
+    if (inserted) {
+      for (int index : rootIndices) {
+        packed.roots.push_back(wdtRaw.roots[index]);
+      }
     }
-    runningOffset += static_cast<int>(rootIndices.size());
   }
 
   return packed;

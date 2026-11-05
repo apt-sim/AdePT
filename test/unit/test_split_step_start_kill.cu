@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 CERN
 // SPDX-License-Identifier: Apache-2.0
 
-// Exercise the real split kernels, stopping before physics/navigation. A null
-// navigation state maps to logical volume 0, so no geometry upload is needed.
+// Exercise the real split kernels, stopping before physics/navigation. WDT
+// requires a valid enclosing root for its initial admission check.
 #include <cstdint>
 
 #include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
@@ -11,6 +11,14 @@
 #include <AdePT/transport/kernels/gammas_split.cuh>
 
 #include <gtest/gtest.h>
+
+#ifdef ADEPT_ENABLE_WDT
+#include <VecGeom/management/CudaManager.h>
+#include <VecGeom/management/GeoManager.h>
+#include <array>
+
+void BuildWoodcockTestGeometry(std::array<std::uint64_t, 7> &, std::array<int, 4> &);
+#endif
 
 #include <new>
 #include <string>
@@ -98,6 +106,11 @@ struct TestState {
   G4HepEmElectronTrack electron;
   G4HepEmGammaTrack gamma;
   VolAuxData aux;
+#ifdef ADEPT_ENABLE_WDT
+  adeptint::WDTRoot wdtRoot;
+  adeptint::WDTRegion wdtRegion{0, 1, 0.f};
+  int regionToWDT{0};
+#endif
   SlotManager slots;
   unsigned int freedSlot{99};
   unsigned int stepCount{0};
@@ -105,6 +118,26 @@ struct TestState {
 };
 
 class SplitStepStartKill : public testing::TestWithParam<Species> {
+public:
+#ifdef ADEPT_ENABLE_WDT
+  static void SetUpTestSuite()
+  {
+    std::array<std::uint64_t, 7> indices{};
+    std::array<int, 4> logicalIds{};
+    BuildWoodcockTestGeometry(indices, logicalIds);
+    // The single auxiliary entry below represents the world's logical volume.
+    ASSERT_EQ(logicalIds[0], 0);
+    fWorldIndex = indices[6];
+    ASSERT_TRUE(vecgeom::cxx::CudaManager::Instance().SynchronizeNavigationTable());
+  }
+
+  static void TearDownTestSuite()
+  {
+    vecgeom::cxx::CudaManager::Instance().CleanGpu();
+    vecgeom::GeoManager::Instance().Clear();
+  }
+#endif
+
 protected:
   void SetUp() override
   {
@@ -151,6 +184,15 @@ protected:
     state->gamma.GetTrack()->SetGStepLength(123.);
     state->gamma.GetTrack()->SetNumIALeft(1., 0);
 
+#ifdef ADEPT_ENABLE_WDT
+    if (GetParam() == Species::WoodcockGamma) {
+      track.navState.SetNavIndex(fWorldIndex);
+      state->aux.fGPUregionId = 0;
+      state->wdtRoot          = {track.navState, 0};
+      const adeptint::WDTDeviceView view{&state->wdtRoot, &state->wdtRegion, &state->regionToWDT, 1, 1, 1};
+      ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gWDTData, &view, sizeof(view)));
+    }
+#endif
     auto *aux = &state->aux;
     ADEPT_DEVICE_API_CALL(MemcpyToSymbol(gVolAuxData, &aux, sizeof(aux)));
     DeviceStepBufferView buffer{&state->step, &state->stepCount, 1, 1};
@@ -222,6 +264,9 @@ protected:
   }
 
 private:
+#ifdef ADEPT_ENABLE_WDT
+  inline static std::uint64_t fWorldIndex{0};
+#endif
   char *fQueueStorage{nullptr};
   adept::MParray *fQueue{nullptr};
 };
