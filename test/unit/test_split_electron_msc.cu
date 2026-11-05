@@ -9,39 +9,39 @@
 // We control the inputs between launches; propagation and scattering kernels are
 // not run. The behavior under test is the lifetime of the pending MSC state.
 
-// This fixture only launches existing kernels. Keep its includes out of the
-// device pass to avoid redefining SlotManager's out-of-line device methods.
-#ifndef __CUDA_ARCH__
+// Compile the production kernel into this executable along with the fixture.
+// CUDA kernel stubs and device globals can have hidden visibility, so the test
+// owns them instead of importing internal symbols from the shared Transport library.
+#include <cstdint>
 
-#include <AdePT/transport/config/TransportKernelOptions.hh>
-#include <AdePT/transport/kernels/AdePTSteppingActionSelector.cuh>
-#include <AdePT/transport/queues/ParticleManager.cuh>
-#include <AdePT/transport/state/DeviceGlobals.cuh>
-#include <AdePT/transport/state/TransportStats.hh>
+#include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
+#include <AdePT/transport/tracks/TrackDebug.cuh>
+#include <AdePT/transport/kernels/electrons_split.cuh>
 
 #include <G4HepEmElectronData.hh>
 #include <G4HepEmElectronTrack.hh>
 #include <G4HepEmMatCutData.hh>
 #include <G4HepEmMaterialData.hh>
-#include <VecGeom/management/CudaManager.h>
-#include <VecGeom/management/GeoManager.h>
 #include <gtest/gtest.h>
 
 #include <cmath>
-#include <cstdint>
 #include <new>
 #include <stdexcept>
 
-// Launch the specialization compiled into Transport. Including electrons_split.cuh
-// here would define its out-of-line device functions a second time.
+// Test-owned state for the production kernel. Keeping these symbols and their
+// kernel users in the same executable also avoids any dependency on Transport's
+// symbol visibility. Each test points the relevant globals at its managed data.
 namespace adept::transport {
-template <bool IsElectron, class SteppingActionT>
-__global__ void ElectronHowFar(ParticleManager, G4HepEmElectronTrack *, adept::MParray *, Stats *,
-                               const adept::SteppingAction::Params, AllowFinishOffEventArray,
-                               const TransportKernelOptions);
-}
-
-std::uint64_t BuildSplitElectronMscGeometry(int &logicalId);
+__constant__ __device__ G4HepEmParameters g4HepEmPars;
+__constant__ __device__ G4HepEmData g4HepEmData;
+__constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
+__constant__ __device__ adeptint::WDTDeviceView gWDTData;
+#ifdef ADEPT_USE_EXT_BFIELD
+__constant__ __device__ GeneralMagneticField *gMagneticField = nullptr;
+#else
+__constant__ __device__ UniformMagneticField *gMagneticField = nullptr;
+#endif
+} // namespace adept::transport
 
 namespace {
 void CheckCuda(cudaError_t status)
@@ -89,16 +89,6 @@ struct ManagedQueue {
   {
     adept::MParray::ReleaseInstance(data);
     cudaFree(storage);
-  }
-};
-
-// Isolate the four cases when they run together in one GTest process. This guard
-// is created first, so track/table allocations are freed before geometry cleanup.
-struct GeometryCleanup {
-  ~GeometryCleanup()
-  {
-    vecgeom::cxx::CudaManager::Instance().CleanGpu();
-    vecgeom::GeoManager::Instance().Clear();
   }
 };
 
@@ -176,12 +166,10 @@ template <bool IsElectron>
 void CheckDeferredInitialization(bool tinyFirstStep)
 {
   using namespace adept::transport;
-  GeometryCleanup cleanup;
-  vecgeom::GeoManager::Instance().Clear();
-  int logicalId;
-  const auto navIndex = BuildSplitElectronMscGeometry(logicalId);
-  ASSERT_TRUE(vecgeom::cxx::CudaManager::Instance().SynchronizeNavigationTable());
-  Managed<adeptint::VolAuxData> aux(logicalId + 1);
+  // A default navigation state maps to logical-volume ID 0 without accessing
+  // GPU geometry tables. HowFar uses the preset safety throughout these cases,
+  // so one synthetic volume entry is enough and no geometry upload is needed.
+  Managed<adeptint::VolAuxData> aux;
   Managed<PhysicsData> physics;
   Managed<ChargedTrack> track;
   Managed<G4HepEmElectronTrack> hepEmTrack;
@@ -193,7 +181,8 @@ void CheckDeferredInitialization(bool tinyFirstStep)
   // Slot 0 stays active for both launches. HowFar only fills the propagation
   // queue; no propagation kernel consumes it or changes the persistent track.
   ASSERT_TRUE(active.data->push_back(0));
-  track->navState.SetNavIndex(navIndex);
+  ASSERT_EQ(track->navState.GetLogicalId(), 0);
+  ASSERT_FALSE(track->navState.IsOnBoundary());
   track->rngState = RanluxppDouble{12345};
   track->eKin     = .1;
   track->pos      = {0., 0., 0.};
@@ -255,7 +244,7 @@ void CheckDeferredInitialization(bool tinyFirstStep)
     ASSERT_NEAR(track->GetSafety(track->pos), .25, 1.e-12);
   }
   // A boundary would initialize MSC independently of fIsFirstStep and could
-  // hide the bug. The second launch must initialize during an interior step.
+  // hide the bug. Keep the boundary flag false for the second launch too.
   ASSERT_FALSE(track->navState.IsOnBoundary());
   launch();
   ASSERT_EQ(propagation.data->size(), 1u);
@@ -286,5 +275,3 @@ TEST(SplitElectronMSC, DefersInitializationPastTinyPositronStep)
 {
   CheckDeferredInitialization<false>(true);
 }
-
-#endif // !__CUDA_ARCH__
