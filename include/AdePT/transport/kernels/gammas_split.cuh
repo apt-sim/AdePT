@@ -138,28 +138,12 @@ __global__ void GammaHowFar(G4HepEmGammaTrack *hepEMTracks, ParticleManager part
         // Free the slot of the killed track
         slotManager.MarkSlotForFreeing(slot);
 
-        // In case the last steps are recorded, record it now, as this track is killed
-        if (returnLastStep || currentTrack.hasHostData) {
-          adept_step_recording::RecordGPUStep(currentTrack,                   // Owning track and its metadata
-                                              static_cast<short>(10),         // Step-defining process ID
-                                              ParticleType::Gamma,            // Particle type
-                                              theTrack->GetGStepLength(),     // Step length
-                                              energyDeposit,                  // Total energy deposit
-                                              currentTrack.navState,          // Pre-step navigation state
-                                              currentTrack.preStepPos,        // Pre-step position
-                                              currentTrack.preStepDir,        // Pre-step momentum direction
-                                              currentTrack.preStepEKin,       // Pre-step kinetic energy
-                                              currentTrack.navState,          // Post-step navigation state
-                                              currentTrack.pos,               // Post-step position
-                                              currentTrack.dir,               // Post-step momentum direction
-                                              currentTrack.eKin,              // Post-step kinetic energy
-                                              currentTrack.globalTime,        // Post-step global time
-                                              currentTrack.localTime,         // Post-step local time
-                                              currentTrack.properTime,        // Post-step proper time
-                                              currentTrack.preStepGlobalTime, // Pre-step global time
-                                              true,                           // Whether this is the track's last step
-                                              nullptr,                        // Secondary initialization data
-                                              0);                             // Number of secondaries
+        // Preserve sensitive energy deposits and requested terminal steps before freeing the track.
+        // No transport took place, so the terminal step has zero length.
+        if ((energyDeposit > 0 && auxData.fSensIndex >= 0) || options.returnAllSteps || returnLastStep ||
+            currentTrack.hasHostData) {
+          adept_step_recording::RecordZeroLengthGPUStep(currentTrack, ParticleType::Gamma, kAdePTTransportationProcess,
+                                                        currentTrack.preStepEKin, currentTrack.eKin, energyDeposit);
         }
         continue; // track is killed, can stop here
       }
