@@ -145,6 +145,19 @@ if(ADEPT_USE_SPLIT_KERNELS AND ADEPT_USE_CUDA)
   add_test(NAME test_split_step_start_kill COMMAND test_split_step_start_kill)
   set_tests_properties(test_split_step_start_kill PROPERTIES LABELS "unit;validation")
 endif()
+if(ADEPT_USE_SPLIT_KERNELS AND ADEPT_USE_CUDA)
+  add_executable(test_split_electron_msc test_split_electron_msc.cu)
+  # Compile the production kernel with test-owned globals; no Transport symbol exports are required.
+  cuda_rdc_target_link_libraries(test_split_electron_msc PRIVATE
+    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmRun G4HepEm::g4HepEmData CUDA::cudart GTest::gtest_main)
+  if(ADEPT_USE_EXT_BFIELD)
+    target_link_libraries(test_split_electron_msc PRIVATE covfie::core covfie::cuda)
+  endif()
+  set_target_properties(test_split_electron_msc PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+  gtest_discover_tests(test_split_electron_msc
+    DISCOVERY_MODE PRE_TEST
+    PROPERTIES LABELS "validation")
+endif()
 build_gtest_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_GTESTS})
 build_linked_tests(AdePT::G4Integration ${ADEPT_G4_INTEGRATION_UTILITIES})
 if(TARGET test_geometry_bridge_cms)
