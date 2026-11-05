@@ -57,8 +57,12 @@ __global__ void __launch_bounds__(256, 1)
     const auto slot            = particleManager.gammasWDT.ActiveAt(i);
     NeutralTrack &currentTrack = particleManager.gammasWDT.TrackAt(slot);
 
+    // Find the Woodcock tracking region index and root volume index
     const int wdtIdx  = GetWDTRegionIndex(currentTrack.navState);
     const int rootIdx = FindWDTRoot(currentTrack.navState, gWDTData, wdtIdx);
+    // Note: with subregions not being contained in their parent region,
+    // it is possible that the root volume cannot be found.
+    // In that case, defer the gamma back to normal tracking
     if (rootIdx < 0) {
       // Both gamma queues can hold the entire shared slot pool, so this transfer must fit.
       if (!particleManager.gammas.EnqueueNext(slot)) {
@@ -176,7 +180,7 @@ __global__ void __launch_bounds__(256, 1)
     // SETUP OF WOODCOCK TRACKING
     //
 
-    // The candidate envelope was resolved from this track's actual navigation state.
+    // The root volume was found, get relevant data
     const adeptint::WDTDeviceView &view = gWDTData;
     const auto &region                  = view.regions[wdtIdx];
     const auto &root                    = view.roots[rootIdx];
@@ -287,7 +291,9 @@ __global__ void __launch_bounds__(256, 1)
       const VolAuxData &actualAuxData = gVolAuxData[actualLvolID];
       hepEmIMC                        = actualAuxData.fMCIndex;
 
-      // Production-cut subregions can give the same material different couple indices.
+      // Check if current material is that of the WDT material
+      // Subregions can have the same materials but different material cut couple indices,
+      // so the underlying material must be compared directly to see if the interaction is guaranteed.
       const auto *matCuts = g4HepEmData.fTheMatCutData->fMatCutData;
       if (matCuts[hepEmIMC].fHepEmMatIndex != matCuts[rootHepemIMC].fHepEmMatIndex) {
         // Post step point is NOT in the WDT material: need to check if interacts.
