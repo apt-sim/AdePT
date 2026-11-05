@@ -138,11 +138,6 @@ At runtime, AdePT parameters are configured through Geant4 UI commands in the
 In practice this means your Geant4 macro configures `/adept/*` before
 `/run/initialize`.
 
-Configure Woodcock tracking only for the outer region. Nested production-cut
-regions automatically share its WDT envelope while retaining their own cuts.
-The entire envelope must use the same CPU or GPU backend; when selecting GPU
-regions explicitly, include its nested regions as well.
-
 ## Reference Integration Examples
 
 See repository examples and regression integration test:

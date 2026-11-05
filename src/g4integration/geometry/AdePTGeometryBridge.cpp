@@ -353,12 +353,14 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   std::vector<bool> atlasPhotonRRInitialized(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount(), false);
 #endif
 
-  // Keep candidates until all descendants have been checked for CPU-only regions.
+  // Collect the GPU regions and first CPU region found inside each WDT envelope.
+  // CPU-only envelopes are allowed; envelopes containing both CPU and GPU regions are not.
+  // A CPU root can have GPU daughters, so its descendants also need to be checked.
   struct WDTRootCandidate {
     adeptint::WDTRoot root;
     G4LogicalVolume const *logicalVolume;
-    std::set<int> regionIds;
-    G4Region const *cpuRegion = nullptr;
+    std::set<int> regionIds;             // GPU regions found inside this envelope.
+    G4Region const *cpuRegion = nullptr; // First CPU region, also used to name it in an error.
   };
   std::vector<WDTRootCandidate> wdtRootCandidates;
 
@@ -450,8 +452,11 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
   vecgeom::NavigationState rootNavState;
   visitGeometry(g4world, vecgeomWorld, rootNavState, -1);
 
+  // All descendants have now been visited. Add GPU-only envelopes, skip CPU-only
+  // envelopes, and reject mixed envelopes before creating the final GPU WDT data.
   for (auto const &candidate : wdtRootCandidates) {
     if (candidate.cpuRegion) {
+      // A nonempty regionIds means that GPU regions were found as well as a CPU region.
       if (!candidate.regionIds.empty()) {
         const std::string message =
             "Woodcock envelope logical volume '" + std::string(candidate.logicalVolume->GetName()) +
@@ -530,14 +535,18 @@ adeptint::WDTHostPacked AdePTGeometryBridge::PackWDT(adeptint::WDTHostRaw const 
   packed.roots.reserve(wdtRaw.roots.size());
   packed.regions.reserve(wdtRaw.regionToRootIndices.size());
 
-  // Production-cut subregions commonly inherit the same roots. Share their
-  // packed root span while retaining a region header for each region.
+  // Remember where each complete root list starts in packed.roots.
+  // Regions with identical lists reuse that offset instead of copying the roots again.
   std::map<std::vector<int>, int> rootListOffsets;
   for (auto const &[regionId, rootIndices] : wdtRaw.regionToRootIndices) {
-    const auto [span, inserted]  = rootListOffsets.emplace(rootIndices, static_cast<int>(packed.roots.size()));
+    // A new list gets the next free offset, and inserted is true.
+    // For a repeated list, emplace returns the existing entry with its saved offset.
+    const auto [span, inserted] = rootListOffsets.emplace(rootIndices, static_cast<int>(packed.roots.size()));
+    // Each region still gets its own header, pointing to the new or existing root data.
     packed.regionToWDT[regionId] = static_cast<int>(packed.regions.size());
     packed.regions.push_back(adeptint::WDTRegion{span->second, static_cast<int>(rootIndices.size()), wdtRaw.ekinMin});
 
+    // Copy the root data only the first time this complete list is encountered.
     if (inserted) {
       for (int index : rootIndices) {
         packed.roots.push_back(wdtRaw.roots[index]);

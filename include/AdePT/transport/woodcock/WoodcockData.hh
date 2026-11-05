@@ -42,7 +42,7 @@ struct WDTHostRaw {
 
 /// @brief Compact, upload-ready representation of Woodcock data.
 struct WDTHostPacked {
-  std::vector<WDTRoot> roots;     ///< contiguous root spans, shared by regions with identical root lists
+  std::vector<WDTRoot> roots;     ///< root data shared by regions with identical root lists
   std::vector<WDTRegion> regions; ///< one per WDT region
   std::vector<int> regionToWDT;   ///< indexed by G4Region instance ID (size = maxRegionId + 1)
 };
