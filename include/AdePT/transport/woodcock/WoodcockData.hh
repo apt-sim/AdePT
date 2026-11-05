@@ -42,9 +42,9 @@ struct WDTHostRaw {
 
 /// @brief Compact, upload-ready representation of Woodcock data.
 struct WDTHostPacked {
-  std::vector<WDTRoot> roots;     ///< packed per-region contiguous
+  std::vector<WDTRoot> roots;     ///< root data shared by regions with identical root lists
   std::vector<WDTRegion> regions; ///< one per WDT region
-  std::vector<int> regionToWDT;   ///< dense by regionId (size = number of G4 regions)
+  std::vector<int> regionToWDT;   ///< indexed by G4Region instance ID (size = maxRegionId + 1)
 };
 
 /// @brief Owned device buffers to manage lifetime of Woodcock tracking data.
