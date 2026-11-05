@@ -30,6 +30,7 @@
 #include <AdePT/transport/magneticfield/fieldPropagatorRungeKutta.h>
 #include <AdePT/transport/magneticfield/DormandPrinceRK45.h>
 #include <AdePT/transport/magneticfield/MagneticFieldEquation.h>
+#include <AdePT/transport/magneticfield/OffsetMagneticField.h>
 #include <AdePT/transport/magneticfield/RkIntegrationDriver.h>
 #include <AdePT/transport/magneticfield/UniformMagneticField.cuh>
 #include <AdePT/transport/tracks/SafetyCache.cuh>
@@ -37,10 +38,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace {
 
@@ -503,6 +506,235 @@ TEST(RkIntegrationDriver, UniformFieldMatchesHelixInFloatPrecision)
     SCOPED_TRACE(testCase.name);
     CheckUniformFieldAgainstHelix<float>(testCase, testCase.floatPositionTolerance, testCase.floatDirectionTolerance);
   }
+}
+
+// Run the production mixed-precision scheme (float offset from a double-precision
+// start point, field seen through OffsetMagneticField) against the exact helix
+// and return the final position error.
+template <typename Real_t>
+double AnchoredHelixPositionError(const RkCase &testCase, const vecgeom::Vector3D<double> &startPosition,
+                                  double arcLength)
+{
+  using Field         = UniformMagneticField;
+  using AnchoredField = OffsetMagneticField<Field>;
+  using Equation      = MagneticFieldEquation<AnchoredField>;
+  using Stepper       = DormandPrinceRK45<Equation, AnchoredField, kNvar, Real_t>;
+  using Driver        = RkIntegrationDriver<Stepper, Real_t, int, Equation, AnchoredField>;
+
+  const Field field(testCase.field);
+  const AnchoredField anchoredField(field, startPosition);
+  const vecgeom::Vector3D<double> startDirection = testCase.direction.Unit();
+  vecgeom::Vector3D<double> displacement{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> momentum = testCase.momentum * startDirection;
+  Real_t dydxEnd[kNvar]              = {};
+  Real_t lastGoodStep                = 0.0;
+
+  const Real_t advanced = Driver::Advance(displacement, momentum, testCase.charge, Real_t(arcLength), anchoredField,
+                                          dydxEnd, lastGoodStep, 500);
+  EXPECT_NEAR(advanced, Real_t(arcLength), (std::is_same_v<Real_t, float> ? 1.0e-5 : 1.0e-12) * arcLength);
+
+  vecgeom::Vector3D<double> expectedPosition;
+  vecgeom::Vector3D<double> expectedDirection;
+  ConstFieldHelixStepper(
+      vecgeom::Vector3D<double>{double(testCase.field[0]), double(testCase.field[1]), double(testCase.field[2])})
+      .DoStep(startPosition, startDirection, testCase.charge, testCase.momentum, arcLength, expectedPosition,
+              expectedDirection);
+
+  return (startPosition + displacement - expectedPosition).Length();
+}
+
+// The float accuracy must not depend on where in the detector the chord starts.
+// Without the offset scheme, the float resolution at large coordinates
+// (~1e-4 mm at r = 1 m) dominates the error and this test fails at the large radius.
+TEST(RkIntegrationDriver, AnchoredFloatAccuracyIsIndependentOfStartRadius)
+{
+  const vecgeom::Vector3D<double> nearOrigin{0.25, -0.5, 1.0};
+  const vecgeom::Vector3D<double> largeRadius{2078.46, -2078.46, 2078.46}; // r ~ 3.6 m
+
+  for (const auto &testCase : UniformFieldCases()) {
+    SCOPED_TRACE(testCase.name);
+    const double errorNearOrigin  = AnchoredHelixPositionError<float>(testCase, nearOrigin, testCase.step);
+    const double errorLargeRadius = AnchoredHelixPositionError<float>(testCase, largeRadius, testCase.step);
+    EXPECT_LE(errorNearOrigin, testCase.floatPositionTolerance);
+    EXPECT_LE(errorLargeRadius, testCase.floatPositionTolerance);
+  }
+}
+
+// Very short steps far from the origin are what produced stuck tracks before
+// this fix: the step was smaller than float can represent at such coordinates,
+// so the bookkeeping advanced but the position did not follow. The step must
+// move the track by the requested distance.
+TEST(RkIntegrationDriver, AnchoredFloatResolvesMicronArcsAtLargeRadius)
+{
+  const vecgeom::Vector3D<double> largeRadius{2078.46, -2078.46, 2078.46}; // r ~ 3.6 m
+  const auto testCase = UniformFieldCases()[2];                            // tilted field, 1 GeV
+
+  // 1e-7 mm matches the anti-stuck push (100 * vecgeom::kTolerance) in the
+  // electron kernels, which was lost in float at this radius before the fix.
+  for (const double arc : {1.0e-3, 1.0e-4, 1.0e-7}) {
+    SCOPED_TRACE(arc);
+    using Field         = UniformMagneticField;
+    using AnchoredField = OffsetMagneticField<Field>;
+    using Equation      = MagneticFieldEquation<AnchoredField>;
+    using Stepper       = DormandPrinceRK45<Equation, AnchoredField, kNvar, float>;
+    using Driver        = RkIntegrationDriver<Stepper, float, int, Equation, AnchoredField>;
+
+    const Field field(testCase.field);
+    const AnchoredField anchoredField(field, largeRadius);
+    vecgeom::Vector3D<double> displacement{0.0, 0.0, 0.0};
+    vecgeom::Vector3D<double> momentum = testCase.momentum * testCase.direction.Unit();
+    float dydxEnd[kNvar]               = {};
+    float lastGoodStep                 = 0.0;
+
+    const float advanced =
+        Driver::Advance(displacement, momentum, testCase.charge, float(arc), anchoredField, dydxEnd, lastGoodStep, 500);
+
+    EXPECT_NEAR(advanced, arc, 1.0e-5 * arc);
+    EXPECT_NEAR(displacement.Length(), arc, 1.0e-2 * arc);
+  }
+}
+
+namespace {
+
+// Constant field that records every position it is asked to evaluate. Used to
+// check that OffsetMagneticField passes the true absolute coordinates, in
+// double, to the underlying field.
+struct PositionRecordingField {
+  vecgeom::Vector3D<float> fieldValue;
+  mutable std::vector<vecgeom::Vector3D<double>> queries;
+
+  explicit PositionRecordingField(const vecgeom::Vector3D<float> &value) : fieldValue(value) {}
+
+  template <typename Real_t>
+  vecgeom::Vector3D<Real_t> Evaluate(Real_t x, Real_t y, Real_t z) const
+  {
+    queries.emplace_back(double(x), double(y), double(z));
+    return {Real_t(fieldValue[0]), Real_t(fieldValue[1]), Real_t(fieldValue[2])};
+  }
+
+  template <typename Real_t>
+  vecgeom::Vector3D<Real_t> Evaluate(const vecgeom::Vector3D<Real_t> &position) const
+  {
+    return Evaluate(position[0], position[1], position[2]);
+  }
+};
+
+// Field whose z component grows linearly with the absolute z coordinate:
+// B_z(z) = slope * z. If the lookup loses the absolute position, the field
+// strength is badly wrong and the trajectory visibly different.
+struct LinearBzGradientField {
+  double slopePerMm; // field (internal units) per mm of z
+
+  explicit LinearBzGradientField(double slope) : slopePerMm(slope) {}
+
+  template <typename Real_t>
+  vecgeom::Vector3D<Real_t> Evaluate(Real_t /*x*/, Real_t /*y*/, Real_t z) const
+  {
+    return {Real_t(0), Real_t(0), Real_t(slopePerMm * double(z))};
+  }
+
+  template <typename Real_t>
+  vecgeom::Vector3D<Real_t> Evaluate(const vecgeom::Vector3D<Real_t> &position) const
+  {
+    return Evaluate(position[0], position[1], position[2]);
+  }
+};
+
+} // namespace
+
+// The wrapped lookup must receive the absolute coordinates, reconstructed in
+// double. We check the recorded query points directly, for a step so small
+// that float cannot represent it next to the anchor coordinates: every query
+// must lie on the short arc at the anchor (not near the origin, as it would
+// if the anchor were not added), and the queries must still differ from each
+// other (adding the anchor in float would round them all to the same value).
+TEST(OffsetMagneticField, RestoresAbsoluteCoordinatesInDoubleForSubUlpArcs)
+{
+  using copcore::units::tesla;
+  using Field         = PositionRecordingField;
+  using AnchoredField = OffsetMagneticField<Field>;
+  using Equation      = MagneticFieldEquation<AnchoredField>;
+  using Stepper       = DormandPrinceRK45<Equation, AnchoredField, kNvar, float>;
+  using Driver        = RkIntegrationDriver<Stepper, float, int, Equation, AnchoredField>;
+
+  const vecgeom::Vector3D<double> anchor{2078.46, -2078.46, 2078.46}; // r ~ 3.6 m, float ULP ~ 2.4e-4 mm
+  const double arc = 1.0e-4;                                          // below one float ULP of the anchor coordinates
+
+  const Field field(vecgeom::Vector3D<float>{0.0f, 0.0f, float(2.0 * tesla)});
+  const AnchoredField anchoredField(field, anchor);
+  vecgeom::Vector3D<double> displacement{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> momentum = 100.0 * copcore::units::MeV * vecgeom::Vector3D<double>{0.3, -0.9, 0.31}.Unit();
+  float dydxEnd[kNvar]               = {};
+  float lastGoodStep                 = 0.0;
+
+  const float advanced =
+      Driver::Advance(displacement, momentum, -1, float(arc), anchoredField, dydxEnd, lastGoodStep, 500);
+  EXPECT_NEAR(advanced, arc, 1.0e-5 * arc);
+
+  ASSERT_GE(field.queries.size(), 7u); // at least the 7 Dormand-Prince stages
+  double maxSpread = 0.0;
+  for (const auto &query : field.queries) {
+    // Without the anchor, the queries would end up ~3.6 m away, near the origin.
+    EXPECT_LE((query - anchor).Length(), 2.0 * arc)
+        << "query not at absolute coordinates: {" << query[0] << ", " << query[1] << ", " << query[2] << "}";
+    maxSpread = std::max(maxSpread, (query - field.queries.front()).Length());
+  }
+  // The queried points must spread out along the arc. If the anchor were added
+  // in float, they would all round to the same value and the spread would be zero.
+  EXPECT_GE(maxSpread, 0.5 * arc);
+}
+
+// Same check at the physics level: with a field that depends strongly on the
+// absolute z coordinate, the float integration far from the origin must give
+// the same trajectory as the double integration. If the absolute coordinate
+// were lost, the field would be nearly zero and the end point off by orders
+// of magnitude.
+TEST(OffsetMagneticField, AnchoredFloatMatchesDoubleInGradientFieldAtLargeOrigin)
+{
+  using copcore::units::MeV;
+  using copcore::units::tesla;
+  using Field = LinearBzGradientField;
+
+  // B_z = 1 T per 1000 mm of z: ~2 T at the start position, ~0 near the origin.
+  const Field field(1.0 * tesla / 1000.0);
+  const vecgeom::Vector3D<double> start{1500.0, -800.0, 2000.0};
+  const vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0}; // bending stays in xy, so B_z stays ~2 T
+  const double momentumMag = 100.0 * MeV;
+  const double arc         = 20.0;
+
+  // Double-precision reference on absolute coordinates.
+  vecgeom::Vector3D<double> positionD = start;
+  vecgeom::Vector3D<double> momentumD = momentumMag * direction;
+  {
+    using Equation        = MagneticFieldEquation<Field>;
+    using Stepper         = DormandPrinceRK45<Equation, Field, kNvar, double>;
+    using Driver          = RkIntegrationDriver<Stepper, double, int, Equation, Field>;
+    double dydxEnd[kNvar] = {};
+    double lastGoodStep   = 0.0;
+    const double advanced = Driver::Advance(positionD, momentumD, -1, arc, field, dydxEnd, lastGoodStep, 500);
+    ASSERT_NEAR(advanced, arc, 1.0e-12 * arc);
+  }
+  // The reference must actually bend; otherwise this test could not detect a
+  // lost absolute coordinate.
+  const double sagitta = (positionD - (start + arc * direction)).Length();
+  ASSERT_GT(sagitta, 0.5);
+
+  // Float integration with the offset scheme, as used in production.
+  using AnchoredField = OffsetMagneticField<Field>;
+  using EquationF     = MagneticFieldEquation<AnchoredField>;
+  using StepperF      = DormandPrinceRK45<EquationF, AnchoredField, kNvar, float>;
+  using DriverF       = RkIntegrationDriver<StepperF, float, int, EquationF, AnchoredField>;
+
+  const AnchoredField anchoredField(field, start);
+  vecgeom::Vector3D<double> displacement{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> momentumF = momentumMag * direction;
+  float dydxEndF[kNvar]               = {};
+  float lastGoodStepF                 = 0.0;
+  const float advancedF =
+      DriverF::Advance(displacement, momentumF, -1, float(arc), anchoredField, dydxEndF, lastGoodStepF, 500);
+  EXPECT_NEAR(advancedF, arc, 1.0e-5 * arc);
+
+  ExpectVectorNear(start + displacement, positionD, 2.0e-3);
 }
 
 // Safety is allowed to be conservative, but it must never be overestimated by

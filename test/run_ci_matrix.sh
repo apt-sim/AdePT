@@ -433,13 +433,13 @@ run_drift_smoke_tests() {
 run_bfield_unit_tests() {
   local build_dir=$1
 
-  log "Building surface B-field unit targets in ${build_dir}"
+  log "Building B-field unit targets in ${build_dir}"
   cmake --build "${build_dir}" --target test_bfield -j"${JOBS}"
   cmake --build "${build_dir}" --target test_bfield_navigation -j"${JOBS}"
 
-  log "Running surface B-field unit tests in ${build_dir}"
+  log "Running B-field unit tests in ${build_dir}"
   run_ctest --test-dir "${build_dir}" --output-on-failure \
-    -R '^(UniformMagneticField|MagneticFieldEquation|ConstBzFieldStepper|FieldPropagatorRungeKutta|RkIntegrationDriver|SafetyCache|FieldPropagatorRungeKuttaNavigation)\.' -j1
+    -R '^(UniformMagneticField|OffsetMagneticField|MagneticFieldEquation|ConstBzFieldStepper|FieldPropagatorRungeKutta|RkIntegrationDriver|SafetyCache|FieldPropagatorRungeKuttaNavigation)\.' -j1
 }
 
 run_ci_subset_tests() {
@@ -457,7 +457,8 @@ run_ci_subset_tests() {
       run_ctest --test-dir "${build_dir}" --output-on-failure -L validation -j1
       ;;
     mixed)
-      log "Skipping mixed CI subset tests (no mixed non-drift stage in current Jenkins pipeline)"
+      log "Running mixed-precision CI subset: unit"
+      run_ctest --test-dir "${build_dir}" --output-on-failure -L unit -j1
       ;;
     surface)
       log "Running surface CI subset: B-field unit tests"
@@ -506,6 +507,12 @@ for cfg in "${CONFIGS[@]}"; do
       run_bfield_unit_tests "${pr_build_dir}"
     else
       run_drift_smoke_tests "${pr_build_dir}"
+      if [[ "${cfg}" == "mixed" ]]; then
+        # The PR/nightly drivers exercise mixed precision only through this
+        # suite, so run the B-field unit coverage (including the anchored
+        # float-integration regression tests) here as well.
+        run_bfield_unit_tests "${pr_build_dir}"
+      fi
     fi
   else
     run_ci_subset_tests "${cfg}" "${pr_build_dir}"
