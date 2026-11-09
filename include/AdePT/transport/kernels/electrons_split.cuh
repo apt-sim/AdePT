@@ -113,7 +113,8 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
       currentTrack.hepEmTrackExists = true;
     } else {
       theTrack->SetEnergyDeposit(0);
-      mscData->fIsFirstStep = false;
+      // Preserve fIsFirstStep until G4HepEm initializes the UseSafety MSC limits.
+      // Earlier calls may skip that initialization, e.g. when the range fits inside the safety.
     }
 
     // ---- Begin of SteppingAction:
