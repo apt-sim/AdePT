@@ -34,7 +34,7 @@ The following packages are a required to build and run:
 - [Geant4](https://gitlab.cern.ch/geant4/geant4) > 11.0
 - VecCore [library](https://github.com/root-project/veccore) 0.8.2
 - VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >=  2.0.0-rc.4
-- G4HepEm [library](https://github.com/mnovak42/g4hepem) >= tag 20250610
+- G4HepEm [library](https://github.com/mnovak42/g4hepem) >= tag [20261106](https://github.com/mnovak42/g4hepem/tree/20261106)
 - optional: HepMC3 [library](https://gitlab.cern.ch/hepmc/HepMC3)
 
 ### Setting up the environment and installing the dependencies
@@ -94,6 +94,9 @@ cmake -S. -B./geant4-build \
 cmake --build ./geant4-build --target install -- -j 6
 ```
 
+Use G4HepEm tag `20261106` or newer, which provides the Woodcock tracking support
+for production-cut subregions required by AdePT. CMake does not check the date-tag
+requirement; see the [dependency documentation](docs/installation/install-dependencies.md#g4hepem).
 To configure and build G4HepEm, use the configuration options below:
 ```console
 $ cmake -S. -B./g4hepem-build \
