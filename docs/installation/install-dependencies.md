@@ -13,7 +13,7 @@ AdePT requires the following software stack:
 - Geant4 > 11.0
 - VecCore
 - VecGeom (with CUDA support)
-- G4HepEm (with CUDA support)
+- G4HepEm >= tag [20261106](https://github.com/mnovak42/g4hepem/tree/20261106) (with CUDA support)
 - Optional: HepMC3
 
 ## Recommended: CVMFS Environment
@@ -77,7 +77,10 @@ cmake --build ./geant4-build --target install -- -j6
 
 ### G4HepEm
 
+Use tag `20261106` or newer.
+
 ```console
+git checkout 20261106 # or take the latest master
 cmake -S . -B ./g4hepem-build \
   -DCMAKE_INSTALL_PREFIX=<path_to_g4hepem_installation> \
   -DCMAKE_PREFIX_PATH=<path_to_geant4_installation> \

@@ -10,10 +10,12 @@
 #include <globals.hh>
 
 #include <array>
+#include <algorithm>
 #include <memory>
 #include <set>
 #include <span>
 #include <stdexcept>
+#include <type_traits>
 #include <string>
 #include <vector>
 
@@ -216,6 +218,230 @@ TEST(AdePTGeometryBridge, InitVolAuxDataIncludesAllReplicatedWdtRoots)
     EXPECT_EQ(root.hepemIMC, 0);
   }
 }
+
+namespace {
+// A has two root LVs, the first placed twice. B/C occur below those roots and
+// B has another placement outside A. Material-cut indices deliberately differ
+// from the G4HepEm indices so inherited reference and actual couples cannot be confused.
+struct NestedWdtGeometry {
+  GeometryCleanup cleanup;
+  // Geant4's RegionStore also owns regions at process exit (including death-test exits).
+  std::unique_ptr<G4Region> worldOwner{new G4Region("nested_wdt_world")}, aOwner{new G4Region("nested_wdt_A")};
+  std::unique_ptr<G4Region> bOwner{new G4Region("nested_wdt_B")}, cOwner{new G4Region("nested_wdt_C")};
+  G4Region &worldRegion{*worldOwner}, &regionA{*aOwner}, &regionB{*bOwner}, &regionC{*cOwner};
+  G4LogicalVolume *worldLV{}, *rootLV{}, *otherRootLV{}, *regionBLV{}, *regionCLV{};
+  int g4ToHepEm[5] = {4, 3, 2, 1, 0};
+  G4HepEmMCCData couples[5]{};
+  G4HepEmMatCutData matCutData{};
+  G4HepEmData hepEmData{};
+  std::unique_ptr<G4HepEmTrackingManagerSpecialized> trackingManager;
+
+  explicit NestedWdtGeometry(bool nestInSecondRoot = true)
+  {
+    G4GeometryManager::GetInstance()->OpenGeometry();
+    vecgeom::GeoManager::Instance().Clear();
+    auto *nist      = G4NistManager::Instance();
+    auto *air       = nist->FindOrBuildMaterial("G4_AIR");
+    auto *aluminium = nist->FindOrBuildMaterial("G4_Al");
+    auto *lead      = nist->FindOrBuildMaterial("G4_Pb");
+    auto *iron      = nist->FindOrBuildMaterial("G4_Fe");
+    auto makeVolume = [](const char *name, double halfLength, G4Material *material) {
+      return new G4LogicalVolume(new G4Box(name, halfLength * mm, halfLength * mm, halfLength * mm), material, name);
+    };
+    worldLV       = makeVolume("nested_wdt_world_lv", 200., air);
+    rootLV        = makeVolume("nested_wdt_root_lv", 20., air);
+    otherRootLV   = makeVolume("nested_wdt_other_root_lv", 20., iron);
+    regionBLV     = makeVolume("nested_wdt_B_lv", 5., aluminium);
+    regionCLV     = makeVolume("nested_wdt_C_lv", 1., lead);
+    auto *worldPV = new G4PVPlacement(nullptr, {}, worldLV, "nested_wdt_world", nullptr, false, 0, false);
+    new G4PVPlacement(nullptr, {-100. * mm, 0., 0.}, rootLV, "nested_wdt_root_0", worldLV, false, 0, false);
+    new G4PVPlacement(nullptr, {-40. * mm, 0., 0.}, rootLV, "nested_wdt_root_1", worldLV, false, 1, false);
+    new G4PVPlacement(nullptr, {40. * mm, 0., 0.}, otherRootLV, "nested_wdt_other_root", worldLV, false, 2, false);
+    new G4PVPlacement(nullptr, {}, regionBLV, "nested_wdt_B", rootLV, false, 0, false);
+    if (nestInSecondRoot) new G4PVPlacement(nullptr, {}, regionBLV, "nested_wdt_B", otherRootLV, false, 0, false);
+    new G4PVPlacement(nullptr, {100. * mm, 0., 0.}, regionBLV, "nested_wdt_B_outside", worldLV, false, 3, false);
+    new G4PVPlacement(nullptr, {}, regionCLV, "nested_wdt_C", regionBLV, false, 0, false);
+
+    worldRegion.AddRootLogicalVolume(worldLV);
+    regionA.AddRootLogicalVolume(rootLV);
+    regionA.AddRootLogicalVolume(otherRootLV);
+    regionB.AddRootLogicalVolume(regionBLV);
+    regionC.AddRootLogicalVolume(regionCLV);
+    const std::array<G4LogicalVolume *, 5> volumes{{worldLV, rootLV, regionBLV, regionCLV, otherRootLV}};
+    const std::array<G4Region *, 5> regions{{&worldRegion, &regionA, &regionB, &regionC, &regionA}};
+    for (int g4Index = 0; g4Index < 5; ++g4Index) {
+      auto *cuts = new G4ProductionCuts;
+      cuts->SetProductionCut((g4Index + 1) * 0.1 * mm);
+      auto *couple = new G4MaterialCutsCouple(volumes[g4Index]->GetMaterial(), cuts);
+      couple->SetIndex(g4Index);
+      couple->SetUseFlag(true);
+      volumes[g4Index]->SetMaterialCutsCouple(couple);
+      regions[g4Index]->RegisterMaterialCouplePair(volumes[g4Index]->GetMaterial(), couple);
+      const int hepemIndex               = g4ToHepEm[g4Index];
+      couples[hepemIndex].fG4MatCutIndex = g4Index;
+      couples[hepemIndex].fG4RegionIndex = regions[g4Index]->GetInstanceID();
+    }
+    matCutData.fNumG4MatCuts = matCutData.fNumMatCutData = 5;
+    matCutData.fG4MCIndexToHepEmMCIndex                  = g4ToHepEm;
+    matCutData.fMatCutData                               = couples;
+    hepEmData.fTheMatCutData                             = &matCutData;
+    G4TransportationManager::GetTransportationManager()->SetWorldForTracking(worldPV);
+    G4GeometryManager::GetInstance()->CloseGeometry(true);
+    trackingManager             = std::make_unique<G4HepEmTrackingManagerSpecialized>();
+    trackingManager->fWDTHelper = new G4HepEmWoodcockHelper;
+    Require(trackingManager->fWDTHelper->Initialize({regionA.GetName()}, &matCutData), "WDT initialization failed");
+    AdePTGeometryBridge::CreateVecGeomWorld(worldPV);
+  }
+
+  adeptint::WDTHostRaw Collect(std::vector<adeptint::VolAuxData> &aux)
+  {
+    return Collect(aux, {&worldRegion, &regionA, &regionB, &regionC});
+  }
+
+  adeptint::WDTHostRaw Collect(std::vector<adeptint::VolAuxData> &aux, std::set<G4Region const *> const &gpuRegions)
+  {
+    aux.resize(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
+    adeptint::WDTHostRaw raw;
+    AdePTGeometryBridge::InitVolAuxData(aux.data(), &hepEmData, trackingManager.get(), gpuRegions, {}, raw);
+    return raw;
+  }
+};
+} // namespace
+
+TEST(AdePTGeometryBridge, InheritsWdtRootsAcrossNestedCutRegionsAndPlacements)
+{
+  NestedWdtGeometry geometry;
+  std::vector<adeptint::VolAuxData> aux;
+  const auto raw = geometry.Collect(aux);
+  ASSERT_EQ(raw.roots.size(), 3u);
+  const auto &aRoots = raw.regionToRootIndices.at(geometry.regionA.GetInstanceID());
+  EXPECT_EQ(aRoots.size(), 3u);
+  EXPECT_EQ(raw.regionToRootIndices.at(geometry.regionB.GetInstanceID()), aRoots);
+  EXPECT_EQ(raw.regionToRootIndices.at(geometry.regionC.GetInstanceID()), aRoots);
+  std::set<std::decay_t<decltype(raw.roots.front().root.GetState())>> rootIndices;
+  for (const auto &root : raw.roots) {
+    EXPECT_EQ(root.root.GetLevel(), 1);
+    EXPECT_EQ(root.hepemIMC, 1); // The maximum-density material exists only in C.
+    rootIndices.insert(root.root.GetState());
+  }
+  EXPECT_EQ(rootIndices.size(), 3u);
+
+  const auto *vgWorld = vecgeom::GeoManager::Instance().GetWorld();
+  const auto *vgRoot  = vgWorld->GetLogicalVolume()->GetDaughters()[0];
+  const auto *vgB     = vgRoot->GetLogicalVolume()->GetDaughters()[0];
+  const auto *vgC     = vgB->GetLogicalVolume()->GetDaughters()[0];
+  EXPECT_EQ(aux[vgB->GetLogicalVolume()->id()].fMCIndex, 2);
+  EXPECT_EQ(aux[vgC->GetLogicalVolume()->id()].fMCIndex, 1);
+  EXPECT_EQ(aux[vgB->GetLogicalVolume()->id()].fGPUregionId, geometry.regionB.GetInstanceID());
+  EXPECT_EQ(aux[vgC->GetLogicalVolume()->id()].fGPUregionId, geometry.regionC.GetInstanceID());
+
+  const auto packed = AdePTGeometryBridge::PackWDT(raw);
+  ASSERT_EQ(packed.roots.size(), 3u);
+  const int governingBucket = packed.regionToWDT[geometry.regionA.GetInstanceID()];
+  ASSERT_GE(governingBucket, 0);
+  const int governingOffset = packed.regions[governingBucket].offset;
+  for (const auto *region : {&geometry.regionA, &geometry.regionB, &geometry.regionC}) {
+    const int bucket = packed.regionToWDT[region->GetInstanceID()];
+    ASSERT_GE(bucket, 0);
+    const auto &header = packed.regions[bucket];
+    ASSERT_EQ(header.count, 3);
+    EXPECT_EQ(header.offset, governingOffset);
+    for (int i = 0; i < header.count; ++i) {
+      const auto &root = packed.roots[header.offset + i];
+      EXPECT_EQ(root.root.GetLevel(), 1);
+      EXPECT_EQ(root.hepemIMC, 1);
+    }
+  }
+  // B's outside placement is still a GPU volume, but never becomes a WDT root.
+  const auto *outsideB = vgWorld->GetLogicalVolume()->GetDaughters()[3];
+  EXPECT_EQ(outsideB->GetLogicalVolume(), vgB->GetLogicalVolume());
+  EXPECT_EQ(raw.roots.size(), 3u);
+}
+
+TEST(AdePTGeometryBridge, SharesIdenticalPackedWdtRootListsButKeepsDistinctEnvelopes)
+{
+  NestedWdtGeometry geometry;
+  std::vector<adeptint::VolAuxData> aux;
+  auto raw = geometry.Collect(aux);
+  // A and B share two placements; C has a separate envelope. Equal reference
+  // couples must not cause physically distinct roots to be merged.
+  raw.regionToRootIndices[geometry.regionA.GetInstanceID()] = {0, 1};
+  raw.regionToRootIndices[geometry.regionB.GetInstanceID()] = {0, 1};
+  raw.regionToRootIndices[geometry.regionC.GetInstanceID()] = {2};
+
+  const auto packed = AdePTGeometryBridge::PackWDT(raw);
+  ASSERT_EQ(packed.roots.size(), 3u);
+  const auto &a = packed.regions[packed.regionToWDT[geometry.regionA.GetInstanceID()]];
+  const auto &b = packed.regions[packed.regionToWDT[geometry.regionB.GetInstanceID()]];
+  const auto &c = packed.regions[packed.regionToWDT[geometry.regionC.GetInstanceID()]];
+  EXPECT_EQ(a.offset, b.offset);
+  ASSERT_EQ(a.count, 2);
+  EXPECT_EQ(b.count, 2);
+  ASSERT_EQ(c.count, 1);
+  EXPECT_NE(a.offset, c.offset);
+  for (int i = 0; i < a.count; ++i) {
+    EXPECT_EQ(packed.roots[a.offset + i].root.GetState(), raw.roots[i].root.GetState());
+    EXPECT_EQ(packed.roots[a.offset + i].hepemIMC, raw.roots[i].hepemIMC);
+  }
+  EXPECT_EQ(packed.roots[c.offset].root.GetState(), raw.roots[2].root.GetState());
+  EXPECT_EQ(packed.roots[c.offset].hepemIMC, raw.roots[2].hepemIMC);
+}
+
+TEST(AdePTGeometryBridge, RejectsWdtEnvelopesContainingCPURegions)
+{
+  NestedWdtGeometry geometry(false);
+  std::vector<adeptint::VolAuxData> aux;
+  // C is CPU-only. Omitting its GPU envelope would still let the CPU WDT helper
+  // cross back into GPU B without the specialized tracking manager seeing a boundary.
+  EXPECT_DEATH(geometry.Collect(aux, {&geometry.worldRegion, &geometry.regionA, &geometry.regionB}),
+               "WDTEnvelopeContainsCPURegion");
+}
+
+TEST(AdePTGeometryBridge, RejectsCPUWdtRootsContainingGPURegions)
+{
+  NestedWdtGeometry geometry;
+  std::vector<adeptint::VolAuxData> aux;
+  // The inverse arrangement is equally unsafe: the CPU WDT root must not skip a GPU child.
+  EXPECT_DEATH(geometry.Collect(aux, {&geometry.worldRegion, &geometry.regionB, &geometry.regionC}),
+               "WDTEnvelopeContainsCPURegion");
+}
+
+TEST(AdePTGeometryBridge, OmitsEntirelyCPUWdtEnvelopesFromGPUData)
+{
+  NestedWdtGeometry geometry;
+  std::vector<adeptint::VolAuxData> aux;
+  const auto raw = geometry.Collect(aux, {&geometry.worldRegion});
+  EXPECT_TRUE(raw.roots.empty());
+  EXPECT_TRUE(raw.regionToRootIndices.empty());
+}
+
+TEST(AdePTGeometryBridge, RejectsExplicitWdtConfigurationOfAnInheritedRegion)
+{
+  NestedWdtGeometry geometry;
+  // This is the G4HepEm configuration restriction, also used by AdePT initialization.
+  EXPECT_EXIT(geometry.trackingManager->fWDTHelper->Initialize({geometry.regionA.GetName(), geometry.regionB.GetName()},
+                                                               &geometry.matCutData),
+              ::testing::ExitedWithCode(1), "Sub-regions of Woodcock tracking regions");
+}
+
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+TEST(AdePTGeometryBridge, RejectsMixedCMSDeadRegionsInWdtEnvelope)
+{
+  NestedWdtGeometry geometry;
+  std::vector<adeptint::VolAuxData> aux(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
+  const std::set<G4Region const *> gpuRegions{&geometry.worldRegion, &geometry.regionA, &geometry.regionB,
+                                              &geometry.regionC};
+  // Check both a dead grandchild under a live root and live descendants under a dead root.
+  for (const auto *deadRegion : {&geometry.regionC, &geometry.regionA}) {
+    CMSSteppingActionConfig cmsConfig;
+    cmsConfig.deadRegions = {deadRegion->GetName()};
+    adeptint::WDTHostRaw raw;
+    EXPECT_DEATH(AdePTGeometryBridge::InitVolAuxData(aux.data(), &geometry.hepEmData, geometry.trackingManager.get(),
+                                                     gpuRegions, cmsConfig, raw),
+                 "WDTEnvelopeContainsCMSDeadRegion");
+  }
+}
+#endif
 
 TEST(AdePTGeometryBridge, UsesResolvedGPURegionSet)
 {

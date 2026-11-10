@@ -6,6 +6,7 @@
 #pragma once
 
 #include <AdePT/AdePTBuildFlags.hh>
+#include <AdePT/transport/support/Portability.hh>
 
 #include <VecGeom/base/Vector3D.h>
 

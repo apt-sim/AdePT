@@ -134,9 +134,25 @@ target_compile_definitions(test_track_block PRIVATE NDEBUG)
 target_compile_definitions(test_variable_size_obj_allocator PRIVATE NDEBUG)
 build_linked_tests(AdePT::Transport ${ADEPT_TRANSPORT_UNIT_TESTS} ${ADEPT_TRANSPORT_UTILITIES})
 build_gtest_tests(AdePT::Transport ${ADEPT_TRANSPORT_GTESTS})
+if(ADEPT_ENABLE_WDT)
+  # Own the device globals instead of importing hidden symbols from Transport.
+  add_executable(test_woodcock_helper test_woodcock_helper.cu test_woodcock_helper_geometry.cpp)
+  cuda_rdc_target_link_libraries(test_woodcock_helper PRIVATE
+    AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmData CUDA::cudart GTest::gtest_main)
+  if(ADEPT_USE_EXT_BFIELD)
+    target_link_libraries(test_woodcock_helper PRIVATE covfie::core covfie::cuda)
+  endif()
+  set_target_properties(test_woodcock_helper PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+  gtest_discover_tests(test_woodcock_helper
+    DISCOVERY_MODE PRE_TEST
+    PROPERTIES LABELS "unit")
+endif()
 if(ADEPT_USE_SPLIT_KERNELS AND ADEPT_USE_CUDA)
   # Compile the real kernels with test-owned globals, without a second copy from Transport.
   add_executable(test_split_step_start_kill test_split_step_start_kill.cu)
+  if(ADEPT_ENABLE_WDT)
+    target_sources(test_split_step_start_kill PRIVATE test_woodcock_helper_geometry.cpp)
+  endif()
   cuda_rdc_target_link_libraries(test_split_step_start_kill PRIVATE
     AdePT::Core VecGeom::vecgeom G4HepEm::g4HepEmRun G4HepEm::g4HepEmData CUDA::cudart GTest::gtest_main)
   if(ADEPT_USE_EXT_BFIELD)
