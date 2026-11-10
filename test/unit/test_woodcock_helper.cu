@@ -14,6 +14,12 @@
 // in a CUDA translation unit denotes the device volume classes.
 void BuildWoodcockTestGeometry(std::array<std::uint64_t, 7> &, std::array<int, 4> &);
 
+// Keep the globals used by this test in the executable; CUDA 13 hides device globals in shared libraries.
+namespace adept::transport {
+__constant__ __device__ adeptint::VolAuxData *gVolAuxData = nullptr;
+__constant__ __device__ adeptint::WDTDeviceView gWDTData;
+} // namespace adept::transport
+
 namespace {
 template <class T>
 struct ManagedArray {
