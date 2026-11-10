@@ -423,6 +423,13 @@ void AdePTGeometryBridge::InitVolAuxData(adeptint::VolAuxData *volAuxData, G4Hep
     for (auto const &[regionName, probability] : cmsConfig.gammaRussianRoulette) {
       if (g4_lvol->GetRegion()->GetName() == regionName) cmsAuxData.fCMSGammaRussianRouletteProbability = probability;
     }
+    // WDT skips internal boundaries, so its CMS dead-region flag must stay the same throughout the envelope.
+    if (activeWDTRoot >= 0 && isGPURegion &&
+        cmsAuxData.fCMSDeadRegion !=
+            contains(deadRegions, wdtRootCandidates[activeWDTRoot].logicalVolume->GetRegion())) {
+      G4Exception("AdePTGeometryBridge::InitVolAuxData", "WDTEnvelopeContainsCMSDeadRegion", FatalException,
+                  "Woodcock tracking cannot mix live and CMS dead regions in the same envelope.");
+    }
 #endif
 
 #if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)

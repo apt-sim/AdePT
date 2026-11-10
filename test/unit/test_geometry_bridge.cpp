@@ -424,6 +424,25 @@ TEST(AdePTGeometryBridge, RejectsExplicitWdtConfigurationOfAnInheritedRegion)
               ::testing::ExitedWithCode(1), "Sub-regions of Woodcock tracking regions");
 }
 
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 1)
+TEST(AdePTGeometryBridge, RejectsMixedCMSDeadRegionsInWdtEnvelope)
+{
+  NestedWdtGeometry geometry;
+  std::vector<adeptint::VolAuxData> aux(vecgeom::GeoManager::Instance().GetRegisteredVolumesCount());
+  const std::set<G4Region const *> gpuRegions{&geometry.worldRegion, &geometry.regionA, &geometry.regionB,
+                                              &geometry.regionC};
+  // Check both a dead grandchild under a live root and live descendants under a dead root.
+  for (const auto *deadRegion : {&geometry.regionC, &geometry.regionA}) {
+    CMSSteppingActionConfig cmsConfig;
+    cmsConfig.deadRegions = {deadRegion->GetName()};
+    adeptint::WDTHostRaw raw;
+    EXPECT_DEATH(AdePTGeometryBridge::InitVolAuxData(aux.data(), &geometry.hepEmData, geometry.trackingManager.get(),
+                                                     gpuRegions, cmsConfig, raw),
+                 "WDTEnvelopeContainsCMSDeadRegion");
+  }
+}
+#endif
+
 TEST(AdePTGeometryBridge, UsesResolvedGPURegionSet)
 {
   GeometryCleanup cleanup;
