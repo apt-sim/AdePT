@@ -24,6 +24,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -268,49 +270,63 @@ void AdePTTrackingManager::InitializeAdePT()
   // first worker closes the geometry, prepares the shared host-side inputs,
   // and creates the shared transport, which performs the one-time device init.
   std::call_once(onceFlag, [&]() {
-    // get number of threads from config, if available
-    if (fNumThreads <= 0) {
-      auto nThreads = fAdePTConfiguration->GetNumThreads();
-      if (nThreads > 0) fNumThreads = nThreads;
-    }
-
-    // otherwise, try to get the threads frm the G4RunManager
-    if (fNumThreads <= 0) {
-      if (G4MTRunManager::GetMasterRunManager()) {
-        fNumThreads = G4MTRunManager::GetMasterRunManager()->GetNumberOfThreads();
-      } else {
-        throw std::runtime_error(
-            "Number of G4 workers is neither passed via the AdeptConfig nor is the G4MasterRunManager available");
+    // No exception may leave this lambda. If one does, std::call_once leaves onceFlag unset and the next worker runs
+    // the whole initialization again, and the second G4VG conversion crashes. Geant4 worker tasks may also discard the
+    // exception without printing it. A failure here, e.g. a GPU allocation that does not fit, is a fatal configuration
+    // error, so report it and abort. This must not go through G4Exception: some frameworks (e.g. CMSSW) install an
+    // exception handler that throws for fatal G4Exceptions.
+    try {
+      // get number of threads from config, if available
+      if (fNumThreads <= 0) {
+        auto nThreads = fAdePTConfiguration->GetNumThreads();
+        if (nThreads > 0) fNumThreads = nThreads;
       }
-    }
 
-    std::cout << " NUM OF THREADS ACCORDING TO G4: " << fNumThreads << std::endl;
-    fAdePTConfiguration->SetNumThreads(fNumThreads);
+      // otherwise, try to get the threads frm the G4RunManager
+      if (fNumThreads <= 0) {
+        if (G4MTRunManager::GetMasterRunManager()) {
+          fNumThreads = G4MTRunManager::GetMasterRunManager()->GetNumberOfThreads();
+        } else {
+          throw std::runtime_error(
+              "Number of G4 workers is neither passed via the AdeptConfig nor is the G4MasterRunManager available");
+        }
+      }
 
-    // Build the GPU region set before creating the volume metadata.
-    InitializeGPURegions();
+      std::cout << " NUM OF THREADS ACCORDING TO G4: " << fNumThreads << std::endl;
+      fAdePTConfiguration->SetNumThreads(fNumThreads);
 
-    // Load the VecGeom world using G4VG if we don't have a GDML file, VGDML otherwise
-    if (fAdePTConfiguration->GetVecGeomGDML().empty()) {
-      auto *tman  = G4TransportationManager::GetTransportationManager();
-      auto *world = tman->GetNavigatorForTracking()->GetWorldVolume();
-      std::cout << "Loading geometry via G4VG\n";
-      AdePTGeometryBridge::CreateVecGeomWorld(world);
-    } else {
+      // Build the GPU region set before creating the volume metadata.
+      InitializeGPURegions();
+
+      // Load the VecGeom world using G4VG if we don't have a GDML file, VGDML otherwise
+      if (fAdePTConfiguration->GetVecGeomGDML().empty()) {
+        auto *tman  = G4TransportationManager::GetTransportationManager();
+        auto *world = tman->GetNavigatorForTracking()->GetWorldVolume();
+        std::cout << "Loading geometry via G4VG\n";
+        AdePTGeometryBridge::CreateVecGeomWorld(world);
+      } else {
 #ifdef VECGEOM_GDML_SUPPORT
-      std::cout << "Loading geometry via VGDML\n";
-      AdePTGeometryBridge::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
+        std::cout << "Loading geometry via VGDML\n";
+        AdePTGeometryBridge::CreateVecGeomWorld(fAdePTConfiguration->GetVecGeomGDML());
 #endif
-    }
+      }
 
-    InitializeSharedAdePTTransport();
+      InitializeSharedAdePTTransport();
 
-    // common init done, can notify other workers to proceed their initialization
-    {
-      std::lock_guard<std::mutex> lock(initMutex);
-      commonInitDone = true;
+      // common init done, can notify other workers to proceed their initialization
+      {
+        std::lock_guard<std::mutex> lock(initMutex);
+        commonInitDone = true;
+      }
+      initCV.notify_all();
+    } catch (const std::exception &e) {
+      std::cerr << "\nAdePTTrackingManager: AdePT initialization failed: " << e.what() << "\nAborting." << std::endl;
+      std::abort();
+    } catch (...) {
+      std::cerr << "\nAdePTTrackingManager: AdePT initialization failed with an unknown exception.\nAborting."
+                << std::endl;
+      std::abort();
     }
-    initCV.notify_all();
   });
 
   // All other G4 worker threads must wait for common init to complete
