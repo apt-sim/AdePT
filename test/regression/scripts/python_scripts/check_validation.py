@@ -55,10 +55,11 @@ def compare_csv(file1, file2, n1, n2, tol=0.01, plot_file=None):
     # Compute relative error in percentage
     relative_error = np.abs((sum1_normalized - sum2_normalized) / sum2_normalized) * 100
 
-    # Check for columns exceeding the tolerance
+    # Check for columns exceeding the tolerance. Non-finite errors (NaN from 0/0 or NaN input,
+    # inf from a zero reference) must fail explicitly, since NaN > tol evaluates to False
     failed_layers = []
     for i, err in enumerate(relative_error):
-        if err > tol * 100:
+        if not np.isfinite(err) or err > tol * 100:
             failed_layers.append((i + 1, err, sum1_normalized[i], sum2_normalized[i]))  # layer number (1-based), error, file1 value, file2 value
 
 
