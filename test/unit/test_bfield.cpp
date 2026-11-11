@@ -10,6 +10,10 @@
 // - UniformMagneticField storage/evaluation for float and double position types.
 // - MagneticFieldEquation invariants: unit direction derivative, Lorentz force
 //   perpendicularity, charge sign handling, and zero-field behavior.
+// - fieldPropagatorRungeKutta::ComputeSafeLength: the drift from the tangent
+//   after one safe length equals deltaChord on the exact helix for any angle
+//   between momentum and field, and straight tracks get a safe length far
+//   beyond any step.
 // - RkIntegrationDriver adaptive bookkeeping, including rejected substeps after
 //   already accepted progress.
 // - Real Dormand-Prince integration in float and double, checked against the
@@ -363,25 +367,109 @@ TEST(ConstBzFieldStepper, MatchesGeneralHelixStepperForZField)
   }
 }
 
-// ComputeSafeLength limits each RK chord so the curved path stays within the
-// allowed sagitta error. Only momentum transverse to the magnetic field should
-// contribute to curvature; parallel momentum should not shorten the chord.
-TEST(FieldPropagatorRungeKutta, ComputesChordSafeLengthFromTransverseMomentum)
+// ComputeSafeLength returns the arc length after which the true trajectory has
+// drifted by fieldConstants::deltaChord away from the straight line along the
+// starting direction. The drift follows the curvature of the 3D trajectory,
+// which depends on the angle between momentum and field. The check measures the
+// drift on the exact constant-field helix, for several angles, momenta, charges
+// and field directions. It is two-sided: a longer safe length lets the
+// trajectory drift beyond deltaChord, and a shorter one costs extra steps, each
+// of which counts towards the looper limit.
+template <typename Real_t>
+void CheckSafeLengthDriftEqualsDeltaChord()
 {
-  using Propagator = fieldPropagatorRungeKutta<UniformMagneticField, UnusedRkDriver, double, UnusedNavigator>;
+  using copcore::units::MeV;
+  using copcore::units::tesla;
+  using Propagator = fieldPropagatorRungeKutta<UniformMagneticField, UnusedRkDriver, Real_t, UnusedNavigator>;
 
-  vecgeom::Vector3D<double> momentum{300.0, 400.0, 1200.0};
-  vecgeom::Vector3D<double> field{0.0, 0.0, 1.5};
-  const int charge = -1;
+  const vecgeom::Vector3D<double> startPosition{0.25, -0.5, 1.0};
+  const double deltaChord = fieldConstants::deltaChord;
 
-  const double safeLength = Propagator::ComputeSafeLength(momentum, field, charge);
+  for (vecgeom::Vector3D<Real_t> field :
+       {vecgeom::Vector3D<Real_t>{0.0, 0.0, Real_t(3.8 * tesla)},
+        vecgeom::Vector3D<Real_t>{Real_t(0.8 * tesla), Real_t(-0.2 * tesla), Real_t(0.4 * tesla)}}) {
+    const vecgeom::Vector3D<double> fieldVec{double(field[0]), double(field[1]), double(field[2])};
+    const vecgeom::Vector3D<double> fieldDir = fieldVec.Unit();
+    // Any unit vector perpendicular to the field, to set the angle between momentum and field.
+    const vecgeom::Vector3D<double> perpDir = fieldDir.Cross(vecgeom::Vector3D<double>{1.0, 1.0, 0.0}).Unit();
 
-  const double bmag2                                 = field.Mag2();
-  const vecgeom::Vector3D<double> transverseMomentum = momentum - (momentum.Dot(field) / bmag2) * field;
-  const double invCurvature       = std::abs(transverseMomentum.Mag() / (fieldConstants::kB2C * charge * field.Mag()));
-  const double expectedSafeLength = std::sqrt(2.0 * fieldConstants::deltaChord * invCurvature);
+    for (const double pitchDeg : {90.0, 60.0, 30.0, 10.0, 3.0}) {
+      const double pitch                        = pitchDeg * M_PI / 180.0;
+      const vecgeom::Vector3D<double> direction = std::cos(pitch) * fieldDir + std::sin(pitch) * perpDir;
 
-  EXPECT_NEAR(safeLength, expectedSafeLength, 1.0e-14 * expectedSafeLength);
+      for (const double momentumMag : {50.0 * MeV, 2000.0 * MeV}) {
+        for (const int charge : {-1, 1}) {
+          SCOPED_TRACE(testing::Message() << "field={" << fieldVec[0] << ", " << fieldVec[1] << ", " << fieldVec[2]
+                                          << "} pitch=" << pitchDeg << "deg p=" << momentumMag << " q=" << charge);
+
+          vecgeom::Vector3D<double> momentum = momentumMag * direction;
+          const double safeLength            = Propagator::ComputeSafeLength(momentum, field, charge);
+
+          vecgeom::Vector3D<double> endPosition;
+          vecgeom::Vector3D<double> endDirection;
+          ConstFieldHelixStepper(fieldVec).DoStep(startPosition, direction, charge, momentumMag, safeLength,
+                                                  endPosition, endDirection);
+
+          const vecgeom::Vector3D<double> displacement = endPosition - startPosition;
+          const double drift                           = (displacement - displacement.Dot(direction) * direction).Mag();
+
+          // The safe length uses the leading-order drift, curvature * s^2 / 2. The higher-order
+          // terms stay below 1% for these cases.
+          EXPECT_NEAR(drift, deltaChord, 0.02 * deltaChord);
+        }
+      }
+    }
+  }
+}
+
+TEST(FieldPropagatorRungeKutta, SafeLengthDriftEqualsDeltaChordInDoublePrecision)
+{
+  CheckSafeLengthDriftEqualsDeltaChord<double>();
+}
+
+TEST(FieldPropagatorRungeKutta, SafeLengthDriftEqualsDeltaChordInFloatPrecision)
+{
+  CheckSafeLengthDriftEqualsDeltaChord<float>();
+}
+
+// A track moving along the field line, or through a region without field, goes
+// straight. Its safe length is then far beyond any step, so geometry and physics
+// alone set the step length. This matters on a boundary, where the geometric
+// safety is zero and the safe length is the only other lower bound on the step.
+template <typename Real_t>
+void CheckSafeLengthDoesNotLimitUnbentTracks()
+{
+  using copcore::units::MeV;
+  using copcore::units::tesla;
+  using Propagator = fieldPropagatorRungeKutta<UniformMagneticField, UnusedRkDriver, Real_t, UnusedNavigator>;
+
+  constexpr double kNoLimit = 1.0e6; // mm, far larger than any detector
+
+  vecgeom::Vector3D<Real_t> fieldAlongZ{0.0, 0.0, Real_t(3.8 * tesla)};
+  vecgeom::Vector3D<double> momentumAlongZ{0.0, 0.0, 300.0 * MeV};
+  EXPECT_GT(Propagator::ComputeSafeLength(momentumAlongZ, fieldAlongZ, -1), kNoLimit);
+
+  // Antiparallel to a tilted field, aligned with the field values as stored in
+  // Real_t. The curvature is then pure rounding, which must stay negligible.
+  vecgeom::Vector3D<Real_t> tiltedField{Real_t(0.8 * tesla), Real_t(-0.2 * tesla), Real_t(0.4 * tesla)};
+  vecgeom::Vector3D<double> momentumAgainstField =
+      -300.0 * MeV *
+      vecgeom::Vector3D<double>{double(tiltedField[0]), double(tiltedField[1]), double(tiltedField[2])}.Unit();
+  EXPECT_GT(Propagator::ComputeSafeLength(momentumAgainstField, tiltedField, 1), kNoLimit);
+
+  vecgeom::Vector3D<Real_t> noField{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> momentum{100.0 * MeV, 200.0 * MeV, 50.0 * MeV};
+  EXPECT_GT(Propagator::ComputeSafeLength(momentum, noField, -1), kNoLimit);
+}
+
+TEST(FieldPropagatorRungeKutta, SafeLengthDoesNotLimitUnbentTracksInDoublePrecision)
+{
+  CheckSafeLengthDoesNotLimitUnbentTracks<double>();
+}
+
+TEST(FieldPropagatorRungeKutta, SafeLengthDoesNotLimitUnbentTracksInFloatPrecision)
+{
+  CheckSafeLengthDoesNotLimitUnbentTracks<float>();
 }
 
 // RK driver tests. The first two are targeted regression tests for rejected
