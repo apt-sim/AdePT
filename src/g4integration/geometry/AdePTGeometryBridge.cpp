@@ -37,6 +37,11 @@ std::vector<G4LogicalVolume const *> AdePTGeometryBridge::fGlobalVecGeomLvToG4Ma
 
 namespace {
 
+/// Minimum component count for VecGeom's Boolean-to-MultiUnion conversion during geometry closure.
+/// Eligible unions and left subtraction chains with at least this many components are converted;
+/// 0 disables the conversion. Eight is VecGeom's measured starting threshold.
+constexpr std::size_t kBooleanOptimizationThreshold = 8;
+
 std::size_t GetMultiplicity(G4VPhysicalVolume const *daughter)
 {
   const auto multiplicity = daughter->GetMultiplicity();
@@ -145,6 +150,8 @@ void AdePTGeometryBridge::CreateVecGeomWorld(std::string filename)
 {
   // Import the GDML file into VecGeom.
   vecgeom::GeoManager::Instance().SetTransformationCacheDepth(0);
+  // The VGDML loader closes the geometry, so the threshold must be set before loading.
+  vecgeom::GeoManager::Instance().SetBooleanOptimizationThreshold(kBooleanOptimizationThreshold);
   vgdml::Parser vgdmlParser;
   auto middleWare = vgdmlParser.Load(filename, false, mm);
   if (middleWare == nullptr) {
@@ -175,6 +182,9 @@ void AdePTGeometryBridge::CreateVecGeomWorld(G4VPhysicalVolume const *physvol)
   g4vg::Options options;
   options.reflection_factory = false;
   auto conversion            = g4vg::convert(physvol, options);
+  // Boolean conversion happens during closure and may replace placed volumes,
+  // so placements are only looked up by id below, after closing.
+  vecgeom::GeoManager::Instance().SetBooleanOptimizationThreshold(kBooleanOptimizationThreshold);
   vecgeom::GeoManager::Instance().SetWorldAndClose(conversion.world);
 
   // Build the immutable VecGeom placed-volume to Geant4 instance map.
