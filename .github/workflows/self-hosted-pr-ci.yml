@@ -157,14 +157,21 @@ jobs:
     env:
       RESULTS_FILE: ${{ github.workspace }}/ci-results.env
     steps:
+      # PR code writes into the persistent workspace (incl. .git): start from an empty one, and use
+      # plain git instead of actions/checkout, whose post-job cleanup runs `git submodule foreach`
+      # on the host in that .git (executing e.g. a planted core.fsmonitor)
       - name: Checkout PR head
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ needs.prepare.outputs.pr_repo }}
-          ref: ${{ needs.prepare.outputs.pr_sha }}
-          persist-credentials: false
-          fetch-depth: 0
-          submodules: recursive
+        env:
+          REPO: ${{ needs.prepare.outputs.pr_repo }}
+          SHA: ${{ needs.prepare.outputs.pr_sha }}
+        run: |
+          set -eo pipefail
+          find "${GITHUB_WORKSPACE}" -mindepth 1 -delete
+          git init -q "${GITHUB_WORKSPACE}" && cd "${GITHUB_WORKSPACE}"
+          git remote add origin "https://github.com/${REPO}.git"
+          git fetch --no-tags origin "${SHA}"
+          git checkout -q --detach FETCH_HEAD
+          git submodule update --init --recursive
 
       - name: Fetch upstream master reference
         run: |
@@ -238,8 +245,6 @@ jobs:
             --user "$(id -u):$(id -g)" \
             "${docker_group_args[@]}" \
             --security-opt seccomp=unconfined \
-            -v /build:/build \
-            -v /ec/conf:/ec/conf \
             -v /cvmfs:/cvmfs:ro,rslave \
             -v "${GITHUB_WORKSPACE}:/work/AdePT" \
             -e HOME=/tmp/adeptci-home \
@@ -282,6 +287,19 @@ jobs:
               "${pr_ci_args[@]}"
             '
 
+      - name: Load CI results
+        if: always()
+        run: |
+          # Written by PR code: parse it, never source it. Only known integer keys are accepted.
+          [ -r "${RESULTS_FILE}" ] || exit 0
+          while IFS='=' read -r key value; do
+            case "${key}" in
+              DRIFT_STATUS|DRIFT_SMOKE_RAN|DRIFT_SMOKE_STATUS|UNIT_STATUS|VALIDATION_RAN|VALIDATION_FORCED|VALIDATION_STATUS|FULL_CI_STATUS)
+                if [[ "${value}" =~ ^[0-9]+$ ]]; then echo "${key}=${value}" >> "${GITHUB_ENV}"; fi
+                ;;
+            esac
+          done < "${RESULTS_FILE}"
+
       - name: Publish PR contexts
         if: always()
         env:
@@ -291,11 +309,6 @@ jobs:
           COMMAND: ${{ needs.prepare.outputs.command }}
         run: |
           set -eo pipefail
-
-          if [ -r "${RESULTS_FILE}" ]; then
-            # shellcheck disable=SC1091
-            source "${RESULTS_FILE}"
-          fi
 
           : "${DRIFT_STATUS:=1}"
           : "${UNIT_STATUS:=1}"
@@ -428,11 +441,6 @@ jobs:
       - name: Write summary
         if: always()
         run: |
-          if [ -r "${RESULTS_FILE}" ]; then
-            # shellcheck disable=SC1091
-            source "${RESULTS_FILE}"
-          fi
-
           {
             echo "### Self-hosted PR CI"
             echo
@@ -455,11 +463,4 @@ jobs:
       - name: Fail workflow if full CI failed
         if: always()
         run: |
-          if [ -r "${RESULTS_FILE}" ]; then
-            # shellcheck disable=SC1091
-            source "${RESULTS_FILE}"
-          else
-            FULL_CI_STATUS=1
-          fi
-
-          test "${FULL_CI_STATUS}" -eq 0
+          test "${FULL_CI_STATUS:-1}" -eq 0
