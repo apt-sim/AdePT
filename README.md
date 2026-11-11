@@ -33,7 +33,7 @@ The following packages are a required to build and run:
 - CUDA Toolkit (> 12 recommended, tested 10.1, min version TBD)
 - [Geant4](https://gitlab.cern.ch/geant4/geant4) > 11.0
 - VecCore [library](https://github.com/root-project/veccore) 0.8.2
-- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >=  2.0.0-rc.4
+- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 2.2.0
 - G4HepEm [library](https://github.com/mnovak42/g4hepem) >= tag [20261106](https://github.com/mnovak42/g4hepem/tree/20261106)
 - optional: HepMC3 [library](https://gitlab.cern.ch/hepmc/HepMC3)
 
@@ -145,7 +145,7 @@ The table below shows the available CMake options for AdePT that may be used to 
 |ADEPT_ENFORCE_STRICT_FLAGS|0| Use strict compiler flags, as also used in CMSSW. Many warnings are promoted to errors using this flag. |
 |ADEPT_ENABLE_POWER_METER|OFF| Measure CPU (Intel/AMD RAPL) and NVIDIA GPU (NVML) power consumption during the run via the fetched `power_meter` library; the CPU readings require root privileges |
 |ADEPT_ENABLE_NSYS_PROFILING|OFF| Compile CUDA profiler API hooks for transport-loop `nsys` captures. Requires `ADEPT_COMPUTE_BACKEND=CUDA`. |
-|ADEPT_STEPPINGACTION|NONE| SteppingAction mode: `NONE`, `CMS`, `LHCb`, or `ATLAS`. |
+|ADEPT_STEPPINGACTION|NONE| SteppingAction mode: `NONE`, `CMS`, `LHCb`, or `ATLAS`. `ATLAS` also builds the VecGeom BVH with `balanced` daughter-AABB subdivision; a set `VECGEOM_BVH_AABB_SUBDIVISION` (`off`, `fast`, `balanced`, `navigation`) takes precedence. |
 
 To build, run:
 

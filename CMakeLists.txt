@@ -12,6 +12,9 @@ project(AdePT
   LANGUAGES C CXX
 )
 
+# Minimum VecGeom release; it is also required by the installed AdePTConfig.cmake
+set(ADEPT_VECGEOM_MIN_VERSION 2.2.0)
+
 # Set versions of G4VG and covfie that are pulled in the CMake configuration
 set(ADEPT_G4VG_VERSION 1.0.7)
 set(ADEPT_G4VG_TAG v${ADEPT_G4VG_VERSION})
@@ -235,8 +238,9 @@ message(STATUS "Using VecCore version ${Cyan}${VecCore_VERSION}${ColorReset}")
 # problems with G4HepEm not finding Geant4 11.1 even though we find it here.
 find_package(XercesC REQUIRED)
 
-# Find VecGeom geometry headers library
-find_package(VecGeom REQUIRED)
+# Find VecGeom geometry headers library. The version check uses the release number VecGeom_VERSION;
+# VecGeom_VERSION_STRING may add the git distance and hash of a development build (e.g. '2.2.0-12+abc123').
+find_package(VecGeom ${ADEPT_VECGEOM_MIN_VERSION} REQUIRED)
 
 if(ADEPT_USE_CUDA AND NOT VecGeom_CUDA_FOUND)
   message(FATAL_ERROR
@@ -246,56 +250,10 @@ if(ADEPT_USE_CUDA AND NOT VecGeom_CUDA_FOUND)
   )
 endif()
 
-### VecGeom Version check
-
-# Use VecGeom_VERSION_STRING if defined, otherwise fall back to VecGeom_VERSION
 if(NOT VecGeom_VERSION_STRING)
   set(VecGeom_VERSION_STRING ${VecGeom_VERSION})
 endif()
-
-# VecGeom might append build metadata (e.g. '+master.abc123') to the version string.
-# Strip everything after the '+' to focus on the version core.
-string(REGEX REPLACE "\\+.*$" "" CLEANED_VERSION "${VecGeom_VERSION_STRING}")
-
-
-# Try to match the core version suffix to extract either:
-# - an RC version like "rc3", "rc4"
-# - a dev version like "dev.3", "dev.4"
-# This works even if the full suffix is like "rc3.213" or "dev.4.99"
-string(REGEX MATCH "2\\.0\\.0-(rc[0-9]+|dev\\.[0-9]+)" _match "${CLEANED_VERSION}")
-set(MATCHED_SUFFIX "${CMAKE_MATCH_1}")
-
-set(_vecgeom_dev_version 5)
-set(_vecgeom_version_ok FALSE)
-
-# Handle dev versions
-if(MATCHED_SUFFIX MATCHES "dev\\.([0-9]+)")
-  set(devver "${CMAKE_MATCH_1}")
-  if(devver GREATER_EQUAL _vecgeom_dev_version)
-    set(_vecgeom_version_ok TRUE)
-  endif()
-endif()
-
-# Handle rc versions
-if(MATCHED_SUFFIX MATCHES "rc\\.([0-9]+)")
-  set(rcver "${CMAKE_MATCH_1}")
-  if(rcver GREATER_EQUAL _vecgeom_dev_version)
-    set(_vecgeom_version_ok TRUE)
-  endif()
-endif()
-
-# Handle stable releases >= 2.0.0
-if(CLEANED_VERSION VERSION_GREATER_EQUAL "2.0.0" AND NOT MATCHED_SUFFIX)
-  set(_vecgeom_version_ok TRUE)
-endif()
-
-if(NOT _vecgeom_version_ok)
-  message(FATAL_ERROR "AdePT requires VecGeom >= 2.0.0-dev.${_vecgeom_dev_version} or >= 2.0.0-rc.${_vecgeom_dev_version}, but found '${VecGeom_VERSION_STRING}'")
-else()
-  message(STATUS "Using VecGeom version ${Cyan}${VecGeom_VERSION_STRING}${ColorReset}")
-endif()
-
-### end version check for VecGeom
+message(STATUS "Using VecGeom version ${Cyan}${VecGeom_VERSION_STRING}${ColorReset}")
 
 # Check whether VecGeom::vgdml is enabled
 if(TARGET VecGeom::vgdml)
