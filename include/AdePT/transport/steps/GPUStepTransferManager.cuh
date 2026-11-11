@@ -215,17 +215,33 @@ public:
     ADEPT_DEVICE_API_CALL(MallocHost(&gpuSteps, sizeof(GPUStep) * hostBufferCapacity));
     fGPUStepBuffer_host.reset(gpuSteps);
 
+    // Report the requested size and the current device memory usage when a device allocation fails.
+    auto throwAllocationError = [](char const *what, std::size_t count, std::size_t elementSize) {
+      std::size_t free = 0, total = 0;
+      ADEPT_DEVICE_API_CALL(MemGetInfo(&free, &total));
+      std::ostringstream msg;
+      msg << "Not enough space to allocate " << count * elementSize / 1024. / 1024 << " MB for the " << what << " ("
+          << count << " objects of size " << elementSize << "). Free memory: " << free / 1024. / 1024
+          << " MB Occupied memory: " << (total - free) / 1024. / 1024
+          << " MB. Reduce the number of hit slots or track slots.";
+      throw std::invalid_argument{msg.str()};
+    };
+
     // We use a single allocation for both GPU buffers:
-    auto result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&gpuSteps, sizeof(GPUStep) * fDeviceState.size() * fStepCapacity);
-    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate step buffer."};
+    const std::size_t numDeviceSteps = fDeviceState.size() * static_cast<std::size_t>(fStepCapacity);
+    auto result                      = ADEPT_DEVICE_API_SYMBOL(Malloc)(&gpuSteps, sizeof(GPUStep) * numDeviceSteps);
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success))
+      throwAllocationError("GPU step buffer", numDeviceSteps, sizeof(GPUStep));
     fGPUStepBuffer_dev.reset(gpuSteps);
 
     unsigned int *step_count = nullptr;
     ADEPT_DEVICE_API_CALL(MallocHost(&step_count, sizeof(unsigned int) * nThread));
     fGPUStepBufferCount_host.reset(step_count);
 
-    result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&step_count, sizeof(unsigned int) * fDeviceState.size() * nThread);
-    if (result != ADEPT_DEVICE_API_SYMBOL(Success)) throw std::invalid_argument{"No space to allocate step buffer."};
+    const std::size_t numDeviceStepCounts = fDeviceState.size() * static_cast<std::size_t>(nThread);
+    result = ADEPT_DEVICE_API_SYMBOL(Malloc)(&step_count, sizeof(unsigned int) * numDeviceStepCounts);
+    if (result != ADEPT_DEVICE_API_SYMBOL(Success))
+      throwAllocationError("GPU step buffer counters", numDeviceStepCounts, sizeof(unsigned int));
     fGPUStepBufferCount_dev.reset(step_count);
 
     fDeviceState[0] = DeviceState::Filling;
