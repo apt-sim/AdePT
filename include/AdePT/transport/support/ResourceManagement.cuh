@@ -49,9 +49,14 @@ inline constexpr std::size_t kPinnedHostAlignment = std::size_t{2} << 20;
 void *allocPinnedHost(std::size_t bytes)
 {
   const std::size_t size = (bytes + kPinnedHostAlignment - 1) / kPinnedHostAlignment * kPinnedHostAlignment;
-  void *ptr              = ::operator new(size, std::align_val_t{kPinnedHostAlignment});
-  ADEPT_DEVICE_API_CALL(HostRegister(ptr, size, ADEPT_DEVICE_API_SYMBOL(HostRegisterDefault)));
-  return ptr;
+  // Own the allocation until it is registered: if HostRegister fails, ADEPT_DEVICE_API_CALL throws, and the
+  // (possibly several GB) buffer must be released instead of leaked.
+  struct AlignedDelete {
+    void operator()(void *p) const { ::operator delete(p, std::align_val_t{kPinnedHostAlignment}); }
+  };
+  std::unique_ptr<void, AlignedDelete> ptr{::operator new(size, std::align_val_t{kPinnedHostAlignment})};
+  ADEPT_DEVICE_API_CALL(HostRegister(ptr.get(), size, ADEPT_DEVICE_API_SYMBOL(HostRegisterDefault)));
+  return ptr.release();
 }
 
 void freePinnedHost(void *ptr)
