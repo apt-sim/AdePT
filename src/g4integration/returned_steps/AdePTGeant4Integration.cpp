@@ -1111,10 +1111,10 @@ void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step
   // aPreStepPoint->SetPolarization(); // Missing data
   aPreStepPoint->SetStepStatus(aPreStepStatus); // Missing data
   // aPreStepPoint->SetProcessDefinedStep(nullptr);                                                 // Missing data
-  // aPreStepPoint->SetMass(0);                                                                     // Missing data
+  aPreStepPoint->SetMass(aTrack->GetParticleDefinition()->GetPDGMass());     // Real data
   aPreStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPreStepPoint->SetMagneticMoment(0);                                                           // Missing data
-  // aPreStepPoint->SetWeight(0);                                                                   // Missing data
+  aPreStepPoint->SetWeight(aGPUStep->fTrackWeight); // Real data
 
   // Post-Step Point
   G4StepPoint *aPostStepPoint = aG4Step->GetPostStepPoint();
@@ -1135,12 +1135,12 @@ void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
   // aPostStepPoint->SetPolarization(); // Missing data
-  aPostStepPoint->SetStepStatus(aPostStepStatus);             // Missing data
-  aPostStepPoint->SetProcessDefinedStep(stepDefiningProcess); // Real data
-  // aPostStepPoint->SetMass(0);                                                                      // Missing data
+  aPostStepPoint->SetStepStatus(aPostStepStatus);                             // Missing data
+  aPostStepPoint->SetProcessDefinedStep(stepDefiningProcess);                 // Real data
+  aPostStepPoint->SetMass(aTrack->GetParticleDefinition()->GetPDGMass());     // Real data
   aPostStepPoint->SetCharge(aTrack->GetParticleDefinition()->GetPDGCharge()); // Real data
   // aPostStepPoint->SetMagneticMoment(0);                                                            // Missing data
-  // aPostStepPoint->SetWeight(0);                                                                    // Missing data
+  aPostStepPoint->SetWeight(aGPUStep->fTrackWeight); // Real data
 }
 
 std::vector<float> AdePTGeant4Integration::GetUniformField() const
