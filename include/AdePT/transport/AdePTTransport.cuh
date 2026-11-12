@@ -1611,7 +1611,9 @@ TrackBuffer::TrackBuffer(unsigned int numToDevice) : fNumToDevice{numToDevice}
 {
   adeptint::TrackData *devPtr, *hostPtr;
   // Double buffer for lock-free host runs:
-  ADEPT_DEVICE_API_CALL(MallocHost(&hostPtr, 2 * numToDevice * sizeof(adeptint::TrackData)));
+  // this buffer is hundreds of MB, use allocPinnedHost (see ResourceManagement.cuh for details)
+  hostPtr =
+      static_cast<adeptint::TrackData *>(allocPinnedHost(2 * std::size_t{numToDevice} * sizeof(adeptint::TrackData)));
   ADEPT_DEVICE_API_CALL(Malloc(&devPtr, numToDevice * sizeof(adeptint::TrackData)));
 
   toDevice_host.reset(hostPtr);

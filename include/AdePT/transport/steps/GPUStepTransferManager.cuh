@@ -88,7 +88,7 @@ struct GPUStepBatch {
 
 class GPUStepTransferManager {
   unique_ptr_cuda<GPUStep> fGPUStepBuffer_dev;
-  unique_ptr_cuda<GPUStep, CudaHostDeleter<GPUStep>> fGPUStepBuffer_host;
+  unique_ptr_cuda<GPUStep, PinnedHostDeleter<GPUStep>> fGPUStepBuffer_host;
   unique_ptr_cuda<unsigned int> fGPUStepBufferCount_dev;
   unique_ptr_cuda<unsigned int, CudaHostDeleter<unsigned int>> fGPUStepBufferCount_host;
 
@@ -212,7 +212,8 @@ public:
     // .5 to prevent running out of buffer. Also, the filling quota of the CPU buffer decides whether steps are
     // processed directly by the G4 workers or if they are copied out
     unsigned int hostBufferCapacity = fCPUCapacityFactor * fStepCapacity;
-    ADEPT_DEVICE_API_CALL(MallocHost(&gpuSteps, sizeof(GPUStep) * hostBufferCapacity));
+    // this buffer is several GB, use allocPinnedHost (see ResourceManagement.cuh for details)
+    gpuSteps = static_cast<GPUStep *>(allocPinnedHost(sizeof(GPUStep) * hostBufferCapacity));
     fGPUStepBuffer_host.reset(gpuSteps);
 
     // We use a single allocation for both GPU buffers:
