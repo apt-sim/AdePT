@@ -726,22 +726,17 @@ const vecgeom::NavigationState AdePTTrackingManager::GetVecGeomFromG4State(
     const auto g4VolumeType           = aG4NavigationHistory.GetVolumeType(level);
     const auto g4CopyNo               = aG4NavigationHistory.GetReplicaNo(level);
 
-    bool found_volume = false;
-    for (auto const *daughter : current_volume->GetLogicalVolume()->GetDaughters()) {
-      if (MatchesG4HistoryLevel(daughter, g4Volume, g4VolumeType, g4CopyNo)) {
-        aNavState.Push(daughter);
-        current_volume = daughter;
-        found_volume   = true;
-        break;
-      }
-    }
-
-    if (!found_volume) {
+    // The parent-aware inverse map must identify exactly one child for this history level.
+    auto const *matchingVolume =
+        AdePTGeometryBridge::FindVecGeomPlacement(current_volume->GetLogicalVolume(), g4Volume, g4VolumeType, g4CopyNo);
+    if (matchingVolume == nullptr || !MatchesG4HistoryLevel(matchingVolume, g4Volume, g4VolumeType, g4CopyNo)) {
       throw std::runtime_error("Fatal: G4 To VecGeom Geometry matching failed: G4 Volume name " +
                                std::string(g4Volume->GetLogicalVolume()->GetName()) + " with copy number " +
                                std::to_string(g4CopyNo) + " was not found in VecGeom Parent volume " +
                                std::string(current_volume->GetLogicalVolume()->GetName()));
     }
+    aNavState.Push(matchingVolume);
+    current_volume = matchingVolume;
   }
 
   // Set boundary status

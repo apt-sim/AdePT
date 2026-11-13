@@ -28,14 +28,24 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
 
 std::vector<AdePTGeometryBridge::MappedVolumeInstance> AdePTGeometryBridge::fGlobalVecGeomPvToG4Map;
 std::vector<G4LogicalVolume const *> AdePTGeometryBridge::fGlobalVecGeomLvToG4Map;
+std::vector<AdePTGeometryBridge::PlacementSlots> AdePTGeometryBridge::fGlobalG4PvToVecGeomSlots;
+std::vector<vecgeom::VPlacedVolume const *> AdePTGeometryBridge::fGlobalG4ToVecGeomPlacements;
+std::map<std::pair<std::size_t, std::size_t>, vecgeom::VPlacedVolume const *>
+    AdePTGeometryBridge::fGlobalG4ToVecGeomExtraPlacements;
 
 namespace {
+
+bool IsCopySpecificType(EVolume type)
+{
+  return type == kReplica || type == kParameterised;
+}
 
 std::size_t GetMultiplicity(G4VPhysicalVolume const *daughter)
 {
@@ -49,8 +59,7 @@ std::size_t GetMultiplicity(G4VPhysicalVolume const *daughter)
 
 bool HasCopySpecificPlacement(G4VPhysicalVolume const *daughter)
 {
-  const auto type = daughter->VolumeType();
-  return type == kReplica || type == kParameterised;
+  return IsCopySpecificType(daughter->VolumeType());
 }
 
 AdePTGeometryBridge::MappedVolumeInstance MakeMappedVolumeInstance(G4VPhysicalVolume const *g4Volume,
@@ -139,6 +148,108 @@ void AdePTGeometryBridge::MapVecGeomToG4(std::vector<MappedVolumeInstance> &vecg
   visitGeometry(g4world, vecgeomWorld);
 }
 
+void AdePTGeometryBridge::MapG4ToVecGeom()
+{
+  // Build the lookup once during geometry setup: (parent, Geant4 volume, copy) -> VecGeom placement.
+  // Build local tables first, so a failed check cannot leave a partly built lookup in use.
+  std::vector<PlacementSlots> slots;
+  std::vector<vecgeom::VPlacedVolume const *> placements;
+  decltype(fGlobalG4ToVecGeomExtraPlacements) extraPlacements;
+
+  // A "slot" is one entry in the placement table. Normal placements always use slot 0, even if their
+  // Geant4 copy number is different. Replicas and parameterised placements use one slot per copy number.
+  auto slotOf = [](MappedVolumeInstance const &instance) {
+    return IsCopySpecificType(instance.type) ? instance.copyNo : 0;
+  };
+
+  auto const *world = vecgeom::GeoManager::Instance().GetWorld();
+  if (world == nullptr) {
+    throw std::runtime_error("AdePTGeometryBridge::MapG4ToVecGeom: VecGeom world is nullptr");
+  }
+  // The world has no parent, so it needs no inverse entry. Still check that its existing mapping is valid.
+  LookupMappedVolumeInstance(world);
+
+  // Start at the world and collect each logical parent once. Repeated placements of the same logical volume
+  // share the same children, so we do not add the same logical parent to the list again.
+  std::vector<vecgeom::LogicalVolume const *> parents;
+  std::vector<bool> visited;
+  auto addParent = [&](vecgeom::LogicalVolume const *parent) {
+    const auto id = static_cast<std::size_t>(parent->id());
+    if (id >= visited.size()) visited.resize(id + 1, false);
+    if (!visited[id]) {
+      visited[id] = true;
+      parents.push_back(parent);
+    }
+  };
+  addParent(world->GetLogicalVolume());
+  // First pass: check every child and work out how many copy entries each Geant4 volume needs.
+  // Adding each child's logical volume to the list lets this loop also reach the deeper levels.
+  for (std::size_t i = 0; i < parents.size(); ++i) {
+    auto const &children = parents[i]->GetDaughters();
+    for (std::size_t childId = 0; childId < children.size(); ++childId) {
+      auto const *child = children[childId];
+      // FindVecGeomPlacement uses this index to check one child-list entry instead of searching the list.
+      if (child->GetChildId() < 0 || static_cast<std::size_t>(child->GetChildId()) != childId) {
+        throw std::runtime_error("AdePTGeometryBridge::MapG4ToVecGeom: invalid child index in VecGeom parent " +
+                                 std::string(parents[i]->GetLabel()));
+      }
+      // The existing lookup tells us which Geant4 volume and copy this VecGeom child represents.
+      auto const &instance = LookupMappedVolumeInstance(child);
+      if (instance.g4Volume->GetInstanceID() < 0 || slotOf(instance) < 0) {
+        throw std::runtime_error("AdePTGeometryBridge::MapG4ToVecGeom: invalid Geant4 instance for VecGeom volume " +
+                                 std::string(child->GetLabel()));
+      }
+      const auto g4Id = static_cast<std::size_t>(instance.g4Volume->GetInstanceID());
+      if (g4Id >= slots.size()) slots.resize(g4Id + 1);
+      // For replicas and parameterised volumes, copy 2 needs space for slots 0, 1 and 2.
+      slots[g4Id].count = std::max(slots[g4Id].count, static_cast<std::uint32_t>(slotOf(instance)) + 1);
+      addParent(child->GetLogicalVolume());
+    }
+  }
+
+  // Give each Geant4 volume its own range in one flat array. "first" is the start of that range;
+  // "count" is its length. The entry for a copy will be at first + slotOf(instance).
+  std::size_t total = 0;
+  for (auto &volumeSlots : slots) {
+    if (total > std::numeric_limits<std::uint32_t>::max() - volumeSlots.count) {
+      throw std::runtime_error("AdePTGeometryBridge::MapG4ToVecGeom: too many Geant4 volume instances");
+    }
+    volumeSlots.first = static_cast<std::uint32_t>(total);
+    total += volumeSlots.count;
+  }
+  slots.shrink_to_fit(); // Release spare memory left by growing the array as volume IDs were discovered.
+  placements.resize(total);
+  // Remember which parent first used each entry, so we can detect duplicate matches below.
+  // This temporary list is discarded when setup finishes; it adds no permanent lookup memory.
+  std::vector<vecgeom::LogicalVolume const *> primaryParents(total, nullptr);
+
+  // Second pass: fill the tables. The first match for a Geant4 volume/copy goes in the fast direct array.
+  // Matches under other parents go in the extra table, using the parent ID as part of the key.
+  for (auto const *parent : parents) {
+    for (auto const *child : parent->GetDaughters()) {
+      auto const &instance = LookupMappedVolumeInstance(child);
+      const auto index = slots[instance.g4Volume->GetInstanceID()].first + static_cast<std::size_t>(slotOf(instance));
+      auto &placement  = placements[index];
+      if (placement == nullptr) {
+        placement             = child;
+        primaryParents[index] = parent;
+      } else if (primaryParents[index] == parent ||
+                 !extraPlacements.emplace(std::make_pair(parent->id(), index), child).second) {
+        // Two matches under the same parent would give the lookup two answers. Reject that during setup.
+        throw std::runtime_error("AdePTGeometryBridge::MapG4ToVecGeom: multiple VecGeom children in parent " +
+                                 std::string(parent->GetLabel()) + " match Geant4 volume " +
+                                 std::string(instance.g4Volume->GetName()) + " with copy number " +
+                                 std::to_string(instance.copyNo));
+      }
+    }
+  }
+
+  // All checks passed. Make the completed tables available to track conversion.
+  fGlobalG4PvToVecGeomSlots.swap(slots);
+  fGlobalG4ToVecGeomPlacements.swap(placements);
+  fGlobalG4ToVecGeomExtraPlacements.swap(extraPlacements);
+}
+
 #ifdef VECGEOM_GDML_SUPPORT
 /// @brief Initialize the process-global VecGeom world from a GDML file.
 void AdePTGeometryBridge::CreateVecGeomWorld(std::string filename)
@@ -154,6 +265,7 @@ void AdePTGeometryBridge::CreateVecGeomWorld(std::string filename)
 
   // Generate the mapping of VecGeom volume ids to Geant4 physical volumes.
   MapVecGeomToG4(fGlobalVecGeomPvToG4Map, fGlobalVecGeomLvToG4Map);
+  MapG4ToVecGeom();
 
   const vecgeom::VPlacedVolume *vecgeomWorld = vecgeom::GeoManager::Instance().GetWorld();
   if (vecgeomWorld == nullptr) {
@@ -194,6 +306,7 @@ void AdePTGeometryBridge::CreateVecGeomWorld(G4VPhysicalVolume const *physvol)
     fGlobalVecGeomPvToG4Map[id] = MakeMappedVolumeInstance(g4Volume, placedVolume);
   }
   fGlobalVecGeomLvToG4Map = conversion.logical_volumes;
+  MapG4ToVecGeom();
 
   // EXPECT: we finish with a non-null VecGeom host geometry.
   if (vecgeom::GeoManager::Instance().GetWorld() == nullptr) {
@@ -593,4 +706,40 @@ AdePTGeometryBridge::MappedVolumeInstance const &AdePTGeometryBridge::LookupMapp
         "AdePTGeometryBridge::LookupMappedVolumeInstance: VecGeom placed volume not found in Geant4 mapping");
   }
   return instance;
+}
+
+vecgeom::VPlacedVolume const *AdePTGeometryBridge::FindVecGeomPlacement(vecgeom::LogicalVolume const *parent,
+                                                                        G4VPhysicalVolume const *g4Volume,
+                                                                        EVolume g4VolumeType, int g4CopyNo)
+{
+  // Each Geant4 volume has an ID. Use it to find the range of table entries reserved for that volume.
+  const auto g4Id = g4Volume->GetInstanceID();
+  if (g4Id < 0 || static_cast<std::size_t>(g4Id) >= fGlobalG4PvToVecGeomSlots.size()) return nullptr;
+
+  // A normal placement has one entry. Replicas and parameterised volumes have one entry per copy number.
+  auto const &volumeSlots = fGlobalG4PvToVecGeomSlots[g4Id];
+  const int slot          = IsCopySpecificType(g4VolumeType) ? g4CopyNo : 0;
+  if (slot < 0 || static_cast<std::size_t>(slot) >= volumeSlots.count) return nullptr;
+
+  // "first" is the start of this volume's entries; "slot" selects the requested copy within them.
+  const auto index = volumeSlots.first + static_cast<std::size_t>(slot);
+
+  // This helper answers: "Is this exact placement a direct child of the requested parent?"
+  auto belongsToParent = [parent](vecgeom::VPlacedVolume const *placement) {
+    if (placement == nullptr) return false;
+    // The stored child index tells us which single entry to check in the parent's child list.
+    // It belongs to the requested parent only if that entry points to this exact placement.
+    const auto childId   = placement->GetChildId();
+    auto const &children = parent->GetDaughters();
+    return childId >= 0 && static_cast<std::size_t>(childId) < children.size() && children[childId] == placement;
+  };
+
+  // Usually there is only one VecGeom match for this Geant4 volume/copy, so try the direct entry first.
+  auto const *placement = fGlobalG4ToVecGeomPlacements[index];
+  if (belongsToParent(placement)) return placement;
+
+  // If the same Geant4 volume/copy appears under different VecGeom parents, the additional matches are stored
+  // with their parent IDs. Look up the match for this parent, or return nullptr if there is none.
+  auto const it = fGlobalG4ToVecGeomExtraPlacements.find(std::make_pair(parent->id(), index));
+  return it != fGlobalG4ToVecGeomExtraPlacements.end() && belongsToParent(it->second) ? it->second : nullptr;
 }
