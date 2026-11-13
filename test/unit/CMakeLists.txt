@@ -84,6 +84,7 @@ set(ADEPT_TRANSPORT_UNIT_TESTS
 set(ADEPT_TRANSPORT_GTESTS
   test_bfield.cpp              # Deterministic B-field integration tests
   test_bfield_navigation.cpp   # B-field RK/navigation handoff tests
+  test_turns_back_at_boundary.cpp # Final-direction test for GPU-region handoffs
 )
 
 set(ADEPT_TRANSPORT_UTILITIES
