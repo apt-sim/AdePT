@@ -505,8 +505,10 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
           // Check if the next volume belongs to the GPU region and push it to the appropriate queue
           const int nextlvolID          = nextState.GetLogicalId();
           VolAuxData const &nextauxData = gVolAuxData[nextlvolID];
-          // track has left GPU region
-          if (nextauxData.fGPUregionId < 0) {
+          if (nextauxData.fGPUregionId < 0 && TurnsBackAtBoundary(navState, nextState, pos, dir)) {
+            // the track stays on the GPU, on the surface it only touched
+            nextState = navState;
+          } else if (nextauxData.fGPUregionId < 0) { // track has left GPU region
 
 #if ADEPT_DEBUG_TRACK > 0
             if (verbose) printf("\n| track returned to Geant4\n");

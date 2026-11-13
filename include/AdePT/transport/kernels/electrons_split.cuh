@@ -653,6 +653,12 @@ __global__ void ElectronRelocation(G4HepEmElectronTrack *hepEMTracks, ParticleMa
       const int nextlvolID          = currentTrack.nextState.GetLogicalId();
       VolAuxData const &nextauxData = adept::transport::gVolAuxData[nextlvolID];
       returnsToCPU                  = nextauxData.fGPUregionId < 0;
+      if (returnsToCPU &&
+          TurnsBackAtBoundary(currentTrack.navState, currentTrack.nextState, currentTrack.pos, currentTrack.dir)) {
+        // the track stays on the GPU, on the surface it only touched
+        currentTrack.nextState = currentTrack.navState;
+        returnsToCPU           = false;
+      }
       if (returnsToCPU) {
         stepProcessId = kAdePTOutOfGPURegionProcess;
         isLastStep    = false;
