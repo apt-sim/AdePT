@@ -213,6 +213,27 @@ bool MatchesHistoryLevel(G4NavigationHistory const &history, G4int level,
   return history.GetVolumeType(level) == instance.type && history.GetReplicaNo(level) == instance.copyNo;
 }
 
+// VecGeom represents the zero-based navigation level as an unsigned char. With the world at
+// level zero, a valid navigation state therefore contains at most 256 path entries.
+constexpr std::size_t kMaxPathSize = 256;
+using MappedPath                   = std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize>;
+
+/// @brief Maps the path of a VecGeom navigation state to Geant4 volume instances and returns the path size.
+/// @details NavigationState::At(level) walks up from the top level on every call, so filling the path with it
+/// costs O(depth^2) navigation-table reads. Walking up once from the top level costs O(depth).
+std::size_t FillMappedPath(vecgeom::NavigationState navState, MappedPath &mappedPath)
+{
+  const auto pathSize = static_cast<std::size_t>(navState.GetLevel()) + 1;
+  assert(pathSize <= mappedPath.size());
+  for (auto level = pathSize; level-- > 0;) {
+    auto const *placedVolume = navState.Top();
+    assert(placedVolume != nullptr);
+    mappedPath[level] = &AdePTGeometryBridge::LookupMappedVolumeInstance(placedVolume);
+    navState.Pop();
+  }
+  return pathSize;
+}
+
 void UpdateG4NavigationHistory(std::span<AdePTGeometryBridge::MappedVolumeInstance const *const> mappedPath,
                                G4NavigationHistory &g4NavigationHistory)
 {
@@ -851,19 +872,8 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
 void AdePTGeant4Integration::FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
                                                      G4NavigationHistory &aG4NavigationHistory) const
 {
-  // VecGeom represents the zero-based navigation level as an unsigned char. With the world at
-  // level zero, a valid navigation state therefore contains at most 256 path entries.
-  constexpr std::size_t kMaxPathSize = 256;
-  std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> mappedPath;
-  const auto pathSize = static_cast<std::size_t>(aNavState.GetLevel()) + 1;
-  assert(pathSize <= mappedPath.size());
-
-  for (std::size_t level = 0; level < pathSize; ++level) {
-    auto const *placedVolume = aNavState.At(static_cast<int>(level));
-    assert(placedVolume != nullptr);
-    mappedPath[level] = &AdePTGeometryBridge::LookupMappedVolumeInstance(placedVolume);
-  }
-
+  MappedPath mappedPath;
+  const auto pathSize = FillMappedPath(aNavState, mappedPath);
   UpdateG4NavigationHistory(std::span(mappedPath.data(), pathSize), aG4NavigationHistory);
 }
 
@@ -872,45 +882,21 @@ void AdePTGeant4Integration::FillG4NavigationHistories(const vecgeom::Navigation
                                                        G4NavigationHistory &preG4NavigationHistory,
                                                        G4NavigationHistory &postG4NavigationHistory) const
 {
-  // VecGeom represents the zero-based navigation level as an unsigned char. With the world at
-  // level zero, a valid navigation state therefore contains at most 256 path entries.
-  constexpr std::size_t kMaxPathSize = 256;
-  std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> preMappedPath;
-  std::array<AdePTGeometryBridge::MappedVolumeInstance const *, kMaxPathSize> postMappedPath;
-
-  const auto prePathSize  = static_cast<std::size_t>(preNavState.GetLevel()) + 1;
-  const auto postPathSize = static_cast<std::size_t>(postNavState.GetLevel()) + 1;
-  assert(prePathSize <= preMappedPath.size());
-  assert(postPathSize <= postMappedPath.size());
-
-  const auto shorterPathSize = std::min(prePathSize, postPathSize);
-  std::size_t commonPathSize = 0;
-  for (; commonPathSize < shorterPathSize; ++commonPathSize) {
-    auto const *prePlacedVolume  = preNavState.At(static_cast<int>(commonPathSize));
-    auto const *postPlacedVolume = postNavState.At(static_cast<int>(commonPathSize));
-    assert(prePlacedVolume != nullptr);
-    assert(postPlacedVolume != nullptr);
-    if (prePlacedVolume != postPlacedVolume) break;
-
-    auto const *instance           = &AdePTGeometryBridge::LookupMappedVolumeInstance(prePlacedVolume);
-    preMappedPath[commonPathSize]  = instance;
-    postMappedPath[commonPathSize] = instance;
-  }
-
-  for (std::size_t level = commonPathSize; level < prePathSize; ++level) {
-    auto const *placedVolume = preNavState.At(static_cast<int>(level));
-    assert(placedVolume != nullptr);
-    preMappedPath[level] = &AdePTGeometryBridge::LookupMappedVolumeInstance(placedVolume);
-  }
-  for (std::size_t level = commonPathSize; level < postPathSize; ++level) {
-    auto const *placedVolume = postNavState.At(static_cast<int>(level));
-    assert(placedVolume != nullptr);
-    postMappedPath[level] = &AdePTGeometryBridge::LookupMappedVolumeInstance(placedVolume);
-  }
+  MappedPath preMappedPath;
+  MappedPath postMappedPath;
+  const auto prePathSize  = FillMappedPath(preNavState, preMappedPath);
+  const auto postPathSize = FillMappedPath(postNavState, postMappedPath);
 
   // Keep pre-then-post mutation order identical to the original pair of calls.
   UpdateG4NavigationHistory(std::span(preMappedPath.data(), prePathSize), preG4NavigationHistory);
-  UpdateG4NavigationHistory(std::span(postMappedPath.data(), postPathSize), postG4NavigationHistory);
+  // Most steps end in the volume they started in. Copying the pre-step history is then cheaper than updating the
+  // post-step history from the previous step's, and gives the same history and stamped volume state.
+  if (postPathSize == prePathSize &&
+      std::equal(preMappedPath.begin(), preMappedPath.begin() + prePathSize, postMappedPath.begin())) {
+    postG4NavigationHistory = preG4NavigationHistory;
+  } else {
+    UpdateG4NavigationHistory(std::span(postMappedPath.data(), postPathSize), postG4NavigationHistory);
+  }
 }
 
 G4TouchableHandle AdePTGeant4Integration::MakeTouchableFromNavState(vecgeom::NavigationState const &navState) const
