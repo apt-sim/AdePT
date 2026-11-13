@@ -49,10 +49,6 @@ permissions:
   issues: write
   pull-requests: write
 
-concurrency:
-  group: athena-performance-el9
-  cancel-in-progress: false
-
 jobs:
   prepare:
     name: Prepare
@@ -239,6 +235,10 @@ jobs:
     name: Athena Performance
     needs: prepare
     if: needs.prepare.outputs.should_run == 'true'
+    # Job-level, so that unrelated comments (skipped here) cannot replace a queued benchmark
+    concurrency:
+      group: athena-performance-el9
+      cancel-in-progress: false
     runs-on:
       - self-hosted
       - linux
@@ -252,14 +252,21 @@ jobs:
       ARTIFACTS_DIR: ${{ github.workspace }}/athena-performance-results/run-${{ github.run_id }}-${{ needs.prepare.outputs.mode }}
       BENCHMARK_CONTAINER_IMAGE: adept/athena-benchmark:${{ github.run_id }}
     steps:
+      # PR code writes into the persistent workspace (incl. .git): start from an empty one, and use
+      # plain git instead of actions/checkout, whose post-job cleanup runs `git submodule foreach`
+      # on the host in that .git (executing e.g. a planted core.fsmonitor)
       - name: Checkout AdePT under test
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ needs.prepare.outputs.adept_repo }}
-          ref: ${{ needs.prepare.outputs.adept_ref }}
-          persist-credentials: false
-          fetch-depth: 0
-          submodules: recursive
+        env:
+          REPO: ${{ needs.prepare.outputs.adept_repo }}
+          SHA: ${{ needs.prepare.outputs.adept_ref }}
+        run: |
+          set -eo pipefail
+          find "${GITHUB_WORKSPACE}" -mindepth 1 -delete
+          git init -q "${GITHUB_WORKSPACE}" && cd "${GITHUB_WORKSPACE}"
+          git remote add origin "https://github.com/${REPO}.git"
+          git fetch --no-tags origin "${SHA}"
+          git checkout -q --detach FETCH_HEAD
+          git submodule update --init --recursive
 
       - name: Show runner basics
         run: |
@@ -343,8 +350,6 @@ jobs:
           done
 
           docker_mount_args=(
-            -v /build:/build
-            -v /ec/conf:/ec/conf
             -v /cvmfs:/cvmfs:ro,rslave
             -v "${GITHUB_WORKSPACE}:/work/AdePT"
           )
@@ -409,20 +414,24 @@ jobs:
         if: always() && hashFiles(env.RESULTS_FILE) != ''
         run: |
           set -o pipefail
-          # shellcheck disable=SC1091
-          source "${RESULTS_FILE}" || exit 1
+          # Written by PR code: parse it, never source it
+          perf_status=$(sed -n 's/^PERF_STATUS=\([0-9]\+\)$/\1/p' "${RESULTS_FILE}" | tail -n 1)
+          echo "PERF_STATUS=${perf_status:-1}" >> "${GITHUB_ENV}"
 
-          host_summary_markdown_file="${SUMMARY_MARKDOWN_FILE:-}"
-          case "${host_summary_markdown_file}" in
-            /work/AdePT/*)
-              host_summary_markdown_file="${GITHUB_WORKSPACE}/${host_summary_markdown_file#/work/AdePT/}"
+          # Only publish a summary that resolves into the workspace, copied to a fixed host path
+          summary_file=$(realpath -e "${ARTIFACTS_DIR}/summary.md" 2>/dev/null) || summary_file=""
+          case "${summary_file}" in
+            "$(realpath "${GITHUB_WORKSPACE}")"/*)
+              if [ -f "${summary_file}" ]; then
+                cp "${summary_file}" "${RUNNER_TEMP}/athena-performance-summary.md"
+                echo "SUMMARY_MARKDOWN_FILE=${RUNNER_TEMP}/athena-performance-summary.md" >> "${GITHUB_ENV}"
+              fi
               ;;
           esac
 
-          {
-            echo "PERF_STATUS=${PERF_STATUS:-1}"
-            echo "SUMMARY_MARKDOWN_FILE=${host_summary_markdown_file}"
-          } >> "${GITHUB_ENV}"
+      - name: Drop symlinks from benchmark artifacts
+        if: always()
+        run: find "${ARTIFACTS_DIR}" -type l -delete 2>/dev/null || true
 
       - name: Write summary
         if: always()

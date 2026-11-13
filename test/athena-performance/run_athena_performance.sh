@@ -716,7 +716,7 @@ summarize_results() {
     "${ATHENA_REPOSITORY}" "${ATHENA_BASE_REF}" "${ATHENA_HEAD_SHA}" \
     "${ATHENA_GPU_REPOSITORY}" "${ATHENA_GPU_REF}" \
     "${ATLAS_EXTERNALS_REPOSITORY}" "${ATLAS_EXTERNALS_BASE_REF}" "${ATLAS_EXTERNALS_LOCAL_SHA}" \
-    "${SUMMARY_MARKDOWN_FILE}" "${BUILD_LOG}" "${GPU_BUILD_DIR}/setup_run.sh" <<'PY' > "${env_file}"
+    "${SUMMARY_MARKDOWN_FILE}" "${BUILD_LOG}" "${GPU_BUILD_DIR}/setup_run.sh" <<'PY' > "${env_file}" || return 1
 import math
 import pathlib
 import re
@@ -814,7 +814,8 @@ print("PER_RUN_MEASUREMENT_COUNTS_CSV=" + ",".join(str(item[2]) for item in per_
 PY
 
   # shellcheck disable=SC1090
-  source "${env_file}"
+  source "${env_file}" || return 1
+  [[ -n "${OVERALL_REAL_MEAN_SEC:-}" ]]
 }
 
 preflight_checks || die "Preflight checks failed"
