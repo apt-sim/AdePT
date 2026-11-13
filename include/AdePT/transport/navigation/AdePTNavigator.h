@@ -28,10 +28,9 @@ using AdePTNavigator = BVHNavigator;
 #endif
 // } // End namespace COPCORE_IMPL
 
-/// Whether a track whose step ends on a boundary leading out of `currentState` turns back with its final direction:
-/// the ray stays in the exited volume, or does not go into the entered daughter. Geant4 relocates once with that
-/// direction, so such a track has only touched the surface. The solid decides from the direction, which also holds on
-/// edges and corners, where no single normal does.
+/// Whether the final direction at a boundary keeps a track that would leave `currentState` on the side of
+/// `currentState`: it goes back into the exited volume, or out of the entered daughter. Geant4 relocates once with that
+/// direction, so such a track has only touched the surface.
 __host__ __device__ inline bool TurnsBackAtBoundary(vecgeom::NavigationState const &currentState,
                                                     vecgeom::NavigationState const &nextState,
                                                     vecgeom::Vector3D<double> const &pos,
@@ -47,11 +46,9 @@ __host__ __device__ inline bool TurnsBackAtBoundary(vecgeom::NavigationState con
   }
   vecgeom::Transformation3D m;
   surfaceState.TopMatrix(m);
-  const auto localPos = m.Transform(pos);
-  const auto localDir = m.TransformDirection(dir);
-  auto const *solid   = surfaceState.Top()->GetUnplacedVolume();
-  // A positive distance means the ray moves away from the side it would be handed over to.
-  return entersDaughter ? solid->DistanceToIn(localPos, localDir, vecgeom::kInfLength) > 0.
-                        : solid->DistanceToOut(localPos, localDir, vecgeom::kInfLength) > 0.;
+  vecgeom::Vector3D<double> normal;
+  if (!surfaceState.Top()->GetUnplacedVolume()->Normal(m.Transform(pos), normal)) return false;
+  const double nd = normal.Dot(m.TransformDirection(dir));
+  return entersDaughter ? nd > 0. : nd < 0.;
 #endif
 }
