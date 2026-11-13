@@ -35,7 +35,13 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
   //       This can be checked from the pre- and post-steppoint
 
   // Not in the GPU region, continue normal tracking with G4HepEmTrackingManager
-  if (fGPURegions.find(region) == fGPURegions.end() || GetFinishEventOnCPU(threadId) >= 0) {
+  // Note: G4HepEm has to initialize the step, locating it with Geant4. This can can disagree with the returned CPU
+  // touchable at a region boundary (could be G4 vs VecGeom location difference, or the missing information of the
+  // previous volume in the G4Navigator). Therefore, we enforce one CPU step before permitting reoffload, so its actual
+  // navigator result supplies the post-step status used for GPU entry. A track already in a GPU region at handover
+  // still exits immediately.
+  const bool needsFirstCPUStep = fStartedInCPURegion && track->GetCurrentStepNumber() == fInitialStepNumber;
+  if (fGPURegions.find(region) == fGPURegions.end() || GetFinishEventOnCPU(threadId) >= 0 || needsFirstCPUStep) {
     return false; // Continue tracking with G4HepEmTrackingManager
   } else {
 
@@ -82,6 +88,12 @@ bool G4HepEmTrackingManagerSpecialized::CheckEarlyTrackingExit(G4Track *track, G
 void G4HepEmTrackingManagerSpecialized::HandOverOneTrack(G4Track *aTrack)
 {
   const G4ParticleDefinition *part = aTrack->GetParticleDefinition();
+
+  // Capture before HepEm relocates the track and initializes a fresh G4Step.
+  const auto *entryVolume = aTrack->GetNextVolume();
+  fStartedInCPURegion =
+      entryVolume && fGPURegions.find(entryVolume->GetLogicalVolume()->GetRegion()) == fGPURegions.end();
+  fInitialStepNumber = aTrack->GetCurrentStepNumber();
 
   // Do tracking with G4HepEm and check whether the track was finished
   bool tracking_finished = true;

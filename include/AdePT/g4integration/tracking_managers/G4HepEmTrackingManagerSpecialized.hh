@@ -39,5 +39,9 @@ private:
   std::set<G4Region const *> fGPURegions{}; ///< List of GPU regions
   std::vector<int> fFinishEventOnCPU;       ///< Vector over worker threads for events finished on CPU
 
+  /// CPU entry state used to prevent immediate reoffload after initial relocation.
+  G4int fInitialStepNumber{0};
+  bool fStartedInCPURegion{false};
+
   // G4Region const * fPreviousRegion = nullptr;
 };
