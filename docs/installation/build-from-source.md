@@ -40,7 +40,7 @@ cmake --build ./adept-build -- -j6
 | `ADEPT_BUILD_EXAMPLES` | `OFF` | Build examples |
 | `ADEPT_ENABLE_POWER_METER` | `OFF` | Measure CPU (Intel/AMD RAPL) and NVIDIA GPU (NVML) power consumption during the run via the fetched `power_meter` library; the CPU readings require root privileges |
 | `ADEPT_ENABLE_NSYS_PROFILING` | `OFF` | Compile CUDA profiler API hooks for transport-loop `nsys` captures. Requires `ADEPT_COMPUTE_BACKEND=CUDA`. |
-| `ADEPT_STEPPINGACTION` | `NONE` | SteppingAction mode: `NONE`, `CMS`, `LHCb`, or `ATLAS`. |
+| `ADEPT_STEPPINGACTION` | `NONE` | SteppingAction mode: `NONE`, `CMS`, `LHCb`, or `ATLAS`. `ATLAS` also builds the VecGeom BVH with `balanced` daughter-AABB subdivision; a set `VECGEOM_BVH_AABB_SUBDIVISION` (`off`, `fast`, `balanced`, `navigation`) takes precedence. |
 | `ADEPT_USE_BUILTIN_G4VG` | `ON` | Fetch and build G4VG as part of AdePT (used when Geant4 integration is enabled) |
 
 The public build options are recorded in the generated header `AdePT/AdePTBuildFlags.hh`, which is part of the

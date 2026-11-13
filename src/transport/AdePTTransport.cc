@@ -6,6 +6,7 @@
 #include <AdePT/transport/queues/TrackBuffer.hh>
 
 #include <VecGeom/management/BVHManager.h>
+#include <VecGeom/management/BVHSubdivisionOptions.h>
 #include <VecGeom/management/GeoManager.h>
 #ifdef ADEPT_USE_SURF
 #include <VecGeom/surfaces/BrepHelper.h>
@@ -20,6 +21,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -260,7 +262,24 @@ void AdePTTransport::Initialize(adeptint::VolAuxData *auxData, const adeptint::W
 
 void AdePTTransport::InitBVH()
 {
+#if defined(ADEPT_STEPACTION_TYPE) && (ADEPT_STEPACTION_TYPE == 3)
+  // ATLAS: build the BVH with split daughter AABBs. The balanced mode gives almost the full navigation speedup of
+  // the navigation mode for a much smaller BVH build time. A set VECGEOM_BVH_AABB_SUBDIVISION keeps precedence, so
+  // the mode can still be changed (or switched off) at run time without rebuilding.
+  const char *subdivisionEnv = std::getenv("VECGEOM_BVH_AABB_SUBDIVISION");
+  if (subdivisionEnv == nullptr || *subdivisionEnv == '\0') {
+    vecgeom::cxx::BVHManager::SetAABBSubdivisionMode(vecgeom::AABBSubdivisionMode::kBalanced);
+  }
+#endif
+
   vecgeom::cxx::BVHManager::Init();
+
+  const auto stats = vecgeom::cxx::BVHManager::GetBuildStatistics();
+  std::cout << "=== AdePTTransport: BVH built in " << stats.initElapsed << " s with AABB subdivision mode '"
+            << vecgeom::AABBSubdivisionModeName(vecgeom::cxx::BVHManager::GetAABBSubdivisionMode()) << "': split "
+            << stats.acceptedSplits << " daughters in " << stats.splitLogicalVolumes << " logical volumes, "
+            << stats.originalBoxes << " -> " << stats.finalBoxes << " BVH boxes\n";
+
   vecgeom::cxx::BVHManager::DeviceInit();
 }
 

@@ -12,7 +12,7 @@ spack:
     - ninja
     - nlohmann-json
     - root cxxstd=17
-    - "vecgeom@1.2: +gdml cxxstd=17"
+    - "vecgeom@2.2.1: +gdml cxxstd=17"
   view: true
   concretizer:
     unify: true
