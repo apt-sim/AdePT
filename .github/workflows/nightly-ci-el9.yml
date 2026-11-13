@@ -30,6 +30,10 @@ jobs:
     env:
       RESULTS_FILE: ${{ github.workspace }}/nightly-ci-results.env
     steps:
+      # The workspace is shared with the PR jobs, whose PR code can plant git config/hooks in .git
+      - name: Wipe workspace left by previous runs
+        run: find "${GITHUB_WORKSPACE}" -mindepth 1 -delete
+
       - name: Checkout master
         uses: actions/checkout@v6
         with:
@@ -84,8 +88,6 @@ jobs:
             --user "$(id -u):$(id -g)" \
             "${docker_group_args[@]}" \
             --security-opt seccomp=unconfined \
-            -v /build:/build \
-            -v /ec/conf:/ec/conf \
             -v /cvmfs:/cvmfs:ro,rslave \
             -v "${GITHUB_WORKSPACE}:/work/AdePT" \
             -e HOME=/tmp/adeptci-home \

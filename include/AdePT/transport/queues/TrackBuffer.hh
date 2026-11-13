@@ -29,7 +29,7 @@ struct TrackBuffer {
   std::atomic_short toDeviceIndex{0};
 
   unsigned int fNumToDevice{0}; ///< number of slots in the toDevice buffer
-  unique_ptr_cuda<adeptint::TrackData, CudaHostDeleter<adeptint::TrackData>>
+  unique_ptr_cuda<adeptint::TrackData, PinnedHostDeleter<adeptint::TrackData>>
       toDevice_host;                                 ///< Tracks to be transported to the device
   unique_ptr_cuda<adeptint::TrackData> toDevice_dev; ///< toDevice buffer of tracks
 

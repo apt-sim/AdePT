@@ -99,6 +99,7 @@ set(ADEPT_G4_INTEGRATION_GTESTS
   test_returned_creator_process.cpp # Regression test for secondary creator-process decoding
   test_returned_step_number.cpp # Regression test for replayed parent step numbers
   test_returned_world_exit.cpp # Regression test for replayed world-exit touchables
+  test_replayed_step_points.cpp # Regression test for replayed step-point mass and statistical weight
   test_return_step_options.cpp # Unit test for freezing GPU return-step options
 )
 
