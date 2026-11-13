@@ -12,8 +12,12 @@
 
 #include <G4VPhysicalVolume.hh>
 
+#include <cstddef>
+#include <cstdint>
+#include <map>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 class G4LogicalVolume;
@@ -80,11 +84,34 @@ public:
   /// @throws std::runtime_error if the VecGeom placed volume is not present in the global lookup table.
   static MappedVolumeInstance const &LookupMappedVolumeInstance(vecgeom::VPlacedVolume const *placedVolume);
 
+  /// @brief Returns the VecGeom placement of one level of a Geant4 navigation history.
+  /// @details Looks up the placement under the given VecGeom logical parent by Geant4 physical-volume instance
+  /// id and, for replica and parameterised volumes, copy number. Returns nullptr for an unknown parent, volume,
+  /// or copy. Setup rejects multiple placements with the same parent and Geant4 instance identity.
+  static vecgeom::VPlacedVolume const *FindVecGeomPlacement(vecgeom::LogicalVolume const *parent,
+                                                            G4VPhysicalVolume const *g4Volume, EVolume g4VolumeType,
+                                                            int g4CopyNo);
+
 private:
   /// @brief Builds the lookup tables from VecGeom placed/logical volume ids to Geant4 volumes.
   static void MapVecGeomToG4(std::vector<MappedVolumeInstance> &vecgeomPvToG4Map,
                              std::vector<G4LogicalVolume const *> &vecgeomLvToG4Map);
 
+  /// @brief Builds and validates the parent-aware inverse lookup for all reachable VecGeom children.
+  static void MapG4ToVecGeom();
+
+  /// @brief Slots of one Geant4 physical volume in fGlobalG4ToVecGeomPlacements.
+  /// @details One slot for a normal placement, one slot per copy number for replica and parameterised volumes.
+  struct PlacementSlots {
+    std::uint32_t first = 0;
+    std::uint32_t count = 0;
+  };
+
   static std::vector<MappedVolumeInstance> fGlobalVecGeomPvToG4Map;
   static std::vector<G4LogicalVolume const *> fGlobalVecGeomLvToG4Map;
+  static std::vector<PlacementSlots> fGlobalG4PvToVecGeomSlots; ///< indexed by G4VPhysicalVolume::GetInstanceID()
+  static std::vector<vecgeom::VPlacedVolume const *> fGlobalG4ToVecGeomPlacements;
+  /// Additional parents sharing a Geant4 volume/copy; keyed by (VecGeom parent logical id, flat copy-slot index).
+  static std::map<std::pair<std::size_t, std::size_t>, vecgeom::VPlacedVolume const *>
+      fGlobalG4ToVecGeomExtraPlacements;
 };

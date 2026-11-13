@@ -10,12 +10,16 @@
 #include <globals.hh>
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <algorithm>
 #include <memory>
+#include <map>
 #include <set>
 #include <span>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -23,7 +27,11 @@
 #include <G4HepEmTrackingManager.hh>
 #undef private
 
+#include <AdePT/transport/woodcock/WoodcockData.hh>
+
+#define private public
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
+#undef private
 #include <AdePT/g4integration/returned_steps/HostTrackDataMapper.hh>
 #include <AdePT/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.hh>
 #include <AdePT/transport/steps/GPUStep.hh>
@@ -688,6 +696,196 @@ TEST(AdePTGeometryBridge, G4HandoffReplicaCopyMatchesEquivalentExplicitPlacement
   for (std::size_t i = 0; i < replicaSummary.translation.size(); ++i) {
     EXPECT_NEAR(replicaSummary.translation[i], explicitSummary.translation[i], 1.e-9);
   }
+}
+
+// Inverse placement map used by the G4 -> VecGeom hand-over: a normal placement maps to its
+// VecGeom placement, each replica or parameterised copy to the placement with that copy number,
+// and a placement missing from the requested parent maps to nullptr.
+TEST(AdePTGeometryBridge, FindsVecGeomPlacementOfG4Instance)
+{
+  class OffsetParameterisation : public G4VPVParameterisation {
+  public:
+    void ComputeTransformation(const G4int copyNo, G4VPhysicalVolume *physicalVolume) const override
+    {
+      physicalVolume->SetTranslation(G4ThreeVector((copyNo - 1) * 40.0 * mm, 0., 0.));
+      physicalVolume->SetRotation(nullptr);
+    }
+  };
+
+  GeometryCleanup cleanup;
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  vecgeom::GeoManager::Instance().Clear();
+
+  auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+  Require(material != nullptr, "G4_AIR material was not available");
+  auto makeBox = [material](char const *name, G4double halfX) {
+    return new G4LogicalVolume(new G4Box(std::string(name) + "_solid", halfX, 10.0 * mm, 10.0 * mm), material,
+                               std::string(name) + "_lv");
+  };
+
+  auto *worldLV = makeBox("inverse_map_world", 400.0 * mm);
+  auto *worldPV = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "inverse_map_world", nullptr, false, 0, false);
+  auto *boxLV   = makeBox("inverse_map_box", 50.0 * mm);
+  auto *boxPV = new G4PVPlacement(nullptr, G4ThreeVector(-300.0 * mm, 0., 0.), boxLV, "inverse_map_box", worldLV, false,
+                                  7, false);
+  auto *replicaHolderLV = makeBox("inverse_map_replica_holder", 150.0 * mm);
+  auto *replicaHolderPV = new G4PVPlacement(nullptr, G4ThreeVector(100.0 * mm, 0., 0.), replicaHolderLV,
+                                            "inverse_map_replica_holder", worldLV, false, 0, false);
+  auto *sliceLV         = makeBox("inverse_map_slice", 50.0 * mm);
+  auto *replicaPV       = new G4PVReplica("inverse_map_slice", sliceLV, replicaHolderLV, kXAxis, 3, 100.0 * mm);
+  auto *paramHolderLV   = makeBox("inverse_map_param_holder", 60.0 * mm);
+  auto *paramHolderPV   = new G4PVPlacement(nullptr, G4ThreeVector(325.0 * mm, 0., 0.), paramHolderLV,
+                                            "inverse_map_param_holder", worldLV, false, 0, false);
+  auto *paramPV = new G4PVParameterised("inverse_map_param", makeBox("inverse_map_param", 10.0 * mm), paramHolderLV,
+                                        kXAxis, 3, new OffsetParameterisation);
+
+  G4TransportationManager::GetTransportationManager()->SetWorldForTracking(worldPV);
+  G4GeometryManager::GetInstance()->CloseGeometry(true);
+  AdePTGeometryBridge::CreateVecGeomWorld(worldPV);
+
+  auto const *vecgeomWorldLV = vecgeom::GeoManager::Instance().GetWorld()->GetLogicalVolume();
+  auto const &worldChildren  = vecgeomWorldLV->GetDaughters();
+  ASSERT_EQ(worldChildren.size(), 3u);
+  auto vecgeomChild = [&worldChildren](G4VPhysicalVolume const *g4Volume) {
+    auto it = std::find_if(worldChildren.begin(), worldChildren.end(), [g4Volume](auto const *child) {
+      return AdePTGeometryBridge::GetG4PhysicalVolume(child) == g4Volume;
+    });
+    return it == worldChildren.end() ? nullptr : *it;
+  };
+  ASSERT_NE(vecgeomChild(boxPV), nullptr);
+  EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomWorldLV, boxPV, kNormal, 7), vecgeomChild(boxPV));
+  EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomChild(boxPV)->GetLogicalVolume(), boxPV, kNormal, 7),
+            nullptr);
+
+  for (auto const [holderPV, copiesPV] :
+       {std::pair<G4VPhysicalVolume *, G4VPhysicalVolume *>{replicaHolderPV, replicaPV}, {paramHolderPV, paramPV}}) {
+    ASSERT_NE(vecgeomChild(holderPV), nullptr);
+    auto const *vecgeomParent = vecgeomChild(holderPV)->GetLogicalVolume();
+    auto const &copies        = vecgeomParent->GetDaughters();
+    ASSERT_EQ(copies.size(), 3u);
+    const auto type = copiesPV->VolumeType();
+    for (auto const *copy : copies) {
+      const auto instance = AdePTGeometryBridge::GetMappedVolumeInstance(copy);
+      EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomParent, copiesPV, type, instance.copyNo), copy);
+      EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomWorldLV, copiesPV, type, instance.copyNo), nullptr);
+    }
+    EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomParent, copiesPV, type, 3), nullptr);
+    EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomParent, copiesPV, type, -1), nullptr);
+  }
+
+  // A volume created after the bridge was initialized is not in the map.
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  auto *latePV = new G4PVPlacement(nullptr, G4ThreeVector(), sliceLV, "inverse_map_late", boxLV, false, 0, false);
+  EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomChild(boxPV)->GetLogicalVolume(), latePV, kNormal, 0),
+            nullptr);
+
+  G4NavigationHistory missingHistory;
+  missingHistory.SetFirstEntry(worldPV);
+  missingHistory.NewLevel(boxPV, kNormal, 7);
+  missingHistory.NewLevel(latePV, kNormal, 0);
+  AdePTTrackingManager trackingManager(nullptr);
+  EXPECT_THROW(trackingManager.GetVecGeomFromG4State(missingHistory), std::runtime_error);
+}
+
+// Model the GDML mapping path without a file: Geant4 shares one module logical volume,
+// while the equivalent VecGeom tree has two separate module logical volumes. The shared
+// Geant4 child must resolve to the VecGeom child inside the requested module.
+TEST(AdePTGeometryBridge, FindsSharedG4ChildWithinEachVecGeomParent)
+{
+  GeometryCleanup cleanup;
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  vecgeom::GeoManager::Instance().Clear();
+
+  auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+  ASSERT_NE(material, nullptr);
+  auto makeBox = [material](char const *name, G4double halfX, G4double halfYZ) {
+    return new G4LogicalVolume(new G4Box(std::string(name) + "_solid", halfX, halfYZ, halfYZ), material,
+                               std::string(name) + "_lv");
+  };
+  auto *worldLV  = makeBox("parent_map_world", 300.0 * mm, 50.0 * mm);
+  auto *worldPV  = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "parent_map_world", nullptr, false, 0, false);
+  auto *moduleLV = makeBox("parent_map_module", 50.0 * mm, 40.0 * mm);
+  std::array<G4VPhysicalVolume *, 2> modulePVs{};
+  for (int copy = 0; copy < 2; ++copy) {
+    modulePVs[copy] = new G4PVPlacement(nullptr, G4ThreeVector((2 * copy - 1) * 100.0 * mm, 0., 0.), moduleLV,
+                                        "parent_map_module", worldLV, false, copy, false);
+  }
+  auto *childPV =
+      new G4PVPlacement(nullptr, G4ThreeVector(5.0 * mm, 0., 0.), makeBox("parent_map_child", 10.0 * mm, 10.0 * mm),
+                        "parent_map_child", moduleLV, false, 7, false);
+  G4TransportationManager::GetTransportationManager()->SetWorldForTracking(worldPV);
+  G4GeometryManager::GetInstance()->CloseGeometry(true);
+
+  auto *vgWorldLV = new vecgeom::LogicalVolume("parent_map_world_lv", new vecgeom::UnplacedBox(300., 50., 50.));
+  auto *vgChildLV = new vecgeom::LogicalVolume("parent_map_child_lv", new vecgeom::UnplacedBox(10., 10., 10.));
+  vecgeom::Transformation3D childTransform(5., 0., 0.);
+  std::array<vecgeom::Transformation3D, 2> moduleTransforms{
+      {vecgeom::Transformation3D(-100., 0., 0.), vecgeom::Transformation3D(100., 0., 0.)}};
+  std::array<vecgeom::LogicalVolume *, 2> vgModuleLVs{};
+  std::array<vecgeom::VPlacedVolume const *, 2> vgModulePVs{};
+  std::array<vecgeom::VPlacedVolume const *, 2> vgChildPVs{};
+  for (int copy = 0; copy < 2; ++copy) {
+    vgModuleLVs[copy] = new vecgeom::LogicalVolume(("parent_map_module_" + std::to_string(copy)).c_str(),
+                                                   new vecgeom::UnplacedBox(50., 40., 40.));
+    vgChildPVs[copy]  = vgModuleLVs[copy]->PlaceDaughter("parent_map_child", vgChildLV, &childTransform);
+    const_cast<vecgeom::VPlacedVolume *>(vgChildPVs[copy])->SetCopyNo(7);
+    vgModulePVs[copy] = vgWorldLV->PlaceDaughter("parent_map_module", vgModuleLVs[copy], &moduleTransforms[copy]);
+    const_cast<vecgeom::VPlacedVolume *>(vgModulePVs[copy])->SetCopyNo(copy);
+  }
+  auto *vgWorldPV = vgWorldLV->Place("parent_map_world");
+  vecgeom::GeoManager::Instance().SetWorldAndClose(vgWorldPV);
+
+  // Closing the geometry can replace placements with compacted copies.
+  // Use the placements owned by the closed geometry for mapping and assertions.
+  auto const *closedWorldLV = vecgeom::GeoManager::Instance().GetWorld()->GetLogicalVolume();
+  auto const &closedModules = closedWorldLV->GetDaughters();
+  ASSERT_EQ(closedModules.size(), 2u);
+  for (int copy = 0; copy < 2; ++copy) {
+    vgModulePVs[copy]          = closedModules[copy];
+    auto const &closedChildren = vgModulePVs[copy]->GetLogicalVolume()->GetDaughters();
+    ASSERT_EQ(closedChildren.size(), 1u);
+    vgChildPVs[copy] = closedChildren[0];
+  }
+
+  AdePTGeometryBridge::fGlobalVecGeomPvToG4Map.clear();
+  AdePTGeometryBridge::fGlobalVecGeomLvToG4Map.clear();
+  AdePTGeometryBridge::MapVecGeomToG4(AdePTGeometryBridge::fGlobalVecGeomPvToG4Map,
+                                      AdePTGeometryBridge::fGlobalVecGeomLvToG4Map);
+  ASSERT_NO_THROW(AdePTGeometryBridge::MapG4ToVecGeom());
+  ASSERT_NE(vgChildPVs[0], vgChildPVs[1]);
+  EXPECT_EQ(AdePTGeometryBridge::GetG4PhysicalVolume(vgChildPVs[0]), childPV);
+  EXPECT_EQ(AdePTGeometryBridge::GetG4PhysicalVolume(vgChildPVs[1]), childPV);
+  EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(closedWorldLV, childPV, kNormal, 7), nullptr);
+
+  AdePTTrackingManager trackingManager(nullptr);
+  for (int copy = 0; copy < 2; ++copy) {
+    EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vgModulePVs[copy]->GetLogicalVolume(), childPV, kNormal, 7),
+              vgChildPVs[copy]);
+    G4NavigationHistory history;
+    history.SetFirstEntry(worldPV);
+    history.NewLevel(modulePVs[copy], kNormal, copy);
+    history.NewLevel(childPV, kNormal, 7);
+    const auto state = trackingManager.GetVecGeomFromG4State(history);
+    EXPECT_EQ(state.GetLevel(), 2);
+    EXPECT_EQ(state.At(1), vgModulePVs[copy]);
+    EXPECT_EQ(state.Top(), vgChildPVs[copy]);
+  }
+
+  // A broken forward map gives two different placements in the same parent the
+  // same Geant4 identity. Reject this during setup instead of choosing either one.
+  auto &secondModuleInstance        = AdePTGeometryBridge::fGlobalVecGeomPvToG4Map[vgModulePVs[1]->id()];
+  const auto originalModuleInstance = secondModuleInstance;
+  secondModuleInstance              = AdePTGeometryBridge::fGlobalVecGeomPvToG4Map[vgModulePVs[0]->id()];
+  EXPECT_THROW(AdePTGeometryBridge::MapG4ToVecGeom(), std::runtime_error);
+  secondModuleInstance = originalModuleInstance;
+
+  // Every reachable child needs a forward mapping before a complete inverse
+  // table can be accepted.
+  auto &secondChildInstance        = AdePTGeometryBridge::fGlobalVecGeomPvToG4Map[vgChildPVs[1]->id()];
+  const auto originalChildInstance = secondChildInstance;
+  secondChildInstance              = {};
+  EXPECT_THROW(AdePTGeometryBridge::MapG4ToVecGeom(), std::runtime_error);
+  secondChildInstance = originalChildInstance;
 }
 
 // Single-copy parameterised traversal: GetMultiplicity() is one, but the
