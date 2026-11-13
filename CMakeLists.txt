@@ -13,7 +13,7 @@ project(AdePT
 )
 
 # Minimum VecGeom release; it is also required by the installed AdePTConfig.cmake
-set(ADEPT_VECGEOM_MIN_VERSION 2.2.0)
+set(ADEPT_VECGEOM_MIN_VERSION 2.2.1)
 
 # Set versions of G4VG and covfie that are pulled in the CMake configuration
 set(ADEPT_G4VG_VERSION 1.0.7)
@@ -239,7 +239,7 @@ message(STATUS "Using VecCore version ${Cyan}${VecCore_VERSION}${ColorReset}")
 find_package(XercesC REQUIRED)
 
 # Find VecGeom geometry headers library. The version check uses the release number VecGeom_VERSION;
-# VecGeom_VERSION_STRING may add the git distance and hash of a development build (e.g. '2.2.0-12+abc123').
+# VecGeom_VERSION_STRING may add the git distance and hash of a development build (e.g. '2.2.1-12+abc123').
 find_package(VecGeom ${ADEPT_VECGEOM_MIN_VERSION} REQUIRED)
 
 if(ADEPT_USE_CUDA AND NOT VecGeom_CUDA_FOUND)

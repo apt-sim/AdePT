@@ -33,7 +33,7 @@ The following packages are a required to build and run:
 - CUDA Toolkit (> 12 recommended, tested 10.1, min version TBD)
 - [Geant4](https://gitlab.cern.ch/geant4/geant4) > 11.0
 - VecCore [library](https://github.com/root-project/veccore) 0.8.2
-- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 2.2.0
+- VecGeom [library](https://gitlab.cern.ch/VecGeom/VecGeom) >= 2.2.1
 - G4HepEm [library](https://github.com/mnovak42/g4hepem) >= tag [20261106](https://github.com/mnovak42/g4hepem/tree/20261106)
 - optional: HepMC3 [library](https://gitlab.cern.ch/hepmc/HepMC3)
 
@@ -69,6 +69,7 @@ Then, the required `cuda_architecture` is the compute capability without the `.`
 
 To configure and build VecGeom, use the configuration options below, using as <cuda_architecture> the value from the step above:
 ```console
+$ git checkout v2.2.1
 $ cmake -S. -B./vecgeom-build \
   -DCMAKE_INSTALL_PREFIX="<path_to_vecgeom_installation>" \
   -DCMAKE_PREFIX_PATH="<path_to_veccore_installation>" \
