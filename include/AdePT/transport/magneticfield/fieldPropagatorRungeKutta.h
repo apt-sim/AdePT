@@ -55,7 +55,8 @@ public:
   // Move the track,
   //   updating 'position', 'direction', the next state and returning the length moved.
 
-  // Calculate safety
+  // Arc length over which the curved trajectory stays within fieldConstants::deltaChord of the
+  // straight line along the current direction
   static inline __host__ __device__ Real_t ComputeSafeLength(vecgeom::Vector3D<double> &momentumVec,
                                                              vecgeom::Vector3D<Real_t> &BfieldVec, int charge);
 
@@ -72,20 +73,19 @@ inline __host__ __device__ Real_t
 fieldPropagatorRungeKutta<Field_t, RkDriver_t, Real_t, Navigator_t>::ComputeSafeLength(
     vecgeom::Vector3D<double> &momentumVec, vecgeom::Vector3D<Real_t> &BfieldVec, int charge)
 {
-  Real_t bmag2                      = BfieldVec.Mag2();
-  Real_t ratioOverFld               = (bmag2 > 0) ? momentumVec.Dot(BfieldVec) / bmag2 : 0.0;
-  vecgeom::Vector3D<Real_t> PtransB = momentumVec - ratioOverFld * BfieldVec;
+  // Curvature of the trajectory, kappa = |dT/ds| = |q| |p x B| / p^2, with T the unit direction and
+  // s the arc length. In a uniform field it equals sin^2(alpha) / R, with alpha the angle between p
+  // and B and R = p_perp / (|q| B) the helix radius. It is computed in double also when Real_t is
+  // float, so that the curvature of a track moving along B stays at double rounding level.
+  const double momentumMag2 = momentumVec.Mag2();
+  const double curvature    = (momentumMag2 > 0.)
+                                  ? fabs(fieldConstants::kB2C * charge) * momentumVec.Cross(BfieldVec).Mag() / momentumMag2
+                                  : 0.;
 
-  Real_t bmag = sqrt(bmag2);
-
-  // Real_t curv = fabs(Track::kB2C * charge * bmag / ( PtransB.Mag() + tiny));
-
-  // Calculate inverse curvature instead - save a division
-  Real_t inv_curv = fabs(PtransB.Mag() / (fieldConstants::kB2C * Real_t(charge) * bmag + 1.0e-30));
-  // acceptable lateral error from field
-  return sqrt(Real_t(2.0) * fieldConstants::deltaChord *
-              inv_curv); // max length along curve for deflection
-                         // = sqrt( 2.0 / ( invEpsD * curv) ); // Candidate for fast inv-sqrt
+  // Arc length s after which the trajectory has moved deltaChord away from the straight line along
+  // its starting direction, from deltaChord = curvature * s^2 / 2. For a track that does not bend
+  // (p along B, or no field) the 1e-30 keeps the result finite; it is then far longer than any step.
+  return Real_t(sqrt(2.0 * fieldConstants::deltaChord / (curvature + 1.0e-30)));
 }
 
 // Determine the step along curved trajectory for charged particles in a field.
