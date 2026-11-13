@@ -8,7 +8,7 @@ BUILDDIR = _build
 DOXYGEN ?= doxygen
 PYTHON ?= python3
 
-.PHONY: help clean html runtime-parameters
+.PHONY: help clean html runtime-parameters geometry-validation-figures
 
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
@@ -18,6 +18,10 @@ clean:
 
 runtime-parameters:
 	@$(PYTHON) scripts/generate_runtime_parameters.py
+
+# Sketches of user/geometry-validation.md (needs matplotlib; the PNG files are committed)
+geometry-validation-figures:
+	@$(PYTHON) scripts/geometry_validation_figures.py
 
 html:
 	@$(PYTHON) scripts/generate_runtime_parameters.py
