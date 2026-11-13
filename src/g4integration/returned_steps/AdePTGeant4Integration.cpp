@@ -504,6 +504,11 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
     (*fStepReconstructionObjects->fPostG4TouchableHistoryHandle)
         ->UpdateYourself(fStepReconstructionObjects->fPostG4NavigationHistory.GetTopVolume(),
                          &fStepReconstructionObjects->fPostG4NavigationHistory);
+  } else {
+    // UpdateYourself(nullptr, ...) clears only the first entry, so discard any cached daughter levels first.
+    fStepReconstructionObjects->fPostG4NavigationHistory.Reset();
+    (*fStepReconstructionObjects->fPostG4TouchableHistoryHandle)
+        ->UpdateYourself(nullptr, &fStepReconstructionObjects->fPostG4NavigationHistory);
   }
 
   // Get step status
@@ -1006,10 +1011,7 @@ void AdePTGeant4Integration::FillG4Track(GPUStep const *aGPUStep, G4Track *aTrac
       preVolume != nullptr) {                          // protect against nullptr if NavState is outside
     aTrack->SetTouchableHandle(aPreG4TouchableHandle); // Real data
   }
-  if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
-      postVolume != nullptr) {                              // protect against nullptr if postNavState is outside
-    aTrack->SetNextTouchableHandle(aPostG4TouchableHandle); // Real data
-  }
+  aTrack->SetNextTouchableHandle(aPostG4TouchableHandle); // Real data, including a null volume at world exit
   // aTrack->SetOriginTouchableHandle(nullptr);                                               // Missing data
   aTrack->SetKineticEnergy(aGPUStep->fPostStepPoint.fEKin);      // Real data
   aTrack->SetMomentumDirection(aPostStepPointMomentumDirection); // Real data
@@ -1126,12 +1128,10 @@ void AdePTGeant4Integration::FillG4Step(GPUStep const *aGPUStep, G4Step *aG4Step
   aPostStepPoint->SetKineticEnergy(aGPUStep->fPostStepPoint.fEKin);      // Real data
   aPostStepPoint->SetVelocity(VelocityFromKineticEnergy(*aTrack->GetParticleDefinition(),
                                                         aGPUStep->fPostStepPoint.fEKin)); // Real data
-  if (const auto postVolume = aPostG4TouchableHandle->GetVolume();
-      postVolume != nullptr) {                                  // protect against nullptr if postNavState is outside
-    aPostStepPoint->SetTouchableHandle(aPostG4TouchableHandle); // Real data
-    aPostStepPoint->SetMaterial(postVolume->GetLogicalVolume()->GetMaterial()); // Real data
-    aPostStepPoint->SetMaterialCutsCouple(postVolume->GetLogicalVolume()->GetMaterialCutsCouple());
-  }
+  aPostStepPoint->SetTouchableHandle(aPostG4TouchableHandle); // Real data, including a null volume at world exit
+  const auto *postVolume = aPostG4TouchableHandle->GetVolume();
+  aPostStepPoint->SetMaterial(postVolume ? postVolume->GetLogicalVolume()->GetMaterial() : nullptr);
+  aPostStepPoint->SetMaterialCutsCouple(postVolume ? postVolume->GetLogicalVolume()->GetMaterialCutsCouple() : nullptr);
   // aPostStepPoint->SetSensitiveDetector(nullptr);                                                   // Missing data
   // aPostStepPoint->SetSafety(0);                                                                    // Missing data
   // aPostStepPoint->SetPolarization(); // Missing data
