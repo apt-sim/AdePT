@@ -28,26 +28,30 @@ using AdePTNavigator = BVHNavigator;
 #endif
 // } // End namespace COPCORE_IMPL
 
-/// Whether the final direction at a boundary keeps a track that would leave `from` on the side of `from`: it goes back
-/// into the exited volume, or out of the entered daughter. Geant4 relocates once with that direction, so such a track
-/// has only touched the surface.
-__host__ __device__ inline bool TurnsBackAtBoundary(vecgeom::NavigationState const &from,
-                                                    vecgeom::NavigationState const &next,
+/// Whether a track whose step ends on a boundary leading out of `currentState` turns back with its final direction:
+/// the ray stays in the exited volume, or does not go into the entered daughter. Geant4 relocates once with that
+/// direction, so such a track has only touched the surface. The solid decides from the direction, which also holds on
+/// edges and corners, where no single normal does.
+__host__ __device__ inline bool TurnsBackAtBoundary(vecgeom::NavigationState const &currentState,
+                                                    vecgeom::NavigationState const &nextState,
                                                     vecgeom::Vector3D<double> const &pos,
                                                     vecgeom::Vector3D<double> const &dir)
 {
 #ifdef ADEPT_USE_SURF
   return false;
 #else
-  const bool entered               = next.IsDescendent(from.GetState());
-  vecgeom::NavigationState crossed = entered ? next : from;
-  while (entered && crossed.GetLevel() > from.GetLevel() + 1)
-    crossed.Pop();
+  const bool entersDaughter             = nextState.IsDescendent(currentState.GetState());
+  vecgeom::NavigationState surfaceState = entersDaughter ? nextState : currentState;
+  while (entersDaughter && surfaceState.GetLevel() > currentState.GetLevel() + 1) {
+    surfaceState.Pop();
+  }
   vecgeom::Transformation3D m;
-  crossed.TopMatrix(m);
-  vecgeom::Vector3D<double> normal;
-  if (!crossed.Top()->GetUnplacedVolume()->Normal(m.Transform(pos), normal)) return false;
-  const double nd = normal.Dot(m.TransformDirection(dir));
-  return entered ? nd > 0. : nd < 0.;
+  surfaceState.TopMatrix(m);
+  const auto localPos = m.Transform(pos);
+  const auto localDir = m.TransformDirection(dir);
+  auto const *solid   = surfaceState.Top()->GetUnplacedVolume();
+  // A positive distance means the ray moves away from the side it would be handed over to.
+  return entersDaughter ? solid->DistanceToIn(localPos, localDir, vecgeom::kInfLength) > 0.
+                        : solid->DistanceToOut(localPos, localDir, vecgeom::kInfLength) > 0.;
 #endif
 }
