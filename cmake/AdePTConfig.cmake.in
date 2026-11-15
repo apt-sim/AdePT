@@ -20,8 +20,7 @@ set(VecCore_VERSION 0.5.2)
 set(VecCore_BACKEND CUDA)
 find_dependency(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 
-set(VecGeom_VERSION_REQ 2.0.0-dev.3)
-find_dependency(VecGeom REQUIRED)
+find_dependency(VecGeom @ADEPT_VECGEOM_MIN_VERSION@ REQUIRED)
 
 find_package(G4HepEm)
 if(G4HepEm_FOUND)

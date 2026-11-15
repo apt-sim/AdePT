@@ -12,7 +12,7 @@ AdePT requires the following software stack:
 - CUDA toolkit (CUDA 12+ recommended)
 - Geant4 > 11.0
 - VecCore
-- VecGeom (with CUDA support)
+- VecGeom >= 2.2.1 (with CUDA support)
 - G4HepEm >= tag [20261106](https://github.com/mnovak42/g4hepem/tree/20261106) (with CUDA support)
 - Optional: HepMC3
 
@@ -44,6 +44,7 @@ cmake --build ./veccore-build --target install -- -j6
 ### VecGeom
 
 ```console
+git checkout v2.2.1
 cmake -S . -B ./vecgeom-build \
   -DCMAKE_INSTALL_PREFIX=<path_to_vecgeom_installation> \
   -DCMAKE_PREFIX_PATH=<path_to_veccore_installation> \
