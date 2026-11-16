@@ -163,6 +163,10 @@ protected:
     step.fPostStepPoint                   = step.fPreStepPoint;
     step.fPostStepPoint.fNavigationState  = after;
     step.fPostStepPoint.fPosition         = {position.x(), position.y(), position.z()};
+    if (process == kAdePTFinishOnCPUProcess) {
+      step.fStepLength    = 0.;
+      step.fPostStepPoint = step.fPreStepPoint;
+    }
     if (useHostData) integration.GetHostTrackDataMapper().create(step.fTrackID);
 
     // Exercise both production GPU-return paths and Geant4's real stack. The
@@ -268,6 +272,7 @@ TEST_F(ReturnedTrackBoundary, CPUStepSuppliesTheNewBoundaryStatus)
 TEST_F(ReturnedTrackBoundary, InteriorFinishOnCPUCompletesNormally)
 {
   for (auto path : returnPaths) {
+    path.direct = true;
     SCOPED_TRACE(testing::Message() << "particle=" << static_cast<int>(path.particle) << " direct=" << path.direct);
     auto track = ReturnFromGPU(path, false, {}, true, kAdePTFinishOnCPUProcess);
     ASSERT_NE(track, nullptr);

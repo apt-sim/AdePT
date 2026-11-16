@@ -372,7 +372,7 @@ void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSte
   assert(gpuSteps.size() == 1);
 
   const GPUStep &parentStep = gpuSteps.front();
-  assert(parentStep.fParticleType == ParticleType::Gamma);
+  assert(parentStep.fParticleType == ParticleType::Gamma || parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
   assert(parentStep.fStepLimProcessId == kAdePTOutOfGPURegionProcess ||
          parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
   assert(parentStep.fTotalEnergyDeposit == 0.);

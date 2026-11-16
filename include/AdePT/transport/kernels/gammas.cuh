@@ -54,6 +54,17 @@ __global__ void __launch_bounds__(256, 1)
     const auto slot            = particleManager.gammas.ActiveAt(i);
     NeutralTrack &currentTrack = particleManager.gammas.TrackAt(slot);
 
+    // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
+    // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
+    // their child steps, which would cause missing links in the HostTrackData
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      slotManager.MarkSlotForFreeing(slot);
+
+      adept_step_recording::RecordFinishOnCPU(currentTrack, ParticleType::Gamma);
+      continue;
+    }
+
     auto navState             = currentTrack.navState;
     int lvolID                = navState.GetLogicalId();
     VolAuxData const &auxData = gVolAuxData[lvolID];
@@ -104,36 +115,6 @@ __global__ void __launch_bounds__(256, 1)
         }
         continue;
       }
-    }
-
-    // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
-    // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
-    // their child steps, which would cause missing links in the HostTrackData
-    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      slotManager.MarkSlotForFreeing(slot);
-
-      adept_step_recording::RecordGPUStep(currentTrack,             // Owning track and its metadata
-                                          kAdePTFinishOnCPUProcess, // Step-defining process ID
-                                          ParticleType::Gamma,      // Particle type
-                                          0.,                       // Step length
-                                          0.,                       // Total energy deposit
-                                          navState,                 // Pre-step navigation state
-                                          preStepPos,               // Pre-step position
-                                          preStepDir,               // Pre-step momentum direction
-                                          preStepEnergy,            // Pre-step kinetic energy
-                                          navState,                 // Post-step navigation state
-                                          pos,                      // Post-step position
-                                          dir,                      // Post-step momentum direction
-                                          eKin,                     // Post-step kinetic energy
-                                          globalTime,               // Post-step global time
-                                          localTime,                // Post-step local time
-                                          properTime,               // Post-step proper time
-                                          preStepGlobalTime,        // Pre-step global time
-                                          false,                    // Whether this is the track's last step
-                                          nullptr,                  // Secondary initialization data
-                                          0);                       // Number of secondaries
-      continue;
     }
 
     // Write local variables back into track and enqueue

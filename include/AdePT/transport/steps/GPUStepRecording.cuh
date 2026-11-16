@@ -69,6 +69,16 @@ __device__ void RecordGPUStep(TrackBase const &track, short stepLimProcessId, Pa
   }
 }
 
+/// @brief Record a finish-on-CPU handoff without changing the track or counting a step.
+__device__ __forceinline__ void RecordFinishOnCPU(TrackBase const &track, ParticleType particleType)
+{
+  RecordGPUStep(track, kAdePTFinishOnCPUProcess, particleType,
+                /*stepLength=*/0., /*energyDeposit=*/0., track.navState, track.pos, track.dir, track.eKin,
+                track.navState, track.pos, track.dir, track.eKin, track.globalTime, track.localTime, track.properTime,
+                track.globalTime,
+                /*isLastStep=*/false, /*secondaryData=*/nullptr, /*nSecondaries=*/0);
+}
+
 /// @brief Record a terminal zero-length step at the track's current point.
 __device__ __forceinline__ void RecordZeroLengthGPUStep(TrackBase const &track, ParticleType particleType,
                                                         short processId, double preEKin, double postEKin,

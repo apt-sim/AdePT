@@ -93,6 +93,18 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
     const auto slot            = electronsOrPositrons.ActiveAt(i);
     ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
 
+    // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
+    // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
+    // their child steps, which would cause missing links in the HostTrackData
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      slotManager.MarkSlotForFreeing(slot);
+
+      adept_step_recording::RecordFinishOnCPU(currentTrack,
+                                              IsElectron ? ParticleType::Electron : ParticleType::Positron);
+      continue;
+    }
+
     auto navState = currentTrack.navState;
     // the MCC vector is indexed by the logical volume id
     const int lvolID          = navState.GetLogicalId();
@@ -148,36 +160,6 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
         }
         continue;
       }
-    }
-
-    // Finish-on-CPU must happen before any interaction can create secondaries on the GPU.
-    // Otherwise, the deferred steps from the FinishOnCPU particles could be processed after
-    // their child steps, which would cause missing links in the HostTrackData
-    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
-        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-      slotManager.MarkSlotForFreeing(slot);
-
-      adept_step_recording::RecordGPUStep(currentTrack,             // Owning track and its metadata
-                                          kAdePTFinishOnCPUProcess, // Step-defining process ID
-                                          IsElectron ? ParticleType::Electron : ParticleType::Positron, // Particle type
-                                          0.,                                                           // Step length
-                                          0.,                // Total energy deposit
-                                          navState,          // Pre-step navigation state
-                                          preStepPos,        // Pre-step position
-                                          preStepDir,        // Pre-step momentum direction
-                                          preStepEnergy,     // Pre-step kinetic energy
-                                          navState,          // Post-step navigation state
-                                          pos,               // Post-step position
-                                          dir,               // Post-step momentum direction
-                                          eKin,              // Post-step kinetic energy
-                                          globalTime,        // Post-step global time
-                                          localTime,         // Post-step local time
-                                          properTime,        // Post-step proper time
-                                          preStepGlobalTime, // Pre-step global time
-                                          false,             // Whether this is the track's last step
-                                          nullptr,           // Secondary initialization data
-                                          0);                // Number of secondaries
-      continue;
     }
 
     auto survive = [&]() {

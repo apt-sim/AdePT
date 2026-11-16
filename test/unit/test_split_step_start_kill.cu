@@ -106,6 +106,9 @@ struct TestState {
   G4HepEmElectronTrack electron;
   G4HepEmGammaTrack gamma;
   VolAuxData aux;
+  Stats stats;
+  unsigned int inFlight{1};
+  unsigned short finishThreshold{0};
 #ifdef ADEPT_ENABLE_WDT
   adeptint::WDTRoot wdtRoot;
   adeptint::WDTRegion wdtRegion{0, 1, 0.f};
@@ -155,13 +158,17 @@ protected:
   bool IsCharged() const { return GetParam() == Species::Electron || GetParam() == Species::Positron; }
 
   void Run(KillCause cause, bool sensitive, bool returnAll, bool returnLast, bool hasHostData, bool expectRecord,
-           double kineticEnergy = 0.25 * copcore::units::MeV)
+           double kineticEnergy = 0.25 * copcore::units::MeV, bool finishOnCPU = false,
+           unsigned short initialStepNumber = 7)
   {
     Managed<TestState> state;
-    auto &track = IsCharged() ? static_cast<TrackBase &>(state->charged) : static_cast<TrackBase &>(state->neutral);
-    track.eKin  = kineticEnergy;
-    track.pos   = {1., 2., 3.};
-    track.dir   = {0., 0., 1.};
+    auto &track    = IsCharged() ? static_cast<TrackBase &>(state->charged) : static_cast<TrackBase &>(state->neutral);
+    track.rngState = RanluxppDouble{12345};
+    auto expectedRng = track.rngState;
+
+    track.eKin                 = kineticEnergy;
+    track.pos                  = {1., 2., 3.};
+    track.dir                  = {0., 0., 1.};
     track.globalTime           = 12.;
     track.localTime            = 5.f;
     track.properTime           = 2.f;
@@ -171,18 +178,22 @@ protected:
     track.threadId             = 0;
     track.weight               = 0.5f;
     track.hasHostData          = hasHostData;
-    track.hepEmTrackExists     = true;
-    track.stepCounter          = cause == KillCause::MaxSteps ? 9999 : 7;
+    track.hepEmTrackExists     = !finishOnCPU;
+    track.stepCounter          = cause == KillCause::MaxSteps ? 9999 : initialStepNumber;
     track.zeroStepCounter      = cause == KillCause::Stuck ? 26 : 0;
     track.looperCounter        = cause == KillCause::Looper ? 501 : 0;
     state->aux.fSensIndex      = sensitive ? 0 : -1;
     state->slots.fFreeListSize = 1;
     state->slots.fToFreeList   = &state->freedSlot;
+
+    const auto expectedStepNumber         = track.stepCounter;
+    state->stats.perEventInFlightPrevious = &state->inFlight;
+    state->finishThreshold                = finishOnCPU ? 2 : 0;
     // Seed persistent HepEm state with a previous step's length. The terminal
     // record must describe the current zero-length kill, not reuse this value.
     state->electron.GetTrack()->SetGStepLength(123.);
     state->gamma.GetTrack()->SetGStepLength(123.);
-    state->gamma.GetTrack()->SetNumIALeft(1., 0);
+    state->gamma.GetTrack()->SetNumIALeft(finishOnCPU ? 0. : 1., 0);
 
 #ifdef ADEPT_ENABLE_WDT
     if (GetParam() == Species::WoodcockGamma) {
@@ -204,28 +215,37 @@ protected:
     TransportKernelOptions options;
     options.returnAllSteps = returnAll;
     options.returnLastStep = returnLast;
-    // All paths under test kill before consulting transport statistics or
-    // enqueuing propagation. Null pointers make an unexpected survival fail.
+    // All paths under test finish or kill before enqueuing propagation.
+    // Null propagation queues make an unexpected survival fail.
     switch (GetParam()) {
     case Species::Electron:
-      ElectronHowFar<true, LHCbEnergyCut><<<1, 1>>>(manager, &state->electron, nullptr, nullptr, {}, {}, options);
+      ElectronHowFar<true, LHCbEnergyCut>
+          <<<1, 1>>>(manager, &state->electron, nullptr, &state->stats, {}, {&state->finishThreshold}, options);
       break;
     case Species::Positron:
-      ElectronHowFar<false, LHCbEnergyCut><<<1, 1>>>(manager, &state->electron, nullptr, nullptr, {}, {}, options);
+      ElectronHowFar<false, LHCbEnergyCut>
+          <<<1, 1>>>(manager, &state->electron, nullptr, &state->stats, {}, {&state->finishThreshold}, options);
       break;
     case Species::Gamma:
-      GammaHowFar<LHCbEnergyCut><<<1, 1>>>(&state->gamma, manager, nullptr, nullptr, {}, {}, options);
+      GammaHowFar<LHCbEnergyCut>
+          <<<1, 1>>>(&state->gamma, manager, nullptr, &state->stats, {}, {&state->finishThreshold}, options);
       break;
     case Species::WoodcockGamma:
 #ifdef ADEPT_ENABLE_WDT
-      GammaWoodcock<LHCbEnergyCut><<<1, 1>>>(&state->gamma, manager, nullptr, nullptr, {}, {}, options);
+      GammaWoodcock<LHCbEnergyCut>
+          <<<1, 1>>>(&state->gamma, manager, nullptr, &state->stats, {}, {&state->finishThreshold}, options);
 #endif
       break;
     }
     ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)());
     EXPECT_EQ(state->slots.fFreeCounter, 1u);
     EXPECT_EQ(state->freedSlot, 0u);
-    EXPECT_EQ(track.eKin, 0.);
+    EXPECT_EQ(track.eKin, finishOnCPU ? kineticEnergy : 0.);
+    if (finishOnCPU) {
+      EXPECT_EQ(track.stepCounter, expectedStepNumber);
+      EXPECT_FALSE(track.hepEmTrackExists);
+      EXPECT_DOUBLE_EQ(track.rngState.Rndm(), expectedRng.Rndm());
+    }
     ASSERT_EQ(state->stepCount, expectRecord ? 1u : 0u);
     if (!expectRecord) return;
 
@@ -233,13 +253,13 @@ protected:
     const auto particle    = GetParam() == Species::Electron   ? ParticleType::Electron
                              : GetParam() == Species::Positron ? ParticleType::Positron
                                                                : ParticleType::Gamma;
-    double expectedDeposit = kineticEnergy;
-    if (GetParam() == Species::Positron && cause != KillCause::EnergyCut)
+    double expectedDeposit = finishOnCPU ? 0. : kineticEnergy;
+    if (!finishOnCPU && GetParam() == Species::Positron && cause != KillCause::EnergyCut)
       expectedDeposit += 2 * copcore::units::kElectronMassC2;
     EXPECT_DOUBLE_EQ(step.fTotalEnergyDeposit, expectedDeposit);
     EXPECT_DOUBLE_EQ(step.fStepLength, 0.);
     EXPECT_DOUBLE_EQ(step.fPreStepPoint.fEKin, kineticEnergy);
-    EXPECT_DOUBLE_EQ(step.fPostStepPoint.fEKin, 0.);
+    EXPECT_DOUBLE_EQ(step.fPostStepPoint.fEKin, finishOnCPU ? kineticEnergy : 0.);
     EXPECT_EQ(step.fParticleType, particle);
     EXPECT_EQ(step.fTrackID, track.trackId);
     EXPECT_EQ(step.fParentID, track.parentId);
@@ -247,8 +267,8 @@ protected:
     EXPECT_EQ(step.threadId, track.threadId);
     EXPECT_EQ(step.fStepCounter, track.stepCounter);
     EXPECT_EQ(step.fTrackWeight, track.weight);
-    EXPECT_EQ(step.fStepLimProcessId, kAdePTTransportationProcess);
-    EXPECT_TRUE(step.fLastStepOfTrack);
+    EXPECT_EQ(step.fStepLimProcessId, finishOnCPU ? kAdePTFinishOnCPUProcess : kAdePTTransportationProcess);
+    EXPECT_EQ(step.fLastStepOfTrack, !finishOnCPU);
     EXPECT_EQ(step.fHasHostData, hasHostData);
     EXPECT_EQ(step.fNumSecondaries, 0);
     EXPECT_DOUBLE_EQ(step.fPreGlobalTime, track.globalTime);
@@ -270,6 +290,23 @@ private:
   char *fQueueStorage{nullptr};
   adept::MParray *fQueue{nullptr};
 };
+
+TEST_P(SplitStepStartKill, FinishOnCPUPrecedesEnergyCutAndStepCounter)
+{
+  for (unsigned short stepNumber : {0, 7}) {
+    SCOPED_TRACE(stepNumber);
+    Run(KillCause::EnergyCut, true, false, false, false, true, 0.25 * copcore::units::MeV, true, stepNumber);
+  }
+}
+
+TEST_P(SplitStepStartKill, FinishOnCPUPrecedesSafetyKills)
+{
+  for (auto cause : {KillCause::MaxSteps, KillCause::Stuck, KillCause::Looper}) {
+    if (cause == KillCause::Looper && !IsCharged()) continue;
+    SCOPED_TRACE(static_cast<int>(cause));
+    Run(cause, true, false, false, false, true, 0.25 * copcore::units::MeV, true);
+  }
+}
 
 TEST_P(SplitStepStartKill, SensitiveSafetyKillsDepositWithoutHostData)
 {
