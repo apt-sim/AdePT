@@ -93,6 +93,7 @@ public:
   }
   void SetWDTKineticEnergyLimit(double ekin) { fWDTKineticEnergyLimit = ekin; }
   void SetSpeedOfLight(bool speedOfLight) { fSpeedOfLight = speedOfLight; }
+  void SetValidateHandoff(bool validate) { fValidateHandoff = validate; }
   void SetMultipleStepsInMSCWithTransportation(bool setMultipleSteps)
   {
     fSetMultipleStepsInMSCWithTransportation = setMultipleSteps;
@@ -112,6 +113,7 @@ public:
   bool GetReturnAllSteps() const { return fReturnAllSteps; }
   bool GetReturnFirstAndLastStep() const { return fReturnFirstAndLastStep; }
   bool GetSpeedOfLight() const { return fSpeedOfLight; }
+  bool GetValidateHandoff() const { return fValidateHandoff; }
   bool GetMultipleStepsInMSCWithTransportation() const { return fSetMultipleStepsInMSCWithTransportation; }
   bool GetEnergyLossFluctuation() const { return fSetEnergyLossFluctuation; }
   int GetNumThreads() const { return fNumThreads; };
@@ -148,6 +150,7 @@ private:
   // These settings cannot change after the first worker initializes AdePT.
   inline static bool sTransportInitializationOptionsLocked{false};
   bool fSpeedOfLight{false};
+  bool fValidateHandoff{false};
   bool fSetMultipleStepsInMSCWithTransportation{false};
   bool fSetEnergyLossFluctuation{false};
   int fNumThreads{-1};

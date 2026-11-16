@@ -19,10 +19,15 @@
 #include <span>
 #include <vector>
 
+class HandoffValidator;
+
 namespace AdePTGeant4Integration_detail {
 struct StepReconstructionObjects;
 struct Deleter {
   void operator()(StepReconstructionObjects *ptr);
+};
+struct HandoffValidatorDeleter {
+  void operator()(HandoffValidator *ptr);
 };
 } // namespace AdePTGeant4Integration_detail
 
@@ -91,7 +96,17 @@ public:
     fHepEmTrackingManager = hepEmTrackingManager;
   }
 
+  /// @brief Check every track returned because it left the GPU regions (/adept/validateHandoff).
+  /// @param threads Number of worker threads whose counts are summed at the end of a run.
+  void EnableHandoffValidation(int threads);
+
+  /// @brief The handoff validator, or nullptr when the check is off.
+  HandoffValidator *GetHandoffValidator() const { return fHandoffValidator.get(); }
+
 private:
+  /// @brief Check the handoff of a returned track, if it left the GPU regions on a boundary.
+  void ValidateHandoff(GPUStep const &parentStep, G4Track const &track);
+
   /// @brief Reconstruct G4TouchableHistory from a VecGeom Navigation index
   void FillG4NavigationHistory(const vecgeom::NavigationState &aNavState,
                                G4NavigationHistory &aG4NavigationHistory) const;
@@ -149,4 +164,6 @@ private:
 
   std::vector<GPUStep> fDeferredGPUSteps;
   std::vector<DeferredStep> fDeferredSteps;
+
+  std::unique_ptr<HandoffValidator, AdePTGeant4Integration_detail::HandoffValidatorDeleter> fHandoffValidator;
 };

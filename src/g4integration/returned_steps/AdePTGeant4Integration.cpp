@@ -3,6 +3,7 @@
 
 #include <AdePT/g4integration/returned_steps/AdePTGeant4Integration.hh>
 #include <AdePT/g4integration/geometry/AdePTGeometryBridge.hh>
+#include <AdePT/g4integration/returned_steps/HandoffValidator.hh>
 
 #include <VecGeom/navigation/NavigationState.h>
 
@@ -347,6 +348,27 @@ void MergeNuclearReplayIntoVisibleStep(const G4Track &scratchTrack, const G4Step
 
 AdePTGeant4Integration::~AdePTGeant4Integration() {}
 
+void AdePTGeant4Integration_detail::HandoffValidatorDeleter::operator()(HandoffValidator *ptr)
+{
+  delete ptr;
+}
+
+void AdePTGeant4Integration::EnableHandoffValidation(int threads)
+{
+  fHandoffValidator.reset(new HandoffValidator(threads));
+}
+
+void AdePTGeant4Integration::ValidateHandoff(GPUStep const &parentStep, G4Track const &track)
+{
+  auto const &endState = parentStep.fPostStepPoint.fNavigationState;
+  if (parentStep.fStepLimProcessId != kAdePTOutOfGPURegionProcess || !endState.IsOnBoundary() || endState.IsOutside())
+    return;
+  auto const &end = parentStep.fPostStepPoint.fPosition;
+  fHandoffValidator->Check(MakeTouchableFromNavState(parentStep.fPreStepPoint.fNavigationState),
+                           track.GetTouchableHandle(), G4ThreeVector(end.x(), end.y(), end.z()), track.GetPosition(),
+                           track.GetMomentumDirection());
+}
+
 void AdePTGeant4Integration::QueueDeferredStep(std::span<const GPUStep> gpuSteps, DeferredStepType type)
 {
   if (gpuSteps.empty()) return;
@@ -381,6 +403,7 @@ void AdePTGeant4Integration::ReturnDeferredTrack(std::span<const GPUStep> gpuSte
 
   auto *returnedParentTrack = MakeReturnedTrackFromStep(
       parentStep, parentTData, /*setStopButAlive=*/parentStep.fStepLimProcessId == kAdePTFinishOnCPUProcess);
+  if (fHandoffValidator) ValidateHandoff(parentStep, *returnedParentTrack);
   G4EventManager::GetEventManager()->GetStackManager()->PushOneTrack(returnedParentTrack);
   fHostTrackDataMapper->retireToCPU(parentStep.fTrackID);
 }
@@ -749,6 +772,7 @@ void AdePTGeant4Integration::ProcessGPUStep(std::span<const GPUStep> gpuSteps, b
   } else if (isOutOfGPURegionStep || isFinishOnCPUStep) {
     returnedParentTrack   = MakeReturnedTrackFromStep(parentStep, parentTData, /*setStopButAlive=*/isFinishOnCPUStep);
     returnParentTrackToG4 = true;
+    if (fHandoffValidator) ValidateHandoff(parentStep, *returnedParentTrack);
   }
 
   // Now, the G4Step is fully initialized and also contains the secondaries created in that step.
