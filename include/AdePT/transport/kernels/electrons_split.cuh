@@ -87,6 +87,15 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < activeSize; i += blockDim.x * gridDim.x) {
     const auto slot            = electronsOrPositrons.ActiveAt(i);
     ChargedTrack &currentTrack = electronsOrPositrons.TrackAt(slot);
+
+    if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] < allowFinishOffEvent[currentTrack.threadId] &&
+        InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
+      slotManager.MarkSlotForFreeing(slot);
+
+      adept_step_recording::RecordFinishOnCPU(currentTrack,
+                                              IsElectron ? ParticleType::Electron : ParticleType::Positron);
+      continue;
+    }
     // the MCC vector is indexed by the logical volume id
     const int lvolID = currentTrack.navState.GetLogicalId();
 
@@ -153,37 +162,7 @@ __global__ void ElectronHowFar(ParticleManager particleManager, G4HepEmElectronT
                                         currentTrack.globalTime, auxData, &g4HepEmData, params);
       }
 
-      // this one always needs to be last as it needs to be done only if the track survives
-      if (trackSurvives) {
-        if (InFlightStats->perEventInFlightPrevious[currentTrack.threadId] <
-                allowFinishOffEvent[currentTrack.threadId] &&
-            InFlightStats->perEventInFlightPrevious[currentTrack.threadId] != 0) {
-          slotManager.MarkSlotForFreeing(slot);
-
-          adept_step_recording::RecordGPUStep(currentTrack,             // Owning track and its metadata
-                                              kAdePTFinishOnCPUProcess, // Step-defining process ID
-                                              IsElectron ? ParticleType::Electron
-                                                         : ParticleType::Positron, // Particle type
-                                              0.,                                  // Step length
-                                              0.,                                  // Total energy deposit
-                                              currentTrack.navState,               // Pre-step navigation state
-                                              currentTrack.preStepPos,             // Pre-step position
-                                              currentTrack.preStepDir,             // Pre-step momentum direction
-                                              currentTrack.preStepEKin,            // Pre-step kinetic energy
-                                              currentTrack.navState,               // Post-step navigation state
-                                              currentTrack.pos,                    // Post-step position
-                                              currentTrack.dir,                    // Post-step momentum direction
-                                              currentTrack.eKin,                   // Post-step kinetic energy
-                                              currentTrack.globalTime,             // Post-step global time
-                                              currentTrack.localTime,              // Post-step local time
-                                              currentTrack.properTime,             // Post-step proper time
-                                              currentTrack.preStepGlobalTime,      // Pre-step global time
-                                              false,   // Whether this is the track's last step
-                                              nullptr, // Secondary initialization data
-                                              0);      // Number of secondaries
-          continue;
-        }
-      } else {
+      if (!trackSurvives) {
         // Free the slot of the killed track
         slotManager.MarkSlotForFreeing(slot);
 

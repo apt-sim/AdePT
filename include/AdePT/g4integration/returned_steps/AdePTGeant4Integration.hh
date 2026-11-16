@@ -62,10 +62,12 @@ public:
 
   /// @brief Return a deferred parent track to Geant4 without rebuilding the visible G4 step.
   /// @details
-  /// This is only used for returned gamma handoff steps with one parent step,
+  /// This is used for returned gamma handoff steps with one parent step,
   /// no secondaries, and zero deposited energy. In that case there is no GPU
   /// step to process on the host, so only the parent G4Track is rebuilt from the
   /// post-step state and pushed back to the Geant4 stack.
+  /// Finish-on-CPU handoffs also use this path for all particle types, regardless
+  /// of callback or return-all-step settings.
   void ReturnDeferredTrack(std::span<const GPUStep> gpuSteps, bool const useHostData = false);
 
   /// @brief Returns the Z value of the user-defined uniform magnetic field

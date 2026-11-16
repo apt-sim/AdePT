@@ -136,6 +136,10 @@ std::shared_ptr<AdePTTransport> GetSharedAdePTTransport()
 
 bool CanReturnTrackDirectly(const GPUStep &step, unsigned int blockSize, bool doUserSteppingAction, bool returnAllSteps)
 {
+  if (step.fStepLimProcessId == kAdePTFinishOnCPUProcess) {
+    return blockSize == 1 && step.fTotalEnergyDeposit == 0.;
+  }
+
   if (doUserSteppingAction || returnAllSteps) return false;
   if (step.fParticleType != ParticleType::Gamma) return false;
   if (step.fStepLimProcessId != kAdePTOutOfGPURegionProcess && step.fStepLimProcessId != kAdePTFinishOnCPUProcess) {
