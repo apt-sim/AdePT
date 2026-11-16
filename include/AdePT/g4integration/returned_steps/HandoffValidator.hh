@@ -26,12 +26,12 @@ class G4TouchableHistory;
 
 enum class HandoffOutcome {
   // Conclusive, correct
-  Confirmed,         ///< Geant4 relocates into the path reached on the GPU, at the end point and after the push
+  Confirmed,         ///< Geant4 relocates into the path reached on the GPU, and no surface lies within the push
   CoincidentSurface, ///< Geant4 goes deeper, into a volume whose surface holds the end point and that the direction
-                     ///< enters (native Geant4 would take a zero step into it)
+                     ///< enters (native Geant4 would take a zero step into it), and no surface lies within the push
   // Inconclusive: not counted as checked
-  PushCrossing, ///< Geant4 accepts the GPU path at the end point, but the 1e-7 mm handoff push crosses the next
-                ///< surface: what it skips is not checked
+  PushCrossing, ///< Geant4 accepts the GPU path at the end point, but a surface lies within the 1e-7 mm handoff
+                ///< push: what it skips is not checked
   Overlap,      ///< an overlap or extrusion is proven at the end point or close to it along the direction
   Replicas,     ///< a parameterised or replicated volume in the paths: their solids are not checked
   // Conclusive, wrong

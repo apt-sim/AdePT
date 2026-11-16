@@ -243,10 +243,14 @@ HandoffOutcome HandoffValidator::Classify(G4NavigationHistory const &from, G4Nav
       const auto view = View(*path, to.GetDepth() + 1, endPoint, direction);
       return view.inside == kSurface && view.NDotD() < 0.;
     };
-    // Correct only if the push changes nothing: it could skip a thin volume starting on the crossed surface.
-    const bool pushChangesNothing = located && atEnd && SamePath(*atEnd, *located);
-    if (pushChangesNothing && SamePath(*located, to)) return HandoffOutcome::Confirmed;
-    if (pushChangesNothing && coincident(located)) return HandoffOutcome::CoincidentSurface;
+    // Correct only if the push crosses no surface: Geant4's step from the end point, limited to the push, is not
+    // shorter than the push, and Geant4 locates the same path after it.
+    const double push             = (handedPoint - endPoint).mag();
+    double safety                 = 0.;
+    const bool pushCrossesNothing = atEnd && fNavigator->ComputeStep(endPoint, direction, push, safety) >= push &&
+                                    located && SamePath(*atEnd, *located);
+    if (pushCrossesNothing && SamePath(*atEnd, to)) return HandoffOutcome::Confirmed;
+    if (pushCrossesNothing && coincident(atEnd)) return HandoffOutcome::CoincidentSurface;
     if (outwardNd < 0.) {
       outcome = HandoffOutcome::DirectionReversed;
     } else if (atEnd && (SamePath(*atEnd, to) || coincident(atEnd))) {

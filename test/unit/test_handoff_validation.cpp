@@ -50,9 +50,11 @@ namespace {
 // - cpu: box [-1, 1]^3 in a CPU region, with two daughters:
 //   - x: starts on the -x face of cpu (x in [-1, -0.6], |y|, |z| < 0.2), with two daughters starting on the same
 //     face: x2 (x in [-1, -0.9], |y|, |z| < 0.1) and xt, thinner than the handoff push (x in [-1, -1 + 5e-8],
-//     y in [-0.18, -0.12], |z| < 0.03)
+//     y in [-0.18, -0.12], |z| < 0.03), and xs, within the handoff push behind that face (x in [-1 + 2e-8, -1 + 7e-8],
+//     y in [0.12, 0.18], z in [0.1, 0.18])
 //   - y: starts 5e-8 mm behind that face (x in [-1 + 5e-8, -0.8 + 5e-8], y in [0.57, 0.67]), within the handoff push
 //   - t: starts on that face, thinner than the handoff push (x in [-1, -1 + 5e-8], y in [-0.6, -0.5], |z| < 0.05)
+//   - s: lies within the handoff push behind that face (x in [-1 + 2e-8, -1 + 7e-8], y in [-0.85, -0.75], |z| < 0.05)
 // - ovl: overlaps cpu (x in [-1.3, -0.7], y in [0.85, 0.95], |z| < 0.3)
 // - rep: box [3, 5] x [-1, 1]^2, in the CPU region, divided into 4 replicas along x
 // - par: box [-1, 1] x [3, 5] x [-1, 1], in the CPU region, with two parameterised copies of different dimensions,
@@ -91,10 +93,14 @@ public:
     new G4PVPlacement(nullptr, {-0.15 * mm, 0, 0}, box("hv_x2", 0.05 * mm, 0.1 * mm, 0.1 * mm), "hv_x2", xLV, false, 0);
     new G4PVPlacement(nullptr, {(-0.2 + 2.5e-8) * mm, -0.15 * mm, 0}, box("hv_xt", 2.5e-8 * mm, 0.03 * mm, 0.03 * mm),
                       "hv_xt", xLV, false, 0);
+    new G4PVPlacement(nullptr, {(-0.2 + 4.5e-8) * mm, 0.15 * mm, 0.14 * mm},
+                      box("hv_xs", 2.5e-8 * mm, 0.03 * mm, 0.04 * mm), "hv_xs", xLV, false, 0);
     new G4PVPlacement(nullptr, {(-0.9 + 5e-8) * mm, 0.62 * mm, 0}, box("hv_y", 0.1 * mm, 0.05 * mm, 0.2 * mm), "hv_y",
                       cpuLV, false, 0);
     new G4PVPlacement(nullptr, {(-1 + 2.5e-8) * mm, -0.55 * mm, 0}, box("hv_t", 2.5e-8 * mm, 0.05 * mm, 0.05 * mm),
                       "hv_t", cpuLV, false, 0);
+    new G4PVPlacement(nullptr, {(-1 + 4.5e-8) * mm, -0.8 * mm, 0}, box("hv_s", 2.5e-8 * mm, 0.05 * mm, 0.05 * mm),
+                      "hv_s", cpuLV, false, 0);
     new G4PVPlacement(nullptr, {-1 * mm, 0.9 * mm, 0}, box("hv_ovl", 0.3 * mm, 0.05 * mm, 0.3 * mm), "hv_ovl", worldLV,
                       false, 0);
     auto *repLV = box("hv_rep", 1 * mm, 1 * mm, 1 * mm);
@@ -159,10 +165,12 @@ const Handoff kHandoffs[] = {
     {"coincident surface", {}, {0}, {-1 * mm, 0.15 * mm, 0}, {1, 0, 0}, HandoffOutcome::CoincidentSurface, "hv_cpu"},
     // Two nested volumes start on the crossed surface: Geant4 enters both.
     {"nested coincident surfaces", {}, {0}, {-1 * mm, 0, 0}, {1, 0, 0}, HandoffOutcome::CoincidentSurface, "hv_cpu"},
-    // The push crosses the next surface: into y, past the thin t and xt that Geant4 enters at the end point, and
-    // out of the world through edge.
+    // The push crosses the next surface: into y, past the thin t and xt that Geant4 enters at the end point, past s
+    // and xs that lie within the push, and out of the world through edge.
     {"push crossing", {}, {0}, {-1 * mm, 0.62 * mm, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_cpu"},
     {"push past t", {}, {0}, {-1 * mm, -0.55 * mm, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_cpu"},
+    {"push past s", {}, {0}, {-1 * mm, -0.8 * mm, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_cpu"},
+    {"push past xs", {}, {0}, {-1 * mm, 0.15 * mm, 0.14 * mm}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_cpu"},
     {"push past xt", {}, {0}, {-1 * mm, -0.15 * mm, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_cpu"},
     {"push out of the world", {}, {4}, {(10 - 5e-8) * mm, 0, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_edge"},
     {"direction reversed", {}, {0}, {-1 * mm, 0.5 * mm, 0}, {-1, 0, 0}, HandoffOutcome::DirectionReversed, "hv_cpu"},

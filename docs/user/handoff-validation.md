@@ -32,9 +32,9 @@ Outcomes of the handoff check.
 
 | Outcome | Condition |
 | --- | --- |
-| confirmed | Geant4 relocates into the path reached on the GPU, both at the end point and after the push |
-| coincident surface | Geant4 goes deeper, into a volume whose surface holds the end point and that the direction enters (native Geant4 takes a zero step into it), and locates the same path at the end point |
-| inconclusive: crossed by the handoff push | Geant4 accepts the GPU path, or a coincident volume, at the end point, but the push of 1e-7 mm along the direction applied to returned tracks crosses the next surface; what it skips (a thin volume, the world boundary) is not checked |
+| confirmed | Geant4 relocates into the path reached on the GPU, and no surface lies within the push (Geant4's `ComputeStep` from the end point is not shorter than the push) |
+| coincident surface | Geant4 goes deeper, into a volume whose surface holds the end point and that the direction enters (native Geant4 takes a zero step into it), and no surface lies within the push |
+| inconclusive: crossed by the handoff push | Geant4 accepts the GPU path, or a coincident volume, at the end point, but a surface lies within the push of 1e-7 mm along the direction applied to returned tracks; what it skips (a thin volume, the world boundary) is not checked |
 | inconclusive: overlap | an overlap or extrusion is proven at the end point, or within 100 `kTolerance` along the direction |
 | inconclusive: replicas | a parameterised or replicated volume is in the paths; their solids are not checked |
 | unexpected: band error | the end point is strictly inside a volume being left, strictly outside a volume being entered, or on none of the crossed surfaces (Geant4's `Inside`) |
