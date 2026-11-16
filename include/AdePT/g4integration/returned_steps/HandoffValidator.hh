@@ -26,7 +26,7 @@ class G4TouchableHistory;
 
 enum class HandoffOutcome {
   // Conclusive, correct
-  Confirmed,         ///< Geant4 relocates into the path reached on the GPU
+  Confirmed,         ///< Geant4 relocates into the path reached on the GPU, at the end point and after the push
   CoincidentSurface, ///< Geant4 goes deeper, into a volume whose surface holds the end point and that the direction
                      ///< enters (native Geant4 would take a zero step into it)
   // Inconclusive: not counted as checked
@@ -50,7 +50,6 @@ struct HandoffCounts {
 
   std::uint64_t &operator[](HandoffOutcome outcome) { return n[std::size_t(outcome)]; }
   std::uint64_t operator[](HandoffOutcome outcome) const { return n[std::size_t(outcome)]; }
-  HandoffCounts &operator+=(HandoffCounts const &other);
   std::uint64_t Total() const;
   std::uint64_t Inconclusive() const;
   std::uint64_t Unexpected() const;

@@ -130,13 +130,6 @@ char const *HandoffOutcomeName(HandoffOutcome outcome)
   return names[std::size_t(outcome)];
 }
 
-HandoffCounts &HandoffCounts::operator+=(HandoffCounts const &other)
-{
-  for (std::size_t i = 0; i < n.size(); ++i)
-    n[i] += other.n[i];
-  return *this;
-}
-
 std::uint64_t HandoffCounts::Total() const
 {
   return std::accumulate(n.begin(), n.end(), std::uint64_t{0});
@@ -238,10 +231,6 @@ HandoffOutcome HandoffValidator::Classify(G4NavigationHistory const &from, G4Nav
   HandoffOutcome outcome = HandoffOutcome::OtherPath;
   if (bandError) {
     outcome = HandoffOutcome::BandError;
-  } else if (located && SamePath(*located, to)) {
-    return HandoffOutcome::Confirmed;
-  } else if (outwardNd < 0.) {
-    outcome = HandoffOutcome::DirectionReversed;
   } else {
     // Geant4 at the end point itself, which the handoff push does not reach.
     const auto atEndTouchable = Locate(endPoint, direction, expected);
@@ -254,9 +243,15 @@ HandoffOutcome HandoffValidator::Classify(G4NavigationHistory const &from, G4Nav
       const auto view = View(*path, to.GetDepth() + 1, endPoint, direction);
       return view.inside == kSurface && view.NDotD() < 0.;
     };
-    // Accepted only if the push changes nothing: it could skip a thin volume at the coincident surface.
-    if (coincident(located) && atEnd && SamePath(*atEnd, *located)) return HandoffOutcome::CoincidentSurface;
-    if (atEnd && (SamePath(*atEnd, to) || coincident(atEnd))) return HandoffOutcome::PushCrossing;
+    // Correct only if the push changes nothing: it could skip a thin volume starting on the crossed surface.
+    const bool pushChangesNothing = located && atEnd && SamePath(*atEnd, *located);
+    if (pushChangesNothing && SamePath(*located, to)) return HandoffOutcome::Confirmed;
+    if (pushChangesNothing && coincident(located)) return HandoffOutcome::CoincidentSurface;
+    if (outwardNd < 0.) {
+      outcome = HandoffOutcome::DirectionReversed;
+    } else if (atEnd && (SamePath(*atEnd, to) || coincident(atEnd))) {
+      return HandoffOutcome::PushCrossing;
+    }
   }
 
   if (ProveOverlap(from, to, endPoint, direction) || (located && ProveOverlap(*located, to, handedPoint, direction)))
