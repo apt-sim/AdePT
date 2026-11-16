@@ -97,8 +97,7 @@ public:
   }
 
   /// @brief Check every track returned because it left the GPU regions (/adept/validateHandoff).
-  /// @param threads Number of worker threads whose counts are summed at the end of a run.
-  void EnableHandoffValidation(int threads);
+  void EnableHandoffValidation();
 
   /// @brief The handoff validator, or nullptr when the check is off.
   HandoffValidator *GetHandoffValidator() const { return fHandoffValidator.get(); }

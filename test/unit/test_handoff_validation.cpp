@@ -19,6 +19,7 @@
 #include <G4GeometryManager.hh>
 #include <G4LogicalVolume.hh>
 #include <G4NistManager.hh>
+#include <G4PVParameterised.hh>
 #include <G4PVPlacement.hh>
 #include <G4PVReplica.hh>
 #include <G4Positron.hh>
@@ -26,8 +27,10 @@
 #include <G4Region.hh>
 #include <G4RunManager.hh>
 #include <G4StackManager.hh>
+#include <G4StateManager.hh>
 #include <G4SystemOfUnits.hh>
 #include <G4Track.hh>
+#include <G4VPVParameterisation.hh>
 #include <G4VUserDetectorConstruction.hh>
 #include <G4VUserPhysicsList.hh>
 
@@ -45,11 +48,31 @@ namespace {
 
 // World (GPU region) with, in mm:
 // - cpu: box [-1, 1]^3 in a CPU region, with two daughters:
-//   - x: starts on the -x face of cpu (x in [-1, -0.6], |y|, |z| < 0.2), with a daughter x2 starting on the same
-//     face (x in [-1, -0.9], |y|, |z| < 0.1)
+//   - x: starts on the -x face of cpu (x in [-1, -0.6], |y|, |z| < 0.2), with two daughters starting on the same
+//     face: x2 (x in [-1, -0.9], |y|, |z| < 0.1) and xt, thinner than the handoff push (x in [-1, -1 + 5e-8],
+//     y in [-0.18, -0.12], |z| < 0.03)
 //   - y: starts 5e-8 mm behind that face (x in [-1 + 5e-8, -0.8 + 5e-8], y in [0.57, 0.67]), within the handoff push
 // - ovl: overlaps cpu (x in [-1.3, -0.7], y in [0.85, 0.95], |z| < 0.3)
 // - rep: box [3, 5] x [-1, 1]^2, in the CPU region, divided into 4 replicas along x
+// - par: box [-1, 1] x [3, 5] x [-1, 1], in the CPU region, with two parameterised copies of different dimensions,
+//   the first one starting on its -y face
+// - edge: box [10 - 5e-8, 10] x [-1, 1]^2 on the +x face of the world, in the CPU region
+class HandoffParameterisation : public G4VPVParameterisation {
+public:
+  using G4VPVParameterisation::ComputeDimensions;
+  void ComputeTransformation(G4int copy, G4VPhysicalVolume *pv) const override
+  {
+    pv->SetTranslation({0, copy == 0 ? -0.8 * mm : 0.5 * mm, 0});
+    pv->SetRotation(nullptr);
+  }
+  void ComputeDimensions(G4Box &box, G4int copy, G4VPhysicalVolume const *) const override
+  {
+    box.SetXHalfLength(copy == 0 ? 0.5 * mm : 0.2 * mm);
+    box.SetYHalfLength(copy == 0 ? 0.2 * mm : 0.3 * mm);
+    box.SetZHalfLength(copy == 0 ? 0.5 * mm : 0.2 * mm);
+  }
+};
+
 class HandoffDetector : public G4VUserDetectorConstruction {
 public:
   G4VPhysicalVolume *Construct() override
@@ -65,6 +88,8 @@ public:
     auto *xLV = box("hv_x", 0.2 * mm, 0.2 * mm, 0.2 * mm);
     new G4PVPlacement(nullptr, {-0.8 * mm, 0, 0}, xLV, "hv_x", cpuLV, false, 0);
     new G4PVPlacement(nullptr, {-0.15 * mm, 0, 0}, box("hv_x2", 0.05 * mm, 0.1 * mm, 0.1 * mm), "hv_x2", xLV, false, 0);
+    new G4PVPlacement(nullptr, {(-0.2 + 2.5e-8) * mm, -0.15 * mm, 0}, box("hv_xt", 2.5e-8 * mm, 0.03 * mm, 0.03 * mm),
+                      "hv_xt", xLV, false, 0);
     new G4PVPlacement(nullptr, {(-0.9 + 5e-8) * mm, 0.62 * mm, 0}, box("hv_y", 0.1 * mm, 0.05 * mm, 0.2 * mm), "hv_y",
                       cpuLV, false, 0);
     new G4PVPlacement(nullptr, {-1 * mm, 0.9 * mm, 0}, box("hv_ovl", 0.3 * mm, 0.05 * mm, 0.3 * mm), "hv_ovl", worldLV,
@@ -72,9 +97,15 @@ public:
     auto *repLV = box("hv_rep", 1 * mm, 1 * mm, 1 * mm);
     new G4PVPlacement(nullptr, {4 * mm, 0, 0}, repLV, "hv_rep", worldLV, false, 0);
     new G4PVReplica("hv_slice", box("hv_slice", 0.25 * mm, 1 * mm, 1 * mm), repLV, kXAxis, 4, 0.5 * mm);
+    auto *parLV = box("hv_par", 1 * mm, 1 * mm, 1 * mm);
+    new G4PVPlacement(nullptr, {0, 4 * mm, 0}, parLV, "hv_par", worldLV, false, 0);
+    new G4PVParameterised("hv_param", box("hv_param", 1 * mm, 1 * mm, 1 * mm), parLV, kUndefined, 2,
+                          new HandoffParameterisation);
+    auto *edgeLV = box("hv_edge", 2.5e-8 * mm, 1 * mm, 1 * mm);
+    new G4PVPlacement(nullptr, {(10 - 2.5e-8) * mm, 0, 0}, edgeLV, "hv_edge", worldLV, false, 0);
     auto *cpuRegion = new G4Region("hv_cpu_region");
-    cpuRegion->AddRootLogicalVolume(cpuLV);
-    cpuRegion->AddRootLogicalVolume(repLV);
+    for (auto *volume : {cpuLV, repLV, parLV, edgeLV})
+      cpuRegion->AddRootLogicalVolume(volume);
     return world;
   }
 
@@ -125,13 +156,19 @@ const Handoff kHandoffs[] = {
     {"coincident surface", {}, {0}, {-1 * mm, 0.15 * mm, 0}, {1, 0, 0}, HandoffOutcome::CoincidentSurface, "hv_cpu"},
     // Two nested volumes start on the crossed surface: Geant4 enters both.
     {"nested coincident surfaces", {}, {0}, {-1 * mm, 0, 0}, {1, 0, 0}, HandoffOutcome::CoincidentSurface, "hv_cpu"},
+    // The push crosses the next surface: into y, past the thin xt that Geant4 enters at the end point, and out of
+    // the world through edge.
     {"push crossing", {}, {0}, {-1 * mm, 0.62 * mm, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_cpu"},
+    {"push past xt", {}, {0}, {-1 * mm, -0.15 * mm, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_cpu"},
+    {"push out of the world", {}, {4}, {(10 - 5e-8) * mm, 0, 0}, {1, 0, 0}, HandoffOutcome::PushCrossing, "hv_edge"},
     {"direction reversed", {}, {0}, {-1 * mm, 0.5 * mm, 0}, {-1, 0, 0}, HandoffOutcome::DirectionReversed, "hv_cpu"},
     // A real path disagreement: the GPU reached cpu 1 um before its surface, Geant4 relocates the track in the world.
     {"band error", {}, {0}, {-1.001 * mm, 0.5 * mm, 0}, {1, 0, 0}, HandoffOutcome::BandError, "hv_cpu"},
+    {"band error outside the world", {}, {0}, {11 * mm, 0.5 * mm, 0}, {1, 0, 0}, HandoffOutcome::BandError, "hv_cpu"},
     // Band error proven to come from an overlap: the end point is strictly inside ovl, the volume being left.
     {"overlap", {1}, {0}, {-1 * mm, 0.9 * mm, 0}, {1, 0, 0}, HandoffOutcome::Overlap, "hv_cpu"},
     // Geant4 locates a replica slice: its solid is not checked.
+    {"parameterised", {}, {3}, {0, 3 * mm, 0}, {0, 1, 0}, HandoffOutcome::Replicas, "hv_par"},
     {"replicas", {}, {2}, {3 * mm, 0, 0}, {1, 0, 0}, HandoffOutcome::Replicas, "hv_rep"},
 };
 
@@ -213,7 +250,7 @@ protected:
 
 TEST_F(HandoffValidation, EachOutcomeThroughTheReturnedTrackPath)
 {
-  integration.EnableHandoffValidation(1);
+  integration.EnableHandoffValidation();
   auto const &counts = integration.GetHandoffValidator()->GetCounts();
   struct Path {
     ParticleType particle;
@@ -237,7 +274,7 @@ TEST_F(HandoffValidation, EachOutcomeThroughTheReturnedTrackPath)
 
 TEST_F(HandoffValidation, OnlyBoundaryExitsFromTheGPURegionsAreChecked)
 {
-  integration.EnableHandoffValidation(1);
+  integration.EnableHandoffValidation();
   auto const &counts = integration.GetHandoffValidator()->GetCounts();
   auto track         = Return(kHandoffs[0], ParticleType::Electron, false, /*boundary=*/false);
   ASSERT_NE(track, nullptr);
@@ -259,8 +296,9 @@ TEST(HandoffCounts, VerdictNeedsAConclusiveHandoffAndNoUnexpectedOne)
   using Verdict = HandoffCounts::Verdict;
   HandoffCounts counts;
   EXPECT_EQ(counts.GetVerdict(), Verdict::NoConclusiveHandoff);
-  counts[HandoffOutcome::Replicas] = 100;
-  counts[HandoffOutcome::Overlap]  = 3;
+  counts[HandoffOutcome::Replicas]     = 100;
+  counts[HandoffOutcome::Overlap]      = 3;
+  counts[HandoffOutcome::PushCrossing] = 2;
   EXPECT_EQ(counts.GetVerdict(), Verdict::NoConclusiveHandoff);
   counts[HandoffOutcome::CoincidentSurface] = 1;
   EXPECT_EQ(counts.GetVerdict(), Verdict::Passed);
@@ -271,36 +309,34 @@ TEST(HandoffCounts, VerdictNeedsAConclusiveHandoffAndNoUnexpectedOne)
   }
 }
 
-TEST(HandoffRunTotals, SumsAllThreadsThenStartsOver)
-{
-  HandoffRunTotals totals;
-  HandoffCounts a, b, total;
-  a[HandoffOutcome::Confirmed] = 5;
-  b[HandoffOutcome::Confirmed] = 2;
-  b[HandoffOutcome::BandError] = 1;
-  EXPECT_FALSE(totals.Add(a, 2, total));
-  ASSERT_TRUE(totals.Add(b, 2, total));
-  EXPECT_EQ(total[HandoffOutcome::Confirmed], 7u);
-  EXPECT_EQ(total[HandoffOutcome::BandError], 1u);
-  EXPECT_FALSE(totals.Add(a, 2, total)); // next run
-}
-
 TEST_F(HandoffValidation, EndOfRunPrintsTheVerdictAndResets)
 {
-  integration.EnableHandoffValidation(1);
+  integration.EnableHandoffValidation();
   auto *validator = integration.GetHandoffValidator();
   auto track      = Return(kHandoffs[0], ParticleType::Electron, false);
   track           = Return(kHandoffs[std::size(kHandoffs) - 1], ParticleType::Electron, false); // replicas
-  HandoffRunTotals totals;
   std::ostringstream out;
-  validator->EndOfRun(totals, out);
+  validator->EndOfRun(out);
   EXPECT_NE(out.str().find("HandoffValidation: PASSED (1 of 2 handoffs checked, 0 unexpected)"), std::string::npos)
       << out.str();
   EXPECT_EQ(validator->GetCounts().Total(), 0u);
 
   std::ostringstream empty;
-  validator->EndOfRun(totals, empty);
+  validator->EndOfRun(empty);
   EXPECT_NE(empty.str().find("HandoffValidation: NO CONCLUSIVE HANDOFF"), std::string::npos) << empty.str();
+}
+
+TEST_F(HandoffValidation, TheEndOfARunReportsThroughTheStateManager)
+{
+  integration.EnableHandoffValidation();
+  auto const &counts = integration.GetHandoffValidator()->GetCounts();
+  auto track         = Return(kHandoffs[0], ParticleType::Electron, false);
+  auto *states       = G4StateManager::GetStateManager();
+  ASSERT_EQ(states->GetCurrentState(), G4State_Idle);
+  ASSERT_TRUE(states->SetNewState(G4State_GeomClosed));
+  EXPECT_EQ(counts.Total(), 1u);
+  ASSERT_TRUE(states->SetNewState(G4State_Idle));
+  EXPECT_EQ(counts.Total(), 0u);
 }
 
 } // namespace

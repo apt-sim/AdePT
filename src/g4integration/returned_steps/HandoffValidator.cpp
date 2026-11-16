@@ -61,9 +61,10 @@ bool HasReplicas(G4NavigationHistory const &path)
   return false;
 }
 
-std::string Name(G4NavigationHistory const &path, std::size_t level)
+std::string Name(G4NavigationHistory const *path)
 {
-  return std::string(path.GetVolume(level)->GetName()) + "#" + std::to_string(path.GetReplicaNo(level));
+  if (path == nullptr || path->GetTopVolume() == nullptr) return "outside the world";
+  return std::string(path->GetTopVolume()->GetName()) + "#" + std::to_string(path->GetTopReplicaNo());
 }
 
 /// The point and direction in the frame of the solid of `level`, and Geant4's Inside there.
@@ -118,12 +119,6 @@ bool ProveOverlap(G4NavigationHistory const &a, G4NavigationHistory const &b, G4
   return false;
 }
 
-HandoffRunTotals &RunTotals()
-{
-  static HandoffRunTotals totals;
-  return totals;
-}
-
 } // namespace
 
 char const *HandoffOutcomeName(HandoffOutcome outcome)
@@ -147,6 +142,11 @@ std::uint64_t HandoffCounts::Total() const
   return std::accumulate(n.begin(), n.end(), std::uint64_t{0});
 }
 
+std::uint64_t HandoffCounts::Inconclusive() const
+{
+  return (*this)[HandoffOutcome::PushCrossing] + (*this)[HandoffOutcome::Overlap] + (*this)[HandoffOutcome::Replicas];
+}
+
 std::uint64_t HandoffCounts::Unexpected() const
 {
   return (*this)[HandoffOutcome::BandError] + (*this)[HandoffOutcome::DirectionReversed] +
@@ -159,7 +159,7 @@ HandoffCounts::Verdict HandoffCounts::GetVerdict() const
   return Conclusive() > 0 ? Verdict::Passed : Verdict::NoConclusiveHandoff;
 }
 
-void HandoffCounts::Print(std::ostream &out, int threads) const
+void HandoffCounts::Print(std::ostream &out) const
 {
   auto list = [&](std::initializer_list<HandoffOutcome> outcomes) {
     std::string text;
@@ -168,11 +168,12 @@ void HandoffCounts::Print(std::ostream &out, int threads) const
     return text;
   };
   const double inconclusivePercent = Total() > 0 ? 100. * Inconclusive() / Total() : 0.;
-  out << "HandoffValidation: " << Total() << " tracks left the GPU regions (" << threads << " threads): "
-      << list({HandoffOutcome::Confirmed, HandoffOutcome::CoincidentSurface, HandoffOutcome::PushCrossing})
+  out << "HandoffValidation: " << Total()
+      << " tracks left the GPU regions: " << list({HandoffOutcome::Confirmed, HandoffOutcome::CoincidentSurface})
       << "; inconclusive " << Inconclusive() << " (" << inconclusivePercent
-      << " %): " << list({HandoffOutcome::Overlap, HandoffOutcome::Replicas}) << "; unexpected " << Unexpected() << ": "
-      << list({HandoffOutcome::BandError, HandoffOutcome::DirectionReversed, HandoffOutcome::OtherPath}) << "\n";
+      << " %): " << list({HandoffOutcome::PushCrossing, HandoffOutcome::Overlap, HandoffOutcome::Replicas})
+      << "; unexpected " << Unexpected() << ": "
+      << list({HandoffOutcome::BandError, HandoffOutcome::DirectionReversed, HandoffOutcome::OtherPath}) << std::endl;
   const Verdict verdict = GetVerdict();
   out << "HandoffValidation: "
       << (verdict == Verdict::Failed   ? "FAILED"
@@ -182,18 +183,7 @@ void HandoffCounts::Print(std::ostream &out, int threads) const
       << std::endl;
 }
 
-bool HandoffRunTotals::Add(HandoffCounts const &counts, int threads, HandoffCounts &total)
-{
-  std::lock_guard<std::mutex> lock(fMutex);
-  fSum += counts;
-  if (++fAdded < threads) return false;
-  total  = fSum;
-  fSum   = {};
-  fAdded = 0;
-  return true;
-}
-
-HandoffValidator::HandoffValidator(int threads) : fNavigator(std::make_unique<G4Navigator>()), fThreads(threads)
+HandoffValidator::HandoffValidator() : fNavigator(std::make_unique<G4Navigator>())
 {
   fNavigator->SetWorldVolume(
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume());
@@ -239,54 +229,64 @@ HandoffOutcome HandoffValidator::Classify(G4NavigationHistory const &from, G4Nav
   }
   bandError |= !onCrossedSurface;
 
-  // 2. Relocation, as G4SteppingManager::SetInitialStep does for a track that carries a touchable.
-  fNavigator->ResetHierarchyAndLocate(handedPoint, direction, *static_cast<G4TouchableHistory *>(expected()));
-  const std::unique_ptr<G4TouchableHistory> locatedTouchable(fNavigator->CreateTouchableHistory());
-  auto const &located = *locatedTouchable->GetHistory();
-  if (HasReplicas(located)) return HandoffOutcome::Replicas;
+  // 2. Relocation, as G4SteppingManager::SetInitialStep does for a track that carries a touchable (outside the
+  //    world, Geant4 kills the track).
+  const auto locatedTouchable = Locate(handedPoint, direction, expected);
+  auto const *located         = locatedTouchable ? locatedTouchable->GetHistory() : nullptr;
+  if (located && HasReplicas(*located)) return HandoffOutcome::Replicas;
 
   HandoffOutcome outcome = HandoffOutcome::OtherPath;
   if (bandError) {
     outcome = HandoffOutcome::BandError;
-  } else if (SamePath(located, to)) {
+  } else if (located && SamePath(*located, to)) {
     return HandoffOutcome::Confirmed;
   } else if (outwardNd < 0.) {
     outcome = HandoffOutcome::DirectionReversed;
   } else {
+    // Geant4 at the end point itself, which the handoff push does not reach.
+    const auto atEndTouchable = Locate(endPoint, direction, expected);
+    auto const *atEnd         = atEndTouchable ? atEndTouchable->GetHistory() : nullptr;
+    if (atEnd && HasReplicas(*atEnd)) return HandoffOutcome::Replicas;
     // Geant4 goes deeper, into a volume that starts on the crossed surface and that the direction enters (the
-    //  volumes below it are inside it).
-    if (located.GetDepth() > to.GetDepth() && Contains(located, to, to.GetDepth())) {
-      const auto view = View(located, to.GetDepth() + 1, endPoint, direction);
-      if (view.inside == kSurface && view.NDotD() < 0.) return HandoffOutcome::CoincidentSurface;
-    }
-    // Geant4 confirms the GPU path at the end point itself: the next surface lies within the handoff push.
-    fNavigator->ResetHierarchyAndLocate(endPoint, direction, *static_cast<G4TouchableHistory *>(expected()));
-    const std::unique_ptr<G4TouchableHistory> atEndPoint(fNavigator->CreateTouchableHistory());
-    if (SamePath(*atEndPoint->GetHistory(), to)) return HandoffOutcome::PushCrossing;
+    // volumes below it are inside it).
+    auto coincident = [&](G4NavigationHistory const *path) {
+      if (!path || path->GetDepth() <= to.GetDepth() || !Contains(*path, to, to.GetDepth())) return false;
+      const auto view = View(*path, to.GetDepth() + 1, endPoint, direction);
+      return view.inside == kSurface && view.NDotD() < 0.;
+    };
+    // Accepted only if the push changes nothing: it could skip a thin volume at the coincident surface.
+    if (coincident(located) && atEnd && SamePath(*atEnd, *located)) return HandoffOutcome::CoincidentSurface;
+    if (atEnd && (SamePath(*atEnd, to) || coincident(atEnd))) return HandoffOutcome::PushCrossing;
   }
 
-  if (ProveOverlap(from, to, endPoint, direction) || ProveOverlap(located, to, handedPoint, direction))
+  if (ProveOverlap(from, to, endPoint, direction) || (located && ProveOverlap(*located, to, handedPoint, direction)))
     return HandoffOutcome::Overlap;
   PrintUnexpected(outcome, from, to, located, endPoint, direction);
   return outcome;
 }
 
+std::unique_ptr<G4TouchableHistory> HandoffValidator::Locate(G4ThreeVector const &point, G4ThreeVector const &direction,
+                                                             G4TouchableHandle const &start)
+{
+  if (!fNavigator->ResetHierarchyAndLocate(point, direction, *static_cast<G4TouchableHistory *>(start())))
+    return nullptr;
+  return std::unique_ptr<G4TouchableHistory>(fNavigator->CreateTouchableHistory());
+}
+
 void HandoffValidator::PrintUnexpected(HandoffOutcome outcome, G4NavigationHistory const &from,
-                                       G4NavigationHistory const &to, G4NavigationHistory const &located,
+                                       G4NavigationHistory const &to, G4NavigationHistory const *located,
                                        G4ThreeVector const &endPoint, G4ThreeVector const &direction)
 {
   if (fPrinted++ >= kMaxPrinted) return;
   std::printf("HandoffValidation unexpected (%s): left %s, reached %s, Geant4 locates %s; end point (%.17g, %.17g, "
               "%.17g) direction (%.17g, %.17g, %.17g)\n",
-              HandoffOutcomeName(outcome), Name(from, from.GetDepth()).c_str(), Name(to, to.GetDepth()).c_str(),
-              Name(located, located.GetDepth()).c_str(), endPoint.x(), endPoint.y(), endPoint.z(), direction.x(),
-              direction.y(), direction.z());
+              HandoffOutcomeName(outcome), Name(&from).c_str(), Name(&to).c_str(), Name(located).c_str(), endPoint.x(),
+              endPoint.y(), endPoint.z(), direction.x(), direction.y(), direction.z());
 }
 
-void HandoffValidator::EndOfRun(HandoffRunTotals &totals, std::ostream &out)
+void HandoffValidator::EndOfRun(std::ostream &out)
 {
-  HandoffCounts total;
-  if (totals.Add(fCounts, fThreads, total)) total.Print(out, fThreads);
+  fCounts.Print(out);
   fCounts  = {};
   fPrinted = 0;
 }
@@ -294,6 +294,6 @@ void HandoffValidator::EndOfRun(HandoffRunTotals &totals, std::ostream &out)
 G4bool HandoffValidator::Notify(G4ApplicationState requestedState)
 {
   if (G4StateManager::GetStateManager()->GetCurrentState() == G4State_GeomClosed && requestedState == G4State_Idle)
-    EndOfRun(RunTotals(), G4cout);
+    EndOfRun(G4cout);
   return true;
 }

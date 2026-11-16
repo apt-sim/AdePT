@@ -33,24 +33,24 @@ Outcomes of the handoff check.
 | Outcome | Condition |
 | --- | --- |
 | confirmed | Geant4 relocates into the path reached on the GPU |
-| coincident surface | Geant4 goes deeper, into a volume whose surface holds the end point and that the direction enters (native Geant4 takes a zero step into it) |
-| crossed by the handoff push | Geant4 confirms the GPU path at the end point, and the push of 1e-7 mm along the direction applied to returned tracks crosses the next surface |
+| coincident surface | Geant4 goes deeper, into a volume whose surface holds the end point and that the direction enters (native Geant4 takes a zero step into it), and locates the same path at the end point |
+| inconclusive: crossed by the handoff push | Geant4 accepts the GPU path, or a coincident volume, at the end point, but the push of 1e-7 mm along the direction applied to returned tracks crosses the next surface; what it skips (a thin volume, the world boundary) is not checked |
 | inconclusive: overlap | an overlap or extrusion is proven at the end point, or within 100 `kTolerance` along the direction |
 | inconclusive: replicas | a parameterised or replicated volume is in the paths; their solids are not checked |
 | unexpected: band error | the end point is strictly inside a volume being left, strictly outside a volume being entered, or on none of the crossed surfaces (Geant4's `Inside`) |
 | unexpected: direction reversed | the final direction points back through the crossed surface. Electrons and positrons in this situation are kept on the GPU, so the GPU turn-back check was skipped (`ADEPT_USE_SURF`) or its VecGeom normal disagrees with Geant4's |
 | unexpected: other path | Geant4 relocates elsewhere without one of the reasons above |
 
-At the end of each run the counts of all worker threads are summed and printed,
-followed by the verdict:
+At the end of each run, each worker thread prints its counts and its verdict:
 
 - `HandoffValidation: PASSED`: no unexpected handoff, and at least one handoff
   was conclusive;
 - `HandoffValidation: FAILED`: at least one unexpected handoff; the first ten
-  per thread are printed with the volumes, the end point and the direction at
-  full precision;
-- `HandoffValidation: NO CONCLUSIVE HANDOFF`: no track left the GPU regions, or
-  all handoffs were inconclusive.
+  are printed with the volumes, the end point and the direction at full
+  precision;
+- `HandoffValidation: NO CONCLUSIVE HANDOFF`: no track left the GPU regions in
+  this thread, or all its handoffs were inconclusive.
 
-The `example1-handoff` test (label `validation`) runs the CMS 2018 geometry with
-only `EcalRegion` on the GPU and passes on `HandoffValidation: PASSED`.
+A job passes if no thread prints `FAILED` and at least one prints `PASSED`. The
+`example1-handoff` test (label `validation`) runs the CMS 2018 geometry with
+only `EcalRegion` on the GPU, 2 threads, and checks this.

@@ -353,9 +353,9 @@ void AdePTGeant4Integration_detail::HandoffValidatorDeleter::operator()(HandoffV
   delete ptr;
 }
 
-void AdePTGeant4Integration::EnableHandoffValidation(int threads)
+void AdePTGeant4Integration::EnableHandoffValidation()
 {
-  fHandoffValidator.reset(new HandoffValidator(threads));
+  fHandoffValidator.reset(new HandoffValidator());
 }
 
 void AdePTGeant4Integration::ValidateHandoff(GPUStep const &parentStep, G4Track const &track)

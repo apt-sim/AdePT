@@ -350,7 +350,7 @@ void AdePTTrackingManager::InitializeAdePT()
   fSpeedOfLight = fAdePTConfiguration->GetSpeedOfLight();
 
   // Any region configuration: a run without CPU regions reports that no handoff was checked.
-  if (fAdePTConfiguration->GetValidateHandoff()) fGeant4Integration.EnableHandoffValidation(fNumThreads);
+  if (fAdePTConfiguration->GetValidateHandoff()) fGeant4Integration.EnableHandoffValidation();
 
   fAdePTInitialized = true;
 
