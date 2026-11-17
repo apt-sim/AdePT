@@ -64,9 +64,17 @@ configure_file("macros/example1.mac.in" "${PROJECT_BINARY_DIR}/example1.mac")
 configure_file("macros/example1_ttbar.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar.mac")
 configure_file("macros/example1_ttbar_LHCb.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_LHCb.mac")
 configure_file("macros/example1_ttbar_noadept.mac.in" "${PROJECT_BINARY_DIR}/example1_ttbar_noadept.mac")
+configure_file("macros/example1_handoff.mac.in" "${PROJECT_BINARY_DIR}/example1_handoff.mac")
 
 # Tests
 
 add_test(NAME example1-g4vg
   COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
 )
+
+# Handoff validation (/adept/validateHandoff) with only EcalRegion on the GPU
+add_test(NAME example1-handoff
+  COMMAND ${CMAKE_COMMAND} -DEXAMPLE1=$<TARGET_FILE:example1> -DMACRO=${PROJECT_BINARY_DIR}/example1_handoff.mac
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunHandoffTest.cmake
+)
+set_tests_properties(example1-handoff PROPERTIES LABELS validation)

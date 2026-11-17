@@ -517,6 +517,7 @@ set(ADEPT_G4_INTEGRATION_SRCS
   src/g4integration/physics_constructors/G4EmStandardPhysics_AdePT.cc
   src/g4integration/physics_constructors/G4EmStandardPhysics_HepEm.cc
   src/g4integration/returned_steps/AdePTGeant4Integration.cpp
+  src/g4integration/returned_steps/HandoffValidator.cpp
   src/g4integration/tracking_managers/AdePTTrackingManager.cc
   src/g4integration/tracking_managers/G4HepEmTrackingManagerSpecialized.cc
 )

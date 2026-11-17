@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 CERN
+# SPDX-License-Identifier: Apache-2.0
+#
+## Handoff validation: only EcalRegion is transported on the GPU, and every track leaving it is checked when Geant4
+## relocates it (/adept/validateHandoff). The test passes on "HandoffValidation: PASSED".
+/run/numberOfThreads 2
+
+/detector/filename @GDML@
+/adept/setMillionsOfTrackSlots 1
+/adept/setMillionsOfHitSlots 1
+/adept/setCUDAStackLimit 8192
+
+/adept/setTrackInAllRegions false
+/adept/addGPURegion EcalRegion
+/adept/validateHandoff true
+
+## A field makes the charged tracks leave the GPU region at all angles, including grazing ones
+/detector/setField 0 0 3.8 tesla
+/run/setCut 0.7 mm
+/run/initialize
+
+/gun/setDefault
+/gun/particle e-
+/gun/energy 10 GeV
+/gun/number 200
+/gun/position 0 0 0
+/gun/randomizeGun true
+/gun/addParticle e- weight 1 energy 10 GeV
+/gun/minPhi 0 deg
+/gun/maxPhi 360 deg
+/gun/minTheta 10 deg
+/gun/maxTheta 170 deg
+
+/run/beamOn 2

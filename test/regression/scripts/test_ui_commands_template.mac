@@ -104,6 +104,10 @@
 # that tracking happens normally in non-GPU regions.
 # WARNING: Only to be used for testing the speed and fraction of EM, all results are wrong!
 
+/adept/validateHandoff false
+# If true, every track leaving the GPU regions is checked when Geant4 relocates it, and the verdict is printed at the
+# end of each run (see docs/user/handoff-validation.md)
+
 /adept/setVecGeomGDML $gdml_name
 # Sets the geometry via VecGeom through a gdml.
 # WARNING: this will not convert the G4 geometry anymore, so there can be a mismatch between CPU and GPU geometry if used incorrectly!

@@ -127,6 +127,14 @@ AdePTConfigurationMessenger::AdePTConfigurationMessenger(AdePTConfiguration *ade
       "If true, all electrons, positrons, gammas handed over to AdePT are immediately killed. WARNING: Only to be used "
       "for testing the speed and fraction of EM, all results are wrong!");
 
+  fValidateHandoffCmd = std::make_unique<G4UIcmdWithABool>("/adept/validateHandoff", this);
+  fValidateHandoffCmd->SetGuidance(
+      "If true, every track leaving the GPU regions is relocated by Geant4 as when CPU tracking resumes, and the "
+      "outcome is checked against the path reached on the GPU. The counts and the verdict (HandoffValidation: "
+      "PASSED/FAILED) are printed at the end of each run. For validation: it costs a Geant4 relocation per returned "
+      "track.");
+  fValidateHandoffCmd->AvailableForStates(G4State_PreInit);
+
   fSetGDMLCmd = std::make_unique<G4UIcmdWithAString>("/adept/setVecGeomGDML", this);
   fSetGDMLCmd->SetGuidance("Temporary method for setting the geometry to use with VecGeom");
 
@@ -202,6 +210,8 @@ void AdePTConfigurationMessenger::SetNewValue(G4UIcommand *command, G4String new
     }
   } else if (command == fSetSpeedOfLightCmd.get()) {
     fAdePTConfiguration->SetSpeedOfLight(fSetSpeedOfLightCmd->GetNewBoolValue(newValue));
+  } else if (command == fValidateHandoffCmd.get()) {
+    fAdePTConfiguration->SetValidateHandoff(fValidateHandoffCmd->GetNewBoolValue(newValue));
   } else if (command == fSetMultipleStepsInMSCWithTransportationCmd.get()) {
     fAdePTConfiguration->SetMultipleStepsInMSCWithTransportation(
         fSetMultipleStepsInMSCWithTransportationCmd->GetNewBoolValue(newValue));

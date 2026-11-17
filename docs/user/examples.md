@@ -26,8 +26,9 @@ cd adept-build
 ```
 
 `example1` is the main standalone Geant4 application with AdePT integration.
-Generated macros in the build tree include `example1.mac` and
-`example1_ttbar.mac`.
+Generated macros in the build tree include `example1.mac`,
+`example1_ttbar.mac` and `example1_handoff.mac`, run by the `example1-handoff`
+test (see [Handoff validation](handoff-validation.md)).
 
 ## Integration Test Macros
 
