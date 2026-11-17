@@ -255,7 +255,8 @@ inline __host__ __device__ double fieldPropagatorRungeKutta<Field_t, RkDriver_t,
       if (verbose) printf("| full chord advance %g ", arcAdvanced);
 #endif
 
-      maxNextSafeMove   = vecCore::Max(double(arcAdvanced), safetyCache.SafetyAt(position)); // Reset after success.
+      // A safety-enlarged arc does not enlarge the curvature allowance for the next arc.
+      maxNextSafeMove   = vecCore::Max(safeLength, safetyCache.SafetyAt(position));
       continueIteration = true;
     } else if (stepDone == 0 && current_state.IsOnBoundary() && next_state.IsOnBoundary() &&
                move <= kBoundaryAmbiguity) {

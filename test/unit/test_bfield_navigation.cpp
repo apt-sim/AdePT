@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
 #include <initializer_list>
 
 namespace {
@@ -70,6 +71,34 @@ struct StraightLinePropagatorDriver {
                         const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
   {
     position += step * momentum.Unit();
+    lastGoodStep = step;
+    return step;
+  }
+};
+
+// Exact circular motion keeps this carry-over regression independent of RK
+// tolerances while recording the arc lengths requested by the propagator.
+struct RecordingCircularPropagatorDriver {
+  static constexpr double kRadius = 8.0;
+  inline static std::array<double, 16> requestedSteps{};
+  inline static unsigned int calls = 0;
+
+  static void Reset()
+  {
+    calls = 0;
+    requestedSteps.fill(0.0);
+  }
+
+  static double Advance(vecgeom::Vector3D<double> &position, vecgeom::Vector3D<double> &momentum, int, double step,
+                        const DummyField &, double[kNvar], double &lastGoodStep, unsigned int, int)
+  {
+    if (calls < requestedSteps.size()) requestedSteps[calls] = step;
+    ++calls;
+    const double angle = step / kRadius;
+    const auto tangent = momentum.Unit();
+    const vecgeom::Vector3D<double> normal{-tangent[1], tangent[0], 0.0};
+    position += kRadius * (std::sin(angle) * tangent + (1.0 - std::cos(angle)) * normal);
+    momentum     = momentum.Mag() * (std::cos(angle) * tangent + std::sin(angle) * normal);
     lastGoodStep = step;
     return step;
   }
@@ -398,6 +427,53 @@ TEST(FieldPropagatorRungeKuttaNavigation, UsesSafetyToAcceptFullChordWithoutNavi
   EXPECT_EQ(ThrowingNavigator::stepCalls, 0);
   ExpectVectorNear(position, vecgeom::Vector3D<double>{6.0, 2.0, 3.0}, 1.0e-14);
   ExpectVectorNear(direction, vecgeom::Vector3D<double>{1.0, 0.0, 0.0}, 0.0);
+}
+
+// Geometry safety may enlarge one arc without enlarging the curvature
+// allowance for subsequent chords. The first 10 mm arc has a 9.362 mm chord,
+// wholly inside the initial safety sphere. That safety is exhausted later.
+// Reusing its 10 mm arc length would incorrectly request the remaining 5 mm
+// in one go; the original 2 mm allowance must instead be restored.
+TEST(FieldPropagatorRungeKuttaNavigation, DoesNotCarrySafetyEnlargedArcIntoNextChord)
+{
+  using Driver     = RecordingCircularPropagatorDriver;
+  using Propagator = fieldPropagatorRungeKutta<DummyField, Driver, double, FiniteSafetyNavigator>;
+  Driver::Reset();
+  FiniteSafetyNavigator::Reset(/*safetyValue=*/0.0, /*boundaryDist=*/-1.0, /*boundaryCall=*/-1);
+
+  vecgeom::Vector3D<double> position{0.0, 0.0, 0.0};
+  vecgeom::Vector3D<double> direction{1.0, 0.0, 0.0};
+  const auto currentState = MakeState(kParentNavIndex, false);
+  vecgeom::NavigationState nextState;
+  long hitSurfaceIndex = -1;
+  bool propagated      = false;
+  int itersDone        = 0;
+  SafetyCache safetyCache;
+  safetyCache.Refresh(position, 10.0);
+
+  constexpr double safeLength  = 2.0;
+  constexpr double physicsStep = 15.0;
+  const double moved           = Propagator::ComputeStepAndNextVolume(
+      DummyField{}, 10.0, 1.0, 1, physicsStep, safeLength, position, direction, currentState, nextState,
+      hitSurfaceIndex, propagated, safetyCache, 20, itersDone, 0, false);
+
+  EXPECT_DOUBLE_EQ(moved, physicsStep);
+  EXPECT_TRUE(propagated);
+  EXPECT_FALSE(nextState.IsOnBoundary());
+  EXPECT_TRUE(nextState.HasSamePathAsOther(currentState));
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[0], 10.0);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[1], safeLength);
+  EXPECT_EQ(Driver::calls, 4u);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[2], safeLength);
+  EXPECT_DOUBLE_EQ(Driver::requestedSteps[3], 1.0);
+  EXPECT_EQ(FiniteSafetyNavigator::stepCalls, 3);
+
+  const double angle = physicsStep / Driver::kRadius;
+  ExpectVectorNear(
+      position,
+      vecgeom::Vector3D<double>{Driver::kRadius * std::sin(angle), Driver::kRadius * (1.0 - std::cos(angle)), 0.0},
+      1.0e-12);
+  ExpectVectorNear(direction, vecgeom::Vector3D<double>{std::cos(angle), std::sin(angle), 0.0}, 1.0e-12);
 }
 
 // The cached safety has to be reduced to the current chord start, not to the
