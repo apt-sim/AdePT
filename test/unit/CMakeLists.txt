@@ -86,6 +86,10 @@ set(ADEPT_TRANSPORT_GTESTS
   test_bfield_navigation.cpp   # B-field RK/navigation handoff tests
 )
 
+if(ADEPT_STEPPINGACTION STREQUAL "ATLAS")
+  list(APPEND ADEPT_TRANSPORT_GTESTS test_atlas_truth_selection.cu)
+endif()
+
 set(ADEPT_TRANSPORT_UTILITIES
   compare_integration_precision.cpp # Diagnostic utility for generating float vs double trajectories
 )

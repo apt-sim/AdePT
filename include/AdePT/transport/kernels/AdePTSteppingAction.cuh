@@ -255,13 +255,17 @@ struct ATLASAction {
   static constexpr float kPhotonRussianRouletteWeight     = 10.0f;
   static constexpr float kOneOverPhotonRouletteWeight     = 1.0f / kPhotonRussianRouletteWeight;
   static constexpr double kTruthMinPt                     = 300. * copcore::units::MeV;
+  static constexpr double kTruthMinEkin                   = 500. * copcore::units::MeV;
 
   __device__ __forceinline__ static bool NeedsHostTrackData(double eKin, vecgeom::Vector3D<double> const &direction,
                                                             double mass)
   {
+    // Some regions decide on the MC truth based on kinetic energy, other on pT.
+    // As we do not want to infer region or volume checks here, we simply keep both
+    if (eKin >= kTruthMinEkin) return true;
     const double p2    = mass > 0. ? eKin * (eKin + 2. * mass) : eKin * eKin;
     const double dirT2 = direction.x() * direction.x() + direction.y() * direction.y();
-    return p2 * dirT2 > kTruthMinPt * kTruthMinPt;
+    return p2 * dirT2 >= kTruthMinPt * kTruthMinPt;
   }
 
   __device__ __forceinline__ static void ElectronAction(bool &, double &, double &, vecgeom::Vector3D<double> const &,
