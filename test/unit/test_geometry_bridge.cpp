@@ -757,7 +757,7 @@ TEST(AdePTGeometryBridge, FindsVecGeomPlacementOfG4Instance)
   EXPECT_EQ(AdePTGeometryBridge::FindVecGeomPlacement(vecgeomChild(boxPV)->GetLogicalVolume(), boxPV, kNormal, 7),
             nullptr);
 
-  for (auto const [holderPV, copiesPV] :
+  for (auto const &[holderPV, copiesPV] :
        {std::pair<G4VPhysicalVolume *, G4VPhysicalVolume *>{replicaHolderPV, replicaPV}, {paramHolderPV, paramPV}}) {
     ASSERT_NE(vecgeomChild(holderPV), nullptr);
     auto const *vecgeomParent = vecgeomChild(holderPV)->GetLogicalVolume();
