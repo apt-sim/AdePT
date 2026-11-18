@@ -46,11 +46,11 @@ TEST(ATLASTruthSelection, RetainsForwardEnergyCandidatesAndInclusivePtBoundary)
       {499.999 * MeV, {0., 0., 1.}, 0., true, false, false},
       {300. * MeV, {1., 0., 0.}, 0., true, false, true},
       {299.999 * MeV, {1., 0., 0.}, 0., true, false, false},
-      {299.5 * MeV, {1., 0., 0.}, kElectronMassC2, true, false, true},
-      {1. * MeV, {1., 0., 0.}, kElectronMassC2, true, false, false},
+      {299.5 * MeV, {1., 0., 0.}, copcore::units::kElectronMassC2, true, false, true},
+      {1. * MeV, {1., 0., 0.}, copcore::units::kElectronMassC2, true, false, false},
       {1500. * MeV, {0., 0., 1.}, 0., false, false, false},
       {1. * MeV, {0., 0., 1.}, 0., false, true, true},
-      {500. * MeV, {0., 0., 1.}, kElectronMassC2, true, false, true},
+      {500. * MeV, {0., 0., 1.}, copcore::units::kElectronMassC2, true, false, true},
   }};
   Candidate *deviceCandidates = nullptr;
   bool *selected              = nullptr;
