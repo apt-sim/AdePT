@@ -19,6 +19,7 @@
 #ifdef ADEPT_USE_EXT_BFIELD
 
 #include <covfie/core/backend/transformer/affine.hpp>
+#include <covfie/core/backend/transformer/clamp.hpp>
 #include <covfie/core/backend/transformer/linear.hpp>
 #include <covfie/core/backend/transformer/strided.hpp>
 #include <covfie/core/field.hpp>
@@ -39,9 +40,12 @@ using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linea
 //     covfie::backend::strided<covfie::vector::size3, covfie::backend::cuda_device_array<covfie::vector::float3>>>>>;
 
 #if defined(__HIP__)
-// covfie has no HIP texture backend: trilinear interpolation over normal GPU memory
-using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
-    covfie::backend::strided<covfie::vector::size3, covfie::backend::hip_device_array<covfie::vector::float3>>>>>;
+// covfie has no HIP texture backend: trilinear interpolation over normal GPU memory, clamped to the grid as the
+// texture memory does on CUDA
+using cuda_field_t     = covfie::field<covfie::backend::affine<covfie::backend::linear<covfie::backend::clamp<
+        covfie::backend::strided<covfie::vector::size3, covfie::backend::hip_device_array<covfie::vector::float3>>>>>>;
+using hip_host_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<covfie::backend::clamp<
+    covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>>;
 #else
 // use GPU texture memory
 using cuda_field_t = covfie::field<
@@ -72,7 +76,7 @@ public:
 
 #if defined(__HIP__)
     // device field in normal GPU memory
-    fFieldMap = std::make_unique<cuda_field_t>(cpuField);
+    fFieldMap = std::make_unique<cuda_field_t>(hip_host_field_t(cpuField));
 #else
     // create device field map in texture memory
     fFieldMap = std::make_unique<cuda_field_t>(covfie::make_parameter_pack(
