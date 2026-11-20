@@ -72,9 +72,12 @@ add_test(NAME example1-g4vg
   COMMAND $<TARGET_FILE:example1> -m ${PROJECT_BINARY_DIR}/example1.mac
 )
 
-# Handoff validation (/adept/validateHandoff) with only EcalRegion on the GPU
-add_test(NAME example1-handoff
-  COMMAND ${CMAKE_COMMAND} -DEXAMPLE1=$<TARGET_FILE:example1> -DMACRO=${PROJECT_BINARY_DIR}/example1_handoff.mac
-          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunHandoffTest.cmake
-)
-set_tests_properties(example1-handoff PROPERTIES LABELS validation)
+# Handoff validation (/adept/validateHandoff) with only EcalRegion on the GPU. Its macro sets a uniform field, which
+# ADEPT_USE_EXT_BFIELD builds do not support.
+if(NOT ADEPT_USE_EXT_BFIELD)
+  add_test(NAME example1-handoff
+    COMMAND ${CMAKE_COMMAND} -DEXAMPLE1=$<TARGET_FILE:example1> -DMACRO=${PROJECT_BINARY_DIR}/example1_handoff.mac
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunHandoffTest.cmake
+  )
+  set_tests_properties(example1-handoff PROPERTIES LABELS validation)
+endif()
