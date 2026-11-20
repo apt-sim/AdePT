@@ -24,12 +24,13 @@ using ConstantCovfieInnerBackend =
 using ConstantCovfieBackend = covfie::backend::affine<covfie::backend::linear<ConstantCovfieInnerBackend>>;
 using ConstantCovfieField   = covfie::field<ConstantCovfieBackend>;
 
-inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &fieldValue, float minExtent = -10000.f,
-                                                   float maxExtent = 10000.f)
+/// @brief 2x2x2 covfie map over [minExtent, maxExtent] on each axis.
+/// @param value Callable giving the field (std::array<float, 3>) at sample indices (x, y, z)
+/// @param minExtent Lower world coordinate of the map on each axis
+/// @param maxExtent Upper world coordinate of the map on each axis
+template <class Value>
+inline ConstantCovfieField MakeSampledCovfieField(Value value, float minExtent = -10000.f, float maxExtent = 10000.f)
 {
-  // A 2x2x2 grid is the smallest useful 3D map for linear interpolation.
-  // Because every sample has the same value, interpolation anywhere inside
-  // the mapped volume still represents a constant field.
   constexpr std::size_t kSamplesPerAxis = 2;
 
   covfie::field<ConstantCovfieInnerBackend> inner(covfie::make_parameter_pack(
@@ -39,7 +40,8 @@ inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &f
   for (std::size_t x = 0; x < kSamplesPerAxis; ++x) {
     for (std::size_t y = 0; y < kSamplesPerAxis; ++y) {
       for (std::size_t z = 0; z < kSamplesPerAxis; ++z) {
-        innerView.at(x, y, z) = {fieldValue[0], fieldValue[1], fieldValue[2]};
+        const std::array<float, 3> v = value(x, y, z);
+        innerView.at(x, y, z)        = {v[0], v[1], v[2]};
       }
     }
   }
@@ -55,6 +57,25 @@ inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &f
   return ConstantCovfieField(covfie::make_parameter_pack(ConstantCovfieBackend::configuration_t(scaling * translation),
                                                          ConstantCovfieBackend::backend_t::configuration_t{},
                                                          std::move(inner.backend())));
+}
+
+/// @brief 2x2x2 covfie map with the same field value at every sample, so constant everywhere.
+inline ConstantCovfieField MakeConstantCovfieField(const std::array<float, 3> &fieldValue, float minExtent = -10000.f,
+                                                   float maxExtent = 10000.f)
+{
+  // Every sample has the same value, so interpolation anywhere represents a constant field
+  return MakeSampledCovfieField([&](std::size_t, std::size_t, std::size_t) { return fieldValue; }, minExtent,
+                                maxExtent);
+}
+
+/// @brief Write a map with Bz rising along x: 0 at x = -10000, bz at x = 10000.
+/// @param output Stream receiving the covfie dump
+/// @param bz Field value at the upper x edge
+inline void WriteXGradientCovfieField(std::ostream &output, float bz)
+{
+  auto field = MakeSampledCovfieField(
+      [&](std::size_t x, std::size_t, std::size_t) { return std::array<float, 3>{{0.f, 0.f, bz * x}}; });
+  field.dump(output);
 }
 
 inline void WriteConstantCovfieField(std::ostream &output, const std::array<float, 3> &fieldValue,

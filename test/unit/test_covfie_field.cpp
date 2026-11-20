@@ -62,5 +62,26 @@ int main()
   }
 
   std::filesystem::remove(fieldPath);
+
+  // Field rising along x from 0 to bz over [-10000, 10000]: outside the map the value is the edge value, as on the
+  // CUDA texture, not an extrapolation
+  const float bz = 1.f / 1024.f;
+  {
+    std::ofstream output(fieldPath, std::ofstream::binary);
+    adept_test::WriteXGradientCovfieField(output, bz);
+  }
+  CovfieField gradient(fieldPath.string());
+  std::filesystem::remove(fieldPath);
+  const double xs[]       = {-20000., -10000., 0., 10000., 20000.};
+  const double expected[] = {0., 0., 0.5 * bz, bz, bz};
+  for (int i = 0; i < 5; ++i) {
+    G4double point[4] = {xs[i], 0., 0., 0.};
+    G4double value[3] = {-1., -1., -1.};
+    gradient.GetFieldValue(point, value);
+    if (value[2] != expected[i]) {
+      std::cerr << "Gradient CovfieField at x=" << xs[i] << ": Bz=" << value[2] << ", expected " << expected[i] << "\n";
+      return 1;
+    }
+  }
   return 0;
 }
