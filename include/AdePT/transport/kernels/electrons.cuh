@@ -871,15 +871,17 @@ static __device__ __forceinline__ void TransportElectrons(ParticleManager &parti
 
 // Instantiate kernels for electrons and positrons.
 template <class SteppingActionT>
-__global__ void TransportElectrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
-                                   AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
+__global__ void __launch_bounds__(kTransportThreads)
+    TransportElectrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
+                       AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   TransportElectrons</*IsElectron*/ true, SteppingActionT>(particleManager, InFlightStats, params, allowFinishOffEvent,
                                                            options);
 }
 template <class SteppingActionT>
-__global__ void TransportPositrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
-                                   AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
+__global__ void __launch_bounds__(kTransportThreads)
+    TransportPositrons(ParticleManager particleManager, Stats *InFlightStats, const StepActionParam params,
+                       AllowFinishOffEventArray allowFinishOffEvent, const TransportKernelOptions options)
 {
   TransportElectrons</*IsElectron*/ false, SteppingActionT>(particleManager, InFlightStats, params, allowFinishOffEvent,
                                                             options);

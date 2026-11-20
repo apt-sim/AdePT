@@ -820,7 +820,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
 #endif
 
   auto computeThreadsAndBlocks = [](unsigned int nParticles) -> std::pair<unsigned int, unsigned int> {
-    constexpr int TransportThreads = 32;
+    constexpr int TransportThreads = kTransportThreads;
     // If using a larger block size, it may be worth using a smaller size when transporting few
     // tracks in order to increase the number of blocks launched
     // constexpr int LowOccupancyTransportThreads = 32;
