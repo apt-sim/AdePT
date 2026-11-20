@@ -7,6 +7,7 @@
  */
 
 #include <AdePT/transport/containers/MParrayT.h>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/support/Portability.hh>
 
 #include <gtest/gtest.h>
@@ -31,7 +32,7 @@ class ManagedArray {
 public:
   explicit ManagedArray(int capacity)
   {
-    const auto result = ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&fStorage, Array::SizeOfInstance(capacity));
+    const auto result = adept_test::MallocDeviceVisible(&fStorage, Array::SizeOfInstance(capacity));
     if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       throw std::runtime_error{ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result)};
     }
@@ -153,7 +154,7 @@ TEST(MParrayTest, ConcurrentDevicePushesStopAtCapacity)
 
   ManagedArray array{capacity};
   unsigned int *failures = nullptr;
-  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&failures, sizeof(*failures)));
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), adept_test::MallocDeviceVisible(&failures, sizeof(*failures)));
   *failures = 0;
 
   PushValues<<<numBlocks, numThreads>>>(array.get(), numValues, failures);

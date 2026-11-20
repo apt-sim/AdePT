@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/tracks/TrackDebug.cuh>
 #include <AdePT/transport/kernels/electrons_split.cuh>
 #include <AdePT/transport/kernels/gammas_split.cuh>
@@ -82,7 +83,7 @@ class Managed {
 public:
   Managed()
   {
-    ADEPT_DEVICE_API_CALL(MallocManaged(&fValue, sizeof(T)));
+    adept_test::AllocDeviceVisible(&fValue, sizeof(T));
     new (fValue) T{};
   }
   ~Managed()
@@ -144,7 +145,7 @@ public:
 protected:
   void SetUp() override
   {
-    ADEPT_DEVICE_API_CALL(MallocManaged(&fQueueStorage, adept::MParray::SizeOfInstance(1)));
+    adept_test::AllocDeviceVisible(&fQueueStorage, adept::MParray::SizeOfInstance(1));
     fQueue = adept::MParray::MakeInstanceAt(1, fQueueStorage);
     ASSERT_TRUE(fQueue->push_back(0));
   }

@@ -8,6 +8,7 @@
  */
 
 #include <AdePT/transport/containers/mpmc_bounded_queue.h>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/support/Portability.hh>
 
 #include <gtest/gtest.h>
@@ -29,7 +30,7 @@ class ManagedQueue {
 public:
   explicit ManagedQueue(int capacity)
   {
-    const auto result = ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&fStorage, Queue::SizeOfInstance(capacity));
+    const auto result = adept_test::MallocDeviceVisible(&fStorage, Queue::SizeOfInstance(capacity));
     if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       throw std::runtime_error{ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result)};
     }
@@ -201,8 +202,8 @@ TEST(BoundedQueueTest, ConcurrentDeviceProducersAndConsumers)
   ManagedQueue queue{numValues};
   unsigned int *failures  = nullptr;
   unsigned long long *sum = nullptr;
-  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&failures, sizeof(*failures)));
-  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&sum, sizeof(*sum)));
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), adept_test::MallocDeviceVisible(&failures, sizeof(*failures)));
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(Success), adept_test::MallocDeviceVisible(&sum, sizeof(*sum)));
   *failures = 0;
   *sum      = 0;
 

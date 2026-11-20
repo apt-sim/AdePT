@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
+#include "DeviceVisibleMemory.hh"
 #include <VecGeom/management/DeviceManager.h>
 #include <VecGeom/management/GeoManager.h>
 #include <gtest/gtest.h>
@@ -26,10 +27,11 @@ struct ManagedArray {
   T *data = nullptr;
   explicit ManagedArray(std::size_t count)
   {
-    const auto status = cudaMallocManaged(&data, count * sizeof(T));
-    if (status != cudaSuccess) throw std::runtime_error(cudaGetErrorString(status));
+    const auto status = adept_test::MallocDeviceVisible(&data, count * sizeof(T));
+    if (status != ADEPT_DEVICE_API_SYMBOL(Success))
+      throw std::runtime_error(ADEPT_DEVICE_API_SYMBOL(GetErrorString)(status));
   }
-  ~ManagedArray() { cudaFree(data); }
+  ~ManagedArray() { ADEPT_DEVICE_API_SYMBOL(Free)(data); }
   ManagedArray(const ManagedArray &)            = delete;
   ManagedArray &operator=(const ManagedArray &) = delete;
   T &operator[](std::size_t index) { return data[index]; }
@@ -113,8 +115,10 @@ TEST(WoodcockHelper, SeparatesCandidateAdmissionFromEnvelopeContainment)
   aux[logicalIds[3]].fGPUregionId = 2;
   aux[logicalIds[0]].fGPUregionId = 3;
   ASSERT_TRUE(vecgeom::DeviceManager::Instance().SynchronizeNavigationTable());
-  ASSERT_EQ(cudaMemcpyToSymbol(adept::transport::gWDTData, &view, sizeof(view)), cudaSuccess);
-  ASSERT_EQ(cudaMemcpyToSymbol(adept::transport::gVolAuxData, &aux.data, sizeof(aux.data)), cudaSuccess);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(MemcpyToSymbol)(adept::transport::gWDTData, &view, sizeof(view)),
+            ADEPT_DEVICE_API_SYMBOL(Success));
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(MemcpyToSymbol)(adept::transport::gVolAuxData, &aux.data, sizeof(aux.data)),
+            ADEPT_DEVICE_API_SYMBOL(Success));
 
   constexpr int count = 9;
   ManagedArray<vecgeom::NavigationState> states(count);
@@ -131,8 +135,8 @@ TEST(WoodcockHelper, SeparatesCandidateAdmissionFromEnvelopeContainment)
     energies[i] = i == 7 ? 0.125 : (i == 8 ? 0.25 : 1.);
   }
   CheckWdtDispatch<<<1, 32>>>(states.data, energies.data, count, selectedRoots.data, regionIndices.data, dispatch.data);
-  ASSERT_EQ(cudaGetLastError(), cudaSuccess);
-  ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(GetLastError)(), ADEPT_DEVICE_API_SYMBOL(Success));
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)(), ADEPT_DEVICE_API_SYMBOL(Success));
   for (int i = 0; i < count; ++i) {
     EXPECT_EQ(selectedRoots[i], expectedRoots[i]) << "case " << i;
     EXPECT_EQ(regionIndices[i], expectedRegions[i]) << "case " << i;
@@ -141,10 +145,11 @@ TEST(WoodcockHelper, SeparatesCandidateAdmissionFromEnvelopeContainment)
 
   // Empty WDT data must reject admission without dereferencing the null map.
   const adeptint::WDTDeviceView emptyView{};
-  ASSERT_EQ(cudaMemcpyToSymbol(adept::transport::gWDTData, &emptyView, sizeof(emptyView)), cudaSuccess);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(MemcpyToSymbol)(adept::transport::gWDTData, &emptyView, sizeof(emptyView)),
+            ADEPT_DEVICE_API_SYMBOL(Success));
   CheckWdtDispatch<<<1, 32>>>(states.data, energies.data, count, selectedRoots.data, regionIndices.data, dispatch.data);
-  ASSERT_EQ(cudaGetLastError(), cudaSuccess);
-  ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(GetLastError)(), ADEPT_DEVICE_API_SYMBOL(Success));
+  ASSERT_EQ(ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)(), ADEPT_DEVICE_API_SYMBOL(Success));
   for (int i = 0; i < count; ++i) {
     EXPECT_EQ(selectedRoots[i], -1) << "case " << i;
     EXPECT_EQ(regionIndices[i], -1) << "case " << i;

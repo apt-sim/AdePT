@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include <AdePT/transport/random/G4HepEmRandomEngineDeviceImpl.hh>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/tracks/TrackDebug.cuh>
 #include <AdePT/transport/kernels/electrons_split.cuh>
 
@@ -44,9 +45,10 @@ __constant__ __device__ UniformMagneticField *gMagneticField = nullptr;
 } // namespace adept::transport
 
 namespace {
-void CheckCuda(cudaError_t status)
+void CheckCuda(ADEPT_DEVICE_API_SYMBOL(Error_t) status)
 {
-  if (status != cudaSuccess) throw std::runtime_error(cudaGetErrorString(status));
+  if (status != ADEPT_DEVICE_API_SYMBOL(Success))
+    throw std::runtime_error(ADEPT_DEVICE_API_SYMBOL(GetErrorString)(status));
 }
 
 // Unified memory lets host setup/assertions and the production GPU kernel access
@@ -58,7 +60,7 @@ struct Managed {
   std::size_t count;
   explicit Managed(std::size_t size = 1) : count(size)
   {
-    CheckCuda(cudaMallocManaged(&data, count * sizeof(T)));
+    CheckCuda(adept_test::MallocDeviceVisible(&data, count * sizeof(T)));
     for (std::size_t i = 0; i < count; ++i)
       new (data + i) T{};
   }
@@ -66,7 +68,7 @@ struct Managed {
   {
     for (std::size_t i = 0; i < count; ++i)
       data[i].~T();
-    cudaFree(data);
+    ADEPT_DEVICE_API_SYMBOL(Free)(data);
   }
   Managed(const Managed &)            = delete;
   Managed &operator=(const Managed &) = delete;
@@ -81,14 +83,14 @@ struct ManagedQueue {
   adept::MParray *data;
   ManagedQueue()
   {
-    CheckCuda(cudaMallocManaged(&storage, adept::MParray::SizeOfInstance(1)));
+    CheckCuda(adept_test::MallocDeviceVisible(&storage, adept::MParray::SizeOfInstance(1)));
     data = adept::MParray::MakeInstanceAt(1, storage);
     data->clear();
   }
   ~ManagedQueue()
   {
     adept::MParray::ReleaseInstance(data);
-    cudaFree(storage);
+    ADEPT_DEVICE_API_SYMBOL(Free)(storage);
   }
 };
 
@@ -202,9 +204,9 @@ void CheckDeferredInitialization(bool tinyFirstStep)
   if (tinyFirstStep) physics->region.fDRoverRange = 1.e-8;
   // Point the production kernel globals at the managed fixture data. The same
   // tables and G4HepEm track remain available for the second launch.
-  CheckCuda(cudaMemcpyToSymbol(gVolAuxData, &aux.data, sizeof(aux.data)));
-  CheckCuda(cudaMemcpyToSymbol(g4HepEmData, &physics->data, sizeof(physics->data)));
-  CheckCuda(cudaMemcpyToSymbol(g4HepEmPars, &physics->parameters, sizeof(physics->parameters)));
+  CheckCuda(ADEPT_DEVICE_API_SYMBOL(MemcpyToSymbol)(gVolAuxData, &aux.data, sizeof(aux.data)));
+  CheckCuda(ADEPT_DEVICE_API_SYMBOL(MemcpyToSymbol)(g4HepEmData, &physics->data, sizeof(physics->data)));
+  CheckCuda(ADEPT_DEVICE_API_SYMBOL(MemcpyToSymbol)(g4HepEmPars, &physics->parameters, sizeof(physics->parameters)));
   // The isolated executable starts with a null magnetic-field pointer.
   adept::SteppingAction::Params actionParameters{};
 #if ADEPT_STEPACTION_TYPE == 2
@@ -215,8 +217,8 @@ void CheckDeferredInitialization(bool tinyFirstStep)
     propagation.data->clear();
     ElectronHowFar<IsElectron, adept::SteppingAction::Action>
         <<<1, 32>>>(manager, hepEmTrack.data, propagation.data, stats.data, actionParameters, {finishOff.data}, {});
-    CheckCuda(cudaGetLastError());
-    CheckCuda(cudaDeviceSynchronize());
+    CheckCuda(ADEPT_DEVICE_API_SYMBOL(GetLastError)());
+    CheckCuda(ADEPT_DEVICE_API_SYMBOL(DeviceSynchronize)());
   };
   // First launch: the safety case has range * fUMSCPar = 1 * 0.3 < 0.4 mm,
   // so StepLimit returns before initializing. The tiny-step case instead skips

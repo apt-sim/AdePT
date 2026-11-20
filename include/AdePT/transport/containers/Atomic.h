@@ -19,6 +19,9 @@
 namespace adept {
 /**
  * @brief A portable atomic type. Not all base types are supported by CUDA.
+ * @details Objects updated by device atomics must live in device memory. Host-resident memory (pinned host memory,
+ * managed memory on GPUs without page migration) is reached over PCIe, which supports only add, exchange and
+ * compare-and-swap: on AMD GPUs the other operations (subtract, and, or, ...) are silently lost there.
  */
 template <typename Type>
 struct AtomicBase_t {

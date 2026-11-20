@@ -7,6 +7,7 @@
  */
 
 #include <AdePT/transport/containers/SlotManager.cuh>
+#include "DeviceVisibleMemory.hh"
 #include <AdePT/transport/support/Portability.hh>
 
 #include <gtest/gtest.h>
@@ -27,7 +28,7 @@ public:
   explicit ManagedBuffer(std::size_t size) : fSize{size}
   {
     if (size == 0) return;
-    const auto result = ADEPT_DEVICE_API_SYMBOL(MallocManaged)(&fData, size * sizeof(T));
+    const auto result = adept_test::MallocDeviceVisible(&fData, size * sizeof(T));
     if (result != ADEPT_DEVICE_API_SYMBOL(Success)) {
       throw std::runtime_error{ADEPT_DEVICE_API_SYMBOL(GetErrorString)(result)};
     }
@@ -195,7 +196,11 @@ TEST(SlotManagerTest, MoveAssignmentReleasesOldAllocationAndResetsSource)
   EXPECT_EQ(3u, destination.fFreeCounter);
   ExpectMovedFrom(source);
 
-  ADEPT_DEVICE_API_SYMBOL(PointerAttributes) attributes{};
+#if defined(__HIP__)
+  hipPointerAttribute_t attributes{};
+#else
+  cudaPointerAttributes attributes{};
+#endif
   const auto result = ADEPT_DEVICE_API_SYMBOL(PointerGetAttributes)(&attributes, oldDestinationAllocation);
   if (result == ADEPT_DEVICE_API_SYMBOL(Success)) {
     EXPECT_EQ(ADEPT_DEVICE_API_SYMBOL(MemoryTypeUnregistered), attributes.type);
