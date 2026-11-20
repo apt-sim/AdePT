@@ -47,6 +47,16 @@ The public build options are recorded in the generated header `AdePT/AdePTBuildF
 installation and included by the AdePT headers themselves. Consumers therefore do not need to pass any of these
 options as compile definitions; a definition that disagrees with the installation is rejected with a compile error.
 
+## Building for AMD GPUs (HIP)
+
+Configure with `-DADEPT_COMPUTE_BACKEND=HIP`, the ROCm compiler (`-DCMAKE_CXX_COMPILER=amdclang++
+-DCMAKE_HIP_COMPILER=amdclang++ -DCMAKE_HIP_ARCHITECTURES=<gfx target>`), VecGeom built with `VECGEOM_ENABLE_HIP=ON`
+and G4HepEm built with `G4HepEm_HIP_BUILD=ON`. HIP builds use static libraries.
+
+At run time, set `GPU_MAX_HW_QUEUES=8`. HIP maps streams onto this many in-order hardware queues (default 4); with
+fewer queues than the streams the transport uses concurrently, streams wait on each other. On an RX 7900 XTX this gave
+1.25x in the event loop. AdePT prints a warning when the variable is unset or below 8.
+
 ## Optional: Run Tests
 
 ```console

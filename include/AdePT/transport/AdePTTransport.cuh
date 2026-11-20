@@ -629,6 +629,15 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
   }
 #endif
 
+#ifdef __HIP__
+  // HIP maps streams onto GPU_MAX_HW_QUEUES in-order hardware queues (default 4); with fewer queues than concurrent
+  // streams, a stream waiting on an event also stalls the streams sharing its queue
+  if (const char *queues = std::getenv("GPU_MAX_HW_QUEUES"); queues == nullptr || std::atoi(queues) < 8) {
+    std::cerr << "AdePT: GPU_MAX_HW_QUEUES is " << (queues ? queues : "unset (default 4)")
+              << ", fewer than the 8 hardware queues the transport streams need; set GPU_MAX_HW_QUEUES=8\n";
+  }
+#endif
+
   // Create a stream to synchronize kernels of all particle types.
   ADEPT_DEVICE_API_CALL(StreamCreate(&gpuState.stream));
 
