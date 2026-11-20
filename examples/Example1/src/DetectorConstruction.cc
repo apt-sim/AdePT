@@ -62,6 +62,12 @@ void DetectorConstruction::ConstructSDandField()
   std::unique_ptr<IField> field;
 
 #ifdef ADEPT_USE_EXT_BFIELD
+  // This build takes the field only from a file, on the CPU and the GPU: a uniform field would silently be no field
+  if (fFieldFile == "" && fMagFieldVector.mag2() > 0.0) {
+    G4Exception("DetectorConstruction::ConstructSDandField", "Example1Field", FatalException,
+                "/detector/setField needs AdePT built with ADEPT_USE_EXT_BFIELD=OFF; this build reads the field only "
+                "from /detector/setCovfieBfieldFile");
+  }
   // Set a 3D magnetic field from file. If no file is provided, no magnetic field is used in the G4 transport
   if (fFieldFile != "") {
     G4cout << G4endl << " *** SETTING MAGNETIC FIELD TO READ FROM FILE " << fFieldFile << " *** " << G4endl << G4endl;

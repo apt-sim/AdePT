@@ -50,6 +50,15 @@ __global__ void EvaluateFieldKernel(const GeneralMagneticField *generalField, Un
   }
 }
 
+constexpr int kNumGradientPoints = 5;
+
+__global__ void EvaluateGradientKernel(const GeneralMagneticField *field, float *bz)
+{
+  const float xs[kNumGradientPoints] = {-20000.f, -10000.f, 0.f, 10000.f, 20000.f};
+  for (int i = 0; i < kNumGradientPoints; ++i)
+    bz[i] = field->Evaluate(vecgeom::Vector3D<float>(xs[i], 0.f, 0.f))[2];
+}
+
 } // namespace
 
 int main()
@@ -104,6 +113,39 @@ int main()
                   << ": Covfie=" << generalValue << ", uniform=" << uniformValue << "\n";
         return 1;
       }
+    }
+  }
+
+  // Field rising along x from 0 to bz over [-10000, 10000]: the device field takes the edge value outside the map
+  const float bz          = 1.f / 1024.f;
+  const auto gradientPath = MakeTempFieldPath();
+  {
+    std::ofstream output(gradientPath, std::ofstream::binary);
+    adept_test::WriteXGradientCovfieField(output, bz);
+  }
+  GeneralMagneticField hostGradient;
+  const bool loaded = hostGradient.InitializeFromFile(gradientPath.string());
+  std::filesystem::remove(gradientPath);
+  if (!loaded) return 1;
+
+  float bzValues[kNumGradientPoints] = {};
+  float *deviceBz                    = nullptr;
+  ADEPT_DEVICE_API_CALL(Malloc(&deviceField, sizeof(GeneralMagneticField)));
+  ADEPT_DEVICE_API_CALL(
+      Memcpy(deviceField, &hostGradient, sizeof(GeneralMagneticField), ADEPT_DEVICE_API_SYMBOL(MemcpyHostToDevice)));
+  ADEPT_DEVICE_API_CALL(Malloc(&deviceBz, sizeof(bzValues)));
+  EvaluateGradientKernel<<<1, 1>>>(deviceField, deviceBz);
+  ADEPT_DEVICE_API_CALL(DeviceSynchronize());
+  ADEPT_DEVICE_API_CALL(Memcpy(bzValues, deviceBz, sizeof(bzValues), ADEPT_DEVICE_API_SYMBOL(MemcpyDeviceToHost)));
+  ADEPT_DEVICE_API_CALL(Free(deviceBz));
+  ADEPT_DEVICE_API_CALL(Free(deviceField));
+
+  const float expected[kNumGradientPoints] = {0.f, 0.f, 0.5f * bz, bz, bz};
+  for (int i = 0; i < kNumGradientPoints; ++i) {
+    if (bzValues[i] != expected[i]) {
+      std::cerr << "Gradient device field at point " << i << ": Bz=" << bzValues[i] << ", expected " << expected[i]
+                << "\n";
+      return 1;
     }
   }
 

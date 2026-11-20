@@ -14,6 +14,7 @@
 #include "G4RunManager.hh"
 #include "G4MTRunManager.hh"
 #include "G4TransportationManager.hh"
+#include "G4FieldManager.hh"
 #include "G4EmParameters.hh"
 
 #include "G4Electron.hh"
@@ -179,7 +180,15 @@ void AdePTTrackingManager::InitializeSharedAdePTTransport()
 {
 #ifdef ADEPT_USE_EXT_BFIELD
   std::cout << "Reading in covfie file for magnetic field: " << fAdePTConfiguration->GetCovfieBfieldFile() << std::endl;
-  if (fAdePTConfiguration->GetCovfieBfieldFile() == "") std::cout << "No magnetic field file provided!" << std::endl;
+  if (fAdePTConfiguration->GetCovfieBfieldFile() == "") {
+    // The GPU field comes only from the covfie file: without it, GPU tracks would ignore the Geant4 field
+    if (G4TransportationManager::GetTransportationManager()->GetFieldManager()->GetDetectorField() != nullptr) {
+      G4Exception("AdePTTrackingManager::InitializeSharedAdePTTransport", "AdePTField", FatalException,
+                  "Geant4 has a magnetic field but the GPU has none: this build (ADEPT_USE_EXT_BFIELD=ON) needs "
+                  "/adept/setCovfieBfieldFile");
+    }
+    std::cout << "No magnetic field file provided!" << std::endl;
+  }
 #endif
   fAdePTConfiguration->LockTransportInitializationOptions();
 
