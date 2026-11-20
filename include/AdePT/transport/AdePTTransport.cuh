@@ -296,7 +296,7 @@ __global__ void FinishIteration(AllParticleQueues all, Stats *stats, TracksAndSl
 
     if (particlesInFlight > occupiedSlots) {
       printf("Error: %d in flight while %d slots allocated\n", particlesInFlight, occupiedSlots);
-      asm("trap;");
+      ADEPT_DEVICE_TRAP();
     }
   } else if (blockIdx.x == 2) {
     if (threadIdx.x == 0) {
@@ -614,7 +614,7 @@ std::unique_ptr<GPUstate, GPUstateDeleter> InitializeGPU(int trackCapacity, int 
     }
   }
 #else
-  vecgeom::Vector3D<float> bfieldValues({uniformBfieldValues[0], uniformBfieldValues[1], uniformBfieldValues[2]});
+  vecgeom::Vector3D<float> bfieldValues(uniformBfieldValues[0], uniformBfieldValues[1], uniformBfieldValues[2]);
   std::unique_ptr<UniformMagneticField> Bfield = std::make_unique<UniformMagneticField>(bfieldValues);
 
   vecgeom::Vector3D<float> position{
@@ -1256,7 +1256,7 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
             // with gpuState.stream
             waitForOtherStream(gpuState.stream, stepTransferStream);
             waitForOtherStream(gpuState.stream, injectStream);
-            static_assert(gpuState.nSlotManager_dev == GPUQueueIndex::NumSpecies,
+            static_assert(GPUstate::nSlotManager_dev == GPUQueueIndex::NumSpecies,
                           "The below launches assume there is a slot manager per particle type.");
             FreeSlots1<<<10, 256, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);
             FreeSlots2<<<1, 1, 0, gpuState.stream>>>(gpuState.slotManager_dev + i);

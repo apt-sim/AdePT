@@ -44,13 +44,25 @@ static inline void error_check(cudaError_t err, const char *file, int line)
   } while (0)
 
 /** @brief Trigger a runtime error depending on the backend */
-#ifndef COPCORE_DEVICE_COMPILATION
+#if defined(__HIP__)
+// clang also checks __device__ bodies in the host pass: overload on the execution space instead of the pass
+[[noreturn]] inline __host__ void Exception(const char *message)
+{
+  throw std::runtime_error(message);
+}
+[[noreturn]] inline __device__ void Exception(const char *message)
+{
+  printf("Exception: %s\n", message);
+  ADEPT_DEVICE_TRAP();
+}
+#define COPCORE_EXCEPTION(message) ::copcore::Exception(message)
+#elif !defined(COPCORE_DEVICE_COMPILATION)
 #define COPCORE_EXCEPTION(message) throw std::runtime_error(message)
 #else
 #define COPCORE_EXCEPTION(message)      \
   do {                                  \
     printf("Exception: %s\n", message); \
-    asm("trap;");                       \
+    ADEPT_DEVICE_TRAP();                \
   } while (0)
 #endif
 
@@ -65,7 +77,11 @@ static inline int get_num_SMs()
 {
   int deviceId, numSMs;
   ADEPT_DEVICE_API_CALL(GetDevice(&deviceId));
+#if defined(__HIP__)
+  ADEPT_DEVICE_API_CALL(DeviceGetAttribute(&numSMs, hipDeviceAttributeMultiprocessorCount, deviceId));
+#else
   ADEPT_DEVICE_API_CALL(DeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, deviceId));
+#endif
   return numSMs;
 }
 #endif
@@ -79,7 +95,7 @@ struct StreamType {
 #ifdef COPCORE_CUDA_COMPILER
 template <>
 struct StreamType<BackendType::CUDA> {
-  using value_type = cudaStream_t;
+  using value_type = ADEPT_DEVICE_API_SYMBOL(Stream_t);
   static void CreateStream(value_type &stream) { ADEPT_DEVICE_API_CALL(StreamCreate(&stream)); }
 };
 #endif

@@ -48,6 +48,8 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# AdePT uses no C++20 modules: skip the dependency scan CMake runs with clang (needs clang-scan-deps)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
 set(CMAKE_CUDA_STANDARD_REQUIRED ${CMAKE_CXX_STANDARD_REQUIRED})
 set(CMAKE_CUDA_EXTENSIONS OFF)
@@ -226,11 +228,17 @@ endif()
 if(ADEPT_USE_CUDA)
   # With CUDA language enabled above, this should find the toolkit alongside the compiler
   find_package(CUDAToolkit REQUIRED)
+  set(ADEPT_DEVICE_RUNTIME CUDA::cudart)
+elseif(ADEPT_USE_HIP)
+  find_package(hip REQUIRED)
+  set(ADEPT_DEVICE_RUNTIME hip::host)
 endif()
 
 #Find VecCore with correct backend
 set(VecCore_VERSION 0.5.2)
-set(VecCore_BACKEND CUDA)
+if(ADEPT_USE_CUDA)
+  set(VecCore_BACKEND CUDA)
+endif()
 find_package(VecCore ${VecCore_VERSION} REQUIRED COMPONENTS ${VecCore_BACKEND})
 message(STATUS "Using VecCore version ${Cyan}${VecCore_VERSION}${ColorReset}")
 
@@ -247,6 +255,11 @@ if(ADEPT_USE_CUDA AND NOT VecGeom_CUDA_FOUND)
     "AdePT requires a VecGeom build with CUDA support when "
     "ADEPT_COMPUTE_BACKEND=CUDA. Rebuild/reinstall VecGeom with CUDA enabled "
     "and point CMake to that installation."
+  )
+endif()
+if(ADEPT_USE_HIP AND NOT VecGeom_HIP_FOUND)
+  message(FATAL_ERROR
+    "AdePT requires a VecGeom build with HIP support (VECGEOM_ENABLE_HIP) when ADEPT_COMPUTE_BACKEND=HIP."
   )
 endif()
 
@@ -326,7 +339,11 @@ else()
     "Geant4_static_FOUND nor Geant4_shared_FOUND is set."
   )
 endif()
-message(STATUS "AdePT library type: ${Green}${_adept_library_type}${ColorReset} (taken from Geant4)")
+if(ADEPT_USE_HIP)
+  # HIP links the relocatable device code into each executable: AdePT libraries must be static
+  set(_adept_library_type STATIC)
+endif()
+message(STATUS "AdePT library type: ${Green}${_adept_library_type}${ColorReset}")
 
 # If both Geant4 STATIC and SHARED are installed, plain Geant4_LIBRARIES still refers to
 # the default imported SHARED targets. Remap those targets to their -static siblings
@@ -441,7 +458,11 @@ if(ADEPT_USE_EXT_BFIELD)
       GIT_TAG ${ADEPT_COVFIE_TAG}
     )
 
-    set(COVFIE_PLATFORM_CUDA ON CACHE BOOL "Enable CUDA support in covfie" FORCE)
+    if(ADEPT_USE_HIP)
+      set(COVFIE_PLATFORM_HIP ON CACHE BOOL "Enable HIP support in covfie" FORCE)
+    else()
+      set(COVFIE_PLATFORM_CUDA ON CACHE BOOL "Enable CUDA support in covfie" FORCE)
+    endif()
     FetchContent_MakeAvailable(covfie)
 
     FetchContent_GetProperties(covfie)
@@ -488,15 +509,16 @@ add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<OR:$<CONFIG:RelWithDebIn
 add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma>")
 # Add track debug as compile definition for CUDA if debugging requested
 if(ADEPT_DEBUG_TRACK GREATER 0)
-  add_compile_options("$<$<COMPILE_LANGUAGE:CUDA>:-DADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>")
+  add_compile_options("$<$<COMPILE_LANGUAGE:CUDA,HIP>:-DADEPT_DEBUG_TRACK=${ADEPT_DEBUG_TRACK}>")
 endif()
-if(ADEPT_USE_HIP)
-  add_compile_options("$<$<COMPILE_LANGUAGE:HIP>:-Xcudafe;--diag_suppress=unrecognized_gcc_pragma;-rdc=true>")
-endif()
+# HIP: relocatable device code (-fgpu-rdc) comes with VecGeom::vecgeom
 
 find_package(G4HepEm CONFIG REQUIRED)
 if(G4HepEm_FOUND)
   message(STATUS "G4HepEm found ${G4HepEm_INCLUDE_DIR}")
+endif()
+if(ADEPT_USE_HIP AND NOT G4HepEm_hip_FOUND)
+  message(FATAL_ERROR "AdePT requires a G4HepEm build with HIP support (G4HepEm_HIP_BUILD) when ADEPT_COMPUTE_BACKEND=HIP.")
 endif()
 
 #----------------------------------------------------------------------------#
@@ -535,10 +557,6 @@ cuda_rdc_add_library(Transport ${_adept_library_type}
   ${ADEPT_CORE_SRCS}
 )
 
-if(ADEPT_USE_HIP)
-  set_source_files_properties(src/transport/AdePTTransport.cu PROPERTIES LANGUAGE HIP)
-  set_source_files_properties(src/g4integration/cuda/G4IntegrationRdcFacade.cu PROPERTIES LANGUAGE HIP)
-endif()
 
 cuda_rdc_target_include_directories(Transport
   PUBLIC
@@ -555,14 +573,14 @@ cuda_rdc_target_link_libraries(Transport
     G4HepEm::g4HepEmData
     G4HepEm::g4HepEmInit
     G4HepEm::g4HepEmRun
-    CUDA::cudart
+    ${ADEPT_DEVICE_RUNTIME}
 )
 if(ADEPT_USE_EXT_BFIELD)
   # link covfie if external magnetic field usage is enabled
   cuda_rdc_target_link_libraries(Transport
     PUBLIC
       covfie::core
-      covfie::cuda
+      $<IF:$<BOOL:${ADEPT_USE_HIP}>,covfie::hip,covfie::cuda>
   )
 endif()
 
@@ -719,6 +737,32 @@ configure_package_config_file(cmake/${PROJECT_NAME}Config.cmake.in
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   PATH_VARS CMAKE_INSTALL_INCLUDEDIR
 )
+
+# HIP: the .cu sources of all targets (libraries, tests, examples) are compiled by the HIP language
+if(ADEPT_USE_HIP)
+  function(adept_hip_sources dir)
+    get_property(_targets DIRECTORY ${dir} PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(_target ${_targets})
+      get_target_property(_sources ${_target} SOURCES)
+      get_target_property(_source_dir ${_target} SOURCE_DIR)
+      if(NOT _sources)
+        continue()
+      endif()
+      list(FILTER _sources INCLUDE REGEX "\\.cu$")
+      foreach(_source ${_sources})
+        if(NOT IS_ABSOLUTE ${_source})
+          set(_source ${_source_dir}/${_source})
+        endif()
+        set_source_files_properties(${_source} DIRECTORY ${_source_dir} PROPERTIES LANGUAGE HIP)
+      endforeach()
+    endforeach()
+    get_property(_subdirs DIRECTORY ${dir} PROPERTY SUBDIRECTORIES)
+    foreach(_subdir ${_subdirs})
+      adept_hip_sources(${_subdir})
+    endforeach()
+  endfunction()
+  adept_hip_sources(${PROJECT_SOURCE_DIR})
+endif()
 
 # Install RDC targets one by one. With the current CudaRdcUtils helper,
 # batching multiple targets in a single cuda_rdc_install(...) call can drop

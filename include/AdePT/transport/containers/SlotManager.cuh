@@ -31,7 +31,7 @@ public:
   __host__ __device__ SlotManager(const value_type slotListSize, const value_type freeListSize)
       : fSlotListSize{slotListSize}, fFreeListSize{freeListSize}
   {
-#ifdef __CUDA_ARCH__
+#ifdef COPCORE_DEVICE_COMPILATION
     Clear();
 #else
     const auto memSize = sizeof(value_type) * (fSlotListSize + fFreeListSize);
@@ -46,7 +46,7 @@ public:
   }
   __host__ __device__ ~SlotManager()
   {
-#ifndef __CUDA_ARCH__
+#ifndef COPCORE_DEVICE_COMPILATION
     try {
       if (fSlotList) ADEPT_DEVICE_API_CALL(Free(fSlotList));
     } catch (const std::exception &e) {
@@ -99,7 +99,7 @@ public:
 
 __host__ __device__ void SlotManager::Clear()
 {
-#ifdef __CUDA_ARCH__
+#ifdef COPCORE_DEVICE_COMPILATION
   for (unsigned int i = threadIdx.x + blockIdx.x * blockDim.x; i < fSlotListSize; i += blockDim.x * gridDim.x) {
     fSlotList[i] = i;
   }

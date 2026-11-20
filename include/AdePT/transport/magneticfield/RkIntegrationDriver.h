@@ -132,7 +132,7 @@ inline __host__ __device__ Real_t RkIntegrationDriver<Stepper_t, Real_t, Int_t, 
 #endif
     htry = hgood;
     if (goodStep && !done) {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 #pragma unroll
 #endif
       for (int i = 0; i < Nvar; i++) {
@@ -240,9 +240,8 @@ inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Eq
 // ----------------------------------------------------------------------------------------
 
 template <class Stepper_t, typename Real_t, typename Int_t, class Equation_t, class MagField_t>
-bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::CheckModulus(Real_t &newdirX,
-                                                                                         Real_t &newdirY,
-                                                                                         Real_t &newdirZ)
+inline __host__ __device__ bool RkIntegrationDriver<Stepper_t, Real_t, Int_t, Equation_t, MagField_t>::CheckModulus(
+    Real_t &newdirX, Real_t &newdirY, Real_t &newdirZ)
 {
   constexpr float perMillion = 1.0e-6;
 

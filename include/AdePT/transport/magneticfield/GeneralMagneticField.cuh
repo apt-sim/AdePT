@@ -22,10 +22,14 @@
 #include <covfie/core/backend/transformer/linear.hpp>
 #include <covfie/core/backend/transformer/strided.hpp>
 #include <covfie/core/field.hpp>
+#if defined(__HIP__)
+#include <covfie/hip/backend/primitive/hip_device_array.hpp>
+#else
 #include <covfie/cuda/backend/primitive/cuda_device_array.hpp>
 #include <covfie/cuda/error_check.hpp>
 
 #include <covfie/cuda/backend/primitive/cuda_texture.hpp>
+#endif
 
 using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
     covfie::backend::strided<covfie::vector::size3, covfie::backend::array<covfie::vector::float3>>>>>;
@@ -34,9 +38,15 @@ using cpu_field_t = covfie::field<covfie::backend::affine<covfie::backend::linea
 // using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
 //     covfie::backend::strided<covfie::vector::size3, covfie::backend::cuda_device_array<covfie::vector::float3>>>>>;
 
+#if defined(__HIP__)
+// covfie has no HIP texture backend: trilinear interpolation over normal GPU memory
+using cuda_field_t = covfie::field<covfie::backend::affine<covfie::backend::linear<
+    covfie::backend::strided<covfie::vector::size3, covfie::backend::hip_device_array<covfie::vector::float3>>>>>;
+#else
 // use GPU texture memory
 using cuda_field_t = covfie::field<
     covfie::backend::affine<covfie::backend::cuda_texture<covfie::vector::float3, covfie::vector::float3>>>;
+#endif
 
 using field_view_t = typename cuda_field_t::view_t;
 #endif
@@ -60,9 +70,14 @@ public:
     cpu_field_t cpuField(ifs);
     ifs.close();
 
+#if defined(__HIP__)
+    // device field in normal GPU memory
+    fFieldMap = std::make_unique<cuda_field_t>(cpuField);
+#else
     // create device field map in texture memory
     fFieldMap = std::make_unique<cuda_field_t>(covfie::make_parameter_pack(
         cpuField.backend().get_configuration(), cpuField.backend().get_backend().get_backend()));
+#endif
 
     // alternative: create device field in global GPU memory
     // fFieldMap = std::make_unique<cuda_field_t>(cpuField);

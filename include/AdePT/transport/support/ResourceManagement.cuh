@@ -77,7 +77,7 @@ void freeCudaEvent(void *event)
 }
 
 // Instantiate the deleters for specific types.
-#ifdef __CUDACC__
+#ifdef COPCORE_CUDA_COMPILER
 template <>
 struct CudaDeleter<ADEPT_DEVICE_API_SYMBOL(Stream_t)> {
   void operator()(ADEPT_DEVICE_API_SYMBOL(Stream_t) * stream) const { freeCudaStream(stream); }
