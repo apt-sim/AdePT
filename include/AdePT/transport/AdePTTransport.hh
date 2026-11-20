@@ -16,7 +16,7 @@
 #include <AdePT/transport/woodcock/WoodcockData.hh>
 
 #include <VecGeom/base/Config.h>
-#include <VecGeom/management/CudaManager.h> // forward declares vecgeom::cxx::VPlacedVolume
+#include <VecGeom/management/DeviceManager.h> // declares vecgeom::VPlacedVolumeT
 
 #include <condition_variable>
 #include <mutex>
@@ -67,7 +67,7 @@ private:
   void Initialize(adeptint::VolAuxData *auxData, const adeptint::WDTHostPacked &wdtPacked,
                   const std::vector<float> &uniformFieldValues);
   void InitBVH();
-  bool InitializeGeometry(const vecgeom::cxx::VPlacedVolume *world);
+  bool InitializeGeometry(const vecgeom::VPlacedVolumeT<vecgeom::MemSpace::host> *world);
   bool InitializePhysics();
 
 public:

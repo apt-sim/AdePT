@@ -41,12 +41,11 @@
 using SelectedSteppingAction = adept::SteppingAction::Action;
 
 #include <VecGeom/base/Config.h>
-#include <VecGeom/management/CudaManager.h>
+#include <VecGeom/management/DeviceManager.h>
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 #ifdef ADEPT_USE_SURF
-#include <VecGeom/surfaces/cuda/BrepCudaManager.h>
 #endif
 
 #include <G4HepEmData.hh>
@@ -445,22 +444,6 @@ void setDeviceLimits(int stackLimit = 0, int heapLimit = 0)
   }
 }
 
-void CopySurfaceModelToGPU()
-{
-// Copy surface data to GPU
-#ifdef ADEPT_USE_SURF
-#ifdef ADEPT_MIXED_PRECISION
-  using SurfData        = vgbrep::SurfData<float>;
-  using BrepCudaManager = vgbrep::BrepCudaManager<float>;
-#else
-  using SurfData        = vgbrep::SurfData<double>;
-  using BrepCudaManager = vgbrep::BrepCudaManager<double>;
-#endif
-  BrepCudaManager::Instance().TransferSurfData(SurfData::Instance());
-  printf("== Surface data transferred to GPU\n");
-#endif
-}
-
 void UploadG4HepEmToGPU(G4HepEmData *hepEmData, G4HepEmParameters *hepEmParameters)
 {
   if (hepEmData == nullptr || hepEmParameters == nullptr) {
@@ -800,9 +783,8 @@ void TransportLoop(int trackCapacity, int stepCapacity, int numThreads, TrackBuf
                    const double stepBufferSafetyFactor, bool hasWDTRegions)
 {
 
-  using InjectState                             = GPUstate::InjectState;
-  auto &cudaManager                             = vecgeom::cxx::CudaManager::Instance();
-  const vecgeom::cuda::VPlacedVolume *world_dev = cudaManager.world_gpu();
+  using InjectState                                                   = GPUstate::InjectState;
+  const vecgeom::VPlacedVolumeT<vecgeom::MemSpace::device> *world_dev = vecgeom::DeviceManager::Instance().world_gpu();
 
   auto &electrons                = gpuState.electrons;
   auto &positrons                = gpuState.positrons;

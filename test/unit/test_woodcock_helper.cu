@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <AdePT/transport/kernels/WoodcockHelper.cuh>
-#include <VecGeom/management/CudaManager.h>
+#include <VecGeom/management/DeviceManager.h>
 #include <VecGeom/management/GeoManager.h>
 #include <gtest/gtest.h>
 
@@ -38,7 +38,7 @@ struct ManagedArray {
 struct GeometryCleanup {
   ~GeometryCleanup()
   {
-    vecgeom::cxx::CudaManager::Instance().CleanGpu();
+    vecgeom::DeviceManager::Instance().CleanGpu();
     vecgeom::GeoManager::Instance().Clear();
   }
 };
@@ -112,7 +112,7 @@ TEST(WoodcockHelper, SeparatesCandidateAdmissionFromEnvelopeContainment)
   aux[logicalIds[2]].fGPUregionId = 7;
   aux[logicalIds[3]].fGPUregionId = 2;
   aux[logicalIds[0]].fGPUregionId = 3;
-  ASSERT_TRUE(vecgeom::cxx::CudaManager::Instance().SynchronizeNavigationTable());
+  ASSERT_TRUE(vecgeom::DeviceManager::Instance().SynchronizeNavigationTable());
   ASSERT_EQ(cudaMemcpyToSymbol(adept::transport::gWDTData, &view, sizeof(view)), cudaSuccess);
   ASSERT_EQ(cudaMemcpyToSymbol(adept::transport::gVolAuxData, &aux.data, sizeof(aux.data)), cudaSuccess);
 

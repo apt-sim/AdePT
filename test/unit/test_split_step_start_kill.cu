@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 
 #ifdef ADEPT_ENABLE_WDT
-#include <VecGeom/management/CudaManager.h>
+#include <VecGeom/management/DeviceManager.h>
 #include <VecGeom/management/GeoManager.h>
 #include <array>
 
@@ -131,12 +131,12 @@ public:
     // The single auxiliary entry below represents the world's logical volume.
     ASSERT_EQ(logicalIds[0], 0);
     fWorldIndex = indices[6];
-    ASSERT_TRUE(vecgeom::cxx::CudaManager::Instance().SynchronizeNavigationTable());
+    ASSERT_TRUE(vecgeom::DeviceManager::Instance().SynchronizeNavigationTable());
   }
 
   static void TearDownTestSuite()
   {
-    vecgeom::cxx::CudaManager::Instance().CleanGpu();
+    vecgeom::DeviceManager::Instance().CleanGpu();
     vecgeom::GeoManager::Instance().Clear();
   }
 #endif
